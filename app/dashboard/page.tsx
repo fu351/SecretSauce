@@ -142,87 +142,43 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">My Recipes</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalRecipes}</p>
-                </div>
-                <ChefHat className="h-8 w-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Favorites</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.favoriteRecipes}</p>
-                </div>
-                <Heart className="h-8 w-8 text-red-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Meal Plans</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.mealPlansThisWeek}</p>
-                </div>
-                <Calendar className="h-8 w-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Pantry Items</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.pantryItems}</p>
-                </div>
-                <ShoppingCart className="h-8 w-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <Link href="/meal-planner">
-              <CardContent className="p-6 text-center">
-                <Calendar className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Plan Your Week</h3>
-                <p className="text-gray-600">Create meal plans and shopping lists</p>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Link href="/recipes">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardContent className="p-6 flex flex-col items-center">
+                <ChefHat className="h-8 w-8 text-orange-500 mb-2" />
+                <p className="text-sm font-medium text-gray-600">My Recipes</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.totalRecipes}</p>
               </CardContent>
-            </Link>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <Link href="/recipes">
-              <CardContent className="p-6 text-center">
-                <ChefHat className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Browse Recipes</h3>
-                <p className="text-gray-600">Discover new recipes to try</p>
+            </Card>
+          </Link>
+          <Link href="/favorites">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardContent className="p-6 flex flex-col items-center">
+                <Heart className="h-8 w-8 text-red-500 mb-2" />
+                <p className="text-sm font-medium text-gray-600">Favorites</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.favoriteRecipes}</p>
               </CardContent>
-            </Link>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <Link href="/pantry">
-              <CardContent className="p-6 text-center">
-                <ShoppingCart className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Manage Pantry</h3>
-                <p className="text-gray-600">Track your ingredients and supplies</p>
+            </Card>
+          </Link>
+          <Link href="/meal-planner">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardContent className="p-6 flex flex-col items-center">
+                <Calendar className="h-8 w-8 text-blue-500 mb-2" />
+                <p className="text-sm font-medium text-gray-600">Meal Plans</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.mealPlansThisWeek}</p>
               </CardContent>
-            </Link>
-          </Card>
+            </Card>
+          </Link>
+          <Link href="/pantry">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardContent className="p-6 flex flex-col items-center">
+                <ShoppingCart className="h-8 w-8 text-green-500 mb-2" />
+                <p className="text-sm font-medium text-gray-600">Pantry Items</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.pantryItems}</p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* Recent Recipes */}
