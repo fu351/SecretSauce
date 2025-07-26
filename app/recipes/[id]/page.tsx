@@ -56,7 +56,16 @@ export default function RecipeDetailPage() {
 
       if (error) throw error
 
-      setRecipe(data)
+      // Ensure arrays are properly initialized
+      const processedRecipe = {
+        ...data,
+        ingredients: data.ingredients || [],
+        instructions: data.instructions || [],
+        tags: data.dietary_tags || [],
+        cuisine: data.cuisine_type || ""
+      }
+
+      setRecipe(processedRecipe)
     } catch (error) {
       console.error("Error loading recipe:", error)
       router.push("/recipes")
@@ -68,7 +77,7 @@ export default function RecipeDetailPage() {
   const checkIfFavorite = async () => {
     try {
       const { data, error } = await supabase
-        .from("favorites")
+        .from("recipe_favorites")
         .select("id")
         .eq("user_id", user?.id)
         .eq("recipe_id", params.id)
@@ -88,12 +97,12 @@ export default function RecipeDetailPage() {
 
     try {
       if (isFavorite) {
-        const { error } = await supabase.from("favorites").delete().eq("user_id", user.id).eq("recipe_id", params.id)
+        const { error } = await supabase.from("recipe_favorites").delete().eq("user_id", user.id).eq("recipe_id", params.id)
 
         if (error) throw error
         setIsFavorite(false)
       } else {
-        const { error } = await supabase.from("favorites").insert({
+        const { error } = await supabase.from("recipe_favorites").insert({
           user_id: user.id,
           recipe_id: params.id,
         })
