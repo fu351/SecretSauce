@@ -9,6 +9,7 @@ import { Calendar, Clock, Users, Heart, Grid, CalendarIcon } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
+import { uniq } from "lodash" // Add lodash or use a simple deduplication function
 
 interface Recipe {
   id: string
@@ -18,40 +19,48 @@ interface Recipe {
   cook_time: number
   servings: number
   difficulty: string
-  cuisine: string
+  cuisine_type: string
   image_url: string
-  tags: string[]
-  ingredients: string[]
-  instructions: string[]
+  dietary_tags: string[]
+  ingredients: any[]
+  instructions: any[]
   user_id: string
+}
+
+interface MealEntry {
+  meal_type: "breakfast" | "lunch" | "dinner" | "snack"
+  date: string // ISO date string
+  recipe_id: string
 }
 
 interface MealPlan {
   id: string
-  date: string
-  meal_type: "breakfast" | "lunch" | "dinner" | "snack"
-  recipe_id: string
-  recipe: Recipe
+  week_start: string
+  meals: MealEntry[]
+  shopping_list: any
+  total_budget: number
+  created_at: string
+  updated_at: string
 }
 
 export default function MealPlannerPage() {
   const { user } = useAuth()
   const [favoriteRecipes, setFavoriteRecipes] = useState<Recipe[]>([])
   const [suggestedRecipes, setSuggestedRecipes] = useState<Recipe[]>([])
-  const [mealPlans, setMealPlans] = useState<MealPlan[]>([])
+  const [mealPlan, setMealPlan] = useState<MealPlan | null>(null)
+  const [recipesById, setRecipesById] = useState<Record<string, Recipe>>({})
   const [loading, setLoading] = useState(true)
   const [showFavorites, setShowFavorites] = useState(true)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0])
   const [viewMode, setViewMode] = useState<"daily" | "weekly">("daily")
   const [draggedRecipe, setDraggedRecipe] = useState<string | null>(null)
   const [weekDates, setWeekDates] = useState<string[]>([])
-  const [weeklyMealPlans, setWeeklyMealPlans] = useState<Record<string, MealPlan[]>>({})
 
   // Generate week dates based on selected date
   useEffect(() => {
     const date = new Date(selectedDate)
     const day = date.getDay()
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Adjust when day is Sunday
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Monday as start
     const monday = new Date(date.setDate(diff))
 
     const weekDays = []
@@ -66,18 +75,15 @@ export default function MealPlannerPage() {
 
   useEffect(() => {
     if (user) {
-      if (viewMode === "daily") {
-        loadData()
-      } else {
-        loadWeekData()
-      }
+      loadAllData()
     }
+    // eslint-disable-next-line
   }, [user, selectedDate, viewMode, weekDates])
 
-  const loadData = async () => {
+  const loadAllData = async () => {
     setLoading(true)
     try {
-      await Promise.all([loadFavoriteRecipes(), loadSuggestedRecipes(), loadMealPlans()])
+      await Promise.all([loadFavoriteRecipes(), loadSuggestedRecipes(), loadMealPlan()])
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -85,17 +91,63 @@ export default function MealPlannerPage() {
     }
   }
 
-  const loadWeekData = async () => {
-    setLoading(true)
+  // 1. Load meal plan for the week and fetch all referenced recipes
+  const loadMealPlan = async () => {
     try {
-      await Promise.all([loadFavoriteRecipes(), loadSuggestedRecipes(), loadWeeklyMealPlans()])
+      // Find the start of the week for the selected date
+      const date = new Date(selectedDate)
+      const day = date.getDay()
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+      const weekStart = new Date(date.setDate(diff)).toISOString().split("T")[0]
+
+      const { data, error } = await supabase
+        .from("meal_plans")
+        .select("*")
+        .eq("user_id", user?.id)
+        .eq("week_start", weekStart)
+        .single()
+
+      if (error && error.code !== "PGRST116") throw error
+
+      if (!data) {
+        setMealPlan(null)
+        setRecipesById({})
+        return
+      }
+
+      setMealPlan(data)
+
+      // Gather all recipe_ids from meals JSONB
+      const meals: MealEntry[] = data.meals || []
+      const recipeIds = uniq(meals.map((m) => m.recipe_id))
+
+      if (recipeIds.length === 0) {
+        setRecipesById({})
+        return
+      }
+
+      // Fetch all recipes for this week
+      const { data: recipes, error: recipesError } = await supabase
+        .from("recipes")
+        .select("*")
+        .in("id", recipeIds)
+
+      if (recipesError) throw recipesError
+
+      // Map recipes by ID for quick lookup
+      const recipesMap: Record<string, Recipe> = {}
+      recipes.forEach((r: Recipe) => {
+        recipesMap[r.id] = r
+      })
+      setRecipesById(recipesMap)
     } catch (error) {
-      console.error("Error loading weekly data:", error)
-    } finally {
-      setLoading(false)
+      setMealPlan(null)
+      setRecipesById({})
+      console.error("Error loading meal plan:", error)
     }
   }
 
+  // 2. Load favorite recipes
   const loadFavoriteRecipes = async () => {
     try {
       const { data, error } = await supabase
@@ -103,7 +155,7 @@ export default function MealPlannerPage() {
         .select(`
           recipe:recipes (
             id, title, description, prep_time, cook_time, servings,
-            difficulty, cuisine, image_url, tags, ingredients, instructions, user_id
+            difficulty, cuisine_type, image_url, dietary_tags, ingredients, instructions, user_id
           )
         `)
         .eq("user_id", user?.id)
@@ -113,10 +165,12 @@ export default function MealPlannerPage() {
       const recipes = data?.map((item) => item.recipe).filter(Boolean) || []
       setFavoriteRecipes(recipes)
     } catch (error) {
+      setFavoriteRecipes([])
       console.error("Error loading favorite recipes:", error)
     }
   }
 
+  // 3. Load suggested recipes
   const loadSuggestedRecipes = async () => {
     try {
       const { data, error } = await supabase
@@ -129,117 +183,78 @@ export default function MealPlannerPage() {
 
       setSuggestedRecipes(data || [])
     } catch (error) {
+      setSuggestedRecipes([])
       console.error("Error loading suggested recipes:", error)
     }
   }
 
-  const loadMealPlans = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("meal_plans")
-        .select(`
-          *,
-          recipe:recipes (
-            id, title, description, prep_time, cook_time, servings,
-            difficulty, cuisine, image_url, tags, ingredients, instructions, user_id
-          )
-        `)
-        .eq("user_id", user?.id)
-        .eq("date", selectedDate)
-        .order("meal_type")
-
-      if (error) throw error
-
-      setMealPlans(data || [])
-    } catch (error) {
-      console.error("Error loading meal plans:", error)
-    }
-  }
-
-  const loadWeeklyMealPlans = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("meal_plans")
-        .select(`
-          *,
-          recipe:recipes (
-            id, title, description, prep_time, cook_time, servings,
-            difficulty, cuisine, image_url, tags, ingredients, instructions, user_id
-          )
-        `)
-        .eq("user_id", user?.id)
-        .in("date", weekDates)
-        .order("meal_type")
-
-      if (error) throw error
-
-      // Group by date
-      const groupedByDate: Record<string, MealPlan[]> = {}
-      weekDates.forEach((date) => {
-        groupedByDate[date] = []
-      })
-
-      data?.forEach((plan) => {
-        if (groupedByDate[plan.date]) {
-          groupedByDate[plan.date].push(plan)
-        } else {
-          groupedByDate[plan.date] = [plan]
-        }
-      })
-
-      setWeeklyMealPlans(groupedByDate)
-    } catch (error) {
-      console.error("Error loading weekly meal plans:", error)
-    }
-  }
-
+  // 4. Add a recipe to the meal plan for a specific day/meal_type
   const addToMealPlan = async (recipeId: string, mealType: string, date = selectedDate) => {
     if (!user) return
 
-    try {
-      const { error } = await supabase.from("meal_plans").insert({
-        user_id: user.id,
-        recipe_id: recipeId,
-        date: date,
-        meal_type: mealType,
-      })
+    // Find the start of the week for the given date
+    const d = new Date(date)
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+    const weekStart = new Date(d.setDate(diff)).toISOString().split("T")[0]
 
-      if (error) throw error
-
-      if (viewMode === "daily") {
-        await loadMealPlans()
-      } else {
-        await loadWeeklyMealPlans()
-      }
-    } catch (error) {
-      console.error("Error adding to meal plan:", error)
+    // Fetch or create the meal plan for this week
+    let currentPlan = mealPlan
+    if (!currentPlan || currentPlan.week_start !== weekStart) {
+      // Try to fetch from DB
+      const { data, error } = await supabase
+        .from("meal_plans")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("week_start", weekStart)
+        .single()
+      if (error && error.code !== "PGRST116") throw error
+      currentPlan = data
     }
-  }
 
-  const removeFromMealPlan = async (mealPlanId: string) => {
-    try {
-      const { error } = await supabase.from("meal_plans").delete().eq("id", mealPlanId)
+    let meals: MealEntry[] = currentPlan?.meals || []
+    // Remove any existing entry for this mealType/date
+    meals = meals.filter((m) => !(m.date === date && m.meal_type === mealType))
+    // Add the new entry
+    meals.push({ meal_type: mealType as MealEntry["meal_type"], date, recipe_id: recipeId })
 
+    if (currentPlan) {
+      // Update
+      const { error } = await supabase
+        .from("meal_plans")
+        .update({ meals })
+        .eq("id", currentPlan.id)
       if (error) throw error
-
-      if (viewMode === "daily") {
-        await loadMealPlans()
-      } else {
-        await loadWeeklyMealPlans()
-      }
-    } catch (error) {
-      console.error("Error removing from meal plan:", error)
+    } else {
+      // Insert
+      const { error } = await supabase
+        .from("meal_plans")
+        .insert({
+          user_id: user.id,
+          week_start: weekStart,
+          meals,
+        })
+      if (error) throw error
     }
+    await loadMealPlan()
   }
 
-  const handleDragStart = (recipeId: string) => {
-    setDraggedRecipe(recipeId)
+  // 5. Remove a recipe from the meal plan
+  const removeFromMealPlan = async (mealType: string, date: string) => {
+    if (!mealPlan) return
+    let meals: MealEntry[] = mealPlan.meals || []
+    meals = meals.filter((m) => !(m.date === date && m.meal_type === mealType))
+    const { error } = await supabase
+      .from("meal_plans")
+      .update({ meals })
+      .eq("id", mealPlan.id)
+    if (error) throw error
+    await loadMealPlan()
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-  }
-
+  // Drag and drop handlers
+  const handleDragStart = (recipeId: string) => setDraggedRecipe(recipeId)
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault()
   const handleDrop = (e: React.DragEvent, mealType: string, date = selectedDate) => {
     e.preventDefault()
     if (draggedRecipe) {
@@ -248,12 +263,14 @@ export default function MealPlannerPage() {
     }
   }
 
+  // Helpers to get meals for a day/meal type
   const getMealsByType = (mealType: string) => {
-    return mealPlans.filter((plan) => plan.meal_type === mealType)
+    if (!mealPlan) return []
+    return (mealPlan.meals || []).filter((m) => m.date === selectedDate && m.meal_type === mealType)
   }
-
   const getMealsByTypeAndDate = (mealType: string, date: string) => {
-    return weeklyMealPlans[date]?.filter((plan) => plan.meal_type === mealType) || []
+    if (!mealPlan) return []
+    return (mealPlan.meals || []).filter((m) => m.date === date && m.meal_type === mealType)
   }
 
   const mealTypes = [
@@ -262,9 +279,7 @@ export default function MealPlannerPage() {
     { key: "dinner", label: "Dinner", icon: "🌙" },
     { key: "snack", label: "Snacks", icon: "🍎" },
   ]
-
   const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
@@ -297,7 +312,6 @@ export default function MealPlannerPage() {
             <h1 className="text-2xl font-bold text-gray-900">Meal Planner</h1>
             <p className="text-sm text-gray-600">Plan your meals and organize your week</p>
           </div>
-
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Button
@@ -319,7 +333,6 @@ export default function MealPlannerPage() {
                 Weekly View
               </Button>
             </div>
-
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-gray-400" />
               <input
@@ -332,7 +345,6 @@ export default function MealPlannerPage() {
           </div>
         </div>
       </div>
-
       {/* Main Content */}
       <div className="flex-1 overflow-hidden flex">
         {/* Meal Plan Grid */}
@@ -341,7 +353,6 @@ export default function MealPlannerPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-fit">
               {mealTypes.map((mealType) => {
                 const meals = getMealsByType(mealType.key)
-
                 return (
                   <Card
                     key={mealType.key}
@@ -367,31 +378,35 @@ export default function MealPlannerPage() {
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {meals.map((meal) => (
-                            <div key={meal.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
-                              <img
-                                src={meal.recipe.image_url || "/placeholder.svg?height=60&width=60"}
-                                alt={meal.recipe.title}
-                                className="w-15 h-15 object-cover rounded"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-sm truncate">{meal.recipe.title}</h3>
-                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {(meal.recipe.prep_time || 0) + (meal.recipe.cook_time || 0)}m
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <Users className="w-3 h-3" />
-                                    {meal.recipe.servings}
-                                  </span>
+                          {meals.map((meal) => {
+                            const recipe = recipesById[meal.recipe_id]
+                            if (!recipe) return null
+                            return (
+                              <div key={meal.recipe_id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                                <img
+                                  src={recipe.image_url || "/placeholder.svg?height=60&width=60"}
+                                  alt={recipe.title}
+                                  className="w-15 h-15 object-cover rounded"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-medium text-sm truncate">{recipe.title}</h3>
+                                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {(recipe.prep_time || 0) + (recipe.cook_time || 0)}m
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Users className="w-3 h-3" />
+                                      {recipe.servings}
+                                    </span>
+                                  </div>
                                 </div>
+                                <Button size="sm" variant="ghost" onClick={() => removeFromMealPlan(meal.meal_type, meal.date)}>
+                                  ×
+                                </Button>
                               </div>
-                              <Button size="sm" variant="ghost" onClick={() => removeFromMealPlan(meal.id)}>
-                                ×
-                              </Button>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </CardContent>
@@ -437,22 +452,26 @@ export default function MealPlannerPage() {
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                {meals.map((meal) => (
-                                  <div key={meal.id} className="flex gap-2 p-1 bg-gray-50 rounded text-xs">
-                                    <img
-                                      src={meal.recipe.image_url || "/placeholder.svg?height=20&width=20"}
-                                      alt={meal.recipe.title}
-                                      className="w-5 h-5 object-cover rounded"
-                                    />
-                                    <span className="truncate flex-1">{meal.recipe.title}</span>
-                                    <button
-                                      onClick={() => removeFromMealPlan(meal.id)}
-                                      className="text-gray-400 hover:text-red-500"
-                                    >
-                                      ×
-                                    </button>
-                                  </div>
-                                ))}
+                                {meals.map((meal) => {
+                                  const recipe = recipesById[meal.recipe_id]
+                                  if (!recipe) return null
+                                  return (
+                                    <div key={meal.recipe_id} className="flex gap-2 p-1 bg-gray-50 rounded text-xs">
+                                      <img
+                                        src={recipe.image_url || "/placeholder.svg?height=20&width=20"}
+                                        alt={recipe.title}
+                                        className="w-5 h-5 object-cover rounded"
+                                      />
+                                      <span className="truncate flex-1">{recipe.title}</span>
+                                      <button
+                                        onClick={() => removeFromMealPlan(meal.meal_type, meal.date)}
+                                        className="text-gray-400 hover:text-red-500"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )}
                           </td>
@@ -465,7 +484,6 @@ export default function MealPlannerPage() {
             </div>
           )}
         </div>
-
         {/* Recipe Sidebar */}
         <div className="w-80 border-l bg-white flex flex-col">
           {/* Favorites Section */}
@@ -480,7 +498,6 @@ export default function MealPlannerPage() {
                   {showFavorites ? "Hide" : "Show"}
                 </Button>
               </div>
-
               {showFavorites && (
                 <div className="max-h-64 overflow-y-auto">
                   {favoriteRecipes.length === 0 ? (
@@ -513,7 +530,6 @@ export default function MealPlannerPage() {
               )}
             </div>
           </div>
-
           {/* Suggested Recipes */}
           <div className="flex-1 overflow-hidden">
             <div className="p-4 h-full flex flex-col">
