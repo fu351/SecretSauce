@@ -9,6 +9,12 @@ import { Clock, Users, Heart, ShoppingCart, Share2, ArrowLeft } from "lucide-rea
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 
+interface Ingredient {
+  amount: string
+  unit: string
+  name: string
+}
+
 interface Recipe {
   id: string
   title: string
@@ -17,11 +23,11 @@ interface Recipe {
   cook_time: number
   servings: number
   difficulty: string
-  cuisine: string
+  cuisine_type: string
   image_url: string
   tags: string[]
-  ingredients: string[]
-  instructions: string[]
+  ingredients: Ingredient[]
+  instructions: any[]
   user_id: string
   created_at: string
 }
@@ -56,13 +62,13 @@ export default function RecipeDetailPage() {
 
       if (error) throw error
 
-      // Ensure arrays are properly initialized
+      // Ensure arrays are properly initialized and map database fields to frontend model
       const processedRecipe = {
         ...data,
         ingredients: data.ingredients || [],
         instructions: data.instructions || [],
         tags: data.dietary_tags || [],
-        cuisine: data.cuisine_type || ""
+        cuisine_type: data.cuisine_type || ""
       }
 
       setRecipe(processedRecipe)
@@ -134,9 +140,9 @@ export default function RecipeDetailPage() {
       // Add recipe ingredients to shopping list
       const newItems = recipe.ingredients.map((ingredient, index) => ({
         id: `recipe-${recipe.id}-${index}-${Date.now()}`,
-        name: ingredient,
-        quantity: 1,
-        unit: "piece",
+        name: ingredient.name,
+        quantity: parseFloat(ingredient.amount) || 1,
+        unit: ingredient.unit,
         checked: false,
       }))
 
@@ -167,12 +173,14 @@ export default function RecipeDetailPage() {
 
     const multiplier = servings / recipe.servings
     return recipe.ingredients.map((ingredient) => {
-      // Simple regex to find numbers in ingredients
-      return ingredient.replace(/(\d+(?:\.\d+)?)/g, (match) => {
-        const num = Number.parseFloat(match)
-        const adjusted = (num * multiplier).toFixed(2)
-        return Number.parseFloat(adjusted) % 1 === 0 ? Number.parseInt(adjusted).toString() : adjusted
-      })
+      // Adjust the amount if it's a number, otherwise leave as is
+      const originalAmount = parseFloat(ingredient.amount)
+      let adjustedAmount = ingredient.amount
+      if (!isNaN(originalAmount)) {
+        const newAmount = (originalAmount * multiplier).toFixed(2)
+        adjustedAmount = parseFloat(newAmount) % 1 === 0 ? parseInt(newAmount).toString() : newAmount
+      }
+      return `${adjustedAmount} ${ingredient.unit} ${ingredient.name}`
     })
   }
 
@@ -300,7 +308,9 @@ export default function RecipeDetailPage() {
                         {index + 1}
                       </div>
                       <div className="flex-1">
-                        <p className="text-gray-700 leading-relaxed">{instruction}</p>
+                        <p className="text-gray-700 leading-relaxed">
+                          {typeof instruction === 'string' ? instruction : instruction.description || instruction.step || 'Step description not available'}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -367,10 +377,10 @@ export default function RecipeDetailPage() {
                 <span className="text-gray-600">Difficulty:</span>
                 <span className="font-medium">{recipe.difficulty}</span>
               </div>
-              {recipe.cuisine && (
+              {recipe.cuisine_type && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">Cuisine:</span>
-                  <span className="font-medium">{recipe.cuisine}</span>
+                  <span className="font-medium">{recipe.cuisine_type}</span>
                 </div>
               )}
               <div className="flex justify-between">
