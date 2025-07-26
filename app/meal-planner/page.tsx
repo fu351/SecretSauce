@@ -99,7 +99,7 @@ export default function MealPlannerPage() {
   const loadFavoriteRecipes = async () => {
     try {
       const { data, error } = await supabase
-        .from("favorites")
+        .from("recipe_favorites")
         .select(`
           recipe:recipes (
             id, title, description, prep_time, cook_time, servings,

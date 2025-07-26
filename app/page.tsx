@@ -11,6 +11,29 @@ import { RecipeSection } from "@/components/recipe-section"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 
+interface Ingredient {
+  amount: string
+  unit: string
+  name: string
+}
+
+interface Recipe {
+  id: string
+  title: string
+  description: string
+  prep_time: number
+  cook_time: number
+  servings: number
+  difficulty: string
+  cuisine: string
+  image_url: string
+  tags: string[]
+  ingredients: Ingredient[]
+  instructions: string[]
+  user_id: string
+  created_at: string
+}
+
 // Add fallback recipes data before the component
 const fallbackRecipes = [
   {
