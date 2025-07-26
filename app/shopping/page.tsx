@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button, Input } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -244,237 +245,227 @@ export default function ShoppingPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Smart Shopping</h1>
-        <p className="text-muted-foreground">Compare prices across stores and manage your shopping list</p>
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 bg-white border-b px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Smart Shopping</h1>
+            <p className="text-sm text-gray-600">Compare prices and manage your list</p>
+          </div>
+          <Badge variant="secondary" className="text-sm">
+            {shoppingList.length} items in list
+          </Badge>
+        </div>
       </div>
 
-      <Tabs defaultValue="search" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="search">Price Comparison</TabsTrigger>
-          <TabsTrigger value="list">Shopping List ({shoppingList.length})</TabsTrigger>
-        </TabsList>
+      {/* Main Content */}
+      <div className="flex-1 overflow-hidden">
+        <Tabs defaultValue="search" className="h-full flex flex-col">
+          <div className="flex-shrink-0 px-6 pt-4">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="search">Price Comparison</TabsTrigger>
+              <TabsTrigger value="list">Shopping List</TabsTrigger>
+            </TabsList>
+          </div>
 
-        <TabsContent value="search" className="space-y-6">
-          {/* Search Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Search Products</CardTitle>
-              <CardDescription>Find the best prices across multiple stores</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search for products..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                  />
-                </div>
-                <div className="w-32">
-                  <Input placeholder="ZIP Code" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
-                </div>
-                <Button onClick={handleSearch} disabled={loading}>
-                  <Search className="w-4 h-4 mr-2" />
-                  {loading ? "Searching..." : "Search"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <TabsContent value="search" className="flex-1 px-6 pb-6 overflow-hidden">
+            <div className="h-full flex flex-col space-y-4">
+              {/* Search Bar */}
+              <Card className="flex-shrink-0">
+                <CardContent className="p-4">
+                  <div className="flex gap-3">
+                    <Input
+                      placeholder="Search for products..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                      className="flex-1"
+                    />
+                    <Input
+                      placeholder="ZIP"
+                      value={zipCode}
+                      onChange={(e) => setZipCode(e.target.value)}
+                      className="w-20"
+                    />
+                    <Button onClick={handleSearch} disabled={loading} className="bg-orange-500 hover:bg-orange-600">
+                      <Search className="w-4 h-4 mr-2" />
+                      {loading ? "Searching..." : "Search"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Store Results Carousel */}
-          {storeResults.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold">Price Comparison</h2>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" onClick={prevStore} disabled={storeResults.length <= 1}>
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    {currentStoreIndex + 1} of {storeResults.length}
-                  </span>
-                  <Button variant="outline" size="icon" onClick={nextStore} disabled={storeResults.length <= 1}>
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-
+              {/* Results */}
               {storeResults.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <MapPin className="w-5 h-5" />
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Store Navigation */}
+                  <div className="flex-shrink-0 flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">Price Comparison</h2>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={prevStore} disabled={storeResults.length <= 1}>
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <span className="text-sm text-gray-600 px-3">
+                        {currentStoreIndex + 1} of {storeResults.length}
+                      </span>
+                      <Button variant="outline" size="sm" onClick={nextStore} disabled={storeResults.length <= 1}>
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Current Store Results */}
+                  <Card className="flex-1 overflow-hidden">
+                    <CardHeader className="flex-shrink-0 pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <MapPin className="w-4 h-4" />
                           {storeResults[currentStoreIndex].store}
                         </CardTitle>
-                        <CardDescription>Total: ${storeResults[currentStoreIndex].total.toFixed(2)}</CardDescription>
+                        <Badge variant={currentStoreIndex === 0 ? "default" : "secondary"}>
+                          {currentStoreIndex === 0
+                            ? "Best Price"
+                            : `+$${(storeResults[currentStoreIndex].total - storeResults[0].total).toFixed(2)}`}
+                        </Badge>
                       </div>
-                      <Badge variant={currentStoreIndex === 0 ? "default" : "secondary"}>
-                        {currentStoreIndex === 0
-                          ? "Best Price"
-                          : `+$${(storeResults[currentStoreIndex].total - storeResults[0].total).toFixed(2)}`}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {storeResults[currentStoreIndex].items.map((item) => (
-                        <Card key={item.id} className="relative">
-                          <CardContent className="p-4">
-                            <div className="flex gap-3">
-                              <img
-                                src={item.image_url || "/placeholder.svg"}
-                                alt={item.title}
-                                className="w-16 h-16 object-cover rounded-lg"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-sm truncate">{item.title}</h3>
-                                <p className="text-xs text-muted-foreground truncate">{item.brand}</p>
-                                <div className="flex items-center justify-between mt-2">
-                                  <div>
-                                    <span className="text-lg font-bold text-green-600">${item.price.toFixed(2)}</span>
-                                    {item.pricePerUnit && (
-                                      <p className="text-xs text-muted-foreground">{item.pricePerUnit}</p>
-                                    )}
+                      <CardDescription>Total: ${storeResults[currentStoreIndex].total.toFixed(2)}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-y-auto">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {storeResults[currentStoreIndex].items.map((item) => (
+                          <Card key={item.id} className="relative">
+                            <CardContent className="p-3">
+                              <div className="flex gap-3">
+                                <img
+                                  src={item.image_url || "/placeholder.svg"}
+                                  alt={item.title}
+                                  className="w-12 h-12 object-cover rounded"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-medium text-sm truncate">{item.title}</h3>
+                                  <p className="text-xs text-gray-500 truncate">{item.brand}</p>
+                                  <div className="flex items-center justify-between mt-2">
+                                    <div>
+                                      <span className="text-lg font-bold text-green-600">${item.price.toFixed(2)}</span>
+                                      {item.pricePerUnit && (
+                                        <p className="text-xs text-gray-500">{item.pricePerUnit}</p>
+                                      )}
+                                    </div>
+                                    <Button size="sm" onClick={() => addToShoppingList(item)} className="shrink-0">
+                                      <Plus className="w-3 h-3" />
+                                    </Button>
                                   </div>
-                                  <Button size="sm" onClick={() => addToShoppingList(item)} className="shrink-0">
-                                    <Plus className="w-3 h-3" />
-                                  </Button>
                                 </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Store Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {storeResults.map((store, index) => (
-                  <Card
-                    key={store.store}
-                    className={`cursor-pointer transition-colors ${
-                      index === currentStoreIndex ? "ring-2 ring-blue-500" : ""
-                    }`}
-                    onClick={() => setCurrentStoreIndex(index)}
-                  >
-                    <CardContent className="p-4 text-center">
-                      <h3 className="font-medium text-sm">{store.store}</h3>
-                      <p className="text-lg font-bold text-green-600">${store.total.toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">{store.items.length} items</p>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="list" className="space-y-6">
-          {/* Add Custom Item */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Add Item</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Item name"
-                  value={newItem.name}
-                  onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                  className="flex-1"
-                />
-                <Input
-                  type="number"
-                  placeholder="Qty"
-                  value={newItem.quantity}
-                  onChange={(e) => setNewItem({ ...newItem, quantity: Number.parseInt(e.target.value) || 1 })}
-                  className="w-20"
-                />
-                <select
-                  value={newItem.unit}
-                  onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="piece">piece</option>
-                  <option value="lb">lb</option>
-                  <option value="oz">oz</option>
-                  <option value="cup">cup</option>
-                  <option value="tsp">tsp</option>
-                  <option value="tbsp">tbsp</option>
-                </select>
-                <Button onClick={addCustomItem}>
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Shopping List */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Shopping List</CardTitle>
-                {shoppingList.some((item) => item.checked) && (
-                  <Button onClick={addToPantry} variant="outline">
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Add to Pantry
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {shoppingList.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  Your shopping list is empty. Add items from the price comparison or manually.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {shoppingList.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`flex items-center gap-3 p-3 border rounded-lg ${
-                        item.checked ? "bg-green-50 border-green-200" : ""
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.checked}
-                        onChange={() => toggleItemChecked(item.id)}
-                        className="w-4 h-4"
-                      />
-                      <div className="flex-1">
-                        <span className={item.checked ? "line-through text-muted-foreground" : ""}>{item.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => updateItemQuantity(item.id, -1)}>
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="w-12 text-center">
-                          {item.quantity} {item.unit}
-                        </span>
-                        <Button size="sm" variant="outline" onClick={() => updateItemQuantity(item.id, 1)}>
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => removeItem(item.id)}>
-                          ×
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="list" className="flex-1 px-6 pb-6 overflow-hidden">
+            <div className="h-full flex flex-col space-y-4">
+              {/* Add Item */}
+              <Card className="flex-shrink-0">
+                <CardContent className="p-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Item name"
+                      value={newItem.name}
+                      onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Qty"
+                      value={newItem.quantity}
+                      onChange={(e) => setNewItem({ ...newItem, quantity: Number.parseInt(e.target.value) || 1 })}
+                      className="w-16"
+                    />
+                    <select
+                      value={newItem.unit}
+                      onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                      className="px-2 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="piece">pc</option>
+                      <option value="lb">lb</option>
+                      <option value="oz">oz</option>
+                    </select>
+                    <Button onClick={addCustomItem} className="bg-orange-500 hover:bg-orange-600">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Shopping List */}
+              <Card className="flex-1 overflow-hidden">
+                <CardHeader className="flex-shrink-0 pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Shopping List</CardTitle>
+                    {shoppingList.some((item) => item.checked) && (
+                      <Button onClick={addToPantry} size="sm" className="bg-green-600 hover:bg-green-700">
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Add to Pantry
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-y-auto">
+                  {shoppingList.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <ShoppingCart className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>Your shopping list is empty</p>
+                      <p className="text-sm">Add items from price comparison or manually</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {shoppingList.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`flex items-center gap-3 p-3 border rounded-lg ${
+                            item.checked ? "bg-green-50 border-green-200" : "bg-white"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={item.checked}
+                            onChange={() => toggleItemChecked(item.id)}
+                            className="w-4 h-4"
+                          />
+                          <div className="flex-1">
+                            <span className={item.checked ? "line-through text-gray-500" : ""}>{item.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="outline" onClick={() => updateItemQuantity(item.id, -1)}>
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            <span className="w-12 text-center text-sm">
+                              {item.quantity} {item.unit}
+                            </span>
+                            <Button size="sm" variant="outline" onClick={() => updateItemQuantity(item.id, 1)}>
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => removeItem(item.id)}>
+                              ×
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }

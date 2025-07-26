@@ -19,11 +19,20 @@ interface StoreResults {
 
 export async function searchGroceryStores(searchTerm: string, zipCode = "47906"): Promise<StoreResults[]> {
   try {
-    // Call the grocery search API
-    const response = await fetch(`/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}`)
+    // Check if we have the Python service URL
+    const pythonServiceUrl = process.env.PYTHON_SERVICE_URL || process.env.NEXT_PUBLIC_PYTHON_SERVICE_URL
+
+    if (!pythonServiceUrl) {
+      console.warn("Python service URL not configured, using mock data")
+      return getMockGroceryData(searchTerm)
+    }
+
+    const response = await fetch(
+      `${pythonServiceUrl}/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}`,
+    )
 
     if (!response.ok) {
-      throw new Error("Failed to fetch grocery data")
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
 
     const data = await response.json()
@@ -31,53 +40,79 @@ export async function searchGroceryStores(searchTerm: string, zipCode = "47906")
     // Group results by store
     const storeMap = new Map<string, GroceryItem[]>()
 
-    data.results?.forEach((item: GroceryItem) => {
+    data.results?.forEach((item: any) => {
       const storeName = item.provider || item.location || "Unknown Store"
       if (!storeMap.has(storeName)) {
         storeMap.set(storeName, [])
       }
-      storeMap.get(storeName)!.push(item)
+
+      storeMap.get(storeName)!.push({
+        id: item.id || `${storeName}-${Math.random()}`,
+        title: item.title || item.name || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: storeName,
+        location: item.location,
+        category: item.category,
+      })
     })
 
     // Convert to StoreResults format
-    const storeResults: StoreResults[] = Array.from(storeMap.entries()).map(([store, items]) => ({
+    const results: StoreResults[] = Array.from(storeMap.entries()).map(([store, items]) => ({
       store,
       items: items.slice(0, 10), // Limit to 10 items per store
       total: items.reduce((sum, item) => sum + item.price, 0),
     }))
 
-    return storeResults.sort((a, b) => a.total - b.total) // Sort by total price
+    // Sort by total price (cheapest first)
+    return results.sort((a, b) => a.total - b.total)
   } catch (error) {
-    console.error("Error searching grocery stores:", error)
-
-    // Return mock data as fallback
-    return generateMockStoreResults(searchTerm)
+    console.error("Error fetching from grocery API:", error)
+    return getMockGroceryData(searchTerm)
   }
 }
 
-function generateMockStoreResults(searchTerm: string): StoreResults[] {
-  const stores = ["Target", "Kroger", "Meijer", "99 Ranch"]
+function getMockGroceryData(searchTerm: string): StoreResults[] {
+  const mockItems = [
+    {
+      id: "1",
+      title: `Organic ${searchTerm}`,
+      brand: "Store Brand",
+      price: 3.99,
+      pricePerUnit: "$3.99/lb",
+      unit: "lb",
+      image_url: "/placeholder.svg",
+      provider: "Target",
+      category: "Produce",
+    },
+    {
+      id: "2",
+      title: `Fresh ${searchTerm}`,
+      brand: "Premium",
+      price: 4.49,
+      pricePerUnit: "$4.49/lb",
+      unit: "lb",
+      image_url: "/placeholder.svg",
+      provider: "Target",
+      category: "Produce",
+    },
+  ]
 
-  return stores.map((store) => {
-    const items: GroceryItem[] = Array.from({ length: 5 }, (_, i) => {
-      const basePrice = Math.random() * 8 + 2
-      return {
-        id: `${store}-${i}`,
-        title: `${searchTerm} ${i + 1}`,
-        brand: `${store} Brand`,
-        price: Number(basePrice.toFixed(2)),
-        pricePerUnit: `$${basePrice.toFixed(2)}/lb`,
-        unit: "lb",
-        image_url: "/placeholder.svg?height=100&width=100",
-        provider: store,
-        category: "Grocery",
-      }
-    })
+  const stores = ["Target", "Kroger", "Meijer"]
 
-    return {
+  return stores
+    .map((store) => ({
       store,
-      items,
-      total: Number(items.reduce((sum, item) => sum + item.price, 0).toFixed(2)),
-    }
-  })
+      items: mockItems.map((item) => ({
+        ...item,
+        id: `${store}-${item.id}`,
+        provider: store,
+        price: item.price + (Math.random() - 0.5) * 2, // Add some price variation
+      })),
+      total: mockItems.reduce((sum, item) => sum + item.price, 0),
+    }))
+    .sort((a, b) => a.total - b.total)
 }

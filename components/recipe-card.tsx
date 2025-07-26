@@ -15,7 +15,7 @@ interface RecipeCardProps {
   title: string
   image: string
   rating: number
-  difficulty: "Beginner" | "Intermediate" | "Advanced"
+  difficulty: "beginner" | "intermediate" | "advanced"
   comments: number
   tags: string[]
   issues?: number
@@ -44,9 +44,15 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
         .eq("user_id", user.id)
         .single()
 
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 is "not found" error, which is expected when not favorited
+        console.warn("Error checking favorites:", error)
+        return
+      }
+
       setIsFavorited(!!data)
     } catch (error) {
-      // Not favorited
+      console.warn("Error checking if favorited:", error)
       setIsFavorited(false)
     }
   }
@@ -92,7 +98,7 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
       console.error("Error toggling favorite:", error)
       toast({
         title: "Error",
-        description: "Failed to update favorites.",
+        description: "Failed to update favorites. Database may not be set up yet.",
         variant: "destructive",
       })
     } finally {
@@ -102,11 +108,11 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
-      case "Beginner":
+      case "beginner":
         return "bg-green-100 text-green-800"
-      case "Intermediate":
+      case "intermediate":
         return "bg-yellow-100 text-yellow-800"
-      case "Advanced":
+      case "advanced":
         return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -117,7 +123,7 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
     <div className="relative group cursor-pointer">
       <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">
         <img
-          src={image || "/placeholder.svg"}
+          src={image || "/placeholder.svg?height=300&width=400"}
           alt={title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
@@ -142,7 +148,7 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
         <div className="absolute inset-0 p-6 flex flex-col justify-between">
           {/* Top tags */}
           <div className="flex flex-wrap gap-2 justify-end mr-12">
-            {tags.map((tag, index) => (
+            {tags.slice(0, 2).map((tag, index) => (
               <Badge key={index} variant="secondary" className="bg-white/90 text-gray-800 hover:bg-white">
                 {tag}
               </Badge>
@@ -157,12 +163,12 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span className="font-semibold">{rating}</span>
+                  <span className="font-semibold">{rating.toFixed(1)}</span>
                 </div>
 
                 <div className="flex items-center gap-1">
                   <MessageCircle className="h-4 w-4" />
-                  <span>{comments} comments</span>
+                  <span>{comments} reviews</span>
                 </div>
               </div>
 
@@ -178,7 +184,7 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
         {issues && (
           <div className="absolute bottom-4 left-4">
             <Badge variant="destructive" className="bg-red-500">
-              N {issues} Issues ✕
+              {issues} Issues ✕
             </Badge>
           </div>
         )}

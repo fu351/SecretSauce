@@ -1,27 +1,41 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { ChefHat, DollarSign, Calendar, Heart, Plus } from "lucide-react"
+import { Calendar, TrendingUp, ChefHat, ShoppingCart, Heart } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
-import { RecipeCard } from "@/components/recipe-card"
 import Link from "next/link"
+import { RecipeCard } from "@/components/recipe-card"
+
+interface DashboardStats {
+  totalRecipes: number
+  favoriteRecipes: number
+  mealPlansThisWeek: number
+  pantryItems: number
+}
+
+interface RecentRecipe {
+  id: string
+  title: string
+  image_url: string
+  rating_avg: number
+  difficulty: string
+  rating_count: number
+  dietary_tags: string[]
+}
 
 export default function DashboardPage() {
-  const { user, profile } = useAuth()
-  const [stats, setStats] = useState({
-    recipesCooked: 0,
-    moneySaved: 0,
-    mealsPlanned: 0,
+  const [stats, setStats] = useState<DashboardStats>({
+    totalRecipes: 0,
     favoriteRecipes: 0,
+    mealPlansThisWeek: 0,
+    pantryItems: 0,
   })
-  const [recentRecipes, setRecentRecipes] = useState([])
-  const [weeklyBudget, setWeeklyBudget] = useState({ used: 45, total: 100 })
+  const [recentRecipes, setRecentRecipes] = useState<RecentRecipe[]>([])
   const [loading, setLoading] = useState(true)
+  const { user, profile } = useAuth()
 
   useEffect(() => {
     if (user) {
@@ -30,109 +44,84 @@ export default function DashboardPage() {
   }, [user])
 
   const fetchDashboardData = async () => {
+    if (!user) return
+
     try {
-      // Fetch user's favorite recipes
-      const { data: favorites, error: favError } = await supabase
-        .from("recipe_favorites")
-        .select("recipe_id")
-        .eq("user_id", user?.id)
+      // Fetch stats
+      const [recipesResult, favoritesResult, mealPlansResult, pantryResult, recentRecipesResult] = await Promise.all([
+        supabase.from("recipes").select("id", { count: "exact" }).eq("author_id", user.id),
+        supabase.from("recipe_favorites").select("id", { count: "exact" }).eq("user_id", user.id),
+        supabase
+          .from("meal_plans")
+          .select("id", { count: "exact" })
+          .eq("user_id", user.id)
+          .gte("week_start", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]),
+        supabase.from("pantry_items").select("id", { count: "exact" }).eq("user_id", user.id),
+        supabase
+          .from("recipes")
+          .select("id, title, image_url, rating_avg, difficulty, rating_count, dietary_tags")
+          .order("created_at", { ascending: false })
+          .limit(6),
+      ])
 
-      if (favError && !favError.message.includes("does not exist")) {
-        throw favError
-      }
+      setStats({
+        totalRecipes: recipesResult.count || 0,
+        favoriteRecipes: favoritesResult.count || 0,
+        mealPlansThisWeek: mealPlansResult.count || 0,
+        pantryItems: pantryResult.count || 0,
+      })
 
-      // Fetch recent recipes based on user preferences
-      const { data: recipes, error: recipeError } = await supabase
-        .from("recipes")
-        .select(`
-        *,
-        profiles (
-          full_name,
-          avatar_url
-        )
-      `)
-        .limit(6)
-        .order("created_at", { ascending: false })
-
-      if (recipeError && !recipeError.message.includes("does not exist")) {
-        throw recipeError
-      }
-
-      setStats((prev) => ({
-        ...prev,
-        favoriteRecipes: favorites?.length || 0,
-      }))
-
-      setRecentRecipes(recipes || [])
+      setRecentRecipes(recentRecipesResult.data || [])
     } catch (error) {
-      console.warn("Database not fully set up:", error)
-      // Set empty data when database isn't ready
+      console.error("Error fetching dashboard data:", error)
+      // Set default values if database isn't set up
+      setStats({
+        totalRecipes: 0,
+        favoriteRecipes: 0,
+        mealPlansThisWeek: 0,
+        pantryItems: 0,
+      })
       setRecentRecipes([])
     } finally {
       setLoading(false)
     }
   }
 
-  const getPersonalizedGreeting = () => {
-    if (!profile?.primary_goal) return "Welcome to Secret Sauce!"
-
-    switch (profile.primary_goal) {
-      case "cooking":
-        return "Ready to cook something amazing?"
-      case "budgeting":
-        return "Let's save money on groceries!"
-      case "both":
-        return "Cook better, spend less!"
-      default:
-        return "Welcome to Secret Sauce!"
-    }
-  }
-
-  const getRecommendedActions = () => {
-    if (!profile?.primary_goal) return []
-
-    const actions = []
-
-    if (profile.primary_goal === "cooking" || profile.primary_goal === "both") {
-      actions.push({
-        title: "Discover New Recipes",
-        description: `Find ${profile.cooking_level || "beginner"} recipes`,
-        icon: ChefHat,
-        href: "/recipes",
-        color: "bg-orange-100 text-orange-600",
-      })
-    }
-
-    if (profile.primary_goal === "budgeting" || profile.primary_goal === "both") {
-      actions.push({
-        title: "Plan This Week's Meals",
-        description: "Save money with meal planning",
-        icon: Calendar,
-        href: "/meal-planner",
-        color: "bg-green-100 text-green-600",
-      })
-    }
-
-    actions.push({
-      title: "Compare Grocery Prices",
-      description: "Find the best deals near you",
-      icon: DollarSign,
-      href: "/shopping",
-      color: "bg-blue-100 text-blue-600",
-    })
-
-    return actions
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <h2 className="text-2xl font-bold mb-4">Welcome to Secret Sauce</h2>
+            <p className="text-gray-600 mb-6">Please sign in to access your dashboard</p>
+            <div className="space-y-2">
+              <Button asChild className="w-full">
+                <Link href="/auth/signin">Sign In</Link>
+              </Button>
+              <Button variant="outline" asChild className="w-full bg-transparent">
+                <Link href="/auth/signup">Create Account</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-6">
+      <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-8">
+          <div className="animate-pulse space-y-6">
             <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
               ))}
             </div>
           </div>
@@ -142,32 +131,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-6">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{getPersonalizedGreeting()}</h1>
-            <p className="text-gray-600 mt-1">
-              {profile?.full_name ? `Welcome back, ${profile.full_name}!` : "Here's what's cooking today"}
-            </p>
-          </div>
-          <Button asChild className="bg-orange-500 hover:bg-orange-600">
-            <Link href="/recipes/upload">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Recipe
-            </Link>
-          </Button>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome back, {profile?.full_name || user.email?.split("@")[0]}!
+          </h1>
+          <p className="text-gray-600">Here's what's cooking in your kitchen</p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Recipes Tried</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.recipesCooked}</p>
+                  <p className="text-sm font-medium text-gray-600">My Recipes</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalRecipes}</p>
                 </div>
                 <ChefHat className="h-8 w-8 text-orange-500" />
               </div>
@@ -178,10 +159,10 @@ export default function DashboardPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Money Saved</p>
-                  <p className="text-2xl font-bold text-gray-900">${stats.moneySaved}</p>
+                  <p className="text-sm font-medium text-gray-600">Favorites</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.favoriteRecipes}</p>
                 </div>
-                <DollarSign className="h-8 w-8 text-green-500" />
+                <Heart className="h-8 w-8 text-red-500" />
               </div>
             </CardContent>
           </Card>
@@ -190,8 +171,8 @@ export default function DashboardPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Meals Planned</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.mealsPlanned}</p>
+                  <p className="text-sm font-medium text-gray-600">Meal Plans</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.mealPlansThisWeek}</p>
                 </div>
                 <Calendar className="h-8 w-8 text-blue-500" />
               </div>
@@ -202,95 +183,114 @@ export default function DashboardPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Favorite Recipes</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.favoriteRecipes}</p>
+                  <p className="text-sm font-medium text-gray-600">Pantry Items</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.pantryItems}</p>
                 </div>
-                <Heart className="h-8 w-8 text-red-500" />
+                <ShoppingCart className="h-8 w-8 text-green-500" />
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {getRecommendedActions().map((action, index) => {
-            const Icon = action.icon
-            return (
-              <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
-                <Link href={action.href}>
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-lg ${action.color}`}>
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{action.title}</h3>
-                        <p className="text-sm text-gray-600">{action.description}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Link>
-              </Card>
-            )
-          })}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <Link href="/meal-planner">
+              <CardContent className="p-6 text-center">
+                <Calendar className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Plan Your Week</h3>
+                <p className="text-gray-600">Create meal plans and shopping lists</p>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <Link href="/recipes">
+              <CardContent className="p-6 text-center">
+                <ChefHat className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Browse Recipes</h3>
+                <p className="text-gray-600">Discover new recipes to try</p>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <Link href="/pantry">
+              <CardContent className="p-6 text-center">
+                <ShoppingCart className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Manage Pantry</h3>
+                <p className="text-gray-600">Track your ingredients and supplies</p>
+              </CardContent>
+            </Link>
+          </Card>
         </div>
 
-        {/* Budget Tracking */}
-        {(profile?.primary_goal === "budgeting" || profile?.primary_goal === "both") && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Budget</CardTitle>
-              <CardDescription>Track your grocery spending</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-600">
-                    ${weeklyBudget.used} of ${weeklyBudget.total} used
-                  </span>
-                  <Badge variant={weeklyBudget.used > weeklyBudget.total * 0.8 ? "destructive" : "secondary"}>
-                    {Math.round((weeklyBudget.used / weeklyBudget.total) * 100)}%
-                  </Badge>
-                </div>
-                <Progress value={(weeklyBudget.used / weeklyBudget.total) * 100} className="h-2" />
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span>Remaining: ${weeklyBudget.total - weeklyBudget.used}</span>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href="/shopping">View Details</Link>
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Recent Recipes */}
-        <div>
+        <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {profile?.primary_goal === "cooking" ? "Recommended for You" : "Popular Recipes"}
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900">Recent Recipes</h2>
             <Button variant="outline" asChild>
               <Link href="/recipes">View All</Link>
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recentRecipes.slice(0, 6).map((recipe: any) => (
-              <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
-                <RecipeCard
-                  id={recipe.id}
-                  title={recipe.title}
-                  image={recipe.image_url}
-                  rating={recipe.rating_avg || 0}
-                  difficulty={recipe.difficulty}
-                  comments={0}
-                  tags={recipe.dietary_tags || []}
-                />
-              </Link>
-            ))}
-          </div>
+          {recentRecipes.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <ChefHat className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No recipes yet</h3>
+                <p className="text-gray-600 mb-6">Start by exploring our recipe collection or upload your own</p>
+                <div className="space-x-4">
+                  <Button asChild>
+                    <Link href="/recipes">Browse Recipes</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recentRecipes.map((recipe) => (
+                <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
+                  <RecipeCard
+                    id={recipe.id}
+                    title={recipe.title}
+                    image={recipe.image_url || "/placeholder.svg?height=300&width=400"}
+                    rating={recipe.rating_avg || 0}
+                    difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
+                    comments={recipe.rating_count || 0}
+                    tags={recipe.dietary_tags || []}
+                  />
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Weekly Summary */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              This Week's Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-blue-600">{stats.mealPlansThisWeek}</p>
+                <p className="text-sm text-gray-600">Meal Plans Created</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-green-600">{stats.totalRecipes}</p>
+                <p className="text-sm text-gray-600">Recipes Shared</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-orange-600">{stats.pantryItems}</p>
+                <p className="text-sm text-gray-600">Pantry Items</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

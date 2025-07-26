@@ -15,10 +15,23 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Plus, Package, AlertTriangle, CalendarIcon, Search, Filter, X, ChefHat, Clock, Users } from "lucide-react"
+import {
+  Plus,
+  Package,
+  AlertTriangle,
+  CalendarIcon,
+  Search,
+  X,
+  ChefHat,
+  Clock,
+  Users,
+  Trash2,
+  CalendarIcon as CalendarIconSolid,
+} from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
@@ -71,6 +84,7 @@ export default function PantryPage() {
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [showExpiringSoon, setShowExpiringSoon] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [expirationNotifications, setExpirationNotifications] = useState<{
     expiresToday: PantryItem[]
@@ -98,7 +112,6 @@ export default function PantryPage() {
   useEffect(() => {
     filterItems()
     checkExpirations()
-    removeExpiredItems()
     if (pantryItems.length > 0) {
       findSuggestedRecipes()
     }
@@ -187,48 +200,6 @@ export default function PantryPage() {
     setExpirationNotifications({ expiresToday, expiredYesterday })
   }
 
-  const removeExpiredItems = async () => {
-    const twoDaysAgo = new Date()
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
-
-    const expiredItems = pantryItems.filter((item) => {
-      if (!item.expiry_date) return false
-      return new Date(item.expiry_date) < twoDaysAgo
-    })
-
-    if (expiredItems.length > 0) {
-      try {
-        const { error } = await supabase
-          .from("pantry_items")
-          .delete()
-          .in(
-            "id",
-            expiredItems.map((item) => item.id),
-          )
-
-        if (error) throw error
-
-        setPantryItems((prev) => prev.filter((item) => !expiredItems.some((expired) => expired.id === item.id)))
-
-        toast({
-          title: "Expired items removed",
-          description: `${expiredItems.length} expired items have been automatically removed.`,
-        })
-      } catch (error) {
-        console.error("Error removing expired items:", error)
-      }
-    }
-  }
-
-  const dismissNotification = (type: "today" | "yesterday", itemId: string) => {
-    setExpirationNotifications((prev) => ({
-      ...prev,
-      [type === "today" ? "expiresToday" : "expiredYesterday"]: prev[
-        type === "today" ? "expiresToday" : "expiredYesterday"
-      ].filter((item) => item.id !== itemId),
-    }))
-  }
-
   const filterItems = () => {
     let filtered = pantryItems
 
@@ -253,7 +224,24 @@ export default function PantryPage() {
       })
     }
 
-    setFilteredItems(filtered)
+    // Group by category
+    const groupedByCategory: Record<string, PantryItem[]> = {}
+    filtered.forEach((item) => {
+      if (!groupedByCategory[item.category]) {
+        groupedByCategory[item.category] = []
+      }
+      groupedByCategory[item.category].push(item)
+    })
+
+    // Flatten but keep category order
+    const orderedFiltered: PantryItem[] = []
+    categories.forEach((category) => {
+      if (groupedByCategory[category]) {
+        orderedFiltered.push(...groupedByCategory[category])
+      }
+    })
+
+    setFilteredItems(orderedFiltered)
   }
 
   const addPantryItem = async () => {
@@ -335,6 +323,55 @@ export default function PantryPage() {
     }
   }
 
+  const deleteAllPantryItems = async () => {
+    try {
+      const { error } = await supabase.from("pantry_items").delete().eq("user_id", user?.id)
+
+      if (error) throw error
+
+      setPantryItems([])
+      setIsDeleteAllDialogOpen(false)
+      toast({
+        title: "Pantry cleared",
+        description: "All items have been removed from your pantry.",
+      })
+    } catch (error) {
+      console.error("Error deleting all pantry items:", error)
+    }
+  }
+
+  const markAsExpired = async (id: string) => {
+    try {
+      // Set expiry date to yesterday
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+
+      const { error } = await supabase
+        .from("pantry_items")
+        .update({
+          expiry_date: yesterday.toISOString().split("T")[0],
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+
+      if (error) throw error
+
+      // Update local state
+      setPantryItems(
+        pantryItems.map((item) =>
+          item.id === id ? { ...item, expiry_date: yesterday.toISOString().split("T")[0] } : item,
+        ),
+      )
+
+      toast({
+        title: "Item marked as expired",
+        description: "Item has been marked as expired.",
+      })
+    } catch (error) {
+      console.error("Error marking item as expired:", error)
+    }
+  }
+
   const isExpiringSoon = (expiryDate: string | null) => {
     if (!expiryDate) return false
     const threeDaysFromNow = new Date()
@@ -362,17 +399,40 @@ export default function PantryPage() {
     return null
   }
 
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "Produce":
+        return "🥬"
+      case "Dairy":
+        return "🥛"
+      case "Meat & Seafood":
+        return "🥩"
+      case "Pantry Staples":
+        return "🥫"
+      case "Frozen":
+        return "❄️"
+      case "Beverages":
+        return "🥤"
+      case "Snacks":
+        return "🍪"
+      case "Condiments":
+        return "🧂"
+      case "Baking":
+        return "🍞"
+      default:
+        return "📦"
+    }
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="animate-pulse space-y-8">
-            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
-              ))}
-            </div>
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-pulse space-y-8 w-full max-w-6xl">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+            ))}
           </div>
         </div>
       </div>
@@ -380,393 +440,410 @@ export default function PantryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Expiration Notifications */}
-        <div className="space-y-4 mb-8">
-          {expirationNotifications.expiresToday.length > 0 && (
-            <Alert className="border-orange-200 bg-orange-50">
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-              <AlertDescription className="text-orange-800">
-                <div className="flex items-center justify-between">
-                  <span>
-                    <strong>Items expiring today:</strong>{" "}
-                    {expirationNotifications.expiresToday.map((item) => item.name).join(", ")}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setExpirationNotifications((prev) => ({ ...prev, expiresToday: [] }))}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {expirationNotifications.expiredYesterday.length > 0 && (
-            <Alert className="border-red-200 bg-red-50">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">
-                <div className="flex items-center justify-between">
-                  <span>
-                    <strong>Items expired yesterday:</strong>{" "}
-                    {expirationNotifications.expiredYesterday.map((item) => item.name).join(", ")}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setExpirationNotifications((prev) => ({ ...prev, expiredYesterday: [] }))}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between mb-8">
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 bg-white border-b px-6 py-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">My Pantry</h1>
+            <h1 className="text-2xl font-bold text-gray-900">My Pantry</h1>
             <p className="text-gray-600">Keep track of your ingredients and reduce food waste</p>
           </div>
 
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-orange-500 hover:bg-orange-600">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Pantry Item</DialogTitle>
-                <DialogDescription>Add a new item to your pantry inventory</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="item-name">Item Name</Label>
-                  <Input
-                    id="item-name"
-                    value={newItem.name}
-                    onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                    placeholder="e.g., Chicken Breast, Milk, Bread"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center gap-2">
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-orange-500 hover:bg-orange-600">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Pantry Item</DialogTitle>
+                  <DialogDescription>Add a new item to your pantry inventory</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
                   <div>
-                    <Label htmlFor="quantity">Quantity</Label>
+                    <Label htmlFor="item-name">Item Name</Label>
                     <Input
-                      id="quantity"
-                      type="number"
-                      min="0.1"
-                      step="0.1"
-                      value={newItem.quantity}
-                      onChange={(e) => setNewItem({ ...newItem, quantity: Number.parseFloat(e.target.value) || 1 })}
+                      id="item-name"
+                      value={newItem.name}
+                      onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                      placeholder="e.g., Chicken Breast, Milk, Bread"
                     />
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="quantity">Quantity</Label>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={newItem.quantity}
+                        onChange={(e) => setNewItem({ ...newItem, quantity: Number.parseFloat(e.target.value) || 1 })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="unit">Unit</Label>
+                      <Select value={newItem.unit} onValueChange={(value) => setNewItem({ ...newItem, unit: value })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {units.map((unit) => (
+                            <SelectItem key={unit} value={unit}>
+                              {unit}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div>
-                    <Label htmlFor="unit">Unit</Label>
-                    <Select value={newItem.unit} onValueChange={(value) => setNewItem({ ...newItem, unit: value })}>
+                    <Label htmlFor="category">Category</Label>
+                    <Select
+                      value={newItem.category}
+                      onValueChange={(value) => setNewItem({ ...newItem, category: value })}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {units.map((unit) => (
-                          <SelectItem key={unit} value={unit}>
-                            {unit}
+                        {categories.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {getCategoryIcon(category)} {category}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={newItem.category}
-                    onValueChange={(value) => setNewItem({ ...newItem, category: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div>
+                    <Label>Expiry Date (Optional)</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {newItem.expiry_date ? format(newItem.expiry_date, "PPP") : "Select date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={newItem.expiry_date}
+                          onSelect={(date) => setNewItem({ ...newItem, expiry_date: date || null })}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
 
-                <div>
-                  <Label>Expiry Date (Optional)</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {newItem.expiry_date ? format(newItem.expiry_date, "PPP") : "Select date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={newItem.expiry_date}
-                        onSelect={(date) => setNewItem({ ...newItem, expiry_date: date || null })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex gap-4 pt-4">
+                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="flex-1">
+                      Cancel
+                    </Button>
+                    <Button onClick={addPantryItem} disabled={!newItem.name.trim()} className="flex-1">
+                      Add Item
+                    </Button>
+                  </div>
                 </div>
+              </DialogContent>
+            </Dialog>
 
-                <div className="flex gap-4 pt-4">
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="flex-1">
+            <Dialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 bg-transparent"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear All
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Clear Entire Pantry</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to remove all items from your pantry? This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDeleteAllDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={addPantryItem} disabled={!newItem.name.trim()} className="flex-1">
-                    Add Item
+                  <Button variant="destructive" onClick={deleteAllPantryItems}>
+                    Yes, Clear Everything
                   </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {/* Expiration Notifications */}
+        <div className="flex-shrink-0 p-4">
+          <div className="space-y-4">
+            {expirationNotifications.expiresToday.length > 0 && (
+              <Alert className="border-orange-200 bg-orange-50">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertDescription className="text-orange-800">
+                  <div className="flex items-center justify-between">
+                    <span>
+                      <strong>Items expiring today:</strong>{" "}
+                      {expirationNotifications.expiresToday.map((item) => item.name).join(", ")}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpirationNotifications((prev) => ({ ...prev, expiresToday: [] }))}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {expirationNotifications.expiredYesterday.length > 0 && (
+              <Alert className="border-red-200 bg-red-50">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800">
+                  <div className="flex items-center justify-between">
+                    <span>
+                      <strong>Items expired yesterday:</strong>{" "}
+                      {expirationNotifications.expiredYesterday.map((item) => item.name).join(", ")}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpirationNotifications((prev) => ({ ...prev, expiredYesterday: [] }))}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         </div>
 
         {/* Suggested Recipes */}
         {suggestedRecipes.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ChefHat className="h-5 w-5 text-orange-500" />
-                Suggested Recipes Based on Your Pantry
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {suggestedRecipes.map((recipe) => (
-                  <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
-                    <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex gap-4">
-                          <img
-                            src={recipe.image_url || "/placeholder.svg?height=80&width=80"}
-                            alt={recipe.title}
-                            className="w-20 h-20 object-cover rounded-lg"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-medium text-gray-900 line-clamp-2">{recipe.title}</h4>
-                              <Badge className="bg-green-100 text-green-800">{recipe.match_percentage}% match</Badge>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                <span>{(recipe.prep_time || 0) + (recipe.cook_time || 0)}min</span>
+          <div className="flex-shrink-0 p-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <ChefHat className="h-5 w-5 text-orange-500" />
+                  Suggested Recipes Based on Your Pantry
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {suggestedRecipes.map((recipe) => (
+                    <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
+                      <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
+                        <CardContent className="p-4">
+                          <div className="flex gap-4">
+                            <img
+                              src={recipe.image_url || "/placeholder.svg?height=80&width=80"}
+                              alt={recipe.title}
+                              className="w-20 h-20 object-cover rounded-lg"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium text-gray-900 line-clamp-2">{recipe.title}</h4>
+                                <Badge className="bg-green-100 text-green-800">{recipe.match_percentage}% match</Badge>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                <span>{recipe.servings || 1}</span>
+                              <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{(recipe.prep_time || 0) + (recipe.cook_time || 0)}min</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  <span>{recipe.servings || 1}</span>
+                                </div>
                               </div>
                             </div>
-                            <Badge variant="outline" className="text-xs">
-                              {recipe.difficulty}
-                            </Badge>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {/* Filters */}
+        <div className="flex-shrink-0 p-4">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Items</p>
-                  <p className="text-2xl font-bold text-gray-900">{pantryItems.length}</p>
+            <CardContent className="p-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search pantry items..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                 </div>
-                <Package className="h-8 w-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Expiring Soon</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {pantryItems.filter((item) => isExpiringSoon(item.expiry_date)).length}
-                  </p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-yellow-500" />
-              </div>
-            </CardContent>
-          </Card>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-full md:w-48">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {getCategoryIcon(category)} {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Categories</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {new Set(pantryItems.map((item) => item.category)).size}
-                  </p>
-                </div>
-                <Filter className="h-8 w-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Recipe Matches</p>
-                  <p className="text-2xl font-bold text-gray-900">{suggestedRecipes.length}</p>
-                </div>
-                <ChefHat className="h-8 w-8 text-orange-500" />
+                <Button
+                  variant={showExpiringSoon ? "default" : "outline"}
+                  onClick={() => setShowExpiringSoon(!showExpiringSoon)}
+                  className={`w-full md:w-auto ${showExpiringSoon ? "bg-orange-500 hover:bg-orange-600" : ""}`}
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Expiring Soon
+                </Button>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search pantry items..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-full md:w-48">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button
-                variant={showExpiringSoon ? "default" : "outline"}
-                onClick={() => setShowExpiringSoon(!showExpiringSoon)}
-                className="w-full md:w-auto"
-              >
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                Expiring Soon
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Pantry Items */}
-        {filteredItems.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {pantryItems.length === 0 ? "Your pantry is empty" : "No items match your filters"}
-              </h3>
-              <p className="text-gray-600 mb-6">
-                {pantryItems.length === 0
-                  ? "Start by adding some items to track your ingredients"
-                  : "Try adjusting your search or filters"}
-              </p>
-              {pantryItems.length === 0 && (
-                <Button onClick={() => setIsAddDialogOpen(true)} className="bg-orange-500 hover:bg-orange-600">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Your First Item
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <Card key={item.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">{item.name}</h3>
-                      <Badge variant="outline" className="text-xs">
-                        {item.category}
-                      </Badge>
+        <div className="flex-1 p-4 overflow-y-auto">
+          {filteredItems.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {pantryItems.length === 0 ? "Your pantry is empty" : "No items match your filters"}
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  {pantryItems.length === 0
+                    ? "Start by adding some items to track your ingredients"
+                    : "Try adjusting your search or filters"}
+                </p>
+                {pantryItems.length === 0 && (
+                  <Button onClick={() => setIsAddDialogOpen(true)} className="bg-orange-500 hover:bg-orange-600">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Your First Item
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div>
+              {/* Group by category */}
+              {categories.map((category) => {
+                const categoryItems = filteredItems.filter((item) => item.category === category)
+                if (categoryItems.length === 0) return null
+
+                return (
+                  <div key={category} className="mb-6">
+                    <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <span>{getCategoryIcon(category)}</span>
+                      {category}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {categoryItems.map((item) => (
+                        <Card key={item.id} className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-gray-900 mb-1">{item.name}</h3>
+                                <div className="flex items-center gap-2">{getExpiryBadge(item.expiry_date)}</div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-600">Quantity:</span>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                  >
+                                    -
+                                  </Button>
+                                  <span className="font-medium">
+                                    {item.quantity} {item.unit}
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                  >
+                                    +
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {item.expiry_date && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-gray-600">Expires:</span>
+                                  <span
+                                    className={`text-sm font-medium ${
+                                      isExpired(item.expiry_date)
+                                        ? "text-red-600"
+                                        : isExpiringSoon(item.expiry_date)
+                                          ? "text-yellow-600"
+                                          : "text-gray-900"
+                                    }`}
+                                  >
+                                    {format(new Date(item.expiry_date), "MMM dd, yyyy")}
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => markAsExpired(item.id)}
+                                  className="flex-1 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                                >
+                                  <CalendarIconSolid className="h-3 w-3 mr-1" />
+                                  Mark Expired
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => deletePantryItem(item.id)}
+                                  className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                  Remove
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
-                    {getExpiryBadge(item.expiry_date)}
                   </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Quantity:</span>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                          -
-                        </Button>
-                        <span className="font-medium">
-                          {item.quantity} {item.unit}
-                        </span>
-                        <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                          +
-                        </Button>
-                      </div>
-                    </div>
-
-                    {item.expiry_date && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Expires:</span>
-                        <span
-                          className={`text-sm font-medium ${
-                            isExpired(item.expiry_date)
-                              ? "text-red-600"
-                              : isExpiringSoon(item.expiry_date)
-                                ? "text-yellow-600"
-                                : "text-gray-900"
-                          }`}
-                        >
-                          {format(new Date(item.expiry_date), "MMM dd, yyyy")}
-                        </span>
-                      </div>
-                    )}
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deletePantryItem(item.id)}
-                      className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      Remove Item
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
