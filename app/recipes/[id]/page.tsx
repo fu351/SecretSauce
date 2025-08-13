@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Clock, Users, Heart, ShoppingCart, Share2, ArrowLeft, ChefHat, Star } from "lucide-react"
+import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -30,6 +30,14 @@ interface Recipe {
   instructions: any[]
   user_id: string
   created_at: string
+  rating_avg?: number
+  rating_count?: number
+  nutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+  }
 }
 
 export default function RecipeDetailPage() {
@@ -39,7 +47,7 @@ export default function RecipeDetailPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
-  const [servings, setServings] = useState(1)
+  const [isFloating, setIsFloating] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -51,10 +59,15 @@ export default function RecipeDetailPage() {
   }, [params.id, user])
 
   useEffect(() => {
-    if (recipe) {
-      setServings(recipe.servings)
+    const handleScroll = () => {
+      const scrollTop = window.scrollY
+      const navbarHeight = 80 // Approximate navbar height
+      setIsFloating(scrollTop >= navbarHeight)
     }
-  }, [recipe])
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const loadRecipe = async () => {
     try {
@@ -163,25 +176,8 @@ export default function RecipeDetailPage() {
     }
   }
 
-  const adjustServings = (newServings: number) => {
-    if (newServings < 1) return
-    setServings(newServings)
-  }
-
-  const getAdjustedIngredients = () => {
-    if (!recipe) return []
-
-    const multiplier = servings / recipe.servings
-    return recipe.ingredients.map((ingredient) => {
-      // Adjust the amount if it's a number, otherwise leave as is
-      const originalAmount = parseFloat(ingredient.amount)
-      let adjustedAmount = ingredient.amount
-      if (!isNaN(originalAmount)) {
-        const newAmount = (originalAmount * multiplier).toFixed(2)
-        adjustedAmount = parseFloat(newAmount) % 1 === 0 ? parseInt(newAmount).toString() : newAmount
-      }
-      return `${adjustedAmount} ${ingredient.unit} ${ingredient.name}`
-    })
+  const getTotalTime = () => {
+    return (recipe?.prep_time || 0) + (recipe?.cook_time || 0)
   }
 
   if (loading) {
@@ -217,199 +213,189 @@ export default function RecipeDetailPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => router.back()} className="hover:bg-gray-100">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 truncate max-w-md">{recipe.title}</h1>
-                <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {(recipe.prep_time || 0) + (recipe.cook_time || 0)} min
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    {recipe.servings} servings
-                  </span>
-                  <Badge variant="outline" className="text-xs">{recipe.difficulty}</Badge>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {user && (
-                <Button size="sm" variant={isFavorite ? "default" : "outline"} onClick={toggleFavorite} className="h-10 w-10 p-0">
-                  <Heart className={`w-4 h-4 ${isFavorite ? "fill-current" : ""}`} />
-                </Button>
-              )}
-              <Button size="sm" variant="outline" className="h-10 w-10 p-0">
-                <Share2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+      {/* Floating Back Button - Always visible, moves to top position when scrolled */}
+      <div className={`fixed z-50 ${isFloating ? 'top-8' : 'top-24'} left-8`}>
+        <Button 
+          variant="ghost" 
+          onClick={() => router.back()} 
+          className="hover:bg-white/90 bg-white/80 backdrop-blur-sm text-gray-700 font-bold text-lg px-6 py-3 shadow-lg border border-gray-200"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          Back
+        </Button>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content - Split Layout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Recipe Content */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Recipe Image and Description */}
-            <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm overflow-hidden">
-              <div className="relative">
-                <img
-                  src={recipe.image_url || "/placeholder.svg?height=400&width=600"}
-                  alt={recipe.title}
-                  className="w-full h-64 object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+        <div className="flex flex-col lg:flex-row gap-8 items-center">
+          {/* Left: Large Recipe Image */}
+          <div className="lg:w-3/5">
+            <div className="relative overflow-hidden rounded-2xl shadow-xl">
+              <img
+                src={recipe.image_url || "/placeholder.svg?height=600&width=800"}
+                alt={recipe.title}
+                className="w-full h-[500px] object-cover"
+              />
+              <div className="absolute top-4 right-4">
+                <Button variant="ghost" size="sm" className="bg-white/90 hover:bg-white" onClick={toggleFavorite}>
+                  <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-gray-700"}`} />
+                </Button>
               </div>
-              <CardContent className="p-6">
-                <p className="text-gray-700 leading-relaxed mb-6 text-lg">{recipe.description}</p>
+            </div>
+          </div>
 
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {recipe.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="text-sm">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-lg">
-                    <Clock className="w-6 h-6 text-orange-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Prep Time</p>
-                      <p className="font-bold text-lg">{recipe.prep_time || 0} min</p>
-                    </div>
+          {/* Right: Recipe Details - One Unified Section */}
+          <div className="lg:w-2/5">
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+              <CardContent className="p-8">
+                <div className="space-y-8">
+                  {/* Recipe Title */}
+                  <div>
+                    <h1 className="text-3xl font-bold text-gray-900 leading-tight">{recipe.title}</h1>
                   </div>
-                  <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg">
-                    <Clock className="w-6 h-6 text-green-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Cook Time</p>
-                      <p className="font-bold text-lg">{recipe.cook_time || 0} min</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Instructions */}
-            <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <ChefHat className="h-6 w-6 text-orange-500" />
-                  Instructions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {recipe.instructions.map((instruction, index) => (
-                    <div key={index} className="flex gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-lg">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-gray-700 leading-relaxed text-lg">
-                          {typeof instruction === 'string' ? instruction : instruction.description || instruction.step || 'Step description not available'}
-                        </p>
+                  {/* Description */}
+                  <p className="text-gray-600 leading-relaxed text-lg">{recipe.description}</p>
+
+                  {/* Recipe Metrics Grid */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+                      <Clock className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-500">Total Time</p>
+                        <p className="font-semibold">{getTotalTime()} minutes</p>
                       </div>
                     </div>
-                  ))}
+
+                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+                      <BarChart3 className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-500">Difficulty</p>
+                        <p className="font-semibold capitalize">{recipe.difficulty}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+                      <Users className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-500">Servings</p>
+                        <p className="font-semibold">{recipe.servings} servings</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+                      <Star className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-500">Rating</p>
+                        <div className="flex items-center gap-1">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span className="font-semibold">{(recipe.rating_avg || 0).toFixed(1)}</span>
+                          <span className="text-xs text-gray-500">({recipe.rating_count || 0})</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Nutrition */}
+                  {recipe.nutrition && (
+                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+                      <Utensils className="h-5 w-5 text-gray-400" />
+                      <div>
+                        <p className="text-sm text-gray-500">Nutrition</p>
+                        <div className="flex gap-4 text-sm">
+                          {recipe.nutrition.calories && <span className="font-semibold">{recipe.nutrition.calories} Calories</span>}
+                          {recipe.nutrition.protein && <span className="font-semibold">{recipe.nutrition.protein}g Protein</span>}
+                          {recipe.nutrition.fat && <span className="font-semibold">{recipe.nutrition.fat}g Fat</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tags */}
+                  {(recipe.tags.length > 0 || recipe.cuisine_type) && (
+                    <div className="flex flex-wrap gap-2">
+                      {recipe.cuisine_type && (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                          {recipe.cuisine_type}
+                        </Badge>
+                      )}
+                      {recipe.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary" className="bg-gray-100 text-gray-700">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
+        </div>
 
-          {/* Sticky Ingredients Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-8">
-              <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
-                <CardHeader className="pb-4">
+        {/* Ingredients Section - 85% width centered */}
+        <div className="mt-12 flex justify-center">
+          <div className="w-full max-w-6xl" style={{ width: '95%' }}>
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+              <CardContent className="p-8">
+                <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <ShoppingCart className="h-5 w-5 text-orange-500" />
-                      Ingredients
-                    </CardTitle>
+                    <h3 className="text-2xl font-bold text-gray-900">Ingredients</h3>
                     {user && (
                       <Button size="sm" onClick={addIngredientsToShoppingList} className="bg-orange-500 hover:bg-orange-600">
                         <ShoppingCart className="w-4 h-4 mr-2" />
-                        Add All
+                        Add All to Shopping List
                       </Button>
                     )}
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Serving Adjuster */}
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Servings:</span>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => adjustServings(servings - 1)}
-                        disabled={servings <= 1}
-                        className="h-8 w-8 p-0"
-                      >
-                        -
-                      </Button>
-                      <span className="w-12 text-center font-bold text-lg">{servings}</span>
-                      <Button size="sm" variant="outline" onClick={() => adjustServings(servings + 1)} className="h-8 w-8 p-0">
-                        +
-                      </Button>
-                    </div>
-                  </div>
 
-                  {/* Ingredients List */}
-                  <div className="space-y-3">
-                    {getAdjustedIngredients().map((ingredient, index) => (
-                      <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                  {/* Ingredients List - Two Columns */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {recipe.ingredients.map((ingredient, index) => (
+                      <div key={index} className="flex items-start gap-3 p-3 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
                         <input 
                           type="checkbox" 
                           className="mt-1 w-4 h-4 text-orange-600 rounded" 
-                          aria-label={`Check ingredient: ${ingredient}`}
+                          aria-label={`Check ingredient: ${ingredient.amount} ${ingredient.unit} ${ingredient.name}`}
                         />
-                        <span className="text-sm leading-relaxed font-medium">{ingredient}</span>
+                        <span className="text-sm leading-relaxed font-medium">
+                          {ingredient.amount} {ingredient.unit} {ingredient.name}
+                        </span>
                       </div>
                     ))}
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
-                  {/* Recipe Info */}
-                  <div className="pt-4 border-t">
-                    <h4 className="font-bold mb-4 flex items-center gap-2">
-                      <Star className="h-4 w-4 text-orange-500" />
-                      Recipe Info
-                    </h4>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Time:</span>
-                        <span className="font-bold">{(recipe.prep_time || 0) + (recipe.cook_time || 0)} minutes</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Difficulty:</span>
-                        <span className="font-bold">{recipe.difficulty}</span>
-                      </div>
-                      {recipe.cuisine_type && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Cuisine:</span>
-                          <span className="font-bold">{recipe.cuisine_type}</span>
+        {/* Instructions Section - 85% width centered */}
+        <div className="mt-8 flex justify-center">
+          <div className="w-full max-w-4xl" style={{ width: '85%' }}>
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+              <CardContent className="p-8">
+                <div className="space-y-6">
+                  <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <ChefHat className="h-6 w-6 text-orange-500" />
+                    Instructions
+                  </h3>
+                  <div className="space-y-4">
+                    {recipe.instructions.map((instruction, index) => (
+                      <div key={index} className="flex gap-4 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+                        <div className="flex-shrink-0 w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                          {index + 1}
                         </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Created:</span>
-                        <span className="font-bold">{new Date(recipe.created_at).toLocaleDateString()}</span>
+                        <div className="flex-1">
+                          <p className="text-gray-700 leading-relaxed">
+                            {typeof instruction === 'string' ? instruction : instruction.description || instruction.step || 'Step description not available'}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

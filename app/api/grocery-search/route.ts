@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const pythonServiceUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000"
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // Reduced to 5 seconds
 
     const response = await fetch(
       `${pythonServiceUrl}/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}`,
@@ -34,12 +34,114 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(data)
     }
   } catch (error) {
-    console.warn("Python service not available, using mock data:", error)
+    console.warn("Python service not available, using local scrapers:", error)
   }
 
-  // Return mock data when Python service is not available
-  const mockResults = generateMockResults(searchTerm, zipCode)
-  return NextResponse.json({ results: mockResults })
+  // Try local scrapers if Python service is not available
+  try {
+    const scrapers = require('@/lib/scrapers')
+    
+    const results = await Promise.allSettled([
+      scrapers.getTargetProducts(searchTerm, null, zipCode),
+      scrapers.Krogers(zipCode, searchTerm),
+      scrapers.Meijers(zipCode, searchTerm),
+      scrapers.search99Ranch(searchTerm, zipCode)
+    ])
+
+    const allItems = []
+    
+    // Process Target results
+    if (results[0].status === 'fulfilled' && results[0].value.length > 0) {
+      const targetItems = results[0].value.map((item: any) => ({
+        id: item.id || `target-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Target",
+        location: "West Lafayette Target",
+        category: item.category,
+      }))
+      allItems.push(...targetItems)
+    } else {
+      console.warn("Target scraper failed or returned no results")
+    }
+
+    // Process Kroger results
+    if (results[1].status === 'fulfilled' && results[1].value.length > 0) {
+      const krogerItems = results[1].value.map((item: any) => ({
+        id: item.id || `kroger-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Kroger",
+        location: item.location || "West Lafayette Kroger",
+        category: item.category,
+      }))
+      allItems.push(...krogerItems)
+    } else {
+      console.warn("Kroger scraper failed or returned no results")
+    }
+
+    // Process Meijer results
+    if (results[2].status === 'fulfilled' && results[2].value.length > 0) {
+      const meijerItems = results[2].value.map((item: any) => ({
+        id: item.id || `meijer-${Math.random()}`,
+        title: item.name || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Meijer",
+        location: "West Lafayette Meijer",
+        category: item.category,
+      }))
+      allItems.push(...meijerItems)
+    } else {
+      console.warn("Meijer scraper failed or returned no results")
+    }
+
+    // Process 99 Ranch results
+    if (results[3].status === 'fulfilled' && results[3].value.length > 0) {
+      const ranchItems = results[3].value.map((item: any) => ({
+        id: item.id || `99ranch-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "99 Ranch",
+        location: item.location || "99 Ranch Market",
+        category: item.category,
+      }))
+      allItems.push(...ranchItems)
+    } else {
+      console.warn("99 Ranch scraper failed or returned no results")
+    }
+
+    // If we have results from any scraper, return them
+    if (allItems.length > 0) {
+      return NextResponse.json({ results: allItems })
+    }
+
+    // If no scrapers worked, return mock data
+    console.warn("All scrapers failed, returning mock data")
+    const mockResults = generateMockResults(searchTerm, zipCode)
+    return NextResponse.json({ results: mockResults })
+
+  } catch (error) {
+    console.error("Error using local scrapers:", error)
+    // Return mock data when scrapers fail
+    const mockResults = generateMockResults(searchTerm, zipCode)
+    return NextResponse.json({ results: mockResults })
+  }
 }
 
 function generateMockResults(searchTerm: string, zipCode: string) {

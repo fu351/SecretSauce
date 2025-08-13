@@ -54,7 +54,7 @@ async def grocery_search(
 ):
     """Search for grocery items across multiple stores"""
     results = []
-    stores = ["Target", "Kroger", "Meijer", "99Ranch"]  # Add your store scripts
+    stores = ["Target", "Kroger", "Meijer", "99Ranch"]  # Only working scrapers
     
     for store in stores:
         store_results = run_scraper(store, searchTerm, zipCode)

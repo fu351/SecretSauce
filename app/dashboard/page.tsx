@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, TrendingUp, ChefHat, ShoppingCart, Heart } from "lucide-react"
+import { Calendar, TrendingUp, ChefHat, ShoppingCart, Heart, Package, Plus, AlertTriangle } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { RecipeCard } from "@/components/recipe-card"
+import { Badge } from "@/components/ui/badge"
 
 interface DashboardStats {
   totalRecipes: number
@@ -26,6 +27,15 @@ interface RecentRecipe {
   dietary_tags: string[]
 }
 
+interface PantryItem {
+  id: string
+  name: string
+  quantity: number
+  unit: string
+  expiry_date: string | null
+  category: string
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     totalRecipes: 0,
@@ -34,6 +44,7 @@ export default function DashboardPage() {
     pantryItems: 0,
   })
   const [recentRecipes, setRecentRecipes] = useState<RecentRecipe[]>([])
+  const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
   const [loading, setLoading] = useState(true)
   const { user, profile } = useAuth()
 
@@ -48,7 +59,7 @@ export default function DashboardPage() {
 
     try {
       // Fetch stats
-      const [recipesResult, favoritesResult, mealPlansResult, pantryResult, recentRecipesResult] = await Promise.all([
+      const [recipesResult, favoritesResult, mealPlansResult, pantryResult, recentRecipesResult, pantryItemsResult] = await Promise.all([
         supabase.from("recipes").select("id", { count: "exact" }).eq("author_id", user.id),
         supabase.from("recipe_favorites").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase
@@ -62,6 +73,12 @@ export default function DashboardPage() {
           .select("id, title, image_url, rating_avg, difficulty, rating_count, dietary_tags")
           .order("created_at", { ascending: false })
           .limit(6),
+        supabase
+          .from("pantry_items")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(8),
       ])
 
       setStats({
@@ -72,6 +89,7 @@ export default function DashboardPage() {
       })
 
       setRecentRecipes(recentRecipesResult.data || [])
+      setPantryItems(pantryItemsResult.data || [])
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
       // Set default values if database isn't set up
@@ -82,8 +100,41 @@ export default function DashboardPage() {
         pantryItems: 0,
       })
       setRecentRecipes([])
+      setPantryItems([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const getExpiringItems = () => {
+    const threeDaysFromNow = new Date()
+    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3)
+    
+    return pantryItems.filter(item => {
+      if (!item.expiry_date) return false
+      return new Date(item.expiry_date) <= threeDaysFromNow
+    })
+  }
+
+  const getExpiredItems = () => {
+    return pantryItems.filter(item => {
+      if (!item.expiry_date) return false
+      return new Date(item.expiry_date) < new Date()
+    })
+  }
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "Produce": return "🥬"
+      case "Dairy": return "🥛"
+      case "Meat & Seafood": return "🥩"
+      case "Pantry Staples": return "🥫"
+      case "Frozen": return "❄️"
+      case "Beverages": return "🥤"
+      case "Snacks": return "🍪"
+      case "Condiments": return "🧂"
+      case "Baking": return "🍞"
+      default: return "📦"
     }
   }
 
@@ -129,6 +180,9 @@ export default function DashboardPage() {
       </div>
     )
   }
+
+  const expiringItems = getExpiringItems()
+  const expiredItems = getExpiredItems()
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -179,6 +233,111 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </Link>
+        </div>
+
+        {/* Pantry Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <Package className="h-6 w-6 text-green-600" />
+              Pantry Overview
+            </h2>
+            <Button asChild>
+              <Link href="/pantry">
+                <Plus className="h-4 w-4 mr-2" />
+                Manage Pantry
+              </Link>
+            </Button>
+          </div>
+
+          {/* Pantry Alerts */}
+          {(expiredItems.length > 0 || expiringItems.length > 0) && (
+            <div className="mb-6 space-y-3">
+              {expiredItems.length > 0 && (
+                <Card className="border-red-200 bg-red-50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="h-5 w-5 text-red-600" />
+                      <div>
+                        <p className="font-medium text-red-800">
+                          {expiredItems.length} item{expiredItems.length !== 1 ? 's' : ''} expired
+                        </p>
+                        <p className="text-sm text-red-600">
+                          {expiredItems.map(item => item.name).join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {expiringItems.length > 0 && (
+                <Card className="border-yellow-200 bg-yellow-50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                      <div>
+                        <p className="font-medium text-yellow-800">
+                          {expiringItems.length} item{expiringItems.length !== 1 ? 's' : ''} expiring soon
+                        </p>
+                        <p className="text-sm text-yellow-600">
+                          {expiringItems.map(item => item.name).join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Pantry Items Grid */}
+          {pantryItems.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Your pantry is empty</h3>
+                <p className="text-gray-600 mb-6">Start tracking your ingredients to reduce food waste</p>
+                <Button asChild>
+                  <Link href="/pantry">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add First Item
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {pantryItems.slice(0, 8).map((item) => (
+                <Card key={item.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{getCategoryIcon(item.category)}</span>
+                        <h4 className="font-medium text-sm truncate">{item.name}</h4>
+                      </div>
+                      {item.expiry_date && (
+                        <Badge 
+                          variant={new Date(item.expiry_date) < new Date() ? "destructive" : "secondary"}
+                          className="text-xs"
+                        >
+                          {new Date(item.expiry_date) < new Date() ? "Expired" : "Expires Soon"}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {item.quantity} {item.unit}
+                    </p>
+                    {item.expiry_date && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Expires: {new Date(item.expiry_date).toLocaleDateString()}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Recent Recipes */}

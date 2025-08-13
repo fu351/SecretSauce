@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
 import { uniq } from "lodash" // Add lodash or use a simple deduplication function
+import { useRouter } from "next/navigation"
 
 interface Recipe {
   id: string
@@ -55,6 +56,7 @@ export default function MealPlannerPage() {
   const [viewMode, setViewMode] = useState<"daily" | "weekly">("daily")
   const [draggedRecipe, setDraggedRecipe] = useState<string | null>(null)
   const [weekDates, setWeekDates] = useState<string[]>([])
+  const router = useRouter()
 
   // Generate week dates based on selected date
   useEffect(() => {
@@ -74,8 +76,12 @@ export default function MealPlannerPage() {
   }, [selectedDate])
 
   useEffect(() => {
-    if (user) {
+    if (user && user.id) {
+      console.log("User authenticated, loading data for:", user.id)
       loadAllData()
+    } else {
+      console.log("No authenticated user, skipping data load")
+      setLoading(false)
     }
     // eslint-disable-next-line
   }, [user, selectedDate, viewMode, weekDates])
@@ -83,9 +89,16 @@ export default function MealPlannerPage() {
   const loadAllData = async () => {
     setLoading(true)
     try {
-      await Promise.all([loadFavoriteRecipes(), loadSuggestedRecipes(), loadMealPlan()])
+      console.log("Loading all data for user:", user?.id, "User object:", user)
+      
+      // Load data sequentially to better handle errors
+      await loadFavoriteRecipes()
+      await loadSuggestedRecipes()
+      await loadMealPlan()
+      
     } catch (error) {
       console.error("Error loading data:", error)
+      // Don't let errors crash the component
     } finally {
       setLoading(false)
     }
@@ -150,23 +163,61 @@ export default function MealPlannerPage() {
   // 2. Load favorite recipes
   const loadFavoriteRecipes = async () => {
     try {
-      const { data, error } = await supabase
+      console.log("Loading favorite recipes for user:", user?.id)
+      
+      if (!user?.id) {
+        console.log("No user ID, skipping favorite recipes load")
+        setFavoriteRecipes([])
+        return
+      }
+
+      // First get the favorite recipe IDs
+      const { data: favoritesData, error: favoritesError } = await supabase
         .from("recipe_favorites")
-        .select(`
-          recipe:recipes (
-            id, title, description, prep_time, cook_time, servings,
-            difficulty, cuisine_type, image_url, dietary_tags, ingredients, instructions, user_id
-          )
-        `)
-        .eq("user_id", user?.id)
+        .select("recipe_id")
+        .eq("user_id", user.id)
 
-      if (error) throw error
+      console.log("Favorites data:", favoritesData, "Error:", favoritesError)
 
-      const recipes = data?.map((item) => item.recipe).filter(Boolean) || []
-      setFavoriteRecipes(recipes)
+      if (favoritesError) {
+        console.error("Database error loading favorites:", favoritesError)
+        if (favoritesError.code === 'PGRST116' || favoritesError.message?.includes('relation') || favoritesError.message?.includes('table')) {
+          console.log("Database table doesn't exist yet, returning empty favorites")
+          setFavoriteRecipes([])
+          return
+        }
+        throw favoritesError
+      }
+
+      if (!favoritesData || favoritesData.length === 0) {
+        console.log("No favorites found")
+        setFavoriteRecipes([])
+        return
+      }
+
+      // Get the recipe IDs
+      const recipeIds = favoritesData.map(fav => fav.recipe_id)
+      console.log("Recipe IDs to fetch:", recipeIds)
+
+      // Fetch the actual recipes
+      const { data: recipesData, error: recipesError } = await supabase
+        .from("recipes")
+        .select("*")
+        .in("id", recipeIds)
+
+      console.log("Recipes data:", recipesData, "Error:", recipesError)
+
+      if (recipesError) {
+        console.error("Error fetching recipe details:", recipesError)
+        setFavoriteRecipes([])
+        return
+      }
+
+      console.log("Processed favorite recipes:", recipesData)
+      setFavoriteRecipes(recipesData || [])
     } catch (error) {
-      setFavoriteRecipes([])
       console.error("Error loading favorite recipes:", error)
+      setFavoriteRecipes([])
     }
   }
 
@@ -340,6 +391,8 @@ export default function MealPlannerPage() {
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md"
+                aria-label="Select date"
+                title="Select date for meal planning"
               />
             </div>
           </div>
@@ -494,14 +547,55 @@ export default function MealPlannerPage() {
                   <Heart className="w-4 h-4 text-red-500" />
                   Favorites ({favoriteRecipes.length})
                 </h3>
-                <Button variant="ghost" size="sm" onClick={() => setShowFavorites(!showFavorites)}>
-                  {showFavorites ? "Hide" : "Show"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowFavorites(!showFavorites)}>
+                    {showFavorites ? "Hide" : "Show"}
+                  </Button>
+                  {process.env.NODE_ENV === 'development' && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={async () => {
+                        // Add a test favorite for debugging
+                        if (user && suggestedRecipes.length > 0) {
+                          try {
+                            const { error } = await supabase
+                              .from("recipe_favorites")
+                              .insert({
+                                user_id: user.id,
+                                recipe_id: suggestedRecipes[0].id
+                              })
+                            if (error) throw error
+                            await loadFavoriteRecipes()
+                            console.log("Added test favorite")
+                          } catch (error) {
+                            console.error("Error adding test favorite:", error)
+                          }
+                        }
+                      }}
+                    >
+                      Add Test
+                    </Button>
+                  )}
+                </div>
               </div>
               {showFavorites && (
                 <div className="max-h-64 overflow-y-auto">
                   {favoriteRecipes.length === 0 ? (
-                    <p className="text-center text-gray-500 py-4 text-sm">No favorites yet</p>
+                    <div className="text-center py-4">
+                      <p className="text-gray-500 text-sm mb-2">No favorites yet</p>
+                      <p className="text-xs text-gray-400 mb-3">
+                        Go to the recipes page and click the heart icon to add favorites
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => router.push('/recipes')}
+                        className="text-xs"
+                      >
+                        Browse Recipes
+                      </Button>
+                    </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
                       {favoriteRecipes.slice(0, 8).map((recipe) => (

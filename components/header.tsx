@@ -11,14 +11,35 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 export function Header() {
   const { user, profile, signOut } = useAuth()
   const pathname = usePathname()
+  const router = useRouter()
+  const { toast } = useToast()
 
   // Don't show upload button on upload page
   const showUploadButton = user && !pathname.includes("/recipes/upload")
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      toast({
+        title: "Signed out successfully",
+        description: "You have been signed out of your account.",
+      })
+      router.push("/")
+    } catch (error) {
+      console.error("Sign out error:", error)
+      toast({
+        title: "Error signing out",
+        description: "Please try again or refresh the page.",
+        variant: "destructive",
+      })
+    }
+  }
 
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white border-b">
@@ -46,12 +67,6 @@ export function Header() {
           className={`text-gray-600 hover:text-gray-900 ${pathname === "/shopping" ? "font-semibold text-gray-900" : ""}`}
         >
           Shopping
-        </Link>
-        <Link
-          href="/pantry"
-          className={`text-gray-600 hover:text-gray-900 ${pathname === "/pantry" ? "font-semibold text-gray-900" : ""}`}
-        >
-          Pantry
         </Link>
       </nav>
 
@@ -112,7 +127,7 @@ export function Header() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut()}>
+                <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Sign Out
                 </DropdownMenuItem>
@@ -135,9 +150,6 @@ export function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/shopping">Shopping</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/pantry">Pantry</Link>
                 </DropdownMenuItem>
                 {showUploadButton && (
                   <>

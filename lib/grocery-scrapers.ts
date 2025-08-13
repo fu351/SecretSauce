@@ -19,16 +19,9 @@ interface StoreResults {
 
 export async function searchGroceryStores(searchTerm: string, zipCode = "47906"): Promise<StoreResults[]> {
   try {
-    // Check if we have the Python service URL
-    const pythonServiceUrl = process.env.PYTHON_SERVICE_URL || process.env.NEXT_PUBLIC_PYTHON_SERVICE_URL
-
-    if (!pythonServiceUrl) {
-      console.warn("Python service URL not configured, using mock data")
-      return getMockGroceryData(searchTerm)
-    }
-
+    // Use the local API route which can access the scrapers
     const response = await fetch(
-      `${pythonServiceUrl}/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}`,
+      `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}`,
     )
 
     if (!response.ok) {
@@ -101,7 +94,7 @@ function getMockGroceryData(searchTerm: string): StoreResults[] {
     },
   ]
 
-  const stores = ["Target", "Kroger", "Meijer"]
+  const stores = ["Target", "Kroger", "Meijer", "99 Ranch"]
 
   return stores
     .map((store) => ({

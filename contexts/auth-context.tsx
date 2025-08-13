@@ -25,24 +25,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error("Error getting initial session:", error)
+          setLoading(false)
+          return
+        }
+
+        if (session?.user) {
+          setUser(session.user)
+          await fetchProfile(session.user.id)
+        } else {
+          setUser(null)
+          setProfile(null)
+        }
+      } catch (error) {
+        console.error("Error in getInitialSession:", error)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
-    })
+    }
+
+    getInitialSession()
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
+      console.log("Auth state changed:", event, session?.user?.email)
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          await fetchProfile(session.user.id)
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
         setProfile(null)
+        // Clear any stored data
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('supabase.auth.token')
+        }
       }
+      
       setLoading(false)
     })
 
@@ -65,40 +93,92 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { data, error }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      
+      if (error) {
+        console.error("Sign in error:", error)
+        return { data: null, error }
+      }
+      
+      console.log("Sign in successful:", data.user?.email)
+      return { data, error: null }
+    } catch (error) {
+      console.error("Sign in exception:", error)
+      return { data: null, error }
+    }
   }
 
   const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-    return { data, error }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+      
+      if (error) {
+        console.error("Sign up error:", error)
+        return { data: null, error }
+      }
+      
+      console.log("Sign up successful:", data.user?.email)
+      return { data, error: null }
+    } catch (error) {
+      console.error("Sign up exception:", error)
+      return { data: null, error }
+    }
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    try {
+      console.log("Signing out...")
+      const { error } = await supabase.auth.signOut()
+      
+      if (error) {
+        console.error("Sign out error:", error)
+        throw error
+      }
+      
+      console.log("Sign out successful")
+      // Clear local state immediately
+      setUser(null)
+      setProfile(null)
+      
+      // Clear any stored data
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('supabase.auth.token')
+        sessionStorage.clear()
+      }
+    } catch (error) {
+      console.error("Sign out exception:", error)
+      throw error
+    }
   }
 
   const updateProfile = async (updates: any) => {
     if (!user) return
 
-    const { error } = await supabase.from("profiles").upsert({
-      id: user.id,
-      email: user.email!,
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
+    try {
+      const { error } = await supabase.from("profiles").upsert({
+        id: user.id,
+        email: user.email!,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
 
-    if (error) {
+      if (error) {
+        console.error("Profile update error:", error)
+        throw error
+      }
+
+      await fetchProfile(user.id)
+    } catch (error) {
+      console.error("Profile update exception:", error)
       throw error
     }
-
-    await fetchProfile(user.id)
   }
 
   const value = {
