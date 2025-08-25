@@ -45,8 +45,7 @@ export async function GET(request: NextRequest) {
       scrapers.getTargetProducts(searchTerm, null, zipCode),
       scrapers.Krogers(zipCode, searchTerm),
       scrapers.Meijers(zipCode, searchTerm),
-      scrapers.search99Ranch(searchTerm, zipCode),
-      scrapers.searchWalmartAPI(searchTerm, zipCode)
+      scrapers.search99Ranch(searchTerm, zipCode)
     ])
 
     const allItems = []
@@ -125,25 +124,6 @@ export async function GET(request: NextRequest) {
       allItems.push(...ranchItems)
     } else {
       console.warn("99 Ranch scraper failed or returned no results")
-    }
-
-    // Process Walmart results
-    if (results[4].status === 'fulfilled' && results[4].value.length > 0) {
-      const walmartItems = results[4].value.map((item: any) => ({
-        id: item.id || `walmart-${Math.random()}`,
-        title: item.title || "Unknown Item",
-        brand: item.brand || "",
-        price: Number(item.price) || 0,
-        pricePerUnit: item.pricePerUnit,
-        unit: item.unit,
-        image_url: item.image_url || "/placeholder.svg",
-        provider: "Walmart",
-        location: item.location || "Walmart Store",
-        category: item.category,
-      }))
-      allItems.push(...walmartItems)
-    } else {
-      console.warn("Walmart scraper failed or returned no results")
     }
 
     // If we have results from any scraper, return them

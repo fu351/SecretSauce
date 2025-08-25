@@ -16,27 +16,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Path to your scraper scripts (in lib/scrapers from project root)
-SCRAPER_PATH = Path(__file__).parent.parent / "lib" / "scrapers"
+# Path to your scraper scripts
+SCRAPER_PATH = Path(__file__).parent / "scrapers"
 
 def run_scraper(script: str, search_term: str, zip_code: str):
     """Run a Node.js scraper script and return results"""
-    
-    # Map store names to actual filenames
-    script_mapping = {
-        "Target": "target",
-        "Kroger": "kroger", 
-        "Meijer": "meijer",
-        "99Ranch": "99ranch",
-        "Walmart": "walmart"
-    }
-    
-    script_filename = script_mapping.get(script, script.lower())
-    
     try:
-        script_path = SCRAPER_PATH / f"{script_filename}.js"
         result = subprocess.run(
-            ["node", str(script_path.absolute()), search_term, str(zip_code)],
+            ["node", str(SCRAPER_PATH / f"{script}.js"), search_term, str(zip_code)],
             capture_output=True,
             text=True,
             check=True,
@@ -67,7 +54,7 @@ async def grocery_search(
 ):
     """Search for grocery items across multiple stores"""
     results = []
-    stores = ["Target", "Kroger", "Meijer", "99Ranch", "Walmart"]  # Now includes Walmart with Exa+LLM
+    stores = ["Target", "Kroger", "Meijer", "99Ranch"]  # Only working scrapers
     
     for store in stores:
         store_results = run_scraper(store, searchTerm, zipCode)
