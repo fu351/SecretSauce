@@ -27,7 +27,7 @@ export function HeroSection() {
     <section className="bg-gradient-to-b from-orange-50 to-white py-16 px-6">
       <div className="max-w-4xl mx-auto text-center">
         <h1 className="text-5xl font-bold text-gray-900 mb-6">
-          Meal Planning Made Easy
+          The not so secret recipe for saving money and time
           <span className="text-orange-400 ml-2">🍳</span>
         </h1>
 

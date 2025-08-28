@@ -41,6 +41,12 @@ interface PopularRecipe {
   difficulty: "Beginner" | "Intermediate" | "Advanced"
   comments: number
   tags: string[]
+  nutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+  }
 }
 
 // Add fallback recipes data before the component
@@ -114,6 +120,7 @@ export default function HomePage() {
         difficulty: recipe.difficulty,
         comments: recipe.rating_count || 0,
         tags: recipe.dietary_tags || [],
+        nutrition: recipe.nutrition || undefined,
       }))
 
       setPopularRecipes(formattedRecipes)
@@ -150,13 +157,7 @@ export default function HomePage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
-      </div>
-    )
-  }
+  // Do not block the entire page on initial auth loading; render and gate user-only sections below
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">

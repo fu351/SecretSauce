@@ -21,6 +21,9 @@ export function SearchFilters() {
         const Icon = filter.icon
         return (
           <button
+            type="button"
+            aria-label={filter.label}
+            title={filter.label}
             key={index}
             className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-colors ${
               filter.active

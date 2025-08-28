@@ -1,6 +1,7 @@
 "use client"
 
 import { RecipeCard } from "./recipe-card"
+import Link from "next/link"
 
 interface Recipe {
   id: string
@@ -30,7 +31,9 @@ export function RecipeSection({ title, recipes, showViewAll = true }: RecipeSect
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {recipes.map((recipe) => (
-            <RecipeCard key={recipe.id} {...recipe} />
+            <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
+              <RecipeCard {...recipe} />
+            </Link>
           ))}
         </div>
       </div>

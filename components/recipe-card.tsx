@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { Star, MessageCircle, BarChart3, Heart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,9 +20,15 @@ interface RecipeCardProps {
   comments: number
   tags: string[]
   issues?: number
+  nutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+  }
 }
 
-export function RecipeCard({ id, title, image, rating, difficulty, comments, tags, issues }: RecipeCardProps) {
+export function RecipeCard({ id, title, image, rating, difficulty, comments, tags, issues, nutrition }: RecipeCardProps) {
   const [isFavorited, setIsFavorited] = useState(false)
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
@@ -122,23 +129,36 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
   return (
     <div className="relative group cursor-pointer">
       <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">
-        <img
+        <Image
           src={image || "/placeholder.svg?height=300&width=400"}
           alt={title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          priority={false}
         />
 
-        {/* Overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        {/* Overlay gradient stronger near bottom for title readability */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+        </div>
 
         {/* Favorite button */}
-        <div className="absolute top-4 right-4">
+        <div className="absolute top-4 right-4 z-20">
           <Button
             size="icon"
             variant="secondary"
             className={`bg-white/90 hover:bg-white ${isFavorited ? "text-red-500" : "text-gray-600"}`}
+            onClickCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
             onClick={toggleFavorite}
+            onMouseDownCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onPointerDownCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onKeyDownCapture={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation() } }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation() } }}
             disabled={loading}
+            data-favorite-button
           >
             <Heart className={`h-4 w-4 ${isFavorited ? "fill-current" : ""}`} />
           </Button>
@@ -155,9 +175,9 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
             ))}
           </div>
 
-          {/* Bottom content */}
-          <div className="text-white">
-            <h3 className="text-xl font-bold mb-3 leading-tight">{title}</h3>
+          {/* Bottom content with hover movement and readable text */}
+          <div className="text-white transition-all duration-300 pb-0 group-hover:pb-16 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            <h3 className="text-xl font-bold mb-3 leading-tight transition-transform duration-300 group-hover:-translate-y-2">{title}</h3>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -175,6 +195,26 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 <Badge className={getDifficultyColor(difficulty)}>{difficulty}</Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Hover details panel */}
+        <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none">
+          <div className="m-3 rounded-xl bg-white/90 backdrop-blur-sm text-gray-800 p-4 shadow">
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <div className="text-gray-500">Calories</div>
+                <div className="font-semibold">{nutrition?.calories ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Protein</div>
+                <div className="font-semibold">{nutrition?.protein ? `${nutrition.protein}g` : "—"}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Fat</div>
+                <div className="font-semibold">{nutrition?.fat ? `${nutrition.fat}g` : "—"}</div>
               </div>
             </div>
           </div>

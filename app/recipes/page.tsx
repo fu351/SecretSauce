@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { RecipeCard } from "@/components/recipe-card"
 import { DatabaseSetupNotice } from "@/components/database-setup-notice"
+import Image from "next/image"
 
 interface Recipe {
   id: string
@@ -56,9 +57,10 @@ export default function RecipesPage() {
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
 
+  // Sync state with URL params (no fetching here)
   useEffect(() => {
-    // Get search parameters from URL
     const urlSearch = searchParams.get("search") || ""
     const currentDifficulty = searchParams.get("difficulty") || "all"
     const currentCuisine = searchParams.get("cuisine") || "all"
@@ -70,12 +72,19 @@ export default function RecipesPage() {
     setSelectedCuisine(currentCuisine)
     setSelectedDiet(currentDiet)
     setSortBy(currentSort)
+  }, [searchParams])
 
+  // Fetch recipes on mount and when sort changes only
+  useEffect(() => {
     fetchRecipes()
-    if (user) {
-      fetchFavorites()
-    }
-  }, [searchParams, user])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortBy])
+
+  // Load favorites when user becomes available
+  useEffect(() => {
+    if (user) fetchFavorites()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   useEffect(() => {
     filterRecipes()
@@ -90,7 +99,11 @@ export default function RecipesPage() {
         params.delete(key)
       }
     })
-    router.push(`/recipes?${params.toString()}`)
+    const nextUrl = `/recipes?${params.toString()}`
+    if (urlUpdateTimer.current) clearTimeout(urlUpdateTimer.current)
+    urlUpdateTimer.current = setTimeout(() => {
+      router.replace(nextUrl)
+    }, 300)
   }
 
   const handleSearchChange = (value: string) => {
@@ -482,7 +495,26 @@ export default function RecipesPage() {
         ) : viewMode === "tile" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredRecipes.map((recipe: Recipe) => (
-              <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
+              <div
+                key={recipe.id}
+                role="link"
+                tabIndex={0}
+                title={`Open ${recipe.title}`}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement
+                  if (target.closest('[data-favorite-button]')) return
+                  router.push(`/recipes/${recipe.id}`)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    const target = e.target as HTMLElement
+                    if (target.closest('[data-favorite-button]')) return
+                    e.preventDefault()
+                    router.push(`/recipes/${recipe.id}`)
+                  }
+                }}
+                className="relative"
+              >
                 <RecipeCard
                   id={recipe.id}
                   title={recipe.title}
@@ -491,8 +523,9 @@ export default function RecipesPage() {
                   difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                   comments={recipe.rating_count || 0}
                   tags={recipe.dietary_tags || []}
+                  nutrition={recipe.nutrition}
                 />
-              </Link>
+              </div>
             ))}
           </div>
         ) : (
@@ -511,13 +544,15 @@ export default function RecipesPage() {
                     <CardContent className="p-0">
                       <div className="flex">
                         {/* Left: Large Image */}
-                        <div className="w-1/2 relative">
-                          <img
-                            src={recipe.image_url || "/placeholder.svg?height=400&width=600"}
-                            alt={recipe.title}
-                            className="w-full h-full object-cover min-h-[300px]"
-                          />
-                        </div>
+            <div className="w-1/2 relative min-h-[300px]">
+              <Image
+                src={recipe.image_url || "/placeholder.svg?height=400&width=600"}
+                alt={recipe.title}
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="object-cover"
+              />
+            </div>
 
                         {/* Right: Recipe Details */}
                         <div className="w-1/2 p-8 flex flex-col justify-between">
