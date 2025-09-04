@@ -20,8 +20,11 @@ interface StoreResults {
 export async function searchGroceryStores(searchTerm: string, zipCode = "47906"): Promise<StoreResults[]> {
   try {
     // Use the local API route which can access the scrapers
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 20000)
     const response = await fetch(
       `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}`,
+      { signal: controller.signal }
     )
 
     if (!response.ok) {
@@ -29,6 +32,7 @@ export async function searchGroceryStores(searchTerm: string, zipCode = "47906")
     }
 
     const data = await response.json()
+    clearTimeout(timeout)
 
     // Group results by store
     const storeMap = new Map<string, GroceryItem[]>()

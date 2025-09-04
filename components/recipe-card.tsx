@@ -26,19 +26,28 @@ interface RecipeCardProps {
     carbs?: number
     fat?: number
   }
+  // Performance: allow parent to provide favorite state and skip per-card query
+  initialIsFavorited?: boolean
+  skipFavoriteCheck?: boolean
+  onFavoriteChange?: (id: string, isFavorited: boolean) => void
 }
 
-export function RecipeCard({ id, title, image, rating, difficulty, comments, tags, issues, nutrition }: RecipeCardProps) {
-  const [isFavorited, setIsFavorited] = useState(false)
+export function RecipeCard({ id, title, image, rating, difficulty, comments, tags, issues, nutrition, initialIsFavorited, skipFavoriteCheck, onFavoriteChange }: RecipeCardProps) {
+  const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
   const { toast } = useToast()
 
   useEffect(() => {
-    if (user) {
+    if (user && !skipFavoriteCheck) {
       checkIfFavorited()
     }
-  }, [user, id])
+  }, [user, id, skipFavoriteCheck])
+
+  // Keep internal state in sync when parent-provided favorite state changes
+  useEffect(() => {
+    setIsFavorited(!!initialIsFavorited)
+  }, [initialIsFavorited])
 
   const checkIfFavorited = async () => {
     if (!user) return
@@ -84,6 +93,7 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
 
         if (error) throw error
         setIsFavorited(false)
+        onFavoriteChange?.(id, false)
         toast({
           title: "Removed from favorites",
           description: "Recipe has been removed from your favorites.",
@@ -96,6 +106,7 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
 
         if (error) throw error
         setIsFavorited(true)
+        onFavoriteChange?.(id, true)
         toast({
           title: "Added to favorites",
           description: "Recipe has been added to your favorites.",

@@ -442,11 +442,24 @@ export default function ShoppingPage() {
                     />
                   </div>
                   <div className="flex items-end">
-                    <Button onClick={handleSearch} disabled={loading} className="w-full">
-                      {loading ? "Searching..." : "Search"}
-                    </Button>
+                    <div className="relative w-full">
+                      <Button onClick={handleSearch} disabled={loading} className="w-full">
+                        {loading ? "Searching..." : "Search"}
+                      </Button>
+                      {loading && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="animate-spin rounded-full h-6 w-6 border-2 border-orange-500 border-t-transparent" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+                {loading && (
+                  <div className="flex items-center gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-orange-500 border-t-transparent" />
+                    <p className="text-sm text-orange-800">Searching stores for "{searchTerm}" in {zipCode}...</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

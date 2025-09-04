@@ -60,6 +60,24 @@ export default function DashboardPage() {
     }
   }, [user])
 
+  // Safety: force refresh once if still loading after 5s
+  useEffect(() => {
+    if (!loading) return
+    const alreadyRefreshed = typeof window !== 'undefined' && sessionStorage.getItem('dashboard_force_refresh') === 'true'
+    if (alreadyRefreshed) return
+    const t = setTimeout(() => {
+      if (loading) {
+        try {
+          sessionStorage.setItem('dashboard_force_refresh', 'true')
+        } catch {}
+        if (typeof window !== 'undefined') {
+          window.location.reload()
+        }
+      }
+    }, 5000)
+    return () => clearTimeout(t)
+  }, [loading])
+
   const fetchDashboardData = async () => {
     if (!user) return
 

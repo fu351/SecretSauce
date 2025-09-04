@@ -80,6 +80,24 @@ export default function RecipesPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy])
 
+  // Safety: force refresh once if still loading after 5s
+  useEffect(() => {
+    if (!loading) return
+    const alreadyRefreshed = typeof window !== 'undefined' && sessionStorage.getItem('recipes_force_refresh') === 'true'
+    if (alreadyRefreshed) return
+    const t = setTimeout(() => {
+      if (loading) {
+        try {
+          sessionStorage.setItem('recipes_force_refresh', 'true')
+        } catch {}
+        if (typeof window !== 'undefined') {
+          window.location.reload()
+        }
+      }
+    }, 5000)
+    return () => clearTimeout(t)
+  }, [loading])
+
   // Load favorites when user becomes available
   useEffect(() => {
     if (user) fetchFavorites()
@@ -133,9 +151,12 @@ export default function RecipesPage() {
 
   const fetchRecipes = async () => {
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 12000)
+
       const { data, error } = await supabase
         .from("recipes")
-        .select("*")
+        .select("id, title, description, prep_time, cook_time, servings, difficulty, cuisine_type, image_url, dietary_tags, ingredients, nutrition, rating_avg, rating_count, created_at, author_id")
         .order(sortBy, { ascending: sortBy === "created_at" ? false : true })
 
       if (error) {
@@ -145,6 +166,7 @@ export default function RecipesPage() {
       }
 
       setRecipes(data || [])
+      clearTimeout(timeout)
     } catch (error) {
       console.error("Error fetching recipes:", error)
       setRecipes([])
@@ -518,6 +540,15 @@ export default function RecipesPage() {
                   comments={recipe.rating_count || 0}
                   tags={recipe.dietary_tags || []}
                   nutrition={recipe.nutrition}
+                  initialIsFavorited={favorites.has(recipe.id)}
+                  skipFavoriteCheck
+                  onFavoriteChange={(id, isFav) => {
+                    setFavorites(prev => {
+                      const next = new Set(prev)
+                      if (isFav) next.add(id); else next.delete(id)
+                      return next
+                    })
+                  }}
                 />
               </div>
             ))}
