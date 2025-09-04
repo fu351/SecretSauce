@@ -25,6 +25,12 @@ interface RecentRecipe {
   difficulty: string
   rating_count: number
   dietary_tags: string[]
+  nutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+  } | null
 }
 
 interface PantryItem {
@@ -58,19 +64,19 @@ export default function DashboardPage() {
     if (!user) return
 
     try {
-      // Fetch stats
+      // Fetch stats and recent data
       const [recipesResult, favoritesResult, mealPlansResult, pantryResult, recentRecipesResult, pantryItemsResult] = await Promise.all([
-        supabase.from("recipes").select("id", { count: "exact" }).eq("author_id", user.id),
-        supabase.from("recipe_favorites").select("id", { count: "exact" }).eq("user_id", user.id),
+        supabase.from("recipes").select("id", { count: "exact", head: true }).eq("author_id", user.id),
+        supabase.from("recipe_favorites").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         supabase
           .from("meal_plans")
-          .select("id", { count: "exact" })
+          .select("id", { count: "exact", head: true })
           .eq("user_id", user.id)
           .gte("week_start", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]),
-        supabase.from("pantry_items").select("id", { count: "exact" }).eq("user_id", user.id),
+        supabase.from("pantry_items").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         supabase
           .from("recipes")
-          .select("id, title, image_url, rating_avg, difficulty, rating_count, dietary_tags")
+          .select("id, title, image_url, rating_avg, difficulty, rating_count, dietary_tags, nutrition")
           .order("created_at", { ascending: false })
           .limit(6),
         supabase
@@ -88,7 +94,41 @@ export default function DashboardPage() {
         pantryItems: pantryResult.count || 0,
       })
 
-      setRecentRecipes(recentRecipesResult.data || [])
+      const baseRecent = recentRecipesResult.data || []
+
+      // If rating fields are not populated in recipes table, compute from recipe_ratings as fallback
+      const recipeIds = baseRecent.map((r) => r.id)
+      if (recipeIds.length > 0) {
+        const { data: ratingsAgg } = await supabase
+          .from("recipe_ratings")
+          .select("recipe_id, count:count(), avg:avg(rating)")
+          .in("recipe_id", recipeIds)
+          .group("recipe_id")
+
+        const aggMap = new Map<string, { count: number; avg: number }>()
+        ratingsAgg?.forEach((row: any) => {
+          aggMap.set(row.recipe_id, {
+            count: Number(row.count ?? 0),
+            avg: Number(row.avg ?? 0),
+          })
+        })
+
+        const normalized = baseRecent.map((r) => {
+          const agg = aggMap.get(r.id)
+          const ratingAvg = r.rating_avg != null ? Number(r.rating_avg) : (agg ? agg.avg : 0)
+          const ratingCount = r.rating_count != null ? Number(r.rating_count) : (agg ? agg.count : 0)
+          return { ...r, rating_avg: ratingAvg, rating_count: ratingCount }
+        })
+
+        setRecentRecipes(normalized)
+      } else {
+        setRecentRecipes(baseRecent.map((r) => ({
+          ...r,
+          rating_avg: Number(r.rating_avg ?? 0),
+          rating_count: Number(r.rating_count ?? 0),
+        })))
+      }
+
       setPantryItems(pantryItemsResult.data || [])
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
@@ -374,6 +414,7 @@ export default function DashboardPage() {
                     difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                     comments={recipe.rating_count || 0}
                     tags={recipe.dietary_tags || []}
+                    nutrition={recipe as any as { calories?: number; protein?: number; carbs?: number; fat?: number } as any}
                   />
                 </Link>
               ))}

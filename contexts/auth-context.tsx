@@ -114,9 +114,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
+      const getSiteUrl = () => {
+        if (typeof window !== 'undefined') {
+          return window.location.origin
+        }
+        const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL
+        if (vercelUrl) {
+          return `https://${vercelUrl}`
+        }
+        return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${getSiteUrl()}/`,
+        },
       })
       
       if (error) {

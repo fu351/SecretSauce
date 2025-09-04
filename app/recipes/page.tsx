@@ -328,16 +328,10 @@ export default function RecipesPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Kitchen Sink!</h1>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">Recipes</h1>
               <p className="text-xl text-gray-600">Discover and share amazing recipes</p>
             </div>
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="text-gray-600">
-                <Heart className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="text-gray-600">
-                <Search className="h-5 w-5" />
-              </Button>
               <Button asChild className="bg-orange-500 hover:bg-orange-600">
                 <Link href="/recipes/upload">
                   <Upload className="h-4 w-4 mr-2" />
