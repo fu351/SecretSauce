@@ -34,7 +34,7 @@ This folder contains individual scraper modules for different grocery stores. Ea
 ## Usage
 
 ### Individual Scrapers
-```javascript
+\`\`\`javascript
 const { getTargetProducts } = require('./target.js');
 const { Krogers } = require('./kroger.js');
 const { Meijers } = require('./meijer.js');
@@ -47,10 +47,10 @@ const krogerResults = await Krogers('47906', 'apples');
 const meijerResults = await Meijers('47906', 'apples');
 const ranchResults = await search99Ranch('apples', '47906');
 const walmartResults = await searchWalmartAPI('apples', '47906');
-```
+\`\`\`
 
 ### All Scrapers via Index
-```javascript
+\`\`\`javascript
 const scrapers = require('./index.js');
 
 // Use all scrapers
@@ -61,23 +61,23 @@ const results = await Promise.allSettled([
   scrapers.search99Ranch(searchTerm, zipCode),
   scrapers.searchWalmartAPI(searchTerm, zipCode)
 ]);
-```
+\`\`\`
 
 ## Integration with Frontend
 
 The scrapers are integrated into the frontend through `lib/grocery-scrapers.ts`:
 
-```typescript
+\`\`\`typescript
 import { searchGroceryStores } from '@/lib/grocery-scrapers';
 
 // Use in shopping page
 const results = await searchGroceryStores(searchTerm, zipCode);
-```
+\`\`\`
 
 ## Standardized Product Format
 
 All scrapers return products in this format:
-```javascript
+\`\`\`javascript
 {
   id: string,
   title: string,
@@ -90,7 +90,7 @@ All scrapers return products in this format:
   location?: string,
   category?: string
 }
-```
+\`\`\`
 
 ## Error Handling
 
@@ -113,4 +113,4 @@ Each scraper includes:
 - Each scraper can be run independently or as part of the unified search
 - Results are automatically sorted by price (lowest first)
 - Failed scrapers don't affect other scrapers' results
-- Walmart scraper uses both API and HTML methods for maximum reliability 
+- Walmart scraper uses both API and HTML methods for maximum reliability

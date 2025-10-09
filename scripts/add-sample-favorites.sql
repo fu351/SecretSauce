@@ -15,4 +15,4 @@ INSERT INTO public.recipe_favorites (recipe_id, user_id) VALUES
   ('550e8400-e29b-41d4-a716-446655440102', '550e8400-e29b-41d4-a716-446655440003'), -- Buddha Bowl
   ('550e8400-e29b-41d4-a716-446655440105', '550e8400-e29b-41d4-a716-446655440003'), -- Avocado Toast
   ('550e8400-e29b-41d4-a716-446655440103', '550e8400-e29b-41d4-a716-446655440003')  -- Chocolate Chip Cookies
-ON CONFLICT (recipe_id, user_id) DO NOTHING; 
+ON CONFLICT (recipe_id, user_id) DO NOTHING;

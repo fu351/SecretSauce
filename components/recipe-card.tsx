@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, memo } from "react"
 import Image from "next/image"
 import { Star, MessageCircle, BarChart3, Heart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -26,13 +25,25 @@ interface RecipeCardProps {
     carbs?: number
     fat?: number
   }
-  // Performance: allow parent to provide favorite state and skip per-card query
   initialIsFavorited?: boolean
   skipFavoriteCheck?: boolean
   onFavoriteChange?: (id: string, isFavorited: boolean) => void
 }
 
-export function RecipeCard({ id, title, image, rating, difficulty, comments, tags, issues, nutrition, initialIsFavorited, skipFavoriteCheck, onFavoriteChange }: RecipeCardProps) {
+function RecipeCardComponent({
+  id,
+  title,
+  image,
+  rating,
+  difficulty,
+  comments,
+  tags,
+  issues,
+  nutrition,
+  initialIsFavorited,
+  skipFavoriteCheck,
+  onFavoriteChange,
+}: RecipeCardProps) {
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
@@ -44,7 +55,6 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
     }
   }, [user, id, skipFavoriteCheck])
 
-  // Keep internal state in sync when parent-provided favorite state changes
   useEffect(() => {
     setIsFavorited(!!initialIsFavorited)
   }, [initialIsFavorited])
@@ -61,7 +71,6 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
         .single()
 
       if (error && error.code !== "PGRST116") {
-        // PGRST116 is "not found" error, which is expected when not favorited
         console.warn("Error checking favorites:", error)
         return
       }
@@ -116,7 +125,7 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
       console.error("Error toggling favorite:", error)
       toast({
         title: "Error",
-        description: "Failed to update favorites. Database may not be set up yet.",
+        description: "Failed to update favorites. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -147,27 +156,19 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className="object-cover group-hover:scale-105 transition-transform duration-300"
           priority={false}
+          loading="lazy"
         />
 
-        {/* Overlay gradient stronger near bottom for title readability */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         </div>
 
-        {/* Favorite button */}
-        <div className="absolute top-4 right-4 z-20">
+        <div className="absolute top-4 right-4 z-20 pointer-events-auto">
           <Button
             size="icon"
             variant="secondary"
             className={`bg-white/90 hover:bg-white ${isFavorited ? "text-red-500" : "text-gray-600"}`}
-            onClickCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
             onClick={toggleFavorite}
-            onMouseDownCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
-            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
-            onPointerDownCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
-            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }}
-            onKeyDownCapture={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation() } }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation() } }}
             disabled={loading}
             data-favorite-button
           >
@@ -175,9 +176,7 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
           </Button>
         </div>
 
-        {/* Content overlay */}
-        <div className="absolute inset-0 p-6 flex flex-col justify-between">
-          {/* Top tags */}
+        <div className="absolute inset-0 p-6 flex flex-col justify-between pointer-events-none">
           <div className="flex flex-wrap gap-2 justify-end mr-12">
             {tags.slice(0, 2).map((tag, index) => (
               <Badge key={index} variant="secondary" className="bg-white/90 text-gray-800 hover:bg-white">
@@ -186,9 +185,10 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
             ))}
           </div>
 
-          {/* Bottom content with hover movement and readable text */}
           <div className="text-white transition-all duration-300 pb-0 group-hover:pb-16 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-            <h3 className="text-xl font-bold mb-3 leading-tight transition-transform duration-300 group-hover:-translate-y-2">{title}</h3>
+            <h3 className="text-xl font-bold mb-3 leading-tight transition-transform duration-300 group-hover:-translate-y-2">
+              {title}
+            </h3>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -211,7 +211,6 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
           </div>
         </div>
 
-        {/* Hover details panel */}
         <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none">
           <div className="m-3 rounded-xl bg-white/90 backdrop-blur-sm text-gray-800 p-4 shadow">
             <div className="grid grid-cols-3 gap-3 text-xs">
@@ -231,7 +230,6 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
           </div>
         </div>
 
-        {/* Issues notification */}
         {issues && (
           <div className="absolute bottom-4 left-4">
             <Badge variant="destructive" className="bg-red-500">
@@ -243,3 +241,5 @@ export function RecipeCard({ id, title, image, rating, difficulty, comments, tag
     </div>
   )
 }
+
+export const RecipeCard = memo(RecipeCardComponent)
