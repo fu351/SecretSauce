@@ -1,12 +1,10 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -15,7 +13,6 @@ import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { RecipeCard } from "@/components/recipe-card"
-import { RecipeSkeleton } from "@/components/recipe-skeleton"
 import { DatabaseSetupNotice } from "@/components/database-setup-notice"
 import Image from "next/image"
 
@@ -27,7 +24,7 @@ interface Recipe {
   cook_time: number
   servings: number
   difficulty: string
-  cuisine: string
+  cuisine_type: string
   image_url: string
   dietary_tags: string[]
   ingredients: any[]
@@ -62,6 +59,7 @@ export default function RecipesPage() {
   const searchParams = useSearchParams()
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
 
+  // Sync state with URL params (no fetching here)
   useEffect(() => {
     const urlSearch = searchParams.get("search") || ""
     const currentDifficulty = searchParams.get("difficulty") || "all"
@@ -76,53 +74,99 @@ export default function RecipesPage() {
     setSortBy(currentSort)
   }, [searchParams])
 
+  // Fetch recipes on mount and when sort changes only
   useEffect(() => {
     fetchRecipes()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy])
 
+  // Safety: force refresh once if still loading after 5s
+  useEffect(() => {
+    if (!loading) return
+    const alreadyRefreshed = typeof window !== 'undefined' && sessionStorage.getItem('recipes_force_refresh') === 'true'
+    if (alreadyRefreshed) return
+    const t = setTimeout(() => {
+      if (loading) {
+        try {
+          sessionStorage.setItem('recipes_force_refresh', 'true')
+        } catch {}
+        if (typeof window !== 'undefined') {
+          window.location.reload()
+        }
+      }
+    }, 5000)
+    return () => clearTimeout(t)
+  }, [loading])
+
+  // Load favorites when user becomes available
   useEffect(() => {
     if (user) fetchFavorites()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   useEffect(() => {
     filterRecipes()
   }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet, sortBy])
 
-  const updateURL = useCallback(
-    (updates: Record<string, string>) => {
-      const params = new URLSearchParams(searchParams.toString())
-      Object.entries(updates).forEach(([key, value]) => {
-        if (value && value !== "all") {
-          params.set(key, value)
-        } else {
-          params.delete(key)
-        }
-      })
-      const nextUrl = `/recipes?${params.toString()}`
-      if (urlUpdateTimer.current) clearTimeout(urlUpdateTimer.current)
-      urlUpdateTimer.current = setTimeout(() => {
-        router.replace(nextUrl)
-      }, 300)
-    },
-    [searchParams, router],
-  )
+  const updateURL = (updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value && value !== "all") {
+        params.set(key, value)
+      } else {
+        params.delete(key)
+      }
+    })
+    const nextUrl = `/recipes?${params.toString()}`
+    if (urlUpdateTimer.current) clearTimeout(urlUpdateTimer.current)
+    urlUpdateTimer.current = setTimeout(() => {
+      router.replace(nextUrl)
+    }, 300)
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    updateURL({ search: value })
+  }
+
+  const handleDifficultyChange = (value: string) => {
+    setSelectedDifficulty(value)
+    updateURL({ difficulty: value })
+  }
+
+  const handleCuisineChange = (value: string) => {
+    setSelectedCuisine(value)
+    updateURL({ cuisine: value })
+  }
+
+  const handleDietChange = (value: string) => {
+    setSelectedDiet(value)
+    updateURL({ diet: value })
+  }
+
+  const handleSortChange = (value: string) => {
+    setSortBy(value)
+    updateURL({ sort: value })
+  }
 
   const fetchRecipes = async () => {
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 12000)
+
       const { data, error } = await supabase
         .from("recipes")
-        .select(
-          "id, title, description, prep_time, cook_time, servings, difficulty, cuisine, image_url, dietary_tags, ingredients, nutrition, rating_avg, rating_count, created_at, author_id",
-        )
+        .select("id, title, description, prep_time, cook_time, servings, difficulty, cuisine_type, image_url, dietary_tags, ingredients, nutrition, rating_avg, rating_count, created_at, author_id")
         .order(sortBy, { ascending: sortBy === "created_at" ? false : true })
 
       if (error) {
-        console.warn("Error fetching recipes:", error.message)
+        console.warn("Database not set up yet:", error.message)
         setRecipes([])
         return
       }
 
       setRecipes(data || [])
+      clearTimeout(timeout)
     } catch (error) {
       console.error("Error fetching recipes:", error)
       setRecipes([])
@@ -135,110 +179,131 @@ export default function RecipesPage() {
     if (!user) return
 
     try {
-      const { data, error } = await supabase.from("favorites").select("recipe_id").eq("user_id", user.id)
+      const { data, error } = await supabase
+        .from("recipe_favorites")
+        .select("recipe_id")
+        .eq("user_id", user.id)
 
       if (error) {
         console.warn("Error fetching favorites:", error)
         return
       }
 
-      const favoriteIds = new Set(data?.map((item) => item.recipe_id) || [])
+      const favoriteIds = new Set(data?.map(item => item.recipe_id) || [])
       setFavorites(favoriteIds)
     } catch (error) {
       console.error("Error fetching favorites:", error)
     }
   }
 
-  const toggleFavorite = useCallback(
-    async (recipeId: string, e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
+  const toggleFavorite = async (recipeId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
 
-      if (!user) {
-        toast({
-          title: "Sign in required",
-          description: "Please sign in to favorite recipes.",
-          variant: "destructive",
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to favorite recipes.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      if (favorites.has(recipeId)) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from("recipe_favorites")
+          .delete()
+          .eq("recipe_id", recipeId)
+          .eq("user_id", user.id)
+
+        if (error) throw error
+
+        setFavorites(prev => {
+          const newFavorites = new Set(prev)
+          newFavorites.delete(recipeId)
+          return newFavorites
         })
-        return
-      }
 
-      try {
-        if (favorites.has(recipeId)) {
-          const { error } = await supabase.from("favorites").delete().eq("recipe_id", recipeId).eq("user_id", user.id)
-
-          if (error) throw error
-
-          setFavorites((prev) => {
-            const newFavorites = new Set(prev)
-            newFavorites.delete(recipeId)
-            return newFavorites
-          })
-
-          toast({
-            title: "Removed from favorites",
-            description: "Recipe has been removed from your favorites.",
-          })
-        } else {
-          const { error } = await supabase.from("favorites").insert({
+        toast({
+          title: "Removed from favorites",
+          description: "Recipe has been removed from your favorites.",
+        })
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from("recipe_favorites")
+          .insert({
             recipe_id: recipeId,
             user_id: user.id,
           })
 
-          if (error) throw error
+        if (error) throw error
 
-          setFavorites((prev) => new Set([...prev, recipeId]))
+        setFavorites(prev => new Set([...prev, recipeId]))
 
-          toast({
-            title: "Added to favorites",
-            description: "Recipe has been added to your favorites.",
-          })
-        }
-      } catch (error) {
-        console.error("Error toggling favorite:", error)
         toast({
-          title: "Error",
-          description: "Failed to update favorites. Please try again.",
-          variant: "destructive",
+          title: "Added to favorites",
+          description: "Recipe has been added to your favorites.",
         })
       }
-    },
-    [user, favorites, toast],
-  )
+    } catch (error) {
+      console.error("Error toggling favorite:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update favorites. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
 
-  const filterRecipes = useCallback(() => {
+  const filterRecipes = () => {
     let filtered = recipes
 
+    // Search filter - now includes ingredients
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase()
       filtered = filtered.filter((recipe) => {
+        // Search in title
         if (recipe.title.toLowerCase().includes(searchLower)) return true
-        if (recipe.description?.toLowerCase().includes(searchLower)) return true
-        if (recipe.cuisine?.toLowerCase().includes(searchLower)) return true
+        
+        // Search in description
+        if (recipe.description.toLowerCase().includes(searchLower)) return true
+        
+        // Search in cuisine type
+        if (recipe.cuisine_type?.toLowerCase().includes(searchLower)) return true
+        
+        // Search in ingredients
         if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
-          return recipe.ingredients.some((ingredient: any) => ingredient.name?.toLowerCase().includes(searchLower))
+          return recipe.ingredients.some((ingredient: any) => 
+            ingredient.name?.toLowerCase().includes(searchLower)
+          )
         }
+        
         return false
       })
     }
 
+    // Difficulty filter
     if (selectedDifficulty !== "all") {
       filtered = filtered.filter((recipe) => recipe.difficulty === selectedDifficulty)
     }
 
+    // Cuisine filter
     if (selectedCuisine !== "all") {
-      filtered = filtered.filter((recipe) => recipe.cuisine === selectedCuisine)
+      filtered = filtered.filter((recipe) => recipe.cuisine_type === selectedCuisine)
     }
 
+    // Diet filter
     if (selectedDiet !== "all") {
-      filtered = filtered.filter((recipe) => recipe.dietary_tags && recipe.dietary_tags.includes(selectedDiet))
+      filtered = filtered.filter((recipe) => 
+        recipe.dietary_tags && recipe.dietary_tags.includes(selectedDiet)
+      )
     }
 
     setFilteredRecipes(filtered)
-  }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet])
-
-  const cuisineTypes = useMemo(() => [...new Set(recipes.map((recipe) => recipe.cuisine).filter(Boolean))], [recipes])
-  const dietaryTags = useMemo(() => [...new Set(recipes.flatMap((recipe) => recipe.dietary_tags || []))], [recipes])
+  }
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
@@ -257,18 +322,21 @@ export default function RecipesPage() {
     return (recipe.prep_time || 0) + (recipe.cook_time || 0)
   }
 
+  // Get unique cuisine types and dietary tags
+  const cuisineTypes = [...new Set(recipes.map(recipe => recipe.cuisine_type).filter(Boolean))]
+  const dietaryTags = [...new Set(recipes.flatMap(recipe => recipe.dietary_tags || []))]
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
         <div className="max-w-7xl mx-auto p-6">
-          <div className="mb-8">
-            <div className="h-10 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
-            <div className="h-6 w-64 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <RecipeSkeleton key={i} />
-            ))}
+          <div className="animate-pulse space-y-8">
+            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -278,6 +346,7 @@ export default function RecipesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
       <div className="max-w-7xl mx-auto p-6">
+        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -294,20 +363,19 @@ export default function RecipesPage() {
             </div>
           </div>
 
+          {/* Search Bar */}
           <div className="relative max-w-2xl">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <Input
               placeholder="Search recipes by name, ingredient, or cuisine..."
               value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value)
-                updateURL({ search: e.target.value })
-              }}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-12 py-4 text-lg rounded-full border-gray-200 shadow-sm"
             />
           </div>
         </div>
 
+        {/* View Mode Toggle */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <Button
             variant={viewMode === "tile" ? "default" : "outline"}
@@ -329,16 +397,11 @@ export default function RecipesPage() {
           </Button>
         </div>
 
+        {/* Advanced Filters */}
         <Card className="mb-8 bg-white/80 backdrop-blur-sm border-0 shadow-lg">
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <Select
-                value={selectedDifficulty}
-                onValueChange={(value) => {
-                  setSelectedDifficulty(value)
-                  updateURL({ difficulty: value })
-                }}
-              >
+              <Select value={selectedDifficulty} onValueChange={handleDifficultyChange}>
                 <SelectTrigger className="bg-white/50">
                   <SelectValue placeholder="Difficulty" />
                 </SelectTrigger>
@@ -350,13 +413,7 @@ export default function RecipesPage() {
                 </SelectContent>
               </Select>
 
-              <Select
-                value={selectedCuisine}
-                onValueChange={(value) => {
-                  setSelectedCuisine(value)
-                  updateURL({ cuisine: value })
-                }}
-              >
+              <Select value={selectedCuisine} onValueChange={handleCuisineChange}>
                 <SelectTrigger className="bg-white/50">
                   <SelectValue placeholder="Cuisine" />
                 </SelectTrigger>
@@ -370,13 +427,7 @@ export default function RecipesPage() {
                 </SelectContent>
               </Select>
 
-              <Select
-                value={selectedDiet}
-                onValueChange={(value) => {
-                  setSelectedDiet(value)
-                  updateURL({ diet: value })
-                }}
-              >
+              <Select value={selectedDiet} onValueChange={handleDietChange}>
                 <SelectTrigger className="bg-white/50">
                   <SelectValue placeholder="Diet" />
                 </SelectTrigger>
@@ -390,13 +441,7 @@ export default function RecipesPage() {
                 </SelectContent>
               </Select>
 
-              <Select
-                value={sortBy}
-                onValueChange={(value) => {
-                  setSortBy(value)
-                  updateURL({ sort: value })
-                }}
-              >
+              <Select value={sortBy} onValueChange={handleSortChange}>
                 <SelectTrigger className="bg-white/50">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
@@ -424,6 +469,7 @@ export default function RecipesPage() {
           </CardContent>
         </Card>
 
+        {/* Results */}
         <div className="mb-6">
           <p className="text-gray-600">
             {searchTerm && `Search results for "${searchTerm}" - `}
@@ -472,13 +518,13 @@ export default function RecipesPage() {
                 title={`Open ${recipe.title}`}
                 onClick={(e) => {
                   const target = e.target as HTMLElement
-                  if (target.closest("[data-favorite-button]")) return
+                  if (target.closest('[data-favorite-button]')) return
                   router.push(`/recipes/${recipe.id}`)
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     const target = e.target as HTMLElement
-                    if (target.closest("[data-favorite-button]")) return
+                    if (target.closest('[data-favorite-button]')) return
                     e.preventDefault()
                     router.push(`/recipes/${recipe.id}`)
                   }
@@ -497,10 +543,9 @@ export default function RecipesPage() {
                   initialIsFavorited={favorites.has(recipe.id)}
                   skipFavoriteCheck
                   onFavoriteChange={(id, isFav) => {
-                    setFavorites((prev) => {
+                    setFavorites(prev => {
                       const next = new Set(prev)
-                      if (isFav) next.add(id)
-                      else next.delete(id)
+                      if (isFav) next.add(id); else next.delete(id)
                       return next
                     })
                   }}
@@ -512,30 +557,29 @@ export default function RecipesPage() {
           <div className="space-y-6">
             {filteredRecipes.map((recipe: Recipe) => (
               <div key={recipe.id} className="relative">
-                <Link
-                  href={`/recipes/${recipe.id}`}
-                  onClick={(e) => {
-                    const target = e.target as HTMLElement
-                    if (target.closest("[data-favorite-button]")) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                    }
-                  }}
-                >
+                <Link href={`/recipes/${recipe.id}`} onClick={(e) => {
+                  // Prevent navigation if clicking on the favorite button
+                  const target = e.target as HTMLElement
+                  if (target.closest('[data-favorite-button]')) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }
+                }}>
                   <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-sm border-0 shadow-lg overflow-hidden">
                     <CardContent className="p-0">
                       <div className="flex">
-                        <div className="w-1/2 relative min-h-[300px]">
-                          <Image
-                            src={recipe.image_url || "/placeholder.svg?height=400&width=600"}
-                            alt={recipe.title}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 50vw"
-                            className="object-cover"
-                            loading="lazy"
-                          />
-                        </div>
+                        {/* Left: Large Image */}
+            <div className="w-1/2 relative min-h-[300px]">
+              <Image
+                src={recipe.image_url || "/placeholder.svg?height=400&width=600"}
+                alt={recipe.title}
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="object-cover"
+              />
+            </div>
 
+                        {/* Right: Recipe Details */}
                         <div className="w-1/2 p-8 flex flex-col justify-between">
                           <div>
                             <div className="flex items-start justify-between mb-4">
@@ -544,9 +588,10 @@ export default function RecipesPage() {
                               </h3>
                               <Badge className={getDifficultyColor(recipe.difficulty)}>{recipe.difficulty}</Badge>
                             </div>
-
+                            
                             <p className="text-gray-600 mb-6 line-clamp-3">{recipe.description}</p>
 
+                            {/* Recipe Metrics */}
                             <div className="grid grid-cols-2 gap-6 mb-6">
                               <div className="flex items-center gap-3">
                                 <Clock className="h-5 w-5 text-gray-400" />
@@ -555,7 +600,7 @@ export default function RecipesPage() {
                                   <p className="font-semibold">{getTotalTime(recipe)} minutes</p>
                                 </div>
                               </div>
-
+                              
                               <div className="flex items-center gap-3">
                                 <Users className="h-5 w-5 text-gray-400" />
                                 <div>
@@ -563,7 +608,7 @@ export default function RecipesPage() {
                                   <p className="font-semibold">{recipe.servings} servings</p>
                                 </div>
                               </div>
-
+                              
                               <div className="flex items-center gap-3">
                                 <ChefHat className="h-5 w-5 text-gray-400" />
                                 <div>
@@ -575,7 +620,7 @@ export default function RecipesPage() {
                                   </div>
                                 </div>
                               </div>
-
+                              
                               <div className="flex items-center gap-3">
                                 <BarChart3 className="h-5 w-5 text-gray-400" />
                                 <div>
@@ -590,6 +635,7 @@ export default function RecipesPage() {
                             </div>
                           </div>
 
+                          {/* Tags */}
                           {recipe.dietary_tags && recipe.dietary_tags.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                               {recipe.dietary_tags.map((tag, index) => (
@@ -604,11 +650,12 @@ export default function RecipesPage() {
                     </CardContent>
                   </Card>
                 </Link>
-
+                
+                {/* Favorite button positioned absolutely to avoid Link interference */}
                 <div className="absolute top-4 right-4 z-10">
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
                     data-favorite-button
                     className={`bg-white/90 hover:bg-white ${favorites.has(recipe.id) ? "text-red-500" : "text-gray-600"}`}
                     onClick={(e) => toggleFavorite(recipe.id, e)}

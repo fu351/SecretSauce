@@ -1,72 +1,79 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, memo } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+
+import { useState, useEffect } from "react"
+import Image from "next/image"
+import { Star, MessageCircle, BarChart3, Heart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Clock, Users, Heart } from "lucide-react"
-import Link from "next/link"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
-interface Recipe {
+interface RecipeCardProps {
   id: string
   title: string
-  description: string
-  image_url: string
-  prep_time: number
-  cook_time: number
-  servings: number
-  difficulty: string
-  cuisine_type?: string
-  dietary_tags: string[]
-  rating_avg?: number
-  rating_count?: number
+  image: string
+  rating: number
+  difficulty: "beginner" | "intermediate" | "advanced"
+  comments: number
+  tags: string[]
+  issues?: number
+  nutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+  }
+  // Performance: allow parent to provide favorite state and skip per-card query
+  initialIsFavorited?: boolean
+  skipFavoriteCheck?: boolean
+  onFavoriteChange?: (id: string, isFavorited: boolean) => void
 }
 
-interface RecipeCardProps {
-  recipe: Recipe
-  isFavorite?: boolean
-  onFavoriteToggle?: () => void
-}
-
-function RecipeCardComponent({ recipe, isFavorite: initialIsFavorite = false, onFavoriteToggle }: RecipeCardProps) {
+export function RecipeCard({ id, title, image, rating, difficulty, comments, tags, issues, nutrition, initialIsFavorited, skipFavoriteCheck, onFavoriteChange }: RecipeCardProps) {
+  const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
+  const [loading, setLoading] = useState(false)
   const { user } = useAuth()
   const { toast } = useToast()
-  const [isFavorite, setIsFavorite] = useState(initialIsFavorite)
-  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
 
   useEffect(() => {
-    if (user && recipe?.id) {
-      checkIfFavorite()
+    if (user && !skipFavoriteCheck) {
+      checkIfFavorited()
     }
-  }, [user, recipe?.id])
+  }, [user, id, skipFavoriteCheck])
 
-  const checkIfFavorite = async () => {
-    if (!user || !recipe?.id) return
+  // Keep internal state in sync when parent-provided favorite state changes
+  useEffect(() => {
+    setIsFavorited(!!initialIsFavorited)
+  }, [initialIsFavorited])
+
+  const checkIfFavorited = async () => {
+    if (!user) return
 
     try {
       const { data, error } = await supabase
         .from("recipe_favorites")
         .select("id")
+        .eq("recipe_id", id)
         .eq("user_id", user.id)
-        .eq("recipe_id", recipe.id)
-        .maybeSingle()
+        .single()
 
-      if (error) {
-        console.error("Error checking favorite:", error)
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 is "not found" error, which is expected when not favorited
+        console.warn("Error checking favorites:", error)
         return
       }
 
-      setIsFavorite(!!data)
+      setIsFavorited(!!data)
     } catch (error) {
-      console.error("Error checking if favorited:", error)
+      console.warn("Error checking if favorited:", error)
+      setIsFavorited(false)
     }
   }
 
-  const handleFavoriteClick = async (e: React.MouseEvent) => {
+  const toggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
 
@@ -79,108 +86,160 @@ function RecipeCardComponent({ recipe, isFavorite: initialIsFavorite = false, on
       return
     }
 
-    if (!recipe?.id) {
-      console.error("Recipe ID is missing")
-      return
-    }
-
-    setIsTogglingFavorite(true)
+    setLoading(true)
     try {
-      if (isFavorite) {
-        const { error } = await supabase
-          .from("recipe_favorites")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("recipe_id", recipe.id)
+      if (isFavorited) {
+        const { error } = await supabase.from("recipe_favorites").delete().eq("recipe_id", id).eq("user_id", user.id)
 
         if (error) throw error
-        setIsFavorite(false)
+        setIsFavorited(false)
+        onFavoriteChange?.(id, false)
         toast({
           title: "Removed from favorites",
           description: "Recipe has been removed from your favorites.",
         })
       } else {
         const { error } = await supabase.from("recipe_favorites").insert({
+          recipe_id: id,
           user_id: user.id,
-          recipe_id: recipe.id,
         })
 
         if (error) throw error
-        setIsFavorite(true)
+        setIsFavorited(true)
+        onFavoriteChange?.(id, true)
         toast({
           title: "Added to favorites",
           description: "Recipe has been added to your favorites.",
         })
       }
-      onFavoriteToggle?.()
     } catch (error) {
       console.error("Error toggling favorite:", error)
       toast({
         title: "Error",
-        description: "Failed to update favorites. Please try again.",
+        description: "Failed to update favorites. Database may not be set up yet.",
         variant: "destructive",
       })
     } finally {
-      setIsTogglingFavorite(false)
+      setLoading(false)
     }
   }
 
-  if (!recipe) {
-    return null
+  const getDifficultyColor = (level: string) => {
+    switch (level) {
+      case "beginner":
+        return "bg-green-100 text-green-800"
+      case "intermediate":
+        return "bg-yellow-100 text-yellow-800"
+      case "advanced":
+        return "bg-red-100 text-red-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
   }
 
   return (
-    <Link href={`/recipes/${recipe.id}`}>
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer h-full">
-        <div className="relative h-48 w-full">
-          <img src={recipe.image_url || "/placeholder.svg"} alt={recipe.title} className="w-full h-full object-cover" />
-          <div className="absolute top-2 right-2 flex gap-2">
-            <Badge variant="secondary" className="bg-white/90">
-              {recipe.difficulty}
-            </Badge>
-            {user && (
-              <Button
-                size="sm"
-                variant="secondary"
-                className={`h-8 w-8 p-0 rounded-full ${
-                  isFavorite ? "bg-red-50 hover:bg-red-100" : "bg-white/90 hover:bg-white"
-                }`}
-                onClick={handleFavoriteClick}
-                disabled={isTogglingFavorite}
-              >
-                <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
-              </Button>
-            )}
+    <div className="relative group cursor-pointer">
+      <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">
+        <Image
+          src={image || "/placeholder.svg?height=300&width=400"}
+          alt={title}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          priority={false}
+        />
+
+        {/* Overlay gradient stronger near bottom for title readability */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+        </div>
+
+        {/* Favorite button */}
+        <div className="absolute top-4 right-4 z-20">
+          <Button
+            size="icon"
+            variant="secondary"
+            className={`bg-white/90 hover:bg-white ${isFavorited ? "text-red-500" : "text-gray-600"}`}
+            onClickCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onClick={toggleFavorite}
+            onMouseDownCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onPointerDownCapture={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+            onKeyDownCapture={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation() } }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation() } }}
+            disabled={loading}
+            data-favorite-button
+          >
+            <Heart className={`h-4 w-4 ${isFavorited ? "fill-current" : ""}`} />
+          </Button>
+        </div>
+
+        {/* Content overlay */}
+        <div className="absolute inset-0 p-6 flex flex-col justify-between">
+          {/* Top tags */}
+          <div className="flex flex-wrap gap-2 justify-end mr-12">
+            {tags.slice(0, 2).map((tag, index) => (
+              <Badge key={index} variant="secondary" className="bg-white/90 text-gray-800 hover:bg-white">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Bottom content with hover movement and readable text */}
+          <div className="text-white transition-all duration-300 pb-0 group-hover:pb-16 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            <h3 className="text-xl font-bold mb-3 leading-tight transition-transform duration-300 group-hover:-translate-y-2">{title}</h3>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1">
+                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  <span className="font-semibold">{rating.toFixed(1)}</span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <MessageCircle className="h-4 w-4" />
+                  <span>{comments} reviews</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                <Badge className={getDifficultyColor(difficulty)}>{difficulty}</Badge>
+              </div>
+            </div>
           </div>
         </div>
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-lg mb-2 line-clamp-1">{recipe.title}</h3>
-          <p className="text-sm text-gray-600 mb-4 line-clamp-2">{recipe.description}</p>
 
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              <span>{recipe.prep_time + recipe.cook_time} min</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="h-4 w-4" />
-              <span>{recipe.servings} servings</span>
+        {/* Hover details panel */}
+        <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none">
+          <div className="m-3 rounded-xl bg-white/90 backdrop-blur-sm text-gray-800 p-4 shadow">
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <div className="text-gray-500">Calories</div>
+                <div className="font-semibold">{nutrition?.calories ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Protein</div>
+                <div className="font-semibold">{nutrition?.protein ? `${nutrition.protein}g` : "—"}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Fat</div>
+                <div className="font-semibold">{nutrition?.fat ? `${nutrition.fat}g` : "—"}</div>
+              </div>
             </div>
           </div>
+        </div>
 
-          {recipe.dietary_tags && recipe.dietary_tags.length > 0 && (
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {recipe.dietary_tags.slice(0, 2).map((tag) => (
-                <Badge key={tag} variant="outline" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </Link>
+        {/* Issues notification */}
+        {issues && (
+          <div className="absolute bottom-4 left-4">
+            <Badge variant="destructive" className="bg-red-500">
+              {issues} Issues ✕
+            </Badge>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
-
-export const RecipeCard = memo(RecipeCardComponent)
