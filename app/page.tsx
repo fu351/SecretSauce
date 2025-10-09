@@ -8,37 +8,14 @@ import { RecipeSection } from "@/components/recipe-section"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent } from "@/components/ui/card"
-import { ChefHat, Heart, Calendar, ShoppingCart, TrendingUp, Star, Clock, Users } from "lucide-react"
-
-interface Ingredient {
-  amount: string
-  unit: string
-  name: string
-}
-
-interface Recipe {
-  id: string
-  title: string
-  description: string
-  prep_time: number
-  cook_time: number
-  servings: number
-  difficulty: string
-  cuisine: string
-  image_url: string
-  tags: string[]
-  ingredients: Ingredient[]
-  instructions: string[]
-  user_id: string
-  created_at: string
-}
+import { ChefHat, Heart, Calendar, ShoppingCart } from "lucide-react"
 
 interface PopularRecipe {
   id: string
   title: string
   image: string
   rating: number
-  difficulty: "Beginner" | "Intermediate" | "Advanced"
+  difficulty: "beginner" | "intermediate" | "advanced"
   comments: number
   tags: string[]
   nutrition?: {
@@ -49,14 +26,13 @@ interface PopularRecipe {
   }
 }
 
-// Add fallback recipes data before the component
 const fallbackRecipes: PopularRecipe[] = [
   {
     id: "1",
     title: "Vegetarian Buddha Bowl",
     image: "/placeholder.svg?height=300&width=400",
     rating: 4.8,
-    difficulty: "Beginner",
+    difficulty: "beginner",
     comments: 24,
     tags: ["Vegetarian", "Healthy"],
   },
@@ -65,7 +41,7 @@ const fallbackRecipes: PopularRecipe[] = [
     title: "Classic Spaghetti Carbonara",
     image: "/placeholder.svg?height=300&width=400",
     rating: 4.7,
-    difficulty: "Intermediate",
+    difficulty: "intermediate",
     comments: 18,
     tags: ["Italian", "Quick"],
   },
@@ -74,7 +50,7 @@ const fallbackRecipes: PopularRecipe[] = [
     title: "Chocolate Chip Cookies",
     image: "/placeholder.svg?height=300&width=400",
     rating: 4.9,
-    difficulty: "Beginner",
+    difficulty: "beginner",
     comments: 32,
     tags: ["Dessert", "Kid-Friendly"],
   },
@@ -107,7 +83,6 @@ export default function HomePage() {
 
       if (error) {
         console.warn("Database not set up yet, using fallback data:", error.message)
-        // Use fallback data when database isn't ready
         setPopularRecipes(fallbackRecipes)
         return
       }
@@ -126,7 +101,6 @@ export default function HomePage() {
       setPopularRecipes(formattedRecipes)
     } catch (error) {
       console.warn("Error fetching popular recipes, using fallback data:", error)
-      // Use fallback data when there's any error
       setPopularRecipes(fallbackRecipes)
     }
   }
@@ -157,108 +131,67 @@ export default function HomePage() {
     }
   }
 
-  // Do not block the entire page on initial auth loading; render and gate user-only sections below
-
   return (
     <main className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
-      {/* Hero Section */}
       <HeroSection />
 
-      {/* User Dashboard Section (if logged in) */}
       {user && (
         <section className="py-16 px-6">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                Welcome back, {user.email?.split("@")[0]}!
-              </h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user.email?.split("@")[0]}!</h2>
               <p className="text-gray-600">Here's what's cooking in your kitchen</p>
             </div>
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <Link href="/recipes">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                  <CardContent className="p-6 flex flex-col items-center">
-                    <ChefHat className="h-8 w-8 text-orange-500 mb-2" />
-                    <p className="text-sm font-medium text-gray-600">My Recipes</p>
-                    <p className="text-2xl font-bold text-gray-900">{userStats.totalRecipes}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Link href="/recipes" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white border-0 shadow-md">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <ChefHat className="h-8 w-8 text-orange-500" />
+                      <span className="text-xs text-gray-500">Your Recipes</span>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{userStats.totalRecipes}</p>
+                    <p className="text-sm text-gray-500 mt-1">Recipes created</p>
                   </CardContent>
                 </Card>
               </Link>
-              <Link href="/favorites">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                  <CardContent className="p-6 flex flex-col items-center">
-                    <Heart className="h-8 w-8 text-red-500 mb-2" />
-                    <p className="text-sm font-medium text-gray-600">Favorites</p>
-                    <p className="text-2xl font-bold text-gray-900">{userStats.favoriteRecipes}</p>
-                  </CardContent>
-                </Card>
-              </Link>
-              <Link href="/meal-planner">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                  <CardContent className="p-6 flex flex-col items-center">
-                    <Calendar className="h-8 w-8 text-blue-500 mb-2" />
-                    <p className="text-sm font-medium text-gray-600">Meal Plans</p>
-                    <p className="text-2xl font-bold text-gray-900">{userStats.mealPlansThisWeek}</p>
-                  </CardContent>
-                </Card>
-              </Link>
-              <Link href="/pantry">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                  <CardContent className="p-6 flex flex-col items-center">
-                    <ShoppingCart className="h-8 w-8 text-green-500 mb-2" />
-                    <p className="text-sm font-medium text-gray-600">Pantry Items</p>
-                    <p className="text-2xl font-bold text-gray-900">{userStats.pantryItems}</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </div>
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Link href="/recipes">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+              <Link href="/favorites" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white border-0 shadow-md">
                   <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-orange-100 rounded-lg">
-                        <ChefHat className="h-6 w-6 text-orange-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">Browse Recipes</h3>
-                        <p className="text-sm text-gray-600">Discover new dishes to cook</p>
-                      </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <Heart className="h-8 w-8 text-red-500" />
+                      <span className="text-xs text-gray-500">Favorites</span>
                     </div>
+                    <p className="text-3xl font-bold text-gray-900">{userStats.favoriteRecipes}</p>
+                    <p className="text-sm text-gray-500 mt-1">Saved recipes</p>
                   </CardContent>
                 </Card>
               </Link>
-              <Link href="/meal-planner">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+
+              <Link href="/meal-planner" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white border-0 shadow-md">
                   <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-blue-100 rounded-lg">
-                        <Calendar className="h-6 w-6 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">Plan Meals</h3>
-                        <p className="text-sm text-gray-600">Organize your weekly menu</p>
-                      </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <Calendar className="h-8 w-8 text-blue-500" />
+                      <span className="text-xs text-gray-500">Meal Plans</span>
                     </div>
+                    <p className="text-3xl font-bold text-gray-900">{userStats.mealPlansThisWeek}</p>
+                    <p className="text-sm text-gray-500 mt-1">Meals this week</p>
                   </CardContent>
                 </Card>
               </Link>
-              <Link href="/recipes/upload">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+
+              <Link href="/pantry" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white border-0 shadow-md">
                   <CardContent className="p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-green-100 rounded-lg">
-                        <TrendingUp className="h-6 w-6 text-green-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">Share Recipe</h3>
-                        <p className="text-sm text-gray-600">Upload your own creation</p>
-                      </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <ShoppingCart className="h-8 w-8 text-green-500" />
+                      <span className="text-xs text-gray-500">Pantry Items</span>
                     </div>
+                    <p className="text-3xl font-bold text-gray-900">{userStats.pantryItems}</p>
+                    <p className="text-sm text-gray-500 mt-1">Items in stock</p>
                   </CardContent>
                 </Card>
               </Link>
@@ -267,11 +200,9 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Popular Recipes Section */}
       <RecipeSection title="Popular Recipes" recipes={popularRecipes} />
 
-      {/* CTA Section */}
-      <section className="bg-orange-500 py-16 px-6">
+      <section className="bg-gradient-to-r from-orange-500 to-orange-600 py-16 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-white mb-4">Ready to start your culinary journey?</h2>
           <p className="text-xl text-orange-100 mb-8">Join thousands of home cooks saving money and eating better</p>

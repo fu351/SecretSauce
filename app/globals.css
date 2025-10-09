@@ -88,3 +88,25 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide all scrollbars */
+::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Optimize image loading */
+img {
+  content-visibility: auto;
+}
