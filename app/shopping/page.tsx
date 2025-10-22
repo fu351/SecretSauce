@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,10 +10,9 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import Link from "next/link"
-import { ChefHat, Search as SearchIcon, DollarSign, Plus, X, Check, ShoppingCart, Heart } from "lucide-react"
+import { ChefHat, SearchIcon, DollarSign, Plus, X, ShoppingCart } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
@@ -35,6 +36,8 @@ interface ShoppingListItem {
   quantity: number
   unit: string
   checked: boolean
+  recipeId?: string
+  recipeName?: string
 }
 
 interface Recipe {
@@ -52,7 +55,7 @@ interface StoreComparison {
 
 export default function ShoppingPage() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [zipCode, setZipCode] = useState("47906")
+  const [zipCode, setZipCode] = useState("")
   const [searchResults, setSearchResults] = useState<GroceryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([])
@@ -60,31 +63,47 @@ export default function ShoppingPage() {
   const [activeTab, setActiveTab] = useState("search")
   const [showRecipeDialog, setShowRecipeDialog] = useState(false)
   const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [selectedRecipe, setSelectedRecipe] = useState<string>("")
   const [massSearchResults, setMassSearchResults] = useState<StoreComparison[]>([])
-  const [showComparison, setShowComparison] = useState(false)
   const [comparisonLoading, setComparisonLoading] = useState(false)
   const [draggedRecipe, setDraggedRecipe] = useState<string | null>(null)
 
   const { user } = useAuth()
+  const { theme } = useTheme()
   const { toast } = useToast()
 
   useEffect(() => {
     if (user) {
+      loadUserPreferences()
       loadShoppingList()
-      loadRecipes() // Load recipes when user is available
+      loadRecipes()
     }
   }, [user])
+
+  const loadUserPreferences = async () => {
+    if (!user) return
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("postal_code, grocery_distance_km")
+        .eq("id", user.id)
+        .single()
+
+      if (error) throw error
+
+      if (data?.postal_code) {
+        setZipCode(data.postal_code)
+      }
+    } catch (error) {
+      console.error("Error loading user preferences:", error)
+    }
+  }
 
   const loadShoppingList = async () => {
     if (!user) return
 
     try {
-      const { data } = await supabase
-        .from("shopping_lists")
-        .select("items")
-        .eq("user_id", user.id)
-        .single()
+      const { data } = await supabase.from("shopping_lists").select("items").eq("user_id", user.id).single()
 
       if (data?.items) {
         setShoppingList(data.items)
@@ -109,26 +128,32 @@ export default function ShoppingPage() {
 
       if (ownError) throw ownError
 
-      // Load user's favorited recipes
-      const { data: favoriteRecipes, error: favoriteError } = await supabase
+      const { data: favoriteData, error: favoriteError } = await supabase
         .from("recipe_favorites")
-        .select(`
-          recipe:recipes (
-            id, title, ingredients
-          )
-        `)
+        .select("recipe_id")
         .eq("user_id", user.id)
 
       if (favoriteError) throw favoriteError
 
-      // Combine own recipes and favorited recipes
+      // Get the full recipe data for favorited recipes
+      let favoritedRecipes: any[] = []
+      if (favoriteData && favoriteData.length > 0) {
+        const recipeIds = favoriteData.map((f) => f.recipe_id)
+        const { data: recipesData, error: recipesError } = await supabase
+          .from("recipes")
+          .select("id, title, ingredients")
+          .in("id", recipeIds)
+
+        if (recipesError) throw recipesError
+        favoritedRecipes = recipesData || []
+      }
+
+      // Combine and deduplicate
       const ownRecipesList = ownRecipes || []
-      const favoritedRecipesList = favoriteRecipes?.map(item => item.recipe).filter(Boolean) || []
-      
-      // Remove duplicates (in case user favorited their own recipe)
       const allRecipes = [...ownRecipesList]
-      favoritedRecipesList.forEach((favRecipe: any) => {
-        if (!allRecipes.find(recipe => recipe.id === favRecipe.id)) {
+
+      favoritedRecipes.forEach((favRecipe) => {
+        if (!allRecipes.find((recipe) => recipe.id === favRecipe.id)) {
           allRecipes.push(favRecipe)
         }
       })
@@ -144,12 +169,10 @@ export default function ShoppingPage() {
     if (!user) return
 
     try {
-      const { error } = await supabase
-        .from("shopping_lists")
-        .upsert({
-          user_id: user.id,
-          items,
-        })
+      const { error } = await supabase.from("shopping_lists").upsert({
+        user_id: user.id,
+        items,
+      })
 
       if (error) throw error
     } catch (error) {
@@ -163,8 +186,7 @@ export default function ShoppingPage() {
     setLoading(true)
     try {
       const storeResults = await searchGroceryStores(searchTerm, zipCode)
-      // Flatten the store results into a single array of grocery items
-      const flattenedResults = storeResults.flatMap(store => store.items)
+      const flattenedResults = storeResults.flatMap((store) => store.items)
       setSearchResults(flattenedResults)
       setActiveTab("search")
     } catch (error) {
@@ -222,16 +244,14 @@ export default function ShoppingPage() {
 
   const updateItemQuantity = (id: string, change: number) => {
     const updatedList = shoppingList.map((item) =>
-      item.id === id ? { ...item, quantity: Math.max(1, item.quantity + change) } : item
+      item.id === id ? { ...item, quantity: Math.max(1, item.quantity + change) } : item,
     )
     setShoppingList(updatedList)
     saveShoppingList(updatedList)
   }
 
   const toggleItemChecked = (id: string) => {
-    const updatedList = shoppingList.map((item) =>
-      item.id === id ? { ...item, checked: !item.checked } : item
-    )
+    const updatedList = shoppingList.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item))
     setShoppingList(updatedList)
     saveShoppingList(updatedList)
   }
@@ -249,17 +269,16 @@ export default function ShoppingPage() {
     const newItems: ShoppingListItem[] = recipe.ingredients.map((ingredient: any) => ({
       id: Date.now().toString() + Math.random(),
       name: ingredient.name,
-      quantity: parseFloat(ingredient.amount) || 1,
+      quantity: Number.parseFloat(ingredient.amount) || 1,
       unit: ingredient.unit || "piece",
       checked: false,
+      recipeId: recipe.id,
+      recipeName: recipe.title,
     }))
 
-    // Merge with existing items, combining quantities for duplicates
     const mergedList = [...shoppingList]
     newItems.forEach((newItem) => {
-      const existingIndex = mergedList.findIndex(
-        (item) => item.name.toLowerCase() === newItem.name.toLowerCase(),
-      )
+      const existingIndex = mergedList.findIndex((item) => item.name.toLowerCase() === newItem.name.toLowerCase())
       if (existingIndex >= 0) {
         mergedList[existingIndex].quantity += newItem.quantity
       } else {
@@ -270,7 +289,6 @@ export default function ShoppingPage() {
     setShoppingList(mergedList)
     saveShoppingList(mergedList)
     setShowRecipeDialog(false)
-    setSelectedRecipe("")
 
     toast({
       title: "Ingredients added",
@@ -297,7 +315,6 @@ export default function ShoppingPage() {
 
       const searchResults = await Promise.all(searchPromises)
 
-      // Process results to find best prices per store
       const storeMap = new Map<string, StoreComparison>()
 
       searchResults.forEach(({ item, storeResults }) => {
@@ -312,9 +329,7 @@ export default function ShoppingPage() {
           }
 
           const store = storeMap.get(storeResult.store)!
-          const bestItem = storeResult.items.reduce((best, current) =>
-            current.price < best.price ? current : best,
-          )
+          const bestItem = storeResult.items.reduce((best, current) => (current.price < best.price ? current : best))
 
           if (bestItem) {
             store.items.push({
@@ -329,16 +344,13 @@ export default function ShoppingPage() {
       const comparisons = Array.from(storeMap.values())
       const minTotal = Math.min(...comparisons.map((c) => c.total))
 
-      // Calculate savings
       comparisons.forEach((comparison) => {
         comparison.savings = comparison.total - minTotal
       })
 
-      // Sort by total price
       comparisons.sort((a, b) => a.total - b.total)
 
       setMassSearchResults(comparisons)
-      setShowComparison(true)
       setActiveTab("comparison")
     } catch (error) {
       console.error("Error performing mass search:", error)
@@ -368,13 +380,16 @@ export default function ShoppingPage() {
   }
 
   const groupResultsByStore = (results: GroceryItem[]) => {
-    const grouped = results.reduce((acc, item) => {
-      if (!acc[item.provider]) {
-        acc[item.provider] = []
-      }
-      acc[item.provider].push(item)
-      return acc
-    }, {} as Record<string, GroceryItem[]>)
+    const grouped = results.reduce(
+      (acc, item) => {
+        if (!acc[item.provider]) {
+          acc[item.provider] = []
+        }
+        acc[item.provider].push(item)
+        return acc
+      },
+      {} as Record<string, GroceryItem[]>,
+    )
 
     return Object.entries(grouped).map(([store, items]) => ({
       store,
@@ -383,7 +398,6 @@ export default function ShoppingPage() {
     }))
   }
 
-  // Drag and drop handlers
   const handleDragStart = (recipeId: string) => setDraggedRecipe(recipeId)
   const handleDragOver = (e: React.DragEvent) => e.preventDefault()
   const handleDrop = (e: React.DragEvent) => {
@@ -394,28 +408,67 @@ export default function ShoppingPage() {
     }
   }
 
+  // Group shopping list items by recipe
+  const groupedShoppingList = shoppingList.reduce(
+    (acc, item) => {
+      const key = item.recipeId || "custom"
+      if (!acc[key]) {
+        acc[key] = {
+          recipeName: item.recipeName || "Custom Items",
+          items: [],
+        }
+      }
+      acc[key].items.push(item)
+      return acc
+    },
+    {} as Record<string, { recipeName: string; items: ShoppingListItem[] }>,
+  )
+
+  const bgClass = theme === "dark" ? "bg-[#181813]" : "bg-gray-50"
+  const textClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
+  const cardBgClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white"
+  const mutedTextClass = theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"
+  const buttonClass =
+    theme === "dark" ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 hover:bg-orange-600 text-white"
+  const buttonOutlineClass =
+    theme === "dark"
+      ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
+      : "border-gray-300 hover:bg-gray-50"
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${bgClass}`}>
       <div className="max-w-7xl mx-auto p-6">
-        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Shopping & Price Search</h1>
-          <p className="text-gray-600">Find the best prices and manage your shopping list</p>
+          <h1 className={`text-3xl font-serif font-light ${textClass} mb-2`}>Shopping & Price Search</h1>
+          <p className={mutedTextClass}>Find the best prices and manage your shopping list</p>
         </div>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="search">Price Search</TabsTrigger>
-            <TabsTrigger value="list">Shopping List</TabsTrigger>
-            <TabsTrigger value="comparison">Store Comparison</TabsTrigger>
+          <TabsList className={`grid w-full grid-cols-3 ${theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : ""}`}>
+            <TabsTrigger
+              value="search"
+              className={theme === "dark" ? "data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]" : ""}
+            >
+              Price Search
+            </TabsTrigger>
+            <TabsTrigger
+              value="list"
+              className={theme === "dark" ? "data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]" : ""}
+            >
+              Shopping List
+            </TabsTrigger>
+            <TabsTrigger
+              value="comparison"
+              className={theme === "dark" ? "data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]" : ""}
+            >
+              Store Comparison
+            </TabsTrigger>
           </TabsList>
 
-          {/* Price Search Tab */}
           <TabsContent value="search" className="space-y-6">
-            <Card>
+            <Card className={cardBgClass}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className={`flex items-center gap-2 ${textClass}`}>
                   <SearchIcon className="h-5 w-5" />
                   Search for Groceries
                 </CardTitle>
@@ -423,51 +476,43 @@ export default function ShoppingPage() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <Label htmlFor="search-term">Search Term</Label>
+                    <Label htmlFor="search-term" className={textClass}>
+                      Search Term
+                    </Label>
                     <Input
                       id="search-term"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       placeholder="e.g., apples, milk, bread"
                       onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                      className={theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="zip-code">Zip Code</Label>
+                    <Label htmlFor="zip-code" className={textClass}>
+                      Zip Code
+                    </Label>
                     <Input
                       id="zip-code"
                       value={zipCode}
                       onChange={(e) => setZipCode(e.target.value)}
                       placeholder="47906"
+                      className={theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
                     />
                   </div>
                   <div className="flex items-end">
-                    <div className="relative w-full">
-                      <Button onClick={handleSearch} disabled={loading} className="w-full">
-                        {loading ? "Searching..." : "Search"}
-                      </Button>
-                      {loading && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="animate-spin rounded-full h-6 w-6 border-2 border-orange-500 border-t-transparent" />
-                        </div>
-                      )}
-                    </div>
+                    <Button onClick={handleSearch} disabled={loading} className={`w-full ${buttonClass}`}>
+                      {loading ? "Searching..." : "Search"}
+                    </Button>
                   </div>
                 </div>
-                {loading && (
-                  <div className="flex items-center gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-orange-500 border-t-transparent" />
-                    <p className="text-sm text-orange-800">Searching stores for "{searchTerm}" in {zipCode}...</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
-            {/* Search Results */}
             {searchResults.length > 0 && (
               <div className="space-y-6">
                 {groupResultsByStore(searchResults).map((storeGroup) => (
-                  <Card key={storeGroup.store}>
+                  <Card key={storeGroup.store} className={cardBgClass}>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <span className="text-2xl">{getStoreIcon(storeGroup.store)}</span>
@@ -481,27 +526,27 @@ export default function ShoppingPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {storeGroup.items.map((item) => (
                           <Card key={item.id} className="hover:shadow-md transition-shadow">
-                            <CardContent className="p-4">
+                            <CardContent className={`p-4 ${theme === "dark" ? "bg-[#1f1e1a]" : ""}`}>
                               <div className="flex items-start gap-3">
                                 <img
-                                  src={item.image_url}
+                                  src={item.image_url || "/placeholder.svg"}
                                   alt={item.title}
                                   className="w-16 h-16 object-cover rounded-lg"
                                 />
                                 <div className="flex-1 min-w-0">
-                                  <h3 className="font-medium text-sm truncate">{item.title}</h3>
-                                  <p className="text-xs text-gray-500">{item.brand}</p>
+                                  <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
+                                  <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
                                   <div className="flex items-center justify-between mt-2">
                                     <div className="text-sm">
-                                      <span className="font-semibold">${item.price.toFixed(2)}</span>
+                                      <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
                                       {item.pricePerUnit && (
-                                        <span className="text-gray-500 ml-1">({item.pricePerUnit})</span>
+                                        <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>
                                       )}
                                     </div>
                                     <Button
                                       size="sm"
                                       onClick={() => addToShoppingList(item)}
-                                      className="h-8 px-3"
+                                      className={`h-8 px-3 ${buttonClass}`}
                                     >
                                       <Plus className="h-3 w-3" />
                                     </Button>
@@ -519,21 +564,19 @@ export default function ShoppingPage() {
             )}
           </TabsContent>
 
-          {/* Shopping List Tab */}
           <TabsContent value="list" className="space-y-6">
-            <Card>
+            <Card className={cardBgClass}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className={`flex items-center gap-2 ${textClass}`}>
                   <ShoppingCart className="h-5 w-5" />
                   Shopping List
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Add Recipe Ingredients */}
                 <div className="flex items-center gap-4">
                   <Dialog open={showRecipeDialog} onOpenChange={setShowRecipeDialog}>
                     <DialogTrigger asChild>
-                      <Button variant="outline">
+                      <Button variant="outline" className={buttonOutlineClass}>
                         <ChefHat className="h-4 w-4 mr-2" />
                         Add Recipe Ingredients
                       </Button>
@@ -552,21 +595,27 @@ export default function ShoppingPage() {
                               onDragStart={() => handleDragStart(recipe.id)}
                               onClick={() => addRecipeIngredients(recipe.id)}
                             >
-                              <Card className="hover:shadow-lg transition-shadow">
+                              <Card
+                                className={`hover:shadow-lg transition-shadow ${theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : ""}`}
+                              >
                                 <CardContent className="p-4">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                                      <ChefHat className="h-6 w-6 text-orange-600" />
+                                    <div
+                                      className={`w-12 h-12 rounded-lg flex items-center justify-center ${theme === "dark" ? "bg-[#e8dcc4]/20" : "bg-orange-100"}`}
+                                    >
+                                      <ChefHat
+                                        className={`h-6 w-6 ${theme === "dark" ? "text-[#e8dcc4]" : "text-orange-600"}`}
+                                      />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <h3 className="font-medium text-sm truncate">{recipe.title}</h3>
-                                      <p className="text-xs text-gray-500">
+                                      <h3 className={`font-medium text-sm truncate ${textClass}`}>{recipe.title}</h3>
+                                      <p className={`text-xs ${mutedTextClass}`}>
                                         {recipe.ingredients.length} ingredients
                                       </p>
                                     </div>
                                   </div>
-                                  <div className="mt-3 text-xs text-gray-500">
-                                    <p>Click to add or drag to shopping list</p>
+                                  <div className="mt-3 text-xs">
+                                    <p className={mutedTextClass}>Click to add or drag to shopping list</p>
                                   </div>
                                 </CardContent>
                               </Card>
@@ -577,74 +626,103 @@ export default function ShoppingPage() {
                     </DialogContent>
                   </Dialog>
 
-                  <Button onClick={performMassSearch} disabled={shoppingList.length === 0}>
+                  <Button
+                    onClick={performMassSearch}
+                    disabled={shoppingList.length === 0}
+                    variant="outline"
+                    className={buttonOutlineClass}
+                  >
                     <DollarSign className="h-4 w-4 mr-2" />
-                    Search
+                    Compare Stores
                   </Button>
                 </div>
 
-                {/* Add Custom Item */}
                 <div className="flex gap-2">
                   <Input
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
                     placeholder="Add custom item..."
                     onKeyPress={(e) => e.key === "Enter" && addCustomItem()}
+                    className={
+                      theme === "dark"
+                        ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40"
+                        : ""
+                    }
                   />
-                  <Button onClick={addCustomItem} disabled={!newItem.trim()}>
+                  <Button onClick={addCustomItem} disabled={!newItem.trim()} className={buttonClass}>
                     Add
                   </Button>
                 </div>
 
-                {/* Shopping List Items */}
-                <div className="space-y-2">
-                  {shoppingList.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border ${
-                        item.checked ? "bg-gray-50" : "bg-white"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.checked}
-                        onChange={() => toggleItemChecked(item.id)}
-                        className="h-4 w-4"
-                        title="Mark as purchased"
-                        aria-label="Mark as purchased"
-                      />
-                      <div className="flex-1">
-                        <h3 className={`font-medium ${item.checked ? "line-through text-gray-500" : ""}`}>
-                          {item.name}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {item.quantity} {item.unit}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateItemQuantity(item.id, -1)}
-                          disabled={item.quantity <= 1}
-                        >
-                          -
-                        </Button>
-                        <span className="w-8 text-center">{item.quantity}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateItemQuantity(item.id, 1)}
-                        >
-                          +
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => removeItem(item.id)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                <div className="space-y-6">
+                  {Object.entries(groupedShoppingList).map(([key, group]) => (
+                    <div key={key}>
+                      <h3 className={`font-semibold text-lg mb-3 flex items-center gap-2 ${textClass}`}>
+                        {key !== "custom" && <ChefHat className="h-5 w-5 text-orange-500" />}
+                        {group.recipeName}
+                      </h3>
+                      <div className="space-y-2">
+                        {group.items.map((item) => (
+                          <div
+                            key={item.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg border ${
+                              theme === "dark"
+                                ? item.checked
+                                  ? "bg-[#181813] border-[#e8dcc4]/20"
+                                  : "bg-[#1f1e1a] border-[#e8dcc4]/20"
+                                : item.checked
+                                  ? "bg-gray-50 border-gray-200"
+                                  : "bg-white border-gray-200"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={item.checked}
+                              onChange={() => toggleItemChecked(item.id)}
+                              className="h-4 w-4"
+                              title="Mark as purchased"
+                              aria-label="Mark as purchased"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <h3
+                                className={`font-medium ${item.checked ? `line-through ${mutedTextClass}` : textClass}`}
+                              >
+                                {item.name}
+                              </h3>
+                              <p className={`text-sm ${mutedTextClass}`}>
+                                {item.quantity} {item.unit}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateItemQuantity(item.id, -1)}
+                                disabled={item.quantity <= 1}
+                                className={buttonOutlineClass}
+                              >
+                                -
+                              </Button>
+                              <span className={`w-8 text-center ${textClass}`}>{item.quantity}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateItemQuantity(item.id, 1)}
+                                className={buttonOutlineClass}
+                              >
+                                +
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => removeItem(item.id)}
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -653,10 +731,9 @@ export default function ShoppingPage() {
             </Card>
           </TabsContent>
 
-          {/* Store Comparison Tab */}
           <TabsContent value="comparison" className="space-y-6">
             {comparisonLoading ? (
-              <Card>
+              <Card className={cardBgClass}>
                 <CardContent className="p-8 text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
                   <p>Searching all stores...</p>
@@ -664,25 +741,20 @@ export default function ShoppingPage() {
               </Card>
             ) : massSearchResults.length > 0 ? (
               <div className="space-y-6">
-                {/* Store Comparison Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {massSearchResults.map((comparison, index) => (
-                    <Card key={comparison.store} className="h-fit">
+                    <Card key={comparison.store} className={`h-fit ${cardBgClass}`}>
                       <CardHeader>
                         <CardTitle className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="text-2xl">{getStoreIcon(comparison.store)}</span>
                             {comparison.store}
-                            {index === 0 && (
-                              <Badge className="bg-green-100 text-green-800">Best Price</Badge>
-                            )}
+                            {index === 0 && <Badge className="bg-green-100 text-green-800">Best Price</Badge>}
                           </div>
                           <div className="text-right">
                             <div className="text-2xl font-bold">${comparison.total.toFixed(2)}</div>
                             {comparison.savings > 0 && (
-                              <div className="text-sm text-red-600">
-                                +${comparison.savings.toFixed(2)} more
-                              </div>
+                              <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
                             )}
                           </div>
                         </CardTitle>
@@ -690,26 +762,29 @@ export default function ShoppingPage() {
                       <CardContent>
                         <div className="space-y-3">
                           {comparison.items.map((item) => (
-                            <div key={item.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                            <div
+                              key={item.id}
+                              className={`flex items-start gap-3 p-3 rounded-lg ${theme === "dark" ? "bg-[#181813]" : "bg-gray-50"}`}
+                            >
                               <img
-                                src={item.image_url}
+                                src={item.image_url || "/placeholder.svg"}
                                 alt={item.title}
                                 className="w-12 h-12 object-cover rounded"
                               />
                               <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-sm truncate">{item.title}</h3>
-                                <p className="text-xs text-gray-500">{item.brand}</p>
+                                <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
+                                <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
                                 <div className="flex items-center justify-between mt-1">
                                   <div className="text-sm">
-                                    <span className="font-semibold">${item.price.toFixed(2)}</span>
+                                    <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
                                     {item.pricePerUnit && (
-                                      <span className="text-gray-500 ml-1">({item.pricePerUnit})</span>
+                                      <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>
                                     )}
                                   </div>
                                   <Button
                                     size="sm"
                                     onClick={() => addToShoppingList(item)}
-                                    className="h-6 px-2"
+                                    className={`h-6 px-2 ${buttonClass}`}
                                   >
                                     <Plus className="h-3 w-3" />
                                   </Button>
@@ -723,49 +798,58 @@ export default function ShoppingPage() {
                   ))}
                 </div>
 
-                {/* Summary Card */}
-                <Card className="bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200">
+                <Card
+                  className={
+                    theme === "dark" ? cardBgClass : "bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200"
+                  }
+                >
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <DollarSign className="h-5 w-5 text-orange-600" />
+                    <CardTitle className={`flex items-center gap-2 ${textClass}`}>
+                      <DollarSign className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]" : "text-orange-600"}`} />
                       Shopping Summary
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-green-600">
+                        <p className={`text-2xl font-bold ${theme === "dark" ? "text-green-400" : "text-green-600"}`}>
                           ${massSearchResults[0]?.total.toFixed(2) || "0.00"}
                         </p>
-                        <p className="text-sm text-gray-600">Best Total Price</p>
+                        <p className={`text-sm ${mutedTextClass}`}>Best Total Price</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-red-600">
+                        <p className={`text-2xl font-bold ${theme === "dark" ? "text-red-400" : "text-red-600"}`}>
                           ${massSearchResults[massSearchResults.length - 1]?.total.toFixed(2) || "0.00"}
                         </p>
-                        <p className="text-sm text-gray-600">Highest Total Price</p>
+                        <p className={`text-sm ${mutedTextClass}`}>Highest Total Price</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-blue-600">
-                          ${(massSearchResults[massSearchResults.length - 1]?.total || 0) - (massSearchResults[0]?.total || 0) > 0 
-                            ? ((massSearchResults[massSearchResults.length - 1]?.total || 0) - (massSearchResults[0]?.total || 0)).toFixed(2)
+                        <p className={`text-2xl font-bold ${theme === "dark" ? "text-blue-400" : "text-blue-600"}`}>
+                          $
+                          {(massSearchResults[massSearchResults.length - 1]?.total || 0) -
+                            (massSearchResults[0]?.total || 0) >
+                          0
+                            ? (
+                                (massSearchResults[massSearchResults.length - 1]?.total || 0) -
+                                (massSearchResults[0]?.total || 0)
+                              ).toFixed(2)
                             : "0.00"}
                         </p>
-                        <p className="text-sm text-gray-600">Potential Savings</p>
+                        <p className={`text-sm ${mutedTextClass}`}>Potential Savings</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
             ) : (
-              <Card>
+              <Card className={cardBgClass}>
                 <CardContent className="p-8 text-center">
                   <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No comparison data</h3>
-                  <p className="text-gray-600 mb-6">
+                  <h3 className={`text-lg font-medium ${textClass} mb-2`}>No comparison data</h3>
+                  <p className={mutedTextClass}>
                     Add items to your shopping list and perform a search to see store comparisons.
                   </p>
-                  <Button onClick={() => setActiveTab("list")}>
+                  <Button onClick={() => setActiveTab("list")} className={buttonClass}>
                     Go to Shopping List
                   </Button>
                 </CardContent>

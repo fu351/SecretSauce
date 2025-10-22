@@ -8,9 +8,15 @@ import { Badge } from "@/components/ui/badge"
 import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
+<<<<<<< HEAD
+import { useTheme } from "@/contexts/theme-context"
+import { RecipeDetailSkeleton } from "@/components/recipe-skeleton"
+import { RecipeReviews } from "@/components/recipe-reviews"
+=======
 import { RecipeDetailSkeleton } from "@/components/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe-reviews"
 import { useToast } from "@/hooks/use-toast"
+>>>>>>> main
 
 interface Ingredient {
   amount: string
@@ -47,7 +53,11 @@ export default function RecipeDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
+<<<<<<< HEAD
+  const { theme } = useTheme()
+=======
   const { toast } = useToast()
+>>>>>>> main
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
@@ -102,7 +112,7 @@ export default function RecipeDetailPage() {
 
     try {
       const { data, error } = await supabase
-        .from("recipe_favorites")
+        .from("recipe_favorites") // Use recipe_favorites table
         .select("id")
         .eq("user_id", user.id)
         .eq("recipe_id", params.id)
@@ -115,7 +125,10 @@ export default function RecipeDetailPage() {
 
       setIsFavorite(!!data)
     } catch (error) {
+<<<<<<< HEAD
+=======
       console.error("Error checking if favorited:", error)
+>>>>>>> main
       setIsFavorite(false)
     }
   }
@@ -137,7 +150,11 @@ export default function RecipeDetailPage() {
           .from("recipe_favorites")
           .delete()
           .eq("user_id", user.id)
+<<<<<<< HEAD
+          .eq("recipe_id", params.id) // Use recipe_favorites
+=======
           .eq("recipe_id", params.id)
+>>>>>>> main
 
         if (error) throw error
         setIsFavorite(false)
@@ -147,6 +164,7 @@ export default function RecipeDetailPage() {
         })
       } else {
         const { error } = await supabase.from("recipe_favorites").insert({
+          // Use recipe_favorites
           user_id: user.id,
           recipe_id: params.id,
         })
@@ -178,7 +196,11 @@ export default function RecipeDetailPage() {
         .from("shopping_lists")
         .select("items")
         .eq("user_id", user.id)
+<<<<<<< HEAD
+        .single()
+=======
         .maybeSingle()
+>>>>>>> main
 
       if (fetchError && fetchError.code !== "PGRST116") throw fetchError
 
@@ -221,18 +243,44 @@ export default function RecipeDetailPage() {
     return (recipe?.prep_time || 0) + (recipe?.cook_time || 0)
   }
 
+  const bgClass = theme === "dark" ? "bg-[#181813]" : "bg-gradient-to-br from-orange-50 to-yellow-50"
+  const textClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
+  const mutedTextClass = theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"
+  const cardBgClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white/90"
+  const infoBgClass = theme === "dark" ? "bg-[#252520] border-[#e8dcc4]/10" : "bg-white/80"
+
   if (loading) {
     return <RecipeDetailSkeleton />
   }
 
   if (!recipe) {
     return (
+<<<<<<< HEAD
+      <div className={`min-h-screen flex items-center justify-center ${bgClass}`}>
+        {" "}
+        {/* Use theme-aware background */}
+        <Card className={`max-w-md mx-auto shadow-lg ${cardBgClass}`}>
+          {" "}
+          {/* Use theme-aware card */}
+          <CardContent className="p-6 text-center">
+            <h2 className={`text-2xl font-bold mb-4 ${textClass}`}>Recipe Not Found</h2>
+            <p className={`mb-6 ${mutedTextClass}`}>The recipe you're looking for doesn't exist.</p>
+            <Button
+              onClick={() => router.push("/recipes")}
+              className={
+                theme === "dark"
+                  ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                  : "bg-orange-500 hover:bg-orange-600"
+              }
+            >
+=======
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50 flex items-center justify-center">
         <Card className="max-w-md mx-auto shadow-lg border-0 bg-white/90 backdrop-blur-sm">
           <CardContent className="p-6 text-center">
             <h2 className="text-2xl font-bold mb-4">Recipe Not Found</h2>
             <p className="text-gray-600 mb-6">The recipe you're looking for doesn't exist.</p>
             <Button onClick={() => router.push("/recipes")} className="bg-orange-500 hover:bg-orange-600">
+>>>>>>> main
               Browse Recipes
             </Button>
           </CardContent>
@@ -242,7 +290,11 @@ export default function RecipeDetailPage() {
   }
 
   return (
+<<<<<<< HEAD
+    <div className={`min-h-screen ${bgClass}`}>
+=======
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
+>>>>>>> main
       <div className={`fixed z-50 ${isFloating ? "top-8" : "top-24"} left-8 transition-all duration-300`}>
         <Button
           variant="ghost"
@@ -278,59 +330,71 @@ export default function RecipeDetailPage() {
           </div>
 
           <div className="lg:w-2/5">
-            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+            <Card className={`${cardBgClass} backdrop-blur-sm border-0 shadow-lg`}>
               <CardContent className="p-8">
                 <div className="space-y-8">
                   <div>
-                    <h1 className="text-3xl font-bold text-gray-900 leading-tight">{recipe.title}</h1>
+                    <h1 className={`text-3xl font-serif font-light ${textClass} leading-tight`}>{recipe.title}</h1>
                   </div>
 
+<<<<<<< HEAD
+                  <p className={`${mutedTextClass} leading-relaxed text-lg`}>{recipe.description}</p>
+=======
                   <p className="text-gray-600 leading-relaxed text-lg">{recipe.description}</p>
+>>>>>>> main
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <Clock className="h-5 w-5 text-gray-400" />
+                    <div className={`flex items-center gap-3 p-4 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}>
+                      <Clock className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`} />
                       <div>
-                        <p className="text-sm text-gray-500">Total Time</p>
-                        <p className="font-semibold">{getTotalTime()} minutes</p>
+                        <p className={`text-sm ${mutedTextClass}`}>Total Time</p>
+                        <p className={`font-semibold ${textClass}`}>{getTotalTime()} minutes</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <BarChart3 className="h-5 w-5 text-gray-400" />
+                    <div className={`flex items-center gap-3 p-4 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}>
+                      <BarChart3 className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`} />
                       <div>
-                        <p className="text-sm text-gray-500">Difficulty</p>
-                        <p className="font-semibold capitalize">{recipe.difficulty}</p>
+                        <p className={`text-sm ${mutedTextClass}`}>Difficulty</p>
+                        <p className={`font-semibold capitalize ${textClass}`}>{recipe.difficulty}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <Users className="h-5 w-5 text-gray-400" />
+                    <div className={`flex items-center gap-3 p-4 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}>
+                      <Users className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`} />
                       <div>
-                        <p className="text-sm text-gray-500">Servings</p>
-                        <p className="font-semibold">{recipe.servings} servings</p>
+                        <p className={`text-sm ${mutedTextClass}`}>Servings</p>
+                        <p className={`font-semibold ${textClass}`}>{recipe.servings} servings</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <Star className="h-5 w-5 text-gray-400" />
+                    <div className={`flex items-center gap-3 p-4 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}>
+                      <Star className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`} />
                       <div>
-                        <p className="text-sm text-gray-500">Rating</p>
+                        <p className={`text-sm ${mutedTextClass}`}>Rating</p>
                         <div className="flex items-center gap-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-semibold">{(recipe.rating_avg || 0).toFixed(1)}</span>
-                          <span className="text-xs text-gray-500">({recipe.rating_count || 0})</span>
+                          <Star
+                            className={`h-4 w-4 ${theme === "dark" ? "fill-[#e8dcc4] text-[#e8dcc4]" : "fill-yellow-400 text-yellow-400"}`}
+                          />{" "}
+                          {/* Use theme color for star */}
+                          <span className={`font-semibold ${textClass}`}>{(recipe.rating_avg || 0).toFixed(1)}</span>
+                          <span className={`text-xs ${mutedTextClass}`}>({recipe.rating_count || 0})</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   {recipe.nutrition && (
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <Utensils className="h-5 w-5 text-gray-400" />
+                    <div className={`flex items-center gap-3 p-4 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}>
+                      <Utensils className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`} />
                       <div>
+<<<<<<< HEAD
+                        <p className={`text-sm ${mutedTextClass}`}>Nutrition</p>
+                        <div className={`flex gap-4 text-sm ${textClass}`}>
+=======
                         <p className="text-sm text-gray-500">Nutrition</p>
                         <div className="flex gap-4 text-sm">
+>>>>>>> main
                           {recipe.nutrition.calories && (
                             <span className="font-semibold">{recipe.nutrition.calories} Calories</span>
                           )}
@@ -346,12 +410,27 @@ export default function RecipeDetailPage() {
                   {(recipe.dietary_tags.length > 0 || recipe.cuisine) && (
                     <div className="flex flex-wrap gap-2">
                       {recipe.cuisine && (
+<<<<<<< HEAD
+                        <Badge
+                          variant="secondary"
+                          className={theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-blue-100 text-blue-700"}
+                        >
+=======
                         <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+>>>>>>> main
                           {recipe.cuisine}
                         </Badge>
                       )}
                       {recipe.dietary_tags.map((tag) => (
+<<<<<<< HEAD
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className={theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-gray-100 text-gray-700"}
+                        >
+=======
                         <Badge key={tag} variant="secondary" className="bg-gray-100 text-gray-700">
+>>>>>>> main
                           {tag}
                         </Badge>
                       ))}
@@ -365,16 +444,28 @@ export default function RecipeDetailPage() {
 
         <div className="mt-12 flex justify-center">
           <div className="w-full max-w-6xl" style={{ width: "95%" }}>
+<<<<<<< HEAD
+            <Card className={`${cardBgClass} backdrop-blur-sm border-0 shadow-lg`}>
+=======
             <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+>>>>>>> main
               <CardContent className="p-8">
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-2xl font-bold text-gray-900">Ingredients</h3>
+                    <h3 className={`text-2xl font-bold ${textClass}`}>Ingredients</h3>
                     {user && (
                       <Button
                         size="sm"
                         onClick={addIngredientsToShoppingList}
+<<<<<<< HEAD
+                        className={
+                          theme === "dark"
+                            ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                            : "bg-orange-500 hover:bg-orange-600"
+                        }
+=======
                         className="bg-orange-500 hover:bg-orange-600"
+>>>>>>> main
                       >
                         <ShoppingCart className="w-4 h-4 mr-2" />
                         Add All to Shopping List
@@ -386,14 +477,18 @@ export default function RecipeDetailPage() {
                     {recipe.ingredients.map((ingredient, index) => (
                       <div
                         key={index}
+<<<<<<< HEAD
+                        className={`flex items-start gap-3 p-3 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}
+=======
                         className="flex items-start gap-3 p-3 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm"
+>>>>>>> main
                       >
                         <input
                           type="checkbox"
                           className="mt-1 w-4 h-4 text-orange-600 rounded"
                           aria-label={`Check ingredient: ${ingredient.amount} ${ingredient.unit} ${ingredient.name}`}
                         />
-                        <span className="text-sm leading-relaxed font-medium">
+                        <span className={`text-sm leading-relaxed font-medium ${textClass}`}>
                           {ingredient.amount} {ingredient.unit} {ingredient.name}
                         </span>
                       </div>
@@ -407,21 +502,34 @@ export default function RecipeDetailPage() {
 
         <div className="mt-8 flex justify-center">
           <div className="w-full max-w-4xl" style={{ width: "85%" }}>
+<<<<<<< HEAD
+            <Card className={`${cardBgClass} backdrop-blur-sm border-0 shadow-lg`}>
+=======
             <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+>>>>>>> main
               <CardContent className="p-8">
                 <div className="space-y-6">
-                  <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  <h3 className={`text-2xl font-bold ${textClass} flex items-center gap-2`}>
                     <ChefHat className="h-6 w-6 text-orange-500" />
                     Instructions
                   </h3>
                   <div className="space-y-4">
                     {recipe.instructions.map((instruction, index) => (
-                      <div key={index} className="flex gap-4 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                        <div className="flex-shrink-0 w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                      <div
+                        key={index}
+                        className={`flex gap-4 p-4 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}
+                      >
+                        <div
+                          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${theme === "dark" ? "bg-[#e8dcc4] text-[#181813]" : "bg-orange-500 text-white"}`}
+                        >
                           {index + 1}
                         </div>
                         <div className="flex-1">
+<<<<<<< HEAD
+                          <p className={`leading-relaxed ${textClass}`}>
+=======
                           <p className="text-gray-700 leading-relaxed">
+>>>>>>> main
                             {typeof instruction === "string"
                               ? instruction
                               : instruction.description || instruction.step || "Step description not available"}

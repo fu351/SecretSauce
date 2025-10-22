@@ -1,18 +1,22 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Heart, Search, Upload, Grid, List, Clock, Users, Star, ChefHat, BarChart3 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { RecipeCard } from "@/components/recipe-card"
+import { RecipeSkeleton } from "@/components/recipe-skeleton"
 import { DatabaseSetupNotice } from "@/components/database-setup-notice"
 import Image from "next/image"
 
@@ -24,7 +28,7 @@ interface Recipe {
   cook_time: number
   servings: number
   difficulty: string
-  cuisine_type: string
+  cuisine: string
   image_url: string
   dietary_tags: string[]
   ingredients: any[]
@@ -54,12 +58,12 @@ export default function RecipesPage() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
 
   const { user } = useAuth()
+  const { theme } = useTheme()
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
 
-  // Sync state with URL params (no fetching here)
   useEffect(() => {
     const urlSearch = searchParams.get("search") || ""
     const currentDifficulty = searchParams.get("difficulty") || "all"
@@ -74,99 +78,53 @@ export default function RecipesPage() {
     setSortBy(currentSort)
   }, [searchParams])
 
-  // Fetch recipes on mount and when sort changes only
   useEffect(() => {
     fetchRecipes()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy])
 
-  // Safety: force refresh once if still loading after 5s
-  useEffect(() => {
-    if (!loading) return
-    const alreadyRefreshed = typeof window !== 'undefined' && sessionStorage.getItem('recipes_force_refresh') === 'true'
-    if (alreadyRefreshed) return
-    const t = setTimeout(() => {
-      if (loading) {
-        try {
-          sessionStorage.setItem('recipes_force_refresh', 'true')
-        } catch {}
-        if (typeof window !== 'undefined') {
-          window.location.reload()
-        }
-      }
-    }, 5000)
-    return () => clearTimeout(t)
-  }, [loading])
-
-  // Load favorites when user becomes available
   useEffect(() => {
     if (user) fetchFavorites()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   useEffect(() => {
     filterRecipes()
   }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet, sortBy])
 
-  const updateURL = (updates: Record<string, string>) => {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value && value !== "all") {
-        params.set(key, value)
-      } else {
-        params.delete(key)
-      }
-    })
-    const nextUrl = `/recipes?${params.toString()}`
-    if (urlUpdateTimer.current) clearTimeout(urlUpdateTimer.current)
-    urlUpdateTimer.current = setTimeout(() => {
-      router.replace(nextUrl)
-    }, 300)
-  }
-
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value)
-    updateURL({ search: value })
-  }
-
-  const handleDifficultyChange = (value: string) => {
-    setSelectedDifficulty(value)
-    updateURL({ difficulty: value })
-  }
-
-  const handleCuisineChange = (value: string) => {
-    setSelectedCuisine(value)
-    updateURL({ cuisine: value })
-  }
-
-  const handleDietChange = (value: string) => {
-    setSelectedDiet(value)
-    updateURL({ diet: value })
-  }
-
-  const handleSortChange = (value: string) => {
-    setSortBy(value)
-    updateURL({ sort: value })
-  }
+  const updateURL = useCallback(
+    (updates: Record<string, string>) => {
+      const params = new URLSearchParams(searchParams.toString())
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value && value !== "all") {
+          params.set(key, value)
+        } else {
+          params.delete(key)
+        }
+      })
+      const nextUrl = `/recipes?${params.toString()}`
+      if (urlUpdateTimer.current) clearTimeout(urlUpdateTimer.current)
+      urlUpdateTimer.current = setTimeout(() => {
+        router.replace(nextUrl)
+      }, 300)
+    },
+    [searchParams, router],
+  )
 
   const fetchRecipes = async () => {
     try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 12000)
-
       const { data, error } = await supabase
         .from("recipes")
-        .select("id, title, description, prep_time, cook_time, servings, difficulty, cuisine_type, image_url, dietary_tags, ingredients, nutrition, rating_avg, rating_count, created_at, author_id")
+        .select(
+          "id, title, description, prep_time, cook_time, servings, difficulty, cuisine, image_url, dietary_tags, ingredients, nutrition, rating_avg, rating_count, created_at, author_id",
+        )
         .order(sortBy, { ascending: sortBy === "created_at" ? false : true })
 
       if (error) {
-        console.warn("Database not set up yet:", error.message)
+        console.warn("Error fetching recipes:", error.message)
         setRecipes([])
         return
       }
 
       setRecipes(data || [])
-      clearTimeout(timeout)
     } catch (error) {
       console.error("Error fetching recipes:", error)
       setRecipes([])
@@ -179,131 +137,114 @@ export default function RecipesPage() {
     if (!user) return
 
     try {
-      const { data, error } = await supabase
-        .from("recipe_favorites")
-        .select("recipe_id")
-        .eq("user_id", user.id)
+      const { data, error } = await supabase.from("recipe_favorites").select("recipe_id").eq("user_id", user.id)
 
       if (error) {
         console.warn("Error fetching favorites:", error)
         return
       }
 
-      const favoriteIds = new Set(data?.map(item => item.recipe_id) || [])
+      const favoriteIds = new Set(data?.map((item) => item.recipe_id) || [])
       setFavorites(favoriteIds)
     } catch (error) {
       console.error("Error fetching favorites:", error)
     }
   }
 
-  const toggleFavorite = async (recipeId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const toggleFavorite = useCallback(
+    async (recipeId: string, e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
 
-    if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to favorite recipes.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      if (favorites.has(recipeId)) {
-        // Remove from favorites
-        const { error } = await supabase
-          .from("recipe_favorites")
-          .delete()
-          .eq("recipe_id", recipeId)
-          .eq("user_id", user.id)
-
-        if (error) throw error
-
-        setFavorites(prev => {
-          const newFavorites = new Set(prev)
-          newFavorites.delete(recipeId)
-          return newFavorites
-        })
-
+      if (!user) {
         toast({
-          title: "Removed from favorites",
-          description: "Recipe has been removed from your favorites.",
+          title: "Sign in required",
+          description: "Please sign in to favorite recipes.",
+          variant: "destructive",
         })
-      } else {
-        // Add to favorites
-        const { error } = await supabase
-          .from("recipe_favorites")
-          .insert({
+        return
+      }
+
+      try {
+        if (favorites.has(recipeId)) {
+          const { error } = await supabase
+            .from("recipe_favorites")
+            .delete()
+            .eq("recipe_id", recipeId)
+            .eq("user_id", user.id)
+
+          if (error) throw error
+
+          setFavorites((prev) => {
+            const newFavorites = new Set(prev)
+            newFavorites.delete(recipeId)
+            return newFavorites
+          })
+
+          toast({
+            title: "Removed from favorites",
+            description: "Recipe has been removed from your favorites.",
+          })
+        } else {
+          const { error } = await supabase.from("recipe_favorites").insert({
             recipe_id: recipeId,
             user_id: user.id,
           })
 
-        if (error) throw error
+          if (error) throw error
 
-        setFavorites(prev => new Set([...prev, recipeId]))
+          setFavorites((prev) => new Set([...prev, recipeId]))
 
+          toast({
+            title: "Added to favorites",
+            description: "Recipe has been added to your favorites.",
+          })
+        }
+      } catch (error) {
+        console.error("Error toggling favorite:", error)
         toast({
-          title: "Added to favorites",
-          description: "Recipe has been added to your favorites.",
+          title: "Error",
+          description: "Failed to update favorites. Please try again.",
+          variant: "destructive",
         })
       }
-    } catch (error) {
-      console.error("Error toggling favorite:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update favorites. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
+    },
+    [user, favorites, toast],
+  )
 
-  const filterRecipes = () => {
+  const filterRecipes = useCallback(() => {
     let filtered = recipes
 
-    // Search filter - now includes ingredients
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase()
       filtered = filtered.filter((recipe) => {
-        // Search in title
         if (recipe.title.toLowerCase().includes(searchLower)) return true
-        
-        // Search in description
-        if (recipe.description.toLowerCase().includes(searchLower)) return true
-        
-        // Search in cuisine type
-        if (recipe.cuisine_type?.toLowerCase().includes(searchLower)) return true
-        
-        // Search in ingredients
+        if (recipe.description?.toLowerCase().includes(searchLower)) return true
+        if (recipe.cuisine?.toLowerCase().includes(searchLower)) return true
         if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
-          return recipe.ingredients.some((ingredient: any) => 
-            ingredient.name?.toLowerCase().includes(searchLower)
-          )
+          return recipe.ingredients.some((ingredient: any) => ingredient.name?.toLowerCase().includes(searchLower))
         }
-        
         return false
       })
     }
 
-    // Difficulty filter
     if (selectedDifficulty !== "all") {
       filtered = filtered.filter((recipe) => recipe.difficulty === selectedDifficulty)
     }
 
-    // Cuisine filter
     if (selectedCuisine !== "all") {
-      filtered = filtered.filter((recipe) => recipe.cuisine_type === selectedCuisine)
+      filtered = filtered.filter((recipe) => recipe.cuisine === selectedCuisine)
     }
 
-    // Diet filter
     if (selectedDiet !== "all") {
-      filtered = filtered.filter((recipe) => 
-        recipe.dietary_tags && recipe.dietary_tags.includes(selectedDiet)
-      )
+      filtered = filtered.filter((recipe) => recipe.dietary_tags && recipe.dietary_tags.includes(selectedDiet))
     }
 
     setFilteredRecipes(filtered)
-  }
+  }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet])
+
+  const cuisineTypes = useMemo(() => [...new Set(recipes.map((recipe) => recipe.cuisine).filter(Boolean))], [recipes])
+  const dietaryTags = useMemo(() => [...new Set(recipes.flatMap((recipe) => recipe.dietary_tags || []))], [recipes])
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
@@ -322,21 +263,30 @@ export default function RecipesPage() {
     return (recipe.prep_time || 0) + (recipe.cook_time || 0)
   }
 
-  // Get unique cuisine types and dietary tags
-  const cuisineTypes = [...new Set(recipes.map(recipe => recipe.cuisine_type).filter(Boolean))]
-  const dietaryTags = [...new Set(recipes.flatMap(recipe => recipe.dietary_tags || []))]
+  const bgClass = theme === "dark" ? "bg-[#181813]" : "bg-gradient-to-br from-orange-50 to-yellow-50"
+  const textClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
+  const mutedTextClass = theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"
+  const cardBgClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white/80"
+  const buttonClass =
+    theme === "dark" ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 hover:bg-orange-600 text-white"
+  const inputClass =
+    theme === "dark"
+      ? "bg-[#1f1e1a] border-[#e8dcc4]/30 text-[#e8dcc4] placeholder:text-[#e8dcc4]/50"
+      : "border-gray-200 bg-white"
+  const selectClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/30 text-[#e8dcc4]" : "bg-white/50"
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
+      <div className={`min-h-screen ${bgClass}`}>
         <div className="max-w-7xl mx-auto p-6">
-          <div className="animate-pulse space-y-8">
-            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
-              ))}
-            </div>
+          <div className="mb-8">
+            <div className="h-10 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+            <div className="h-6 w-64 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <RecipeSkeleton key={i} />
+            ))}
           </div>
         </div>
       </div>
@@ -344,17 +294,16 @@ export default function RecipesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
+    <div className={`min-h-screen ${bgClass}`}>
       <div className="max-w-7xl mx-auto p-6">
-        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Recipes</h1>
-              <p className="text-xl text-gray-600">Discover and share amazing recipes</p>
+              <h1 className={`text-4xl font-serif font-light ${textClass} mb-2`}>Recipes</h1>
+              <p className={`text-xl ${mutedTextClass}`}>Discover and share amazing recipes</p>
             </div>
             <div className="flex items-center gap-4">
-              <Button asChild className="bg-orange-500 hover:bg-orange-600">
+              <Button asChild className={buttonClass}>
                 <Link href="/recipes/upload">
                   <Upload className="h-4 w-4 mr-2" />
                   Upload Recipe
@@ -363,25 +312,34 @@ export default function RecipesPage() {
             </div>
           </div>
 
-          {/* Search Bar */}
           <div className="relative max-w-2xl">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Search
+              className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${theme === "dark" ? "text-[#e8dcc4]/40" : "text-gray-400"} h-5 w-5`}
+            />
             <Input
               placeholder="Search recipes by name, ingredient, or cuisine..."
               value={searchTerm}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-12 py-4 text-lg rounded-full border-gray-200 shadow-sm"
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                updateURL({ search: e.target.value })
+              }}
+              className={`pl-12 py-4 text-lg rounded-full ${inputClass} shadow-sm`}
             />
           </div>
         </div>
 
-        {/* View Mode Toggle */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <Button
             variant={viewMode === "tile" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("tile")}
-            className={viewMode === "tile" ? "bg-orange-500 hover:bg-orange-600" : ""}
+            className={
+              viewMode === "tile"
+                ? buttonClass
+                : theme === "dark"
+                  ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#1f1e1a]"
+                  : ""
+            }
           >
             <Grid className="h-4 w-4 mr-1" />
             Tiles
@@ -390,19 +348,30 @@ export default function RecipesPage() {
             variant={viewMode === "details" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("details")}
-            className={viewMode === "details" ? "bg-orange-500 hover:bg-orange-600" : ""}
+            className={
+              viewMode === "details"
+                ? buttonClass
+                : theme === "dark"
+                  ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#1f1e1a]"
+                  : ""
+            }
           >
             <List className="h-4 w-4 mr-1" />
             Details
           </Button>
         </div>
 
-        {/* Advanced Filters */}
-        <Card className="mb-8 bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+        <Card className={`mb-8 ${cardBgClass} backdrop-blur-sm border-0 shadow-lg`}>
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <Select value={selectedDifficulty} onValueChange={handleDifficultyChange}>
-                <SelectTrigger className="bg-white/50">
+              <Select
+                value={selectedDifficulty}
+                onValueChange={(value) => {
+                  setSelectedDifficulty(value)
+                  updateURL({ difficulty: value })
+                }}
+              >
+                <SelectTrigger className={selectClass}>
                   <SelectValue placeholder="Difficulty" />
                 </SelectTrigger>
                 <SelectContent>
@@ -413,8 +382,14 @@ export default function RecipesPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedCuisine} onValueChange={handleCuisineChange}>
-                <SelectTrigger className="bg-white/50">
+              <Select
+                value={selectedCuisine}
+                onValueChange={(value) => {
+                  setSelectedCuisine(value)
+                  updateURL({ cuisine: value })
+                }}
+              >
+                <SelectTrigger className={selectClass}>
                   <SelectValue placeholder="Cuisine" />
                 </SelectTrigger>
                 <SelectContent>
@@ -427,8 +402,14 @@ export default function RecipesPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedDiet} onValueChange={handleDietChange}>
-                <SelectTrigger className="bg-white/50">
+              <Select
+                value={selectedDiet}
+                onValueChange={(value) => {
+                  setSelectedDiet(value)
+                  updateURL({ diet: value })
+                }}
+              >
+                <SelectTrigger className={selectClass}>
                   <SelectValue placeholder="Diet" />
                 </SelectTrigger>
                 <SelectContent>
@@ -441,8 +422,14 @@ export default function RecipesPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={sortBy} onValueChange={handleSortChange}>
-                <SelectTrigger className="bg-white/50">
+              <Select
+                value={sortBy}
+                onValueChange={(value) => {
+                  setSortBy(value)
+                  updateURL({ sort: value })
+                }}
+              >
+                <SelectTrigger className={selectClass}>
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
@@ -461,7 +448,7 @@ export default function RecipesPage() {
                   setSelectedCuisine("all")
                   setSelectedDiet("all")
                 }}
-                className="bg-white/50"
+                className={selectClass}
               >
                 Clear Filters
               </Button>
@@ -469,9 +456,8 @@ export default function RecipesPage() {
           </CardContent>
         </Card>
 
-        {/* Results */}
         <div className="mb-6">
-          <p className="text-gray-600">
+          <p className={mutedTextClass}>
             {searchTerm && `Search results for "${searchTerm}" - `}
             Showing {filteredRecipes.length} of {recipes.length} recipes
           </p>
@@ -480,12 +466,14 @@ export default function RecipesPage() {
         {filteredRecipes.length === 0 ? (
           <div className="space-y-6">
             {recipes.length === 0 && <DatabaseSetupNotice />}
-            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+            <Card
+              className={`backdrop-blur-sm border-0 shadow-lg ${theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/10" : "bg-white/80"}`}
+            >
               <CardContent className="p-12 text-center">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <h3 className={`text-lg font-medium ${textClass} mb-2`}>
                   {recipes.length === 0 ? "No recipes in database" : "No recipes found"}
                 </h3>
-                <p className="text-gray-600 mb-6">
+                <p className={`mb-6 ${mutedTextClass}`}>
                   {recipes.length === 0
                     ? "Set up your database to see recipes"
                     : searchTerm
@@ -518,14 +506,16 @@ export default function RecipesPage() {
                 title={`Open ${recipe.title}`}
                 onClick={(e) => {
                   const target = e.target as HTMLElement
-                  if (target.closest('[data-favorite-button]')) return
+                  if (target.closest("[data-favorite-button]")) return
                   router.push(`/recipes/${recipe.id}`)
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === "Enter" || e.key === " ") {
                     const target = e.target as HTMLElement
-                    if (target.closest('[data-favorite-button]')) return
-                    e.preventDefault()
+                    if (target.closest("[data-favorite-button]")) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }
                     router.push(`/recipes/${recipe.id}`)
                   }
                 }}
@@ -543,9 +533,10 @@ export default function RecipesPage() {
                   initialIsFavorited={favorites.has(recipe.id)}
                   skipFavoriteCheck
                   onFavoriteChange={(id, isFav) => {
-                    setFavorites(prev => {
+                    setFavorites((prev) => {
                       const next = new Set(prev)
-                      if (isFav) next.add(id); else next.delete(id)
+                      if (isFav) next.add(id)
+                      else next.delete(id)
                       return next
                     })
                   }}
@@ -557,89 +548,108 @@ export default function RecipesPage() {
           <div className="space-y-6">
             {filteredRecipes.map((recipe: Recipe) => (
               <div key={recipe.id} className="relative">
-                <Link href={`/recipes/${recipe.id}`} onClick={(e) => {
-                  // Prevent navigation if clicking on the favorite button
-                  const target = e.target as HTMLElement
-                  if (target.closest('[data-favorite-button]')) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }
-                }}>
-                  <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-sm border-0 shadow-lg overflow-hidden">
+                <Link
+                  href={`/recipes/${recipe.id}`}
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement
+                    if (target.closest("[data-favorite-button]")) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }
+                  }}
+                >
+                  <Card
+                    className={`group cursor-pointer hover:shadow-xl transition-all duration-300 backdrop-blur-sm border-0 shadow-lg overflow-hidden ${theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white/80"}`}
+                  >
                     <CardContent className="p-0">
                       <div className="flex">
-                        {/* Left: Large Image */}
-            <div className="w-1/2 relative min-h-[300px]">
-              <Image
-                src={recipe.image_url || "/placeholder.svg?height=400&width=600"}
-                alt={recipe.title}
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-                className="object-cover"
-              />
-            </div>
+                        <div className="w-1/2 relative min-h-[300px]">
+                          <Image
+                            src={recipe.image_url || "/placeholder.svg?height=400&width=600"}
+                            alt={recipe.title}
+                            fill
+                            sizes="(max-width: 768px) 100vw, 50vw"
+                            className="object-cover"
+                            loading="lazy"
+                          />
+                        </div>
 
-                        {/* Right: Recipe Details */}
                         <div className="w-1/2 p-8 flex flex-col justify-between">
                           <div>
                             <div className="flex items-start justify-between mb-4">
-                              <h3 className="text-2xl font-bold text-gray-900 group-hover:text-orange-600 transition-colors">
+                              <h3
+                                className={`text-2xl font-bold group-hover:text-orange-600 transition-colors ${textClass}`}
+                              >
                                 {recipe.title}
                               </h3>
                               <Badge className={getDifficultyColor(recipe.difficulty)}>{recipe.difficulty}</Badge>
                             </div>
-                            
-                            <p className="text-gray-600 mb-6 line-clamp-3">{recipe.description}</p>
 
-                            {/* Recipe Metrics */}
+                            <p className={`mb-6 line-clamp-3 ${mutedTextClass}`}>{recipe.description}</p>
+
                             <div className="grid grid-cols-2 gap-6 mb-6">
                               <div className="flex items-center gap-3">
-                                <Clock className="h-5 w-5 text-gray-400" />
+                                <Clock
+                                  className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`}
+                                />
                                 <div>
-                                  <p className="text-sm text-gray-500">Total Time</p>
-                                  <p className="font-semibold">{getTotalTime(recipe)} minutes</p>
+                                  <p className={`text-sm ${mutedTextClass}`}>Total Time</p>
+                                  <p className={`font-semibold ${textClass}`}>{getTotalTime(recipe)} minutes</p>
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center gap-3">
-                                <Users className="h-5 w-5 text-gray-400" />
+                                <Users
+                                  className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`}
+                                />
                                 <div>
-                                  <p className="text-sm text-gray-500">Servings</p>
-                                  <p className="font-semibold">{recipe.servings} servings</p>
+                                  <p className={`text-sm ${mutedTextClass}`}>Servings</p>
+                                  <p className={`font-semibold ${textClass}`}>{recipe.servings} servings</p>
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center gap-3">
-                                <ChefHat className="h-5 w-5 text-gray-400" />
+                                <ChefHat
+                                  className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`}
+                                />
                                 <div>
-                                  <p className="text-sm text-gray-500">Nutrition</p>
-                                  <div className="text-xs space-y-1">
+                                  <p className={`text-sm ${mutedTextClass}`}>Nutrition</p>
+                                  <div className={`text-xs space-y-1 ${textClass}`}>
                                     {recipe.nutrition?.calories && <div>{recipe.nutrition.calories} Calories</div>}
                                     {recipe.nutrition?.protein && <div>{recipe.nutrition.protein}g Protein</div>}
                                     {recipe.nutrition?.fat && <div>{recipe.nutrition.fat}g Fat</div>}
                                   </div>
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center gap-3">
-                                <BarChart3 className="h-5 w-5 text-gray-400" />
+                                <BarChart3
+                                  className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`}
+                                />
                                 <div>
-                                  <p className="text-sm text-gray-500">Rating</p>
+                                  <p className={`text-sm ${mutedTextClass}`}>Rating</p>
                                   <div className="flex items-center gap-1">
                                     <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                    <span className="font-semibold">{(recipe.rating_avg || 0).toFixed(1)}</span>
-                                    <span className="text-xs text-gray-500">({recipe.rating_count || 0})</span>
+                                    <span className={`font-semibold ${textClass}`}>
+                                      {(recipe.rating_avg || 0).toFixed(1)}
+                                    </span>
+                                    <span className={`text-xs ${mutedTextClass}`}>({recipe.rating_count || 0})</span>
                                   </div>
                                 </div>
                               </div>
                             </div>
                           </div>
 
-                          {/* Tags */}
                           {recipe.dietary_tags && recipe.dietary_tags.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                               {recipe.dietary_tags.map((tag, index) => (
-                                <Badge key={index} variant="secondary" className="bg-gray-100 text-gray-700">
+                                <Badge
+                                  key={index}
+                                  variant="secondary"
+                                  className={
+                                    theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-gray-100 text-gray-700"
+                                  }
+                                >
                                   {tag}
                                 </Badge>
                               ))}
@@ -650,12 +660,11 @@ export default function RecipesPage() {
                     </CardContent>
                   </Card>
                 </Link>
-                
-                {/* Favorite button positioned absolutely to avoid Link interference */}
+
                 <div className="absolute top-4 right-4 z-10">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     data-favorite-button
                     className={`bg-white/90 hover:bg-white ${favorites.has(recipe.id) ? "text-red-500" : "text-gray-600"}`}
                     onClick={(e) => toggleFavorite(recipe.id, e)}
