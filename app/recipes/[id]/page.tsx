@@ -8,9 +8,15 @@ import { Badge } from "@/components/ui/badge"
 import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
+<<<<<<< HEAD
 import { useTheme } from "@/contexts/theme-context"
 import { RecipeDetailSkeleton } from "@/components/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe-reviews"
+=======
+import { RecipeDetailSkeleton } from "@/components/recipe-skeleton"
+import { RecipeReviews } from "@/components/recipe-reviews"
+import { useToast } from "@/hooks/use-toast"
+>>>>>>> main
 
 interface Ingredient {
   amount: string
@@ -47,11 +53,16 @@ export default function RecipeDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
+<<<<<<< HEAD
   const { theme } = useTheme()
+=======
+  const { toast } = useToast()
+>>>>>>> main
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
   const [isFloating, setIsFloating] = useState(false)
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -97,35 +108,60 @@ export default function RecipeDetailPage() {
   }
 
   const checkIfFavorite = async () => {
+    if (!user || !params.id) return
+
     try {
       const { data, error } = await supabase
         .from("recipe_favorites") // Use recipe_favorites table
         .select("id")
-        .eq("user_id", user?.id)
+        .eq("user_id", user.id)
         .eq("recipe_id", params.id)
-        .single()
+        .maybeSingle()
 
-      if (data) {
-        setIsFavorite(true)
+      if (error && error.code !== "PGRST116") {
+        console.error("Error checking favorite:", error)
+        return
       }
+
+      setIsFavorite(!!data)
     } catch (error) {
+<<<<<<< HEAD
+=======
+      console.error("Error checking if favorited:", error)
+>>>>>>> main
       setIsFavorite(false)
     }
   }
 
   const toggleFavorite = async () => {
-    if (!user) return
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to favorite recipes.",
+        variant: "destructive",
+      })
+      return
+    }
 
+    setIsTogglingFavorite(true)
     try {
       if (isFavorite) {
         const { error } = await supabase
           .from("recipe_favorites")
           .delete()
           .eq("user_id", user.id)
+<<<<<<< HEAD
           .eq("recipe_id", params.id) // Use recipe_favorites
+=======
+          .eq("recipe_id", params.id)
+>>>>>>> main
 
         if (error) throw error
         setIsFavorite(false)
+        toast({
+          title: "Removed from favorites",
+          description: "Recipe has been removed from your favorites.",
+        })
       } else {
         const { error } = await supabase.from("recipe_favorites").insert({
           // Use recipe_favorites
@@ -135,9 +171,20 @@ export default function RecipeDetailPage() {
 
         if (error) throw error
         setIsFavorite(true)
+        toast({
+          title: "Added to favorites",
+          description: "Recipe has been added to your favorites.",
+        })
       }
     } catch (error) {
       console.error("Error toggling favorite:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update favorites. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsTogglingFavorite(false)
     }
   }
 
@@ -149,7 +196,11 @@ export default function RecipeDetailPage() {
         .from("shopping_lists")
         .select("items")
         .eq("user_id", user.id)
+<<<<<<< HEAD
         .single()
+=======
+        .maybeSingle()
+>>>>>>> main
 
       if (fetchError && fetchError.code !== "PGRST116") throw fetchError
 
@@ -174,10 +225,17 @@ export default function RecipeDetailPage() {
 
       if (error) throw error
 
-      alert("Ingredients added to shopping list!")
+      toast({
+        title: "Ingredients added",
+        description: "Ingredients have been added to your shopping list!",
+      })
     } catch (error) {
       console.error("Error adding to shopping list:", error)
-      alert("Error adding ingredients to shopping list")
+      toast({
+        title: "Error",
+        description: "Failed to add ingredients to shopping list.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -197,6 +255,7 @@ export default function RecipeDetailPage() {
 
   if (!recipe) {
     return (
+<<<<<<< HEAD
       <div className={`min-h-screen flex items-center justify-center ${bgClass}`}>
         {" "}
         {/* Use theme-aware background */}
@@ -214,6 +273,14 @@ export default function RecipeDetailPage() {
                   : "bg-orange-500 hover:bg-orange-600"
               }
             >
+=======
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50 flex items-center justify-center">
+        <Card className="max-w-md mx-auto shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+          <CardContent className="p-6 text-center">
+            <h2 className="text-2xl font-bold mb-4">Recipe Not Found</h2>
+            <p className="text-gray-600 mb-6">The recipe you're looking for doesn't exist.</p>
+            <Button onClick={() => router.push("/recipes")} className="bg-orange-500 hover:bg-orange-600">
+>>>>>>> main
               Browse Recipes
             </Button>
           </CardContent>
@@ -223,7 +290,11 @@ export default function RecipeDetailPage() {
   }
 
   return (
+<<<<<<< HEAD
     <div className={`min-h-screen ${bgClass}`}>
+=======
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
+>>>>>>> main
       <div className={`fixed z-50 ${isFloating ? "top-8" : "top-24"} left-8 transition-all duration-300`}>
         <Button
           variant="ghost"
@@ -245,7 +316,13 @@ export default function RecipeDetailPage() {
                 className="w-full h-[500px] object-cover"
               />
               <div className="absolute top-4 right-4">
-                <Button variant="ghost" size="sm" className="bg-white/90 hover:bg-white" onClick={toggleFavorite}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="bg-white/90 hover:bg-white"
+                  onClick={toggleFavorite}
+                  disabled={isTogglingFavorite}
+                >
                   <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-gray-700"}`} />
                 </Button>
               </div>
@@ -260,7 +337,11 @@ export default function RecipeDetailPage() {
                     <h1 className={`text-3xl font-serif font-light ${textClass} leading-tight`}>{recipe.title}</h1>
                   </div>
 
+<<<<<<< HEAD
                   <p className={`${mutedTextClass} leading-relaxed text-lg`}>{recipe.description}</p>
+=======
+                  <p className="text-gray-600 leading-relaxed text-lg">{recipe.description}</p>
+>>>>>>> main
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className={`flex items-center gap-3 p-4 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}>
@@ -307,8 +388,13 @@ export default function RecipeDetailPage() {
                     <div className={`flex items-center gap-3 p-4 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}>
                       <Utensils className={`h-5 w-5 ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"}`} />
                       <div>
+<<<<<<< HEAD
                         <p className={`text-sm ${mutedTextClass}`}>Nutrition</p>
                         <div className={`flex gap-4 text-sm ${textClass}`}>
+=======
+                        <p className="text-sm text-gray-500">Nutrition</p>
+                        <div className="flex gap-4 text-sm">
+>>>>>>> main
                           {recipe.nutrition.calories && (
                             <span className="font-semibold">{recipe.nutrition.calories} Calories</span>
                           )}
@@ -324,19 +410,27 @@ export default function RecipeDetailPage() {
                   {(recipe.dietary_tags.length > 0 || recipe.cuisine) && (
                     <div className="flex flex-wrap gap-2">
                       {recipe.cuisine && (
+<<<<<<< HEAD
                         <Badge
                           variant="secondary"
                           className={theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-blue-100 text-blue-700"}
                         >
+=======
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+>>>>>>> main
                           {recipe.cuisine}
                         </Badge>
                       )}
                       {recipe.dietary_tags.map((tag) => (
+<<<<<<< HEAD
                         <Badge
                           key={tag}
                           variant="secondary"
                           className={theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-gray-100 text-gray-700"}
                         >
+=======
+                        <Badge key={tag} variant="secondary" className="bg-gray-100 text-gray-700">
+>>>>>>> main
                           {tag}
                         </Badge>
                       ))}
@@ -350,7 +444,11 @@ export default function RecipeDetailPage() {
 
         <div className="mt-12 flex justify-center">
           <div className="w-full max-w-6xl" style={{ width: "95%" }}>
+<<<<<<< HEAD
             <Card className={`${cardBgClass} backdrop-blur-sm border-0 shadow-lg`}>
+=======
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+>>>>>>> main
               <CardContent className="p-8">
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
@@ -359,11 +457,15 @@ export default function RecipeDetailPage() {
                       <Button
                         size="sm"
                         onClick={addIngredientsToShoppingList}
+<<<<<<< HEAD
                         className={
                           theme === "dark"
                             ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
                             : "bg-orange-500 hover:bg-orange-600"
                         }
+=======
+                        className="bg-orange-500 hover:bg-orange-600"
+>>>>>>> main
                       >
                         <ShoppingCart className="w-4 h-4 mr-2" />
                         Add All to Shopping List
@@ -375,7 +477,11 @@ export default function RecipeDetailPage() {
                     {recipe.ingredients.map((ingredient, index) => (
                       <div
                         key={index}
+<<<<<<< HEAD
                         className={`flex items-start gap-3 p-3 backdrop-blur-sm rounded-lg shadow-sm ${infoBgClass}`}
+=======
+                        className="flex items-start gap-3 p-3 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm"
+>>>>>>> main
                       >
                         <input
                           type="checkbox"
@@ -396,7 +502,11 @@ export default function RecipeDetailPage() {
 
         <div className="mt-8 flex justify-center">
           <div className="w-full max-w-4xl" style={{ width: "85%" }}>
+<<<<<<< HEAD
             <Card className={`${cardBgClass} backdrop-blur-sm border-0 shadow-lg`}>
+=======
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+>>>>>>> main
               <CardContent className="p-8">
                 <div className="space-y-6">
                   <h3 className={`text-2xl font-bold ${textClass} flex items-center gap-2`}>
@@ -415,7 +525,11 @@ export default function RecipeDetailPage() {
                           {index + 1}
                         </div>
                         <div className="flex-1">
+<<<<<<< HEAD
                           <p className={`leading-relaxed ${textClass}`}>
+=======
+                          <p className="text-gray-700 leading-relaxed">
+>>>>>>> main
                             {typeof instruction === "string"
                               ? instruction
                               : instruction.description || instruction.step || "Step description not available"}

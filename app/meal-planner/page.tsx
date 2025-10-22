@@ -8,7 +8,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, Heart, X, ChevronLeft, ChevronRight, ShoppingCart, ChevronRightIcon, List } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
+<<<<<<< HEAD
 import { useTheme } from "@/contexts/theme-context"
+=======
+>>>>>>> main
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
@@ -52,7 +55,10 @@ interface MealPlan {
 
 export default function MealPlannerPage() {
   const { user } = useAuth()
+<<<<<<< HEAD
   const { theme } = useTheme()
+=======
+>>>>>>> main
   const { toast } = useToast()
   const [favoriteRecipes, setFavoriteRecipes] = useState<Recipe[]>([])
   const [suggestedRecipes, setSuggestedRecipes] = useState<Recipe[]>([])
@@ -161,7 +167,7 @@ export default function MealPlannerPage() {
 
     try {
       const { data: favoritesData, error: favoritesError } = await supabase
-        .from("recipe_favorites")
+        .from("favorites")
         .select("recipe_id")
         .eq("user_id", user.id)
 
@@ -372,6 +378,7 @@ export default function MealPlannerPage() {
     setCurrentWeekStart(newDate)
   }
 
+<<<<<<< HEAD
   const bgClass = theme === "dark" ? "bg-[#181813]" : "bg-gray-50"
   const textClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
   const mutedTextClass = theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"
@@ -396,6 +403,16 @@ export default function MealPlannerPage() {
               }
               onClick={() => router.push("/auth/signin")}
             >
+=======
+  if (!user) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <Card className="max-w-md mx-auto">
+          <CardContent className="p-6 text-center">
+            <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
+            <p className="text-gray-600 mb-6">You need to be logged in to use the meal planner.</p>
+            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={() => router.push("/auth/signin")}>
+>>>>>>> main
               Sign In
             </Button>
           </CardContent>
@@ -405,27 +422,48 @@ export default function MealPlannerPage() {
   }
 
   return (
+<<<<<<< HEAD
     <div className={`h-screen flex ${bgClass}`}>
+=======
+    <div className="h-screen flex bg-gray-50">
+>>>>>>> main
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
+<<<<<<< HEAD
               <h1 className={`text-3xl font-serif font-light ${textClass}`}>Meal Planner</h1>
               <div className={`flex items-center gap-2 rounded-lg p-1 shadow ${cardBgClass}`}>
                 <Button variant="ghost" size="icon" onClick={goToPreviousWeek}>
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
                 <span className={`px-4 text-sm font-medium ${textClass}`}>{formatDate(weekDates[0] || "")}</span>
+=======
+              <h1 className="text-3xl font-bold text-gray-900">Meal Planner</h1>
+              <div className="flex items-center gap-2 bg-white rounded-lg p-1 shadow">
+                <Button variant="ghost" size="icon" onClick={goToPreviousWeek}>
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <span className="px-4 text-sm font-medium">{formatDate(weekDates[0] || "")}</span>
+>>>>>>> main
                 <Button variant="ghost" size="icon" onClick={goToNextWeek}>
                   <ChevronRight className="h-5 w-5" />
                 </Button>
               </div>
+<<<<<<< HEAD
               <div className="flex items-center gap-2 rounded-lg p-1 shadow">
+=======
+              <div className="flex items-center gap-2 bg-white rounded-lg p-1 shadow">
+>>>>>>> main
                 <Button
                   variant={viewMode === "by-day" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setViewMode("by-day")}
+<<<<<<< HEAD
                   className={viewMode === "by-day" ? buttonClass : ""}
+=======
+                  className={viewMode === "by-day" ? "bg-orange-500 hover:bg-orange-600" : ""}
+>>>>>>> main
                 >
                   <Calendar className="h-4 w-4 mr-1" />
                   By Day
@@ -434,14 +472,22 @@ export default function MealPlannerPage() {
                   variant={viewMode === "by-meal" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setViewMode("by-meal")}
+<<<<<<< HEAD
                   className={viewMode === "by-meal" ? buttonClass : ""}
+=======
+                  className={viewMode === "by-meal" ? "bg-orange-500 hover:bg-orange-600" : ""}
+>>>>>>> main
                 >
                   <List className="h-4 w-4 mr-1" />
                   By Meal
                 </Button>
               </div>
             </div>
+<<<<<<< HEAD
             <Button className={buttonClass} onClick={addToShoppingList}>
+=======
+            <Button className="bg-green-500 hover:bg-green-600 text-white" onClick={addToShoppingList}>
+>>>>>>> main
               <ShoppingCart className="h-4 w-4 mr-2" />
               ADD TO SHOPPING LIST
             </Button>
@@ -450,6 +496,7 @@ export default function MealPlannerPage() {
           {viewMode === "by-day" ? (
             <div className="space-y-8">
               {weekDates.slice(0, 7).map((date, dayIndex) => (
+<<<<<<< HEAD
                 <div key={date} className={`rounded-lg shadow p-6 ${cardBgClass}`}>
                   <div className="flex items-center gap-3 mb-4">
                     <div
@@ -460,6 +507,16 @@ export default function MealPlannerPage() {
                     <div>
                       <h2 className={`text-2xl font-bold ${textClass}`}>{weekdays[dayIndex]}</h2>
                       <p className={`text-sm ${mutedTextClass}`}>{formatDate(date)}</p>
+=======
+                <div key={date} className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-orange-100 text-orange-600 rounded-full w-12 h-12 flex items-center justify-center font-bold">
+                      {new Date(date).getDate()}
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">{weekdays[dayIndex]}</h2>
+                      <p className="text-sm text-gray-500">{formatDate(date)}</p>
+>>>>>>> main
                     </div>
                   </div>
 
@@ -469,6 +526,7 @@ export default function MealPlannerPage() {
 
                       return (
                         <div key={mealType.key}>
+<<<<<<< HEAD
                           <h3
                             className={`text-xs font-semibold mb-2 ${theme === "dark" ? "text-[#e8dcc4]" : "text-orange-500"}`}
                           >
@@ -477,6 +535,12 @@ export default function MealPlannerPage() {
                           <div
                             className={`relative rounded-lg border-2 border-dashed ${
                               recipe ? `border-transparent ${cardBgClass}` : dropZoneBgClass
+=======
+                          <h3 className="text-xs font-semibold text-orange-500 mb-2">{mealType.label}</h3>
+                          <div
+                            className={`relative rounded-lg border-2 border-dashed ${
+                              recipe ? "border-transparent bg-white" : "border-gray-200 bg-gray-50"
+>>>>>>> main
                             } min-h-[180px] transition-colors`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDrop(e, mealType.key, date)}
@@ -495,6 +559,7 @@ export default function MealPlannerPage() {
                                   <X className="h-4 w-4" />
                                 </button>
                                 <div className="p-3">
+<<<<<<< HEAD
                                   <h4 className={`font-semibold text-sm mb-2 line-clamp-2 ${textClass}`}>
                                     {recipe.title}
                                   </h4>
@@ -509,18 +574,40 @@ export default function MealPlannerPage() {
                                       <div>
                                         <div className={mutedTextClass}>FAT</div>
                                         <div className={`font-semibold ${textClass}`}>
+=======
+                                  <h4 className="font-semibold text-sm mb-2 line-clamp-2">{recipe.title}</h4>
+                                  {recipe.nutrition && (
+                                    <div className="grid grid-cols-4 gap-2 text-xs">
+                                      <div>
+                                        <div className="text-gray-500">CALORIES</div>
+                                        <div className="font-semibold">{recipe.nutrition.calories || "-"}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-500">FAT</div>
+                                        <div className="font-semibold">
+>>>>>>> main
                                           {recipe.nutrition.fat ? `${recipe.nutrition.fat}g` : "-"}
                                         </div>
                                       </div>
                                       <div>
+<<<<<<< HEAD
                                         <div className={mutedTextClass}>PROTEIN</div>
                                         <div className={`font-semibold ${textClass}`}>
+=======
+                                        <div className="text-gray-500">PROTEIN</div>
+                                        <div className="font-semibold">
+>>>>>>> main
                                           {recipe.nutrition.protein ? `${recipe.nutrition.protein}g` : "-"}
                                         </div>
                                       </div>
                                       <div>
+<<<<<<< HEAD
                                         <div className={mutedTextClass}>CARBS</div>
                                         <div className={`font-semibold ${textClass}`}>
+=======
+                                        <div className="text-gray-500">CARBS</div>
+                                        <div className="font-semibold">
+>>>>>>> main
                                           {recipe.nutrition.carbs ? `${recipe.nutrition.carbs}g` : "-"}
                                         </div>
                                       </div>
@@ -529,7 +616,11 @@ export default function MealPlannerPage() {
                                 </div>
                               </div>
                             ) : (
+<<<<<<< HEAD
                               <div className={`flex items-center justify-center h-full text-sm ${mutedTextClass}`}>
+=======
+                              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+>>>>>>> main
                                 Drag recipe here
                               </div>
                             )}
@@ -546,8 +637,13 @@ export default function MealPlannerPage() {
               {mealTypes.map((mealType) => {
                 const meals = getMealsByType(mealType.key)
                 return (
+<<<<<<< HEAD
                   <div key={mealType.key} className={`rounded-lg shadow p-6 ${cardBgClass}`}>
                     <h2 className={`text-2xl font-bold ${textClass} mb-4`}>{mealType.label}</h2>
+=======
+                  <div key={mealType.key} className="bg-white rounded-lg shadow p-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">{mealType.label}</h2>
+>>>>>>> main
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {weekDates.map((date, dayIndex) => {
                         const recipe = getMealForSlot(date, mealType.key)
@@ -601,6 +697,7 @@ export default function MealPlannerPage() {
       <div
         className={`${
           sidebarOpen ? "w-96" : "w-12"
+<<<<<<< HEAD
         } ${sidebarBgClass} border-l flex-shrink-0 transition-all duration-300 relative`}
       >
         <button
@@ -611,13 +708,27 @@ export default function MealPlannerPage() {
           <ChevronRightIcon
             className={`h-4 w-4 transition-transform ${sidebarOpen ? "rotate-180" : ""} ${theme === "dark" ? "text-[#e8dcc4]" : ""}`}
           />
+=======
+        } bg-white border-l flex-shrink-0 transition-all duration-300 relative`}
+      >
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="absolute left-0 top-20 -translate-x-1/2 bg-white border rounded-full p-1.5 shadow-lg z-20 hover:bg-gray-50"
+          style={{ marginLeft: "-2px" }}
+        >
+          <ChevronRightIcon className={`h-4 w-4 transition-transform ${sidebarOpen ? "rotate-180" : ""}`} />
+>>>>>>> main
         </button>
 
         {sidebarOpen && (
           <div className="p-6 overflow-y-auto h-full" style={{ paddingRight: "1.5rem" }}>
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
+<<<<<<< HEAD
                 <h3 className={`text-lg font-semibold flex items-center gap-2 ${textClass}`}>
+=======
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+>>>>>>> main
                   <Heart className="w-5 h-5 text-red-500" />
                   Favorites ({favoriteRecipes.length})
                 </h3>
@@ -640,12 +751,17 @@ export default function MealPlannerPage() {
                         Drag to add
                       </p>
                     </div>
+<<<<<<< HEAD
                     <p className={`text-xs mt-1 line-clamp-2 ${textClass}`}>{recipe.title}</p>
+=======
+                    <p className="text-xs mt-1 line-clamp-2">{recipe.title}</p>
+>>>>>>> main
                   </div>
                 ))}
               </div>
               {favoriteRecipes.length === 0 && (
                 <div className="text-center py-8">
+<<<<<<< HEAD
                   <p className={`${mutedTextClass} text-sm mb-3`}>No favorites yet</p>
                   <Button
                     variant="outline"
@@ -653,6 +769,10 @@ export default function MealPlannerPage() {
                     onClick={() => router.push("/recipes")}
                     className={theme === "dark" ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#252520]" : ""}
                   >
+=======
+                  <p className="text-gray-500 text-sm mb-3">No favorites yet</p>
+                  <Button variant="outline" size="sm" onClick={() => router.push("/recipes")}>
+>>>>>>> main
                     Browse Recipes
                   </Button>
                 </div>
@@ -660,7 +780,11 @@ export default function MealPlannerPage() {
             </div>
 
             <div>
+<<<<<<< HEAD
               <h3 className={`text-lg font-semibold mb-4 ${textClass}`}>Suggested Recipes</h3>
+=======
+              <h3 className="text-lg font-semibold mb-4">Suggested Recipes</h3>
+>>>>>>> main
               <div className="grid grid-cols-2 gap-3">
                 {suggestedRecipes.slice(0, 20).map((recipe) => (
                   <div
@@ -679,7 +803,11 @@ export default function MealPlannerPage() {
                         Drag to add
                       </p>
                     </div>
+<<<<<<< HEAD
                     <p className={`text-xs mt-1 line-clamp-2 ${textClass}`}>{recipe.title}</p>
+=======
+                    <p className="text-xs mt-1 line-clamp-2">{recipe.title}</p>
+>>>>>>> main
                   </div>
                 ))}
               </div>
