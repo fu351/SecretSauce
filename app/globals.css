@@ -91,16 +91,6 @@
   }
 }
 
-<<<<<<< HEAD
-/* Custom Scrollbar Styles - Updated for dark theme support */
-::-webkit-scrollbar {
-  display: none;
-}
-
-/* Firefox */
-* {
-  scrollbar-width: none;
-=======
 /* Hide all scrollbars */
 ::-webkit-scrollbar {
   width: 0px;
@@ -111,7 +101,6 @@
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;
->>>>>>> main
 }
 
 /* Smooth scroll behavior */
