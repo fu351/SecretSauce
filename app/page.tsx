@@ -3,12 +3,11 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-<<<<<<< HEAD
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import Image from "next/image"
-import { ArrowRight, Search, Clock, Users } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import Image from "next/image"
+import { ArrowRight, Search, Clock, Users, ChefHat, Heart, Calendar, ShoppingCart } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
 
 interface Recipe {
@@ -24,18 +23,6 @@ interface Recipe {
   dietary_tags: string[]
   rating_avg: number
   rating_count: number
-=======
-import { ChefHat, Heart, Calendar, ShoppingCart } from "lucide-react"
-
-interface PopularRecipe {
-  id: string
-  title: string
-  image: string
-  rating: number
-  difficulty: "beginner" | "intermediate" | "advanced"
-  comments: number
-  tags: string[]
->>>>>>> main
   nutrition?: {
     calories?: number
     protein?: number
@@ -44,79 +31,59 @@ interface PopularRecipe {
   }
 }
 
-<<<<<<< HEAD
-export default function LandingPage() {
-=======
-const fallbackRecipes: PopularRecipe[] = [
-  {
-    id: "1",
-    title: "Vegetarian Buddha Bowl",
-    image: "/placeholder.svg?height=300&width=400",
-    rating: 4.8,
-    difficulty: "beginner",
-    comments: 24,
-    tags: ["Vegetarian", "Healthy"],
-  },
-  {
-    id: "2",
-    title: "Classic Spaghetti Carbonara",
-    image: "/placeholder.svg?height=300&width=400",
-    rating: 4.7,
-    difficulty: "intermediate",
-    comments: 18,
-    tags: ["Italian", "Quick"],
-  },
-  {
-    id: "3",
-    title: "Chocolate Chip Cookies",
-    image: "/placeholder.svg?height=300&width=400",
-    rating: 4.9,
-    difficulty: "beginner",
-    comments: 32,
-    tags: ["Dessert", "Kid-Friendly"],
-  },
-]
-
 export default function HomePage() {
-  const [popularRecipes, setPopularRecipes] = useState<PopularRecipe[]>([])
+  const { user, loading } = useAuth()
+  const [mounted, setMounted] = useState(false)
+  const [isFirstVisit, setIsFirstVisit] = useState(true)
+  const [popularRecipes, setPopularRecipes] = useState<Recipe[]>([])
+  const [loadingRecipes, setLoadingRecipes] = useState(true)
   const [userStats, setUserStats] = useState({
     totalRecipes: 0,
     favoriteRecipes: 0,
     mealPlansThisWeek: 0,
     pantryItems: 0,
   })
->>>>>>> main
-  const { user, loading } = useAuth()
-  const [mounted, setMounted] = useState(false)
-  const [isFirstVisit, setIsFirstVisit] = useState(true)
-  const [popularRecipes, setPopularRecipes] = useState<Recipe[]>([])
-  const [loadingRecipes, setLoadingRecipes] = useState(true)
 
-  // const isDark = theme === "dark"
+  const fetchingRecipes = useRef(false)
+  const fetchingStats = useRef(false)
+  const isMounted = useRef(true)
 
   useEffect(() => {
+    isMounted.current = true
     setMounted(true)
 
     const hasVisited = document.cookie.includes("visited=true")
     setIsFirstVisit(!hasVisited)
 
-    // Set cookie for future visits (expires in 1 year)
     if (!hasVisited) {
       const expiryDate = new Date()
       expiryDate.setFullYear(expiryDate.getFullYear() + 1)
       document.cookie = `visited=true; expires=${expiryDate.toUTCString()}; path=/`
     }
+
+    return () => {
+      isMounted.current = false
+    }
   }, [])
 
-  // Now the landing page is accessible to everyone
-
   useEffect(() => {
-    if (!isFirstVisit) {
+    if (!isFirstVisit && isMounted.current && !fetchingRecipes.current) {
       fetchPopularRecipes()
     }
   }, [isFirstVisit])
 
+  useEffect(() => {
+    if (user && isMounted.current && !fetchingStats.current) {
+      fetchUserStats()
+    }
+  }, [user])
+
   const fetchPopularRecipes = async () => {
+    if (fetchingRecipes.current || !isMounted.current) return
+
+    fetchingRecipes.current = true
+    setLoadingRecipes(true)
+
     try {
       const { data, error } = await supabase
         .from("recipes")
@@ -126,25 +93,50 @@ export default function HomePage() {
         .order("rating_avg", { ascending: false })
         .limit(6)
 
-<<<<<<< HEAD
-      if (!error && data) {
+      if (!error && data && isMounted.current) {
         setPopularRecipes(data)
-=======
-      if (error) {
-        console.warn("Database not set up yet, using fallback data:", error.message)
-        setPopularRecipes(fallbackRecipes)
-        return
->>>>>>> main
       }
     } catch (error) {
-<<<<<<< HEAD
       console.error("Error fetching recipes:", error)
     } finally {
-      setLoadingRecipes(false)
-=======
-      console.warn("Error fetching popular recipes, using fallback data:", error)
-      setPopularRecipes(fallbackRecipes)
->>>>>>> main
+      if (isMounted.current) {
+        setLoadingRecipes(false)
+      }
+      fetchingRecipes.current = false
+    }
+  }
+
+  const fetchUserStats = async () => {
+    if (!user || fetchingStats.current || !isMounted.current) return
+
+    fetchingStats.current = true
+
+    try {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+
+      const [recipesResult, favoritesResult, mealPlansResult, pantryResult] = await Promise.all([
+        supabase.from("recipes").select("id", { count: "exact", head: true }).eq("author_id", user.id),
+        supabase.from("recipe_favorites").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase
+          .from("meal_plans")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("week_start", weekAgo),
+        supabase.from("pantry_items").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+      ])
+
+      if (isMounted.current) {
+        setUserStats({
+          totalRecipes: recipesResult.count || 0,
+          favoriteRecipes: favoritesResult.count || 0,
+          mealPlansThisWeek: mealPlansResult.count || 0,
+          pantryItems: pantryResult.count || 0,
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching user stats:", error)
+    } finally {
+      fetchingStats.current = false
     }
   }
 
@@ -158,11 +150,9 @@ export default function HomePage() {
     )
   }
 
-<<<<<<< HEAD
   if (isFirstVisit && !user) {
     return (
       <main className="min-h-screen bg-[#181813] text-[#e8dcc4] flex items-center justify-center px-6 relative overflow-hidden">
-        {/* Subtle noise texture */}
         <div className="absolute inset-0 opacity-[0.015]">
           <div
             className="absolute inset-0"
@@ -173,28 +163,23 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Main content */}
         <div
           className={`relative z-10 max-w-2xl mx-auto text-center transition-all duration-1000 ${
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
-          {/* Logo */}
           <div className="mb-12 flex justify-center">
             <Image src="/logo-dark.png" alt="Secret Sauce" width={160} height={160} className="opacity-90" />
           </div>
 
-          {/* Mysterious tagline */}
           <h1 className="text-4xl md:text-6xl font-serif mb-6 tracking-tight font-light leading-tight">
             The secret to better meals
           </h1>
 
-          {/* Subtle hint */}
           <p className="text-base md:text-lg text-[#e8dcc4]/40 mb-12 font-light tracking-wide">
             Save your health, money, and time
           </p>
 
-          {/* CTA */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button
               size="lg"
@@ -217,7 +202,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Subtle footer */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
           <p className="text-[#e8dcc4]/20 text-xs font-light tracking-[0.2em]">SECRET SAUCE</p>
         </div>
@@ -225,17 +209,8 @@ export default function HomePage() {
     )
   }
 
-  // const bgClass = isDark ? "bg-[#181813]" : "bg-gradient-to-br from-orange-50 to-yellow-50"
-  // const textClass = isDark ? "text-[#e8dcc4]" : "text-gray-900"
-  // const mutedTextClass = isDark ? "text-[#e8dcc4]/70" : "text-gray-600"
-  // const cardBgClass = isDark ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white/80"
-  // const buttonClass = isDark
-  //   ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
-  //   : "bg-orange-500 hover:bg-orange-600 text-white"
-
   return (
     <div className="min-h-screen bg-[#181813]">
-      {/* Header for non-authenticated users */}
       {!user && (
         <header className="border-b bg-[#181813] border-[#e8dcc4]/20">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -249,80 +224,77 @@ export default function HomePage() {
               <Button asChild className="bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]">
                 <Link href="/auth/signup">Get Started</Link>
               </Button>
-=======
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
-      <HeroSection />
-
-      {user && (
-        <section className="py-16 px-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user.email?.split("@")[0]}!</h2>
-              <p className="text-gray-600">Here's what's cooking in your kitchen</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Link href="/recipes" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white border-0 shadow-md">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <ChefHat className="h-8 w-8 text-orange-500" />
-                      <span className="text-xs text-gray-500">Your Recipes</span>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">{userStats.totalRecipes}</p>
-                    <p className="text-sm text-gray-500 mt-1">Recipes created</p>
-                  </CardContent>
-                </Card>
-              </Link>
-
-              <Link href="/favorites" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white border-0 shadow-md">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <Heart className="h-8 w-8 text-red-500" />
-                      <span className="text-xs text-gray-500">Favorites</span>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">{userStats.favoriteRecipes}</p>
-                    <p className="text-sm text-gray-500 mt-1">Saved recipes</p>
-                  </CardContent>
-                </Card>
-              </Link>
-
-              <Link href="/meal-planner" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white border-0 shadow-md">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <Calendar className="h-8 w-8 text-blue-500" />
-                      <span className="text-xs text-gray-500">Meal Plans</span>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">{userStats.mealPlansThisWeek}</p>
-                    <p className="text-sm text-gray-500 mt-1">Meals this week</p>
-                  </CardContent>
-                </Card>
-              </Link>
-
-              <Link href="/pantry" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-white border-0 shadow-md">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <ShoppingCart className="h-8 w-8 text-green-500" />
-                      <span className="text-xs text-gray-500">Pantry Items</span>
-                    </div>
-                    <p className="text-3xl font-bold text-gray-900">{userStats.pantryItems}</p>
-                    <p className="text-sm text-gray-500 mt-1">Items in stock</p>
-                  </CardContent>
-                </Card>
-              </Link>
->>>>>>> main
             </div>
           </div>
         </header>
       )}
 
-<<<<<<< HEAD
       <div className="max-w-7xl mx-auto p-6">
-        {/* Hero Section */}
+        {user && (
+          <section className="mb-12">
+            <div className="mb-8">
+              <h2 className="text-3xl font-serif font-light text-[#e8dcc4] mb-2">
+                Welcome back, {user.email?.split("@")[0]}!
+              </h2>
+              <p className="text-[#e8dcc4]/70">Here's what's cooking in your kitchen</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Link href="/recipes" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-[#1f1e1a] border-[#e8dcc4]/20">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <ChefHat className="h-8 w-8 text-[#e8dcc4]" />
+                      <span className="text-xs text-[#e8dcc4]/50">Your Recipes</span>
+                    </div>
+                    <p className="text-3xl font-bold text-[#e8dcc4]">{userStats.totalRecipes}</p>
+                    <p className="text-sm text-[#e8dcc4]/70 mt-1">Recipes created</p>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              <Link href="/favorites" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-[#1f1e1a] border-[#e8dcc4]/20">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <Heart className="h-8 w-8 text-red-400" />
+                      <span className="text-xs text-[#e8dcc4]/50">Favorites</span>
+                    </div>
+                    <p className="text-3xl font-bold text-[#e8dcc4]">{userStats.favoriteRecipes}</p>
+                    <p className="text-sm text-[#e8dcc4]/70 mt-1">Saved recipes</p>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              <Link href="/meal-planner" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-[#1f1e1a] border-[#e8dcc4]/20">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <Calendar className="h-8 w-8 text-blue-400" />
+                      <span className="text-xs text-[#e8dcc4]/50">Meal Plans</span>
+                    </div>
+                    <p className="text-3xl font-bold text-[#e8dcc4]">{userStats.mealPlansThisWeek}</p>
+                    <p className="text-sm text-[#e8dcc4]/70 mt-1">Meals this week</p>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              <Link href="/pantry" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-[#1f1e1a] border-[#e8dcc4]/20">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <ShoppingCart className="h-8 w-8 text-green-400" />
+                      <span className="text-xs text-[#e8dcc4]/50">Pantry Items</span>
+                    </div>
+                    <p className="text-3xl font-bold text-[#e8dcc4]">{userStats.pantryItems}</p>
+                    <p className="text-sm text-[#e8dcc4]/70 mt-1">Items in stock</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
+          </section>
+        )}
+
         <div className="text-center mb-12 py-12">
           <h1 className="text-5xl md:text-6xl font-serif font-light text-[#e8dcc4] mb-4">Discover Amazing Recipes</h1>
           <p className="text-xl text-[#e8dcc4]/70 mb-8 max-w-2xl mx-auto">
@@ -344,29 +316,6 @@ export default function HomePage() {
               >
                 <Link href="/dashboard">Go to Dashboard</Link>
               </Button>
-=======
-      <RecipeSection title="Popular Recipes" recipes={popularRecipes} />
-
-      <section className="bg-gradient-to-r from-orange-500 to-orange-600 py-16 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Ready to start your culinary journey?</h2>
-          <p className="text-xl text-orange-100 mb-8">Join thousands of home cooks saving money and eating better</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {!user ? (
-              <>
-                <Button size="lg" variant="secondary" asChild>
-                  <Link href="/auth/signup">Get Started Free</Link>
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-white text-white hover:bg-white hover:text-orange-500 bg-transparent"
-                  asChild
-                >
-                  <Link href="/recipes">Browse Recipes</Link>
-                </Button>
-              </>
->>>>>>> main
             ) : (
               <Button
                 size="lg"
@@ -380,7 +329,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Popular Recipes */}
         <div className="mb-12">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-3xl font-serif font-light text-[#e8dcc4]">Popular Recipes</h2>
@@ -427,7 +375,6 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Features Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           <Card className="bg-[#1f1e1a] border-[#e8dcc4]/20">
             <CardContent className="p-6 text-center">
@@ -460,7 +407,6 @@ export default function HomePage() {
           </Card>
         </div>
 
-        {/* CTA Section */}
         {!user && (
           <Card className="bg-[#1f1e1a] border-[#e8dcc4]/20 text-center">
             <CardContent className="p-12">

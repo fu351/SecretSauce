@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 
@@ -22,62 +21,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
+  const mounted = useRef(true)
+  const fetchingProfile = useRef(false)
 
   useEffect(() => {
-    // Get initial session
+    mounted.current = true
+
     const getInitialSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+
         if (error) {
           console.error("Error getting initial session:", error)
-          setLoading(false)
+          if (mounted.current) {
+            setLoading(false)
+          }
           return
         }
 
-        if (session?.user) {
+        if (session?.user && mounted.current) {
           setUser(session.user)
           await fetchProfile(session.user.id)
-        } else {
+        } else if (mounted.current) {
           setUser(null)
           setProfile(null)
         }
       } catch (error) {
         console.error("Error in getInitialSession:", error)
       } finally {
-        setLoading(false)
+        if (mounted.current) {
+          setLoading(false)
+        }
       }
     }
 
     getInitialSession()
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted.current) return
+
       console.log("Auth state changed:", event, session?.user?.email)
-      
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          await fetchProfile(session.user.id)
+
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        if (mounted.current) {
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            await fetchProfile(session.user.id)
+          }
         }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null)
-        setProfile(null)
-        // Clear any stored data
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('supabase.auth.token')
+      } else if (event === "SIGNED_OUT") {
+        if (mounted.current) {
+          setUser(null)
+          setProfile(null)
+          fetchingProfile.current = false
+        }
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("supabase.auth.token")
         }
       }
-      
-      setLoading(false)
+
+      if (mounted.current) {
+        setLoading(false)
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted.current = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchProfile = async (userId: string) => {
+    if (fetchingProfile.current || !mounted.current) return
+
+    fetchingProfile.current = true
+
     try {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
@@ -86,9 +109,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      setProfile(data)
+      if (mounted.current && data) {
+        setProfile(data)
+      }
     } catch (error) {
       console.error("Error fetching profile:", error)
+    } finally {
+      fetchingProfile.current = false
     }
   }
 
@@ -98,12 +125,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
       })
-      
+
       if (error) {
         console.error("Sign in error:", error)
         return { data: null, error }
       }
-      
+
       console.log("Sign in successful:", data.user?.email)
       return { data, error: null }
     } catch (error) {
@@ -115,14 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string) => {
     try {
       const getSiteUrl = () => {
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           return window.location.origin
         }
         const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL
         if (vercelUrl) {
           return `https://${vercelUrl}`
         }
-        return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+        return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
       }
 
       const { data, error } = await supabase.auth.signUp({
@@ -132,12 +159,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           emailRedirectTo: `${getSiteUrl()}/`,
         },
       })
-      
+
       if (error) {
         console.error("Sign up error:", error)
         return { data: null, error }
       }
-      
+
       console.log("Sign up successful:", data.user?.email)
       return { data, error: null }
     } catch (error) {
@@ -149,21 +176,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       console.log("Signing out...")
+      fetchingProfile.current = false
+
       const { error } = await supabase.auth.signOut()
-      
+
       if (error) {
         console.error("Sign out error:", error)
         throw error
       }
-      
+
       console.log("Sign out successful")
-      // Clear local state immediately
-      setUser(null)
-      setProfile(null)
-      
-      // Clear any stored data
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('supabase.auth.token')
+
+      if (mounted.current) {
+        setUser(null)
+        setProfile(null)
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("supabase.auth.token")
         sessionStorage.clear()
       }
     } catch (error) {
@@ -173,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const updateProfile = async (updates: any) => {
-    if (!user) return
+    if (!user || !mounted.current) return
 
     try {
       const { error } = await supabase.from("profiles").upsert({
@@ -188,7 +218,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error
       }
 
-      await fetchProfile(user.id)
+      if (mounted.current) {
+        await fetchProfile(user.id)
+      }
     } catch (error) {
       console.error("Profile update exception:", error)
       throw error
