@@ -377,7 +377,7 @@ export default function RecipeDetailPage() {
                         className="bg-orange-500 hover:bg-orange-600"
                       >
                         <ShoppingCart className="w-4 h-4 mr-2" />
-                        Add All to Shopping List
+                        Add to cart
                       </Button>
                     )}
                   </div>
@@ -388,11 +388,6 @@ export default function RecipeDetailPage() {
                         key={index}
                         className="flex items-start gap-3 p-3 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm"
                       >
-                        <input
-                          type="checkbox"
-                          className="mt-1 w-4 h-4 text-orange-600 rounded"
-                          aria-label={`Check ingredient: ${ingredient.amount} ${ingredient.unit} ${ingredient.name}`}
-                        />
                         <span className="text-sm leading-relaxed font-medium">
                           {ingredient.amount} {ingredient.unit} {ingredient.name}
                         </span>

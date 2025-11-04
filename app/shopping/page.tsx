@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ChefHat, SearchIcon, DollarSign, Plus, X, ShoppingCart } from "lucide-react"
+import { ChefHat, SearchIcon, DollarSign, Plus, X, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
@@ -66,6 +66,9 @@ export default function ShoppingPage() {
   const [massSearchResults, setMassSearchResults] = useState<StoreComparison[]>([])
   const [comparisonLoading, setComparisonLoading] = useState(false)
   const [draggedRecipe, setDraggedRecipe] = useState<string | null>(null)
+
+  const [carouselIndex, setCarouselIndex] = useState(0)
+  const carouselRef = useRef<HTMLDivElement>(null)
 
   const { user } = useAuth()
   const { theme } = useTheme()
@@ -424,6 +427,29 @@ export default function ShoppingPage() {
     {} as Record<string, { recipeName: string; items: ShoppingListItem[] }>,
   )
 
+  const scrollToStore = (index: number) => {
+    if (carouselRef.current) {
+      const cardWidth = carouselRef.current.scrollWidth / massSearchResults.length
+      carouselRef.current.scrollTo({
+        left: cardWidth * index,
+        behavior: "smooth",
+      })
+      setCarouselIndex(index)
+    }
+  }
+
+  const nextStore = () => {
+    if (carouselIndex < massSearchResults.length - 1) {
+      scrollToStore(carouselIndex + 1)
+    }
+  }
+
+  const prevStore = () => {
+    if (carouselIndex > 0) {
+      scrollToStore(carouselIndex - 1)
+    }
+  }
+
   const bgClass = theme === "dark" ? "bg-[#181813]" : "bg-gray-50"
   const textClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
   const cardBgClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white"
@@ -433,7 +459,7 @@ export default function ShoppingPage() {
   const buttonOutlineClass =
     theme === "dark"
       ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
-      : "border-gray-300 hover:bg-gray-50"
+      : "border-gray-300 hover:bg-[#e8dcc4]/10"
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
@@ -735,67 +761,143 @@ export default function ShoppingPage() {
             {comparisonLoading ? (
               <Card className={cardBgClass}>
                 <CardContent className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
-                  <p>Searching all stores...</p>
+                  <div
+                    className={`animate-spin rounded-full h-8 w-8 border-b-2 ${theme === "dark" ? "border-[#e8dcc4]" : "border-orange-500"} mx-auto mb-4`}
+                  ></div>
+                  <p className={textClass}>Searching all stores...</p>
                 </CardContent>
               </Card>
             ) : massSearchResults.length > 0 ? (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {massSearchResults.map((comparison, index) => (
-                    <Card key={comparison.store} className={`h-fit ${cardBgClass}`}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xl">{getStoreIcon(comparison.store)}</span>
-                            {comparison.store}
-                            {index === 0 && <Badge className="bg-green-100 text-green-800">Best Price</Badge>}
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold">${comparison.total.toFixed(2)}</div>
-                            {comparison.savings > 0 && (
-                              <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
-                            )}
-                          </div>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          {comparison.items.map((item) => (
-                            <div
-                              key={item.id}
-                              className={`flex items-start gap-3 p-3 rounded-lg ${theme === "dark" ? "bg-[#181813]" : "bg-gray-50"}`}
-                            >
-                              <img
-                                src={item.image_url || "/placeholder.svg"}
-                                alt={item.title}
-                                className="w-12 h-12 object-cover rounded"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
-                                <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
-                                <div className="flex items-center justify-between mt-1">
-                                  <div className="text-sm">
-                                    <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
-                                    {item.pricePerUnit && (
-                                      <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>
+                <div className="relative">
+                  {/* Carousel Navigation */}
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className={`text-2xl font-bold ${textClass}`}>Store Comparison</h2>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={prevStore}
+                        disabled={carouselIndex === 0}
+                        className={buttonOutlineClass}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className={`text-sm ${mutedTextClass}`}>
+                        {carouselIndex + 1} / {massSearchResults.length}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={nextStore}
+                        disabled={carouselIndex === massSearchResults.length - 1}
+                        className={buttonOutlineClass}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Carousel Container */}
+                  <div
+                    ref={carouselRef}
+                    className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
+                    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                  >
+                    {massSearchResults.map((comparison, index) => (
+                      <div key={comparison.store} className="flex-shrink-0 w-full snap-center">
+                        <Card className={`h-full ${cardBgClass} ${index === 0 ? "border-2 border-green-500" : ""}`}>
+                          <CardHeader>
+                            <CardTitle className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="text-4xl">{getStoreIcon(comparison.store)}</span>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-2xl ${textClass}`}>{comparison.store}</span>
+                                    {index === 0 && <Badge className="bg-green-500 text-white">Best Price</Badge>}
+                                  </div>
+                                  <div className="text-right mt-1">
+                                    <div className={`text-3xl font-bold ${textClass}`}>
+                                      ${comparison.total.toFixed(2)}
+                                    </div>
+                                    {comparison.savings > 0 && (
+                                      <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
                                     )}
                                   </div>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => addToShoppingList(item)}
-                                    className={`h-6 px-2 ${buttonClass}`}
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
                                 </div>
                               </div>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                              {comparison.items.map((item) => {
+                                const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className={`flex items-start gap-3 p-4 rounded-lg ${theme === "dark" ? "bg-[#181813]" : "bg-gray-50"}`}
+                                  >
+                                    <img
+                                      src={item.image_url || "/placeholder.svg"}
+                                      alt={item.title}
+                                      className="w-16 h-16 object-cover rounded"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
+                                      <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
+                                      {shoppingItem && (
+                                        <p className={`text-xs ${mutedTextClass} mt-1`}>Qty: {shoppingItem.quantity}</p>
+                                      )}
+                                      <div className="flex items-center justify-between mt-2">
+                                        <div className="text-sm">
+                                          <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
+                                          {item.pricePerUnit && (
+                                            <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>
+                                          )}
+                                          {shoppingItem && shoppingItem.quantity > 1 && (
+                                            <span className={`${mutedTextClass} ml-2`}>
+                                              Total: ${(item.price * shoppingItem.quantity).toFixed(2)}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => addToShoppingList(item)}
+                                          className={`h-6 px-2 ${buttonClass}`}
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Carousel Dots Indicator */}
+                  <div className="flex justify-center gap-2 mt-4">
+                    {massSearchResults.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => scrollToStore(index)}
+                        className={`w-2 h-2 rounded-full transition-all ${
+                          index === carouselIndex
+                            ? theme === "dark"
+                              ? "bg-[#e8dcc4] w-8"
+                              : "bg-orange-500 w-8"
+                            : theme === "dark"
+                              ? "bg-[#e8dcc4]/30"
+                              : "bg-gray-300"
+                        }`}
+                        aria-label={`Go to store ${index + 1}`}
+                      />
+                    ))}
+                  </div>
                 </div>
 
                 <Card
@@ -844,9 +946,9 @@ export default function ShoppingPage() {
             ) : (
               <Card className={cardBgClass}>
                 <CardContent className="p-8 text-center">
-                  <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <DollarSign className={`h-12 w-12 ${mutedTextClass} mx-auto mb-4`} />
                   <h3 className={`text-lg font-medium ${textClass} mb-2`}>No comparison data</h3>
-                  <p className={mutedTextClass}>
+                  <p className={`${mutedTextClass} mb-4`}>
                     Add items to your shopping list and perform a search to see store comparisons.
                   </p>
                   <Button onClick={() => setActiveTab("list")} className={buttonClass}>

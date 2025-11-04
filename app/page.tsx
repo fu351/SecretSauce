@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useEffect, useState, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import { ArrowRight, Search, Clock, Users, ChefHat, Heart, Calendar, ShoppingCart } from "lucide-react"
@@ -33,6 +34,7 @@ interface Recipe {
 
 export default function HomePage() {
   const { user, loading } = useAuth()
+  const { theme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [isFirstVisit, setIsFirstVisit] = useState(true)
   const [popularRecipes, setPopularRecipes] = useState<Recipe[]>([])
@@ -142,9 +144,13 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#181813] flex items-center justify-center">
+      <div
+        className={`min-h-screen flex items-center justify-center ${
+          theme === "dark" ? "bg-[#181813]" : "bg-background"
+        }`}
+      >
         <div className="animate-pulse">
-          <Image src="/logo-dark.png" alt="Secret Sauce" width={120} height={120} />
+          <Image src={theme === "dark" ? "/logo-dark.png" : "/logo.png"} alt="Secret Sauce" width={120} height={120} />
         </div>
       </div>
     )
@@ -152,7 +158,11 @@ export default function HomePage() {
 
   if (isFirstVisit && !user) {
     return (
-      <main className="min-h-screen bg-[#181813] text-[#e8dcc4] flex items-center justify-center px-6 relative overflow-hidden">
+      <main
+        className={`min-h-screen flex items-center justify-center px-6 relative overflow-hidden ${
+          theme === "dark" ? "bg-[#181813] text-[#e8dcc4]" : "bg-background text-foreground"
+        }`}
+      >
         <div className="absolute inset-0 opacity-[0.015]">
           <div
             className="absolute inset-0"
@@ -169,21 +179,35 @@ export default function HomePage() {
           }`}
         >
           <div className="mb-12 flex justify-center">
-            <Image src="/logo-dark.png" alt="Secret Sauce" width={160} height={160} className="opacity-90" />
+            <Image
+              src={theme === "dark" ? "/logo-dark.png" : "/logo.png"}
+              alt="Secret Sauce"
+              width={160}
+              height={160}
+              className="opacity-90"
+            />
           </div>
 
           <h1 className="text-4xl md:text-6xl font-serif mb-6 tracking-tight font-light leading-tight">
             The secret to better meals
           </h1>
 
-          <p className="text-base md:text-lg text-[#e8dcc4]/40 mb-12 font-light tracking-wide">
+          <p
+            className={`text-base md:text-lg mb-12 font-light tracking-wide ${
+              theme === "dark" ? "text-[#e8dcc4]/40" : "text-muted-foreground"
+            }`}
+          >
             Save your health, money, and time
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button
               size="lg"
-              className="bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] px-10 py-6 text-base font-normal transition-all duration-300 shadow-lg shadow-[#e8dcc4]/10"
+              className={`px-10 py-6 text-base font-normal transition-all duration-300 ${
+                theme === "dark"
+                  ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] shadow-lg shadow-[#e8dcc4]/10"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+              }`}
               asChild
             >
               <Link href="/auth/signup">
@@ -194,7 +218,11 @@ export default function HomePage() {
             <Button
               size="lg"
               variant="ghost"
-              className="text-[#e8dcc4]/60 hover:text-[#e8dcc4] hover:bg-transparent px-10 py-6 text-base font-light border border-[#e8dcc4]/10 hover:border-[#e8dcc4]/30 transition-all duration-300"
+              className={`px-10 py-6 text-base font-light transition-all duration-300 ${
+                theme === "dark"
+                  ? "text-[#e8dcc4]/60 hover:text-[#e8dcc4] hover:bg-transparent border border-[#e8dcc4]/10 hover:border-[#e8dcc4]/30"
+                  : "text-muted-foreground hover:text-foreground border border-border hover:border-foreground/30"
+              }`}
               asChild
             >
               <Link href="/auth/signin">Sign In</Link>
@@ -203,25 +231,54 @@ export default function HomePage() {
         </div>
 
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-          <p className="text-[#e8dcc4]/20 text-xs font-light tracking-[0.2em]">SECRET SAUCE</p>
+          <p
+            className={`text-xs font-light tracking-[0.2em] ${
+              theme === "dark" ? "text-[#e8dcc4]/20" : "text-muted-foreground/30"
+            }`}
+          >
+            SECRET SAUCE
+          </p>
         </div>
       </main>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#181813]">
+    <div className={theme === "dark" ? "min-h-screen bg-[#181813]" : "min-h-screen bg-background"}>
       {!user && (
-        <header className="border-b bg-[#181813] border-[#e8dcc4]/20">
+        <header
+          className={`border-b ${
+            theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-background border-border"
+          }`}
+        >
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <div className="flex items-center">
-              <Image src="/logo-dark.png" alt="Secret Sauce" width={50} height={50} className="cursor-pointer" />
+              <Image
+                src={theme === "dark" ? "/logo-dark.png" : "/logo.png"}
+                alt="Secret Sauce"
+                width={50}
+                height={50}
+                className="cursor-pointer"
+              />
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" asChild className="text-[#e8dcc4] hover:bg-[#e8dcc4]/10">
+              <Button
+                variant="ghost"
+                asChild
+                className={
+                  theme === "dark" ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-foreground hover:bg-accent"
+                }
+              >
                 <Link href="/auth/signin">Sign In</Link>
               </Button>
-              <Button asChild className="bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]">
+              <Button
+                asChild
+                className={
+                  theme === "dark"
+                    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                }
+              >
                 <Link href="/auth/signup">Get Started</Link>
               </Button>
             </div>
@@ -233,61 +290,107 @@ export default function HomePage() {
         {user && (
           <section className="mb-12">
             <div className="mb-8">
-              <h2 className="text-3xl font-serif font-light text-[#e8dcc4] mb-2">
+              <h2
+                className={`text-3xl font-serif font-light mb-2 ${
+                  theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"
+                }`}
+              >
                 Welcome back, {user.email?.split("@")[0]}!
               </h2>
-              <p className="text-[#e8dcc4]/70">Here's what's cooking in your kitchen</p>
+              <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+                Here's what's cooking in your kitchen
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <Link href="/recipes" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-[#1f1e1a] border-[#e8dcc4]/20">
+                <Card
+                  className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${
+                    theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"
+                  }`}
+                >
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <ChefHat className="h-8 w-8 text-[#e8dcc4]" />
-                      <span className="text-xs text-[#e8dcc4]/50">Your Recipes</span>
+                      <ChefHat className={`h-8 w-8 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`} />
+                      <span className={`text-xs ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-muted-foreground"}`}>
+                        Your Recipes
+                      </span>
                     </div>
-                    <p className="text-3xl font-bold text-[#e8dcc4]">{userStats.totalRecipes}</p>
-                    <p className="text-sm text-[#e8dcc4]/70 mt-1">Recipes created</p>
+                    <p className={`text-3xl font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+                      {userStats.totalRecipes}
+                    </p>
+                    <p className={`text-sm mt-1 ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}>
+                      Recipes created
+                    </p>
                   </CardContent>
                 </Card>
               </Link>
 
               <Link href="/favorites" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-[#1f1e1a] border-[#e8dcc4]/20">
+                <Card
+                  className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${
+                    theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"
+                  }`}
+                >
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <Heart className="h-8 w-8 text-red-400" />
-                      <span className="text-xs text-[#e8dcc4]/50">Favorites</span>
+                      <span className={`text-xs ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-muted-foreground"}`}>
+                        Favorites
+                      </span>
                     </div>
-                    <p className="text-3xl font-bold text-[#e8dcc4]">{userStats.favoriteRecipes}</p>
-                    <p className="text-sm text-[#e8dcc4]/70 mt-1">Saved recipes</p>
+                    <p className={`text-3xl font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+                      {userStats.favoriteRecipes}
+                    </p>
+                    <p className={`text-sm mt-1 ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}>
+                      Saved recipes
+                    </p>
                   </CardContent>
                 </Card>
               </Link>
 
               <Link href="/meal-planner" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-[#1f1e1a] border-[#e8dcc4]/20">
+                <Card
+                  className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${
+                    theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"
+                  }`}
+                >
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <Calendar className="h-8 w-8 text-blue-400" />
-                      <span className="text-xs text-[#e8dcc4]/50">Meal Plans</span>
+                      <span className={`text-xs ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-muted-foreground"}`}>
+                        Meal Plans
+                      </span>
                     </div>
-                    <p className="text-3xl font-bold text-[#e8dcc4]">{userStats.mealPlansThisWeek}</p>
-                    <p className="text-sm text-[#e8dcc4]/70 mt-1">Meals this week</p>
+                    <p className={`text-3xl font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+                      {userStats.mealPlansThisWeek}
+                    </p>
+                    <p className={`text-sm mt-1 ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}>
+                      Meals this week
+                    </p>
                   </CardContent>
                 </Card>
               </Link>
 
               <Link href="/pantry" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full bg-[#1f1e1a] border-[#e8dcc4]/20">
+                <Card
+                  className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${
+                    theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"
+                  }`}
+                >
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <ShoppingCart className="h-8 w-8 text-green-400" />
-                      <span className="text-xs text-[#e8dcc4]/50">Pantry Items</span>
+                      <span className={`text-xs ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-muted-foreground"}`}>
+                        Pantry Items
+                      </span>
                     </div>
-                    <p className="text-3xl font-bold text-[#e8dcc4]">{userStats.pantryItems}</p>
-                    <p className="text-sm text-[#e8dcc4]/70 mt-1">Items in stock</p>
+                    <p className={`text-3xl font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+                      {userStats.pantryItems}
+                    </p>
+                    <p className={`text-sm mt-1 ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}>
+                      Items in stock
+                    </p>
                   </CardContent>
                 </Card>
               </Link>
@@ -296,12 +399,30 @@ export default function HomePage() {
         )}
 
         <div className="text-center mb-12 py-12">
-          <h1 className="text-5xl md:text-6xl font-serif font-light text-[#e8dcc4] mb-4">Discover Amazing Recipes</h1>
-          <p className="text-xl text-[#e8dcc4]/70 mb-8 max-w-2xl mx-auto">
+          <h1
+            className={`text-5xl md:text-6xl font-serif font-light mb-4 ${
+              theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"
+            }`}
+          >
+            Discover Amazing Recipes
+          </h1>
+          <p
+            className={`text-xl mb-8 max-w-2xl mx-auto ${
+              theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"
+            }`}
+          >
             Browse our collection of delicious recipes, plan your meals, and save money on groceries
           </p>
           <div className="flex gap-4 justify-center">
-            <Button size="lg" asChild className="bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]">
+            <Button
+              size="lg"
+              asChild
+              className={
+                theme === "dark"
+                  ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+              }
+            >
               <Link href="/recipes">
                 <Search className="h-4 w-4 mr-2" />
                 Browse All Recipes
@@ -312,7 +433,11 @@ export default function HomePage() {
                 size="lg"
                 variant="outline"
                 asChild
-                className="border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 bg-transparent"
+                className={
+                  theme === "dark"
+                    ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 bg-transparent"
+                    : "border-border text-foreground hover:bg-accent"
+                }
               >
                 <Link href="/dashboard">Go to Dashboard</Link>
               </Button>
@@ -321,7 +446,11 @@ export default function HomePage() {
                 size="lg"
                 variant="outline"
                 asChild
-                className="border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 bg-transparent"
+                className={
+                  theme === "dark"
+                    ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 bg-transparent"
+                    : "border-border text-foreground hover:bg-accent"
+                }
               >
                 <Link href="/auth/signup">Sign Up Free</Link>
               </Button>
@@ -331,8 +460,14 @@ export default function HomePage() {
 
         <div className="mb-12">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-3xl font-serif font-light text-[#e8dcc4]">Popular Recipes</h2>
-            <Button variant="ghost" asChild className="text-[#e8dcc4] hover:bg-[#e8dcc4]/10">
+            <h2 className={`text-3xl font-serif font-light ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+              Popular Recipes
+            </h2>
+            <Button
+              variant="ghost"
+              asChild
+              className={theme === "dark" ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-foreground hover:bg-accent"}
+            >
               <Link href="/recipes">View All →</Link>
             </Button>
           </div>
@@ -340,7 +475,12 @@ export default function HomePage() {
           {loadingRecipes ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="rounded-lg bg-[#1f1e1a] border border-[#e8dcc4]/20 p-4 animate-pulse">
+                <div
+                  key={i}
+                  className={`rounded-lg p-4 animate-pulse ${
+                    theme === "dark" ? "bg-[#1f1e1a] border border-[#e8dcc4]/20" : "bg-card border border-border"
+                  }`}
+                >
                   <div className="bg-gray-700 h-48 rounded-lg mb-4"></div>
                   <div className="bg-gray-700 h-6 rounded mb-2"></div>
                   <div className="bg-gray-700 h-4 rounded w-2/3"></div>
@@ -367,54 +507,98 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <Card className="bg-[#1f1e1a] border-[#e8dcc4]/20">
+            <Card className={theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}>
               <CardContent className="p-12 text-center">
-                <p className="text-[#e8dcc4]/70">No recipes available yet. Check back soon!</p>
+                <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+                  No recipes available yet. Check back soon!
+                </p>
               </CardContent>
             </Card>
           )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          <Card className="bg-[#1f1e1a] border-[#e8dcc4]/20">
+          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}>
             <CardContent className="p-6 text-center">
-              <div className="w-12 h-12 rounded-full bg-[#e8dcc4]/20 flex items-center justify-center mx-auto mb-4">
-                <Search className="h-6 w-6 text-[#e8dcc4]" />
+              <div
+                className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                  theme === "dark" ? "bg-[#e8dcc4]/20" : "bg-accent"
+                }`}
+              >
+                <Search className={`h-6 w-6 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`} />
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-[#e8dcc4]">Discover Recipes</h3>
-              <p className="text-[#e8dcc4]/70">Browse thousands of recipes from around the world</p>
+              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+                Discover Recipes
+              </h3>
+              <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+                Browse thousands of recipes from around the world
+              </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-[#1f1e1a] border-[#e8dcc4]/20">
+          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}>
             <CardContent className="p-6 text-center">
-              <div className="w-12 h-12 rounded-full bg-[#e8dcc4]/20 flex items-center justify-center mx-auto mb-4">
-                <Clock className="h-6 w-6 text-[#e8dcc4]" />
+              <div
+                className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                  theme === "dark" ? "bg-[#e8dcc4]/20" : "bg-accent"
+                }`}
+              >
+                <Clock className={`h-6 w-6 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`} />
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-[#e8dcc4]">Plan Your Meals</h3>
-              <p className="text-[#e8dcc4]/70">Organize your weekly meals with our meal planner</p>
+              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+                Plan Your Meals
+              </h3>
+              <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+                Organize your weekly meals with our meal planner
+              </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-[#1f1e1a] border-[#e8dcc4]/20">
+          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}>
             <CardContent className="p-6 text-center">
-              <div className="w-12 h-12 rounded-full bg-[#e8dcc4]/20 flex items-center justify-center mx-auto mb-4">
-                <Users className="h-6 w-6 text-[#e8dcc4]" />
+              <div
+                className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                  theme === "dark" ? "bg-[#e8dcc4]/20" : "bg-accent"
+                }`}
+              >
+                <Users className={`h-6 w-6 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`} />
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-[#e8dcc4]">Save Money</h3>
-              <p className="text-[#e8dcc4]/70">Compare grocery prices and find the best deals</p>
+              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+                Save Money
+              </h3>
+              <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+                Compare grocery prices and find the best deals
+              </p>
             </CardContent>
           </Card>
         </div>
 
         {!user && (
-          <Card className="bg-[#1f1e1a] border-[#e8dcc4]/20 text-center">
+          <Card
+            className={`text-center ${theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}`}
+          >
             <CardContent className="p-12">
-              <h2 className="text-3xl font-serif font-light text-[#e8dcc4] mb-4">Ready to start cooking?</h2>
-              <p className="text-[#e8dcc4]/70 mb-6 max-w-2xl mx-auto">
+              <h2
+                className={`text-3xl font-serif font-light mb-4 ${
+                  theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"
+                }`}
+              >
+                Ready to start cooking?
+              </h2>
+              <p
+                className={`mb-6 max-w-2xl mx-auto ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}
+              >
                 Join thousands of home cooks who are saving time and money with Secret Sauce
               </p>
-              <Button size="lg" asChild className="bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]">
+              <Button
+                size="lg"
+                asChild
+                className={
+                  theme === "dark"
+                    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                }
+              >
                 <Link href="/auth/signup">
                   Get Started Free
                   <ArrowRight className="ml-2 h-4 w-4" />

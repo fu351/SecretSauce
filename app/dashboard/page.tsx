@@ -41,7 +41,7 @@ export default function DashboardPage() {
     : "bg-orange-500 hover:bg-orange-600 text-white"
   const buttonOutlineClass = isDark
     ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
-    : "border-gray-300 hover:bg-gray-50"
+    : "border-gray-300 hover:bg-[#e8dcc4]/10"
 
   const quickActionButtonClass = isDark
     ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#181813] hover:text-[#e8dcc4] hover:border-[#e8dcc4] border-2 border-transparent transition-all"
