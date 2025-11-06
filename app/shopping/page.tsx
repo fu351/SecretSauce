@@ -106,10 +106,15 @@ export default function ShoppingPage() {
     if (!user) return
 
     try {
-      const { data } = await supabase.from("shopping_lists").select("items").eq("user_id", user.id).single()
+      const { data } = await supabase
+        .from("shopping_lists")
+        .select("items")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
 
-      if (data?.items) {
-        setShoppingList(data.items)
+      if (data && data.length > 0 && data[0]?.items) {
+        setShoppingList(data[0].items)
       } else {
         setShoppingList([])
       }
@@ -263,6 +268,17 @@ export default function ShoppingPage() {
     const updatedList = shoppingList.filter((item) => item.id !== id)
     setShoppingList(updatedList)
     saveShoppingList(updatedList)
+  }
+
+  const removeRecipeItems = (recipeId: string, recipeName: string) => {
+    const updatedList = shoppingList.filter((item) => item.recipeId !== recipeId)
+    setShoppingList(updatedList)
+    saveShoppingList(updatedList)
+
+    toast({
+      title: "Recipe removed",
+      description: `All ingredients from ${recipeName} have been removed from your shopping list.`,
+    })
   }
 
   const addRecipeIngredients = async (recipeId: string) => {
@@ -537,27 +553,73 @@ export default function ShoppingPage() {
 
             {searchResults.length > 0 && (
               <div className="space-y-6">
-                {groupResultsByStore(searchResults).map((storeGroup) => (
-                  <Card key={storeGroup.store} className={cardBgClass}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <span className="text-2xl">{getStoreIcon(storeGroup.store)}</span>
-                        {storeGroup.store}
-                        <Badge variant="secondary" className="ml-auto">
-                          ${storeGroup.total.toFixed(2)} total
-                        </Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {storeGroup.items.map((item) => (
-                          <Card key={item.id} className="hover:shadow-md transition-shadow">
-                            <CardContent className={`p-4 ${theme === "dark" ? "bg-[#1f1e1a]" : ""}`}>
-                              <div className="flex items-start gap-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={`text-2xl font-bold ${textClass}`}>Search Results</h2>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const container = document.getElementById("search-carousel")
+                        if (container) {
+                          container.scrollBy({ left: -container.offsetWidth, behavior: "smooth" })
+                        }
+                      }}
+                      className={buttonOutlineClass}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const container = document.getElementById("search-carousel")
+                        if (container) {
+                          container.scrollBy({ left: container.offsetWidth, behavior: "smooth" })
+                        }
+                      }}
+                      className={buttonOutlineClass}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div
+                  id="search-carousel"
+                  className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  {groupResultsByStore(searchResults).map((storeGroup, index) => (
+                    <div key={storeGroup.store} className="flex-shrink-0 w-full snap-center">
+                      <Card className={`h-full ${cardBgClass}`}>
+                        <CardHeader>
+                          <CardTitle className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-4xl">{getStoreIcon(storeGroup.store)}</span>
+                              <div>
+                                <div className={`text-2xl ${textClass}`}>{storeGroup.store}</div>
+                                <div className="text-right mt-1">
+                                  <div className={`text-3xl font-bold ${textClass}`}>
+                                    ${storeGroup.total.toFixed(2)}
+                                  </div>
+                                  <div className={`text-sm ${mutedTextClass}`}>{storeGroup.items.length} items</div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                            {storeGroup.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className={`flex items-start gap-3 p-4 rounded-lg ${theme === "dark" ? "bg-[#181813]" : "bg-gray-50"}`}
+                              >
                                 <img
                                   src={item.image_url || "/placeholder.svg"}
                                   alt={item.title}
-                                  className="w-16 h-16 object-cover rounded-lg"
+                                  className="w-16 h-16 object-cover rounded"
                                 />
                                 <div className="flex-1 min-w-0">
                                   <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
@@ -572,20 +634,39 @@ export default function ShoppingPage() {
                                     <Button
                                       size="sm"
                                       onClick={() => addToShoppingList(item)}
-                                      className={`h-8 px-3 ${buttonClass}`}
+                                      className={`h-6 px-2 ${buttonClass}`}
                                     >
                                       <Plus className="h-3 w-3" />
                                     </Button>
                                   </div>
                                 </div>
                               </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Carousel Dots Indicator */}
+                <div className="flex justify-center gap-2 mt-4">
+                  {groupResultsByStore(searchResults).map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        const container = document.getElementById("search-carousel")
+                        if (container) {
+                          container.scrollTo({ left: container.offsetWidth * index, behavior: "smooth" })
+                        }
+                      }}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        theme === "dark" ? "bg-[#e8dcc4]/30 hover:bg-[#e8dcc4]/50" : "bg-gray-300 hover:bg-gray-400"
+                      }`}
+                      aria-label={`Go to store ${index + 1}`}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </TabsContent>
@@ -686,6 +767,18 @@ export default function ShoppingPage() {
                       <h3 className={`font-semibold text-lg mb-3 flex items-center gap-2 ${textClass}`}>
                         {key !== "custom" && <ChefHat className="h-5 w-5 text-orange-500" />}
                         {group.recipeName}
+                        {key !== "custom" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeRecipeItems(key, group.recipeName)}
+                            className="ml-auto text-red-500 hover:text-red-600 hover:bg-red-50"
+                            title="Remove all ingredients from this recipe"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Remove Recipe
+                          </Button>
+                        )}
                       </h3>
                       <div className="space-y-2">
                         {group.items.map((item) => (

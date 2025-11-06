@@ -10,12 +10,68 @@ if (!supabaseAnonKey) {
   throw new Error("Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY")
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const createMonitoredClient = (url: string, key: string, options: any) => {
+  const client = createClient(url, key, options)
+
+  // Wrap the from method to add monitoring
+  const originalFrom = client.from.bind(client)
+  client.from = (table: string) => {
+    const startTime = performance.now()
+    console.log(`[v0] Supabase query started: ${table}`)
+
+    const query = originalFrom(table)
+
+    // Wrap the query builder methods to add timing
+    const wrapQueryMethod = (methodName: string, originalMethod: Function) => {
+      return function (this: any, ...args: any[]) {
+        const result = originalMethod.apply(this, args)
+
+        // If the result has a then method (is a promise), wrap it
+        if (result && typeof result.then === "function") {
+          const originalThen = result.then.bind(result)
+          result.then = (onFulfilled?: any, onRejected?: any) =>
+            originalThen(
+              (value: any) => {
+                const duration = performance.now() - startTime
+                console.log(`[v0] Supabase ${methodName} completed: ${table} in ${duration.toFixed(2)}ms`)
+
+                if (value?.error) {
+                  console.error(`[v0] Supabase error on ${table}:`, value.error)
+                }
+
+                return onFulfilled ? onFulfilled(value) : value
+              },
+              (error: any) => {
+                const duration = performance.now() - startTime
+                console.error(`[v0] Supabase ${methodName} failed on ${table} after ${duration.toFixed(2)}ms:`, error)
+                return onRejected ? onRejected(error) : Promise.reject(error)
+              },
+            )
+        }
+
+        return result
+      }
+    }
+
+    // Wrap common query methods
+    if (query.select) query.select = wrapQueryMethod("select", query.select.bind(query))
+    if (query.insert) query.insert = wrapQueryMethod("insert", query.insert.bind(query))
+    if (query.update) query.update = wrapQueryMethod("update", query.update.bind(query))
+    if (query.delete) query.delete = wrapQueryMethod("delete", query.delete.bind(query))
+    if (query.upsert) query.upsert = wrapQueryMethod("upsert", query.upsert.bind(query))
+
+    return query
+  }
+
+  return client
+}
+
+export const supabase = createMonitoredClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
   },
 })
 
@@ -27,7 +83,7 @@ export const createServerClient = () => {
     throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable")
   }
 
-  return createClient(supabaseUrl, supabaseServiceKey, {
+  return createMonitoredClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

@@ -65,7 +65,7 @@ export default function DashboardPage() {
         .eq("author_id", user.id)
 
       const { count: favoritesCount } = await supabase
-        .from("recipe_favorites") // Use recipe_favorites table
+        .from("recipe_favorites")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
 
@@ -75,24 +75,22 @@ export default function DashboardPage() {
         .select("meals")
         .eq("user_id", user.id)
         .eq("week_start", weekStart)
-        .single()
+        .maybeSingle()
 
       let plannedMealsCount = 0
       if (mealPlanData?.meals) {
-        Object.values(mealPlanData.meals).forEach((dayMeals: any) => {
-          if (dayMeals.breakfast) plannedMealsCount++
-          if (dayMeals.lunch) plannedMealsCount++
-          if (dayMeals.dinner) plannedMealsCount++
-        })
+        plannedMealsCount = Array.isArray(mealPlanData.meals) ? mealPlanData.meals.length : 0
       }
 
       const { data: shoppingListData } = await supabase
         .from("shopping_lists")
         .select("items")
         .eq("user_id", user.id)
-        .single()
+        .order("updated_at", { ascending: false })
+        .limit(1)
 
-      const shoppingItemsCount = shoppingListData?.items?.length || 0
+      const shoppingItemsCount =
+        shoppingListData && shoppingListData.length > 0 ? shoppingListData[0]?.items?.length || 0 : 0
 
       setStats({
         totalRecipes: recipesCount || 0,

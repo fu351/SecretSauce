@@ -6,6 +6,8 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/contexts/theme-context"
 import { Header } from "@/components/header"
 import { Toaster } from "@/components/ui/toaster"
+import { SpeedInsights } from "@vercel/speed-insights/next"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" })
@@ -24,13 +26,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
-        <ThemeProvider>
-          <AuthProvider>
-            <Header />
-            {children}
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <AuthProvider>
+              <Header />
+              {children}
+              <Toaster />
+              <SpeedInsights />
+            </AuthProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

@@ -120,7 +120,7 @@ export default function MealPlannerPage() {
         .select("*")
         .eq("user_id", user.id)
         .eq("week_start", weekStart)
-        .single()
+        .maybeSingle()
 
       if (error && error.code !== "PGRST116") throw error
 
@@ -220,7 +220,7 @@ export default function MealPlannerPage() {
         .select("*")
         .eq("user_id", user.id)
         .eq("week_start", weekStart)
-        .single()
+        .maybeSingle()
 
       if (error && error.code !== "PGRST116") throw error
       currentPlan = data
@@ -277,15 +277,16 @@ export default function MealPlannerPage() {
         }
       })
 
-      const { data: existingList, error: fetchError } = await supabase
+      const { data: existingListData, error: fetchError } = await supabase
         .from("shopping_lists")
         .select("items")
         .eq("user_id", user.id)
-        .single()
+        .order("updated_at", { ascending: false })
+        .limit(1)
 
       if (fetchError && fetchError.code !== "PGRST116") throw fetchError
 
-      const existingItems = existingList?.items || []
+      const existingItems = existingListData && existingListData.length > 0 ? existingListData[0]?.items || [] : []
       const newItems: any[] = []
 
       Object.entries(ingredientsByRecipe).forEach(([recipeId, { recipeName, ingredients }]) => {

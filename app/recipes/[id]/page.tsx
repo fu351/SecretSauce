@@ -174,15 +174,16 @@ export default function RecipeDetailPage() {
     if (!user || !recipe) return
 
     try {
-      const { data: existingList, error: fetchError } = await supabase
+      const { data: existingListData, error: fetchError } = await supabase
         .from("shopping_lists")
         .select("items")
         .eq("user_id", user.id)
-        .maybeSingle()
+        .order("updated_at", { ascending: false })
+        .limit(1)
 
       if (fetchError && fetchError.code !== "PGRST116") throw fetchError
 
-      const currentItems = existingList?.items || []
+      const currentItems = existingListData && existingListData.length > 0 ? existingListData[0]?.items || [] : []
 
       const newItems = recipe.ingredients.map((ingredient, index) => ({
         id: `recipe-${recipe.id}-${index}-${Date.now()}`,

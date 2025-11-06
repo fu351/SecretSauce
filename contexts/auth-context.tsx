@@ -4,6 +4,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
+import { performanceMonitor } from "@/lib/performance-monitor"
 
 interface AuthContextType {
   user: User | null
@@ -28,14 +29,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mounted.current = true
 
     const getInitialSession = async () => {
+      const startTime = performance.now()
+      console.log("[v0] Getting initial session...")
+
       try {
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession()
 
+        const duration = performance.now() - startTime
+        console.log(`[v0] Initial session retrieved in ${duration.toFixed(2)}ms`)
+
         if (error) {
-          console.error("Error getting initial session:", error)
+          console.error("[v0] Error getting initial session:", error)
           if (mounted.current) {
             setLoading(false)
           }
@@ -50,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(null)
         }
       } catch (error) {
-        console.error("Error in getInitialSession:", error)
+        console.error("[v0] Error in getInitialSession:", error)
       } finally {
         if (mounted.current) {
           setLoading(false)
@@ -65,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted.current) return
 
-      console.log("Auth state changed:", event, session?.user?.email)
+      console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
 
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
         if (mounted.current) {
@@ -90,9 +97,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
+    const memoryInterval = setInterval(() => {
+      performanceMonitor.logMemoryUsage()
+    }, 60000) // Every minute
+
     return () => {
       mounted.current = false
       subscription.unsubscribe()
+      clearInterval(memoryInterval)
     }
   }, [])
 
@@ -100,12 +112,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (fetchingProfile.current || !mounted.current) return
 
     fetchingProfile.current = true
+    const startTime = performance.now()
+    console.log(`[v0] Fetching profile for user: ${userId}`)
 
     try {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
+      const duration = performance.now() - startTime
+      console.log(`[v0] Profile fetch completed in ${duration.toFixed(2)}ms`)
+
       if (error && error.code !== "PGRST116") {
-        console.error("Error fetching profile:", error)
+        console.error("[v0] Error fetching profile:", error)
         return
       }
 
@@ -113,33 +130,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(data)
       }
     } catch (error) {
-      console.error("Error fetching profile:", error)
+      const duration = performance.now() - startTime
+      console.error(`[v0] Error fetching profile after ${duration.toFixed(2)}ms:`, error)
     } finally {
       fetchingProfile.current = false
     }
   }
 
   const signIn = async (email: string, password: string) => {
+    const startTime = performance.now()
+    console.log(`[v0] Sign in attempt for: ${email}`)
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
+      const duration = performance.now() - startTime
+      console.log(`[v0] Sign in completed in ${duration.toFixed(2)}ms`)
+
       if (error) {
-        console.error("Sign in error:", error)
+        console.error("[v0] Sign in error:", error)
         return { data: null, error }
       }
 
-      console.log("Sign in successful:", data.user?.email)
+      console.log("[v0] Sign in successful:", data.user?.email)
       return { data, error: null }
     } catch (error) {
-      console.error("Sign in exception:", error)
+      const duration = performance.now() - startTime
+      console.error(`[v0] Sign in exception after ${duration.toFixed(2)}ms:`, error)
       return { data: null, error }
     }
   }
 
   const signUp = async (email: string, password: string) => {
+    const startTime = performance.now()
+    console.log(`[v0] Sign up attempt for: ${email}`)
+
     try {
       const getSiteUrl = () => {
         if (typeof window !== "undefined") {
@@ -160,32 +188,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       })
 
+      const duration = performance.now() - startTime
+      console.log(`[v0] Sign up completed in ${duration.toFixed(2)}ms`)
+
       if (error) {
-        console.error("Sign up error:", error)
+        console.error("[v0] Sign up error:", error)
         return { data: null, error }
       }
 
-      console.log("Sign up successful:", data.user?.email)
+      console.log("[v0] Sign up successful:", data.user?.email)
       return { data, error: null }
     } catch (error) {
-      console.error("Sign up exception:", error)
+      const duration = performance.now() - startTime
+      console.error(`[v0] Sign up exception after ${duration.toFixed(2)}ms:`, error)
       return { data: null, error }
     }
   }
 
   const signOut = async () => {
+    const startTime = performance.now()
+    console.log("[v0] Signing out...")
+
     try {
-      console.log("Signing out...")
       fetchingProfile.current = false
 
       const { error } = await supabase.auth.signOut()
 
+      const duration = performance.now() - startTime
+      console.log(`[v0] Sign out completed in ${duration.toFixed(2)}ms`)
+
       if (error) {
-        console.error("Sign out error:", error)
+        console.error("[v0] Sign out error:", error)
         throw error
       }
 
-      console.log("Sign out successful")
+      console.log("[v0] Sign out successful")
 
       if (mounted.current) {
         setUser(null)
@@ -197,13 +234,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         sessionStorage.clear()
       }
     } catch (error) {
-      console.error("Sign out exception:", error)
+      const duration = performance.now() - startTime
+      console.error(`[v0] Sign out exception after ${duration.toFixed(2)}ms:`, error)
       throw error
     }
   }
 
   const updateProfile = async (updates: any) => {
     if (!user || !mounted.current) return
+
+    const startTime = performance.now()
+    console.log("[v0] Updating profile...")
 
     try {
       const { error } = await supabase.from("profiles").upsert({
@@ -213,8 +254,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updated_at: new Date().toISOString(),
       })
 
+      const duration = performance.now() - startTime
+      console.log(`[v0] Profile update completed in ${duration.toFixed(2)}ms`)
+
       if (error) {
-        console.error("Profile update error:", error)
+        console.error("[v0] Profile update error:", error)
         throw error
       }
 
@@ -222,7 +266,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await fetchProfile(user.id)
       }
     } catch (error) {
-      console.error("Profile update exception:", error)
+      const duration = performance.now() - startTime
+      console.error(`[v0] Profile update exception after ${duration.toFixed(2)}ms:`, error)
       throw error
     }
   }

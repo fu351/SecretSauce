@@ -40,6 +40,7 @@
     "@radix-ui/react-tooltip": "latest",
     "@supabase/supabase-js": "latest",
     "@types/lodash": "^4.17.20",
+    "@vercel/speed-insights": "latest",
     "autoprefixer": "^10.4.20",
     "axios": "latest",
     "class-variance-authority": "^0.7.1",
@@ -66,6 +67,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "latest",
+    "vue-router": "latest",
     "zod": "^3.24.1"
   },
   "devDependencies": {
