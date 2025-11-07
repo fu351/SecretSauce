@@ -1,26 +1,41 @@
-name: Deploy on Richard push
+name: Bump on Richard push
 
 on:
   push:
-    branches: [ main ]  # change if needed
-  workflow_dispatch: {} # allow manual test runs
+    branches: [ main ]  # adjust if needed
+  workflow_dispatch: {}
 
 concurrency:
-  group: vercel-${{ github.ref }}
+  group: bump-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  bump:
     if: github.actor == 'Richard7840'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
-    permissions: {}
 
     steps:
-      - name: Trigger Vercel deploy
-        env:
-          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Make a harmless change
         run: |
-          set -euo pipefail
-          curl -s -X POST "$VERCEL_DEPLOY_HOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"meta\":{\"triggered_by\":\"$GITHUB_ACTOR\",\"sha\":\"$GITHUB_SHA\",\"ref\":\"$GITHUB_REF\"}}"
+          mkdir -p .github
+          echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) bump from ${GITHUB_ACTOR}" >> .github/ci-bump.log
+
+      - name: Commit and push as fu351
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          git config user.name "fu351"
+          git config user.email "fu351@users.noreply.github.com"
+          git add .github/ci-bump.log
+          git commit -m "ci: bump after push by ${GITHUB_ACTOR}" || exit 0
+          git push "https://$GH_PAT@github.com/$REPO" "HEAD:${{ github.ref_name }}"
