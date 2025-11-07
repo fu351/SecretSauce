@@ -35,13 +35,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted.current) return
 
       console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
-
+      
       if (session?.user) {
         // This handles:
         // 1. Initial page load (if session exists)
         // 2. User signing in
         // 3. Token refresh
         setUser(session.user)
+        console.log("#################### Test")
+        
         await fetchProfile(session.user.id) // fetchProfile has its own 'fetchingProfile' guard
       } else {
         // This handles:
