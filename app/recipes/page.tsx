@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase"
 import { RecipeCard } from "@/components/recipe-card"
 import { RecipeSkeleton } from "@/components/recipe-skeleton"
 import { DatabaseSetupNotice } from "@/components/database-setup-notice"
+import { getRecipeImageUrl } from "@/lib/image-helper"
 import Image from "next/image"
 
 interface Recipe {
@@ -304,7 +305,7 @@ export default function RecipesPage() {
             </div>
             <div className="flex items-center gap-4">
               <Button asChild className={buttonClass}>
-                <Link href="/recipes/upload">
+                <Link href="/upload-recipe">
                   <Upload className="h-4 w-4 mr-2" />
                   Upload Recipe
                 </Link>
@@ -565,7 +566,7 @@ export default function RecipesPage() {
                       <div className="flex">
                         <div className="w-1/2 relative min-h-[300px]">
                           <Image
-                            src={recipe.image_url || "/placeholder.svg?height=400&width=600"}
+                            src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
                             alt={recipe.title}
                             fill
                             sizes="(max-width: 768px) 100vw, 50vw"

@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe-reviews"
 import { useToast } from "@/hooks/use-toast"
+import { getRecipeImageUrl } from "@/lib/image-helper"
 
 interface Ingredient {
   amount: string
@@ -75,6 +76,10 @@ export default function RecipeDetailPage() {
   }, [])
 
   const loadRecipe = async () => {
+    if (!params.id) {
+      return
+    }
+
     try {
       const { data, error } = await supabase.from("recipes").select("*").eq("id", params.id).single()
 
@@ -106,14 +111,15 @@ export default function RecipeDetailPage() {
         .select("id")
         .eq("user_id", user.id)
         .eq("recipe_id", params.id)
-        .maybeSingle()
+        .order("created_at", { ascending: false })
+        .limit(1)
 
       if (error && error.code !== "PGRST116") {
         console.error("Error checking favorite:", error)
         return
       }
 
-      setIsFavorite(!!data)
+      setIsFavorite(data && data.length > 0)
     } catch (error) {
       console.error("Error checking if favorited:", error)
       setIsFavorite(false)
@@ -260,7 +266,7 @@ export default function RecipeDetailPage() {
           <div className="lg:w-3/5">
             <div className="relative overflow-hidden rounded-2xl shadow-xl">
               <img
-                src={recipe.image_url || "/placeholder.svg?height=600&width=800"}
+                src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
                 alt={recipe.title}
                 className="w-full h-[500px] object-cover"
               />

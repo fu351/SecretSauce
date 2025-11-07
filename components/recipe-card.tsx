@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { getRecipeImageUrl } from "@/lib/image-helper"
 
 interface RecipeCardProps {
   id: string
@@ -68,14 +69,15 @@ function RecipeCardComponent({
         .select("id")
         .eq("recipe_id", id)
         .eq("user_id", user.id)
-        .single()
+        .order("created_at", { ascending: false })
+        .limit(1)
 
       if (error && error.code !== "PGRST116") {
         console.warn("Error checking favorites:", error)
         return
       }
 
-      setIsFavorited(!!data)
+      setIsFavorited(!!(data && data.length > 0))
     } catch (error) {
       console.warn("Error checking if favorited:", error)
       setIsFavorited(false)
@@ -150,7 +152,7 @@ function RecipeCardComponent({
     <div className="relative group cursor-pointer">
       <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">
         <Image
-          src={image || "/placeholder.svg?height=300&width=400"}
+          src={getRecipeImageUrl(image) || "/placeholder.svg"}
           alt={title}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
