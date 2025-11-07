@@ -1,0 +1,26 @@
+name: Deploy on Richard push
+
+on:
+  push:
+    branches: [ main ]  # change if needed
+  workflow_dispatch: {} # allow manual test runs
+
+concurrency:
+  group: vercel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.actor == 'Richard7840'
+    runs-on: ubuntu-latest
+    permissions: {}
+
+    steps:
+      - name: Trigger Vercel deploy
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          curl -s -X POST "$VERCEL_DEPLOY_HOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"meta\":{\"triggered_by\":\"$GITHUB_ACTOR\",\"sha\":\"$GITHUB_SHA\",\"ref\":\"$GITHUB_REF\"}}"
