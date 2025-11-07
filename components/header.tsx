@@ -35,7 +35,7 @@ export function Header() {
   }
 
   // Don't show upload button on upload page
-  const showUploadButton = user && !pathname.includes("/recipes/upload")
+  const showUploadButton = user && !pathname.includes("/upload-recipe")
 
   const handleSignOut = async () => {
     console.log("[v0] Sign out button clicked")
@@ -135,7 +135,7 @@ export function Header() {
 
             {/* Highlighted Upload Button - only show when not on upload page */}
             {showUploadButton && (
-              <Link href="/recipes/upload">
+              <Link href="/upload-recipe">
                 <button
                   className={`relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold transition-all duration-200 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 ${
                     isDark
@@ -208,11 +208,11 @@ export function Header() {
                 <DropdownMenuItem asChild>
                   <Link href="/shopping">Shopping</Link>
                 </DropdownMenuItem>
-                {!pathname.includes("/recipes/upload") && (
+                {!pathname.includes("/upload-recipe") && (
                   <>
                     <DropdownMenuSeparator className={isDark ? "bg-[#e8dcc4]/20" : ""} />
                     <DropdownMenuItem asChild>
-                      <Link href="/recipes/upload">
+                      <Link href="/upload-recipe">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Recipe
                       </Link>

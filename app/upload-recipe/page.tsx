@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Plus, X } from "lucide-react"
+import { uploadRecipeImage } from "@/lib/image-helper"
+import { Plus, X, Upload, LinkIcon } from "lucide-react"
+import Image from "next/image"
 
 const DIETARY_TAGS = ["vegetarian", "vegan", "gluten-free", "dairy-free", "keto", "paleo", "low-carb"]
 const CUISINE_TYPES = [
@@ -44,8 +46,13 @@ export default function UploadRecipePage() {
   const router = useRouter()
   const { user } = useAuth()
   const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [loading, setLoading] = useState(false)
+  const [imageMode, setImageMode] = useState<"url" | "file">("url")
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string>("")
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -67,6 +74,49 @@ export default function UploadRecipePage() {
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+
+    if (field === "image_url" && value) {
+      setImagePreview(value)
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select an image file.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select an image smaller than 5MB.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setImageFile(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const clearImage = () => {
+    setImageFile(null)
+    setImagePreview("")
+    setFormData((prev) => ({ ...prev, image_url: "" }))
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
   }
 
   const addIngredient = () => {
@@ -122,7 +172,6 @@ export default function UploadRecipePage() {
       return
     }
 
-    // Validation
     if (!formData.title.trim()) {
       toast({
         title: "Missing information",
@@ -153,10 +202,27 @@ export default function UploadRecipePage() {
     setLoading(true)
 
     try {
+      let imageValue = formData.image_url || null
+
+      if (imageFile && imageMode === "file") {
+        try {
+          const storagePath = await uploadRecipeImage(imageFile, user.id)
+          imageValue = storagePath
+        } catch (error: any) {
+          console.error("Error uploading image:", error)
+          toast({
+            title: "Image upload failed",
+            description: error.message || "Failed to upload image. Continuing without image.",
+            variant: "destructive",
+          })
+          imageValue = null
+        }
+      }
+
       const recipeData = {
         title: formData.title,
         description: formData.description,
-        image_url: formData.image_url || null,
+        image_url: imageValue,
         prep_time: Number.parseInt(formData.prep_time) || 0,
         cook_time: Number.parseInt(formData.cook_time) || 0,
         servings: Number.parseInt(formData.servings) || 1,
@@ -174,16 +240,20 @@ export default function UploadRecipePage() {
         author_id: user.id,
       }
 
-      const { data, error } = await supabase.from("recipes").insert(recipeData).select().single()
+      const { data, error } = await supabase.from("recipes").insert(recipeData).select()
 
       if (error) throw error
+
+      if (!data || data.length === 0) {
+        throw new Error("No data returned from insert")
+      }
 
       toast({
         title: "Recipe uploaded!",
         description: "Your recipe has been successfully uploaded.",
       })
 
-      router.push(`/recipes/${data.id}`)
+      router.push(`/recipes/${data[0].id}`)
     } catch (error: any) {
       console.error("Error uploading recipe:", error)
       toast({
@@ -235,13 +305,82 @@ export default function UploadRecipePage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="image_url">Image URL</Label>
-                  <Input
-                    id="image_url"
-                    value={formData.image_url}
-                    onChange={(e) => handleInputChange("image_url", e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                  />
+                  <Label>Recipe Image</Label>
+                  <div className="flex gap-2 mt-2 mb-3">
+                    <Button
+                      type="button"
+                      variant={imageMode === "url" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setImageMode("url")
+                        clearImage()
+                      }}
+                    >
+                      <LinkIcon className="h-4 w-4 mr-2" />
+                      Image URL
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={imageMode === "file" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setImageMode("file")
+                        setFormData((prev) => ({ ...prev, image_url: "" }))
+                      }}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload File
+                    </Button>
+                  </div>
+
+                  {imageMode === "url" ? (
+                    <Input
+                      id="image_url"
+                      value={formData.image_url}
+                      onChange={(e) => handleInputChange("image_url", e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                  ) : (
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full bg-transparent"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {imageFile ? imageFile.name : "Choose an image file"}
+                      </Button>
+                      {imageFile && (
+                        <p className="text-sm text-gray-500 mt-2">{(imageFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                      )}
+                    </div>
+                  )}
+
+                  {imagePreview && (
+                    <div className="mt-3 relative">
+                      <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-100">
+                        <Image
+                          src={imagePreview || "/placeholder.svg"}
+                          alt="Recipe preview"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <Button type="button" variant="destructive" size="sm" className="mt-2" onClick={clearImage}>
+                        <X className="h-4 w-4 mr-2" />
+                        Remove Image
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -186,7 +186,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Link href="/recipes/upload">
+              <Link href="/upload-recipe">
                 <Button className={`w-full h-24 flex flex-col gap-2 ${quickActionButtonClass}`}>
                   <ChefHat className="h-6 w-6" />
                   <span>Upload Recipe</span>
@@ -248,7 +248,7 @@ export default function DashboardPage() {
               <div className="text-center py-12">
                 <ChefHat className={`h-12 w-12 mx-auto mb-4 ${isDark ? "text-[#e8dcc4]/30" : "text-gray-300"}`} />
                 <p className={mutedTextClass}>No recipes yet. Start by uploading your first recipe!</p>
-                <Link href="/recipes/upload">
+                <Link href="/upload-recipe">
                   <Button className={`mt-4 ${buttonClass}`}>Upload Recipe</Button>
                 </Link>
               </div>
