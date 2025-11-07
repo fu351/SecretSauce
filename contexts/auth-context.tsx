@@ -27,45 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     mounted.current = true
-
-    const getInitialSession = async () => {
-      const startTime = performance.now()
-      console.log("[v0] Getting initial session...")
-
-      try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-
-        const duration = performance.now() - startTime
-        console.log(`[v0] Initial session retrieved in ${duration.toFixed(2)}ms`)
-
-        if (error) {
-          console.error("[v0] Error getting initial session:", error)
-          if (mounted.current) {
-            setLoading(false)
-          }
-          return
-        }
-
-        if (session?.user && mounted.current) {
-          setUser(session.user)
-          await fetchProfile(session.user.id)
-        } else if (mounted.current) {
-          setUser(null)
-          setProfile(null)
-        }
-      } catch (error) {
-        console.error("[v0] Error in getInitialSession:", error)
-      } finally {
-        if (mounted.current) {
-          setLoading(false)
-        }
-      }
-    }
-
-    getInitialSession()
+    setLoading(true) // Set loading to true at the start
 
     const {
       data: { subscription },
@@ -74,22 +36,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
 
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        if (mounted.current) {
-          setUser(session?.user ?? null)
-          if (session?.user) {
-            await fetchProfile(session.user.id)
-          }
-        }
-      } else if (event === "SIGNED_OUT") {
-        if (mounted.current) {
-          setUser(null)
-          setProfile(null)
-          fetchingProfile.current = false
-        }
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("supabase.auth.token")
-        }
+      if (session?.user) {
+        // This handles:
+        // 1. Initial page load (if session exists)
+        // 2. User signing in
+        // 3. Token refresh
+        setUser(session.user)
+        await fetchProfile(session.user.id) // fetchProfile has its own 'fetchingProfile' guard
+      } else {
+        // This handles:
+        // 1. Initial page load (if no session)
+        // 2. User signing out
+        setUser(null)
+        setProfile(null)
+        fetchingProfile.current = false
       }
 
       if (mounted.current) {
