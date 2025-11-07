@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // 2. User signing in
         // 3. Token refresh
         setUser(session.user)
-        console.log("#################### Test")
+        console.log("#################### Test  #########################################")
         
         await fetchProfile(session.user.id) // fetchProfile has its own 'fetchingProfile' guard
       } else {
