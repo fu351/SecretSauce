@@ -27,7 +27,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     mounted.current = true
-    setLoading(true) // Set loading to true at the start
+    setLoading(true)
+
+    let currentUserId: string | null = null
 
     const {
       data: { subscription },
@@ -35,23 +37,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted.current) return
 
       console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
-      /// TESTTTTTTT
-      if (session?.user) {
-        // This handles:
-        // 1. Initial page load (if session exists)
-        // 2. User signing in
-        // 3. Token refresh
-        setUser(session.user)
-        console.log("$#################### Test #########################################$")
+      
+      const newUser = session?.user ?? null
+      const newUserId = newUser?.id ?? null
+
+      if (newUserId !== currentUserId) {
+        currentUserId = newUserId // Update the current user ID
+
+        setUser(newUser) // Set the new user (or null)
+        console.log("$#################### Test2 #########################################$")
         
-        await fetchProfile(session.user.id) // fetchProfile has its own 'fetchingProfile' guard
-      } else {
-        // This handles:
-        // 1. Initial page load (if no session)
-        // 2. User signing out
-        setUser(null)
-        setProfile(null)
-        fetchingProfile.current = false
+        if (newUser) {
+          console.log(`[v0] User state changed to: ${newUser.id}. Fetching profile.`)
+          await fetchProfile(newUser.id)
+          console.log("Profile fetched")
+        } else {
+          console.log(`[v0] User state changed to null. Clearing profile.`)
+          setProfile(null)
+          fetchingProfile.current = false
+        }
       }
 
       if (mounted.current) {
@@ -68,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe()
       clearInterval(memoryInterval)
     }
-  }, [])
+  }, []) // Empty dependency array is correct
 
   const fetchProfile = async (userId: string) => {
     if (fetchingProfile.current || !mounted.current) return
