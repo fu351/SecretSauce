@@ -29,6 +29,7 @@ interface RecipeCardProps {
   initialIsFavorited?: boolean
   skipFavoriteCheck?: boolean
   onFavoriteChange?: (id: string, isFavorited: boolean) => void
+  showFavorite?: boolean
 }
 
 function RecipeCardComponent({
@@ -44,6 +45,7 @@ function RecipeCardComponent({
   initialIsFavorited,
   skipFavoriteCheck,
   onFavoriteChange,
+  showFavorite = true,
 }: RecipeCardProps) {
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
@@ -165,18 +167,20 @@ function RecipeCardComponent({
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         </div>
 
-        <div className="absolute top-2 md:top-4 right-2 md:right-4 z-20 pointer-events-auto">
-          <Button
-            size="icon"
-            variant="secondary"
-            className={`bg-white/90 hover:bg-white ${isFavorited ? "text-red-500" : "text-gray-600"} h-8 w-8 md:h-10 md:w-10`}
-            onClick={toggleFavorite}
-            disabled={loading}
-            data-favorite-button
-          >
-            <Heart className={`h-3 w-3 md:h-4 md:w-4 ${isFavorited ? "fill-current" : ""}`} />
-          </Button>
-        </div>
+        {showFavorite && (
+          <div className="absolute top-2 md:top-4 right-2 md:right-4 z-20 pointer-events-auto">
+            <Button
+              size="icon"
+              variant="secondary"
+              className={`bg-white/90 hover:bg-white ${isFavorited ? "text-red-500" : "text-gray-600"} h-8 w-8 md:h-10 md:w-10`}
+              onClick={toggleFavorite}
+              disabled={loading}
+              data-favorite-button
+            >
+              <Heart className={`h-3 w-3 md:h-4 md:w-4 ${isFavorited ? "fill-current" : ""}`} />
+            </Button>
+          </div>
+        )}
 
         <div className="absolute inset-0 p-3 md:p-6 flex flex-col justify-between pointer-events-none">
           <div className="flex flex-wrap gap-1 md:gap-2 justify-end mr-10 md:mr-12">

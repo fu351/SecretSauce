@@ -117,7 +117,8 @@ export default function YourRecipesPage() {
                     comments={recipe.rating_count || 0}
                     tags={recipe.dietary_tags || []}
                     nutrition={recipe.nutrition}
-                    skipFavoriteCheck
+                    skipFavoriteCheck={true}
+                    showFavorite={false}
                   />
                 </Link>
                 <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">

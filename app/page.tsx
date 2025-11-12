@@ -115,9 +115,7 @@ export default function HomePage() {
   if (isFirstVisit && !user) {
     return (
       <main
-        className={`min-h-screen flex items-center justify-center px-4 md:px-6 relative overflow-hidden ${
-          theme === "dark" ? "bg-background text-foreground" : "bg-background text-foreground"
-        }`}
+        className={`min-h-screen flex items-center justify-center px-4 md:px-6 relative overflow-hidden bg-background text-foreground`}
       >
         <div className="absolute inset-0 opacity-[0.015]">
           <div

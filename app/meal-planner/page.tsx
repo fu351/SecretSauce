@@ -389,12 +389,15 @@ export default function MealPlannerPage() {
 
   if (!user) {
     return (
-      <div className={`h-screen flex items-center justify-center ${bgClass}`}>
-        <Card className={cardBgClass}>
+      <div className={`h-screen flex items-center justify-center bg-background`}>
+        <Card className="bg-card">
           <CardContent className="p-6 text-center">
-            <h2 className={`text-2xl font-bold mb-4 ${textClass}`}>Authentication Required</h2>
-            <p className={`${mutedTextClass} mb-6`}>You need to be logged in to use the meal planner.</p>
-            <Button className={buttonClass} onClick={() => router.push("/auth/signin")}>
+            <h2 className={`text-2xl font-bold mb-4 text-text`}>Authentication Required</h2>
+            <p className={`text-muted-foreground mb-6`}>You need to be logged in to use the meal planner.</p>
+            <Button
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => router.push("/auth/signin")}
+            >
               Sign In
             </Button>
           </CardContent>
@@ -404,12 +407,12 @@ export default function MealPlannerPage() {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col md:flex-row ${bgClass}`}>
+    <div className="min-h-screen flex flex-col md:flex-row bg-background">
       <div className="flex-1 overflow-y-auto p-3 md:p-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 md:mb-6 gap-3 md:gap-4">
             <div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 w-full md:w-auto">
-              <h1 className={`text-2xl md:text-3xl font-bold ${textClass}`}>Meal Planner</h1>
+              <h1 className={`text-2xl md:text-3xl font-bold text-text`}>Meal Planner</h1>
 
               {/* Mobile: Show sidebar toggle */}
               {isMobile && (
@@ -417,7 +420,7 @@ export default function MealPlannerPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className={`${buttonOutlineClass} flex items-center gap-2`}
+                  className={`border-border text-text hover:bg-accent hover:text-accent-foreground`}
                 >
                   <Menu className="h-4 w-4" />
                   Recipes
@@ -425,11 +428,11 @@ export default function MealPlannerPage() {
               )}
 
               <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <div className={`flex items-center gap-1 md:gap-2 ${cardBgClass} rounded-lg p-1 shadow`}>
+                <div className={`flex items-center gap-1 md:gap-2 bg-card rounded-lg p-1 shadow`}>
                   <Button variant="ghost" size="icon" onClick={goToPreviousWeek} className="h-8 w-8 md:h-10 md:w-10">
                     <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
                   </Button>
-                  <span className={`px-2 md:px-4 text-xs md:text-sm font-medium ${textClass}`}>
+                  <span className={`px-2 md:px-4 text-xs md:text-sm font-medium text-text`}>
                     {formatDate(weekDates[0] || "")}
                   </span>
                   <Button variant="ghost" size="icon" onClick={goToNextWeek} className="h-8 w-8 md:h-10 md:w-10">
@@ -437,12 +440,12 @@ export default function MealPlannerPage() {
                   </Button>
                 </div>
 
-                <div className={`flex items-center gap-1 ${cardBgClass} rounded-lg p-1 shadow`}>
+                <div className={`flex items-center gap-1 bg-card rounded-lg p-1 shadow`}>
                   <Button
                     variant={viewMode === "by-day" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setViewMode("by-day")}
-                    className={`text-xs md:text-sm ${viewMode === "by-day" ? buttonClass : ""}`}
+                    className={`text-xs md:text-sm ${viewMode === "by-day" ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
                   >
                     <Calendar className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                     {!isMobile && "By Day"}
@@ -451,7 +454,7 @@ export default function MealPlannerPage() {
                     variant={viewMode === "by-meal" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setViewMode("by-meal")}
-                    className={`text-xs md:text-sm ${viewMode === "by-meal" ? buttonClass : ""}`}
+                    className={`text-xs md:text-sm ${viewMode === "by-meal" ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
                   >
                     <List className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                     {!isMobile && "By Meal"}
@@ -462,7 +465,7 @@ export default function MealPlannerPage() {
 
             <Button
               size={isMobile ? "sm" : "default"}
-              className={`w-full md:w-auto ${isDark ? "bg-green-500 hover:bg-green-600" : "bg-green-500 hover:bg-green-600"} text-white text-xs md:text-sm`}
+              className={`w-full md:w-auto bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm`}
               onClick={addToShoppingList}
             >
               <ShoppingCart className="h-3 w-3 md:h-4 md:w-4 mr-2" />
@@ -473,16 +476,16 @@ export default function MealPlannerPage() {
           {viewMode === "by-day" ? (
             <div className="space-y-4 md:space-y-8">
               {weekDates.slice(0, 7).map((date, dayIndex) => (
-                <div key={date} className={`${cardBgClass} rounded-lg shadow p-3 md:p-6`}>
+                <div key={date} className={`bg-card rounded-lg shadow p-3 md:p-6`}>
                   <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
                     <div
-                      className={`${isDark ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-gray-100 text-gray-600"} rounded-full w-10 h-10 md:w-12 md:h-12 flex items-center justify-center font-bold text-sm md:text-base`}
+                      className={`${isDark ? "bg-accent text-accent-foreground" : "bg-gray-100 text-gray-600"} rounded-full w-10 h-10 md:w-12 md:h-12 flex items-center justify-center font-bold text-sm md:text-base`}
                     >
                       {new Date(date).getDate()}
                     </div>
                     <div>
-                      <h2 className={`text-xl md:text-2xl font-bold ${textClass}`}>{weekdays[dayIndex]}</h2>
-                      <p className={`text-xs md:text-sm ${mutedTextClass}`}>{formatDate(date)}</p>
+                      <h2 className={`text-xl md:text-2xl font-bold text-text`}>{weekdays[dayIndex]}</h2>
+                      <p className={`text-xs md:text-sm text-muted-foreground`}>{formatDate(date)}</p>
                     </div>
                   </div>
 
@@ -492,16 +495,14 @@ export default function MealPlannerPage() {
 
                       return (
                         <div key={mealType.key}>
-                          <h3 className={`text-xs font-semibold ${isDark ? "text-[#e8dcc4]" : "text-gray-500"} mb-2`}>
-                            {mealType.label}
-                          </h3>
+                          <h3 className={`text-xs font-semibold text-text mb-2`}>{mealType.label}</h3>
                           <div
                             className={`relative rounded-lg border-2 border-dashed ${
                               recipe
                                 ? "border-transparent"
                                 : isDark
-                                  ? "border-[#e8dcc4]/20 bg-[#181813]"
-                                  : "border-gray-200 bg-gray-50"
+                                  ? "border-accent/20 bg-background"
+                                  : "border-border bg-background"
                             } min-h-[150px] md:min-h-[180px] transition-colors`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDrop(e, mealType.key, date)}
@@ -515,37 +516,37 @@ export default function MealPlannerPage() {
                                 />
                                 <button
                                   onClick={() => removeFromMealPlan(mealType.key, date)}
-                                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                   <X className="h-3 w-3 md:h-4 md:w-4" />
                                 </button>
                                 <div className="p-2 md:p-3">
-                                  <h4 className={`font-semibold text-xs md:text-sm mb-2 line-clamp-2 ${textClass}`}>
+                                  <h4 className={`font-semibold text-xs md:text-sm mb-2 line-clamp-2 text-text`}>
                                     {recipe.title}
                                   </h4>
                                   {recipe.nutrition && !isMobile && (
                                     <div className="grid grid-cols-4 gap-1 md:gap-2 text-xs">
                                       <div>
-                                        <div className={mutedTextClass}>CAL</div>
-                                        <div className={`font-semibold ${textClass}`}>
+                                        <div className="text-muted-foreground">CAL</div>
+                                        <div className={`font-semibold text-text`}>
                                           {recipe.nutrition.calories || "-"}
                                         </div>
                                       </div>
                                       <div>
-                                        <div className={mutedTextClass}>FAT</div>
-                                        <div className={`font-semibold ${textClass}`}>
+                                        <div className="text-muted-foreground">FAT</div>
+                                        <div className={`font-semibold text-text`}>
                                           {recipe.nutrition.fat ? `${recipe.nutrition.fat}g` : "-"}
                                         </div>
                                       </div>
                                       <div>
-                                        <div className={mutedTextClass}>PRO</div>
-                                        <div className={`font-semibold ${textClass}`}>
+                                        <div className="text-muted-foreground">PRO</div>
+                                        <div className={`font-semibold text-text`}>
                                           {recipe.nutrition.protein ? `${recipe.nutrition.protein}g` : "-"}
                                         </div>
                                       </div>
                                       <div>
-                                        <div className={mutedTextClass}>CARB</div>
-                                        <div className={`font-semibold ${textClass}`}>
+                                        <div className="text-muted-foreground">CARB</div>
+                                        <div className={`font-semibold text-text`}>
                                           {recipe.nutrition.carbs ? `${recipe.nutrition.carbs}g` : "-"}
                                         </div>
                                       </div>
@@ -555,7 +556,7 @@ export default function MealPlannerPage() {
                               </div>
                             ) : (
                               <div
-                                className={`flex items-center justify-center h-full ${mutedTextClass} text-xs md:text-sm px-2 text-center`}
+                                className={`flex items-center justify-center h-full text-muted-foreground text-xs md:text-sm px-2 text-center`}
                               >
                                 {isMobile ? "Tap recipe below" : "Drag recipe here"}
                               </div>
@@ -573,8 +574,8 @@ export default function MealPlannerPage() {
               {mealTypes.map((mealType) => {
                 const meals = getMealsByType(mealType.key)
                 return (
-                  <div key={mealType.key} className={`${cardBgClass} rounded-lg shadow p-6`}>
-                    <h2 className={`text-2xl font-bold ${textClass} mb-4`}>{mealType.label}</h2>
+                  <div key={mealType.key} className={`bg-card rounded-lg shadow p-6`}>
+                    <h2 className={`text-2xl font-bold text-text mb-4`}>{mealType.label}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {weekDates.map((date, dayIndex) => {
                         const recipe = getMealForSlot(date, mealType.key)
@@ -584,17 +585,17 @@ export default function MealPlannerPage() {
                               className={`relative rounded-lg border-2 ${
                                 recipe
                                   ? isDark
-                                    ? "border-[#e8dcc4]/20"
-                                    : "border-gray-200"
+                                    ? "border-accent/20"
+                                    : "border-border"
                                   : isDark
-                                    ? "border-dashed border-[#e8dcc4]/20 bg-[#181813]"
-                                    : "border-dashed border-gray-200 bg-gray-50"
+                                    ? "border-dashed border-accent/20 bg-background"
+                                    : "border-dashed border-border bg-background"
                               } min-h-[250px] transition-colors`}
                               onDragOver={handleDragOver}
                               onDrop={(e) => handleDrop(e, mealType.key, date)}
                             >
                               <div
-                                className={`${isDark ? "bg-[#e8dcc4] text-[#181813]" : "bg-gray-900 text-white"} text-xs font-semibold py-1 px-3 rounded-t-lg`}
+                                className={`${isDark ? "bg-accent text-accent-foreground" : "bg-primary text-primary-foreground"} text-xs font-semibold py-1 px-3 rounded-t-lg`}
                               >
                                 {weekdaysFull[dayIndex].toUpperCase()}
                               </div>
@@ -607,18 +608,18 @@ export default function MealPlannerPage() {
                                   />
                                   <button
                                     onClick={() => removeFromMealPlan(mealType.key, date)}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                   >
                                     <X className="h-4 w-4" />
                                   </button>
                                   <div className="p-3">
-                                    <h4 className={`font-semibold text-sm line-clamp-2 ${textClass}`}>
-                                      {recipe.title}
-                                    </h4>
+                                    <h4 className={`font-semibold text-sm line-clamp-2 text-text`}>{recipe.title}</h4>
                                   </div>
                                 </div>
                               ) : (
-                                <div className={`flex items-center justify-center h-[200px] ${mutedTextClass} text-sm`}>
+                                <div
+                                  className={`flex items-center justify-center h-[200px] text-muted-foreground text-sm`}
+                                >
                                   Drag recipe here
                                 </div>
                               )}
@@ -636,52 +637,39 @@ export default function MealPlannerPage() {
       </div>
 
       {isMobile && sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40"
-          onClick={() => setSidebarOpen(false)}
-          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />
       )}
 
       <div
         className={`${
           isMobile
             ? sidebarOpen
-              ? "fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 shadow-2xl overflow-y-auto"
+              ? "fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 shadow-2xl overflow-y-auto scrollbar-hide"
               : "hidden"
             : sidebarOpen
-              ? "w-80 md:w-96"
+              ? "w-80 md:w-96 overflow-y-auto scrollbar-hide"
               : "w-0"
-        } ${cardBgClass} ${isMobile ? "" : "border-l"} flex-shrink-0 transition-all duration-300 relative`}
+        } bg-card border-border ${isMobile ? "" : "border-l"} flex-shrink-0 transition-all duration-300 relative`}
       >
         {!isMobile && (
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`absolute ${sidebarOpen ? "-left-10" : "left-2"} top-4 ${
-              isDark ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 text-white hover:bg-orange-600"
-            } rounded-lg px-3 py-2 shadow-lg z-20 transition-all flex items-center gap-2 text-xs font-semibold whitespace-nowrap`}
+            className={`absolute ${sidebarOpen ? "-left-12" : "-left-10"} top-20 ${
+              isDark
+                ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            } rounded-lg p-3 shadow-lg z-20 transition-all`}
             aria-label={sidebarOpen ? "Hide recipes sidebar" : "Show recipes sidebar"}
-            title={sidebarOpen ? "Hide recipes" : "Show recipes"}
           >
-            {sidebarOpen ? (
-              <>
-                <ChevronRightIcon className="h-4 w-4" />
-                <span>HIDE</span>
-              </>
-            ) : (
-              <>
-                <ChevronRightIcon className="h-4 w-4 rotate-180" />
-                <span>RECIPES</span>
-              </>
-            )}
+            {sidebarOpen ? <ChevronRightIcon className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
           </button>
         )}
 
         {sidebarOpen && (
-          <div className="p-4 md:p-6 overflow-y-auto h-full">
+          <div className="p-4 md:p-6 h-full">
             {isMobile && (
               <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-lg font-semibold ${textClass}`}>Recipes</h3>
+                <h3 className={`text-lg font-semibold text-text`}>Recipes</h3>
                 <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)} className="h-8 w-8 p-0">
                   <X className="h-4 w-4" />
                 </Button>
@@ -690,8 +678,8 @@ export default function MealPlannerPage() {
 
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-base md:text-lg font-semibold flex items-center gap-2 ${textClass}`}>
-                  <Heart className="w-4 h-4 md:w-5 md:h-5 text-red-500" />
+                <h3 className={`text-base md:text-lg font-semibold flex items-center gap-2 text-text`}>
+                  <Heart className="w-4 h-4 md:w-5 md:h-5 text-destructive" />
                   Favorites ({favoriteRecipes.length})
                 </h3>
               </div>
@@ -714,18 +702,18 @@ export default function MealPlannerPage() {
                         {isMobile ? "Tap to add" : "Drag to add"}
                       </p>
                     </div>
-                    <p className={`text-xs mt-1 line-clamp-2 ${textClass}`}>{recipe.title}</p>
+                    <p className={`text-xs mt-1 line-clamp-2 text-text`}>{recipe.title}</p>
                   </div>
                 ))}
               </div>
               {favoriteRecipes.length === 0 && (
                 <div className="text-center py-6 md:py-8">
-                  <p className={`${mutedTextClass} text-sm mb-3`}>No favorites yet</p>
+                  <p className={`text-muted-foreground text-sm mb-3`}>No favorites yet</p>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => router.push("/recipes")}
-                    className={buttonOutlineClass}
+                    className="border-border text-text hover:bg-accent hover:text-accent-foreground"
                   >
                     Browse Recipes
                   </Button>
@@ -734,7 +722,7 @@ export default function MealPlannerPage() {
             </div>
 
             <div>
-              <h3 className={`text-base md:text-lg font-semibold mb-4 ${textClass}`}>Suggested Recipes</h3>
+              <h3 className={`text-base md:text-lg font-semibold mb-4 text-text`}>Suggested Recipes</h3>
               <div className="grid grid-cols-2 gap-2 md:gap-3">
                 {suggestedRecipes.slice(0, 20).map((recipe) => (
                   <div
@@ -754,7 +742,7 @@ export default function MealPlannerPage() {
                         {isMobile ? "Tap to add" : "Drag to add"}
                       </p>
                     </div>
-                    <p className={`text-xs mt-1 line-clamp-2 ${textClass}`}>{recipe.title}</p>
+                    <p className={`text-xs mt-1 line-clamp-2 text-text`}>{recipe.title}</p>
                   </div>
                 ))}
               </div>

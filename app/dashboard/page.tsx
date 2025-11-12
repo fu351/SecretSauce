@@ -32,21 +32,6 @@ export default function DashboardPage() {
 
   const isDark = theme === "dark"
 
-  const bgClass = isDark ? "bg-[#181813]" : "bg-gray-50"
-  const textClass = isDark ? "text-[#e8dcc4]" : "text-gray-900"
-  const mutedTextClass = isDark ? "text-[#e8dcc4]/70" : "text-gray-600"
-  const cardBgClass = isDark ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white"
-  const buttonClass = isDark
-    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
-    : "bg-orange-500 hover:bg-orange-600 text-white"
-  const buttonOutlineClass = isDark
-    ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
-    : "border-gray-300 hover:bg-[#e8dcc4]/10"
-
-  const quickActionButtonClass = isDark
-    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#181813] hover:text-[#e8dcc4] hover:border-[#e8dcc4] border-2 border-transparent transition-all"
-    : "bg-orange-500 hover:bg-orange-600 text-white"
-
   useEffect(() => {
     if (user) {
       loadDashboardData()
