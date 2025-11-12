@@ -5,11 +5,18 @@ import type React from "react"
 import { useEffect, useState, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { uploadRecipeImage, getRecipeImageUrl } from "@/lib/image-helper"
-import { Trash2 } from "lucide-react"
+import { Trash2, Plus, X, Upload, LinkIcon } from "lucide-react"
+import Image from "next/image"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -376,16 +383,348 @@ export default function EditRecipePage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* Same form structure as upload-recipe page */}
-          {/* ... existing code from upload-recipe page ... */}
+          <div className="space-y-6">
+            {/* Basic Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Basic Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Recipe Title *</Label>
+                  <Input
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange("title", e.target.value)}
+                    placeholder="e.g., Classic Spaghetti Carbonara"
+                    required
+                  />
+                </div>
 
-          <div className="flex gap-4 mt-6">
-            <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving} className="flex-1">
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
+                    placeholder="Describe your recipe..."
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <Label>Recipe Image</Label>
+                  <div className="flex gap-2 mt-2 mb-3">
+                    <Button
+                      type="button"
+                      variant={imageMode === "url" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setImageMode("url")
+                        clearImage()
+                      }}
+                    >
+                      <LinkIcon className="h-4 w-4 mr-2" />
+                      Image URL
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={imageMode === "file" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setImageMode("file")
+                        setFormData((prev) => ({ ...prev, image_url: "" }))
+                      }}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload File
+                    </Button>
+                  </div>
+
+                  {imageMode === "url" ? (
+                    <Input
+                      id="image_url"
+                      value={formData.image_url}
+                      onChange={(e) => handleInputChange("image_url", e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                  ) : (
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full bg-transparent"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {imageFile ? imageFile.name : "Choose an image file"}
+                      </Button>
+                      {imageFile && (
+                        <p className="text-sm text-gray-500 mt-2">{(imageFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                      )}
+                    </div>
+                  )}
+
+                  {imagePreview && (
+                    <div className="mt-3 relative">
+                      <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-100">
+                        <Image
+                          src={imagePreview || "/placeholder.svg"}
+                          alt="Recipe preview"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <Button type="button" variant="destructive" size="sm" className="mt-2" onClick={clearImage}>
+                        <X className="h-4 w-4 mr-2" />
+                        Remove Image
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label htmlFor="prep_time">Prep Time (min)</Label>
+                    <Input
+                      id="prep_time"
+                      type="number"
+                      value={formData.prep_time}
+                      onChange={(e) => handleInputChange("prep_time", e.target.value)}
+                      placeholder="15"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="cook_time">Cook Time (min)</Label>
+                    <Input
+                      id="cook_time"
+                      type="number"
+                      value={formData.cook_time}
+                      onChange={(e) => handleInputChange("cook_time", e.target.value)}
+                      placeholder="30"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="servings">Servings</Label>
+                    <Input
+                      id="servings"
+                      type="number"
+                      value={formData.servings}
+                      onChange={(e) => handleInputChange("servings", e.target.value)}
+                      placeholder="4"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="difficulty">Difficulty</Label>
+                    <Select
+                      value={formData.difficulty}
+                      onValueChange={(value) => handleInputChange("difficulty", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="beginner">Beginner</SelectItem>
+                        <SelectItem value="intermediate">Intermediate</SelectItem>
+                        <SelectItem value="advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="cuisine_type">Cuisine Type</Label>
+                  <Select
+                    value={formData.cuisine_type}
+                    onValueChange={(value) => handleInputChange("cuisine_type", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select cuisine type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CUISINE_TYPES.map((cuisine) => (
+                        <SelectItem key={cuisine} value={cuisine}>
+                          {cuisine.charAt(0).toUpperCase() + cuisine.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Dietary Tags</Label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {DIETARY_TAGS.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant={formData.dietary_tags.includes(tag) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleDietaryTag(tag)}
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Ingredients */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Ingredients</CardTitle>
+                  <Button type="button" variant="outline" size="sm" onClick={addIngredient}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Ingredient
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {ingredients.map((ingredient, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      placeholder="Ingredient name"
+                      value={ingredient.name}
+                      onChange={(e) => updateIngredient(index, "name", e.target.value)}
+                      className="flex-1"
+                    />
+                    <Input
+                      placeholder="Amount"
+                      value={ingredient.amount}
+                      onChange={(e) => updateIngredient(index, "amount", e.target.value)}
+                      className="w-24"
+                    />
+                    <Input
+                      placeholder="Unit"
+                      value={ingredient.unit}
+                      onChange={(e) => updateIngredient(index, "unit", e.target.value)}
+                      className="w-24"
+                    />
+                    {ingredients.length > 1 && (
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeIngredient(index)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Instructions */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Instructions</CardTitle>
+                  <Button type="button" variant="outline" size="sm" onClick={addInstruction}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Step
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {instructions.map((instruction, index) => (
+                  <div key={index} className="flex gap-2">
+                    <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 mt-1">
+                      {instruction.step}
+                    </div>
+                    <Textarea
+                      placeholder="Describe this step..."
+                      value={instruction.description}
+                      onChange={(e) => updateInstruction(index, e.target.value)}
+                      rows={2}
+                      className="flex-1"
+                    />
+                    {instructions.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeInstruction(index)}
+                        className="mt-1"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Nutrition (Optional) */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Nutrition Information (Optional)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label htmlFor="calories">Calories</Label>
+                    <Input
+                      id="calories"
+                      type="number"
+                      value={formData.calories}
+                      onChange={(e) => handleInputChange("calories", e.target.value)}
+                      placeholder="250"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="protein">Protein (g)</Label>
+                    <Input
+                      id="protein"
+                      type="number"
+                      value={formData.protein}
+                      onChange={(e) => handleInputChange("protein", e.target.value)}
+                      placeholder="15"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="carbs">Carbs (g)</Label>
+                    <Input
+                      id="carbs"
+                      type="number"
+                      value={formData.carbs}
+                      onChange={(e) => handleInputChange("carbs", e.target.value)}
+                      placeholder="30"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="fat">Fat (g)</Label>
+                    <Input
+                      id="fat"
+                      type="number"
+                      value={formData.fat}
+                      onChange={(e) => handleInputChange("fat", e.target.value)}
+                      placeholder="10"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Submit Button */}
+            <div className="flex gap-4">
+              <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving} className="flex-1">
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           </div>
         </form>
       </div>

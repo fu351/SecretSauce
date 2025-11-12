@@ -64,7 +64,11 @@ export function Header() {
   }
 
   return (
-    <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b bg-background border-border">
+    <header
+      className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b ${
+        isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FBF4E5] border-border"
+      }`}
+    >
       <div className="flex items-center">
         <Link href="/">
           <Image
@@ -77,52 +81,60 @@ export function Header() {
         </Link>
       </div>
 
-      <nav className="hidden md:flex items-center gap-4 lg:gap-6">
+      <nav className="hidden md:flex items-center gap-6">
         <Link
           href="/recipes"
-          className={`hover:opacity-80 ${
-            pathname === "/recipes" ? "font-semibold" : isDark ? "text-[#e8dcc4]/70" : "text-gray-600"
+          className={`hover:opacity-80 transition-opacity ${
+            pathname === "/recipes" ? "font-semibold" : isDark ? "text-[#e8dcc4]/80" : "text-gray-700"
           }`}
         >
           Recipes
         </Link>
         <Link
           href="/meal-planner"
-          className={`hover:opacity-80 ${
-            pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-[#e8dcc4]/70" : "text-gray-600"
+          className={`hover:opacity-80 transition-opacity ${
+            pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-[#e8dcc4]/80" : "text-gray-700"
           }`}
         >
           Meal Planner
         </Link>
         <Link
           href="/shopping"
-          className={`hover:opacity-80 ${
-            pathname === "/shopping" ? "font-semibold" : isDark ? "text-[#e8dcc4]/70" : "text-gray-600"
+          className={`hover:opacity-80 transition-opacity ${
+            pathname === "/shopping" ? "font-semibold" : isDark ? "text-[#e8dcc4]/80" : "text-gray-700"
           }`}
         >
           Shopping
         </Link>
       </nav>
 
-      <div className="flex items-center gap-2 md:gap-3">
+      <div className="flex items-center gap-2 md:gap-3 min-w-[200px] justify-end">
         {user ? (
           <>
             {/* Quick Action Icons - Desktop only */}
             {!isMobile && (
               <>
-                <Button variant="ghost" size="icon" asChild className={isDark ? "hover:bg-[#e8dcc4]/10" : ""}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className={isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}
+                >
                   <Link href="/favorites">
-                    <Heart className="h-5 w-5" />
+                    <Heart className="h-5 w-5 text-red-500" />
                   </Link>
                 </Button>
 
-                {!pathname.includes("/shopping") && (
-                  <Button variant="ghost" size="icon" asChild className={isDark ? "hover:bg-[#e8dcc4]/10" : ""}>
-                    <Link href="/shopping">
-                      <ShoppingCart className="h-5 w-5" />
-                    </Link>
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className={isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}
+                >
+                  <Link href="/shopping">
+                    <ShoppingCart className="h-5 w-5 text-green-500" />
+                  </Link>
+                </Button>
               </>
             )}
 
@@ -130,13 +142,13 @@ export function Header() {
             {showUploadButton && !isMobile && (
               <Link href="/upload-recipe">
                 <button
-                  className={`relative inline-flex items-center justify-center px-4 md:px-6 py-2 md:py-2.5 text-xs md:text-sm font-semibold transition-all duration-200 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 ${
+                  className={`relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold transition-all duration-200 rounded-lg shadow-md hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 ${
                     isDark
                       ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] focus:ring-[#e8dcc4]"
                       : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 focus:ring-orange-500"
                   }`}
                 >
-                  <Plus className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                  <Plus className="h-4 w-4 mr-2" />
                   Add Recipe
                 </button>
               </Link>
@@ -145,13 +157,13 @@ export function Header() {
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-[#e8dcc4]/10" : ""}>
+                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}>
                   <User className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className={isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+                className={isDark ? "bg-[#1f1e1a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
               >
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard">
@@ -184,13 +196,13 @@ export function Header() {
             {/* Mobile Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="md:hidden">
-                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-[#e8dcc4]/10" : ""}>
+                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}>
                   <Menu className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className={isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+                className={isDark ? "bg-[#1f1e1a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
               >
                 <DropdownMenuItem asChild>
                   <Link href="/recipes">Recipes</Link>
@@ -221,7 +233,7 @@ export function Header() {
               variant="ghost"
               size={isMobile ? "sm" : "default"}
               asChild
-              className={isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : ""}
+              className={isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}
             >
               <Link href="/auth/signin">Sign In</Link>
             </Button>
@@ -231,7 +243,7 @@ export function Header() {
               className={
                 isDark
                   ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
-                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"
               }
             >
               <Link href="/auth/signup">{isMobile ? "Sign Up" : "Get Started"}</Link>

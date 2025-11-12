@@ -420,7 +420,7 @@ export default function MealPlannerPage() {
                   className={`${buttonOutlineClass} flex items-center gap-2`}
                 >
                   <Menu className="h-4 w-4" />
-                  {sidebarOpen ? "Hide" : "Show"}
+                  Recipes
                 </Button>
               )}
 
@@ -636,40 +636,49 @@ export default function MealPlannerPage() {
       </div>
 
       {isMobile && sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
+        />
       )}
 
       <div
         className={`${
           isMobile
             ? sidebarOpen
-              ? "fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 shadow-2xl"
+              ? "fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 shadow-2xl overflow-y-auto"
               : "hidden"
             : sidebarOpen
               ? "w-80 md:w-96"
-              : "w-0 overflow-hidden"
-        } ${cardBgClass} border-l flex-shrink-0 transition-all duration-300 relative`}
+              : "w-0"
+        } ${cardBgClass} ${isMobile ? "" : "border-l"} flex-shrink-0 transition-all duration-300 relative`}
       >
         {!isMobile && (
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`absolute -left-8 top-4 ${cardBgClass} border rounded-lg p-2 shadow-lg z-20 hover:bg-opacity-80 transition-all ${
-              sidebarOpen ? "" : "left-0"
-            }`}
+            className={`absolute ${sidebarOpen ? "-left-10" : "left-2"} top-4 ${
+              isDark ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 text-white hover:bg-orange-600"
+            } rounded-lg px-3 py-2 shadow-lg z-20 transition-all flex items-center gap-2 text-xs font-semibold whitespace-nowrap`}
             aria-label={sidebarOpen ? "Hide recipes sidebar" : "Show recipes sidebar"}
             title={sidebarOpen ? "Hide recipes" : "Show recipes"}
           >
-            <div className="flex flex-col items-center gap-1">
-              <ChevronRightIcon
-                className={`h-5 w-5 transition-transform ${sidebarOpen ? "rotate-0" : "rotate-180"} ${textClass}`}
-              />
-              {!sidebarOpen && <span className={`text-[10px] font-medium ${textClass}`}>RECIPES</span>}
-            </div>
+            {sidebarOpen ? (
+              <>
+                <ChevronRightIcon className="h-4 w-4" />
+                <span>HIDE</span>
+              </>
+            ) : (
+              <>
+                <ChevronRightIcon className="h-4 w-4 rotate-180" />
+                <span>RECIPES</span>
+              </>
+            )}
           </button>
         )}
 
         {sidebarOpen && (
-          <div className="p-4 md:p-6 overflow-y-auto h-full" style={{ paddingRight: "1.5rem" }}>
+          <div className="p-4 md:p-6 overflow-y-auto h-full">
             {isMobile && (
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${textClass}`}>Recipes</h3>

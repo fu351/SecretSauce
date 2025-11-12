@@ -9,7 +9,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
-import { ArrowRight, Search } from "lucide-react"
+import { ArrowRight, Search, Clock, Users } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
 
 interface Recipe {
@@ -357,7 +357,7 @@ export default function HomePage() {
                   theme === "dark" ? "bg-background/20" : "bg-accent"
                 }`}
               >
-                <span className={`h-6 w-6 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>Clock</span>
+                <Clock className={`h-6 w-6 ${theme === "dark" ? "text-foreground" : "text-foreground"}`} />
               </div>
               <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>
                 Plan Your Meals
@@ -375,7 +375,7 @@ export default function HomePage() {
                   theme === "dark" ? "bg-background/20" : "bg-accent"
                 }`}
               >
-                <span className={`h-6 w-6 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>Users</span>
+                <Users className={`h-6 w-6 ${theme === "dark" ? "text-foreground" : "text-foreground"}`} />
               </div>
               <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>
                 Save Money

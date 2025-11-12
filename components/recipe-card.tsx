@@ -165,55 +165,62 @@ function RecipeCardComponent({
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         </div>
 
-        <div className="absolute top-4 right-4 z-20 pointer-events-auto">
+        <div className="absolute top-2 md:top-4 right-2 md:right-4 z-20 pointer-events-auto">
           <Button
             size="icon"
             variant="secondary"
-            className={`bg-white/90 hover:bg-white ${isFavorited ? "text-red-500" : "text-gray-600"}`}
+            className={`bg-white/90 hover:bg-white ${isFavorited ? "text-red-500" : "text-gray-600"} h-8 w-8 md:h-10 md:w-10`}
             onClick={toggleFavorite}
             disabled={loading}
             data-favorite-button
           >
-            <Heart className={`h-4 w-4 ${isFavorited ? "fill-current" : ""}`} />
+            <Heart className={`h-3 w-3 md:h-4 md:w-4 ${isFavorited ? "fill-current" : ""}`} />
           </Button>
         </div>
 
-        <div className="absolute inset-0 p-6 flex flex-col justify-between pointer-events-none">
-          <div className="flex flex-wrap gap-2 justify-end mr-12">
-            {tags.slice(0, 2).map((tag, index) => (
-              <Badge key={index} variant="secondary" className="bg-white/90 text-gray-800 hover:bg-white">
-                {tag}
-              </Badge>
-            ))}
+        <div className="absolute inset-0 p-3 md:p-6 flex flex-col justify-between pointer-events-none">
+          <div className="flex flex-wrap gap-1 md:gap-2 justify-end mr-10 md:mr-12">
+            {tags &&
+              Array.isArray(tags) &&
+              tags.slice(0, 2).map((tag, index) => (
+                <Badge
+                  key={index}
+                  variant="secondary"
+                  className="bg-white/90 text-gray-800 hover:bg-white text-xs md:text-sm px-1.5 md:px-2 py-0.5 md:py-1"
+                >
+                  {tag}
+                </Badge>
+              ))}
           </div>
 
-          <div className="text-white transition-all duration-300 pb-0 group-hover:pb-16 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-            <h3 className="text-xl font-bold mb-3 leading-tight transition-transform duration-300 group-hover:-translate-y-2">
+          <div className="text-white transition-all duration-300 pb-0 group-hover:pb-12 md:group-hover:pb-16 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            <h3 className="text-base md:text-xl font-bold mb-2 md:mb-3 leading-tight transition-transform duration-300 group-hover:-translate-y-2 line-clamp-2">
               {title}
             </h3>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between text-xs md:text-sm">
+              <div className="flex items-center gap-2 md:gap-4">
                 <div className="flex items-center gap-1">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  <Star className="h-3 w-3 md:h-4 md:w-4 fill-yellow-400 text-yellow-400" />
                   <span className="font-semibold">{rating.toFixed(1)}</span>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <MessageCircle className="h-4 w-4" />
-                  <span>{comments} reviews</span>
+                  <MessageCircle className="h-3 w-3 md:h-4 md:w-4" />
+                  <span className="hidden sm:inline">{comments} reviews</span>
+                  <span className="sm:hidden">{comments}</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                <Badge className={getDifficultyColor(difficulty)}>{difficulty}</Badge>
+              <div className="flex items-center gap-1 md:gap-2">
+                <BarChart3 className="h-3 w-3 md:h-4 md:w-4" />
+                <Badge className={`${getDifficultyColor(difficulty)} text-xs px-1.5 py-0.5`}>{difficulty}</Badge>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none">
+        <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 pointer-events-none hidden md:block">
           <div className="m-3 rounded-xl bg-white/90 backdrop-blur-sm text-gray-800 p-4 shadow">
             <div className="grid grid-cols-3 gap-3 text-xs">
               <div>

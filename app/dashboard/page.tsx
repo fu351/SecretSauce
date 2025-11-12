@@ -233,7 +233,21 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {recentRecipes.map((recipe) => (
                   <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
-                    <RecipeCard recipe={recipe} />
+                    <RecipeCard
+                      id={recipe.id}
+                      title={recipe.title}
+                      image={recipe.image_url || ""}
+                      rating={recipe.average_rating || 0}
+                      difficulty={recipe.difficulty_level || "beginner"}
+                      comments={0}
+                      tags={recipe.tags || []}
+                      nutrition={{
+                        calories: recipe.calories,
+                        protein: recipe.protein,
+                        carbs: recipe.carbs,
+                        fat: recipe.fat,
+                      }}
+                    />
                   </Link>
                 ))}
               </div>

@@ -57,6 +57,7 @@ export default function RecipesPage() {
   const [viewMode, setViewMode] = useState<"tile" | "details">("tile")
   const [loading, setLoading] = useState(true)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
+  const [searchInput, setSearchInput] = useState("")
 
   const { user } = useAuth()
   const { theme } = useTheme()
@@ -276,6 +277,17 @@ export default function RecipesPage() {
       : "border-gray-200 bg-white"
   const selectClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/30 text-[#e8dcc4]" : "bg-white/50"
 
+  const handleSearch = () => {
+    setSearchTerm(searchInput)
+    updateURL({ search: searchInput })
+  }
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSearch()
+    }
+  }
+
   if (loading) {
     return (
       <div className={`min-h-screen ${bgClass}`}>
@@ -313,19 +325,22 @@ export default function RecipesPage() {
             </div>
           </div>
 
-          <div className="relative max-w-2xl">
-            <Search
-              className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${theme === "dark" ? "text-[#e8dcc4]/40" : "text-gray-400"} h-5 w-5`}
-            />
-            <Input
-              placeholder="Search recipes by name, ingredient, or cuisine..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value)
-                updateURL({ search: e.target.value })
-              }}
-              className={`pl-12 py-4 text-lg rounded-full ${inputClass} shadow-sm`}
-            />
+          <div className="relative max-w-2xl flex gap-2">
+            <div className="relative flex-1">
+              <Search
+                className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${theme === "dark" ? "text-[#e8dcc4]/40" : "text-gray-400"} h-5 w-5`}
+              />
+              <Input
+                placeholder="Search recipes by name, ingredient, or cuisine..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className={`pl-12 py-4 text-lg rounded-full ${inputClass} shadow-sm`}
+              />
+            </div>
+            <Button onClick={handleSearch} className={buttonClass} size="lg">
+              <Search className="h-5 w-5" />
+            </Button>
           </div>
         </div>
 
