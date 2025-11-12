@@ -389,7 +389,7 @@ export default function MealPlannerPage() {
   function getSidebarClassName(isMobile: boolean, sidebarOpen: boolean) {
     if (isMobile) {
       return sidebarOpen
-        ? "fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 shadow-2xl flex flex-col"
+        ? "fixed inset-0 z-50 flex flex-col max-h-screen overflow-y-auto"
         : "hidden"
     } else {
       return sidebarOpen
@@ -481,7 +481,7 @@ export default function MealPlannerPage() {
 
             <Button
               size={isMobile ? "sm" : "default"}
-              className={`w-full md:w-auto bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm`}
+              className={`w-full md:w-auto bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm relative md:ml-4`}
               onClick={addToShoppingList}
             >
               <ShoppingCart className="h-3 w-3 md:h-4 md:w-4 mr-2" />
@@ -652,21 +652,17 @@ export default function MealPlannerPage() {
         </div>
       </div>
 
-      {isMobile && sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />
-      )}
-
       <div
         className={`${sidebarClassName} bg-card border-border ${isMobile ? "" : "border-l"} flex-shrink-0 transition-all duration-300 relative`}
       >
         {!isMobile && (
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`absolute -left-10 top-6 ${
+            className={`absolute -left-8 top-4 ${
               isDark
                 ? "bg-accent text-accent-foreground hover:bg-accent/90"
                 : "bg-primary text-primary-foreground hover:bg-primary/90"
-            } rounded-full p-3 shadow-lg z-20 transition-all border border-border`}
+            } rounded-xl p-2 shadow-lg z-20 transition-all border border-border`}
             aria-label={sidebarOpen ? "Hide recipes sidebar" : "Show recipes sidebar"}
           >
             {sidebarOpen ? <ChevronRightIcon className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}

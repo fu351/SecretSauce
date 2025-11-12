@@ -962,6 +962,27 @@ export default function ShoppingPage() {
                                   </div>
                                 )
                               })}
+                              {shoppingList.length > comparison.items.length && (
+                                <div className="mt-4 border-t border-dashed border-border pt-4">
+                                  <p className={`text-sm font-semibold ${textClass} mb-2`}>Missing Items</p>
+                                  <div className="space-y-2">
+                                    {shoppingList
+                                      .filter(
+                                        (listItem) =>
+                                          !comparison.items.some((item) => item.shoppingItemId === listItem.id),
+                                      )
+                                      .map((listItem) => (
+                                        <div
+                                          key={listItem.id}
+                                          className={`text-sm ${mutedTextClass} flex items-center justify-between`}
+                                        >
+                                          <span>{listItem.name}</span>
+                                          <span className="text-xs">Qty: {listItem.quantity}</span>
+                                        </div>
+                                      ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
