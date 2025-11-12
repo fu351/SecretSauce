@@ -98,14 +98,11 @@ export default function OnboardingPage() {
     currentTheme === "dark" ? "dark" : "light",
   )
 
+  const router = useRouter()
   const { updateProfile } = useAuth()
   const { toast } = useToast()
   // Force light mode throughout onboarding until the user chooses at the end
   useEffect(() => {
-    // Only force light mode on initial mount, not after user selects a theme
-    setTheme("light")
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
     setTheme("light")
   }, [setTheme])
 

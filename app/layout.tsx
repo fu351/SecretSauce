@@ -6,6 +6,7 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/contexts/theme-context"
 import { Header } from "@/components/header"
 import { ThemeSynchronizer } from "@/components/theme-synchronizer"
+import { FaviconUpdater } from "@/components/favicon-updater"
 import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { ErrorBoundary } from "@/components/error-boundary"
@@ -17,6 +18,11 @@ export const metadata: Metadata = {
   title: "Secret Sauce - Meal Planning Made Easy",
   description: "Discover recipes, plan meals, and save on groceries",
   generator: "v0.dev",
+  icons: {
+    icon: "/favicon-light.png",
+    shortcut: "/favicon-light.png",
+    apple: "/favicon-light.png",
+  },
 }
 
 export default function RootLayout({
@@ -31,6 +37,7 @@ export default function RootLayout({
           <ThemeProvider>
             <AuthProvider>
               <ThemeSynchronizer />
+              <FaviconUpdater />
               <Header />
               {children}
               <Toaster />
