@@ -414,15 +414,18 @@ export default function MealPlannerPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 w-full md:w-auto">
               <h1 className={`text-2xl md:text-3xl font-bold text-text`}>Meal Planner</h1>
 
-              {/* Mobile: Show sidebar toggle */}
+              {/* Mobile: Sidebar toggle (top control) */}
               {isMobile && (
                 <Button
-                  variant="outline"
                   size="sm"
                   onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className={`border-border text-text hover:bg-accent hover:text-accent-foreground`}
+                  className={`${
+                    isDark
+                      ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  }`}
                 >
-                  <Menu className="h-4 w-4" />
+                  <Menu className="h-4 w-4 mr-1" />
                   Recipes
                 </Button>
               )}
@@ -654,11 +657,11 @@ export default function MealPlannerPage() {
         {!isMobile && (
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`absolute ${sidebarOpen ? "-left-12" : "-left-10"} top-20 ${
+            className={`absolute -left-10 top-1/2 -translate-y-1/2 ${
               isDark
                 ? "bg-accent text-accent-foreground hover:bg-accent/90"
                 : "bg-primary text-primary-foreground hover:bg-primary/90"
-            } rounded-lg p-3 shadow-lg z-20 transition-all`}
+            } rounded-full p-3 shadow-lg z-20 transition-all border border-border`}
             aria-label={sidebarOpen ? "Hide recipes sidebar" : "Show recipes sidebar"}
           >
             {sidebarOpen ? <ChevronRightIcon className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
@@ -750,6 +753,21 @@ export default function MealPlannerPage() {
           </div>
         )}
       </div>
+
+      {/* Mobile: Always-accessible floating toggle when sidebar is closed */}
+      {isMobile && !sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className={`fixed right-3 top-1/2 -translate-y-1/2 z-40 rounded-full p-3 shadow-lg ${
+            isDark
+              ? "bg-accent text-accent-foreground hover:bg-accent/90"
+              : "bg-primary text-primary-foreground hover:bg-primary/90"
+          } border border-border`}
+          aria-label="Show recipes sidebar"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      )}
     </div>
   )
 }

@@ -2,51 +2,36 @@
 
 import type React from "react"
 
-import { createContext, useContext, useEffect, useState } from "react"
+import { useTheme as useNextTheme, ThemeProvider as NextThemesProvider } from "next-themes"
 
-type Theme = "dark" | "warm"
-
-interface ThemeContextType {
-  theme: Theme
-  setTheme: (theme: Theme) => void
-  toggleTheme: () => void
-}
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
+type Theme = "dark" | "light"
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark")
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    const savedTheme = localStorage.getItem("theme") as Theme
-    if (savedTheme) {
-      setThemeState(savedTheme)
-    }
-  }, [])
-
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme)
-    localStorage.setItem("theme", newTheme)
-  }
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "warm" : "dark"
-    setTheme(newTheme)
-  }
-
-  if (!mounted) {
-    return null
-  }
-
-  return <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>{children}</ThemeContext.Provider>
+  return (
+    <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      {children}
+    </NextThemesProvider>
+  )
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext)
-  if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider")
+  const { theme, resolvedTheme, setTheme: setNextTheme } = useNextTheme()
+
+  // Use the currently applied theme when available; fall back to provider default.
+  const effective = (resolvedTheme ?? theme) as string | undefined
+  const normalizedTheme: Theme = effective === "dark" ? "dark" : "light"
+
+  const setTheme = (newTheme: Theme) => setNextTheme(newTheme)
+
+  // Avoid stale closures by reading the live DOM class when available.
+  const toggleTheme = () => {
+    if (typeof document !== "undefined") {
+      const isDarkNow = document.documentElement.classList.contains("dark")
+      setNextTheme(isDarkNow ? "light" : "dark")
+    } else {
+      setNextTheme((resolvedTheme ?? theme) === "dark" ? "light" : "dark")
+    }
   }
-  return context
+
+  return { theme: normalizedTheme, setTheme, toggleTheme }
 }
