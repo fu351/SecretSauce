@@ -25,8 +25,7 @@ export function Header() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const isDark =
-    typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : theme === "dark"
+  const isDark = theme === "dark"
 
   // Landing page has its own header for non-authenticated users
   if ((pathname.startsWith("/auth") || pathname === "/onboarding") && !user) {
@@ -67,7 +66,7 @@ export function Header() {
   return (
     <header
       className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b ${
-        isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FBF4E5] border-border"
+        isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FAF4E5] border-border"
       }`}
     >
       <div className="flex items-center">

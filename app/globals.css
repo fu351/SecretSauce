@@ -21,7 +21,7 @@
 @layer base {
   :root {
     /* Aesthetic warm mode with orange accent and proper ADA contrast */
-    --background: 44 38% 97%; /* #FBF4E5 - warm cream background */
+    --background: 43 67% 94%; /* #FAF4E5 - warm cream background */
     --foreground: 20 14% 20%; /* Dark brown text - 10.5:1 contrast */
     --card: 0 0% 100%;
     --card-foreground: 20 14% 20%;

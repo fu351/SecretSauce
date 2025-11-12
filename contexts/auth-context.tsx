@@ -30,47 +30,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true)
 
     let currentUserId: string | null = null
-    let bootstrapFinished = false
+    let authSubscription: { unsubscribe: () => void } | null = null
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const applySession = (sessionUser: User | null) => {
       if (!mounted.current) return
 
-      console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
-
-      if (event === "INITIAL_SESSION") {
-        if (!bootstrapFinished) {
-          // bootstrapSession handles the initial load; ignore duplicate event
-          return
-        }
+      const newUserId = sessionUser?.id ?? null
+      if (newUserId === currentUserId) {
+        if (mounted.current) setLoading(false)
         return
       }
 
-      const newUser = session?.user ?? null
-      const newUserId = newUser?.id ?? null
+      currentUserId = newUserId
+      setUser(sessionUser)
 
-      if (newUserId !== currentUserId) {
-        currentUserId = newUserId // Update the current user ID
-
-        setUser(newUser) // Set the new user (or null)
-        console.log("$#################### Test2 #########################################$")
-        
-        if (newUser) {
-          console.log(`[v0] User state changed to: ${newUser.id}. Fetching profile.`)
-          await fetchProfile(newUser.id)
-          console.log("Profile fetched")
-        } else {
-          console.log(`[v0] User state changed to null. Clearing profile.`)
-          setProfile(null)
-          fetchingProfile.current = false
-        }
+      if (sessionUser) {
+        console.log(`[v0] User state changed to: ${sessionUser.id}. Fetching profile.`)
+        // Fire and forget; fetchProfile already guards against concurrent fetches.
+        fetchProfile(sessionUser.id)
+      } else {
+        console.log("[v0] User state changed to null. Clearing profile.")
+        setProfile(null)
+        fetchingProfile.current = false
       }
 
       if (mounted.current) {
         setLoading(false)
       }
-    })
+    }
 
     const bootstrapSession = async () => {
       try {
@@ -79,27 +66,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!mounted.current) return
 
-        const sessionUser = data.session?.user ?? null
-        currentUserId = sessionUser?.id ?? null
-        setUser(sessionUser)
-
-        if (sessionUser) {
-          await fetchProfile(sessionUser.id)
-        } else {
-          setProfile(null)
-          fetchingProfile.current = false
-        }
+        applySession(data.session?.user ?? null)
       } catch (error) {
         console.error("[v0] Error retrieving initial session:", error)
+        if (mounted.current) setLoading(false)
       } finally {
-        bootstrapFinished = true
-        if (mounted.current) {
-          setLoading(false)
+        if (!authSubscription) {
+          const {
+            data: { subscription },
+          } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
+            applySession(session?.user ?? null)
+          })
+          authSubscription = subscription
         }
       }
     }
 
-    bootstrapSession()
+    ;(async () => {
+      await bootstrapSession()
+    })()
 
     const memoryInterval = setInterval(() => {
       performanceMonitor.logMemoryUsage()
@@ -107,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted.current = false
-      subscription.unsubscribe()
+      authSubscription?.unsubscribe()
       clearInterval(memoryInterval)
     }
   }, []) // Empty dependency array is correct
