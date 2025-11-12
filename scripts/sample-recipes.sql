@@ -15,7 +15,7 @@ INSERT INTO public.recipes (
   cook_time,
   servings,
   difficulty,
-  cuisine_type,
+  cuisine,
   dietary_tags,
   ingredients,
   instructions,

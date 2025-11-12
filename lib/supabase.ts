@@ -143,7 +143,7 @@ export type Database = {
           cook_time: number | null
           servings: number | null
           difficulty: "beginner" | "intermediate" | "advanced"
-          cuisine_type: string | null
+          cuisine: string | null
           dietary_tags: string[] | null
           ingredients: any[] | null
           instructions: any[] | null
@@ -162,7 +162,7 @@ export type Database = {
           cook_time?: number | null
           servings?: number | null
           difficulty: "beginner" | "intermediate" | "advanced"
-          cuisine_type?: string | null
+          cuisine?: string | null
           dietary_tags?: string[] | null
           ingredients?: any[] | null
           instructions?: any[] | null
@@ -177,7 +177,7 @@ export type Database = {
           cook_time?: number | null
           servings?: number | null
           difficulty?: "beginner" | "intermediate" | "advanced"
-          cuisine_type?: string | null
+          cuisine?: string | null
           dietary_tags?: string[] | null
           ingredients?: any[] | null
           instructions?: any[] | null

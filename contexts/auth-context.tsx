@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true)
 
     let currentUserId: string | null = null
+    let bootstrapFinished = false
 
     const {
       data: { subscription },
@@ -37,7 +38,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted.current) return
 
       console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
-      
+
+      if (event === "INITIAL_SESSION") {
+        if (!bootstrapFinished) {
+          // bootstrapSession handles the initial load; ignore duplicate event
+          return
+        }
+        return
+      }
+
       const newUser = session?.user ?? null
       const newUserId = newUser?.id ?? null
 
@@ -62,6 +71,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
       }
     })
+
+    const bootstrapSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession()
+        if (error) throw error
+
+        if (!mounted.current) return
+
+        const sessionUser = data.session?.user ?? null
+        currentUserId = sessionUser?.id ?? null
+        setUser(sessionUser)
+
+        if (sessionUser) {
+          await fetchProfile(sessionUser.id)
+        } else {
+          setProfile(null)
+          fetchingProfile.current = false
+        }
+      } catch (error) {
+        console.error("[v0] Error retrieving initial session:", error)
+      } finally {
+        bootstrapFinished = true
+        if (mounted.current) {
+          setLoading(false)
+        }
+      }
+    }
+
+    bootstrapSession()
 
     const memoryInterval = setInterval(() => {
       performanceMonitor.logMemoryUsage()

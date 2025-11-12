@@ -15,7 +15,7 @@ import { supabase } from "@/lib/supabase"
 
 export default function SettingsPage() {
   const { user } = useAuth()
-  const { theme, setTheme } = useTheme()
+  const { theme, toggleTheme } = useTheme()
   const { toast } = useToast()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
@@ -26,8 +26,6 @@ export default function SettingsPage() {
   const [groceryDistance, setGroceryDistance] = useState("10")
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  const [savingTheme, setSavingTheme] = useState(false)
-  const [preferredTheme, setPreferredTheme] = useState<"light" | "dark">(theme === "dark" ? "dark" : "light")
 
   const cuisineOptions = [
     "Italian",
@@ -73,19 +71,13 @@ export default function SettingsPage() {
     }
   }, [user, router])
 
-  useEffect(() => {
-    setPreferredTheme(theme === "dark" ? "dark" : "light")
-  }, [theme])
-
   const fetchUserPreferences = async () => {
     if (!user) return
 
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select(
-          "cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences, preferred_theme",
-        )
+        .select("cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences")
         .eq("id", user.id)
         .single()
 
@@ -97,10 +89,6 @@ export default function SettingsPage() {
         setPostalCode(data.postal_code || "")
         setGroceryDistance(String(data.grocery_distance_km || 10))
         setDietaryPreferences(data.dietary_preferences || [])
-        if (data.preferred_theme === "dark" || data.preferred_theme === "light") {
-          setPreferredTheme(data.preferred_theme)
-          setTheme(data.preferred_theme)
-        }
       }
     } catch (error) {
       console.error("Error fetching preferences:", error)
@@ -149,33 +137,6 @@ export default function SettingsPage() {
     setDietaryPreferences((prev) => (prev.includes(diet) ? prev.filter((d) => d !== diet) : [...prev, diet]))
   }
 
-  const updateThemePreference = async (mode: "light" | "dark") => {
-    if (!user || savingTheme || preferredTheme === mode) return
-
-    setSavingTheme(true)
-    try {
-      const { error } = await supabase.from("profiles").update({ preferred_theme: mode }).eq("id", user.id)
-      if (error) throw error
-
-      setTheme(mode)
-      setPreferredTheme(mode)
-
-      toast({
-        title: "Appearance updated",
-        description: `Theme set to ${mode === "dark" ? "Dark" : "Light"} mode.`,
-      })
-    } catch (error) {
-      console.error("Error saving theme preference:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update theme. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setSavingTheme(false)
-    }
-  }
-
   if (!mounted || !user) {
     return null
   }
@@ -217,23 +178,16 @@ export default function SettingsPage() {
                   {isDark ? "Mysterious and exclusive dark theme" : "Bright and inviting theme for everyday cooking"}
                 </p>
               </div>
-              <Switch
-                id="theme-toggle"
-                checked={preferredTheme === "dark"}
-                onCheckedChange={(checked) => updateThemePreference(checked ? "dark" : "light")}
-                disabled={savingTheme}
-              />
+              <Switch id="theme-toggle" checked={isDark} onCheckedChange={toggleTheme} />
             </div>
 
             {/* Theme Preview */}
             <div className="mt-6 grid grid-cols-2 gap-4">
               <div
                 className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  preferredTheme === "dark"
-                    ? "border-[#e8dcc4] bg-[#0a0a0a]"
-                    : "border-gray-300 bg-[#0a0a0a] opacity-50 hover:opacity-70"
+                  isDark ? "border-[#e8dcc4] bg-[#0a0a0a]" : "border-gray-300 bg-[#0a0a0a] opacity-50 hover:opacity-70"
                 }`}
-                onClick={() => updateThemePreference("dark")}
+                onClick={() => !isDark && toggleTheme()}
               >
                 <div className="text-[#e8dcc4] text-xs font-medium mb-2">Dark Mode</div>
                 <div className="space-y-2">
@@ -244,11 +198,11 @@ export default function SettingsPage() {
 
               <div
                 className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  preferredTheme === "light"
+                  !isDark
                     ? "border-orange-500 bg-gradient-to-br from-orange-50 to-yellow-50"
                     : "border-gray-600 bg-gradient-to-br from-orange-50 to-yellow-50 opacity-50 hover:opacity-70"
                 }`}
-                onClick={() => updateThemePreference("light")}
+                onClick={() => isDark && toggleTheme()}
               >
                 <div className="text-gray-900 text-xs font-medium mb-2">Light Mode</div>
                 <div className="space-y-2">

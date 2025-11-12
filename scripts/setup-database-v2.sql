@@ -69,7 +69,7 @@ CREATE TABLE public.recipes (
   cook_time integer,
   servings integer,
   difficulty text NOT NULL CHECK (difficulty = ANY (ARRAY['beginner'::text, 'intermediate'::text, 'advanced'::text])),
-  cuisine_type text,
+  cuisine text,
   dietary_tags ARRAY,
   ingredients jsonb,
   instructions jsonb,

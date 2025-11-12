@@ -17,8 +17,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useTheme() {
   const { theme, resolvedTheme, setTheme: setNextTheme } = useNextTheme()
 
-  // Use the currently applied theme when available; fall back to provider default.
-  const effective = (resolvedTheme ?? theme) as string | undefined
+  const getDocumentTheme = () => {
+    if (typeof document === "undefined") return undefined
+    return document.documentElement.classList.contains("dark") ? "dark" : "light"
+  }
+
+  // Use the currently applied theme when available; fall back to provider default or DOM class.
+  const effective = (resolvedTheme ?? theme ?? getDocumentTheme()) as string | undefined
   const normalizedTheme: Theme = effective === "dark" ? "dark" : "light"
 
   const setTheme = (newTheme: Theme) => setNextTheme(newTheme)

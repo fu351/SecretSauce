@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.recipes (
   cook_time INTEGER,
   servings INTEGER,
   difficulty TEXT CHECK (difficulty IN ('beginner', 'intermediate', 'advanced')) NOT NULL,
-  cuisine_type TEXT,
+  cuisine TEXT,
   dietary_tags TEXT[],
   ingredients JSONB,
   instructions JSONB,

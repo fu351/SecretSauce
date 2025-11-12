@@ -25,7 +25,8 @@ export function Header() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const isDark = theme === "dark"
+  const isDark =
+    typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : theme === "dark"
 
   // Landing page has its own header for non-authenticated users
   if ((pathname.startsWith("/auth") || pathname === "/onboarding") && !user) {

@@ -75,7 +75,7 @@ export default function EditRecipePage() {
     cook_time: "",
     servings: "",
     difficulty: "beginner",
-    cuisine_type: "",
+    cuisine: "",
     dietary_tags: [] as string[],
     calories: "",
     protein: "",
@@ -124,7 +124,7 @@ export default function EditRecipePage() {
         cook_time: data.cook_time?.toString() || "",
         servings: data.servings?.toString() || "",
         difficulty: data.difficulty || "beginner",
-        cuisine_type: data.cuisine || "",
+        cuisine: data.cuisine || "",
         dietary_tags: data.dietary_tags || [],
         calories: data.nutrition?.calories?.toString() || "",
         protein: data.nutrition?.protein?.toString() || "",
@@ -279,7 +279,7 @@ export default function EditRecipePage() {
         cook_time: Number.parseInt(formData.cook_time) || 0,
         servings: Number.parseInt(formData.servings) || 1,
         difficulty: formData.difficulty,
-        cuisine: formData.cuisine_type || null,
+        cuisine: formData.cuisine || null,
         dietary_tags: formData.dietary_tags,
         ingredients: ingredients.filter((ing) => ing.name.trim()),
         instructions: instructions.filter((inst) => inst.description.trim()),
@@ -544,12 +544,9 @@ export default function EditRecipePage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="cuisine_type">Cuisine Type</Label>
-                  <Select
-                    value={formData.cuisine_type}
-                    onValueChange={(value) => handleInputChange("cuisine_type", value)}
-                  >
-                    <SelectTrigger>
+                  <Label htmlFor="cuisine">Cuisine Type</Label>
+                  <Select value={formData.cuisine} onValueChange={(value) => handleInputChange("cuisine", value)}>
+                    <SelectTrigger id="cuisine">
                       <SelectValue placeholder="Select cuisine type" />
                     </SelectTrigger>
                     <SelectContent>

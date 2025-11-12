@@ -130,7 +130,6 @@ export default function OnboardingPage() {
         cooking_time_preference: cookingTimePreference,
         postal_code: postalCode || null,
         grocery_distance_km: Number.parseInt(groceryDistance) || 10,
-        preferred_theme: selectedTheme,
       })
 
       toast({
