@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { ChefHat, DollarSign, Users, ArrowRight, Check, Sparkles, MapPin, Clock } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { useTheme } from "@/contexts/theme-context"
 import Image from "next/image"
 
 const goals = [
@@ -79,6 +80,8 @@ const cuisineOptions = [
   "Spanish",
 ]
 
+const TOTAL_STEPS = 7
+
 export default function OnboardingPage() {
   const [step, setStep] = useState(1)
   const [selectedGoal, setSelectedGoal] = useState("")
@@ -90,10 +93,21 @@ export default function OnboardingPage() {
   const [postalCode, setPostalCode] = useState("")
   const [groceryDistance, setGroceryDistance] = useState("10")
   const [loading, setLoading] = useState(false)
+  const { theme: currentTheme, setTheme } = useTheme()
+  const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(
+    currentTheme === "dark" ? "dark" : "light",
+  )
 
   const { updateProfile } = useAuth()
   const { toast } = useToast()
-  const router = useRouter()
+  // Force light mode throughout onboarding until the user chooses at the end
+  useEffect(() => {
+    // Only force light mode on initial mount, not after user selects a theme
+    setTheme("light")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+    setTheme("light")
+  }, [setTheme])
 
   const handleDietaryToggle = (option: string) => {
     setDietaryPreferences((prev) =>
@@ -119,6 +133,7 @@ export default function OnboardingPage() {
         cooking_time_preference: cookingTimePreference,
         postal_code: postalCode || null,
         grocery_distance_km: Number.parseInt(groceryDistance) || 10,
+        preferred_theme: selectedTheme,
       })
 
       toast({
@@ -126,6 +141,8 @@ export default function OnboardingPage() {
         description: "Your culinary journey begins now.",
       })
 
+      // Apply the user's chosen theme going forward
+      setTheme(selectedTheme)
       router.push("/dashboard")
     } catch (error) {
       toast({
@@ -157,7 +174,7 @@ export default function OnboardingPage() {
         {/* Progress indicator */}
         <div className="flex justify-center mb-12">
           <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5, 6].map((num) => (
+            {Array.from({ length: TOTAL_STEPS }, (_, index) => index + 1).map((num) => (
               <div key={num} className="flex items-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-light border transition-all ${
@@ -168,7 +185,7 @@ export default function OnboardingPage() {
                 >
                   {step > num ? <Check className="h-4 w-4" /> : num}
                 </div>
-                {num < 6 && (
+                {num < TOTAL_STEPS && (
                   <div
                     className={`w-12 h-[1px] mx-2 transition-all ${step > num ? "bg-[#e8dcc4]" : "bg-[#e8dcc4]/20"}`}
                   />
@@ -480,11 +497,69 @@ export default function OnboardingPage() {
                 Back
               </Button>
               <Button
+                onClick={() => setStep(7)}
+                className="flex-1 bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] py-6 font-light tracking-wide"
+              >
+                Continue
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* Step 7: Choose Theme */}
+        {step === 7 && (
+          <Card className="bg-[#181813] border-[#e8dcc4]/20 p-8">
+            <div className="mb-8">
+              <h2 className="text-2xl font-serif font-light mb-3">Choose Your Theme</h2>
+              <p className="text-[#e8dcc4]/60 font-light">Pick the look you prefer. You can change this anytime.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <button
+                onClick={() => setSelectedTheme("dark")}
+                className={`p-4 rounded-lg border-2 text-left transition-all ${
+                  selectedTheme === "dark"
+                    ? "border-[#e8dcc4] bg-[#0a0a0a]"
+                    : "border-[#e8dcc4]/30 bg-[#0a0a0a]/60 hover:border-[#e8dcc4]/50"
+                }`}
+              >
+                <div className="text-[#e8dcc4] text-xs font-medium mb-2">Dark Mode</div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-[#e8dcc4]/20 rounded"></div>
+                  <div className="h-2 bg-[#e8dcc4]/10 rounded w-3/4"></div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setSelectedTheme("light")}
+                className={`p-4 rounded-lg border-2 text-left transition-all ${
+                  selectedTheme === "light"
+                    ? "border-orange-500 bg-gradient-to-br from-orange-50 to-yellow-50"
+                    : "border-gray-600 bg-gradient-to-br from-orange-50 to-yellow-50 opacity-70 hover:opacity-90"
+                }`}
+              >
+                <div className="text-gray-900 text-xs font-medium mb-2">Light Mode</div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-orange-200 rounded"></div>
+                  <div className="h-2 bg-orange-100 rounded w-3/4"></div>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex gap-4">
+              <Button
+                variant="outline"
+                onClick={() => setStep(6)}
+                className="flex-1 border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:border-[#e8dcc4]/60 py-6 font-light"
+              >
+                Back
+              </Button>
+              <Button
                 onClick={handleComplete}
                 disabled={loading}
                 className="flex-1 bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] py-6 font-light tracking-wide disabled:opacity-50"
               >
-                {loading ? "Preparing..." : "Enter Secret Sauce"}
+                {loading ? "Saving..." : "Finish"}
               </Button>
             </div>
           </Card>

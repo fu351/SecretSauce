@@ -35,10 +35,11 @@ interface Recipe {
 
 export default function HomePage() {
   const { user, loading } = useAuth()
-  const { theme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const isMobile = useIsMobile()
   const [mounted, setMounted] = useState(false)
-  const [isFirstVisit, setIsFirstVisit] = useState(true)
+  const [visitStatus, setVisitStatus] = useState<true | false | null>(null)
+  const [visitChecked, setVisitChecked] = useState(false)
   const [popularRecipes, setPopularRecipes] = useState<Recipe[]>([])
   const [loadingRecipes, setLoadingRecipes] = useState(true)
 
@@ -50,7 +51,8 @@ export default function HomePage() {
     setMounted(true)
 
     const hasVisited = document.cookie.includes("visited=true")
-    setIsFirstVisit(!hasVisited)
+    setVisitStatus(!hasVisited)
+    setVisitChecked(true)
 
     if (!hasVisited) {
       const expiryDate = new Date()
@@ -64,10 +66,17 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    if (!isFirstVisit && isMounted.current && !fetchingRecipes.current) {
+    if (!visitChecked) return
+    if (visitStatus === true && !user) {
+      setTheme("dark")
+    }
+  }, [visitChecked, visitStatus, user, setTheme])
+
+  useEffect(() => {
+    if (visitStatus === false && isMounted.current && !fetchingRecipes.current) {
       fetchPopularRecipes()
     }
-  }, [isFirstVisit])
+  }, [visitStatus])
 
   const fetchPopularRecipes = async () => {
     if (fetchingRecipes.current || !isMounted.current) return
@@ -98,21 +107,17 @@ export default function HomePage() {
   }
 
   if (loading) {
+    const useDark = theme === "dark"
     return (
       <div className={`min-h-screen flex items-center justify-center bg-background`}>
         <div className="animate-pulse">
-          <Image
-            src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
-            alt="Secret Sauce"
-            width={120}
-            height={120}
-          />
+          <Image src={useDark ? "/logo-dark.png" : "/logo-warm.png"} alt="Secret Sauce" width={120} height={120} />
         </div>
       </div>
     )
   }
 
-  if (isFirstVisit && !user) {
+  if (visitChecked && visitStatus === true && !user) {
     return (
       <main
         className={`min-h-screen flex items-center justify-center px-4 md:px-6 relative overflow-hidden bg-background text-foreground`}
@@ -204,14 +209,29 @@ export default function HomePage() {
         <header className="border-b bg-background border-border">
           <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
             <div className="flex items-center">
-              <Image
-                src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
-                alt="Secret Sauce"
-                width={40}
-                height={40}
-                className="cursor-pointer md:w-[50px] md:h-[50px]"
-              />
+              <div className="relative h-8 md:h-10 w-[130px] md:w-[150px]">
+                <Image
+                  src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
+                  alt="Secret Sauce"
+                  fill
+                  className="object-contain cursor-pointer"
+                  priority
+                />
+              </div>
             </div>
+
+            <nav className="hidden md:flex items-center gap-6">
+              <Link href="/recipes" className="text-foreground/80 hover:text-foreground transition-colors">
+                Recipes
+              </Link>
+              <Link href="/meal-planner" className="text-foreground/80 hover:text-foreground transition-colors">
+                Meal Planner
+              </Link>
+              <Link href="/shopping" className="text-foreground/80 hover:text-foreground transition-colors">
+                Shopping
+              </Link>
+            </nav>
+
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"

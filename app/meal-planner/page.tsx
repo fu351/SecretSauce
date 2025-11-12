@@ -386,6 +386,19 @@ export default function MealPlannerPage() {
   const buttonOutlineClass = isDark
     ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
     : "border-gray-300 hover:bg-[#e8dcc4]/10"
+  function getSidebarClassName(isMobile: boolean, sidebarOpen: boolean) {
+    if (isMobile) {
+      return sidebarOpen
+        ? "fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 shadow-2xl flex flex-col"
+        : "hidden"
+    } else {
+      return sidebarOpen
+        ? "w-80 md:w-96 max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
+        : "w-0 max-h-[calc(100vh-2rem)]"
+    }
+  }
+
+  const sidebarClassName = getSidebarClassName(isMobile, sidebarOpen)
 
   if (!user) {
     return (
@@ -644,20 +657,12 @@ export default function MealPlannerPage() {
       )}
 
       <div
-        className={`${
-          isMobile
-            ? sidebarOpen
-              ? "fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 shadow-2xl overflow-y-auto scrollbar-hide"
-              : "hidden"
-            : sidebarOpen
-              ? "w-80 md:w-96 overflow-y-auto scrollbar-hide"
-              : "w-0"
-        } bg-card border-border ${isMobile ? "" : "border-l"} flex-shrink-0 transition-all duration-300 relative`}
+        className={`${sidebarClassName} bg-card border-border ${isMobile ? "" : "border-l"} flex-shrink-0 transition-all duration-300 relative`}
       >
         {!isMobile && (
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`absolute -left-10 top-1/2 -translate-y-1/2 ${
+            className={`absolute -left-10 top-6 ${
               isDark
                 ? "bg-accent text-accent-foreground hover:bg-accent/90"
                 : "bg-primary text-primary-foreground hover:bg-primary/90"
@@ -669,86 +674,92 @@ export default function MealPlannerPage() {
         )}
 
         {sidebarOpen && (
-          <div className="p-4 md:p-6 h-full">
-            {isMobile && (
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-lg font-semibold text-text`}>Recipes</h3>
-                <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)} className="h-8 w-8 p-0">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-base md:text-lg font-semibold flex items-center gap-2 text-text`}>
-                  <Heart className="w-4 h-4 md:w-5 md:h-5 text-destructive" />
-                  Favorites ({favoriteRecipes.length})
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 gap-2 md:gap-3">
-                {favoriteRecipes.slice(0, 6).map((recipe) => (
-                  <div
-                    key={recipe.id}
-                    className="group relative cursor-pointer"
-                    draggable={!isMobile}
-                    onDragStart={() => !isMobile && handleDragStart(recipe)}
-                    onClick={() => isMobile && addToMealPlan(recipe, "breakfast", weekDates[0])}
-                  >
-                    <img
-                      src={recipe.image_url || "/placeholder.svg?height=100&width=150"}
-                      alt={recipe.title}
-                      className="w-full h-20 md:h-24 object-cover rounded-lg"
-                    />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
-                      <p className="text-white text-xs opacity-0 group-hover:opacity-100 text-center px-2">
-                        {isMobile ? "Tap to add" : "Drag to add"}
-                      </p>
-                    </div>
-                    <p className={`text-xs mt-1 line-clamp-2 text-text`}>{recipe.title}</p>
-                  </div>
-                ))}
-              </div>
-              {favoriteRecipes.length === 0 && (
-                <div className="text-center py-6 md:py-8">
-                  <p className={`text-muted-foreground text-sm mb-3`}>No favorites yet</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push("/recipes")}
-                    className="border-border text-text hover:bg-accent hover:text-accent-foreground"
-                  >
-                    Browse Recipes
-                  </Button>
-                </div>
-              )}
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between border-b border-border p-4 md:p-6">
+              <h3 className={`text-base md:text-lg font-semibold text-text`}>Recipes</h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(false)}
+                className="h-8 w-8"
+                aria-label="Hide recipes sidebar"
+              >
+                {isMobile ? <X className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
+              </Button>
             </div>
 
-            <div>
-              <h3 className={`text-base md:text-lg font-semibold mb-4 text-text`}>Suggested Recipes</h3>
-              <div className="grid grid-cols-2 gap-2 md:gap-3">
-                {suggestedRecipes.slice(0, 20).map((recipe) => (
-                  <div
-                    key={recipe.id}
-                    className="group relative cursor-pointer"
-                    draggable={!isMobile}
-                    onDragStart={() => !isMobile && handleDragStart(recipe)}
-                    onClick={() => isMobile && addToMealPlan(recipe, "breakfast", weekDates[0])}
-                  >
-                    <img
-                      src={recipe.image_url || "/placeholder.svg?height=100&width=150"}
-                      alt={recipe.title}
-                      className="w-full h-20 md:h-24 object-cover rounded-lg"
-                    />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
-                      <p className="text-white text-xs opacity-0 group-hover:opacity-100 text-center px-2">
-                        {isMobile ? "Tap to add" : "Drag to add"}
-                      </p>
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-4 md:p-6 space-y-6">
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-base md:text-lg font-semibold flex items-center gap-2 text-text`}>
+                    <Heart className="w-4 h-4 md:w-5 md:h-5 text-destructive" />
+                    Favorites ({favoriteRecipes.length})
+                  </h3>
+                </div>
+                <div className="grid grid-cols-2 gap-2 md:gap-3">
+                  {favoriteRecipes.slice(0, 6).map((recipe) => (
+                    <div
+                      key={recipe.id}
+                      className="group relative cursor-pointer"
+                      draggable={!isMobile}
+                      onDragStart={() => !isMobile && handleDragStart(recipe)}
+                      onClick={() => isMobile && addToMealPlan(recipe, "breakfast", weekDates[0])}
+                    >
+                      <img
+                        src={recipe.image_url || "/placeholder.svg?height=100&width=150"}
+                        alt={recipe.title}
+                        className="w-full h-20 md:h-24 object-cover rounded-lg"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
+                        <p className="text-white text-xs opacity-0 group-hover:opacity-100 text-center px-2">
+                          {isMobile ? "Tap to add" : "Drag to add"}
+                        </p>
+                      </div>
+                      <p className={`text-xs mt-1 line-clamp-2 text-text`}>{recipe.title}</p>
                     </div>
-                    <p className={`text-xs mt-1 line-clamp-2 text-text`}>{recipe.title}</p>
+                  ))}
+                </div>
+                {favoriteRecipes.length === 0 && (
+                  <div className="text-center py-6 md:py-8">
+                    <p className={`text-muted-foreground text-sm mb-3`}>No favorites yet</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push("/recipes")}
+                      className="border-border text-text hover:bg-accent hover:text-accent-foreground"
+                    >
+                      Browse Recipes
+                    </Button>
                   </div>
-                ))}
-              </div>
+                )}
+              </section>
+
+              <section>
+                <h3 className={`text-base md:text-lg font-semibold mb-4 text-text`}>Suggested Recipes</h3>
+                <div className="grid grid-cols-2 gap-2 md:gap-3">
+                  {suggestedRecipes.slice(0, 20).map((recipe) => (
+                    <div
+                      key={recipe.id}
+                      className="group relative cursor-pointer"
+                      draggable={!isMobile}
+                      onDragStart={() => !isMobile && handleDragStart(recipe)}
+                      onClick={() => isMobile && addToMealPlan(recipe, "breakfast", weekDates[0])}
+                    >
+                      <img
+                        src={recipe.image_url || "/placeholder.svg?height=100&width=150"}
+                        alt={recipe.title}
+                        className="w-full h-20 md:h-24 object-cover rounded-lg"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
+                        <p className="text-white text-xs opacity-0 group-hover:opacity-100 text-center px-2">
+                          {isMobile ? "Tap to add" : "Drag to add"}
+                        </p>
+                      </div>
+                      <p className={`text-xs mt-1 line-clamp-2 text-text`}>{recipe.title}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           </div>
         )}

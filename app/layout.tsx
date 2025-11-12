@@ -5,6 +5,7 @@ import "./globals.css"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/contexts/theme-context"
 import { Header } from "@/components/header"
+import { ThemeSynchronizer } from "@/components/theme-synchronizer"
 import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { ErrorBoundary } from "@/components/error-boundary"
@@ -29,6 +30,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <ThemeProvider>
             <AuthProvider>
+              <ThemeSynchronizer />
               <Header />
               {children}
               <Toaster />

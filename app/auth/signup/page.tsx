@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 import { ArrowRight } from "lucide-react"
+import { useTheme } from "@/contexts/theme-context"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -23,6 +24,7 @@ export default function SignUpPage() {
   const { signUp } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
+  const { setTheme } = useTheme()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,6 +54,8 @@ export default function SignUpPage() {
           title: "Access Granted",
           description: "Welcome to the circle.",
         })
+        // New users proceed through onboarding in light mode
+        setTheme("light")
         router.push("/onboarding")
       }
     } catch (error) {
