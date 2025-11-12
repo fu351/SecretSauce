@@ -5,10 +5,11 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Calendar, Heart, X, ChevronLeft, ChevronRight, ShoppingCart, ChevronRightIcon, List } from "lucide-react"
+import { Calendar, Heart, X, ChevronLeft, ChevronRight, ShoppingCart, ChevronRightIcon, List, Menu } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
@@ -53,6 +54,7 @@ interface MealPlan {
 export default function MealPlannerPage() {
   const { user } = useAuth()
   const { theme } = useTheme()
+  const isMobile = useIsMobile()
   const { toast } = useToast()
   const [favoriteRecipes, setFavoriteRecipes] = useState<Recipe[]>([])
   const [suggestedRecipes, setSuggestedRecipes] = useState<Recipe[]>([])
@@ -62,7 +64,7 @@ export default function MealPlannerPage() {
   const [weekDates, setWeekDates] = useState<string[]>([])
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date())
   const [draggedRecipe, setDraggedRecipe] = useState<Recipe | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
   const [viewMode, setViewMode] = useState<"by-day" | "by-meal">("by-day")
   const router = useRouter()
 
@@ -402,68 +404,89 @@ export default function MealPlannerPage() {
   }
 
   return (
-    <div className={`h-screen flex ${bgClass}`}>
-      <div className="flex-1 overflow-y-auto p-6">
+    <div className={`min-h-screen flex flex-col md:flex-row ${bgClass}`}>
+      <div className="flex-1 overflow-y-auto p-3 md:p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <h1 className={`text-3xl font-bold ${textClass}`}>Meal Planner</h1>
-              <div className={`flex items-center gap-2 ${cardBgClass} rounded-lg p-1 shadow`}>
-                <Button variant="ghost" size="icon" onClick={goToPreviousWeek}>
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-                <span className={`px-4 text-sm font-medium ${textClass}`}>{formatDate(weekDates[0] || "")}</span>
-                <Button variant="ghost" size="icon" onClick={goToNextWeek}>
-                  <ChevronRight className="h-5 w-5" />
-                </Button>
-              </div>
-              <div className={`flex items-center gap-2 ${cardBgClass} rounded-lg p-1 shadow`}>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 md:mb-6 gap-3 md:gap-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 w-full md:w-auto">
+              <h1 className={`text-2xl md:text-3xl font-bold ${textClass}`}>Meal Planner</h1>
+
+              {/* Mobile: Show sidebar toggle */}
+              {isMobile && (
                 <Button
-                  variant={viewMode === "by-day" ? "default" : "ghost"}
+                  variant="outline"
                   size="sm"
-                  onClick={() => setViewMode("by-day")}
-                  className={viewMode === "by-day" ? buttonClass : ""}
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className={`${buttonOutlineClass} flex items-center gap-2`}
                 >
-                  <Calendar className="h-4 w-4 mr-1" />
-                  By Day
+                  <Menu className="h-4 w-4" />
+                  {sidebarOpen ? "Hide" : "Show"}
                 </Button>
-                <Button
-                  variant={viewMode === "by-meal" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("by-meal")}
-                  className={viewMode === "by-meal" ? buttonClass : ""}
-                >
-                  <List className="h-4 w-4 mr-1" />
-                  By Meal
-                </Button>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <div className={`flex items-center gap-1 md:gap-2 ${cardBgClass} rounded-lg p-1 shadow`}>
+                  <Button variant="ghost" size="icon" onClick={goToPreviousWeek} className="h-8 w-8 md:h-10 md:w-10">
+                    <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+                  </Button>
+                  <span className={`px-2 md:px-4 text-xs md:text-sm font-medium ${textClass}`}>
+                    {formatDate(weekDates[0] || "")}
+                  </span>
+                  <Button variant="ghost" size="icon" onClick={goToNextWeek} className="h-8 w-8 md:h-10 md:w-10">
+                    <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
+                  </Button>
+                </div>
+
+                <div className={`flex items-center gap-1 ${cardBgClass} rounded-lg p-1 shadow`}>
+                  <Button
+                    variant={viewMode === "by-day" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("by-day")}
+                    className={`text-xs md:text-sm ${viewMode === "by-day" ? buttonClass : ""}`}
+                  >
+                    <Calendar className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                    {!isMobile && "By Day"}
+                  </Button>
+                  <Button
+                    variant={viewMode === "by-meal" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("by-meal")}
+                    className={`text-xs md:text-sm ${viewMode === "by-meal" ? buttonClass : ""}`}
+                  >
+                    <List className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                    {!isMobile && "By Meal"}
+                  </Button>
+                </div>
               </div>
             </div>
+
             <Button
-              className={`${isDark ? "bg-green-500 hover:bg-green-600" : "bg-green-500 hover:bg-green-600"} text-white`}
+              size={isMobile ? "sm" : "default"}
+              className={`w-full md:w-auto ${isDark ? "bg-green-500 hover:bg-green-600" : "bg-green-500 hover:bg-green-600"} text-white text-xs md:text-sm`}
               onClick={addToShoppingList}
             >
-              <ShoppingCart className="h-4 w-4 mr-2" />
-              ADD TO SHOPPING LIST
+              <ShoppingCart className="h-3 w-3 md:h-4 md:w-4 mr-2" />
+              {isMobile ? "ADD TO CART" : "ADD TO SHOPPING LIST"}
             </Button>
           </div>
 
           {viewMode === "by-day" ? (
-            <div className="space-y-8">
+            <div className="space-y-4 md:space-y-8">
               {weekDates.slice(0, 7).map((date, dayIndex) => (
-                <div key={date} className={`${cardBgClass} rounded-lg shadow p-6`}>
-                  <div className="flex items-center gap-3 mb-4">
+                <div key={date} className={`${cardBgClass} rounded-lg shadow p-3 md:p-6`}>
+                  <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
                     <div
-                      className={`${isDark ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-gray-100 text-gray-600"} rounded-full w-12 h-12 flex items-center justify-center font-bold`}
+                      className={`${isDark ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-gray-100 text-gray-600"} rounded-full w-10 h-10 md:w-12 md:h-12 flex items-center justify-center font-bold text-sm md:text-base`}
                     >
                       {new Date(date).getDate()}
                     </div>
                     <div>
-                      <h2 className={`text-2xl font-bold ${textClass}`}>{weekdays[dayIndex]}</h2>
-                      <p className={`text-sm ${mutedTextClass}`}>{formatDate(date)}</p>
+                      <h2 className={`text-xl md:text-2xl font-bold ${textClass}`}>{weekdays[dayIndex]}</h2>
+                      <p className={`text-xs md:text-sm ${mutedTextClass}`}>{formatDate(date)}</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
                     {mealTypes.map((mealType) => {
                       const recipe = getMealForSlot(date, mealType.key)
 
@@ -479,7 +502,7 @@ export default function MealPlannerPage() {
                                 : isDark
                                   ? "border-[#e8dcc4]/20 bg-[#181813]"
                                   : "border-gray-200 bg-gray-50"
-                            } min-h-[180px] transition-colors`}
+                            } min-h-[150px] md:min-h-[180px] transition-colors`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDrop(e, mealType.key, date)}
                           >
@@ -488,22 +511,22 @@ export default function MealPlannerPage() {
                                 <img
                                   src={recipe.image_url || "/placeholder.svg?height=180&width=300"}
                                   alt={recipe.title}
-                                  className="w-full h-40 object-cover rounded-lg"
+                                  className="w-full h-32 md:h-40 object-cover rounded-lg"
                                 />
                                 <button
                                   onClick={() => removeFromMealPlan(mealType.key, date)}
                                   className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
-                                  <X className="h-4 w-4" />
+                                  <X className="h-3 w-3 md:h-4 md:w-4" />
                                 </button>
-                                <div className="p-3">
-                                  <h4 className={`font-semibold text-sm mb-2 line-clamp-2 ${textClass}`}>
+                                <div className="p-2 md:p-3">
+                                  <h4 className={`font-semibold text-xs md:text-sm mb-2 line-clamp-2 ${textClass}`}>
                                     {recipe.title}
                                   </h4>
-                                  {recipe.nutrition && (
-                                    <div className="grid grid-cols-4 gap-2 text-xs">
+                                  {recipe.nutrition && !isMobile && (
+                                    <div className="grid grid-cols-4 gap-1 md:gap-2 text-xs">
                                       <div>
-                                        <div className={mutedTextClass}>CALORIES</div>
+                                        <div className={mutedTextClass}>CAL</div>
                                         <div className={`font-semibold ${textClass}`}>
                                           {recipe.nutrition.calories || "-"}
                                         </div>
@@ -515,13 +538,13 @@ export default function MealPlannerPage() {
                                         </div>
                                       </div>
                                       <div>
-                                        <div className={mutedTextClass}>PROTEIN</div>
+                                        <div className={mutedTextClass}>PRO</div>
                                         <div className={`font-semibold ${textClass}`}>
                                           {recipe.nutrition.protein ? `${recipe.nutrition.protein}g` : "-"}
                                         </div>
                                       </div>
                                       <div>
-                                        <div className={mutedTextClass}>CARBS</div>
+                                        <div className={mutedTextClass}>CARB</div>
                                         <div className={`font-semibold ${textClass}`}>
                                           {recipe.nutrition.carbs ? `${recipe.nutrition.carbs}g` : "-"}
                                         </div>
@@ -531,8 +554,10 @@ export default function MealPlannerPage() {
                                 </div>
                               </div>
                             ) : (
-                              <div className={`flex items-center justify-center h-full ${mutedTextClass} text-sm`}>
-                                Drag recipe here
+                              <div
+                                className={`flex items-center justify-center h-full ${mutedTextClass} text-xs md:text-sm px-2 text-center`}
+                              >
+                                {isMobile ? "Tap recipe below" : "Drag recipe here"}
                               </div>
                             )}
                           </div>
@@ -610,44 +635,74 @@ export default function MealPlannerPage() {
         </div>
       </div>
 
+      {isMobile && sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />
+      )}
+
       <div
         className={`${
-          sidebarOpen ? "w-96" : "w-12"
+          isMobile
+            ? sidebarOpen
+              ? "fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 shadow-2xl"
+              : "hidden"
+            : sidebarOpen
+              ? "w-80 md:w-96"
+              : "w-0 overflow-hidden"
         } ${cardBgClass} border-l flex-shrink-0 transition-all duration-300 relative`}
       >
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className={`absolute left-0 top-20 -translate-x-1/2 ${cardBgClass} border rounded-full p-1.5 shadow-lg z-20 hover:bg-opacity-80`}
-          style={{ marginLeft: "-2px" }}
-        >
-          <ChevronRightIcon className={`h-4 w-4 transition-transform ${sidebarOpen ? "rotate-180" : ""}`} />
-        </button>
+        {!isMobile && (
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`absolute -left-8 top-4 ${cardBgClass} border rounded-lg p-2 shadow-lg z-20 hover:bg-opacity-80 transition-all ${
+              sidebarOpen ? "" : "left-0"
+            }`}
+            aria-label={sidebarOpen ? "Hide recipes sidebar" : "Show recipes sidebar"}
+            title={sidebarOpen ? "Hide recipes" : "Show recipes"}
+          >
+            <div className="flex flex-col items-center gap-1">
+              <ChevronRightIcon
+                className={`h-5 w-5 transition-transform ${sidebarOpen ? "rotate-0" : "rotate-180"} ${textClass}`}
+              />
+              {!sidebarOpen && <span className={`text-[10px] font-medium ${textClass}`}>RECIPES</span>}
+            </div>
+          </button>
+        )}
 
         {sidebarOpen && (
-          <div className="p-6 overflow-y-auto h-full" style={{ paddingRight: "1.5rem" }}>
+          <div className="p-4 md:p-6 overflow-y-auto h-full" style={{ paddingRight: "1.5rem" }}>
+            {isMobile && (
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-lg font-semibold ${textClass}`}>Recipes</h3>
+                <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)} className="h-8 w-8 p-0">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-lg font-semibold flex items-center gap-2 ${textClass}`}>
-                  <Heart className="w-5 h-5 text-red-500" />
+                <h3 className={`text-base md:text-lg font-semibold flex items-center gap-2 ${textClass}`}>
+                  <Heart className="w-4 h-4 md:w-5 md:h-5 text-red-500" />
                   Favorites ({favoriteRecipes.length})
                 </h3>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 md:gap-3">
                 {favoriteRecipes.slice(0, 6).map((recipe) => (
                   <div
                     key={recipe.id}
-                    className="cursor-move group relative"
-                    draggable
-                    onDragStart={() => handleDragStart(recipe)}
+                    className="group relative cursor-pointer"
+                    draggable={!isMobile}
+                    onDragStart={() => !isMobile && handleDragStart(recipe)}
+                    onClick={() => isMobile && addToMealPlan(recipe, "breakfast", weekDates[0])}
                   >
                     <img
                       src={recipe.image_url || "/placeholder.svg?height=100&width=150"}
                       alt={recipe.title}
-                      className="w-full h-24 object-cover rounded-lg"
+                      className="w-full h-20 md:h-24 object-cover rounded-lg"
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
                       <p className="text-white text-xs opacity-0 group-hover:opacity-100 text-center px-2">
-                        Drag to add
+                        {isMobile ? "Tap to add" : "Drag to add"}
                       </p>
                     </div>
                     <p className={`text-xs mt-1 line-clamp-2 ${textClass}`}>{recipe.title}</p>
@@ -655,7 +710,7 @@ export default function MealPlannerPage() {
                 ))}
               </div>
               {favoriteRecipes.length === 0 && (
-                <div className="text-center py-8">
+                <div className="text-center py-6 md:py-8">
                   <p className={`${mutedTextClass} text-sm mb-3`}>No favorites yet</p>
                   <Button
                     variant="outline"
@@ -670,23 +725,24 @@ export default function MealPlannerPage() {
             </div>
 
             <div>
-              <h3 className={`text-lg font-semibold mb-4 ${textClass}`}>Suggested Recipes</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <h3 className={`text-base md:text-lg font-semibold mb-4 ${textClass}`}>Suggested Recipes</h3>
+              <div className="grid grid-cols-2 gap-2 md:gap-3">
                 {suggestedRecipes.slice(0, 20).map((recipe) => (
                   <div
                     key={recipe.id}
-                    className="cursor-move group relative"
-                    draggable
-                    onDragStart={() => handleDragStart(recipe)}
+                    className="group relative cursor-pointer"
+                    draggable={!isMobile}
+                    onDragStart={() => !isMobile && handleDragStart(recipe)}
+                    onClick={() => isMobile && addToMealPlan(recipe, "breakfast", weekDates[0])}
                   >
                     <img
                       src={recipe.image_url || "/placeholder.svg?height=100&width=150"}
                       alt={recipe.title}
-                      className="w-full h-24 object-cover rounded-lg"
+                      className="w-full h-20 md:h-24 object-cover rounded-lg"
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
                       <p className="text-white text-xs opacity-0 group-hover:opacity-100 text-center px-2">
-                        Drag to add
+                        {isMobile ? "Tap to add" : "Drag to add"}
                       </p>
                     </div>
                     <p className={`text-xs mt-1 line-clamp-2 ${textClass}`}>{recipe.title}</p>

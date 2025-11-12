@@ -6,9 +6,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useEffect, useState, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
-import { ArrowRight, Search, Clock, Users, ChefHat, Heart, Calendar, ShoppingCart } from "lucide-react"
+import { ArrowRight, Search } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
 
 interface Recipe {
@@ -35,19 +36,13 @@ interface Recipe {
 export default function HomePage() {
   const { user, loading } = useAuth()
   const { theme } = useTheme()
+  const isMobile = useIsMobile()
   const [mounted, setMounted] = useState(false)
   const [isFirstVisit, setIsFirstVisit] = useState(true)
   const [popularRecipes, setPopularRecipes] = useState<Recipe[]>([])
   const [loadingRecipes, setLoadingRecipes] = useState(true)
-  const [userStats, setUserStats] = useState({
-    totalRecipes: 0,
-    favoriteRecipes: 0,
-    mealPlansThisWeek: 0,
-    pantryItems: 0,
-  })
 
   const fetchingRecipes = useRef(false)
-  const fetchingStats = useRef(false)
   const isMounted = useRef(true)
 
   useEffect(() => {
@@ -73,12 +68,6 @@ export default function HomePage() {
       fetchPopularRecipes()
     }
   }, [isFirstVisit])
-
-  useEffect(() => {
-    if (user && isMounted.current && !fetchingStats.current) {
-      fetchUserStats()
-    }
-  }, [user])
 
   const fetchPopularRecipes = async () => {
     if (fetchingRecipes.current || !isMounted.current) return
@@ -108,49 +97,16 @@ export default function HomePage() {
     }
   }
 
-  const fetchUserStats = async () => {
-    if (!user || fetchingStats.current || !isMounted.current) return
-
-    fetchingStats.current = true
-
-    try {
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-
-      const [recipesResult, favoritesResult, mealPlansResult, pantryResult] = await Promise.all([
-        supabase.from("recipes").select("id", { count: "exact", head: true }).eq("author_id", user.id),
-        supabase.from("recipe_favorites").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase
-          .from("meal_plans")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .gte("week_start", weekAgo),
-        supabase.from("pantry_items").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-      ])
-
-      if (isMounted.current) {
-        setUserStats({
-          totalRecipes: recipesResult.count || 0,
-          favoriteRecipes: favoritesResult.count || 0,
-          mealPlansThisWeek: mealPlansResult.count || 0,
-          pantryItems: pantryResult.count || 0,
-        })
-      }
-    } catch (error) {
-      console.error("Error fetching user stats:", error)
-    } finally {
-      fetchingStats.current = false
-    }
-  }
-
   if (loading) {
     return (
-      <div
-        className={`min-h-screen flex items-center justify-center ${
-          theme === "dark" ? "bg-[#181813]" : "bg-background"
-        }`}
-      >
+      <div className={`min-h-screen flex items-center justify-center bg-background`}>
         <div className="animate-pulse">
-          <Image src={theme === "dark" ? "/logo-dark.png" : "/logo.png"} alt="Secret Sauce" width={120} height={120} />
+          <Image
+            src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
+            alt="Secret Sauce"
+            width={120}
+            height={120}
+          />
         </div>
       </div>
     )
@@ -159,8 +115,8 @@ export default function HomePage() {
   if (isFirstVisit && !user) {
     return (
       <main
-        className={`min-h-screen flex items-center justify-center px-6 relative overflow-hidden ${
-          theme === "dark" ? "bg-[#181813] text-[#e8dcc4]" : "bg-background text-foreground"
+        className={`min-h-screen flex items-center justify-center px-4 md:px-6 relative overflow-hidden ${
+          theme === "dark" ? "bg-background text-foreground" : "bg-background text-foreground"
         }`}
       >
         <div className="absolute inset-0 opacity-[0.015]">
@@ -178,34 +134,35 @@ export default function HomePage() {
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
-          <div className="mb-12 flex justify-center">
+          <div className="mb-8 md:mb-12 flex justify-center mt-6 md:mt-0">
             <Image
-              src={theme === "dark" ? "/logo-dark.png" : "/logo.png"}
+              src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
               alt="Secret Sauce"
-              width={160}
-              height={160}
+              width={isMobile ? 100 : 120}
+              height={isMobile ? 100 : 120}
               className="opacity-90"
+              priority
             />
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-serif mb-6 tracking-tight font-light leading-tight">
+          <h1 className="text-3xl md:text-4xl lg:text-6xl font-serif mb-4 md:mb-6 tracking-tight font-light leading-tight">
             The secret to better meals
           </h1>
 
           <p
-            className={`text-base md:text-lg mb-12 font-light tracking-wide ${
-              theme === "dark" ? "text-[#e8dcc4]/40" : "text-muted-foreground"
+            className={`text-sm md:text-base lg:text-lg mb-8 md:mb-12 font-light tracking-wide ${
+              theme === "dark" ? "text-foreground/40" : "text-muted-foreground"
             }`}
           >
             Save your health, money, and time
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center items-center">
             <Button
-              size="lg"
-              className={`px-10 py-6 text-base font-normal transition-all duration-300 ${
+              size={isMobile ? "default" : "lg"}
+              className={`w-full sm:w-auto px-8 md:px-10 py-4 md:py-6 text-sm md:text-base font-normal transition-all duration-300 ${
                 theme === "dark"
-                  ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] shadow-lg shadow-[#e8dcc4]/10"
+                  ? "bg-foreground text-background hover:bg-foreground/90 shadow-lg shadow-background/10"
                   : "bg-primary text-primary-foreground hover:bg-primary/90"
               }`}
               asChild
@@ -216,11 +173,11 @@ export default function HomePage() {
               </Link>
             </Button>
             <Button
-              size="lg"
+              size={isMobile ? "default" : "lg"}
               variant="ghost"
-              className={`px-10 py-6 text-base font-light transition-all duration-300 ${
+              className={`w-full sm:w-auto px-8 md:px-10 py-4 md:py-6 text-sm md:text-base font-light transition-all duration-300 ${
                 theme === "dark"
-                  ? "text-[#e8dcc4]/60 hover:text-[#e8dcc4] hover:bg-transparent border border-[#e8dcc4]/10 hover:border-[#e8dcc4]/30"
+                  ? "text-foreground/60 hover:text-foreground hover:bg-transparent border border-background/20 hover:border-background/30"
                   : "text-muted-foreground hover:text-foreground border border-border hover:border-foreground/30"
               }`}
               asChild
@@ -233,7 +190,7 @@ export default function HomePage() {
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
           <p
             className={`text-xs font-light tracking-[0.2em] ${
-              theme === "dark" ? "text-[#e8dcc4]/20" : "text-muted-foreground/30"
+              theme === "dark" ? "text-foreground/20" : "text-muted-foreground/30"
             }`}
           >
             SECRET SAUCE
@@ -244,38 +201,36 @@ export default function HomePage() {
   }
 
   return (
-    <div className={theme === "dark" ? "min-h-screen bg-[#181813]" : "min-h-screen bg-background"}>
+    <div className="min-h-screen bg-background">
       {!user && (
-        <header
-          className={`border-b ${
-            theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-background border-border"
-          }`}
-        >
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <header className="border-b bg-background border-border">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
             <div className="flex items-center">
               <Image
-                src={theme === "dark" ? "/logo-dark.png" : "/logo.png"}
+                src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
                 alt="Secret Sauce"
-                width={50}
-                height={50}
-                className="cursor-pointer"
+                width={40}
+                height={40}
+                className="cursor-pointer md:w-[50px] md:h-[50px]"
               />
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
+                size={isMobile ? "sm" : "default"}
                 asChild
                 className={
-                  theme === "dark" ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-foreground hover:bg-accent"
+                  theme === "dark" ? "text-foreground hover:bg-background/10" : "text-foreground hover:bg-accent"
                 }
               >
                 <Link href="/auth/signin">Sign In</Link>
               </Button>
               <Button
+                size={isMobile ? "sm" : "default"}
                 asChild
                 className={
                   theme === "dark"
-                    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                    ? "bg-foreground text-background hover:bg-foreground/90"
                     : "bg-primary text-primary-foreground hover:bg-primary/90"
                 }
               >
@@ -286,187 +241,46 @@ export default function HomePage() {
         </header>
       )}
 
-      <div className="max-w-7xl mx-auto p-6">
-        {user && (
-          <section className="mb-12">
-            <div className="mb-8">
-              <h2
-                className={`text-3xl font-serif font-light mb-2 ${
-                  theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"
-                }`}
-              >
-                Welcome back, {user.email?.split("@")[0]}!
-              </h2>
-              <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
-                Here's what's cooking in your kitchen
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Link href="/recipes" className="block">
-                <Card
-                  className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${
-                    theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"
-                  }`}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <ChefHat className={`h-8 w-8 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`} />
-                      <span className={`text-xs ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-muted-foreground"}`}>
-                        Your Recipes
-                      </span>
-                    </div>
-                    <p className={`text-3xl font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
-                      {userStats.totalRecipes}
-                    </p>
-                    <p className={`text-sm mt-1 ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}>
-                      Recipes created
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-
-              <Link href="/favorites" className="block">
-                <Card
-                  className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${
-                    theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"
-                  }`}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <Heart className="h-8 w-8 text-red-400" />
-                      <span className={`text-xs ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-muted-foreground"}`}>
-                        Favorites
-                      </span>
-                    </div>
-                    <p className={`text-3xl font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
-                      {userStats.favoriteRecipes}
-                    </p>
-                    <p className={`text-sm mt-1 ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}>
-                      Saved recipes
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-
-              <Link href="/meal-planner" className="block">
-                <Card
-                  className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${
-                    theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"
-                  }`}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <Calendar className="h-8 w-8 text-blue-400" />
-                      <span className={`text-xs ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-muted-foreground"}`}>
-                        Meal Plans
-                      </span>
-                    </div>
-                    <p className={`text-3xl font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
-                      {userStats.mealPlansThisWeek}
-                    </p>
-                    <p className={`text-sm mt-1 ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}>
-                      Meals this week
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-
-              <Link href="/pantry" className="block">
-                <Card
-                  className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${
-                    theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"
-                  }`}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <ShoppingCart className="h-8 w-8 text-green-400" />
-                      <span className={`text-xs ${theme === "dark" ? "text-[#e8dcc4]/50" : "text-muted-foreground"}`}>
-                        Pantry Items
-                      </span>
-                    </div>
-                    <p className={`text-3xl font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
-                      {userStats.pantryItems}
-                    </p>
-                    <p className={`text-sm mt-1 ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}>
-                      Items in stock
-                    </p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </div>
-          </section>
-        )}
-
-        <div className="text-center mb-12 py-12">
-          <h1
-            className={`text-5xl md:text-6xl font-serif font-light mb-4 ${
-              theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"
-            }`}
-          >
+      <div className="max-w-7xl mx-auto p-4 md:p-6">
+        <div className="text-center mb-8 md:mb-12 py-8 md:py-12">
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-light mb-3 md:mb-4 px-4 text-foreground">
             Discover Amazing Recipes
           </h1>
-          <p
-            className={`text-xl mb-8 max-w-2xl mx-auto ${
-              theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"
-            }`}
-          >
+          <p className="text-base md:text-xl mb-6 md:mb-8 max-w-2xl mx-auto px-4 text-muted-foreground">
             Browse our collection of delicious recipes, plan your meals, and save money on groceries
           </p>
-          <div className="flex gap-4 justify-center">
-            <Button
-              size="lg"
-              asChild
-              className={
-                theme === "dark"
-                  ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
-                  : "bg-primary text-primary-foreground hover:bg-primary/90"
-              }
-            >
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center px-4">
+            <Button size={isMobile ? "default" : "lg"} asChild>
               <Link href="/recipes">
                 <Search className="h-4 w-4 mr-2" />
                 Browse All Recipes
               </Link>
             </Button>
             {user ? (
-              <Button
-                size="lg"
-                variant="outline"
-                asChild
-                className={
-                  theme === "dark"
-                    ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 bg-transparent"
-                    : "border-border text-foreground hover:bg-accent"
-                }
-              >
+              <Button size={isMobile ? "default" : "lg"} variant="outline" asChild>
                 <Link href="/dashboard">Go to Dashboard</Link>
               </Button>
             ) : (
-              <Button
-                size="lg"
-                variant="outline"
-                asChild
-                className={
-                  theme === "dark"
-                    ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 bg-transparent"
-                    : "border-border text-foreground hover:bg-accent"
-                }
-              >
+              <Button size={isMobile ? "default" : "lg"} variant="outline" asChild>
                 <Link href="/auth/signup">Sign Up Free</Link>
               </Button>
             )}
           </div>
         </div>
 
-        <div className="mb-12">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className={`text-3xl font-serif font-light ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+        <div className="mb-8 md:mb-12">
+          <div className="flex items-center justify-between mb-6 md:mb-8">
+            <h2
+              className={`text-3xl font-serif font-light ${theme === "dark" ? "text-foreground" : "text-foreground"}`}
+            >
               Popular Recipes
             </h2>
             <Button
               variant="ghost"
               asChild
-              className={theme === "dark" ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-foreground hover:bg-accent"}
+              className={
+                theme === "dark" ? "text-foreground hover:bg-background/10" : "text-foreground hover:bg-accent"
+              }
             >
               <Link href="/recipes">View All →</Link>
             </Button>
@@ -478,7 +292,7 @@ export default function HomePage() {
                 <div
                   key={i}
                   className={`rounded-lg p-4 animate-pulse ${
-                    theme === "dark" ? "bg-[#1f1e1a] border border-[#e8dcc4]/20" : "bg-card border border-border"
+                    theme === "dark" ? "bg-[#1f1e1a] border border-background/20" : "bg-card border border-border"
                   }`}
                 >
                   <div className="bg-gray-700 h-48 rounded-lg mb-4"></div>
@@ -507,9 +321,9 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <Card className={theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}>
+            <Card className={theme === "dark" ? "bg-[#1f1e1a] border-background/20" : "bg-card border-border"}>
               <CardContent className="p-12 text-center">
-                <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+                <p className={theme === "dark" ? "text-foreground/70" : "text-muted-foreground"}>
                   No recipes available yet. Check back soon!
                 </p>
               </CardContent>
@@ -517,56 +331,56 @@ export default function HomePage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 mb-8 md:mb-12">
+          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-background/20" : "bg-card border-border"}>
             <CardContent className="p-6 text-center">
               <div
                 className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                  theme === "dark" ? "bg-[#e8dcc4]/20" : "bg-accent"
+                  theme === "dark" ? "bg-background/20" : "bg-accent"
                 }`}
               >
-                <Search className={`h-6 w-6 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`} />
+                <Search className={`h-6 w-6 ${theme === "dark" ? "text-foreground" : "text-foreground"}`} />
               </div>
-              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>
                 Discover Recipes
               </h3>
-              <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+              <p className={theme === "dark" ? "text-foreground/70" : "text-muted-foreground"}>
                 Browse thousands of recipes from around the world
               </p>
             </CardContent>
           </Card>
 
-          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}>
+          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-background/20" : "bg-card border-border"}>
             <CardContent className="p-6 text-center">
               <div
                 className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                  theme === "dark" ? "bg-[#e8dcc4]/20" : "bg-accent"
+                  theme === "dark" ? "bg-background/20" : "bg-accent"
                 }`}
               >
-                <Clock className={`h-6 w-6 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`} />
+                <span className={`h-6 w-6 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>Clock</span>
               </div>
-              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>
                 Plan Your Meals
               </h3>
-              <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+              <p className={theme === "dark" ? "text-foreground/70" : "text-muted-foreground"}>
                 Organize your weekly meals with our meal planner
               </p>
             </CardContent>
           </Card>
 
-          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}>
+          <Card className={theme === "dark" ? "bg-[#1f1e1a] border-background/20" : "bg-card border-border"}>
             <CardContent className="p-6 text-center">
               <div
                 className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                  theme === "dark" ? "bg-[#e8dcc4]/20" : "bg-accent"
+                  theme === "dark" ? "bg-background/20" : "bg-accent"
                 }`}
               >
-                <Users className={`h-6 w-6 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`} />
+                <span className={`h-6 w-6 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>Users</span>
               </div>
-              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"}`}>
+              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}>
                 Save Money
               </h3>
-              <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}>
+              <p className={theme === "dark" ? "text-foreground/70" : "text-muted-foreground"}>
                 Compare grocery prices and find the best deals
               </p>
             </CardContent>
@@ -575,19 +389,15 @@ export default function HomePage() {
 
         {!user && (
           <Card
-            className={`text-center ${theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-card border-border"}`}
+            className={`text-center ${theme === "dark" ? "bg-[#1f1e1a] border-background/20" : "bg-card border-border"}`}
           >
             <CardContent className="p-12">
               <h2
-                className={`text-3xl font-serif font-light mb-4 ${
-                  theme === "dark" ? "text-[#e8dcc4]" : "text-foreground"
-                }`}
+                className={`text-3xl font-serif font-light mb-4 ${theme === "dark" ? "text-foreground" : "text-foreground"}`}
               >
                 Ready to start cooking?
               </h2>
-              <p
-                className={`mb-6 max-w-2xl mx-auto ${theme === "dark" ? "text-[#e8dcc4]/70" : "text-muted-foreground"}`}
-              >
+              <p className="mb-6 max-w-2xl mx-auto text-muted-foreground">
                 Join thousands of home cooks who are saving time and money with Secret Sauce
               </p>
               <Button
@@ -595,7 +405,7 @@ export default function HomePage() {
                 asChild
                 className={
                   theme === "dark"
-                    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                    ? "bg-foreground text-background hover:bg-foreground/90"
                     : "bg-primary text-primary-foreground hover:bg-primary/90"
                 }
               >

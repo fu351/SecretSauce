@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
+import { useIsMobile } from "@/hooks/use-mobile"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
@@ -19,6 +20,7 @@ import Image from "next/image"
 export function Header() {
   const { user, profile, signOut } = useAuth()
   const { theme } = useTheme()
+  const isMobile = useIsMobile()
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
@@ -62,22 +64,20 @@ export function Header() {
   }
 
   return (
-    <header
-      className={`flex items-center justify-between px-6 py-4 border-b ${
-        isDark ? "bg-[#181813] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900"
-      }`}
-    >
+    <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b bg-background border-border">
       <div className="flex items-center">
         <Link href="/">
-          {isDark ? (
-            <Image src="/logo-dark.png" alt="Secret Sauce" width={50} height={50} className="cursor-pointer" />
-          ) : (
-            <Image src="/logo-warm.png" alt="Secret Sauce" width={50} height={50} className="cursor-pointer" />
-          )}
+          <Image
+            src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
+            alt="Secret Sauce"
+            width={isMobile ? 32 : 40}
+            height={isMobile ? 32 : 40}
+            className="cursor-pointer"
+          />
         </Link>
       </div>
 
-      <nav className="hidden md:flex items-center gap-6">
+      <nav className="hidden md:flex items-center gap-4 lg:gap-6">
         <Link
           href="/recipes"
           className={`hover:opacity-80 ${
@@ -104,46 +104,39 @@ export function Header() {
         </Link>
       </nav>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         {user ? (
           <>
-            {/* Quick Action Icons */}
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={`hidden md:flex ${isDark ? "hover:bg-[#e8dcc4]/10" : ""}`}
-            >
-              <Link href="/favorites">
-                <Heart className="h-5 w-5" />
-              </Link>
-            </Button>
+            {/* Quick Action Icons - Desktop only */}
+            {!isMobile && (
+              <>
+                <Button variant="ghost" size="icon" asChild className={isDark ? "hover:bg-[#e8dcc4]/10" : ""}>
+                  <Link href="/favorites">
+                    <Heart className="h-5 w-5" />
+                  </Link>
+                </Button>
 
-            {/* Only show shopping cart if not on shopping page */}
-            {!pathname.includes("/shopping") && (
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                className={`hidden md:flex ${isDark ? "hover:bg-[#e8dcc4]/10" : ""}`}
-              >
-                <Link href="/shopping">
-                  <ShoppingCart className="h-5 w-5" />
-                </Link>
-              </Button>
+                {!pathname.includes("/shopping") && (
+                  <Button variant="ghost" size="icon" asChild className={isDark ? "hover:bg-[#e8dcc4]/10" : ""}>
+                    <Link href="/shopping">
+                      <ShoppingCart className="h-5 w-5" />
+                    </Link>
+                  </Button>
+                )}
+              </>
             )}
 
-            {/* Highlighted Upload Button - only show when not on upload page */}
-            {showUploadButton && (
+            {/* Highlighted Upload Button */}
+            {showUploadButton && !isMobile && (
               <Link href="/upload-recipe">
                 <button
-                  className={`relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold transition-all duration-200 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 ${
+                  className={`relative inline-flex items-center justify-center px-4 md:px-6 py-2 md:py-2.5 text-xs md:text-sm font-semibold transition-all duration-200 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 ${
                     isDark
                       ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] focus:ring-[#e8dcc4]"
                       : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 focus:ring-orange-500"
                   }`}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                   Add Recipe
                 </button>
               </Link>
@@ -224,18 +217,24 @@ export function Header() {
           </>
         ) : (
           <div className="flex items-center gap-2">
-            <Button variant="ghost" asChild className={isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : ""}>
+            <Button
+              variant="ghost"
+              size={isMobile ? "sm" : "default"}
+              asChild
+              className={isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : ""}
+            >
               <Link href="/auth/signin">Sign In</Link>
             </Button>
             <Button
+              size={isMobile ? "sm" : "default"}
               asChild
               className={
                 isDark
                   ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
-                  : "bg-orange-500 hover:bg-orange-600 text-white"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
               }
             >
-              <Link href="/auth/signup">Get Started</Link>
+              <Link href="/auth/signup">{isMobile ? "Sign Up" : "Get Started"}</Link>
             </Button>
           </div>
         )}

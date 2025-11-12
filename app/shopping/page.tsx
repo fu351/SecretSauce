@@ -486,22 +486,19 @@ export default function ShoppingPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className={`grid w-full grid-cols-3 ${theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : ""}`}>
+          <TabsList className="grid w-full grid-cols-3 bg-white">
             <TabsTrigger
               value="search"
-              className={theme === "dark" ? "data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]" : ""}
+              className={`data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]`}
             >
               Price Search
             </TabsTrigger>
-            <TabsTrigger
-              value="list"
-              className={theme === "dark" ? "data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]" : ""}
-            >
+            <TabsTrigger value="list" className={`data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]`}>
               Shopping List
             </TabsTrigger>
             <TabsTrigger
               value="comparison"
-              className={theme === "dark" ? "data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]" : ""}
+              className={`data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]`}
             >
               Store Comparison
             </TabsTrigger>

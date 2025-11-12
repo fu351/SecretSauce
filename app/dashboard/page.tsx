@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ChefHat, Heart, Calendar, ShoppingCart } from "lucide-react"
+import { ChefHat, Heart, Calendar, ShoppingCart, Plus } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { format, startOfWeek } from "date-fns"
+import { RecipeCard } from "@/components/recipe-card"
 
 interface DashboardStats {
   totalRecipes: number
@@ -116,90 +116,98 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${bgClass}`}>
-        <div
-          className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDark ? "border-[#e8dcc4]" : "border-orange-500"}`}
-        ></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
-    <div className={`min-h-screen ${bgClass}`}>
-      <div className="max-w-7xl mx-auto p-6">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto p-4 md:p-6">
         <div className="mb-8">
-          <h1 className={`text-3xl font-bold mb-2 ${textClass}`}>Dashboard</h1>
-          <p className={mutedTextClass}>Welcome back! Here's your cooking overview.</p>
+          <h2 className="text-3xl font-serif font-light mb-2 text-foreground">
+            Welcome back, {user?.email?.split("@")[0]}!
+          </h2>
+          <p className="text-muted-foreground">Here's what's cooking in your kitchen</p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className={cardBgClass}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`text-sm font-medium ${textClass}`}>Your Recipes</CardTitle>
-              <ChefHat className={`h-4 w-4 ${isDark ? "text-[#e8dcc4]" : "text-orange-500"}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${textClass}`}>{stats.totalRecipes}</div>
-              <p className={`text-xs mt-1 ${mutedTextClass}`}>Recipes created</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+          <Link href="/your-recipes" className="block">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <ChefHat className="h-8 w-8 text-primary" />
+                  <span className="text-xs text-muted-foreground">Your Recipes</span>
+                </div>
+                <p className="text-3xl font-bold text-foreground">{stats.totalRecipes}</p>
+                <p className="text-sm mt-1 text-muted-foreground">Recipes created</p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className={cardBgClass}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`text-sm font-medium ${textClass}`}>Favorites</CardTitle>
-              <Heart className={`h-4 w-4 ${isDark ? "text-[#e8dcc4]" : "text-red-500"}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${textClass}`}>{stats.favoriteRecipes}</div>
-              <p className={`text-xs mt-1 ${mutedTextClass}`}>Saved recipes</p>
-            </CardContent>
-          </Card>
+          <Link href="/favorites" className="block">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <Heart className="h-8 w-8 text-red-500" />
+                  <span className="text-xs text-muted-foreground">Favorites</span>
+                </div>
+                <p className="text-3xl font-bold text-foreground">{stats.favoriteRecipes}</p>
+                <p className="text-sm mt-1 text-muted-foreground">Saved recipes</p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className={cardBgClass}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`text-sm font-medium ${textClass}`}>Meal Plan</CardTitle>
-              <Calendar className={`h-4 w-4 ${isDark ? "text-[#e8dcc4]" : "text-blue-500"}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${textClass}`}>{stats.plannedMeals}</div>
-              <p className={`text-xs mt-1 ${mutedTextClass}`}>Meals this week</p>
-            </CardContent>
-          </Card>
+          <Link href="/meal-planner" className="block">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <Calendar className="h-8 w-8 text-blue-500" />
+                  <span className="text-xs text-muted-foreground">Meal Plan</span>
+                </div>
+                <p className="text-3xl font-bold text-foreground">{stats.plannedMeals}</p>
+                <p className="text-sm mt-1 text-muted-foreground">Meals this week</p>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className={cardBgClass}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`text-sm font-medium ${textClass}`}>Shopping List</CardTitle>
-              <ShoppingCart className={`h-4 w-4 ${isDark ? "text-[#e8dcc4]" : "text-green-500"}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${textClass}`}>{stats.shoppingItems}</div>
-              <p className={`text-xs mt-1 ${mutedTextClass}`}>Items to buy</p>
-            </CardContent>
-          </Card>
+          <Link href="/shopping" className="block">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <ShoppingCart className="h-8 w-8 text-green-500" />
+                  <span className="text-xs text-muted-foreground">Shopping List</span>
+                </div>
+                <p className="text-3xl font-bold text-foreground">{stats.shoppingItems}</p>
+                <p className="text-sm mt-1 text-muted-foreground">Items to buy</p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* Quick Actions */}
-        <Card className={`mb-8 ${cardBgClass}`}>
+        <Card className="mb-8 border-border bg-card">
           <CardHeader>
-            <CardTitle className={textClass}>Quick Actions</CardTitle>
+            <CardTitle className="text-foreground">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Link href="/upload-recipe">
-                <Button className={`w-full h-24 flex flex-col gap-2 ${quickActionButtonClass}`}>
-                  <ChefHat className="h-6 w-6" />
-                  <span>Upload Recipe</span>
+                <Button className="w-full h-24 flex flex-col gap-2">
+                  <Plus className="h-6 w-6" />
+                  <span>Add Recipe</span>
                 </Button>
               </Link>
               <Link href="/meal-planner">
-                <Button className={`w-full h-24 flex flex-col gap-2 ${quickActionButtonClass}`}>
+                <Button className="w-full h-24 flex flex-col gap-2">
                   <Calendar className="h-6 w-6" />
                   <span>Plan Meals</span>
                 </Button>
               </Link>
               <Link href="/shopping">
-                <Button className={`w-full h-24 flex flex-col gap-2 ${quickActionButtonClass}`}>
+                <Button className="w-full h-24 flex flex-col gap-2">
                   <ShoppingCart className="h-6 w-6" />
                   <span>Shopping List</span>
                 </Button>
@@ -209,12 +217,12 @@ export default function DashboardPage() {
         </Card>
 
         {/* Recent Recipes */}
-        <Card className={cardBgClass}>
+        <Card className="border-border bg-card">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className={textClass}>Recent Recipes</CardTitle>
-              <Link href="/recipes">
-                <Button variant="ghost" size="sm" className={buttonOutlineClass}>
+              <CardTitle className="text-foreground">Recent Recipes</CardTitle>
+              <Link href="/your-recipes">
+                <Button variant="outline" size="sm">
                   View All
                 </Button>
               </Link>
@@ -225,31 +233,16 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {recentRecipes.map((recipe) => (
                   <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
-                    <Card className={`overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${cardBgClass}`}>
-                      <img
-                        src={recipe.image_url || "/placeholder.svg"}
-                        alt={recipe.title}
-                        className="w-full h-40 object-cover"
-                      />
-                      <CardContent className="p-4">
-                        <h3 className={`font-semibold truncate ${textClass}`}>{recipe.title}</h3>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="secondary" className={isDark ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : ""}>
-                            {recipe.difficulty}
-                          </Badge>
-                          <span className={mutedTextClass}>{recipe.prep_time + recipe.cook_time} min</span>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <RecipeCard recipe={recipe} />
                   </Link>
                 ))}
               </div>
             ) : (
               <div className="text-center py-12">
-                <ChefHat className={`h-12 w-12 mx-auto mb-4 ${isDark ? "text-[#e8dcc4]/30" : "text-gray-300"}`} />
-                <p className={mutedTextClass}>No recipes yet. Start by uploading your first recipe!</p>
+                <ChefHat className="h-12 w-12 mx-auto mb-4 text-primary/30" />
+                <p className="text-muted-foreground">No recipes yet. Start by uploading your first recipe!</p>
                 <Link href="/upload-recipe">
-                  <Button className={`mt-4 ${buttonClass}`}>Upload Recipe</Button>
+                  <Button className="mt-4">Upload Recipe</Button>
                 </Link>
               </div>
             )}

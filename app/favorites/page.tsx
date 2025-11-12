@@ -19,6 +19,12 @@ interface FavoriteRecipe {
   difficulty: string
   rating_count: number
   dietary_tags: string[]
+  nutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+  }
   created_at: string
 }
 
@@ -55,6 +61,7 @@ export default function FavoritesPage() {
             difficulty,
             rating_count,
             dietary_tags,
+            nutrition,
             created_at
           )
         `)
@@ -167,6 +174,7 @@ export default function FavoritesPage() {
                     difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                     comments={recipe.rating_count || 0}
                     tags={recipe.dietary_tags || []}
+                    nutrition={recipe.nutrition}
                   />
                 </Link>
               ))}
