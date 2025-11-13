@@ -5,9 +5,21 @@ export async function GET(request: NextRequest) {
   const rawSearchTerm = searchParams.get("searchTerm") || ""
   const sanitizedSearchTerm = (rawSearchTerm.split(",")[0] || "").trim() || rawSearchTerm.trim()
   const zipCode = searchParams.get("zipCode") || "47906"
+  const rawStoreParam = (searchParams.get("store") || "").trim()
+  const storeKey = resolveStoreKey(rawStoreParam)
 
   if (!sanitizedSearchTerm) {
     return NextResponse.json({ error: "Search term is required" }, { status: 400 })
+  }
+
+  if (storeKey) {
+    try {
+      const results = await runStoreSpecificSearch(storeKey, sanitizedSearchTerm, zipCode)
+      return NextResponse.json({ results })
+    } catch (error) {
+      console.error(`Error running ${storeKey} scraper:`, error)
+      return NextResponse.json({ results: [] })
+    }
   }
 
   try {
@@ -201,4 +213,103 @@ function generateMockResults(searchTerm: string, zipCode: string) {
 
   // Sort by price
   return results.sort((a, b) => a.price - b.price)
+}
+
+function resolveStoreKey(storeParam: string) {
+  if (!storeParam) return null
+  const value = storeParam.toLowerCase()
+  if (value.includes("target")) return "target"
+  if (value.includes("kroger")) return "kroger"
+  if (value.includes("meijer")) return "meijer"
+  if (value.includes("99") || value.includes("ranch")) return "99 ranch"
+  if (value.includes("walmart")) return "walmart"
+  return null
+}
+
+async function runStoreSpecificSearch(storeKey: string, searchTerm: string, zipCode: string) {
+  const scrapers = require("@/lib/scrapers")
+
+  const handlers: Record<string, () => Promise<any[]>> = {
+    target: async () => {
+      const items = (await scrapers.getTargetProducts(searchTerm, null, zipCode)) || []
+      return items.map((item: any) => ({
+        id: item.id || `target-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Target",
+        location: "West Lafayette Target",
+        category: item.category,
+      }))
+    },
+    kroger: async () => {
+      const items = (await scrapers.Krogers(zipCode, searchTerm)) || []
+      return items.map((item: any) => ({
+        id: item.id || `kroger-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Kroger",
+        location: item.location || "West Lafayette Kroger",
+        category: item.category,
+      }))
+    },
+    meijer: async () => {
+      const items = (await scrapers.Meijers(zipCode, searchTerm)) || []
+      return items.map((item: any) => ({
+        id: item.id || `meijer-${Math.random()}`,
+        title: item.name || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Meijer",
+        location: "West Lafayette Meijer",
+        category: item.category,
+      }))
+    },
+    "99 ranch": async () => {
+      const items = (await scrapers.search99Ranch(searchTerm, zipCode)) || []
+      return items.map((item: any) => ({
+        id: item.id || `99ranch-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "99 Ranch",
+        location: item.location || "99 Ranch Market",
+        category: item.category,
+      }))
+    },
+    walmart: async () => {
+      const items = (await scrapers.searchWalmartAPI(searchTerm, zipCode)) || []
+      return items.map((item: any) => ({
+        id: item.id || `walmart-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Walmart",
+        location: item.location || "Walmart Store",
+        category: item.category,
+      }))
+    },
+  }
+
+  if (!handlers[storeKey]) {
+    throw new Error(`Unsupported store: ${storeKey}`)
+  }
+
+  return handlers[storeKey]()
 }

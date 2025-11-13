@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ChefHat, SearchIcon, DollarSign, Plus, X, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChefHat, SearchIcon, DollarSign, Plus, X, ShoppingCart, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
@@ -66,6 +66,14 @@ export default function ShoppingPage() {
   const [massSearchResults, setMassSearchResults] = useState<StoreComparison[]>([])
   const [comparisonLoading, setComparisonLoading] = useState(false)
   const [draggedRecipe, setDraggedRecipe] = useState<string | null>(null)
+  const [missingItems, setMissingItems] = useState<ShoppingListItem[]>([])
+  const [itemSearchModalOpen, setItemSearchModalOpen] = useState(false)
+  const [itemSearchModalTerm, setItemSearchModalTerm] = useState("")
+  const [itemSearchModalResults, setItemSearchModalResults] = useState<GroceryItem[]>([])
+  const [itemSearchModalLoading, setItemSearchModalLoading] = useState(false)
+  const [itemSearchSource, setItemSearchSource] = useState<
+    { type: "shopping-list" | "missing" | "search-results"; shoppingItemId?: string; store?: string } | null
+  >(null)
 
   const [carouselIndex, setCarouselIndex] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
@@ -228,6 +236,81 @@ export default function ShoppingPage() {
     })
   }
 
+  const fetchCheapestOptions = async (term: string, storeOverride?: string) => {
+    if (!term.trim()) return
+    setItemSearchModalLoading(true)
+    try {
+      const targetStore = storeOverride ?? itemSearchSource?.store
+      const storeResults = await searchGroceryStores(term, zipCode, targetStore)
+      const flattened = storeResults.flatMap((store) =>
+        store.items.map((item) => ({
+          ...item,
+          provider: item.provider || store.store,
+          location: item.location || store.store,
+        })),
+      )
+      const cheapest = flattened.sort((a, b) => a.price - b.price).slice(0, 10)
+      setItemSearchModalResults(cheapest)
+    } catch (error) {
+      console.error("Item reload error:", error)
+      toast({
+        title: "Reload failed",
+        description: "Unable to refresh options for this item. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setItemSearchModalLoading(false)
+    }
+  }
+
+  const openItemSearchOverlay = (
+    term: string,
+    source: { type: "shopping-list" | "missing" | "search-results"; shoppingItemId?: string; store?: string } | null = null,
+  ) => {
+    const normalizedTerm = term.trim()
+    const storeOverride = source?.store
+    setItemSearchModalTerm(normalizedTerm)
+    setItemSearchSource(source)
+    setItemSearchModalResults([])
+    setItemSearchModalOpen(true)
+    if (normalizedTerm) {
+      fetchCheapestOptions(normalizedTerm, storeOverride)
+    }
+  }
+
+  const handleModalSearch = () => {
+    if (!itemSearchModalTerm.trim()) return
+    fetchCheapestOptions(itemSearchModalTerm.trim(), itemSearchSource?.store)
+  }
+
+  const handleModalSelection = (option: GroceryItem) => {
+    if (itemSearchSource && itemSearchSource.type !== "search-results" && itemSearchSource.shoppingItemId) {
+      const updatedList = shoppingList.map((item) =>
+        item.id === itemSearchSource.shoppingItemId ? { ...item, name: option.title, unit: option.unit || item.unit } : item,
+      )
+      setShoppingList(updatedList)
+      saveShoppingList(updatedList)
+      setMissingItems((prev) => prev.filter((item) => item.id !== itemSearchSource.shoppingItemId))
+      toast({
+        title: "Item updated",
+        description: `${option.title} selected for your shopping list.`,
+      })
+    } else {
+      addToShoppingList(option)
+    }
+    setItemSearchModalOpen(false)
+    setItemSearchSource(null)
+  }
+
+  const handleItemSearchModalChange = (open: boolean) => {
+    setItemSearchModalOpen(open)
+    if (!open) {
+      setItemSearchSource(null)
+      setItemSearchModalResults([])
+      setItemSearchModalTerm("")
+    }
+  }
+
   const addCustomItem = () => {
     if (!newItem.trim()) return
 
@@ -326,6 +409,7 @@ export default function ShoppingPage() {
     }
 
     setComparisonLoading(true)
+    setMissingItems([])
     try {
       const searchPromises = shoppingList.map(async (item) => {
         const storeResults = await searchGroceryStores(item.name, zipCode)
@@ -335,8 +419,15 @@ export default function ShoppingPage() {
       const searchResults = await Promise.all(searchPromises)
 
       const storeMap = new Map<string, StoreComparison>()
+      const missing: ShoppingListItem[] = []
 
       searchResults.forEach(({ item, storeResults }) => {
+        const hasResults = storeResults.some((storeResult) => storeResult.items && storeResult.items.length > 0)
+        if (!hasResults) {
+          missing.push(item)
+          return
+        }
+
         storeResults.forEach((storeResult) => {
           if (!storeMap.has(storeResult.store)) {
             storeMap.set(storeResult.store, {
@@ -370,6 +461,7 @@ export default function ShoppingPage() {
       comparisons.sort((a, b) => a.total - b.total)
 
       setMassSearchResults(comparisons)
+      setMissingItems(missing)
       setActiveTab("comparison")
     } catch (error) {
       console.error("Error performing mass search:", error)
@@ -479,6 +571,27 @@ export default function ShoppingPage() {
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
+      {loading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div
+            className={`mx-4 max-w-md rounded-2xl p-8 text-center shadow-2xl ${
+              theme === "dark" ? "bg-[#1f1e1a] border border-[#e8dcc4]/30 text-[#e8dcc4]" : "bg-white text-gray-900"
+            }`}
+            role="status"
+            aria-live="assertive"
+            aria-label="Grocery search in progress"
+          >
+            <div className="mb-4 flex justify-center">
+              <span className="h-12 w-12 animate-spin rounded-full border-4 border-[#e8dcc4] border-t-transparent"></span>
+            </div>
+            <h2 className="text-2xl font-semibold mb-2">Searching for groceries…</h2>
+            <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"}>
+              Hang tight while we compare prices across nearby stores.
+            </p>
+            <p className="mt-4 text-sm uppercase tracking-wide opacity-70">Buttons disabled to avoid duplicate calls</p>
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8">
           <h1 className={`text-3xl font-serif font-light ${textClass} mb-2`}>Shopping & Price Search</h1>
@@ -621,20 +734,36 @@ export default function ShoppingPage() {
                                 <div className="flex-1 min-w-0">
                                   <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
                                   <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
-                                  <div className="flex items-center justify-between mt-2">
+                                  <div className="flex items-center justify-between mt-2 gap-2">
                                     <div className="text-sm">
                                       <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
                                       {item.pricePerUnit && (
                                         <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>
                                       )}
                                     </div>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => addToShoppingList(item)}
-                                      className={`h-6 px-2 ${buttonClass}`}
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                          openItemSearchOverlay(item.title, {
+                                            type: "search-results",
+                                            store: storeGroup.store,
+                                          })
+                                        }
+                                        className={`h-6 px-2 ${buttonOutlineClass}`}
+                                      >
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                        Reload
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => addToShoppingList(item)}
+                                        className={`h-6 px-2 ${buttonClass}`}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -938,7 +1067,7 @@ export default function ShoppingPage() {
                                       {shoppingItem && (
                                         <p className={`text-xs ${mutedTextClass} mt-1`}>Qty: {shoppingItem.quantity}</p>
                                       )}
-                                      <div className="flex items-center justify-between mt-2">
+                                      <div className="flex items-center justify-between mt-2 gap-2">
                                         <div className="text-sm">
                                           <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
                                           {item.pricePerUnit && (
@@ -950,13 +1079,30 @@ export default function ShoppingPage() {
                                             </span>
                                           )}
                                         </div>
-                                        <Button
-                                          size="sm"
-                                          onClick={() => addToShoppingList(item)}
-                                          className={`h-6 px-2 ${buttonClass}`}
-                                        >
-                                          <Plus className="h-3 w-3" />
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() =>
+                                              openItemSearchOverlay(item.title, {
+                                                type: "shopping-list",
+                                                shoppingItemId: item.shoppingItemId,
+                                                store: comparison.store,
+                                              })
+                                            }
+                                            className={`h-6 px-2 ${buttonOutlineClass}`}
+                                          >
+                                            <RefreshCw className="h-3 w-3 mr-1" />
+                                            Reload
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            onClick={() => addToShoppingList(item)}
+                                            className={`h-6 px-2 ${buttonClass}`}
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                          </Button>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -974,10 +1120,27 @@ export default function ShoppingPage() {
                                       .map((listItem) => (
                                         <div
                                           key={listItem.id}
-                                          className={`text-sm ${mutedTextClass} flex items-center justify-between`}
+                                          className={`text-sm ${mutedTextClass} flex items-center justify-between gap-4`}
                                         >
-                                          <span>{listItem.name}</span>
-                                          <span className="text-xs">Qty: {listItem.quantity}</span>
+                                          <div>
+                                            <div>{listItem.name}</div>
+                                            <div className="text-xs">Qty: {listItem.quantity}</div>
+                                          </div>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() =>
+                                              openItemSearchOverlay(listItem.name, {
+                                                type: "shopping-list",
+                                                shoppingItemId: listItem.id,
+                                                store: comparison.store,
+                                              })
+                                            }
+                                            className={`h-7 px-2 text-xs ${buttonOutlineClass}`}
+                                          >
+                                            <RefreshCw className="h-3 w-3 mr-1" />
+                                            Reload
+                                          </Button>
                                         </div>
                                       ))}
                                   </div>
@@ -1053,6 +1216,47 @@ export default function ShoppingPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {missingItems.length > 0 && (
+                  <Card className={cardBgClass}>
+                    <CardHeader>
+                      <CardTitle className={`flex items-center justify-between ${textClass}`}>
+                        Items We Couldn't Find
+                        <span className={`text-sm font-normal ${mutedTextClass}`}>
+                          {missingItems.length} {missingItems.length === 1 ? "item" : "items"}
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {missingItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between rounded-lg border border-dashed border-border p-3"
+                          >
+                            <div>
+                              <p className={`font-medium ${textClass}`}>{item.name}</p>
+                              <p className={`text-xs ${mutedTextClass}`}>Qty: {item.quantity}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  openItemSearchOverlay(item.name, { type: "missing", shoppingItemId: item.id })
+                                }
+                                className={`h-9 px-3 ${buttonOutlineClass}`}
+                              >
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Reload options
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             ) : (
               <Card className={cardBgClass}>
@@ -1071,6 +1275,79 @@ export default function ShoppingPage() {
           </TabsContent>
         </Tabs>
       </div>
+      <Dialog open={itemSearchModalOpen} onOpenChange={handleItemSearchModalChange}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              Reload options for{" "}
+              <span className="font-semibold">
+                {itemSearchModalTerm || "this item"}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Input
+                value={itemSearchModalTerm}
+                onChange={(e) => setItemSearchModalTerm(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleModalSearch()}
+                placeholder="Refine the search term"
+                className={theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
+              />
+              <Button onClick={handleModalSearch} disabled={!itemSearchModalTerm.trim() || itemSearchModalLoading}>
+                {itemSearchModalLoading ? "Searching..." : "Search"}
+              </Button>
+            </div>
+            <p className={`text-xs ${mutedTextClass}`}>
+              We will show the 10 cheapest matches{" "}
+              {itemSearchSource?.store ? `from ${itemSearchSource.store}.` : "across all stores."}
+            </p>
+            {itemSearchModalLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <span
+                  className={`animate-spin rounded-full h-10 w-10 border-b-2 ${
+                    theme === "dark" ? "border-[#e8dcc4]" : "border-orange-500"
+                  }`}
+                ></span>
+              </div>
+            ) : itemSearchModalResults.length > 0 ? (
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {itemSearchModalResults.map((item) => (
+                  <div
+                    key={`${item.provider}-${item.id}`}
+                    className={`flex items-start gap-3 rounded-lg border p-3 ${
+                      theme === "dark" ? "border-[#e8dcc4]/20 bg-[#1f1e1a]" : "border-gray-200 bg-gray-50"
+                    }`}
+                  >
+                    <img
+                      src={item.image_url || "/placeholder.svg"}
+                      alt={item.title}
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-semibold ${textClass}`}>{item.title}</p>
+                      <p className={`text-xs ${mutedTextClass}`}>
+                        {item.brand} • {item.provider}
+                      </p>
+                      <div className="flex items-center justify-between mt-2">
+                        <div>
+                          <span className={`font-bold ${textClass}`}>${item.price.toFixed(2)}</span>
+                          {item.pricePerUnit && <span className={`ml-2 ${mutedTextClass}`}>{item.pricePerUnit}</span>}
+                        </div>
+                        <Button size="sm" className={`h-8 px-3 ${buttonClass}`} onClick={() => handleModalSelection(item)}>
+                          Select
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={`text-center py-10 ${mutedTextClass}`}>No options found for this search.</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

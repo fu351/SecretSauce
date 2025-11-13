@@ -72,6 +72,9 @@ import { searchGroceryStores } from '@/lib/grocery-scrapers';
 
 // Use in shopping page
 const results = await searchGroceryStores(searchTerm, zipCode);
+
+// Optionally limit to a single store
+const meijerOnly = await searchGroceryStores(searchTerm, zipCode, "Meijer");
 \`\`\`
 
 ## Standardized Product Format
