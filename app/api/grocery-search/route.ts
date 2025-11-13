@@ -2,10 +2,11 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const searchTerm = searchParams.get("searchTerm")
+  const rawSearchTerm = searchParams.get("searchTerm") || ""
+  const sanitizedSearchTerm = (rawSearchTerm.split(",")[0] || "").trim() || rawSearchTerm.trim()
   const zipCode = searchParams.get("zipCode") || "47906"
 
-  if (!searchTerm) {
+  if (!sanitizedSearchTerm) {
     return NextResponse.json({ error: "Search term is required" }, { status: 400 })
   }
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     const timeoutId = setTimeout(() => controller.abort(), 5000) // Reduced to 5 seconds
 
     const response = await fetch(
-      `${pythonServiceUrl}/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}`,
+      `${pythonServiceUrl}/grocery-search?searchTerm=${encodeURIComponent(sanitizedSearchTerm)}&zipCode=${zipCode}`,
       {
         method: "GET",
         headers: {
@@ -42,11 +43,11 @@ export async function GET(request: NextRequest) {
     const scrapers = require('@/lib/scrapers')
     
     const results = await Promise.allSettled([
-      scrapers.getTargetProducts(searchTerm, null, zipCode),
-      scrapers.Krogers(zipCode, searchTerm),
-      scrapers.Meijers(zipCode, searchTerm),
-      scrapers.search99Ranch(searchTerm, zipCode),
-      scrapers.searchWalmartAPI(searchTerm, zipCode)
+      scrapers.getTargetProducts(sanitizedSearchTerm, null, zipCode),
+      scrapers.Krogers(zipCode, sanitizedSearchTerm),
+      scrapers.Meijers(zipCode, sanitizedSearchTerm),
+      scrapers.search99Ranch(sanitizedSearchTerm, zipCode),
+      scrapers.searchWalmartAPI(sanitizedSearchTerm, zipCode)
     ])
 
     const allItems = []
@@ -153,13 +154,13 @@ export async function GET(request: NextRequest) {
 
     // If no scrapers worked, return mock data
     console.warn("All scrapers failed, returning mock data")
-    const mockResults = generateMockResults(searchTerm, zipCode)
+    const mockResults = generateMockResults(sanitizedSearchTerm, zipCode)
     return NextResponse.json({ results: mockResults })
 
   } catch (error) {
     console.error("Error using local scrapers:", error)
     // Return mock data when scrapers fail
-    const mockResults = generateMockResults(searchTerm, zipCode)
+    const mockResults = generateMockResults(sanitizedSearchTerm, zipCode)
     return NextResponse.json({ results: mockResults })
   }
 }
