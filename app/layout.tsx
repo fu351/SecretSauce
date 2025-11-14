@@ -17,12 +17,9 @@ export const metadata: Metadata = {
   description: "Discover recipes, plan meals, and save on groceries",
   generator: "v0.dev",
   icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/Favicon.png", sizes: "192x192", type: "image/png" },
-    ],
-    shortcut: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/Favicon.png", sizes: "192x192", type: "image/png" }],
+    icon: "/Favicon.png",
+    shortcut: "/Favicon.png",
+    apple: "/Favicon.png",
   },
 }
 

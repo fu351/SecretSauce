@@ -588,7 +588,6 @@ export default function ShoppingPage() {
             <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"}>
               Hang tight while we compare prices across nearby stores.
             </p>
-            <p className="mt-4 text-sm uppercase tracking-wide opacity-70">Buttons disabled to avoid duplicate calls</p>
           </div>
         </div>
       )}
