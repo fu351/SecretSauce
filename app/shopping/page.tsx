@@ -598,7 +598,9 @@ export default function ShoppingPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 bg-white">
+          <TabsList
+            className={`grid w-full grid-cols-3 ${theme === "dark" ? "bg-[#1f1e1a]" : "bg-white"}`}
+          >
             <TabsTrigger
               value="search"
               className={`data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]`}

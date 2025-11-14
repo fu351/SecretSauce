@@ -47,13 +47,13 @@ export default function CheckEmailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#181813] text-[#e8dcc4] flex items-center justify-center px-6 py-12">
-      <Card className="w-full max-w-lg bg-[#1f1e1a] border-[#e8dcc4]/20 p-10 space-y-6">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-6 py-12">
+      <Card className="w-full max-w-lg bg-card border border-border p-10 space-y-6 shadow-lg">
         <div className="space-y-3 text-center">
-          <p className="uppercase tracking-[0.25em] text-xs text-[#e8dcc4]/60">Step</p>
+          <p className="uppercase tracking-[0.25em] text-xs text-muted-foreground">Step</p>
           <h1 className="text-3xl font-serif font-light">Confirm your email.</h1>
-          <p className="text-[#e8dcc4]/70">
-            We sent a verification link to <span className="font-medium text-[#e8dcc4]">{user?.email ?? "your email"}</span>.
+          <p className="text-muted-foreground">
+            We sent a verification link to <span className="font-medium text-primary">{user?.email ?? "your email"}</span>.
             Click the link to activate your account, then return here to sign in.
           </p>
         </div>
@@ -62,13 +62,13 @@ export default function CheckEmailPage() {
           <Button
             onClick={handleResend}
             disabled={sending}
-            className="w-full bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] py-6 font-light tracking-wide disabled:opacity-50"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 py-6 font-light tracking-wide disabled:opacity-50"
           >
             {sending ? "Sending..." : "Resend verification email"}
           </Button>
-          <p className="text-center text-sm text-[#e8dcc4]/60">
+          <p className="text-center text-sm text-muted-foreground">
             Ready to sign in?{" "}
-            <Link href="/login" className="text-[#e8dcc4] underline underline-offset-4">
+            <Link href="/login" className="text-primary underline underline-offset-4">
               Go to login
             </Link>
           </p>

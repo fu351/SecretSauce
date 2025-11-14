@@ -60,7 +60,7 @@
 
   .dark {
     /* Sleek slate + gold palette for dark mode */
-    --background: 221 18% 7%;      /* #0b0f14 */
+    --background: 60 11% 9%;       /* #191914 */
     --foreground: 45 42% 87%;      /* warm gold-cream text */
     --card: 222 16% 11%;           /* #141821 */
     --card-foreground: 45 42% 87%;

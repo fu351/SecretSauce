@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import clsx from "clsx"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +13,7 @@ import { RecipeDetailSkeleton } from "@/components/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe-reviews"
 import { useToast } from "@/hooks/use-toast"
 import { getRecipeImageUrl } from "@/lib/image-helper"
+import { useTheme } from "@/contexts/theme-context"
 
 interface Ingredient {
   amount: string
@@ -54,6 +56,50 @@ export default function RecipeDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [isFloating, setIsFloating] = useState(false)
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
+
+  const pageBackgroundClass = isDark ? "bg-background" : "bg-gradient-to-br from-orange-50 to-yellow-50"
+  const floatingButtonClass = clsx(
+    "font-bold text-lg px-6 py-3 shadow-lg border transition-colors",
+    isDark
+      ? "bg-card text-foreground border-border hover:bg-card/90"
+      : "bg-white/80 text-gray-700 border-gray-200 hover:bg-white/90 backdrop-blur-sm",
+  )
+  const imageActionButtonClass = isDark ? "bg-card/80 text-foreground hover:bg-card" : "bg-white/90 hover:bg-white"
+  const infoPanelClass = clsx(
+    "shadow-lg rounded-2xl border",
+    isDark ? "bg-card border-border" : "bg-white/90 backdrop-blur-sm border-0",
+  )
+  const descriptionTextClass = isDark ? "text-muted-foreground" : "text-gray-600"
+  const statCardClass = clsx(
+    "flex items-center gap-3 p-4 rounded-lg shadow-sm border transition-colors",
+    isDark ? "bg-secondary/70 border-border text-foreground" : "bg-white/80 backdrop-blur-sm border-white/50",
+  )
+  const statIconClass = isDark ? "text-primary" : "text-gray-400"
+  const statLabelClass = isDark ? "text-muted-foreground" : "text-gray-500"
+  const badgeCuisineClass = isDark ? "bg-primary/15 text-primary border border-primary/30" : "bg-blue-100 text-blue-700"
+  const badgeDietClass = isDark ? "bg-secondary/70 text-foreground border border-border" : "bg-gray-100 text-gray-700"
+  const sectionCardClass = clsx(
+    "shadow-lg border rounded-2xl",
+    isDark ? "bg-card border-border" : "bg-white/90 backdrop-blur-sm border-0",
+  )
+  const itemPillClass = clsx(
+    "flex items-start gap-3 p-3 rounded-lg shadow-sm border",
+    isDark ? "bg-secondary/70 border-border text-foreground" : "bg-white/80 backdrop-blur-sm border-white/50",
+  )
+  const instructionCardClass = clsx(
+    "flex gap-4 p-4 rounded-lg shadow-sm border",
+    isDark ? "bg-secondary/70 border-border" : "bg-white/80 backdrop-blur-sm border-white/50",
+  )
+  const instructionStepBadgeClass = clsx(
+    "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
+    isDark ? "bg-primary text-primary-foreground" : "bg-orange-500 text-white",
+  )
+  const instructionTextClass = isDark ? "text-foreground" : "text-gray-700"
+  const primaryButtonClass = isDark
+    ? "bg-primary text-primary-foreground hover:bg-primary/90"
+    : "bg-orange-500 hover:bg-orange-600"
 
   useEffect(() => {
     if (params.id) {
@@ -234,12 +280,22 @@ export default function RecipeDetailPage() {
 
   if (!recipe) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50 flex items-center justify-center">
-        <Card className="max-w-md mx-auto shadow-lg border-0 bg-white/90 backdrop-blur-sm">
-          <CardContent className="p-6 text-center">
-            <h2 className="text-2xl font-bold mb-4">Recipe Not Found</h2>
-            <p className="text-gray-600 mb-6">The recipe you're looking for doesn't exist.</p>
-            <Button onClick={() => router.push("/recipes")} className="bg-orange-500 hover:bg-orange-600">
+      <div
+        className={clsx(
+          "min-h-screen flex items-center justify-center px-4",
+          isDark ? "bg-background" : "bg-gradient-to-br from-orange-50 to-yellow-50",
+        )}
+      >
+        <Card
+          className={clsx(
+            "max-w-md mx-auto shadow-lg",
+            isDark ? "bg-card border border-border" : "bg-white/90 backdrop-blur-sm border-0",
+          )}
+        >
+          <CardContent className="p-6 text-center space-y-4">
+            <h2 className={clsx("text-2xl font-bold", isDark ? "text-foreground" : "text-gray-900")}>Recipe Not Found</h2>
+            <p className={clsx("mb-2", descriptionTextClass)}>The recipe you're looking for doesn't exist.</p>
+            <Button onClick={() => router.push("/recipes")} className={primaryButtonClass}>
               Browse Recipes
             </Button>
           </CardContent>
@@ -249,22 +305,23 @@ export default function RecipeDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
+    <div className={clsx("min-h-screen transition-colors", pageBackgroundClass)}>
       <div className={`fixed z-50 ${isFloating ? "top-8" : "top-24"} left-8 transition-all duration-300`}>
-        <Button
-          variant="ghost"
-          onClick={() => router.back()}
-          className="hover:bg-white/90 bg-white/80 backdrop-blur-sm text-gray-700 font-bold text-lg px-6 py-3 shadow-lg border border-gray-200"
-        >
+        <Button variant="ghost" onClick={() => router.back()} className={floatingButtonClass}>
           <ArrowLeft className="w-5 h-5 mr-2" />
           Back
         </Button>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
         <div className="flex flex-col lg:flex-row gap-8 items-center">
-          <div className="lg:w-3/5">
-            <div className="relative overflow-hidden rounded-2xl shadow-xl">
+          <div className="lg:w-3/5 w-full">
+            <div
+              className={clsx(
+                "relative overflow-hidden rounded-2xl shadow-xl",
+                isDark ? "border border-border" : "border border-white/40",
+              )}
+            >
               <img
                 src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
                 alt={recipe.title}
@@ -274,171 +331,172 @@ export default function RecipeDetailPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="bg-white/90 hover:bg-white"
+                  className={clsx("transition-colors", imageActionButtonClass)}
                   onClick={toggleFavorite}
                   disabled={isTogglingFavorite}
                 >
-                  <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-gray-700"}`} />
+                  <Heart
+                    className={clsx(
+                      "h-4 w-4",
+                      isFavorite ? "fill-red-500 text-red-500" : isDark ? "text-foreground" : "text-gray-700",
+                    )}
+                  />
                 </Button>
               </div>
             </div>
           </div>
 
-          <div className="lg:w-2/5">
-            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
-              <CardContent className="p-8">
-                <div className="space-y-8">
-                  <div>
-                    <h1 className="text-3xl font-bold text-gray-900 leading-tight">{recipe.title}</h1>
-                  </div>
-
-                  <p className="text-gray-600 leading-relaxed text-lg">{recipe.description}</p>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <Clock className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-500">Total Time</p>
-                        <p className="font-semibold">{getTotalTime()} minutes</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <BarChart3 className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-500">Difficulty</p>
-                        <p className="font-semibold capitalize">{recipe.difficulty}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <Users className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-500">Servings</p>
-                        <p className="font-semibold">{recipe.servings} servings</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <Star className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-500">Rating</p>
-                        <div className="flex items-center gap-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-semibold">{(recipe.rating_avg || 0).toFixed(1)}</span>
-                          <span className="text-xs text-gray-500">({recipe.rating_count || 0})</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {recipe.nutrition && (
-                    <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                      <Utensils className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-500">Nutrition</p>
-                        <div className="flex gap-4 text-sm">
-                          {recipe.nutrition.calories && (
-                            <span className="font-semibold">{recipe.nutrition.calories} Calories</span>
-                          )}
-                          {recipe.nutrition.protein && (
-                            <span className="font-semibold">{recipe.nutrition.protein}g Protein</span>
-                          )}
-                          {recipe.nutrition.fat && <span className="font-semibold">{recipe.nutrition.fat}g Fat</span>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {(recipe.dietary_tags.length > 0 || recipe.cuisine) && (
-                    <div className="flex flex-wrap gap-2">
-                      {recipe.cuisine && (
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                          {recipe.cuisine}
-                        </Badge>
-                      )}
-                      {recipe.dietary_tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="bg-gray-100 text-gray-700">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+          <div className="lg:w-2/5 w-full">
+            <Card className={infoPanelClass}>
+              <CardContent className="p-8 space-y-8">
+                <div>
+                  <h1 className={clsx("text-3xl font-bold leading-tight", isDark ? "text-foreground" : "text-gray-900")}>
+                    {recipe.title}
+                  </h1>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
 
-        <div className="mt-12 flex justify-center">
-          <div className="w-full max-w-6xl" style={{ width: "95%" }}>
-            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
-              <CardContent className="p-8">
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-2xl font-bold text-gray-900">Ingredients</h3>
-                    {user && (
-                      <Button
-                        size="sm"
-                        onClick={addIngredientsToShoppingList}
-                        className="bg-orange-500 hover:bg-orange-600"
-                      >
-                        <ShoppingCart className="w-4 h-4 mr-2" />
-                        Add to cart
-                      </Button>
+                <p className={clsx("leading-relaxed text-lg", descriptionTextClass)}>{recipe.description}</p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className={statCardClass}>
+                    <Clock className={clsx("h-5 w-5", statIconClass)} />
+                    <div>
+                      <p className={clsx("text-sm", statLabelClass)}>Total Time</p>
+                      <p className="font-semibold">{getTotalTime()} minutes</p>
+                    </div>
+                  </div>
+
+                  <div className={statCardClass}>
+                    <BarChart3 className={clsx("h-5 w-5", statIconClass)} />
+                    <div>
+                      <p className={clsx("text-sm", statLabelClass)}>Difficulty</p>
+                      <p className="font-semibold capitalize">{recipe.difficulty}</p>
+                    </div>
+                  </div>
+
+                  <div className={statCardClass}>
+                    <Users className={clsx("h-5 w-5", statIconClass)} />
+                    <div>
+                      <p className={clsx("text-sm", statLabelClass)}>Servings</p>
+                      <p className="font-semibold">{recipe.servings} servings</p>
+                    </div>
+                  </div>
+
+                  <div className={statCardClass}>
+                    <Star className={clsx("h-5 w-5", statIconClass)} />
+                    <div>
+                      <p className={clsx("text-sm", statLabelClass)}>Rating</p>
+                      <div className="flex items-center gap-1">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-semibold">{(recipe.rating_avg || 0).toFixed(1)}</span>
+                        <span className={clsx("text-xs", statLabelClass)}>({recipe.rating_count || 0})</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {recipe.nutrition && (
+                  <div className={statCardClass}>
+                    <Utensils className={clsx("h-5 w-5", statIconClass)} />
+                    <div>
+                      <p className={clsx("text-sm", statLabelClass)}>Nutrition</p>
+                      <div className="flex gap-4 text-sm flex-wrap">
+                        {recipe.nutrition.calories && (
+                          <span className="font-semibold">{recipe.nutrition.calories} Calories</span>
+                        )}
+                        {recipe.nutrition.protein && (
+                          <span className="font-semibold">{recipe.nutrition.protein}g Protein</span>
+                        )}
+                        {recipe.nutrition.fat && <span className="font-semibold">{recipe.nutrition.fat}g Fat</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {(recipe.dietary_tags.length > 0 || recipe.cuisine) && (
+                  <div className="flex flex-wrap gap-2">
+                    {recipe.cuisine && (
+                      <Badge variant="secondary" className={clsx("px-3 py-1 text-xs font-medium", badgeCuisineClass)}>
+                        {recipe.cuisine}
+                      </Badge>
                     )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {recipe.ingredients.map((ingredient, index) => (
-                      <div
-                        key={index}
-                        className="flex items-start gap-3 p-3 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm"
+                    {recipe.dietary_tags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="secondary"
+                        className={clsx("px-3 py-1 text-xs font-medium", badgeDietClass)}
                       >
-                        <span className="text-sm leading-relaxed font-medium">
-                          {ingredient.amount} {ingredient.unit} {ingredient.name}
-                        </span>
-                      </div>
+                        {tag}
+                      </Badge>
                     ))}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <div className="flex justify-center">
+          <div className="w-full max-w-6xl" style={{ width: "95%" }}>
+            <Card className={sectionCardClass}>
+              <CardContent className="p-8 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className={clsx("text-2xl font-bold", isDark ? "text-foreground" : "text-gray-900")}>Ingredients</h3>
+                  {user && (
+                    <Button size="sm" onClick={addIngredientsToShoppingList} className={primaryButtonClass}>
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Add to cart
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {recipe.ingredients.map((ingredient, index) => (
+                    <div key={index} className={itemPillClass}>
+                      <span className="text-sm leading-relaxed font-medium">
+                        {ingredient.amount} {ingredient.unit} {ingredient.name}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
 
-        <div className="mt-8 flex justify-center">
+        <div className="flex justify-center">
           <div className="w-full max-w-4xl" style={{ width: "85%" }}>
-            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
-              <CardContent className="p-8">
-                <div className="space-y-6">
-                  <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <ChefHat className="h-6 w-6 text-orange-500" />
-                    Instructions
-                  </h3>
-                  <div className="space-y-4">
-                    {recipe.instructions.map((instruction, index) => (
-                      <div key={index} className="flex gap-4 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
-                        <div className="flex-shrink-0 w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-gray-700 leading-relaxed">
-                            {typeof instruction === "string"
-                              ? instruction
-                              : instruction.description || instruction.step || "Step description not available"}
-                          </p>
-                        </div>
+            <Card className={sectionCardClass}>
+              <CardContent className="p-8 space-y-6">
+                <h3
+                  className={clsx(
+                    "text-2xl font-bold flex items-center gap-2",
+                    isDark ? "text-foreground" : "text-gray-900",
+                  )}
+                >
+                  <ChefHat className={clsx("h-6 w-6", isDark ? "text-primary" : "text-orange-500")} />
+                  Instructions
+                </h3>
+                <div className="space-y-4">
+                  {recipe.instructions.map((instruction, index) => (
+                    <div key={index} className={instructionCardClass}>
+                      <div className={instructionStepBadgeClass}>{index + 1}</div>
+                      <div className="flex-1">
+                        <p className={clsx("leading-relaxed", instructionTextClass)}>
+                          {typeof instruction === "string"
+                            ? instruction
+                            : instruction.description || instruction.step || "Step description not available"}
+                        </p>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
 
-        <div className="mt-8 flex justify-center">
+        <div className="flex justify-center">
           <div className="w-full max-w-6xl" style={{ width: "95%" }}>
             <RecipeReviews recipeId={recipe.id} />
           </div>

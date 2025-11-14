@@ -160,7 +160,8 @@ export default function OnboardingPage() {
   const { toast } = useToast()
 
   useEffect(() => {
-    setTheme("light")
+    setTheme("dark")
+    setSelectedTheme("dark")
   }, [setTheme])
 
   const handleDietaryToggle = (option: string) => {
@@ -209,12 +210,17 @@ export default function OnboardingPage() {
     updateFn(value)
     const questionConfig = questionOrder.find((question) => question.id === questionId)
     if (questionConfig?.autoAdvance) {
-      setTimeout(() => goToNextQuestion(questionId), 250)
+      setTimeout(() => goToNextQuestion(questionId), 50)
     }
   }
 
   const setQuestionRef = (id: QuestionId) => (el: HTMLDivElement | null) => {
     questionRefs.current[id] = el
+  }
+
+  const handleThemeChoice = (value: "light" | "dark") => {
+    setSelectedTheme(value)
+    setTheme(value)
   }
 
   const renderQuestion = (questionId: QuestionId) => {
@@ -444,28 +450,28 @@ export default function OnboardingPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
-                onClick={() => setSelectedTheme("dark")}
+                onClick={() => handleThemeChoice("dark")}
                 className={`p-4 rounded-lg border-2 text-left transition-all ${
                   selectedTheme === "dark"
                     ? "border-[#e8dcc4] bg-[#0a0a0a]"
                     : "border-[#e8dcc4]/30 bg-[#0a0a0a]/60 hover:border-[#e8dcc4]/50"
                 }`}
               >
-                <div className="text-[#e8dcc4] text-xs font-medium mb-2">Dark Mode</div>
+                <div className="text-[#e8dcc4] text-xs font-medium mb-2">Dark Mode (Slate & Gold)</div>
                 <div className="space-y-2">
                   <div className="h-2 bg-[#e8dcc4]/20 rounded" />
                   <div className="h-2 bg-[#e8dcc4]/10 rounded w-3/4" />
                 </div>
               </button>
               <button
-                onClick={() => setSelectedTheme("light")}
+                onClick={() => handleThemeChoice("light")}
                 className={`p-4 rounded-lg border-2 text-left transition-all ${
                   selectedTheme === "light"
                     ? "border-orange-500 bg-gradient-to-br from-orange-50 to-yellow-50"
                     : "border-gray-600 bg-gradient-to-br from-orange-50 to-yellow-50 opacity-70 hover:opacity-90"
                 }`}
               >
-                <div className="text-gray-900 text-xs font-medium mb-2">Light Mode</div>
+                <div className="text-gray-900 text-xs font-medium mb-2">Warm Mode (Cream & Copper)</div>
                 <div className="space-y-2">
                   <div className="h-2 bg-orange-200 rounded" />
                   <div className="h-2 bg-orange-100 rounded w-3/4" />
@@ -553,7 +559,7 @@ export default function OnboardingPage() {
         </div>
 
         <aside className="hidden lg:flex w-32">
-          <div className="sticky top-10 flex flex-col items-center gap-5">
+          <div className="sticky top-1/2 -translate-y-1/2 flex flex-col items-center gap-4">
             {questionOrder.map((question, index) => (
               <button
                 key={question.id}
@@ -570,9 +576,6 @@ export default function OnboardingPage() {
                 >
                   {questionCompletion[question.id] ? <Check className="h-4 w-4" /> : index + 1}
                 </div>
-                <span className="text-[11px] text-center text-[#e8dcc4]/60 group-hover:text-[#e8dcc4] leading-tight">
-                  {question.title}
-                </span>
               </button>
             ))}
           </div>
