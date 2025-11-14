@@ -27,12 +27,7 @@ export function Header() {
 
   const isDark = theme === "dark"
 
-  // Landing page has its own header for non-authenticated users
   if ((pathname.startsWith("/auth") || pathname === "/onboarding") && !user) {
-    return null
-  }
-
-  if (pathname === "/" && !user) {
     return null
   }
 

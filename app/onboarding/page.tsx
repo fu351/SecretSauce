@@ -457,7 +457,7 @@ export default function OnboardingPage() {
                     : "border-[#e8dcc4]/30 bg-[#0a0a0a]/60 hover:border-[#e8dcc4]/50"
                 }`}
               >
-                <div className="text-[#e8dcc4] text-xs font-medium mb-2">Dark Mode (Slate & Gold)</div>
+                <div className="text-[#e8dcc4] text-xs font-medium mb-2">Dark Mode</div>
                 <div className="space-y-2">
                   <div className="h-2 bg-[#e8dcc4]/20 rounded" />
                   <div className="h-2 bg-[#e8dcc4]/10 rounded w-3/4" />
@@ -471,7 +471,7 @@ export default function OnboardingPage() {
                     : "border-gray-600 bg-gradient-to-br from-orange-50 to-yellow-50 opacity-70 hover:opacity-90"
                 }`}
               >
-                <div className="text-gray-900 text-xs font-medium mb-2">Warm Mode (Cream & Copper)</div>
+                <div className="text-gray-900 text-xs font-medium mb-2">Warm Mode</div>
                 <div className="space-y-2">
                   <div className="h-2 bg-orange-200 rounded" />
                   <div className="h-2 bg-orange-100 rounded w-3/4" />
@@ -558,7 +558,7 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        <aside className="hidden lg:flex w-32">
+        <aside className="hidden md:flex w-24 lg:w-32">
           <div className="sticky top-1/2 -translate-y-1/2 flex flex-col items-center gap-4">
             {questionOrder.map((question, index) => (
               <button
