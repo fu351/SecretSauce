@@ -59,39 +59,39 @@
   }
 
   .dark {
-    /* Updated dark mode to use gold accents instead of orange */
-    --background: 30 5% 9%; /* #181813 - warm dark brown */
-    --foreground: 39 50% 90%; /* #ebe0c8 - brighter cream for better contrast */
-    --card: 30 7% 12%; /* #1f1e1a */
-    --card-foreground: 39 50% 90%;
-    --popover: 30 7% 12%;
-    --popover-foreground: 39 50% 90%;
-    --primary: 39 50% 88%; /* #e8dcc4 - gold */
-    --primary-foreground: 30 5% 9%;
-    --secondary: 30 7% 18%;
-    --secondary-foreground: 39 50% 90%;
-    --muted: 30 7% 18%;
-    --muted-foreground: 39 40% 75%; /* Improved contrast - 4.8:1 */
-    --accent: 39 50% 88%; /* Gold accent */
-    --accent-foreground: 30 5% 9%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 39 50% 90%;
-    --border: 39 20% 25%;
-    --input: 30 10% 20%;
-    --ring: 39 50% 88%; /* Gold focus ring */
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 30 7% 12%;
-    --sidebar-foreground: 39 50% 90%;
-    --sidebar-primary: 39 50% 88%; /* Gold */
-    --sidebar-primary-foreground: 30 5% 9%;
-    --sidebar-accent: 30 10% 20%;
-    --sidebar-accent-foreground: 39 50% 90%;
-    --sidebar-border: 39 20% 25%;
-    --sidebar-ring: 39 50% 88%; /* Gold ring */
+    /* Sleek slate + gold palette for dark mode */
+    --background: 221 18% 7%;      /* #0b0f14 */
+    --foreground: 45 42% 87%;      /* warm gold-cream text */
+    --card: 222 16% 11%;           /* #141821 */
+    --card-foreground: 45 42% 87%;
+    --popover: 222 16% 11%;
+    --popover-foreground: 45 42% 87%;
+    --primary: 45 60% 74%;         /* polished gold */
+    --primary-foreground: 221 18% 7%;
+    --secondary: 221 14% 18%;      /* deep slate */
+    --secondary-foreground: 45 42% 87%;
+    --muted: 221 12% 22%;          /* softened slate */
+    --muted-foreground: 45 32% 72%; /* desaturated gold */
+    --accent: 45 60% 74%;
+    --accent-foreground: 221 18% 7%;
+    --destructive: 0 70% 46%;
+    --destructive-foreground: 45 42% 87%;
+    --border: 221 12% 26%;
+    --input: 221 14% 20%;
+    --ring: 45 62% 72%;            /* gold focus ring */
+    --chart-1: 210 60% 48%;
+    --chart-2: 150 45% 42%;
+    --chart-3: 45 70% 60%;
+    --chart-4: 280 55% 58%;
+    --chart-5: 350 60% 55%;
+    --sidebar-background: 222 16% 11%;
+    --sidebar-foreground: 45 42% 87%;
+    --sidebar-primary: 45 60% 74%;
+    --sidebar-primary-foreground: 221 18% 7%;
+    --sidebar-accent: 221 14% 20%;
+    --sidebar-accent-foreground: 45 42% 87%;
+    --sidebar-border: 221 12% 26%;
+    --sidebar-ring: 45 62% 72%;
   }
 }
 
@@ -117,6 +117,105 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+  }
+
+  /* Accessibility overrides for legacy warm-tone utility classes in dark theme */
+  html.dark .bg-\[\#181813\],
+  html.dark .bg-\[\#1a1a1a\] {
+    background-color: hsl(var(--background)) !important;
+  }
+
+  html.dark .bg-\[\#1f1e1a\],
+  html.dark .bg-\[\#0a0a0a\] {
+    background-color: hsl(var(--card)) !important;
+  }
+
+  html.dark .text-\[\#e8dcc4\],
+  html.dark .text-\[\#e8dcc4\]\/80,
+  html.dark .hover\:text-\[\#e8dcc4\]:hover,
+  html.dark .group:hover .group-hover\:text-\[\#e8dcc4\] {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  html.dark .text-\[\#e8dcc4\]\/70,
+  html.dark .text-\[\#e8dcc4\]\/60,
+  html.dark .text-\[\#e8dcc4\]\/50,
+  html.dark .hover\:text-\[\#e8dcc4\]\/60:hover,
+  html.dark .group:hover .group-hover\:text-\[\#e8dcc4\]\/60 {
+    color: hsla(var(--foreground) / 0.9) !important;
+  }
+
+  html.dark .text-\[\#e8dcc4\]\/40,
+  html.dark .text-\[\#e8dcc4\]\/30,
+  html.dark .text-\[\#e8dcc4\]\/50 span,
+  html.dark .text-\[\#e8dcc4\]\/30 span {
+    color: hsla(var(--foreground) / 0.78) !important;
+  }
+
+  html.dark .placeholder\:text-\[\#e8dcc4\]\/50::placeholder,
+  html.dark .placeholder\:text-\[\#e8dcc4\]\/40::placeholder,
+  html.dark .placeholder\:text-\[\#e8dcc4\]\/30::placeholder {
+    color: hsla(var(--foreground) / 0.7) !important;
+  }
+
+  html.dark .bg-\[\#e8dcc4\] {
+    background-color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+  }
+
+  html.dark .bg-\[\#e8dcc4\]\/5 {
+    background-color: hsla(var(--primary) / 0.08) !important;
+  }
+  html.dark .bg-\[\#e8dcc4\]\/10 {
+    background-color: hsla(var(--primary) / 0.15) !important;
+  }
+  html.dark .bg-\[\#e8dcc4\]\/20 {
+    background-color: hsla(var(--primary) / 0.25) !important;
+  }
+  html.dark .bg-\[\#e8dcc4\]\/30 {
+    background-color: hsla(var(--primary) / 0.35) !important;
+  }
+  html.dark .bg-\[\#e8dcc4\]\/40 {
+    background-color: hsla(var(--primary) / 0.45) !important;
+  }
+  html.dark .bg-\[\#e8dcc4\]\/50 {
+    background-color: hsla(var(--primary) / 0.55) !important;
+  }
+
+  html.dark .hover\:bg-\[\#e8dcc4\]\/10:hover,
+  html.dark .hover\:bg-\[\#e8dcc4\]\/5:hover,
+  html.dark .group:hover .group-hover\:bg-\[\#e8dcc4\]\/10 {
+    background-color: hsla(var(--primary) / 0.2) !important;
+  }
+
+  html.dark .hover\:bg-\[\#e8dcc4\]\/30:hover,
+  html.dark .hover\:bg-\[\#e8dcc4\]\/50:hover {
+    background-color: hsla(var(--primary) / 0.35) !important;
+  }
+
+  html.dark .border-\[\#e8dcc4\],
+  html.dark .border-\[\#e8dcc4\]\/40,
+  html.dark .border-\[\#e8dcc4\]\/30,
+  html.dark .border-\[\#e8dcc4\]\/20,
+  html.dark .border-\[\#e8dcc4\]\/10,
+  html.dark .group:hover .group-hover\:border-\[\#e8dcc4\],
+  html.dark .hover\:border-\[\#e8dcc4\]\/40:hover,
+  html.dark .hover\:border-\[\#e8dcc4\]\/50:hover {
+    border-color: hsla(var(--primary) / 0.7) !important;
+  }
+
+  html.dark .focus\:border-\[\#e8dcc4\]\/40:focus,
+  html.dark .focus\:border-\[\#e8dcc4\]\/40:focus-visible {
+    border-color: hsla(var(--primary) / 0.8) !important;
+  }
+
+  html.dark .focus\:ring-\[\#e8dcc4\]:focus,
+  html.dark .focus\:ring-\[\#e8dcc4\]:focus-visible {
+    --tw-ring-color: hsl(var(--ring)) !important;
+  }
+
+  html.dark .text-\[\#e8dcc4\]\/60 .opacity-70 {
+    color: hsla(var(--foreground) / 0.85) !important;
   }
 }
 
