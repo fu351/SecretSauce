@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe-reviews"
+import { RecipePricingInfo } from "@/components/recipe-pricing-info"
 import { useToast } from "@/hooks/use-toast"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
@@ -433,6 +434,13 @@ export default function RecipeDetailPage() {
                 )}
               </CardContent>
             </Card>
+          </div>
+        </div>
+
+        {/* Recipe Pricing Section */}
+        <div className="flex justify-center">
+          <div className="w-full max-w-6xl" style={{ width: "95%" }}>
+            <RecipePricingInfo recipeId={recipe.id} />
           </div>
         </div>
 

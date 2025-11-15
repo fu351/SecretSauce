@@ -27,8 +27,8 @@ const goals = [
   },
   {
     id: "both",
-    title: "Complete Experience",
-    description: "The full journey of culinary excellence",
+    title: "Elevate Your Journey",
+    description: "Save time and prioritize your health with smart planning",
     icon: Users,
   },
 ]
@@ -147,9 +147,9 @@ export default function OnboardingPage() {
   const [budgetRange, setBudgetRange] = useState("")
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
   const [cuisinePreferences, setCuisinePreferences] = useState<string[]>([])
-  const [cookingTimePreference, setCookingTimePreference] = useState("any")
+  const [cookingTimePreference, setCookingTimePreference] = useState("")
   const [postalCode, setPostalCode] = useState("")
-  const [groceryDistance, setGroceryDistance] = useState("10")
+  const [groceryDistance, setGroceryDistance] = useState("")
   const [loading, setLoading] = useState(false)
   const { theme: currentTheme, setTheme } = useTheme()
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(currentTheme === "dark" ? "dark" : "light")
@@ -197,10 +197,10 @@ export default function OnboardingPage() {
     goal: Boolean(selectedGoal),
     cookingLevel: Boolean(cookingLevel),
     budget: Boolean(budgetRange),
-    dietary: true,
-    cuisine: true,
+    dietary: dietaryPreferences.length > 0,
+    cuisine: cuisinePreferences.length > 0,
     cookingTime: Boolean(cookingTimePreference),
-    location: Boolean(groceryDistance),
+    location: Boolean(postalCode) || Boolean(groceryDistance),
     theme: Boolean(selectedTheme),
   }
 

@@ -108,6 +108,14 @@ export type Database = {
           budget_range: "low" | "medium" | "high" | null
           dietary_preferences: string[] | null
           primary_goal: "cooking" | "budgeting" | "both" | null
+          cuisine_preferences: string[]
+          cooking_time_preference: string
+          postal_code: string | null
+          grocery_distance_km: number
+          theme_preference: "light" | "dark"
+          tutorial_completed: boolean
+          tutorial_completed_at: string | null
+          tutorial_path: "cooking" | "budgeting" | "health" | null
           created_at: string
           updated_at: string
         }
@@ -120,6 +128,14 @@ export type Database = {
           budget_range?: "low" | "medium" | "high" | null
           dietary_preferences?: string[] | null
           primary_goal?: "cooking" | "budgeting" | "both" | null
+          cuisine_preferences?: string[]
+          cooking_time_preference?: string
+          postal_code?: string | null
+          grocery_distance_km?: number
+          theme_preference?: "light" | "dark"
+          tutorial_completed?: boolean
+          tutorial_completed_at?: string | null
+          tutorial_path?: "cooking" | "budgeting" | "health" | null
         }
         Update: {
           id?: string
@@ -130,6 +146,14 @@ export type Database = {
           budget_range?: "low" | "medium" | "high" | null
           dietary_preferences?: string[] | null
           primary_goal?: "cooking" | "budgeting" | "both" | null
+          cuisine_preferences?: string[]
+          cooking_time_preference?: string
+          postal_code?: string | null
+          grocery_distance_km?: number
+          theme_preference?: "light" | "dark"
+          tutorial_completed?: boolean
+          tutorial_completed_at?: string | null
+          tutorial_path?: "cooking" | "budgeting" | "health" | null
           updated_at?: string
         }
       }
@@ -185,13 +209,91 @@ export type Database = {
           updated_at?: string
         }
       }
+      standardized_ingredients: {
+        Row: {
+          id: string
+          canonical_name: string
+          category: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          canonical_name: string
+          category?: string | null
+        }
+        Update: {
+          canonical_name?: string
+          category?: string | null
+          updated_at?: string
+        }
+      }
+      ingredient_cache: {
+        Row: {
+          id: string
+          standardized_ingredient_id: string
+          store: string
+          price: number
+          quantity: number
+          unit: string
+          unit_price: number | null
+          image_url: string | null
+          product_url: string | null
+          product_id: string | null
+          expires_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          standardized_ingredient_id: string
+          store: string
+          price: number
+          quantity: number
+          unit: string
+          unit_price?: number | null
+          image_url?: string | null
+          product_url?: string | null
+          product_id?: string | null
+          expires_at: string
+        }
+        Update: {
+          store?: string
+          price?: number
+          quantity?: number
+          unit?: string
+          unit_price?: number | null
+          image_url?: string | null
+          product_url?: string | null
+          product_id?: string | null
+          expires_at?: string
+          updated_at?: string
+        }
+      }
+      ingredient_mappings: {
+        Row: {
+          id: string
+          recipe_id: string
+          original_name: string
+          standardized_ingredient_id: string
+          created_at: string
+        }
+        Insert: {
+          recipe_id: string
+          original_name: string
+          standardized_ingredient_id: string
+        }
+        Update: {
+          recipe_id?: string
+          original_name?: string
+          standardized_ingredient_id?: string
+        }
+      }
       meal_plans: {
         Row: {
           id: string
           user_id: string
           week_start: string
           meals: any | null
-          shopping_list: any[] | null
+          shopping_list: any | null
           total_budget: number | null
           created_at: string
           updated_at: string
@@ -200,14 +302,126 @@ export type Database = {
           user_id: string
           week_start: string
           meals?: any | null
-          shopping_list?: any[] | null
+          shopping_list?: any | null
           total_budget?: number | null
         }
         Update: {
           meals?: any | null
-          shopping_list?: any[] | null
+          shopping_list?: any | null
           total_budget?: number | null
           updated_at?: string
+        }
+      }
+      shopping_lists: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          items: any
+          total_estimated_cost: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          name?: string
+          items?: any
+          total_estimated_cost?: number | null
+        }
+        Update: {
+          name?: string
+          items?: any
+          total_estimated_cost?: number | null
+          updated_at?: string
+        }
+      }
+      pantry_items: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          quantity: number | null
+          unit: string | null
+          expiry_date: string | null
+          category: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          name: string
+          quantity?: number | null
+          unit?: string | null
+          expiry_date?: string | null
+          category?: string | null
+        }
+        Update: {
+          name?: string
+          quantity?: number | null
+          unit?: string | null
+          expiry_date?: string | null
+          category?: string | null
+          updated_at?: string
+        }
+      }
+      recipe_ratings: {
+        Row: {
+          id: string
+          recipe_id: string
+          user_id: string
+          rating: number
+          review: string | null
+          created_at: string
+        }
+        Insert: {
+          recipe_id: string
+          user_id: string
+          rating: number
+          review?: string | null
+        }
+        Update: {
+          rating?: number
+          review?: string | null
+        }
+      }
+      recipe_reviews: {
+        Row: {
+          id: string
+          recipe_id: string | null
+          user_id: string | null
+          rating: number
+          comment: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          recipe_id?: string | null
+          user_id?: string | null
+          rating: number
+          comment?: string | null
+        }
+        Update: {
+          recipe_id?: string | null
+          user_id?: string | null
+          rating?: number
+          comment?: string | null
+          updated_at?: string
+        }
+      }
+      recipe_favorites: {
+        Row: {
+          id: string
+          recipe_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          recipe_id: string
+          user_id: string
+        }
+        Update: {
+          recipe_id?: string
+          user_id?: string
         }
       }
     }

@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { searchIngredientCache, cacheIngredientPrice, getOrCreateStandardizedIngredient } from "@/lib/ingredient-cache"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -10,6 +11,15 @@ export async function GET(request: NextRequest) {
 
   if (!sanitizedSearchTerm) {
     return NextResponse.json({ error: "Search term is required" }, { status: 400 })
+  }
+
+  // Try to get cached results first
+  const cachedResults = await searchIngredientCache(sanitizedSearchTerm, storeKey ? [mapStoreKeyToName(storeKey)] : undefined)
+
+  if (cachedResults && cachedResults.length > 0) {
+    console.log(`Found ${cachedResults.length} cached results for "${sanitizedSearchTerm}"`)
+    const formattedResults = formatCachedResults(cachedResults)
+    return NextResponse.json({ results: formattedResults, cached: true })
   }
 
   if (storeKey) {
@@ -312,4 +322,50 @@ async function runStoreSpecificSearch(storeKey: string, searchTerm: string, zipC
   }
 
   return handlers[storeKey]()
+}
+
+/**
+ * Convert a store key to its full name for database queries
+ */
+function mapStoreKeyToName(storeKey: string): string {
+  const storeMap: Record<string, string> = {
+    target: "Target",
+    kroger: "Kroger",
+    meijer: "Meijer",
+    "99 ranch": "99 Ranch",
+    walmart: "Walmart",
+  }
+  return storeMap[storeKey] || storeKey
+}
+
+/**
+ * Format cached ingredient results to match the expected API response format
+ */
+function formatCachedResults(
+  cachedItems: Array<{
+    id: string
+    standardized_ingredient_id: string
+    store: string
+    price: number
+    quantity: number
+    unit: string
+    unit_price: number | null
+    image_url: string | null
+    product_url: string | null
+    product_id: string | null
+    expires_at: string
+  }>
+): any[] {
+  return cachedItems.map((item) => ({
+    id: item.product_id || item.id,
+    title: `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`,
+    brand: "",
+    price: item.price,
+    pricePerUnit: item.unit_price ? `$${item.unit_price}/${item.unit}` : undefined,
+    unit: item.unit,
+    image_url: item.image_url || "/placeholder.svg",
+    product_url: item.product_url,
+    provider: item.store,
+    location: `${item.store} Store`,
+  }))
 }

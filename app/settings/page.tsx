@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
-import { Palette, User, Bell, Shield, MapPin, Utensils } from "lucide-react"
+import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 export default function SettingsPage() {
@@ -26,6 +26,10 @@ export default function SettingsPage() {
   const [groceryDistance, setGroceryDistance] = useState("10")
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [tutorialCompleted, setTutorialCompleted] = useState(false)
+  const [tutorialPath, setTutorialPath] = useState<string | null>(null)
+  const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
+  const [rewatchLoading, setRewatchLoading] = useState(false)
 
   const cuisineOptions = [
     "Italian",
@@ -77,7 +81,7 @@ export default function SettingsPage() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences")
+        .select("cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at")
         .eq("id", user.id)
         .single()
 
@@ -89,6 +93,9 @@ export default function SettingsPage() {
         setPostalCode(data.postal_code || "")
         setGroceryDistance(String(data.grocery_distance_km || 10))
         setDietaryPreferences(data.dietary_preferences || [])
+        setTutorialCompleted(data.tutorial_completed || false)
+        setTutorialPath(data.tutorial_path || null)
+        setTutorialCompletedAt(data.tutorial_completed_at || null)
       }
     } catch (error) {
       console.error("Error fetching preferences:", error)
@@ -135,6 +142,39 @@ export default function SettingsPage() {
 
   const handleDietaryToggle = (diet: string) => {
     setDietaryPreferences((prev) => (prev.includes(diet) ? prev.filter((d) => d !== diet) : [...prev, diet]))
+  }
+
+  const handleRewatchTutorial = async () => {
+    if (!user) return
+
+    setRewatchLoading(true)
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          tutorial_completed: false,
+          tutorial_completed_at: null,
+        })
+        .eq("id", user.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Tutorial reset",
+        description: "Ready to rewatch your tutorial!",
+      })
+
+      router.push("/tutorials/get-started")
+    } catch (error) {
+      console.error("Error resetting tutorial:", error)
+      toast({
+        title: "Error",
+        description: "Failed to reset tutorial. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setRewatchLoading(false)
+    }
   }
 
   if (!mounted || !user) {
@@ -365,6 +405,60 @@ export default function SettingsPage() {
         >
           {loading ? "Saving..." : "Save Preferences"}
         </Button>
+
+        {/* Learning & Tutorials */}
+        <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <BookOpen className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
+              <div>
+                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Learning & Tutorials</CardTitle>
+                <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
+                  Rewatch your onboarding tutorial anytime
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {tutorialCompleted && tutorialPath && (
+                <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
+                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
+                    <span className="font-medium">Last completed:</span> {tutorialPath === "cooking" ? "Mastering the Craft" : tutorialPath === "budgeting" ? "Optimize Resources" : "Elevate Your Journey"}
+                  </p>
+                  {tutorialCompletedAt && (
+                    <p className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
+                      {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {!tutorialCompleted && (
+                <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-blue-50 border border-blue-200"}`}>
+                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
+                    You haven't completed the tutorial yet. Start it anytime to learn how to use Secret Sauce!
+                  </p>
+                </div>
+              )}
+
+              <Button
+                onClick={handleRewatchTutorial}
+                disabled={rewatchLoading}
+                className={`w-full ${
+                  isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4] border border-[#e8dcc4]/30 hover:bg-[#e8dcc4]/20" : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                }`}
+                variant="outline"
+              >
+                {rewatchLoading ? "Loading..." : tutorialCompleted ? "Rewatch Tutorial" : "Start Tutorial"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Account Settings */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
