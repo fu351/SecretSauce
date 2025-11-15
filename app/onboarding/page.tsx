@@ -160,10 +160,11 @@ export default function OnboardingPage() {
   const { toast } = useToast()
 
   useEffect(() => {
+    // Force dark theme for onboarding experience
+    // User can change to warm mode in the theme selection question
     setTheme("dark")
     setSelectedTheme("dark")
-    // run once on mount
-  }, [])
+  }, [setTheme])
 
   const handleDietaryToggle = (option: string) => {
     setDietaryPreferences((prev) =>
@@ -468,14 +469,14 @@ export default function OnboardingPage() {
                 onClick={() => handleThemeChoice("light")}
                 className={`p-4 rounded-lg border-2 text-left transition-all ${
                   selectedTheme === "light"
-                    ? "border-orange-500 bg-gradient-to-br from-orange-50 to-yellow-50"
-                    : "border-gray-600 bg-gradient-to-br from-orange-50 to-yellow-50 opacity-70 hover:opacity-90"
+                    ? "border-orange-500 bg-gradient-to-br from-[#FAF4E5] to-orange-100"
+                    : "border-orange-400 bg-gradient-to-br from-[#FAF4E5] to-orange-100 opacity-70 hover:opacity-90"
                 }`}
               >
-                <div className="text-gray-900 text-xs font-medium mb-2">Warm Mode</div>
+                <div className="text-orange-900 text-xs font-medium mb-2">Warm Mode</div>
                 <div className="space-y-2">
-                  <div className="h-2 bg-orange-200 rounded" />
-                  <div className="h-2 bg-orange-100 rounded w-3/4" />
+                  <div className="h-2 bg-orange-300 rounded" />
+                  <div className="h-2 bg-orange-200 rounded w-3/4" />
                 </div>
               </button>
             </div>
@@ -559,25 +560,40 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        <aside className="hidden md:flex w-24 lg:w-32">
-          <div className="sticky top-1/2 -translate-y-1/2 flex flex-col items-center gap-4">
+        {/* Progress indicator - sticky on right side */}
+        <aside className="hidden md:flex fixed right-8 top-1/2 -translate-y-1/2 z-40">
+          <div className="flex flex-col items-center gap-3">
             {questionOrder.map((question, index) => (
-              <button
-                key={question.id}
-                type="button"
-                onClick={() => scrollToQuestion(question.id)}
-                className="flex flex-col items-center gap-2 group focus:outline-none"
-              >
-                <div
-                  className={`w-10 h-10 rounded-full border flex items-center justify-center text-sm transition-all ${
-                    questionCompletion[question.id]
-                      ? "bg-[#e8dcc4] text-[#181813] border-[#e8dcc4]"
-                      : "border-[#e8dcc4]/30 text-[#e8dcc4]/60 group-hover:border-[#e8dcc4] group-hover:text-[#e8dcc4]"
-                  }`}
+              <div key={question.id} className="flex flex-col items-center">
+                <button
+                  type="button"
+                  onClick={() => scrollToQuestion(question.id)}
+                  className="flex flex-col items-center gap-2 group focus:outline-none transition-transform hover:scale-110"
+                  aria-label={`Jump to question ${index + 1}: ${question.title}`}
                 >
-                  {questionCompletion[question.id] ? <Check className="h-4 w-4" /> : index + 1}
-                </div>
-              </button>
+                  <div
+                    className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-sm font-semibold transition-all duration-300 cursor-pointer ${
+                      questionCompletion[question.id]
+                        ? "bg-[#e8dcc4] text-[#181813] border-[#e8dcc4] shadow-lg"
+                        : "border-[#e8dcc4]/40 text-[#e8dcc4]/70 group-hover:border-[#e8dcc4] group-hover:text-[#e8dcc4] group-hover:shadow-md"
+                    }`}
+                  >
+                    {questionCompletion[question.id] ? (
+                      <Check className="h-5 w-5" />
+                    ) : (
+                      <span className="text-lg">{index + 1}</span>
+                    )}
+                  </div>
+                </button>
+                {/* Connecting line between circles (except last) */}
+                {index < questionOrder.length - 1 && (
+                  <div className={`w-1 h-4 transition-colors ${
+                    questionCompletion[question.id]
+                      ? "bg-[#e8dcc4]"
+                      : "bg-[#e8dcc4]/20"
+                  }`} />
+                )}
+              </div>
             ))}
           </div>
         </aside>

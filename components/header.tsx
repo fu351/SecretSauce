@@ -27,7 +27,8 @@ export function Header() {
 
   const isDark = theme === "dark"
 
-  if ((pathname.startsWith("/auth") || pathname === "/onboarding") && !user) {
+  // Hide header for auth and onboarding routes when not logged in
+  if (!user && (pathname.startsWith("/auth") || pathname === "/onboarding")) {
     return null
   }
 
