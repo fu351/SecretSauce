@@ -207,60 +207,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {!user && (
-        <header className="border-b bg-background border-border">
-          <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="relative h-8 md:h-10 w-[130px] md:w-[150px]">
-                <Image
-                  src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
-                  alt="Secret Sauce"
-                  fill
-                  className="object-contain cursor-pointer"
-                  priority
-                />
-              </div>
-            </div>
-
-            <nav className="hidden md:flex items-center gap-6">
-              <Link href="/recipes" className="text-foreground/80 hover:text-foreground transition-colors">
-                Recipes
-              </Link>
-              <Link href="/meal-planner" className="text-foreground/80 hover:text-foreground transition-colors">
-                Meal Planner
-              </Link>
-              <Link href="/shopping" className="text-foreground/80 hover:text-foreground transition-colors">
-                Shopping
-              </Link>
-            </nav>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size={isMobile ? "sm" : "default"}
-                asChild
-                className={
-                  theme === "dark" ? "text-foreground hover:bg-background/10" : "text-foreground hover:bg-accent"
-                }
-              >
-                <Link href="/auth/signin">Sign In</Link>
-              </Button>
-              <Button
-                size={isMobile ? "sm" : "default"}
-                asChild
-                className={
-                  theme === "dark"
-                    ? "bg-foreground text-background hover:bg-foreground/90"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90"
-                }
-              >
-                <Link href="/auth/signup">Get Started</Link>
-              </Button>
-            </div>
-          </div>
-        </header>
-      )}
-
       <div className="max-w-7xl mx-auto p-4 md:p-6">
         <div className="text-center mb-8 md:mb-12 py-8 md:py-12">
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-light mb-3 md:mb-4 px-4 text-foreground">

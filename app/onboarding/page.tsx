@@ -162,7 +162,8 @@ export default function OnboardingPage() {
   useEffect(() => {
     setTheme("dark")
     setSelectedTheme("dark")
-  }, [setTheme])
+    // run once on mount
+  }, [])
 
   const handleDietaryToggle = (option: string) => {
     setDietaryPreferences((prev) =>
