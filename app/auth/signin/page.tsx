@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, X } from "lucide-react"
 
 export default function SignInPage() {
   const [email, setEmail] = useState("")
@@ -68,6 +68,13 @@ export default function SignInPage() {
       </div>
 
       <Card className="w-full max-w-md bg-[#0a0a0a] border-[#e8dcc4]/20 p-8 relative z-10">
+        <button
+          onClick={() => router.back()}
+          className="absolute top-4 right-4 p-2 hover:bg-[#e8dcc4]/10 rounded-lg transition-colors"
+          aria-label="Close sign in"
+        >
+          <X className="h-5 w-5 text-[#e8dcc4]/60 hover:text-[#e8dcc4]" />
+        </button>
         <div className="text-center mb-8">
           <div className="mb-6 flex justify-center">
             <Image src="/logo-dark.png" alt="Secret Sauce" width={80} height={80} className="opacity-90" />

@@ -325,8 +325,8 @@ export default function RecipesPage() {
             </div>
           </div>
 
-          <div className="relative max-w-2xl flex gap-2">
-            <div className="relative flex-1">
+          <div className="relative flex gap-2 items-center mb-8">
+            <div className="relative flex-1 max-w-2xl">
               <Search
                 className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${theme === "dark" ? "text-[#e8dcc4]/40" : "text-gray-400"} h-5 w-5`}
               />
@@ -338,43 +338,39 @@ export default function RecipesPage() {
                 className={`pl-12 py-4 text-lg rounded-full ${inputClass} shadow-sm`}
               />
             </div>
-            <Button onClick={handleSearch} className={buttonClass} size="lg">
-              <Search className="h-5 w-5" />
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant={viewMode === "tile" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("tile")}
+                className={
+                  viewMode === "tile"
+                    ? buttonClass
+                    : theme === "dark"
+                      ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#1f1e1a]"
+                      : ""
+                }
+              >
+                <Grid className="h-4 w-4 mr-1" />
+                Tiles
+              </Button>
+              <Button
+                variant={viewMode === "details" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("details")}
+                className={
+                  viewMode === "details"
+                    ? buttonClass
+                    : theme === "dark"
+                      ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#1f1e1a]"
+                      : ""
+                }
+              >
+                <List className="h-4 w-4 mr-1" />
+                Details
+              </Button>
+            </div>
           </div>
-        </div>
-
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <Button
-            variant={viewMode === "tile" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("tile")}
-            className={
-              viewMode === "tile"
-                ? buttonClass
-                : theme === "dark"
-                  ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#1f1e1a]"
-                  : ""
-            }
-          >
-            <Grid className="h-4 w-4 mr-1" />
-            Tiles
-          </Button>
-          <Button
-            variant={viewMode === "details" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("details")}
-            className={
-              viewMode === "details"
-                ? buttonClass
-                : theme === "dark"
-                  ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#1f1e1a]"
-                  : ""
-            }
-          >
-            <List className="h-4 w-4 mr-1" />
-            Details
-          </Button>
         </div>
 
         <Card className={`mb-8 ${cardBgClass} backdrop-blur-sm border-0 shadow-lg`} data-tutorial="recipe-filter">
