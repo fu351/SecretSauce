@@ -377,7 +377,7 @@ export default function RecipesPage() {
           </Button>
         </div>
 
-        <Card className={`mb-8 ${cardBgClass} backdrop-blur-sm border-0 shadow-lg`}>
+        <Card className={`mb-8 ${cardBgClass} backdrop-blur-sm border-0 shadow-lg`} data-tutorial="recipe-filter">
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <Select
@@ -514,9 +514,10 @@ export default function RecipesPage() {
           </div>
         ) : viewMode === "tile" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRecipes.map((recipe: Recipe) => (
+            {filteredRecipes.map((recipe: Recipe, idx: number) => (
               <div
                 key={recipe.id}
+                data-tutorial={idx === 0 ? "recipe-card" : undefined}
                 role="link"
                 tabIndex={0}
                 title={`Open ${recipe.title}`}

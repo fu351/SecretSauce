@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
+import { useTutorial } from "@/contexts/tutorial-context"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen } from "lucide-react"
@@ -16,6 +17,7 @@ import { supabase } from "@/lib/supabase"
 export default function SettingsPage() {
   const { user } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { resetTutorial } = useTutorial()
   const { toast } = useToast()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
@@ -115,6 +117,7 @@ export default function SettingsPage() {
           postal_code: postalCode || null,
           grocery_distance_km: Number.parseInt(groceryDistance) || 10,
           dietary_preferences: dietaryPreferences,
+          theme_preference: theme,
         })
         .eq("id", user.id)
 
@@ -144,37 +147,12 @@ export default function SettingsPage() {
     setDietaryPreferences((prev) => (prev.includes(diet) ? prev.filter((d) => d !== diet) : [...prev, diet]))
   }
 
-  const handleRewatchTutorial = async () => {
-    if (!user) return
-
-    setRewatchLoading(true)
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          tutorial_completed: false,
-          tutorial_completed_at: null,
-        })
-        .eq("id", user.id)
-
-      if (error) throw error
-
-      toast({
-        title: "Tutorial reset",
-        description: "Ready to rewatch your tutorial!",
-      })
-
-      router.push("/tutorials/get-started")
-    } catch (error) {
-      console.error("Error resetting tutorial:", error)
-      toast({
-        title: "Error",
-        description: "Failed to reset tutorial. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setRewatchLoading(false)
-    }
+  const handleRewatchTutorial = () => {
+    resetTutorial()
+    toast({
+      title: "Tutorial started",
+      description: "Follow the floating guide to learn Secret Sauce!",
+    })
   }
 
   if (!mounted || !user) {
@@ -218,7 +196,11 @@ export default function SettingsPage() {
                   {isDark ? "Mysterious and exclusive dark theme" : "Bright and inviting theme for everyday cooking"}
                 </p>
               </div>
-              <Switch id="theme-toggle" checked={isDark} onCheckedChange={toggleTheme} />
+              <Switch
+                id="theme-toggle"
+                checked={isDark}
+                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+              />
             </div>
 
             {/* Theme Preview */}

@@ -9,6 +9,8 @@ import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { ThemeSync } from "@/components/theme-sync"
+import { TutorialProvider } from "@/contexts/tutorial-context"
+import { TutorialOverlay } from "@/components/tutorial-overlay"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" })
@@ -35,11 +37,14 @@ export default function RootLayout({
         <ErrorBoundary>
           <ThemeProvider>
             <AuthProvider>
-              <ThemeSync />
-              <Header />
-              {children}
-              <Toaster />
-              <SpeedInsights />
+              <TutorialProvider>
+                <ThemeSync />
+                <TutorialOverlay />
+                <Header />
+                {children}
+                <Toaster />
+                <SpeedInsights />
+              </TutorialProvider>
             </AuthProvider>
           </ThemeProvider>
         </ErrorBoundary>

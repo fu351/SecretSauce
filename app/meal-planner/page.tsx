@@ -483,6 +483,7 @@ export default function MealPlannerPage() {
               size={isMobile ? "sm" : "default"}
               className={`w-full md:w-auto bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm relative md:ml-4`}
               onClick={addToShoppingList}
+              data-tutorial="meal-plan-add"
             >
               <ShoppingCart className="h-3 w-3 md:h-4 md:w-4 mr-2" />
               {isMobile ? "ADD TO CART" : "ADD TO SHOPPING LIST"}

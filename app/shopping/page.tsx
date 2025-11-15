@@ -798,7 +798,7 @@ export default function ShoppingPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="list" className="space-y-6">
+          <TabsContent value="list" className="space-y-6" data-tutorial="shopping-list">
             <Card className={cardBgClass}>
               <CardHeader>
                 <CardTitle className={`flex items-center gap-2 ${textClass}`}>
@@ -871,7 +871,7 @@ export default function ShoppingPage() {
                   </Button>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2" data-tutorial="shopping-add-item">
                   <Input
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
@@ -977,7 +977,7 @@ export default function ShoppingPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="comparison" className="space-y-6">
+          <TabsContent value="comparison" className="space-y-6" data-tutorial="price-comparison">
             {comparisonLoading ? (
               <Card className={cardBgClass}>
                 <CardContent className="p-8 text-center">

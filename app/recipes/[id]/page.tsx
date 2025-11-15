@@ -397,7 +397,7 @@ export default function RecipeDetailPage() {
                 </div>
 
                 {recipe.nutrition && (
-                  <div className={statCardClass}>
+                  <div className={statCardClass} data-tutorial="nutrition-info">
                     <Utensils className={clsx("h-5 w-5", statIconClass)} />
                     <div>
                       <p className={clsx("text-sm", statLabelClass)}>Nutrition</p>
