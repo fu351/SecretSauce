@@ -6,6 +6,14 @@ import { useRouter, usePathname } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "./auth-context"
 
+export interface TutorialSubstep {
+  id: number
+  instruction: string
+  highlightSelector?: string // Element to highlight for this substep
+  action?: "explore" | "click" | "navigate" | "highlight"
+  actionTarget?: string
+}
+
 export interface TutorialStep {
   id: number
   title: string
@@ -17,6 +25,7 @@ export interface TutorialStep {
   actionTarget?: string // Element to click or URL to navigate to
   nextButtonText?: string
   estimatedSeconds?: number
+  substeps?: TutorialSubstep[] // Detailed steps to guide through this main step
 }
 
 export interface TutorialPath {
@@ -87,6 +96,26 @@ const tutorialPaths: Record<string, TutorialPath> = {
         actionTarget: "/recipes",
         nextButtonText: "Browse Recipes",
         estimatedSeconds: 60,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Look at the filter panel on the left side. You'll see options for difficulty level, cuisine type, and cooking time.",
+            highlightSelector: "[data-tutorial='recipe-filter']",
+            action: "highlight",
+          },
+          {
+            id: 2,
+            instruction: "Click on 'Beginner' difficulty to filter for recipes that are easy to start with.",
+            highlightSelector: "[data-tutorial='recipe-filter']",
+            action: "click",
+            actionTarget: "[data-tutorial='recipe-filter']",
+          },
+          {
+            id: 3,
+            instruction: "Browse the recipes that appear. Notice how the difficulty filter has narrowed down the results to beginner-friendly options.",
+            action: "explore",
+          },
+        ],
       },
       {
         id: 3,
@@ -117,6 +146,30 @@ const tutorialPaths: Record<string, TutorialPath> = {
         action: "highlight",
         nextButtonText: "Continue",
         estimatedSeconds: 45,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Click on any recipe card to view its details, ratings, and reviews from other cooks.",
+            highlightSelector: "[data-tutorial='recipe-card']",
+            action: "click",
+            actionTarget: "[data-tutorial='recipe-card']",
+          },
+          {
+            id: 2,
+            instruction: "Read through the community reviews to see what other cooks thought about the recipe.",
+            action: "explore",
+          },
+          {
+            id: 3,
+            instruction: "Click the heart icon to favorite this recipe for quick access later.",
+            action: "click",
+          },
+          {
+            id: 4,
+            instruction: "Leave a star rating to help other cooks find great recipes.",
+            action: "click",
+          },
+        ],
       },
       {
         id: 5,
@@ -133,6 +186,30 @@ const tutorialPaths: Record<string, TutorialPath> = {
         actionTarget: "/meal-planner",
         nextButtonText: "Go to Meal Planner",
         estimatedSeconds: 60,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Look at the calendar view showing each day of the week.",
+            action: "explore",
+          },
+          {
+            id: 2,
+            instruction: "Click the 'Add Recipe' button to add a recipe to a specific day.",
+            highlightSelector: "[data-tutorial='meal-plan-add']",
+            action: "click",
+            actionTarget: "[data-tutorial='meal-plan-add']",
+          },
+          {
+            id: 3,
+            instruction: "Select 2-3 recipes from your favorites or search for new ones to add.",
+            action: "explore",
+          },
+          {
+            id: 4,
+            instruction: "Assign each recipe to different days of the week to create a balanced plan.",
+            action: "explore",
+          },
+        ],
       },
       {
         id: 6,
@@ -149,6 +226,29 @@ const tutorialPaths: Record<string, TutorialPath> = {
         actionTarget: "/shopping",
         nextButtonText: "Go Shopping",
         estimatedSeconds: 45,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Notice how your shopping list was automatically created from the recipes you planned.",
+            highlightSelector: "[data-tutorial='shopping-list']",
+            action: "highlight",
+          },
+          {
+            id: 2,
+            instruction: "Look at the ingredient prices from different stores. You can compare and choose the best deals.",
+            action: "explore",
+          },
+          {
+            id: 3,
+            instruction: "Click on different store names to see which offers the best prices for your items.",
+            action: "explore",
+          },
+          {
+            id: 4,
+            instruction: "Check off items as you add them to your cart to stay organized while shopping.",
+            action: "explore",
+          },
+        ],
       },
       {
         id: 7,
@@ -196,6 +296,25 @@ const tutorialPaths: Record<string, TutorialPath> = {
         actionTarget: "/shopping",
         nextButtonText: "Go to Shopping",
         estimatedSeconds: 60,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Click the 'Add Item' button to start building your shopping list.",
+            highlightSelector: "[data-tutorial='shopping-add-item']",
+            action: "click",
+            actionTarget: "[data-tutorial='shopping-add-item']",
+          },
+          {
+            id: 2,
+            instruction: "Add proteins, vegetables, and pantry staples you'll need for the week.",
+            action: "explore",
+          },
+          {
+            id: 3,
+            instruction: "Include items for meals you're planning to cook.",
+            action: "explore",
+          },
+        ],
       },
       {
         id: 3,
@@ -211,6 +330,24 @@ const tutorialPaths: Record<string, TutorialPath> = {
         action: "highlight",
         nextButtonText: "Continue",
         estimatedSeconds: 45,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Look at the price comparison table. Notice how the same items are priced differently at each store.",
+            highlightSelector: "[data-tutorial='price-comparison']",
+            action: "highlight",
+          },
+          {
+            id: 2,
+            instruction: "Click on each store name to see their pricing for your items.",
+            action: "explore",
+          },
+          {
+            id: 3,
+            instruction: "Select the store with the best overall prices to save money on your groceries.",
+            action: "explore",
+          },
+        ],
       },
       {
         id: 4,
@@ -290,6 +427,25 @@ const tutorialPaths: Record<string, TutorialPath> = {
         actionTarget: "/meal-planner",
         nextButtonText: "Go to Meal Planner",
         estimatedSeconds: 60,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Review your calendar for busy days. This helps you choose recipes that fit your schedule.",
+            action: "explore",
+          },
+          {
+            id: 2,
+            instruction: "Click 'Add Recipe' and select 4-5 nutritious recipes with variety in cuisines and nutrients.",
+            highlightSelector: "[data-tutorial='meal-plan-add']",
+            action: "click",
+            actionTarget: "[data-tutorial='meal-plan-add']",
+          },
+          {
+            id: 3,
+            instruction: "Spread the recipes throughout the week to ensure balanced nutrition and variety.",
+            action: "explore",
+          },
+        ],
       },
       {
         id: 3,
@@ -321,6 +477,29 @@ const tutorialPaths: Record<string, TutorialPath> = {
         action: "highlight",
         nextButtonText: "Continue",
         estimatedSeconds: 45,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Click on a recipe to view its complete nutrition information panel.",
+            action: "explore",
+          },
+          {
+            id: 2,
+            instruction: "Review the calories, protein, carbs, fat, sodium, and sugar per serving.",
+            highlightSelector: "[data-tutorial='nutrition-info']",
+            action: "highlight",
+          },
+          {
+            id: 3,
+            instruction: "Check if the nutrition aligns with your health goals. Note the sodium and sugar content.",
+            action: "explore",
+          },
+          {
+            id: 4,
+            instruction: "Adjust portion sizes if needed to fit your daily nutrition targets.",
+            action: "explore",
+          },
+        ],
       },
       {
         id: 5,

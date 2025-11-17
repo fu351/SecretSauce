@@ -106,8 +106,18 @@ export default function SettingsPage() {
   }, [theme])
 
   const handleThemeChange = async (newTheme: "light" | "dark") => {
+    // Update UI state immediately
     setSelectedTheme(newTheme)
     setTheme(newTheme)
+
+    // Manually update document class as backup (next-themes might not update immediately)
+    if (typeof document !== "undefined") {
+      if (newTheme === "dark") {
+        document.documentElement.classList.add("dark")
+      } else {
+        document.documentElement.classList.remove("dark")
+      }
+    }
 
     // Persist to supabase
     if (user) {
