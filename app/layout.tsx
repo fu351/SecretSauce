@@ -41,12 +41,6 @@ export default function RootLayout({
         <Script
           src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
           strategy="lazyOnload"
-          onLoad={() => {
-            // API loaded successfully
-          }}
-          onError={() => {
-            console.warn("Failed to load Google Maps API")
-          }}
         />
       </head>
       <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
