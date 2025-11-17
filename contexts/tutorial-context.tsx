@@ -11,7 +11,7 @@ export interface TutorialStep {
   title: string
   description: string
   tips?: string[]
-  page: string // URL path like /recipes, /meal-plan
+  page: string // URL path like /recipes, /meal-planner
   highlightSelector?: string // CSS selector to highlight
   action?: "navigate" | "click" | "highlight"
   actionTarget?: string // Element to click or URL to navigate to
@@ -102,7 +102,7 @@ const tutorialPaths: Record<string, TutorialPath> = {
         id: 4,
         title: "Plan Your Week",
         description: "Visit Meal Planning to organize your cooking schedule. Plan 3-4 recipes per week.",
-        page: "/meal-plan",
+        page: "/meal-planner",
         highlightSelector: "[data-tutorial='meal-plan-add']",
         tips: [
           "Mix easy and moderate recipes in your plan",
@@ -110,7 +110,7 @@ const tutorialPaths: Record<string, TutorialPath> = {
           "Plan meals around your schedule",
         ],
         action: "navigate",
-        actionTarget: "/meal-plan",
+        actionTarget: "/meal-planner",
         nextButtonText: "Go to Meal Plan",
         estimatedSeconds: 60,
       },
@@ -227,7 +227,7 @@ const tutorialPaths: Record<string, TutorialPath> = {
         id: 5,
         title: "Plan Strategically",
         description: "Use Meal Planning to organize budget-friendly recipes for the week.",
-        page: "/meal-plan",
+        page: "/meal-planner",
         highlightSelector: "[data-tutorial='meal-plan-add']",
         tips: [
           "Plan meals with overlapping ingredients",
@@ -235,7 +235,7 @@ const tutorialPaths: Record<string, TutorialPath> = {
           "Prep in batches to minimize waste",
         ],
         action: "navigate",
-        actionTarget: "/meal-plan",
+        actionTarget: "/meal-planner",
         nextButtonText: "Plan Your Week",
         estimatedSeconds: 60,
       },
@@ -289,7 +289,7 @@ const tutorialPaths: Record<string, TutorialPath> = {
         id: 2,
         title: "Plan Your Meals",
         description: "Start with Meal Planning. Organize your week with nutritious, efficient recipes.",
-        page: "/meal-plan",
+        page: "/meal-planner",
         highlightSelector: "[data-tutorial='meal-plan-add']",
         tips: [
           "Plan around your weekly schedule",
@@ -297,7 +297,7 @@ const tutorialPaths: Record<string, TutorialPath> = {
           "Prep meals in advance for convenience",
         ],
         action: "navigate",
-        actionTarget: "/meal-plan",
+        actionTarget: "/meal-planner",
         nextButtonText: "Go to Meal Plan",
         estimatedSeconds: 60,
       },
@@ -352,14 +352,14 @@ const tutorialPaths: Record<string, TutorialPath> = {
         id: 6,
         title: "Optimize Your Routine",
         description: "Use meal prep and batch cooking to save time during the week. Eat well consistently.",
-        page: "/meal-plan",
+        page: "/meal-planner",
         tips: [
           "Prep components on Sunday",
           "Cook proteins in bulk",
           "Store meals properly for freshness",
         ],
         action: "navigate",
-        actionTarget: "/meal-plan",
+        actionTarget: "/meal-planner",
         nextButtonText: "Master Meal Prep",
         estimatedSeconds: 30,
       },
