@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ChefHat, SearchIcon, DollarSign, Plus, X, ShoppingCart, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
@@ -61,7 +60,6 @@ export default function ShoppingPage() {
   const [loading, setLoading] = useState(false)
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([])
   const [newItem, setNewItem] = useState("")
-  const [activeTab, setActiveTab] = useState("search")
   const [showRecipeDialog, setShowRecipeDialog] = useState(false)
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [massSearchResults, setMassSearchResults] = useState<StoreComparison[]>([])
@@ -217,7 +215,6 @@ export default function ShoppingPage() {
       const storeResults = await searchGroceryStores(searchTerm, zipCode)
       const flattenedResults = storeResults.flatMap((store) => store.items)
       setSearchResults(flattenedResults)
-      setActiveTab("search")
     } catch (error) {
       console.error("Search error:", error)
       toast({
@@ -304,6 +301,30 @@ export default function ShoppingPage() {
       setShoppingList(updatedList)
       saveShoppingList(updatedList)
       setMissingItems((prev) => prev.filter((item) => item.id !== itemSearchSource.shoppingItemId))
+
+      // If this was a missing item being reloaded, add it to the carousel results
+      if (itemSearchSource.type === "missing" && massSearchResults.length > 0) {
+        const storeToAdd = itemSearchSource.store || massSearchResults[0].store
+        const updatedResults = massSearchResults.map((result) => {
+          if (result.store === storeToAdd) {
+            const shoppingItem = updatedList.find((si) => si.id === itemSearchSource.shoppingItemId)
+            return {
+              ...result,
+              items: [
+                ...result.items,
+                {
+                  ...option,
+                  shoppingItemId: itemSearchSource.shoppingItemId,
+                },
+              ],
+              total: result.total + (option.price * (shoppingItem?.quantity || 1)),
+            }
+          }
+          return result
+        })
+        setMassSearchResults(updatedResults)
+      }
+
       toast({
         title: "Item updated",
         description: `${option.title} selected for your shopping list.`,
@@ -475,7 +496,6 @@ export default function ShoppingPage() {
 
       setMassSearchResults(comparisons)
       setMissingItems(missing)
-      setActiveTab("comparison")
     } catch (error) {
       console.error("Error performing mass search:", error)
       toast({
@@ -614,28 +634,9 @@ export default function ShoppingPage() {
           <p className={mutedTextClass}>Find the best prices and manage your shopping list</p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList
-            className={`grid w-full grid-cols-3 ${theme === "dark" ? "bg-[#1f1e1a]" : "bg-white"}`}
-          >
-            <TabsTrigger
-              value="search"
-              className={`data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]`}
-            >
-              Price Search
-            </TabsTrigger>
-            <TabsTrigger value="list" className={`data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]`}>
-              Shopping List
-            </TabsTrigger>
-            <TabsTrigger
-              value="comparison"
-              className={`data-[state=active]:bg-[#e8dcc4] data-[state=active]:text-[#181813]`}
-            >
-              Store Comparison
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="search" className="space-y-6">
+        <div className="space-y-6">
+          {/* Price Search Section - Only show when there's 1 item in shopping list */}
+          {shoppingList.length === 1 && (
             <Card className={cardBgClass}>
               <CardHeader>
                 <CardTitle className={`flex items-center gap-2 ${textClass}`}>
@@ -813,10 +814,10 @@ export default function ShoppingPage() {
                 </div>
               </div>
             )}
-          </TabsContent>
+          )}
 
-          <TabsContent value="list" className="space-y-6" data-tutorial="shopping-list">
-            <Card className={cardBgClass}>
+          {/* Shopping List Section */}
+          <Card className={cardBgClass}>
               <CardHeader>
                 <CardTitle className={`flex items-center gap-2 ${textClass}`}>
                   <ShoppingCart className="h-5 w-5" />
@@ -992,10 +993,9 @@ export default function ShoppingPage() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="comparison" className="space-y-6" data-tutorial="price-comparison">
-            {comparisonLoading ? (
+          {/* Store Comparison Section */}
+          {comparisonLoading ? (
               <Card className={cardBgClass}>
                 <CardContent className="p-8 text-center">
                   <div
@@ -1006,204 +1006,208 @@ export default function ShoppingPage() {
               </Card>
             ) : massSearchResults.length > 0 ? (
               <div className="space-y-6">
-                <div className="relative">
-                  {/* Carousel Navigation */}
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className={`text-2xl font-bold ${textClass}`}>Store Comparison</h2>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={prevStore}
-                        disabled={carouselIndex === 0}
-                        className={buttonOutlineClass}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className={`text-sm ${mutedTextClass}`}>
-                        {carouselIndex + 1} / {massSearchResults.length}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={nextStore}
-                        disabled={carouselIndex === massSearchResults.length - 1}
-                        className={buttonOutlineClass}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
+                {/* Carousel and Map Side by Side */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Carousel Section */}
+                  <div className="relative">
+                    {/* Carousel Navigation */}
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className={`text-2xl font-bold ${textClass}`}>Store Comparison</h2>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={prevStore}
+                          disabled={carouselIndex === 0}
+                          className={buttonOutlineClass}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className={`text-sm ${mutedTextClass}`}>
+                          {carouselIndex + 1} / {massSearchResults.length}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={nextStore}
+                          disabled={carouselIndex === massSearchResults.length - 1}
+                          className={buttonOutlineClass}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Carousel Container */}
-                  <div
-                    ref={carouselRef}
-                    className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
-                    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                  >
-                    {massSearchResults.map((comparison, index) => (
-                      <div key={comparison.store} className="flex-shrink-0 w-full snap-center">
-                        <Card className={`h-full ${cardBgClass} ${index === 0 ? "border-2 border-green-500" : ""}`}>
-                          <CardHeader>
-                            <CardTitle className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className="text-4xl">{getStoreIcon(comparison.store)}</span>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-2xl ${textClass}`}>{comparison.store}</span>
-                                    {index === 0 && <Badge className="bg-green-500 text-white">Best Price</Badge>}
-                                  </div>
-                                  <div className="text-right mt-1">
-                                    <div className={`text-3xl font-bold ${textClass}`}>
-                                      ${comparison.total.toFixed(2)}
+                    {/* Carousel Container */}
+                    <div
+                      ref={carouselRef}
+                      className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
+                      style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                    >
+                      {massSearchResults.map((comparison, index) => (
+                        <div key={comparison.store} className="flex-shrink-0 w-full snap-center">
+                          <Card className={`h-full ${cardBgClass} ${index === 0 ? "border-2 border-green-500" : ""}`}>
+                            <CardHeader>
+                              <CardTitle className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-4xl">{getStoreIcon(comparison.store)}</span>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-2xl ${textClass}`}>{comparison.store}</span>
+                                      {index === 0 && <Badge className="bg-green-500 text-white">Best Price</Badge>}
                                     </div>
-                                    {comparison.savings > 0 && (
-                                      <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
-                                    )}
+                                    <div className="text-right mt-1">
+                                      <div className={`text-3xl font-bold ${textClass}`}>
+                                        ${comparison.total.toFixed(2)}
+                                      </div>
+                                      {comparison.savings > 0 && (
+                                        <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                              {comparison.items.map((item) => {
-                                const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)
-                                return (
-                                  <div
-                                    key={item.id}
-                                    className={`flex items-start gap-3 p-4 rounded-lg ${theme === "dark" ? "bg-[#181813]" : "bg-gray-50"}`}
-                                  >
-                                    <img
-                                      src={item.image_url || "/placeholder.svg"}
-                                      alt={item.title}
-                                      className="w-16 h-16 object-cover rounded"
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                      <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
-                                      <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
-                                      {shoppingItem && (
-                                        <p className={`text-xs ${mutedTextClass} mt-1`}>Qty: {shoppingItem.quantity}</p>
-                                      )}
-                                      <div className="flex items-center justify-between mt-2 gap-2">
-                                        <div className="text-sm">
-                                          <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
-                                          {item.pricePerUnit && (
-                                            <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>
-                                          )}
-                                          {shoppingItem && shoppingItem.quantity > 1 && (
-                                            <span className={`${mutedTextClass} ml-2`}>
-                                              Total: ${(item.price * shoppingItem.quantity).toFixed(2)}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() =>
-                                              openItemSearchOverlay(item.title, {
-                                                type: "shopping-list",
-                                                shoppingItemId: item.shoppingItemId,
-                                                store: comparison.store,
-                                              })
-                                            }
-                                            className={`h-6 px-2 ${buttonOutlineClass}`}
-                                          >
-                                            <RefreshCw className="h-3 w-3 mr-1" />
-                                            Reload
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            onClick={() => addToShoppingList(item)}
-                                            className={`h-6 px-2 ${buttonClass}`}
-                                          >
-                                            <Plus className="h-3 w-3" />
-                                          </Button>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                                {comparison.items.map((item) => {
+                                  const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      className={`flex items-start gap-3 p-4 rounded-lg ${theme === "dark" ? "bg-[#181813]" : "bg-gray-50"}`}
+                                    >
+                                      <img
+                                        src={item.image_url || "/placeholder.svg"}
+                                        alt={item.title}
+                                        className="w-16 h-16 object-cover rounded"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
+                                        <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
+                                        {shoppingItem && (
+                                          <p className={`text-xs ${mutedTextClass} mt-1`}>Qty: {shoppingItem.quantity}</p>
+                                        )}
+                                        <div className="flex items-center justify-between mt-2 gap-2">
+                                          <div className="text-sm">
+                                            <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
+                                            {item.pricePerUnit && (
+                                              <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>
+                                            )}
+                                            {shoppingItem && shoppingItem.quantity > 1 && (
+                                              <span className={`${mutedTextClass} ml-2`}>
+                                                Total: ${(item.price * shoppingItem.quantity).toFixed(2)}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() =>
+                                                openItemSearchOverlay(item.title, {
+                                                  type: "shopping-list",
+                                                  shoppingItemId: item.shoppingItemId,
+                                                  store: comparison.store,
+                                                })
+                                              }
+                                              className={`h-6 px-2 ${buttonOutlineClass}`}
+                                            >
+                                              <RefreshCw className="h-3 w-3 mr-1" />
+                                              Reload
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              onClick={() => addToShoppingList(item)}
+                                              className={`h-6 px-2 ${buttonClass}`}
+                                            >
+                                              <Plus className="h-3 w-3" />
+                                            </Button>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )
-                              })}
-                              {shoppingList.length > comparison.items.length && (
-                                <div className="mt-4 border-t border-dashed border-border pt-4">
-                                  <p className={`text-sm font-semibold ${textClass} mb-2`}>Missing Items</p>
-                                  <div className="space-y-2">
-                                    {shoppingList
-                                      .filter(
-                                        (listItem) =>
-                                          !comparison.items.some((item) => item.shoppingItemId === listItem.id),
-                                      )
-                                      .map((listItem) => (
-                                        <div
-                                          key={listItem.id}
-                                          className={`text-sm ${mutedTextClass} flex items-center justify-between gap-4`}
-                                        >
-                                          <div>
-                                            <div>{listItem.name}</div>
-                                            <div className="text-xs">Qty: {listItem.quantity}</div>
-                                          </div>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() =>
-                                              openItemSearchOverlay(listItem.name, {
-                                                type: "shopping-list",
-                                                shoppingItemId: listItem.id,
-                                                store: comparison.store,
-                                              })
-                                            }
-                                            className={`h-7 px-2 text-xs ${buttonOutlineClass}`}
+                                  )
+                                })}
+                                {shoppingList.length > comparison.items.length && (
+                                  <div className="mt-4 border-t border-dashed border-border pt-4">
+                                    <p className={`text-sm font-semibold ${textClass} mb-2`}>Missing Items</p>
+                                    <div className="space-y-2">
+                                      {shoppingList
+                                        .filter(
+                                          (listItem) =>
+                                            !comparison.items.some((item) => item.shoppingItemId === listItem.id),
+                                        )
+                                        .map((listItem) => (
+                                          <div
+                                            key={listItem.id}
+                                            className={`text-sm ${mutedTextClass} flex items-center justify-between gap-4`}
                                           >
-                                            <RefreshCw className="h-3 w-3 mr-1" />
-                                            Reload
-                                          </Button>
-                                        </div>
-                                      ))}
+                                            <div>
+                                              <div>{listItem.name}</div>
+                                              <div className="text-xs">Qty: {listItem.quantity}</div>
+                                            </div>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() =>
+                                                openItemSearchOverlay(listItem.name, {
+                                                  type: "shopping-list",
+                                                  shoppingItemId: listItem.id,
+                                                  store: comparison.store,
+                                                })
+                                              }
+                                              className={`h-7 px-2 text-xs ${buttonOutlineClass}`}
+                                            >
+                                              <RefreshCw className="h-3 w-3 mr-1" />
+                                              Reload
+                                            </Button>
+                                          </div>
+                                        ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    ))}
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Carousel Dots Indicator */}
+                    <div className="flex justify-center gap-2 mt-4">
+                      {massSearchResults.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => scrollToStore(index)}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            index === carouselIndex
+                              ? theme === "dark"
+                                ? "bg-[#e8dcc4] w-8"
+                                : "bg-orange-500 w-8"
+                              : theme === "dark"
+                                ? "bg-[#e8dcc4]/30"
+                                : "bg-gray-300"
+                          }`}
+                          aria-label={`Go to store ${index + 1}`}
+                        />
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Carousel Dots Indicator */}
-                  <div className="flex justify-center gap-2 mt-4">
-                    {massSearchResults.map((_, index) => (
-                      <button
-                        key={index}
-                        onClick={() => scrollToStore(index)}
-                        className={`w-2 h-2 rounded-full transition-all ${
-                          index === carouselIndex
-                            ? theme === "dark"
-                              ? "bg-[#e8dcc4] w-8"
-                              : "bg-orange-500 w-8"
-                            : theme === "dark"
-                              ? "bg-[#e8dcc4]/30"
-                              : "bg-gray-300"
-                        }`}
-                        aria-label={`Go to store ${index + 1}`}
-                      />
-                    ))}
+                  {/* Store Map Section */}
+                  <div ref={mapContainerRef} className="space-y-4">
+                    <div>
+                      <h2 className={`text-2xl font-bold ${textClass} mb-2`}>Store Locations</h2>
+                      <p className={mutedTextClass}>Click markers to sync with the carousel</p>
+                    </div>
+                    <StoreMap
+                      comparisons={massSearchResults}
+                      userPostalCode={zipCode}
+                      selectedStoreIndex={carouselIndex}
+                      onStoreSelected={(index) => scrollToStore(index)}
+                    />
                   </div>
-                </div>
-
-                {/* Store Map */}
-                <div ref={mapContainerRef} className="space-y-4">
-                  <div>
-                    <h2 className={`text-2xl font-bold ${textClass} mb-2`}>Store Locations</h2>
-                    <p className={mutedTextClass}>View store locations on the map and click markers to sync with the carousel above</p>
-                  </div>
-                  <StoreMap
-                    comparisons={massSearchResults}
-                    userPostalCode={zipCode}
-                    selectedStoreIndex={carouselIndex}
-                    onStoreSelected={(index) => scrollToStore(index)}
-                  />
                 </div>
 
                 <Card
@@ -1298,14 +1302,13 @@ export default function ShoppingPage() {
                   <p className={`${mutedTextClass} mb-4`}>
                     Add items to your shopping list and perform a search to see store comparisons.
                   </p>
-                  <Button onClick={() => setActiveTab("list")} className={buttonClass}>
+                  <Button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className={buttonClass}>
                     Go to Shopping List
                   </Button>
                 </CardContent>
               </Card>
             )}
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
       <Dialog open={itemSearchModalOpen} onOpenChange={handleItemSearchModalChange}>
         <DialogContent className="max-w-3xl">

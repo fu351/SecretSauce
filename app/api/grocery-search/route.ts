@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const pythonServiceUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000"
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000) // Reduced to 5 seconds
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // Reduced to 5 seconds
 
     const response = await fetch(
       `${pythonServiceUrl}/grocery-search?searchTerm=${encodeURIComponent(sanitizedSearchTerm)}&zipCode=${zipCode}`,

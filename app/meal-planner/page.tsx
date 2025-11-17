@@ -399,6 +399,7 @@ export default function MealPlannerPage() {
   }
 
   const sidebarClassName = getSidebarClassName(isMobile, sidebarOpen)
+  const stickySidebarClass = isMobile ? "" : "md:sticky md:top-6 md:h-[calc(100vh-3rem)] md:self-start"
 
   if (!user) {
     return (
@@ -481,7 +482,9 @@ export default function MealPlannerPage() {
 
             <Button
               size={isMobile ? "sm" : "default"}
-              className={`w-full md:w-auto bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm relative md:ml-4`}
+              className={`w-full md:w-auto bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm relative md:ml-4 ${
+                isMobile ? "pr-16" : "px-8"
+              }`}
               onClick={addToShoppingList}
               data-tutorial="meal-plan-add"
             >
@@ -654,7 +657,9 @@ export default function MealPlannerPage() {
       </div>
 
       <div
-        className={`${sidebarClassName} bg-card border-border ${isMobile ? "" : "border-l"} flex-shrink-0 transition-all duration-300 relative`}
+        className={`${sidebarClassName} ${stickySidebarClass} bg-card border-border ${
+          isMobile ? "" : "border-l"
+        } flex-shrink-0 transition-all duration-300 relative`}
       >
         {!isMobile && (
           <button

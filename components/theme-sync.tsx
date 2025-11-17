@@ -11,17 +11,15 @@ import { useTheme } from "@/contexts/theme-context"
  */
 export function ThemeSync() {
   const { profile } = useAuth()
-  const { setTheme } = useTheme()
+  const { theme: currentTheme, setTheme } = useTheme()
 
   useEffect(() => {
-    // If user has a profile with a saved theme preference, use it
-    if (profile && profile.theme_preference) {
-      setTheme(profile.theme_preference)
-    } else {
-      // Default to dark mode for all users (logged in or not)
-      setTheme("dark")
+    const preferredTheme = profile?.theme_preference
+    if (!preferredTheme) return
+    if (preferredTheme !== currentTheme) {
+      setTheme(preferredTheme)
     }
-  }, [profile?.theme_preference, setTheme])
+  }, [profile?.theme_preference, currentTheme, setTheme])
 
   return null
 }

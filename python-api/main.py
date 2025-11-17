@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 import subprocess
 import json
 import os
@@ -67,21 +68,32 @@ async def grocery_search(
 ):
     """Search for grocery items across multiple stores"""
     results = []
-    stores = ["Target", "Kroger", "Meijer", "99Ranch", "Walmart"]  # Now includes Walmart with Exa+LLM
-    
-    for store in stores:
-        store_results = run_scraper(store, searchTerm, zipCode)
+    stores = ["Target", "Kroger", "Meijer", "99Ranch", "Walmart"]
+
+    # Run scrapers concurrently so a slow store doesn't block the rest
+    tasks = [asyncio.to_thread(run_scraper, store, searchTerm, zipCode) for store in stores]
+    store_results_list = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for store, store_results in zip(stores, store_results_list):
+        if isinstance(store_results, Exception):
+            results.append({"error": f"{store} scraper failed: {store_results}"})
+            continue
+
         if isinstance(store_results, list) and store_results:
-            # Add store identifier to each item
             for item in store_results:
                 item["provider"] = store
             results.extend(store_results)
-        elif "error" not in store_results:
-            # Handle single item responses
-            if store_results:
-                store_results["provider"] = store
-                results.append(store_results)
-    
+            continue
+
+        if isinstance(store_results, dict) and "error" in store_results:
+            results.append({"error": f"{store}: {store_results['error']}"})
+            continue
+
+        if store_results:
+            # Handle single item dict responses
+            store_results["provider"] = store
+            results.append(store_results)
+
     return {"results": results}
 
 if __name__ == "__main__":
