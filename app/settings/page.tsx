@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
   const [rewatchLoading, setRewatchLoading] = useState(false)
   const [showTutorialModal, setShowTutorialModal] = useState(false)
+  const [selectedTheme, setSelectedTheme] = useState<"dark" | "light">(theme === "dark" ? "dark" : "light")
 
   const cuisineOptions = [
     "Italian",
@@ -98,6 +99,15 @@ export default function SettingsPage() {
       fetchUserPreferences()
     }
   }, [user, router])
+
+  useEffect(() => {
+    setSelectedTheme(theme === "dark" ? "dark" : "light")
+  }, [theme])
+
+  const handleThemeChange = (newTheme: "dark" | "light") => {
+    setSelectedTheme(newTheme)
+    setTheme(newTheme)
+  }
 
   const fetchUserPreferences = async () => {
     if (!user) return
@@ -183,7 +193,7 @@ export default function SettingsPage() {
     return null
   }
 
-  const isDark = theme === "dark"
+  const isDark = selectedTheme === "dark"
 
   return (
     <div className={`min-h-screen ${isDark ? "bg-[#0a0a0a]" : "bg-gray-50"}`}>
@@ -223,7 +233,7 @@ export default function SettingsPage() {
               <Switch
                 id="theme-toggle"
                 checked={isDark}
-                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                onCheckedChange={(checked) => handleThemeChange(checked ? "dark" : "light")}
               />
             </div>
 
@@ -233,7 +243,7 @@ export default function SettingsPage() {
                 className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                   isDark ? "border-[#e8dcc4] bg-[#0a0a0a]" : "border-gray-300 bg-[#0a0a0a] opacity-50 hover:opacity-70"
                 }`}
-                onClick={() => !isDark && toggleTheme()}
+                onClick={() => handleThemeChange("dark")}
               >
                 <div className="text-[#e8dcc4] text-xs font-medium mb-2">Dark Mode</div>
                 <div className="space-y-2">
@@ -248,7 +258,7 @@ export default function SettingsPage() {
                     ? "border-orange-500 bg-gradient-to-br from-orange-50 to-yellow-50"
                     : "border-gray-600 bg-gradient-to-br from-orange-50 to-yellow-50 opacity-50 hover:opacity-70"
                 }`}
-                onClick={() => isDark && toggleTheme()}
+                onClick={() => handleThemeChange("light")}
               >
                 <div className="text-gray-900 text-xs font-medium mb-2">Warm Mode</div>
                 <div className="space-y-2">

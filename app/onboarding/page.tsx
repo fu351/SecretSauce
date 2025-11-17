@@ -234,10 +234,10 @@ export default function OnboardingPage() {
     switch (questionId) {
       case "goal":
         return (
-          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white border-orange-200"}`}>
+          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
             <div className="mb-8">
-              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{meta.description}</p>
+              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="space-y-4">
               {goals.map((goal) => {
@@ -250,19 +250,19 @@ export default function OnboardingPage() {
                       selectedGoal === goal.id
                         ? isDark
                           ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
-                          : "border-orange-500 bg-orange-50"
+                          : "border-orange-600 bg-orange-100"
                         : isDark
                           ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
-                          : "border-gray-200 hover:border-orange-300 hover:bg-orange-50"
+                          : "border-orange-400 hover:border-orange-600 hover:bg-orange-100"
                     }`}
                   >
                     <div className="flex items-start gap-4">
-                      <div className={`p-3 rounded-lg border ${isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-200 bg-orange-50"}`}>
-                        <Icon className={`h-6 w-6 ${isDark ? "text-[#e8dcc4]" : "text-orange-600"}`} />
+                      <div className={`p-3 rounded-lg border ${isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-600 bg-orange-100"}`}>
+                        <Icon className={`h-6 w-6 ${isDark ? "text-[#e8dcc4]" : "text-orange-700"}`} />
                       </div>
                       <div className="flex-1">
-                        <h3 className={`font-light text-lg mb-1 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{goal.title}</h3>
-                        <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{goal.description}</p>
+                        <h3 className={`font-light text-lg mb-1 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{goal.title}</h3>
+                        <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{goal.description}</p>
                       </div>
                     </div>
                   </button>
@@ -273,10 +273,10 @@ export default function OnboardingPage() {
         )
       case "cookingLevel":
         return (
-          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white border-orange-200"}`}>
+          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
             <div className="mb-8">
-              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{meta.description}</p>
+              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="space-y-4">
               {cookingLevels.map((level) => (
@@ -285,12 +285,16 @@ export default function OnboardingPage() {
                   onClick={() => handleSingleSelect(setCookingLevel, level.id, "cookingLevel")}
                   className={`w-full p-6 rounded-lg border text-left transition-all ${
                     cookingLevel === level.id
-                      ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
-                      : "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
+                      ? isDark
+                        ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
+                        : "border-orange-600 bg-orange-100"
+                      : isDark
+                        ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
+                        : "border-orange-400 hover:border-orange-600 hover:bg-orange-100"
                   }`}
                 >
-                  <h3 className="font-light text-lg mb-1 text-[#e8dcc4]">{level.label}</h3>
-                  <p className="text-[#e8dcc4]/60 text-sm font-light">{level.description}</p>
+                  <h3 className={`font-light text-lg mb-1 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{level.label}</h3>
+                  <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{level.description}</p>
                 </button>
               ))}
             </div>
@@ -298,10 +302,10 @@ export default function OnboardingPage() {
         )
       case "budget":
         return (
-          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white border-orange-200"}`}>
+          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
             <div className="mb-8">
-              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{meta.description}</p>
+              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="space-y-4">
               {budgetRanges.map((budget) => (
@@ -310,12 +314,16 @@ export default function OnboardingPage() {
                   onClick={() => handleSingleSelect(setBudgetRange, budget.id, "budget")}
                   className={`w-full p-6 rounded-lg border text-left transition-all ${
                     budgetRange === budget.id
-                      ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
-                      : "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
+                      ? isDark
+                        ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
+                        : "border-orange-600 bg-orange-100"
+                      : isDark
+                        ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
+                        : "border-orange-400 hover:border-orange-600 hover:bg-orange-100"
                   }`}
                 >
-                  <h3 className="font-light text-lg mb-1 text-[#e8dcc4]">{budget.label}</h3>
-                  <p className="text-[#e8dcc4]/60 text-sm font-light">{budget.description}</p>
+                  <h3 className={`font-light text-lg mb-1 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{budget.label}</h3>
+                  <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{budget.description}</p>
                 </button>
               ))}
             </div>
@@ -323,10 +331,10 @@ export default function OnboardingPage() {
         )
       case "dietary":
         return (
-          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white border-orange-200"}`}>
+          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
             <div className="mb-8">
-              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{meta.description}</p>
+              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {dietaryOptions.map((option) => (
@@ -337,10 +345,10 @@ export default function OnboardingPage() {
                     dietaryPreferences.includes(option)
                       ? isDark
                         ? "border-[#e8dcc4] bg-[#e8dcc4]/10 text-[#e8dcc4]"
-                        : "border-orange-500 bg-orange-50 text-orange-900"
+                        : "border-orange-600 bg-orange-100 text-amber-950"
                       : isDark
                         ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 text-[#e8dcc4]/60 hover:text-[#e8dcc4]"
-                        : "border-gray-200 hover:border-orange-300 text-gray-600 hover:text-orange-600"
+                        : "border-orange-400 hover:border-orange-600 text-amber-900 hover:text-amber-950"
                   }`}
                 >
                   {option}
@@ -351,10 +359,10 @@ export default function OnboardingPage() {
         )
       case "cuisine":
         return (
-          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white border-orange-200"}`}>
+          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
             <div className="mb-8">
-              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{meta.description}</p>
+              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {cuisineOptions.map((option) => (
@@ -363,8 +371,12 @@ export default function OnboardingPage() {
                   onClick={() => handleCuisineToggle(option)}
                   className={`p-4 rounded-lg border text-center transition-all font-light ${
                     cuisinePreferences.includes(option)
-                      ? "border-[#e8dcc4] bg-[#e8dcc4]/10 text-[#e8dcc4]"
-                      : "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 text-[#e8dcc4]/60 hover:text-[#e8dcc4]"
+                      ? isDark
+                        ? "border-[#e8dcc4] bg-[#e8dcc4]/10 text-[#e8dcc4]"
+                        : "border-orange-600 bg-orange-100 text-amber-950"
+                      : isDark
+                        ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 text-[#e8dcc4]/60 hover:text-[#e8dcc4]"
+                        : "border-orange-400 hover:border-orange-600 text-amber-900 hover:text-amber-950"
                   }`}
                 >
                   {option}
@@ -375,10 +387,10 @@ export default function OnboardingPage() {
         )
       case "cookingTime":
         return (
-          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white border-orange-200"}`}>
+          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
             <div className="mb-8">
-              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{meta.description}</p>
+              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="space-y-3">
               {cookingTimeOptions.map((option) => (
@@ -389,17 +401,17 @@ export default function OnboardingPage() {
                     cookingTimePreference === option.id
                       ? isDark
                         ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
-                        : "border-orange-500 bg-orange-50"
+                        : "border-orange-600 bg-orange-100"
                       : isDark
                         ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
-                        : "border-gray-200 hover:border-orange-300 hover:bg-orange-50"
+                        : "border-orange-400 hover:border-orange-600 hover:bg-orange-100"
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{option.icon}</span>
                     <div>
-                      <h3 className={`font-light text-lg ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{option.label}</h3>
-                      <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{option.description}</p>
+                      <h3 className={`font-light text-lg ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{option.label}</h3>
+                      <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{option.description}</p>
                     </div>
                   </div>
                 </button>
@@ -409,35 +421,35 @@ export default function OnboardingPage() {
         )
       case "location":
         return (
-          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white border-orange-200"}`}>
+          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
             <div className="mb-8">
-              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>{meta.description}</p>
+              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="space-y-6">
               <div>
-                <Label htmlFor="postal-code" className={`mb-2 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
+                <Label htmlFor="postal-code" className={`mb-2 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>
                   Postal Code (optional)
                 </Label>
                 <div className="relative">
-                  <MapPin className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`} />
+                  <MapPin className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-orange-700"}`} />
                   <Input
                     id="postal-code"
                     type="text"
                     placeholder="Enter your postal code"
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
-                    className={isDark ? "pl-10 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "pl-10 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"}
+                    className={isDark ? "pl-10 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "pl-10 bg-white border-orange-400 text-amber-950 placeholder:text-amber-700"}
                   />
                 </div>
-                <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-600"}`}>We'll use this to find nearby grocery stores.</p>
+                <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>We'll use this to find nearby grocery stores.</p>
               </div>
               <div>
-                <Label htmlFor="distance" className={`mb-2 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
+                <Label htmlFor="distance" className={`mb-2 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>
                   Maximum Distance (miles)
                 </Label>
                 <div className="relative">
-                  <Clock className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`} />
+                  <Clock className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-orange-700"}`} />
                   <Input
                     id="distance"
                     type="number"
@@ -446,21 +458,21 @@ export default function OnboardingPage() {
                     placeholder="10"
                     value={groceryDistance}
                     onChange={(e) => setGroceryDistance(e.target.value)}
-                    className={isDark ? "pl-10 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "pl-10 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"}
+                    className={isDark ? "pl-10 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "pl-10 bg-white border-orange-400 text-amber-950 placeholder:text-amber-700"}
                   />
                 </div>
-                <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-600"}`}>How far are you willing to travel for groceries?</p>
+                <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>How far are you willing to travel for groceries?</p>
               </div>
             </div>
           </Card>
         )
       case "theme":
         return (
-          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white border-orange-200"}`}>
+          <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
             <div className="mb-8">
-              <h2 className="text-2xl font-serif font-light mb-3">{meta.title}</h2>
-              <p className="text-[#e8dcc4]/60 font-light">{meta.description}</p>
-              <p className="text-[#e8dcc4]/50 text-sm mt-3">Click to preview — the entire page will update in real-time</p>
+              <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
+              <p className={`text-sm mt-3 ${isDark ? "text-[#e8dcc4]/50" : "text-amber-800"}`}>Click to preview — the entire page will update in real-time</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
