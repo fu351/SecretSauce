@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -10,15 +10,16 @@ import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
 import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { TutorialSelectionModal } from "@/components/tutorial-selection-modal"
+import type { Database } from "@/lib/supabase"
+
+type ProfileUpdates = Database["public"]["Tables"]["profiles"]["Update"]
 
 export default function SettingsPage() {
-  const { user } = useAuth()
-  const { theme, setTheme, toggleTheme } = useTheme()
-  const { toast } = useToast()
+  const { user, updateProfile } = useAuth()
+  const { theme, setTheme } = useTheme()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
 
@@ -30,13 +31,18 @@ export default function SettingsPage() {
   const [postalCode, setPostalCode] = useState("")
   const [groceryDistance, setGroceryDistance] = useState("10")
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
   const [tutorialCompleted, setTutorialCompleted] = useState(false)
   const [tutorialPath, setTutorialPath] = useState<string | null>(null)
   const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
   const [rewatchLoading, setRewatchLoading] = useState(false)
   const [showTutorialModal, setShowTutorialModal] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(theme === "dark" ? "dark" : "light")
+  const preferencesRef = useRef<ProfileUpdates | null>(null)
+  const lastSavedSnapshotRef = useRef<string>("")
+  const hasRecordedInitialSnapshot = useRef(false)
+  const shouldRecordInitialSnapshot = useRef(false)
+  const hasPendingChangesRef = useRef(false)
+  const savingRef = useRef(false)
 
   const cuisineOptions = [
     "Italian",
@@ -105,12 +111,49 @@ export default function SettingsPage() {
     setSelectedTheme(theme === "dark" ? "dark" : "light")
   }, [theme])
 
+  useEffect(() => {
+    const payload: ProfileUpdates = {
+      primary_goal: primaryGoal || null,
+      cooking_level: cookingLevel || null,
+      budget_range: budgetRange || null,
+      cuisine_preferences: cuisinePreferences,
+      cooking_time_preference: cookingTimePreference,
+      postal_code: postalCode || null,
+      grocery_distance_km: Number.parseInt(groceryDistance) || 10,
+      dietary_preferences: dietaryPreferences,
+      theme_preference: selectedTheme,
+    }
+
+    preferencesRef.current = payload
+    const serialized = JSON.stringify(payload)
+
+    if (!hasRecordedInitialSnapshot.current) {
+      if (!shouldRecordInitialSnapshot.current) {
+        return
+      }
+      hasRecordedInitialSnapshot.current = true
+      lastSavedSnapshotRef.current = serialized
+      hasPendingChangesRef.current = false
+      return
+    }
+
+    hasPendingChangesRef.current = serialized !== lastSavedSnapshotRef.current
+  }, [
+    primaryGoal,
+    cookingLevel,
+    budgetRange,
+    cuisinePreferences,
+    cookingTimePreference,
+    postalCode,
+    groceryDistance,
+    dietaryPreferences,
+    selectedTheme,
+  ])
+
   const handleThemeChange = async (newTheme: "light" | "dark") => {
-    // Update UI state immediately
     setSelectedTheme(newTheme)
     setTheme(newTheme)
 
-    // Manually update document class as backup (next-themes might not update immediately)
     if (typeof document !== "undefined") {
       if (newTheme === "dark") {
         document.documentElement.classList.add("dark")
@@ -119,13 +162,15 @@ export default function SettingsPage() {
       }
     }
 
-    // Persist to supabase
     if (user) {
       try {
-        await supabase
-          .from("profiles")
-          .update({ theme_preference: newTheme })
-          .eq("id", user.id)
+        await updateProfile({ theme_preference: newTheme })
+
+        const currentSnapshot = lastSavedSnapshotRef.current
+          ? (JSON.parse(lastSavedSnapshotRef.current) as ProfileUpdates)
+          : {}
+        const nextSnapshot = { ...currentSnapshot, theme_preference: newTheme }
+        lastSavedSnapshotRef.current = JSON.stringify(nextSnapshot)
       } catch (error) {
         console.error("Error saving theme preference:", error)
       }
@@ -165,44 +210,8 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error("Error fetching preferences:", error)
-    }
-  }
-
-  const savePreferences = async () => {
-    if (!user) return
-
-    setLoading(true)
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          primary_goal: primaryGoal || null,
-          cooking_level: cookingLevel || null,
-          budget_range: budgetRange || null,
-          cuisine_preferences: cuisinePreferences,
-          cooking_time_preference: cookingTimePreference,
-          postal_code: postalCode || null,
-          grocery_distance_km: Number.parseInt(groceryDistance) || 10,
-          dietary_preferences: dietaryPreferences,
-          theme_preference: theme,
-        })
-        .eq("id", user.id)
-
-      if (error) throw error
-
-      toast({
-        title: "Preferences saved",
-        description: "Your preferences have been updated successfully.",
-      })
-    } catch (error) {
-      console.error("Error saving preferences:", error)
-      toast({
-        title: "Error",
-        description: "Failed to save preferences. Please try again.",
-        variant: "destructive",
-      })
     } finally {
-      setLoading(false)
+      shouldRecordInitialSnapshot.current = true
     }
   }
 
@@ -214,9 +223,52 @@ export default function SettingsPage() {
     setDietaryPreferences((prev) => (prev.includes(diet) ? prev.filter((d) => d !== diet) : [...prev, diet]))
   }
 
+  const savePreferences = useCallback(async () => {
+    if (!user || !preferencesRef.current) return
+    if (!hasPendingChangesRef.current || savingRef.current) return
+
+    savingRef.current = true
+    try {
+      await updateProfile(preferencesRef.current)
+      lastSavedSnapshotRef.current = JSON.stringify(preferencesRef.current)
+      hasPendingChangesRef.current = false
+    } catch (error) {
+      console.error("Error saving preferences:", error)
+    } finally {
+      savingRef.current = false
+    }
+  }, [updateProfile, user])
+
   const handleRewatchTutorial = () => {
     setShowTutorialModal(true)
   }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const flushChanges = () => {
+      if (hasPendingChangesRef.current) {
+        void savePreferences()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushChanges()
+      }
+    }
+
+    window.addEventListener("pagehide", flushChanges)
+    window.addEventListener("beforeunload", flushChanges)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("pagehide", flushChanges)
+      window.removeEventListener("beforeunload", flushChanges)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      flushChanges()
+    }
+  }, [savePreferences])
 
   if (!mounted || !user) {
     return null
@@ -231,6 +283,9 @@ export default function SettingsPage() {
         <div className="mb-8">
           <h1 className={`text-3xl font-bold mb-2 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>Settings</h1>
           <p className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>Manage your account preferences</p>
+          <p className={`text-sm mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-500"}`}>
+            Changes save automatically when you leave this page.
+          </p>
         </div>
 
         {/* Theme Settings */}
@@ -521,17 +576,6 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
-
-        <Button
-          onClick={savePreferences}
-          disabled={loading}
-          className={`w-full mb-6 ${
-            isDark ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 text-white hover:bg-orange-600"
-          }`}
-        >
-          {loading ? "Saving..." : "Save Preferences"}
-        </Button>
-
         {/* Learning & Tutorials */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
           <CardHeader>
