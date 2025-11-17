@@ -69,7 +69,8 @@ export async function GET(request: NextRequest) {
       scrapers.Krogers(zipCode, sanitizedSearchTerm),
       scrapers.Meijers(zipCode, sanitizedSearchTerm),
       scrapers.search99Ranch(sanitizedSearchTerm, zipCode),
-      scrapers.searchWalmartAPI(sanitizedSearchTerm, zipCode)
+      scrapers.searchWalmartAPI(sanitizedSearchTerm, zipCode),
+      scrapers.searchTraderJoes(sanitizedSearchTerm, zipCode)
     ])
 
     const allItems = []
@@ -169,6 +170,25 @@ export async function GET(request: NextRequest) {
       console.warn("Walmart scraper failed or returned no results")
     }
 
+    // Process Trader Joe's results
+    if (results[5].status === 'fulfilled' && results[5].value.length > 0) {
+      const traderJoesItems = results[5].value.map((item: any) => ({
+        id: item.id || `traderjoes-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "Trader Joe's",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Trader Joe's",
+        location: item.location || "Trader Joe's Store",
+        category: item.category,
+      }))
+      allItems.push(...traderJoesItems)
+    } else {
+      console.warn("Trader Joe's scraper failed or returned no results")
+    }
+
     // If we have results from any scraper, return them
     if (allItems.length > 0) {
       return NextResponse.json({ results: allItems })
@@ -193,6 +213,7 @@ function generateMockResults(searchTerm: string, zipCode: string) {
     { name: "Kroger", location: "West Lafayette Kroger" },
     { name: "Meijer", location: "West Lafayette Meijer" },
     { name: "99 Ranch", location: "99 Ranch Market" },
+    { name: "Trader Joe's", location: "Trader Joe's Store" },
   ]
 
   const results: any[] = []
@@ -233,6 +254,7 @@ function resolveStoreKey(storeParam: string) {
   if (value.includes("meijer")) return "meijer"
   if (value.includes("99") || value.includes("ranch")) return "99 ranch"
   if (value.includes("walmart")) return "walmart"
+  if (value.includes("trader")) return "trader joes"
   return null
 }
 
@@ -315,6 +337,21 @@ async function runStoreSpecificSearch(storeKey: string, searchTerm: string, zipC
         category: item.category,
       }))
     },
+    "trader joes": async () => {
+      const items = (await scrapers.searchTraderJoes(searchTerm, zipCode)) || []
+      return items.map((item: any) => ({
+        id: item.id || `traderjoes-${Math.random()}`,
+        title: item.title || "Unknown Item",
+        brand: item.brand || "Trader Joe's",
+        price: Number(item.price) || 0,
+        pricePerUnit: item.pricePerUnit,
+        unit: item.unit,
+        image_url: item.image_url || "/placeholder.svg",
+        provider: "Trader Joe's",
+        location: item.location || "Trader Joe's Store",
+        category: item.category,
+      }))
+    },
   }
 
   if (!handlers[storeKey]) {
@@ -334,6 +371,7 @@ function mapStoreKeyToName(storeKey: string): string {
     meijer: "Meijer",
     "99 ranch": "99 Ranch",
     walmart: "Walmart",
+    "trader joes": "Trader Joe's",
   }
   return storeMap[storeKey] || storeKey
 }
