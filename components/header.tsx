@@ -16,6 +16,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
+import { useState, useEffect } from "react"
 
 export function Header() {
   const { user, profile, signOut } = useAuth()
@@ -24,11 +25,21 @@ export function Header() {
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
+  const [isFirstTimeVisitor, setIsFirstTimeVisitor] = useState(false)
 
-  const isDark = theme === "dark"
+  // Check if user is visiting landing page for the first time
+  useEffect(() => {
+    if (pathname === "/") {
+      const hasVisited = document.cookie.includes("visited=true")
+      setIsFirstTimeVisitor(!hasVisited)
+    }
+  }, [pathname])
 
-  // Hide header for auth and onboarding routes when not logged in
-  if (!user && (pathname.startsWith("/auth") || pathname === "/onboarding")) {
+  // Default to dark theme, especially for unauthenticated users
+  const isDark = theme === "dark" || !user
+
+  // Hide header for: first-time landing page visitors, auth and onboarding routes when not logged in
+  if (!user && (isFirstTimeVisitor || pathname.startsWith("/auth") || pathname === "/onboarding")) {
     return null
   }
 

@@ -13,11 +13,11 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { TutorialSelectionModal } from "@/components/tutorial-selection-modal"
 
 export default function SettingsPage() {
   const { user } = useAuth()
   const { theme, setTheme, toggleTheme } = useTheme()
-  const { resetTutorial } = useTutorial()
   const { toast } = useToast()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
@@ -32,6 +32,7 @@ export default function SettingsPage() {
   const [tutorialPath, setTutorialPath] = useState<string | null>(null)
   const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
   const [rewatchLoading, setRewatchLoading] = useState(false)
+  const [showTutorialModal, setShowTutorialModal] = useState(false)
 
   const cuisineOptions = [
     "Italian",
@@ -148,11 +149,7 @@ export default function SettingsPage() {
   }
 
   const handleRewatchTutorial = () => {
-    resetTutorial()
-    toast({
-      title: "Tutorial started",
-      description: "Follow the floating guide to learn Secret Sauce!",
-    })
+    setShowTutorialModal(true)
   }
 
   if (!mounted || !user) {
@@ -546,6 +543,12 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Tutorial Selection Modal */}
+      <TutorialSelectionModal
+        isOpen={showTutorialModal}
+        onClose={() => setShowTutorialModal(false)}
+      />
     </div>
   )
 }

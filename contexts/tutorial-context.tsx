@@ -38,6 +38,7 @@ interface TutorialContextType {
   skipTutorial: () => void
   completeTutorial: () => void
   resetTutorial: () => void
+  setRedirectAfterComplete: (path: string | null) => void
 }
 
 const TutorialContext = createContext<TutorialContextType | undefined>(undefined)
@@ -385,6 +386,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [currentPathId, setCurrentPathId] = useState<"cooking" | "budgeting" | "health" | null>(null)
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [isCompleted, setIsCompleted] = useState(false)
+  const [redirectAfterComplete, setRedirectAfterComplete] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const { user, profile } = useAuth()
@@ -465,10 +467,15 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       }).eq("id", user.id)
       setIsActive(false)
       setIsCompleted(true)
+
+      // Redirect to specified path after completion, or dashboard by default
+      if (redirectAfterComplete) {
+        router.push(redirectAfterComplete)
+      }
     } catch (error) {
       console.error("Error completing tutorial:", error)
     }
-  }, [user, currentPathId])
+  }, [user, currentPathId, redirectAfterComplete, router])
 
   const resetTutorial = useCallback(() => {
     setIsActive(true)
@@ -488,6 +495,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     skipTutorial,
     completeTutorial,
     resetTutorial,
+    setRedirectAfterComplete,
   }
 
   return <TutorialContext.Provider value={value}>{children}</TutorialContext.Provider>

@@ -521,6 +521,8 @@ export default function OnboardingPage() {
       })
 
       setTheme(selectedTheme)
+
+      // Go to email verification - tutorial will start after they log in
       router.push("/check-email")
     } catch (error) {
       toast({

@@ -191,6 +191,7 @@ export function TutorialOverlay() {
           ...tooltipStyle,
           maxWidth: "calc(100vw - 40px)",
         }}
+        data-tutorial-overlay
       >
         {/* Header */}
         <div

@@ -50,11 +50,11 @@ export default function CheckEmailPage() {
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-6 py-12">
       <Card className="w-full max-w-lg bg-card border border-border p-10 space-y-6 shadow-lg">
         <div className="space-y-3 text-center">
-          <p className="uppercase tracking-[0.25em] text-xs text-muted-foreground">Step</p>
-          <h1 className="text-3xl font-serif font-light">Confirm your email.</h1>
+          <p className="uppercase tracking-[0.25em] text-xs text-muted-foreground">Final Step</p>
+          <h1 className="text-3xl font-serif font-light">Verify your email.</h1>
           <p className="text-muted-foreground">
             We sent a verification link to <span className="font-medium text-primary">{user?.email ?? "your email"}</span>.
-            Click the link to activate your account, then return here to sign in.
+            Click the link to verify your email and get full access to Secret Sauce.
           </p>
         </div>
 
@@ -67,10 +67,13 @@ export default function CheckEmailPage() {
             {sending ? "Sending..." : "Resend verification email"}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
-            Ready to sign in?{" "}
-            <Link href="/login" className="text-primary underline underline-offset-4">
-              Go to login
-            </Link>
+            Don't see the email?{" "}
+            <button
+              onClick={handleResend}
+              className="text-primary underline underline-offset-4 hover:opacity-80"
+            >
+              Try sending again
+            </button>
           </p>
         </div>
       </Card>
