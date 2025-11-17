@@ -16,7 +16,7 @@ import { supabase } from "@/lib/supabase"
 
 export default function SettingsPage() {
   const { user } = useAuth()
-  const { theme, toggleTheme } = useTheme()
+  const { theme, setTheme, toggleTheme } = useTheme()
   const { resetTutorial } = useTutorial()
   const { toast } = useToast()
   const router = useRouter()

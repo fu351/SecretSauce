@@ -1,23 +1,47 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { usePathname } from "next/navigation"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
-import { ChevronRight, ChevronLeft, X } from "lucide-react"
+import { ChevronLeft, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import clsx from "clsx"
 
 /**
  * Floating tutorial overlay that guides users through the app
  * Shows on top of pages with highlights and contextual tips
+ * Draggable and activity-based navigation
  */
 export function TutorialOverlay() {
   const { isActive, currentPath, currentStep, currentStepIndex, nextStep, prevStep, skipTutorial } = useTutorial()
   const { theme } = useTheme()
+  const pathname = usePathname()
   const [highlightElement, setHighlightElement] = useState<DOMRect | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 })
+  const [stepCompleted, setStepCompleted] = useState(false)
 
   const isDark = theme === "dark"
+
+  // Auto-advance when step is completed or page changes to next step's page
+  useEffect(() => {
+    if (!currentStep) return
+
+    // Check if we've navigated to the required page
+    if (currentStep.page && pathname === currentStep.page && !stepCompleted) {
+      setStepCompleted(true)
+      // Auto-advance after a short delay to let user see they're on the right page
+      const timer = setTimeout(() => {
+        nextStep()
+        setStepCompleted(false)
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [pathname, currentStep, stepCompleted, nextStep])
 
   // Find and highlight the target element
   useEffect(() => {
@@ -42,6 +66,48 @@ export function TutorialOverlay() {
       }
     }
   }, [currentStep?.highlightSelector])
+
+  // Drag handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only allow dragging from the header area
+    if (!(e.target as HTMLElement).closest("[data-tutorial-header]")) {
+      return
+    }
+
+    setIsDragging(true)
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      offsetX: position.x,
+      offsetY: position.y,
+    }
+  }
+
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - dragStartRef.current.x
+      const deltaY = e.clientY - dragStartRef.current.y
+
+      setPosition({
+        x: dragStartRef.current.offsetX + deltaX,
+        y: dragStartRef.current.offsetY + deltaY,
+      })
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+    }
+
+    document.addEventListener("mousemove", handleMouseMove)
+    document.addEventListener("mouseup", handleMouseUp)
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [isDragging])
 
   if (!isActive || !currentPath || !currentStep) {
     return null
@@ -82,7 +148,10 @@ export function TutorialOverlay() {
     }
   }
 
-  const tooltipStyle = getTooltipPosition()
+  const tooltipStyle = {
+    ...getTooltipPosition(),
+    transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))`,
+  }
 
   return (
     <>
@@ -110,11 +179,13 @@ export function TutorialOverlay() {
       {/* Tutorial Overlay Tooltip */}
       <div
         ref={overlayRef}
+        onMouseDown={handleMouseDown}
         className={clsx(
-          "fixed z-50 w-96 rounded-lg shadow-2xl border pointer-events-auto transition-all duration-300",
+          "fixed z-50 w-80 rounded-lg shadow-2xl border pointer-events-auto transition-all duration-300",
           isDark
             ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]"
-            : "bg-white border-gray-200 text-gray-900"
+            : "bg-white border-gray-200 text-gray-900",
+          isDragging && "cursor-grabbing"
         )}
         style={{
           ...tooltipStyle,
@@ -122,30 +193,36 @@ export function TutorialOverlay() {
         }}
       >
         {/* Header */}
-        <div className="p-6 border-b" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
-          <div className="flex items-start justify-between gap-4">
+        <div
+          className="p-4 border-b cursor-grab hover:opacity-80 transition-opacity"
+          style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}
+          data-tutorial-header
+        >
+          <div className="flex items-start justify-between gap-3">
             <div className="flex-1">
               <div
                 className={clsx(
-                  "text-xs font-semibold mb-2 tracking-widest uppercase",
+                  "text-xs font-semibold mb-1 tracking-widest uppercase",
                   isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
                 )}
               >
                 Step {currentStepIndex + 1} of {currentPath.steps.length}
               </div>
               <h3
-                className={clsx("text-xl font-serif font-light mb-2", isDark ? "text-[#e8dcc4]" : "text-gray-900")}
+                className={clsx("text-base font-serif font-light mb-0.5", isDark ? "text-[#e8dcc4]" : "text-gray-900")}
               >
                 {currentStep.title}
               </h3>
-              <p
-                className={clsx(
-                  "text-sm leading-relaxed",
-                  isDark ? "text-[#e8dcc4]/70" : "text-gray-600"
-                )}
-              >
-                {currentStep.description}
-              </p>
+              {currentStep.description && (
+                <p
+                  className={clsx(
+                    "text-xs",
+                    isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
+                  )}
+                >
+                  {currentStep.description}
+                </p>
+              )}
             </div>
             <button
               onClick={skipTutorial}
@@ -155,12 +232,12 @@ export function TutorialOverlay() {
               )}
               aria-label="Close tutorial"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Progress Bar */}
-          <div className="mt-4 h-1 bg-gray-300 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? "#e8dcc4/20" : "#e5e7eb" }}>
+          <div className="mt-3 h-0.5 bg-gray-300 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? "#e8dcc4/20" : "#e5e7eb" }}>
             <div
               className="h-full bg-blue-500 transition-all duration-300"
               style={{ width: `${progress}%` }}
@@ -170,71 +247,74 @@ export function TutorialOverlay() {
 
         {/* Tips */}
         {currentStep.tips && currentStep.tips.length > 0 && (
-          <div className="p-6 border-b" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
-            <p
-              className={clsx(
-                "text-xs font-semibold mb-3 tracking-widest uppercase",
-                isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
-              )}
-            >
-              💡 Quick Tips
-            </p>
-            <ul className="space-y-2">
+          <div className="px-4 py-3 border-b" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
+            <ul className="space-y-0.5">
               {currentStep.tips.map((tip, idx) => (
                 <li
                   key={idx}
                   className={clsx(
-                    "text-sm",
-                    isDark ? "text-[#e8dcc4]/70" : "text-gray-600"
+                    "text-xs",
+                    isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
                   )}
                 >
-                  • {tip}
+                  {tip}
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        {/* Estimated Time */}
-        {currentStep.estimatedSeconds && (
-          <div
-            className="px-6 py-3 text-xs text-center"
-            style={{ color: isDark ? "#e8dcc4/50" : "#999" }}
-          >
-            ⏱️ This step takes about {currentStep.estimatedSeconds} seconds
+        {/* Action Instructions */}
+        {stepCompleted ? (
+          <div className="px-4 py-2 bg-blue-500/10 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
+            <p className={clsx("text-xs font-medium", isDark ? "text-blue-300" : "text-blue-600")}>
+              Next step loading...
+            </p>
+          </div>
+        ) : (
+          <div className="px-4 py-2 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
+            <p
+              className={clsx("text-xs", isDark ? "text-[#e8dcc4]/70" : "text-gray-600")}
+            >
+              {currentStep.action === "navigate"
+                ? `Go to ${currentStep.actionTarget}`
+                : currentStep.action === "click"
+                  ? "Click the highlighted area"
+                  : "Explore this section"}
+            </p>
           </div>
         )}
 
-        {/* Actions */}
-        <div className="p-6 flex gap-3">
+        {/* Navigation */}
+        <div className="px-4 py-3 flex gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={prevStep}
             disabled={currentStepIndex === 0}
             className={clsx(
-              "flex-1",
               isDark
                 ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 disabled:opacity-50"
                 : "border-gray-300 text-gray-700 hover:bg-gray-50"
             )}
           >
-            <ChevronLeft className="w-4 h-4 mr-1" />
-            Back
+            <ChevronLeft className="w-3 h-3" />
           </Button>
 
-          <Button
-            onClick={nextStep}
-            className={clsx(
-              "flex-1",
-              isDark
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "bg-blue-500 text-white hover:bg-blue-600"
-            )}
-          >
-            {isLastStep ? "Complete" : "Next"}
-            <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
+          {isLastStep && (
+            <Button
+              onClick={nextStep}
+              size="sm"
+              className={clsx(
+                "flex-1",
+                isDark
+                  ? "bg-blue-600 text-white hover:bg-blue-700 text-xs"
+                  : "bg-blue-500 text-white hover:bg-blue-600 text-xs"
+              )}
+            >
+              Done
+            </Button>
+          )}
         </div>
       </div>
 

@@ -449,36 +449,48 @@ export default function OnboardingPage() {
             <div className="mb-8">
               <h2 className="text-2xl font-serif font-light mb-3">{meta.title}</h2>
               <p className="text-[#e8dcc4]/60 font-light">{meta.description}</p>
+              <p className="text-[#e8dcc4]/50 text-sm mt-3">Click to preview — the entire page will update in real-time</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <button
                 onClick={() => handleThemeChoice("dark")}
-                className={`p-4 rounded-lg border-2 text-left transition-all ${
+                className={`p-8 rounded-lg border-2 text-left transition-all duration-300 ${
                   selectedTheme === "dark"
-                    ? "border-[#e8dcc4] bg-[#0a0a0a]"
-                    : "border-[#e8dcc4]/30 bg-[#0a0a0a]/60 hover:border-[#e8dcc4]/50"
+                    ? "border-[#e8dcc4] bg-[#0a0a0a] shadow-lg shadow-[#e8dcc4]/10 scale-105"
+                    : "border-[#e8dcc4]/30 bg-[#0a0a0a]/60 hover:border-[#e8dcc4]/50 hover:scale-102"
                 }`}
               >
-                <div className="text-[#e8dcc4] text-xs font-medium mb-2">Dark Mode</div>
-                <div className="space-y-2">
-                  <div className="h-2 bg-[#e8dcc4]/20 rounded" />
-                  <div className="h-2 bg-[#e8dcc4]/10 rounded w-3/4" />
+                <div className="text-[#e8dcc4] text-sm font-medium mb-4">Dark Mode</div>
+                <div className="space-y-3">
+                  <div className="h-3 bg-[#e8dcc4]/20 rounded" />
+                  <div className="h-3 bg-[#e8dcc4]/10 rounded w-3/4" />
+                  <div className="h-3 bg-[#e8dcc4]/15 rounded w-5/6" />
                 </div>
+                {selectedTheme === "dark" && (
+                  <div className="mt-4 pt-4 border-t border-[#e8dcc4]/20 text-xs text-[#e8dcc4]/70">Active</div>
+                )}
               </button>
               <button
                 onClick={() => handleThemeChoice("light")}
-                className={`p-4 rounded-lg border-2 text-left transition-all ${
+                className={`p-8 rounded-lg border-2 text-left transition-all duration-300 ${
                   selectedTheme === "light"
-                    ? "border-orange-500 bg-gradient-to-br from-[#FAF4E5] to-orange-100"
-                    : "border-orange-400 bg-gradient-to-br from-[#FAF4E5] to-orange-100 opacity-70 hover:opacity-90"
+                    ? "border-orange-500 bg-gradient-to-br from-[#FAF4E5] to-orange-100 shadow-lg shadow-orange-500/20 scale-105"
+                    : "border-orange-300 bg-gradient-to-br from-[#FAF4E5] to-orange-100 opacity-75 hover:opacity-95 hover:scale-102"
                 }`}
               >
-                <div className="text-orange-900 text-xs font-medium mb-2">Warm Mode</div>
-                <div className="space-y-2">
-                  <div className="h-2 bg-orange-300 rounded" />
-                  <div className="h-2 bg-orange-200 rounded w-3/4" />
+                <div className="text-orange-900 text-sm font-medium mb-4">Warm Mode</div>
+                <div className="space-y-3">
+                  <div className="h-3 bg-orange-300 rounded" />
+                  <div className="h-3 bg-orange-200 rounded w-3/4" />
+                  <div className="h-3 bg-orange-300/70 rounded w-5/6" />
                 </div>
+                {selectedTheme === "light" && (
+                  <div className="mt-4 pt-4 border-t border-orange-300/30 text-xs text-orange-900/70">Active</div>
+                )}
               </button>
+            </div>
+            <div className="mt-8 p-4 rounded-lg bg-[#e8dcc4]/5 border border-[#e8dcc4]/10 text-sm text-[#e8dcc4]/70">
+              You can always change your theme later in settings at any time.
             </div>
           </Card>
         )
