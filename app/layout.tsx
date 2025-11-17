@@ -12,6 +12,7 @@ import { ThemeSync } from "@/components/theme-sync"
 import { TutorialProvider } from "@/contexts/tutorial-context"
 import { TutorialOverlay } from "@/components/tutorial-overlay"
 import { TutorialBlocker } from "@/components/tutorial-blocker"
+import { FeedbackWidget } from "@/components/feedback-widget"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" })
@@ -42,6 +43,7 @@ export default function RootLayout({
                 <ThemeSync />
                 <TutorialBlocker />
                 <TutorialOverlay />
+                <FeedbackWidget position="bottom-left" />
                 <Header />
                 {children}
                 <Toaster />

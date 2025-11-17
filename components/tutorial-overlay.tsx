@@ -77,22 +77,23 @@ export function TutorialOverlay() {
 
   return (
     <>
-      {/* Backdrop with highlight cutout */}
+      {/* Highlight element */}
       {highlightElement && (
         <div
-          className="fixed inset-0 z-40 pointer-events-none"
+          className="fixed z-40 pointer-events-none"
           style={{
-            background: "radial-gradient(circle, transparent 20%, rgba(0,0,0,0.7) 100%)",
+            top: highlightElement.top - 8,
+            left: highlightElement.left - 8,
+            width: highlightElement.width + 16,
+            height: highlightElement.height + 16,
           }}
         >
           <div
-            className="absolute border-2 border-blue-400 shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] rounded-lg transition-all duration-300"
+            className="absolute border-2 border-blue-400 rounded-lg transition-all duration-300"
             style={{
-              top: highlightElement.top - 8,
-              left: highlightElement.left - 8,
-              width: highlightElement.width + 16,
-              height: highlightElement.height + 16,
-              boxShadow: "0 0 0 9999px rgba(0,0,0,0.7), inset 0 0 0 2px #60a5fa",
+              width: "100%",
+              height: "100%",
+              boxShadow: "0 0 0 3px #60a5fa, 0 0 15px rgba(96, 165, 250, 0.5)",
             }}
           />
         </div>

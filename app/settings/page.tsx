@@ -105,9 +105,21 @@ export default function SettingsPage() {
     setSelectedTheme(theme === "dark" ? "dark" : "light")
   }, [theme])
 
-  const handleThemeChange = (newTheme: "light" | "dark") => {
+  const handleThemeChange = async (newTheme: "light" | "dark") => {
     setSelectedTheme(newTheme)
     setTheme(newTheme)
+
+    // Persist to supabase
+    if (user) {
+      try {
+        await supabase
+          .from("profiles")
+          .update({ theme_preference: newTheme })
+          .eq("id", user.id)
+      } catch (error) {
+        console.error("Error saving theme preference:", error)
+      }
+    }
   }
 
   const fetchUserPreferences = async () => {
@@ -116,7 +128,7 @@ export default function SettingsPage() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("primary_goal, cooking_level, budget_range, cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at")
+        .select("primary_goal, cooking_level, budget_range, cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at, theme_preference")
         .eq("id", user.id)
         .single()
 
@@ -134,6 +146,12 @@ export default function SettingsPage() {
         setTutorialCompleted(data.tutorial_completed || false)
         setTutorialPath(data.tutorial_path || null)
         setTutorialCompletedAt(data.tutorial_completed_at || null)
+
+        // Initialize theme from database preference if available
+        if (data.theme_preference) {
+          setSelectedTheme(data.theme_preference === "dark" ? "dark" : "light")
+          setTheme(data.theme_preference === "dark" ? "dark" : "light")
+        }
       }
     } catch (error) {
       console.error("Error fetching preferences:", error)
