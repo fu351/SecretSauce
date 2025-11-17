@@ -164,7 +164,7 @@ export default function OnboardingPage() {
     // User can change to warm mode in the theme selection question
     setTheme("dark")
     setSelectedTheme("dark")
-  }, [setTheme])
+  }, [])
 
   const handleDietaryToggle = (option: string) => {
     setDietaryPreferences((prev) =>
@@ -451,41 +451,41 @@ export default function OnboardingPage() {
               <p className="text-[#e8dcc4]/60 font-light">{meta.description}</p>
               <p className="text-[#e8dcc4]/50 text-sm mt-3">Click to preview — the entire page will update in real-time</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
                 onClick={() => handleThemeChoice("dark")}
-                className={`p-8 rounded-lg border-2 text-left transition-all duration-300 ${
+                className={`p-4 rounded-lg border-2 text-left transition-all duration-300 ${
                   selectedTheme === "dark"
                     ? "border-[#e8dcc4] bg-[#0a0a0a] shadow-lg shadow-[#e8dcc4]/10 scale-105"
                     : "border-[#e8dcc4]/30 bg-[#0a0a0a]/60 hover:border-[#e8dcc4]/50 hover:scale-102"
                 }`}
               >
-                <div className="text-[#e8dcc4] text-sm font-medium mb-4">Dark Mode</div>
-                <div className="space-y-3">
-                  <div className="h-3 bg-[#e8dcc4]/20 rounded" />
-                  <div className="h-3 bg-[#e8dcc4]/10 rounded w-3/4" />
-                  <div className="h-3 bg-[#e8dcc4]/15 rounded w-5/6" />
+                <div className="text-[#e8dcc4] text-sm font-medium mb-3">Dark Mode</div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-[#e8dcc4]/20 rounded" />
+                  <div className="h-2 bg-[#e8dcc4]/10 rounded w-3/4" />
+                  <div className="h-2 bg-[#e8dcc4]/15 rounded w-5/6" />
                 </div>
                 {selectedTheme === "dark" && (
-                  <div className="mt-4 pt-4 border-t border-[#e8dcc4]/20 text-xs text-[#e8dcc4]/70">Active</div>
+                  <div className="mt-3 pt-3 border-t border-[#e8dcc4]/20 text-xs text-[#e8dcc4]/70">Active</div>
                 )}
               </button>
               <button
                 onClick={() => handleThemeChoice("light")}
-                className={`p-8 rounded-lg border-2 text-left transition-all duration-300 ${
+                className={`p-4 rounded-lg border-2 text-left transition-all duration-300 ${
                   selectedTheme === "light"
                     ? "border-orange-500 bg-gradient-to-br from-[#FAF4E5] to-orange-100 shadow-lg shadow-orange-500/20 scale-105"
                     : "border-orange-300 bg-gradient-to-br from-[#FAF4E5] to-orange-100 opacity-75 hover:opacity-95 hover:scale-102"
                 }`}
               >
-                <div className="text-orange-900 text-sm font-medium mb-4">Warm Mode</div>
-                <div className="space-y-3">
-                  <div className="h-3 bg-orange-300 rounded" />
-                  <div className="h-3 bg-orange-200 rounded w-3/4" />
-                  <div className="h-3 bg-orange-300/70 rounded w-5/6" />
+                <div className="text-orange-900 text-sm font-medium mb-3">Warm Mode</div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-orange-300 rounded" />
+                  <div className="h-2 bg-orange-200 rounded w-3/4" />
+                  <div className="h-2 bg-orange-300/70 rounded w-5/6" />
                 </div>
                 {selectedTheme === "light" && (
-                  <div className="mt-4 pt-4 border-t border-orange-300/30 text-xs text-orange-900/70">Active</div>
+                  <div className="mt-3 pt-3 border-t border-orange-300/30 text-xs text-orange-900/70">Active</div>
                 )}
               </button>
             </div>
@@ -545,9 +545,14 @@ export default function OnboardingPage() {
             </div>
             <p className="uppercase tracking-[0.25em] text-xs text-[#e8dcc4]/60 mb-3">Onboarding</p>
             <h1 className="text-4xl font-serif font-light mb-3 tracking-tight">Tell us about your kitchen.</h1>
-            <p className="text-lg text-[#e8dcc4]/60 font-light">
-              We’ll use your answers to tailor recipes, grocery finds, and meal planning tools.
+            <p className="text-lg text-[#e8dcc4]/60 font-light mb-6">
+              We'll use your answers to tailor recipes, grocery finds, and meal planning tools.
             </p>
+            <div className="bg-[#e8dcc4]/5 border border-[#e8dcc4]/20 rounded-lg p-4 mb-8">
+              <p className="text-sm text-[#e8dcc4]/70">
+                Don't worry if you'd like to change these preferences later — you can update everything in your settings at any time.
+              </p>
+            </div>
           </header>
 
           {questionOrder.map((question) => (

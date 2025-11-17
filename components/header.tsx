@@ -35,8 +35,9 @@ export function Header() {
     }
   }, [pathname])
 
-  // Default to dark theme, especially for unauthenticated users
-  const isDark = theme === "dark" || !user
+  // For unauthenticated users, always use dark mode (check both theme and DOM)
+  // This ensures dark mode is used even during theme initialization
+  const isDark = !user ? true : theme === "dark"
 
   // Hide header for: first-time landing page visitors, auth and onboarding routes when not logged in
   if (!user && (isFirstTimeVisitor || pathname.startsWith("/auth") || pathname === "/onboarding")) {
@@ -79,7 +80,7 @@ export function Header() {
       <div className="flex items-center">
         <Link href="/">
           <Image
-            src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
+            src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
             alt="Secret Sauce"
             width={isMobile ? 32 : 40}
             height={isMobile ? 32 : 40}

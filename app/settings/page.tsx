@@ -22,6 +22,9 @@ export default function SettingsPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
 
+  const [primaryGoal, setPrimaryGoal] = useState("")
+  const [cookingLevel, setCookingLevel] = useState("")
+  const [budgetRange, setBudgetRange] = useState("")
   const [cuisinePreferences, setCuisinePreferences] = useState<string[]>([])
   const [cookingTimePreference, setCookingTimePreference] = useState("any")
   const [postalCode, setPostalCode] = useState("")
@@ -69,6 +72,24 @@ export default function SettingsPage() {
     "Soy-Free",
   ]
 
+  const primaryGoalOptions = [
+    { id: "cooking", label: "Master the Craft", description: "Elevate your culinary skills" },
+    { id: "budgeting", label: "Optimize Resources", description: "Save money on groceries" },
+    { id: "both", label: "Elevate Your Journey", description: "Save time and prioritize health" },
+  ]
+
+  const cookingLevelOptions = [
+    { id: "beginner", label: "Apprentice", description: "Beginning your culinary journey" },
+    { id: "intermediate", label: "Practitioner", description: "Developing your technique" },
+    { id: "advanced", label: "Master", description: "Refining your artistry" },
+  ]
+
+  const budgetRangeOptions = [
+    { id: "low", label: "Essential", description: "Focused on fundamentals" },
+    { id: "medium", label: "Balanced", description: "Quality and value" },
+    { id: "high", label: "Premium", description: "Uncompromising excellence" },
+  ]
+
   useEffect(() => {
     setMounted(true)
     if (!user) {
@@ -84,13 +105,16 @@ export default function SettingsPage() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at")
+        .select("primary_goal, cooking_level, budget_range, cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at")
         .eq("id", user.id)
         .single()
 
       if (error) throw error
 
       if (data) {
+        setPrimaryGoal(data.primary_goal || "")
+        setCookingLevel(data.cooking_level || "")
+        setBudgetRange(data.budget_range || "")
         setCuisinePreferences(data.cuisine_preferences || [])
         setCookingTimePreference(data.cooking_time_preference || "any")
         setPostalCode(data.postal_code || "")
@@ -113,6 +137,9 @@ export default function SettingsPage() {
       const { error } = await supabase
         .from("profiles")
         .update({
+          primary_goal: primaryGoal || null,
+          cooking_level: cookingLevel || null,
+          budget_range: budgetRange || null,
           cuisine_preferences: cuisinePreferences,
           cooking_time_preference: cookingTimePreference,
           postal_code: postalCode || null,
@@ -246,6 +273,87 @@ export default function SettingsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Primary Goal */}
+            <div>
+              <Label className={`mb-3 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
+                Your Primary Goal
+              </Label>
+              <div className="space-y-2">
+                {primaryGoalOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => setPrimaryGoal(option.id)}
+                    className={`w-full p-3 rounded-lg border text-left transition-all ${
+                      primaryGoal === option.id
+                        ? isDark
+                          ? "border-[#e8dcc4] bg-[#e8dcc4]/5 text-[#e8dcc4]"
+                          : "border-orange-500 bg-orange-50 text-orange-900"
+                        : isDark
+                          ? "border-[#e8dcc4]/20 text-[#e8dcc4]/60 hover:border-[#e8dcc4]/40"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="font-medium">{option.label}</div>
+                    <div className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>{option.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Cooking Level */}
+            <div>
+              <Label className={`mb-3 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
+                Your Cooking Level
+              </Label>
+              <div className="space-y-2">
+                {cookingLevelOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => setCookingLevel(option.id)}
+                    className={`w-full p-3 rounded-lg border text-left transition-all ${
+                      cookingLevel === option.id
+                        ? isDark
+                          ? "border-[#e8dcc4] bg-[#e8dcc4]/5 text-[#e8dcc4]"
+                          : "border-orange-500 bg-orange-50 text-orange-900"
+                        : isDark
+                          ? "border-[#e8dcc4]/20 text-[#e8dcc4]/60 hover:border-[#e8dcc4]/40"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="font-medium">{option.label}</div>
+                    <div className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>{option.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Budget Range */}
+            <div>
+              <Label className={`mb-3 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
+                Your Budget Range
+              </Label>
+              <div className="space-y-2">
+                {budgetRangeOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => setBudgetRange(option.id)}
+                    className={`w-full p-3 rounded-lg border text-left transition-all ${
+                      budgetRange === option.id
+                        ? isDark
+                          ? "border-[#e8dcc4] bg-[#e8dcc4]/5 text-[#e8dcc4]"
+                          : "border-orange-500 bg-orange-50 text-orange-900"
+                        : isDark
+                          ? "border-[#e8dcc4]/20 text-[#e8dcc4]/60 hover:border-[#e8dcc4]/40"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="font-medium">{option.label}</div>
+                    <div className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>{option.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Cuisine Preferences */}
             <div>
               <Label className={`mb-3 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>Favorite Cuisines</Label>
