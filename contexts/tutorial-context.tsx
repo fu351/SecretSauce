@@ -94,7 +94,7 @@ const tutorialPaths: Record<string, TutorialPath> = {
           "Check the rating and reviews from other cooks",
           "Note any ingredient substitutions you might need",
         ],
-        action: "highlight",
+        action: "click",
         nextButtonText: "Continue",
         estimatedSeconds: 45,
       },
