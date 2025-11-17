@@ -16,6 +16,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
+import { StoreMap } from "@/components/store-map"
 
 interface GroceryItem {
   id: string
@@ -77,6 +78,7 @@ export default function ShoppingPage() {
 
   const [carouselIndex, setCarouselIndex] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
 
   const { user } = useAuth()
   const { theme } = useTheme()
@@ -89,6 +91,17 @@ export default function ShoppingPage() {
       loadRecipes()
     }
   }, [user])
+
+  // Auto-scroll to map when comparison results are ready
+  useEffect(() => {
+    if (massSearchResults.length > 0 && mapContainerRef.current) {
+      // Add a small delay to ensure the map component has rendered
+      const timer = setTimeout(() => {
+        mapContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [massSearchResults])
 
   const loadUserPreferences = async () => {
     if (!user) return
@@ -571,7 +584,7 @@ export default function ShoppingPage() {
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
-      {loading && (
+      {(loading || comparisonLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div
             className={`mx-4 max-w-md rounded-2xl p-8 text-center shadow-2xl ${
@@ -579,14 +592,18 @@ export default function ShoppingPage() {
             }`}
             role="status"
             aria-live="assertive"
-            aria-label="Grocery search in progress"
+            aria-label={comparisonLoading ? "Store comparison in progress" : "Grocery search in progress"}
           >
             <div className="mb-4 flex justify-center">
               <span className="h-12 w-12 animate-spin rounded-full border-4 border-[#e8dcc4] border-t-transparent"></span>
             </div>
-            <h2 className="text-2xl font-semibold mb-2">Searching for groceries…</h2>
+            <h2 className="text-2xl font-semibold mb-2">
+              {comparisonLoading ? "Comparing stores…" : "Searching for groceries…"}
+            </h2>
             <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"}>
-              Hang tight while we compare prices across nearby stores.
+              {comparisonLoading
+                ? "Finding the best prices across all your nearby stores."
+                : "Hang tight while we compare prices across nearby stores."}
             </p>
           </div>
         </div>
@@ -1173,6 +1190,20 @@ export default function ShoppingPage() {
                       />
                     ))}
                   </div>
+                </div>
+
+                {/* Store Map */}
+                <div ref={mapContainerRef} className="space-y-4">
+                  <div>
+                    <h2 className={`text-2xl font-bold ${textClass} mb-2`}>Store Locations</h2>
+                    <p className={mutedTextClass}>View store locations on the map and click markers to sync with the carousel above</p>
+                  </div>
+                  <StoreMap
+                    comparisons={massSearchResults}
+                    userPostalCode={zipCode}
+                    selectedStoreIndex={carouselIndex}
+                    onStoreSelected={(index) => scrollToStore(index)}
+                  />
                 </div>
 
                 <Card
