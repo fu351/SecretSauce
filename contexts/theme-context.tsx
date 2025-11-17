@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { useCallback } from "react"
 
 import { useTheme as useNextTheme, ThemeProvider as NextThemesProvider } from "next-themes"
 
@@ -17,26 +18,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useTheme() {
   const { theme, resolvedTheme, setTheme: setNextTheme } = useNextTheme()
 
-  const getDocumentTheme = () => {
+  const getDocumentTheme = useCallback(() => {
     if (typeof document === "undefined") return undefined
     return document.documentElement.classList.contains("dark") ? "dark" : "light"
-  }
+  }, [])
 
   // Use the currently applied theme when available; fall back to provider default or DOM class.
   const effective = (resolvedTheme ?? theme ?? getDocumentTheme()) as string | undefined
   const normalizedTheme: Theme = effective === "dark" ? "dark" : "light"
 
-  const setTheme = (newTheme: Theme) => setNextTheme(newTheme)
+  const setTheme = useCallback(
+    (newTheme: Theme) => {
+      setNextTheme(newTheme)
+    },
+    [setNextTheme],
+  )
 
-  // Avoid stale closures by reading the live DOM class when available.
-  const toggleTheme = () => {
-    if (typeof document !== "undefined") {
-      const isDarkNow = document.documentElement.classList.contains("dark")
-      setNextTheme(isDarkNow ? "light" : "dark")
-    } else {
-      setNextTheme((resolvedTheme ?? theme) === "dark" ? "light" : "dark")
-    }
-  }
+  // Avoid stale closures by deriving the next theme from normalizedTheme.
+  const toggleTheme = useCallback(() => {
+    setNextTheme(normalizedTheme === "dark" ? "light" : "dark")
+  }, [normalizedTheme, setNextTheme])
 
   return { theme: normalizedTheme, setTheme, toggleTheme }
 }
