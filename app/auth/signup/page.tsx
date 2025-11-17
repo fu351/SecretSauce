@@ -54,8 +54,8 @@ export default function SignUpPage() {
           title: "Access Granted",
           description: "Welcome to the circle.",
         })
-        // New users proceed through onboarding in light mode
-        setTheme("light")
+        // New users proceed through onboarding (they can select their theme preference)
+        setTheme("dark")
         router.push("/onboarding")
       }
     } catch (error) {

@@ -214,7 +214,7 @@ export default function SettingsPage() {
                   htmlFor="theme-toggle"
                   className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}
                 >
-                  {isDark ? "Dark Mode" : "Light Mode"}
+                  {isDark ? "Dark Mode" : "Warm Mode"}
                 </Label>
                 <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
                   {isDark ? "Mysterious and exclusive dark theme" : "Bright and inviting theme for everyday cooking"}
@@ -250,7 +250,7 @@ export default function SettingsPage() {
                 }`}
                 onClick={() => isDark && toggleTheme()}
               >
-                <div className="text-gray-900 text-xs font-medium mb-2">Light Mode</div>
+                <div className="text-gray-900 text-xs font-medium mb-2">Warm Mode</div>
                 <div className="space-y-2">
                   <div className="h-2 bg-orange-200 rounded"></div>
                   <div className="h-2 bg-orange-100 rounded w-3/4"></div>

@@ -86,17 +86,23 @@ export function TutorialOverlay() {
   useEffect(() => {
     if (!isDragging) return
 
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - dragStartRef.current.x
-      const deltaY = e.clientY - dragStartRef.current.y
+    let animationFrameId: number
 
-      setPosition({
-        x: dragStartRef.current.offsetX + deltaX,
-        y: dragStartRef.current.offsetY + deltaY,
+    const handleMouseMove = (e: MouseEvent) => {
+      cancelAnimationFrame(animationFrameId)
+      animationFrameId = requestAnimationFrame(() => {
+        const deltaX = e.clientX - dragStartRef.current.x
+        const deltaY = e.clientY - dragStartRef.current.y
+
+        setPosition({
+          x: dragStartRef.current.offsetX + deltaX,
+          y: dragStartRef.current.offsetY + deltaY,
+        })
       })
     }
 
     const handleMouseUp = () => {
+      cancelAnimationFrame(animationFrameId)
       setIsDragging(false)
     }
 
@@ -104,6 +110,7 @@ export function TutorialOverlay() {
     document.addEventListener("mouseup", handleMouseUp)
 
     return () => {
+      cancelAnimationFrame(animationFrameId)
       document.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("mouseup", handleMouseUp)
     }
@@ -118,40 +125,34 @@ export function TutorialOverlay() {
 
   // Determine tooltip position based on highlight location
   const getTooltipPosition = () => {
-    if (!highlightElement) {
-      // Center of screen
-      return {
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        position: "fixed" as const,
-      }
-    }
-
     const tooltipHeight = 300
     const tooltipWidth = 400
     const padding = 20
 
-    // Try to place tooltip above, if not enough space, place below
-    if (highlightElement.top > tooltipHeight + padding) {
+    if (!highlightElement) {
+      // Center of screen
       return {
-        top: highlightElement.top - tooltipHeight - padding,
-        left: Math.max(padding, highlightElement.left + highlightElement.width / 2 - tooltipWidth / 2),
-        position: "fixed" as const,
-      }
-    } else {
-      return {
-        top: highlightElement.bottom + padding,
-        left: Math.max(padding, highlightElement.left + highlightElement.width / 2 - tooltipWidth / 2),
+        top: `calc(50vh - ${tooltipHeight / 2}px + ${position.y}px)`,
+        left: `calc(50vw - ${tooltipWidth / 2}px + ${position.x}px)`,
         position: "fixed" as const,
       }
     }
+
+    // Try to place tooltip above, if not enough space, place below
+    const useAbove = highlightElement.top > tooltipHeight + padding
+    const top = useAbove
+      ? highlightElement.top - tooltipHeight - padding + position.y
+      : highlightElement.bottom + padding + position.y
+    const left = Math.max(padding, highlightElement.left + highlightElement.width / 2 - tooltipWidth / 2 + position.x)
+
+    return {
+      top,
+      left,
+      position: "fixed" as const,
+    }
   }
 
-  const tooltipStyle = {
-    ...getTooltipPosition(),
-    transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))`,
-  }
+  const tooltipStyle = getTooltipPosition()
 
   return (
     <>
@@ -269,19 +270,19 @@ export function TutorialOverlay() {
         {stepCompleted ? (
           <div className="px-4 py-2 bg-blue-500/10 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
             <p className={clsx("text-xs font-medium", isDark ? "text-blue-300" : "text-blue-600")}>
-              Next step loading...
+              Loading next step...
             </p>
           </div>
         ) : (
           <div className="px-4 py-2 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
             <p
-              className={clsx("text-xs", isDark ? "text-[#e8dcc4]/70" : "text-gray-600")}
+              className={clsx("text-xs leading-relaxed", isDark ? "text-[#e8dcc4]/70" : "text-gray-600")}
             >
               {currentStep.action === "navigate"
-                ? `Go to ${currentStep.actionTarget}`
+                ? `Navigate to ${currentStep.actionTarget === "/recipes" ? "Recipes" : currentStep.actionTarget === "/meal-plan" ? "Meal Planner" : currentStep.actionTarget === "/shopping" ? "Shopping" : currentStep.actionTarget === "/dashboard" ? "Dashboard" : currentStep.actionTarget}. You'll automatically advance to the next step.`
                 : currentStep.action === "click"
-                  ? "Click the highlighted area"
-                  : "Explore this section"}
+                  ? "Click the highlighted area to continue."
+                  : "Explore this section and get familiar with the features."}
             </p>
           </div>
         )}
