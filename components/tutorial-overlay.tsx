@@ -13,30 +13,36 @@ import clsx from "clsx"
  * Includes horizontal progress dots and skip button
  */
 export function TutorialOverlay() {
-  const { isActive, currentPath, currentStep, currentStepIndex, nextStep, skipTutorial } = useTutorial()
+  const { isActive, currentPath, currentStep, currentStepIndex, nextStep, goToStep, skipTutorial } = useTutorial()
   const { theme } = useTheme()
   const pathname = usePathname()
   const [highlightElement, setHighlightElement] = useState<DOMRect | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-  const [stepCompleted, setStepCompleted] = useState(false)
+  const [showHint, setShowHint] = useState(false)
 
   const isDark = theme === "dark"
 
-  // Auto-advance when step is completed or page changes to next step's page
+  // Auto-advance when user navigates to the next step's required page
   useEffect(() => {
     if (!currentStep) return
 
-    // Check if we've navigated to the required page
-    if (currentStep.page && pathname === currentStep.page && !stepCompleted) {
-      setStepCompleted(true)
-      // Auto-advance after a short delay to let user see they're on the right page
+    // Only auto-advance if the action is "navigate" and we've reached the target page
+    if (currentStep.action === "navigate" && currentStep.page && pathname === currentStep.page) {
       const timer = setTimeout(() => {
         nextStep()
-        setStepCompleted(false)
-      }, 1500)
+      }, 2000)
       return () => clearTimeout(timer)
     }
-  }, [pathname, currentStep, stepCompleted, nextStep])
+  }, [pathname, currentStep, nextStep])
+
+  // Show hint after 5 seconds of inactivity on a step
+  useEffect(() => {
+    setShowHint(false)
+    const hintTimer = setTimeout(() => {
+      setShowHint(true)
+    }, 5000)
+    return () => clearTimeout(hintTimer)
+  }, [currentStepIndex])
 
   // Find and highlight the target element
   useEffect(() => {
@@ -158,25 +164,24 @@ export function TutorialOverlay() {
         )}
 
         {/* Action Instructions */}
-        {stepCompleted ? (
-          <div className="px-4 py-2 bg-blue-500/10 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
-            <p className={clsx("text-xs font-medium", isDark ? "text-blue-300" : "text-blue-600")}>
-              Loading next step...
-            </p>
-          </div>
-        ) : (
-          <div className="px-4 py-2 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
+        <div className="px-4 py-3 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
+          <p
+            className={clsx("text-xs leading-relaxed", isDark ? "text-[#e8dcc4]/70" : "text-gray-600")}
+          >
+            {currentStep.action === "navigate"
+              ? `Navigate to ${currentStep.actionTarget === "/recipes" ? "Recipes" : currentStep.actionTarget === "/meal-plan" ? "Meal Planner" : currentStep.actionTarget === "/shopping" ? "Shopping" : currentStep.actionTarget === "/dashboard" ? "Dashboard" : currentStep.actionTarget}. You'll automatically advance to the next step.`
+              : currentStep.action === "click"
+                ? "Click the highlighted area to continue."
+                : "Explore this section and get familiar with the features."}
+          </p>
+          {showHint && (
             <p
-              className={clsx("text-xs leading-relaxed", isDark ? "text-[#e8dcc4]/70" : "text-gray-600")}
+              className={clsx("text-xs mt-2 p-2 rounded", isDark ? "bg-blue-600/20 text-blue-300" : "bg-blue-50 text-blue-700")}
             >
-              {currentStep.action === "navigate"
-                ? `Navigate to ${currentStep.actionTarget === "/recipes" ? "Recipes" : currentStep.actionTarget === "/meal-plan" ? "Meal Planner" : currentStep.actionTarget === "/shopping" ? "Shopping" : currentStep.actionTarget === "/dashboard" ? "Dashboard" : currentStep.actionTarget}. You'll automatically advance to the next step.`
-                : currentStep.action === "click"
-                  ? "Click the highlighted area to continue."
-                  : "Explore this section and get familiar with the features."}
+              Need help? Try the action above, or click any progress dot to jump to that step.
             </p>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Navigation and Progress Dots */}
         <div className="px-4 py-4 flex items-center justify-between gap-3">
@@ -191,16 +196,20 @@ export function TutorialOverlay() {
                 : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
             )}
           >
-            Skip
+            Skip Tutorial
           </Button>
 
-          {/* Horizontal Progress Dots */}
+          {/* Horizontal Progress Dots - Clickable */}
           <div className="flex items-center gap-1.5">
             {currentPath.steps.map((step, idx) => (
-              <div
+              <button
                 key={step.id}
+                type="button"
+                onClick={() => {
+                  goToStep(idx)
+                }}
                 className={clsx(
-                  "rounded-full transition-all",
+                  "rounded-full transition-all cursor-pointer hover:scale-110",
                   idx < currentStepIndex
                     ? isDark
                       ? "bg-blue-600 w-2 h-2"
@@ -213,7 +222,7 @@ export function TutorialOverlay() {
                         ? "bg-[#e8dcc4]/20 w-2 h-2"
                         : "bg-gray-300 w-2 h-2"
                 )}
-                title={step.title}
+                title={`Step ${idx + 1}: ${step.title}`}
               />
             ))}
           </div>

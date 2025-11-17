@@ -35,6 +35,7 @@ interface TutorialContextType {
   startTutorial: (pathId: "cooking" | "budgeting" | "health") => void
   nextStep: () => void
   prevStep: () => void
+  goToStep: (stepIndex: number) => void
   skipTutorial: () => void
   completeTutorial: () => void
   resetTutorial: () => void
@@ -446,6 +447,12 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentStepIndex])
 
+  const goToStep = useCallback((stepIndex: number) => {
+    if (currentPath && stepIndex >= 0 && stepIndex < currentPath.steps.length) {
+      setCurrentStepIndex(stepIndex)
+    }
+  }, [currentPath])
+
   const skipTutorial = useCallback(async () => {
     if (!user) return
     try {
@@ -492,6 +499,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     startTutorial,
     nextStep,
     prevStep,
+    goToStep,
     skipTutorial,
     completeTutorial,
     resetTutorial,
