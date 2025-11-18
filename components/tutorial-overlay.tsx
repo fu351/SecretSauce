@@ -16,6 +16,8 @@ export function TutorialOverlay() {
   const { theme } = useTheme()
   const overlayRef = useRef<HTMLDivElement>(null)
   const [currentSubstepIndex, setCurrentSubstepIndex] = useState(0)
+  const [showInstallModal, setShowInstallModal] = useState(false)
+  const [installTab, setInstallTab] = useState<"ios" | "android">("ios")
 
   const isDark = theme === "dark"
   const getTargetLabel = (target?: string | null) => {
@@ -308,6 +310,8 @@ export function TutorialOverlay() {
                 if (!isLastStep || (hasSubsteps && currentSubstepIndex < totalSubsteps - 1)) {
                   handleNextSubstep()
                 } else {
+                  // Show install modal on tutorial completion
+                  setShowInstallModal(true)
                   nextStep()
                 }
               }}
@@ -347,6 +351,141 @@ export function TutorialOverlay() {
           z-index: 1000 !important;
         }
       `}</style>
+
+      {/* Install Instructions Modal */}
+      {showInstallModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowInstallModal(false)}
+          />
+
+          {/* Modal Content */}
+          <div
+            className={clsx(
+              "relative rounded-lg shadow-2xl p-6 max-w-lg w-full",
+              isDark ? "bg-[#181813] border border-[#e8dcc4]/30" : "bg-white border border-gray-200"
+            )}
+          >
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowInstallModal(false)}
+              className={clsx(
+                "absolute top-4 right-4 p-1 rounded hover:bg-gray-200 transition-colors",
+                isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-gray-600 hover:bg-gray-100"
+              )}
+            >
+              ✕
+            </button>
+
+            {/* Header */}
+            <div className="mb-6">
+              <h2 className={clsx("text-2xl font-bold mb-2", isDark ? "text-[#e8dcc4]" : "text-gray-900")}>
+                Install Secret Sauce
+              </h2>
+              <p className={clsx("text-sm", isDark ? "text-[#e8dcc4]/60" : "text-gray-600")}>
+                Add Secret Sauce to your home screen for quick access!
+              </p>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 mb-6">
+              <button
+                type="button"
+                onClick={() => setInstallTab("ios")}
+                className={clsx(
+                  "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  installTab === "ios"
+                    ? isDark
+                      ? "bg-blue-600 text-white"
+                      : "bg-blue-500 text-white"
+                    : isDark
+                      ? "bg-[#e8dcc4]/10 text-[#e8dcc4] hover:bg-[#e8dcc4]/20"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                )}
+              >
+                iOS (Safari)
+              </button>
+              <button
+                type="button"
+                onClick={() => setInstallTab("android")}
+                className={clsx(
+                  "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  installTab === "android"
+                    ? isDark
+                      ? "bg-blue-600 text-white"
+                      : "bg-blue-500 text-white"
+                    : isDark
+                      ? "bg-[#e8dcc4]/10 text-[#e8dcc4] hover:bg-[#e8dcc4]/20"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                )}
+              >
+                Android (Chrome)
+              </button>
+            </div>
+
+            {/* iOS Instructions */}
+            {installTab === "ios" && (
+              <div className="space-y-4">
+                <ol className={clsx("space-y-3 list-decimal list-inside", isDark ? "text-[#e8dcc4]" : "text-gray-900")}>
+                  <li className="text-sm">
+                    Tap the <span className="font-bold">Share</span> button at the bottom of Safari
+                    <span className="ml-2 inline-block">
+                      <svg className="w-4 h-4 inline" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M16 5l-1.42 1.42-1.59-1.59V16h-1.98V4.83L9.42 6.42 8 5l4-4 4 4zm4 5v11c0 1.1-.9 2-2 2H6c-1.11 0-2-.9-2-2V10c0-1.11.89-2 2-2h3v2H6v11h12V10h-3V8h3c1.1 0 2 .89 2 2z"/>
+                      </svg>
+                    </span>
+                  </li>
+                  <li className="text-sm">
+                    Scroll down and tap <span className="font-bold">"Add to Home Screen"</span>
+                  </li>
+                  <li className="text-sm">
+                    Tap <span className="font-bold">"Add"</span> in the top right corner
+                  </li>
+                  <li className="text-sm">
+                    The Secret Sauce icon will appear on your home screen!
+                  </li>
+                </ol>
+              </div>
+            )}
+
+            {/* Android Instructions */}
+            {installTab === "android" && (
+              <div className="space-y-4">
+                <ol className={clsx("space-y-3 list-decimal list-inside", isDark ? "text-[#e8dcc4]" : "text-gray-900")}>
+                  <li className="text-sm">
+                    Tap the <span className="font-bold">Menu</span> button (three dots) in the top right corner
+                  </li>
+                  <li className="text-sm">
+                    Select <span className="font-bold">"Add to Home screen"</span> or <span className="font-bold">"Install app"</span>
+                  </li>
+                  <li className="text-sm">
+                    Tap <span className="font-bold">"Add"</span> or <span className="font-bold">"Install"</span> to confirm
+                  </li>
+                  <li className="text-sm">
+                    The Secret Sauce icon will appear on your home screen!
+                  </li>
+                </ol>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="mt-6 pt-4 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
+              <Button
+                onClick={() => setShowInstallModal(false)}
+                className={clsx(
+                  "w-full",
+                  isDark ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-500 text-white hover:bg-blue-600"
+                )}
+              >
+                Got it!
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
