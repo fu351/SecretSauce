@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import { StoreMap } from "@/components/store-map"
-import { geocodeMultipleStores, getUserLocation } from "@/lib/geocoding"
+import { geocodeMultipleStores, geocodePostalCode, getUserLocation } from "@/lib/geocoding"
 
 interface GroceryItem {
   id: string
@@ -48,6 +48,7 @@ interface Recipe {
 }
 
 const DEFAULT_GROCERY_DISTANCE_MILES = 10
+const DEFAULT_SHOPPING_ZIP = "94709"
 
 interface StoreComparison {
   store: string
@@ -75,7 +76,7 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 
 export default function ShoppingPage() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [zipCode, setZipCode] = useState("")
+  const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)
   const [groceryDistanceMiles, setGroceryDistanceMiles] = useState<number | undefined>(DEFAULT_GROCERY_DISTANCE_MILES)
   const [searchResults, setSearchResults] = useState<GroceryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -137,6 +138,8 @@ export default function ShoppingPage() {
 
       if (data?.postal_code) {
         setZipCode(data.postal_code)
+      } else {
+        setZipCode(DEFAULT_SHOPPING_ZIP)
       }
       if (data?.grocery_distance_miles) {
         setGroceryDistanceMiles(data.grocery_distance_miles)
@@ -533,7 +536,10 @@ export default function ShoppingPage() {
       if (groceryDistanceMiles && groceryDistanceMiles > 0) {
         try {
           const maxDistanceMiles = groceryDistanceMiles
-          const userLoc = await getUserLocation()
+          let userLoc = await getUserLocation()
+          if (!userLoc && zipCode) {
+            userLoc = await geocodePostalCode(zipCode)
+          }
 
           if (userLoc) {
             const storeNames = comparisons.map((comp) => comp.store)
@@ -583,7 +589,7 @@ export default function ShoppingPage() {
               setDistanceFilterWarning(null)
             }
           } else {
-            setDistanceFilterWarning("We couldn't access your location, so distance filtering was skipped.")
+            setDistanceFilterWarning("We couldn't determine your location, so distance filtering was skipped.")
           }
         } catch (error) {
           console.error("Error filtering by distance:", error)

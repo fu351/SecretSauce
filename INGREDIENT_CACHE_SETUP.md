@@ -243,6 +243,7 @@ const prices = await getCachedIngredientById(ingredientId)
 await cacheIngredientPrice(
   ingredientId,
   "Target",
+  "Fresh Chicken Breast",
   9.99,  // price
   1,     // quantity
   "lb",  // unit

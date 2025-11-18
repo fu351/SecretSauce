@@ -472,6 +472,7 @@ function formatCachedResults(
     id: string
     standardized_ingredient_id: string
     store: string
+    product_name: string | null
     price: number
     quantity: number
     unit: string
@@ -482,16 +483,23 @@ function formatCachedResults(
     expires_at: string
   }>
 ): any[] {
-  return cachedItems.map((item) => ({
-    id: item.product_id || item.id,
-    title: `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`,
-    brand: "",
-    price: item.price,
-    pricePerUnit: item.unit_price ? `$${item.unit_price}/${item.unit}` : undefined,
-    unit: item.unit,
-    image_url: item.image_url || "/placeholder.svg",
-    product_url: item.product_url,
-    provider: item.store,
-    location: `${item.store} Store`,
-  }))
+  return cachedItems.map((item) => {
+    const quantityDisplay = `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
+    const fallbackTitle = item.standardized_ingredient_id
+      ? `${item.standardized_ingredient_id} (${quantityDisplay})`
+      : quantityDisplay
+
+    return {
+      id: item.product_id || item.id,
+      title: item.product_name || fallbackTitle,
+      brand: "",
+      price: item.price,
+      pricePerUnit: item.unit_price ? `$${item.unit_price}/${item.unit}` : undefined,
+      unit: item.unit,
+      image_url: item.image_url || "/placeholder.svg",
+      product_url: item.product_url,
+      provider: item.store,
+      location: `${item.store} Store`,
+    }
+  })
 }

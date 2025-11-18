@@ -232,6 +232,7 @@ export type Database = {
           id: string
           standardized_ingredient_id: string
           store: string
+          product_name: string | null
           price: number
           quantity: number
           unit: string
@@ -246,6 +247,7 @@ export type Database = {
         Insert: {
           standardized_ingredient_id: string
           store: string
+          product_name?: string | null
           price: number
           quantity: number
           unit: string
@@ -257,6 +259,7 @@ export type Database = {
         }
         Update: {
           store?: string
+          product_name?: string | null
           price?: number
           quantity?: number
           unit?: string

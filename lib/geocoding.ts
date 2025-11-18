@@ -10,6 +10,7 @@ export interface GeocodeResult {
 
 // Simple in-memory cache for geocoding results (resets on page reload)
 const geocodeCache = new Map<string, GeocodeResult>()
+const postalCodeCache = new Map<string, GeocodeResult>()
 
 // Fallback coordinates for known stores in the West Lafayette, IN area (zip 47906)
 const knownStoreCoordinates: Record<string, GeocodeResult> = {
@@ -242,8 +243,18 @@ export async function geocodeMultipleStores(
 
   console.log(`[Geocoding] Starting batch geocoding for ${storeNames.length} stores:`, storeNames)
 
+  let resolvedCoordinates = userCoordinates
+  if (!resolvedCoordinates && userPostalCode) {
+    resolvedCoordinates = await geocodePostalCode(userPostalCode)
+  }
+
   for (const storeName of storeNames) {
-    const geocoded = await geocodeStore(storeName, userPostalCode, userCoordinates, groceryDistanceMiles)
+    const geocoded = await geocodeStore(
+      storeName,
+      userPostalCode,
+      resolvedCoordinates ?? undefined,
+      groceryDistanceMiles
+    )
     if (geocoded) {
       results.set(storeName, geocoded)
       console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${geocoded.lat}, lng=${geocoded.lng}`)
@@ -285,4 +296,44 @@ export async function getUserLocation(): Promise<{ lat: number; lng: number } | 
       }
     )
   })
+}
+
+export async function geocodePostalCode(postalCode: string): Promise<{ lat: number; lng: number } | null> {
+  const normalized = postalCode?.trim()
+  if (!normalized) return null
+
+  if (postalCodeCache.has(normalized)) {
+    const cached = postalCodeCache.get(normalized)!
+    return { lat: cached.lat, lng: cached.lng }
+  }
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  if (!apiKey) {
+    console.error("Google Maps API key not found; cannot geocode postal code")
+    return null
+  }
+
+  try {
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(normalized)}&key=${apiKey}`
+    )
+
+    if (!response.ok) {
+      console.error(`[Geocoding] Postal code geocode error (${normalized}):`, response.statusText)
+      return null
+    }
+
+    const data = await response.json()
+    if (data.status !== "OK" || !data.results?.length) {
+      console.warn(`[Geocoding] No results for postal code: ${normalized}`)
+      return null
+    }
+
+    const { lat, lng } = data.results[0].geometry.location
+    postalCodeCache.set(normalized, { lat, lng })
+    return { lat, lng }
+  } catch (error) {
+    console.error(`[Geocoding] Error geocoding postal code ${normalized}:`, error)
+    return null
+  }
 }

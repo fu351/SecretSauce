@@ -136,6 +136,7 @@ async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: st
       const success = await cacheIngredientPrice(
         ingredientId,
         store,
+        cheapest.title || cheapest.name || ingredientName,
         Number(cheapest.price) || 0,
         quantity,
         unit,

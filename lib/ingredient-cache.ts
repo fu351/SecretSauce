@@ -4,6 +4,7 @@ export interface CachedIngredient {
   id: string
   standardized_ingredient_id: string
   store: string
+  product_name: string | null
   price: number
   quantity: number
   unit: string
@@ -110,6 +111,7 @@ export async function getCachedIngredientById(
 export async function cacheIngredientPrice(
   standardizedIngredientId: string,
   store: string,
+  productName: string | null = null,
   price: number,
   quantity: number,
   unit: string,
@@ -129,6 +131,7 @@ export async function cacheIngredientPrice(
       {
         standardized_ingredient_id: standardizedIngredientId,
         store,
+        product_name: productName || null,
         price,
         quantity,
         unit,
@@ -513,6 +516,7 @@ export async function cacheScrapedResults(
       const success = await cacheIngredientPrice(
         standardizedId,
         item.provider,
+        item.title,
         item.price,
         1, // quantity
         item.unit || "unit",
