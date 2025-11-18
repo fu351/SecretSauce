@@ -42,7 +42,7 @@ export async function geocodeStore(
 ): Promise<GeocodeResult | null> {
   try {
     // Check cache first
-    const locationKey = userCoordinates ? `${userCoordinates.lat.toFixed(2)},${userCoordinates.lng.toFixed(2)}` : "none"
+    const locationKey = userCoordinates ? `${userCoordinates.lat.toFixed(4)},${userCoordinates.lng.toFixed(4)}` : "none"
     const hintKey = storeHint ? storeHint.toLowerCase().trim() : "none"
     const cacheKey = `${storeName}-${userPostalCode || "none"}-${locationKey}-${hintKey}`
     if (geocodeCache.has(cacheKey)) {
@@ -54,20 +54,10 @@ export async function geocodeStore(
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     if (!apiKey) {
       console.error("Google Maps API key not found in environment variables")
-      // Fall back to known coordinates if available
-      if (knownStoreCoordinates[storeName]) {
-        return knownStoreCoordinates[storeName]
-      }
-      return null
+      return knownStoreCoordinates[storeName] || null
     }
 
-    // If we have user coordinates, attempt to find the nearest store using Places Text Search
-    const knownLocation = knownStoreCoordinates[storeName]
-    if (knownLocation) {
-      geocodeCache.set(cacheKey, knownLocation)
-      return knownLocation
-    }
-
+    // If we have user coordinates, attempt to find the nearest store using Nearby Search
     if (userCoordinates) {
       const nearestStore = await findNearestStoreWithPlaces(
         storeHint ? `${storeName} ${storeHint}` : storeName,
@@ -82,7 +72,7 @@ export async function geocodeStore(
     }
 
     // Build search query: store name + postal code for better accuracy
-    const baseQuery = storeHint ? `${storeName} ${storeHint}` : storeName
+    const baseQuery = storeHint || storeName
     const searchQuery = userPostalCode ? `${baseQuery} ${userPostalCode}` : baseQuery
     console.log(`[Geocoding] Attempting to geocode ${storeName} with query: ${searchQuery}`)
 
@@ -186,28 +176,47 @@ async function findNearestStoreWithPlaces(
   apiKey: string,
   groceryDistanceMiles: number
 ): Promise<GeocodeResult | null> {
+  const keyword = storeName.trim()
   try {
     const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
-    const radiusMeters = effectiveMiles * 1609.34
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-      storeName
-    )}&location=${userCoordinates.lat},${userCoordinates.lng}&radius=${radiusMeters}&key=${apiKey}`
+    const radiusMeters = Math.min(effectiveMiles * 1609.34, 50000) // Places API max radius 50km
+    const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${
+      userCoordinates.lat
+    },${userCoordinates.lng}&radius=${radiusMeters}&keyword=${encodeURIComponent(keyword)}&key=${apiKey}`
 
-    const response = await fetch(url)
+    let response = await fetch(nearbyUrl)
     if (!response.ok) {
-      console.error(`[Geocoding] Places API error for ${storeName}:`, response.statusText)
+      console.error(`[Geocoding] Nearby search error for ${storeName}:`, response.statusText)
       return null
     }
 
-    const data = await response.json()
-    if (data.status !== "OK" || !data.results || data.results.length === 0) {
-      console.warn(`[Geocoding] Places API returned no results for ${storeName}: ${data.status}`)
-      return null
+    let data = await response.json()
+    let candidates: any[] = []
+    if (data.status === "OK" && data.results?.length) {
+      candidates = data.results
+    } else {
+      // Fallback to Text Search if Nearby fails
+      console.warn(`[Geocoding] Nearby search returned ${data.status} for ${storeName}, falling back to Text Search`)
+      const textUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+        keyword
+      )}&location=${userCoordinates.lat},${userCoordinates.lng}&radius=${radiusMeters}&key=${apiKey}`
+      response = await fetch(textUrl)
+      if (!response.ok) {
+        console.error(`[Geocoding] Places Text Search error for ${storeName}:`, response.statusText)
+        return null
+      }
+      data = await response.json()
+      if (data.status !== "OK" || !data.results?.length) {
+        console.warn(`[Geocoding] Places Text Search returned ${data.status} for ${storeName}`)
+        return null
+      }
+      candidates = data.results
     }
 
-    let selected = data.results[0]
-    if (data.results.length > 1) {
-      selected = data.results.reduce((closest: any, current: any) => {
+    const normalizedStoreName = storeName.toLowerCase()
+    let selected = candidates
+      .filter((result) => result.name && result.name.toLowerCase().includes(normalizedStoreName))
+      .reduce((closest: any, current: any) => {
         const closestDist = calculateDistance(
           userCoordinates.lat,
           userCoordinates.lng,
@@ -221,13 +230,20 @@ async function findNearestStoreWithPlaces(
           current.geometry.location.lng
         )
         return currentDist < closestDist ? current : closest
-      })
+      }, candidates[0])
+
+    if (!selected && candidates.length > 0) {
+      selected = candidates[0]
+    }
+
+    if (!selected) {
+      return null
     }
 
     return {
       lat: selected.geometry.location.lat,
       lng: selected.geometry.location.lng,
-      formattedAddress: selected.formatted_address,
+      formattedAddress: selected.vicinity || selected.formatted_address,
     }
   } catch (error) {
     console.error(`[Geocoding] Error finding nearest store for ${storeName}:`, error)

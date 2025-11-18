@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -47,6 +47,12 @@ interface Recipe {
   ingredients: any[]
 }
 
+type PantryItemInfo = {
+  id: string
+  quantity: number
+  unit: string | null
+}
+
 const DEFAULT_GROCERY_DISTANCE_MILES = 10
 const DEFAULT_SHOPPING_ZIP = "94709"
 
@@ -58,6 +64,7 @@ interface StoreComparison {
   outOfRadius?: boolean
   distanceMiles?: number
   locationHint?: string
+  missingItems?: boolean
 }
 
 /**
@@ -76,6 +83,7 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 }
 
 export default function ShoppingPage() {
+  const [mounted, setMounted] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)
   const [groceryDistanceMiles, setGroceryDistanceMiles] = useState<number | undefined>(DEFAULT_GROCERY_DISTANCE_MILES)
@@ -97,6 +105,7 @@ export default function ShoppingPage() {
   const [itemSearchSource, setItemSearchSource] = useState<
     { type: "shopping-list" | "missing" | "search-results"; shoppingItemId?: string; store?: string } | null
   >(null);
+  const [pantryInventory, setPantryInventory] = useState<Map<string, PantryItemInfo>>(new Map())
 
   const [carouselIndex, setCarouselIndex] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
@@ -104,13 +113,79 @@ export default function ShoppingPage() {
 
   const { user } = useAuth()
   const { theme } = useTheme()
+  const getDomTheme = () => {
+    if (typeof document === "undefined") return "light"
+    return document.documentElement.classList.contains("dark") ? "dark" : "light"
+  }
+  const isDark = (mounted ? theme : getDomTheme()) === "dark"
+  const pageBgClass = isDark ? "bg-[#0f0f0d]" : "bg-gray-50"
   const { toast } = useToast()
+  const loadPantryInventory = useCallback(async () => {
+    if (!user) {
+      setPantryInventory(new Map())
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("pantry_items")
+        .select("id, name, quantity, unit")
+        .eq("user_id", user.id)
+
+      if (error) throw error
+
+      const map = new Map<string, PantryItemInfo>()
+      data?.forEach((item) => {
+        const key = (item.name || "").trim().toLowerCase()
+        if (!key) return
+        map.set(key, {
+          id: item.id,
+          quantity: Number(item.quantity) || 0,
+          unit: item.unit || null,
+        })
+      })
+      setPantryInventory(map)
+    } catch (error) {
+      console.error("Error loading pantry items:", error)
+    }
+  }, [user])
+
+  const sortComparisons = useCallback(
+    (comparisons: StoreComparison[]) => {
+      return [...comparisons]
+        .map((comparison) => ({
+          ...comparison,
+          missingItems: comparison.items.length < shoppingList.length,
+        }))
+        .sort((a, b) => {
+          if (!!a.outOfRadius !== !!b.outOfRadius) {
+            return Number(a.outOfRadius) - Number(b.outOfRadius)
+          }
+          if (!!a.missingItems !== !!b.missingItems) {
+            return Number(a.missingItems) - Number(b.missingItems)
+          }
+          return a.total - b.total
+        })
+    },
+    [shoppingList.length]
+  )
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (user) {
       loadUserPreferences()
       loadShoppingList()
       loadRecipes()
+      loadPantryInventory()
+    }
+  }, [user, loadPantryInventory])
+
+  useEffect(() => {
+    if (!user) {
+      setPantryInventory(new Map())
     }
   }, [user])
 
@@ -340,40 +415,164 @@ export default function ShoppingPage() {
     fetchCheapestOptions(itemSearchModalTerm.trim(), itemSearchSource?.store)
   }
 
+  const integrateManualSelection = useCallback(
+    (storeName: string, shoppingItemId: string, option: GroceryItem) => {
+      const shoppingMap = new Map(shoppingList.map((item) => [item.id, item]))
+
+      setMassSearchResults((prev) => {
+        const updated = prev.map((comparison) => {
+          if (comparison.store !== storeName) {
+            return comparison
+          }
+
+          const listItem = shoppingMap.get(shoppingItemId)
+          const normalizedItem: GroceryItem & { shoppingItemId: string } = {
+            ...option,
+            id: option.id || `${storeName}-${shoppingItemId}-${Date.now()}`,
+            shoppingItemId,
+            provider: comparison.store,
+            unit: option.unit || listItem?.unit || "unit",
+          }
+
+          const updatedItems = [...comparison.items]
+          const existingIndex = updatedItems.findIndex((item) => item.shoppingItemId === shoppingItemId)
+          if (existingIndex >= 0) {
+            updatedItems[existingIndex] = normalizedItem
+          } else {
+            updatedItems.push(normalizedItem)
+          }
+
+          const newTotal = updatedItems.reduce((sum, item) => {
+            const source = shoppingMap.get(item.shoppingItemId)
+            return sum + item.price * (source?.quantity ?? 1)
+          }, 0)
+
+          return {
+            ...comparison,
+            items: updatedItems,
+            total: newTotal,
+          }
+        })
+
+        return sortComparisons(updated)
+      })
+    },
+    [shoppingList, sortComparisons]
+  )
+
   const handleModalSelection = async (option: GroceryItem) => {
     if (itemSearchSource && itemSearchSource.type !== "search-results" && itemSearchSource.shoppingItemId) {
-      const shoppingItem = shoppingList.find((item) => item.id === itemSearchSource.shoppingItemId)
+      const preferredStore =
+        itemSearchSource.store ||
+        massSearchResults.find((comparison) => !comparison.outOfRadius)?.store ||
+        massSearchResults[0]?.store
 
-      // Update shopping list with new product info
-      const updatedList = shoppingList.map((item) =>
-        item.id === itemSearchSource.shoppingItemId
-          ? {
-              ...item,
-              name: option.title,
-              unit: option.unit || item.unit,
-            }
-          : item,
-      )
-      setShoppingList(updatedList)
-      await saveShoppingList(updatedList)
-
-      // Remove from missing items
-      setMissingItems((prev) => prev.filter((item) => item.id !== itemSearchSource.shoppingItemId))
-
-      toast({
-        title: "Item updated",
-        description: `${option.title} selected for your shopping list. Refreshing prices...`,
-      })
-
-      // Refresh the carousel with updated prices for all stores
-      if (massSearchResults.length > 0) {
-        await performMassSearch()
+      if (preferredStore) {
+        integrateManualSelection(preferredStore, itemSearchSource.shoppingItemId, option)
+        setMissingItems((prev) => prev.filter((item) => item.id !== itemSearchSource.shoppingItemId))
+        toast({
+          title: "Item linked",
+          description: `${option.title} added to ${preferredStore}.`,
+        })
+      } else {
+        toast({
+          title: "Unable to update item",
+          description: "No available stores to attach this item.",
+          variant: "destructive",
+        })
       }
-    } else {
-      addToShoppingList(option)
+      setItemSearchModalOpen(false)
+      setItemSearchSource(null)
+      return
     }
+
+    addToShoppingList(option)
     setItemSearchModalOpen(false)
     setItemSearchSource(null)
+  }
+
+  const addStoreItemsToPantry = async (comparison: StoreComparison) => {
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to manage your pantry.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const itemsToProcess = comparison.items
+        .map((item) => {
+          const listItem = shoppingList.find((entry) => entry.id === item.shoppingItemId)
+          return {
+            name: item.title,
+            quantity: listItem?.quantity ?? 1,
+            unit: listItem?.unit || item.unit || "unit",
+          }
+        })
+        .filter((entry) => entry.name && entry.name.trim().length > 0)
+
+      if (itemsToProcess.length === 0) {
+        toast({
+          title: "No items to add",
+          description: "This store card has no items to add to your pantry.",
+        })
+        return
+      }
+
+      const inserts: Array<{ user_id: string; name: string; quantity: number; unit: string | undefined }> = []
+      const updates: Array<{ id: string; quantity: number }> = []
+
+      const lookup = new Map(pantryInventory)
+
+      itemsToProcess.forEach((entry) => {
+        const key = entry.name.trim().toLowerCase()
+        const existing = lookup.get(key)
+        if (existing) {
+          updates.push({
+            id: existing.id,
+            quantity: Number(existing.quantity || 0) + Number(entry.quantity || 0),
+          })
+        } else {
+          inserts.push({
+            user_id: user.id,
+            name: entry.name,
+            quantity: entry.quantity,
+            unit: entry.unit,
+          })
+        }
+      })
+
+      if (inserts.length > 0) {
+        const { error } = await supabase.from("pantry_items").insert(inserts)
+        if (error) throw error
+      }
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from("pantry_items")
+          .update({ quantity: update.quantity })
+          .eq("id", update.id)
+        if (error) throw error
+      }
+
+      await loadPantryInventory()
+
+      toast({
+        title: "Pantry updated",
+        description: `Added ${itemsToProcess.length} ${itemsToProcess.length === 1 ? "item" : "items"} from ${
+          comparison.store
+        }.`,
+      })
+    } catch (error) {
+      console.error("Error updating pantry:", error)
+      toast({
+        title: "Pantry update failed",
+        description: "We couldn't add those items to your pantry.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleItemSearchModalChange = (open: boolean) => {
@@ -514,15 +713,15 @@ export default function ShoppingPage() {
           const bestItem = storeResult.items.reduce((best, current) => (current.price < best.price ? current : best))
 
           if (bestItem) {
-            store.items.push({
-              ...bestItem,
-              shoppingItemId: item.id,
-            })
-            store.total += bestItem.price * item.quantity
-            if (!store.locationHint && bestItem.location) {
-              store.locationHint = bestItem.location
+              store.items.push({
+                ...bestItem,
+                shoppingItemId: item.id,
+              })
+              store.total += bestItem.price * item.quantity
+              if (!store.locationHint && bestItem.location) {
+                store.locationHint = bestItem.location
+              }
             }
-          }
         })
       })
 
@@ -605,7 +804,7 @@ export default function ShoppingPage() {
         setDistanceFilterWarning(null)
       }
 
-      setMassSearchResults(filteredComparisons)
+      setMassSearchResults(sortComparisons(filteredComparisons))
       setMissingItems(missing)
     } catch (error) {
       console.error("Error performing mass search:", error)
@@ -718,6 +917,10 @@ export default function ShoppingPage() {
     theme === "dark"
       ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
       : "border-gray-300 hover:bg-[#e8dcc4]/10"
+
+  if (!mounted) {
+    return <div className={`min-h-screen ${bgClass}`} />
+  }
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
@@ -887,7 +1090,12 @@ export default function ShoppingPage() {
                               <h3
                                 className={`font-medium ${item.checked ? `line-through ${mutedTextClass}` : textClass}`}
                               >
-                                {item.name}
+                                <span>{item.name}</span>
+                                {pantryInventory.has(item.name.trim().toLowerCase()) && (
+                                  <Badge className="ml-2 text-[10px]" variant="secondary">
+                                    In Pantry
+                                  </Badge>
+                                )}
                               </h3>
                               <p className={`text-sm ${mutedTextClass}`}>
                                 {item.quantity} {item.unit}
@@ -1134,6 +1342,16 @@ export default function ShoppingPage() {
                                     </div>
                                   </div>
                                 )}
+                                <div className="mt-4 flex justify-end">
+                                  <Button
+                                    size="sm"
+                                    className={`h-8 px-3 ${buttonClass}`}
+                                    onClick={() => addStoreItemsToPantry(comparison)}
+                                    disabled={!user || comparison.items.length === 0}
+                                  >
+                                    Add to Pantry
+                                  </Button>
+                                </div>
                               </div>
                             </CardContent>
                           </Card>
