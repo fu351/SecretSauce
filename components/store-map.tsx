@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, useMemo } from "react"
 import { useTheme } from "@/contexts/theme-context"
 import { geocodeMultipleStores, getUserLocation } from "@/lib/geocoding"
-import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car } from "lucide-react"
+import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import clsx from "clsx"
 
 // Declare google namespace for TypeScript
@@ -140,6 +142,30 @@ interface StoreMapProps {
   onStoreSelected?: (storeIndex: number) => void
   userPostalCode?: string
   selectedStoreIndex?: number
+  maxDistanceMiles?: number
+}
+
+/**
+ * Calculate distance between two coordinates using Haversine formula
+ * Returns distance in miles
+ */
+function calculateDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 3959 // Earth's radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
 }
 
 /**
@@ -149,7 +175,7 @@ interface StoreMapProps {
  * - Store comparison result markers with price and name
  * - Click handlers to sync with carousel
  */
-export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selectedStoreIndex }: StoreMapProps) {
+export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selectedStoreIndex, maxDistanceMiles }: StoreMapProps) {
   const { theme } = useTheme()
   const mapRef = useRef<HTMLDivElement>(null)
   const googleMapRef = useRef<google.maps.Map | null>(null)
@@ -162,11 +188,84 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [customAddress, setCustomAddress] = useState("")
+  const [geocodingAddress, setGeocodingAddress] = useState(false)
   const [travelMode, setTravelMode] = useState<"WALKING" | "DRIVING">("DRIVING")
   const [showRoutes, setShowRoutes] = useState(false)
   const [travelTimes, setTravelTimes] = useState<Map<number, string>>(new Map())
 
   const isDark = theme === "dark"
+
+  // Geocode custom address and update user marker
+  const handleAddressSearch = async () => {
+    if (!customAddress.trim()) return
+
+    setGeocodingAddress(true)
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+      if (!apiKey) {
+        setError("Google Maps API key not configured")
+        setGeocodingAddress(false)
+        return
+      }
+
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+          customAddress
+        )}&key=${apiKey}`
+      )
+
+      if (!response.ok) {
+        setError("Failed to geocode address")
+        setGeocodingAddress(false)
+        return
+      }
+
+      const data = await response.json()
+
+      if (data.status !== "OK" || !data.results || data.results.length === 0) {
+        setError("Address not found")
+        setGeocodingAddress(false)
+        return
+      }
+
+      const location = {
+        lat: data.results[0].geometry.location.lat,
+        lng: data.results[0].geometry.location.lng,
+      }
+
+      setUserLocation(location)
+
+      // Update user marker position
+      if (userMarkerRef.current && googleMapRef.current) {
+        userMarkerRef.current.setMap(null)
+        userMarkerRef.current = new google.maps.Marker({
+          position: location,
+          map: googleMapRef.current,
+          title: "Your Location",
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: "#3b82f6",
+            fillOpacity: 1,
+            strokeColor: "#fff",
+            strokeWeight: 2,
+          },
+          zIndex: 1000,
+        })
+
+        // Re-center map on new location
+        googleMapRef.current.setCenter(location)
+      }
+
+      setError(null)
+    } catch (err) {
+      console.error("Address geocoding error:", err)
+      setError("Failed to search address")
+    } finally {
+      setGeocodingAddress(false)
+    }
+  }
 
   // Map style for dark/warm theme
   const mapStyle = useMemo(() =>
@@ -284,6 +383,17 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           }
 
           const position = { lat: geocoded.lat, lng: geocoded.lng }
+
+          // Filter by distance if maxDistanceMiles is set and user location is available
+          if (maxDistanceMiles && userLoc) {
+            const distance = calculateDistance(userLoc.lat, userLoc.lng, position.lat, position.lng)
+            if (distance > maxDistanceMiles) {
+              console.log(`[StoreMap] Skipping store ${comparison.store} - distance ${distance.toFixed(2)} miles exceeds max ${maxDistanceMiles} miles`)
+              return
+            }
+            console.log(`[StoreMap] Including store ${comparison.store} - distance ${distance.toFixed(2)} miles within max ${maxDistanceMiles} miles`)
+          }
+
           bounds.extend(position)
 
           // Create marker with simple color coding
@@ -494,6 +604,42 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           <div className="flex flex-col items-center gap-2">
             <Loader2 className={clsx("w-6 h-6 animate-spin", isDark ? "text-[#e8dcc4]" : "text-orange-600")} />
             <p className={clsx("text-sm", isDark ? "text-[#e8dcc4]/60" : "text-orange-600")}>Loading map...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Address Search Bar */}
+      {!isLoading && !error && (
+        <div className={clsx(
+          "flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 rounded-lg border",
+          isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-orange-50/50 border-orange-200/50"
+        )}>
+          <div className="flex items-center gap-2 flex-1">
+            <Search className={clsx("w-4 h-4 flex-shrink-0", isDark ? "text-[#e8dcc4]/60" : "text-orange-600/60")} />
+            <Input
+              value={customAddress}
+              onChange={(e) => setCustomAddress(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddressSearch()}
+              placeholder="Enter your address to update location..."
+              disabled={geocodingAddress}
+              className={clsx(
+                "flex-1",
+                isDark
+                  ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40"
+                  : "bg-white border-orange-200 placeholder:text-gray-400"
+              )}
+            />
+            <Button
+              onClick={handleAddressSearch}
+              disabled={!customAddress.trim() || geocodingAddress}
+              size="sm"
+              className={clsx(
+                "flex-shrink-0",
+                isDark ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 text-white hover:bg-orange-600"
+              )}
+            >
+              {geocodingAddress ? "Searching..." : "Search"}
+            </Button>
           </div>
         </div>
       )}

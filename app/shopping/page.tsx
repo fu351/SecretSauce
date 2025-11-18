@@ -56,6 +56,7 @@ interface StoreComparison {
 export default function ShoppingPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [zipCode, setZipCode] = useState("")
+  const [groceryDistanceKm, setGroceryDistanceKm] = useState<number | undefined>(undefined)
   const [searchResults, setSearchResults] = useState<GroceryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([])
@@ -115,6 +116,9 @@ export default function ShoppingPage() {
 
       if (data?.postal_code) {
         setZipCode(data.postal_code)
+      }
+      if (data?.grocery_distance_km) {
+        setGroceryDistanceKm(data.grocery_distance_km)
       }
     } catch (error) {
       console.error("Error loading user preferences:", error)
@@ -293,7 +297,7 @@ export default function ShoppingPage() {
     fetchCheapestOptions(itemSearchModalTerm.trim(), itemSearchSource?.store)
   }
 
-  const handleModalSelection = (option: GroceryItem) => {
+  const handleModalSelection = async (option: GroceryItem) => {
     if (itemSearchSource && itemSearchSource.type !== "search-results" && itemSearchSource.shoppingItemId) {
       const shoppingItem = shoppingList.find((item) => item.id === itemSearchSource.shoppingItemId)
 
@@ -308,37 +312,20 @@ export default function ShoppingPage() {
           : item,
       )
       setShoppingList(updatedList)
-      saveShoppingList(updatedList)
+      await saveShoppingList(updatedList)
 
       // Remove from missing items
       setMissingItems((prev) => prev.filter((item) => item.id !== itemSearchSource.shoppingItemId))
 
-      // If this was a missing item being reloaded, add it to the carousel results
-      if (itemSearchSource.type === "missing" && massSearchResults.length > 0) {
-        const storeToAdd = itemSearchSource.store || massSearchResults[0].store
-        const updatedResults = massSearchResults.map((result) => {
-          if (result.store === storeToAdd) {
-            return {
-              ...result,
-              items: [
-                ...result.items,
-                {
-                  ...option,
-                  shoppingItemId: itemSearchSource.shoppingItemId,
-                },
-              ],
-              total: result.total + (option.price * (shoppingItem?.quantity || 1)),
-            }
-          }
-          return result
-        })
-        setMassSearchResults(updatedResults)
-      }
-
       toast({
         title: "Item updated",
-        description: `${option.title} selected for your shopping list.`,
+        description: `${option.title} selected for your shopping list. Refreshing prices...`,
       })
+
+      // Refresh the carousel with updated prices for all stores
+      if (massSearchResults.length > 0) {
+        await performMassSearch()
+      }
     } else {
       addToShoppingList(option)
     }
@@ -1218,6 +1205,7 @@ export default function ShoppingPage() {
                       userPostalCode={zipCode}
                       selectedStoreIndex={carouselIndex}
                       onStoreSelected={(index) => scrollToStore(index)}
+                      maxDistanceMiles={groceryDistanceKm ? groceryDistanceKm * 0.621371 : undefined}
                     />
                   </div>
                 </div>

@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react" // useState used for showHint
-import { usePathname } from "next/navigation"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
@@ -15,9 +14,7 @@ import clsx from "clsx"
 export function TutorialOverlay() {
   const { isActive, currentPath, currentStep, currentStepIndex, nextStep, goToStep, skipTutorial } = useTutorial()
   const { theme } = useTheme()
-  const pathname = usePathname()
   const overlayRef = useRef<HTMLDivElement>(null)
-  const [showHint, setShowHint] = useState(false)
   const [currentSubstepIndex, setCurrentSubstepIndex] = useState(0)
 
   const isDark = theme === "dark"
@@ -45,56 +42,21 @@ export function TutorialOverlay() {
   const actionMessage = (() => {
     switch (activeAction) {
       case "navigate":
-        return `Use the site navigation to open ${getTargetLabel(activeTarget)}. We'll move you to the next step when you arrive.`
+        return `Use the site navigation to open ${getTargetLabel(activeTarget)}.`
       case "click":
-        return "Click the highlighted element to continue. You can interact with it freely before pressing Next."
+        return "Click the highlighted element to continue."
       case "explore":
-        return "Scroll, hover, or click around this area to get familiar with it. When you're ready, press Next."
+        return "Explore this area, then use the arrows to navigate."
       case "highlight":
       default:
-        return "Focus on the highlighted area. You can interact with it, then press Next to keep going."
+        return "Review the highlighted area, then use the arrows to navigate."
     }
   })()
-  const nextButtonTooltip = (() => {
-    switch (activeAction) {
-      case "navigate":
-        return `After you open ${getTargetLabel(activeTarget)}, we'll advance automatically.`
-      case "click":
-        return "Use the highlighted control, then press Next to continue."
-      case "explore":
-        return "Take your time exploring. When you're done, click Next."
-      case "highlight":
-      default:
-        return "Review this area, then hit Next whenever you're ready."
-    }
-  })()
-
-  // Auto-advance when user navigates to the next step's required page
-  useEffect(() => {
-    if (!currentStep) return
-
-    // Only auto-advance if the action is "navigate" and we've reached the target page
-    if (currentStep.action === "navigate" && currentStep.page && pathname === currentStep.page) {
-      const timer = setTimeout(() => {
-        nextStep()
-      }, 4000)
-      return () => clearTimeout(timer)
-    }
-  }, [pathname, currentStep, nextStep])
 
   // Reset substep index when main step changes
   useEffect(() => {
     setCurrentSubstepIndex(0)
   }, [currentStepIndex])
-
-  // Show hint after 5 seconds of inactivity on a step
-  useEffect(() => {
-    setShowHint(false)
-    const hintTimer = setTimeout(() => {
-      setShowHint(true)
-    }, 5000)
-    return () => clearTimeout(hintTimer)
-  }, [currentStepIndex, currentSubstepIndex])
 
   // Handle advancing to next substep or main step
   const handleNextSubstep = () => {
@@ -107,19 +69,23 @@ export function TutorialOverlay() {
     }
   }
 
-  // Helper function to find visible element matching selector
-  const findVisibleElement = (selector: string): HTMLElement | null => {
+  // Helper function to find visible element matching selector with retries
+  const findVisibleElement = (selector: string, retryCount = 0): HTMLElement | null => {
+    const maxRetries = 3
     const allMatches = document.querySelectorAll(selector)
+
+    console.log(`[Tutorial] Finding element: "${selector}", found ${allMatches.length} matches, retry ${retryCount}/${maxRetries}`)
 
     // Check each matching element for visibility
     for (const element of Array.from(allMatches)) {
       const rect = element.getBoundingClientRect()
       const style = window.getComputedStyle(element as HTMLElement)
 
-      // Element is visible if it has dimensions (even if opacity is 0 or outside viewport)
+      // Element is visible if it has dimensions
       if (rect.height > 0 && rect.width > 0) {
         // Ensure element is not explicitly hidden
         if (style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0") {
+          console.log(`[Tutorial] Found visible element for "${selector}"`)
           return element as HTMLElement
         }
       }
@@ -132,11 +98,19 @@ export function TutorialOverlay() {
       if (rect.height > 0 && rect.width > 0) {
         const style = window.getComputedStyle(element as HTMLElement)
         if (style.display !== "none") {
+          console.log(`[Tutorial] Found element with dimensions for "${selector}" (fallback)`)
           return element as HTMLElement
         }
       }
     }
 
+    // If element not found and we haven't exceeded retries, try again after a delay
+    if (retryCount < maxRetries && allMatches.length === 0) {
+      console.log(`[Tutorial] Element "${selector}" not found, will retry...`)
+      return null
+    }
+
+    console.warn(`[Tutorial] Could not find visible element for selector: "${selector}"`)
     return null
   }
 
@@ -148,18 +122,40 @@ export function TutorialOverlay() {
       return
     }
 
-    // Find first visible element matching the selector
-    const element = findVisibleElement(highlightSelector)
-    if (!element) return
+    let highlightedElement: HTMLElement | null = null
+    let retryAttempt = 0
 
-    // Scroll element into view
-    element.scrollIntoView({ behavior: "smooth", block: "center" })
+    // Retry function with exponential backoff
+    const attemptHighlight = () => {
+      const element = findVisibleElement(highlightSelector, retryAttempt)
 
-    // Add visual focus to the element (outline and pulsing animation applied via CSS class)
-    element.classList.add("tutorial-highlight")
+      if (element) {
+        highlightedElement = element
+
+        // Scroll element into view with better positioning
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" })
+        }, 100)
+
+        // Add visual focus to the element (outline and pulsing animation applied via CSS class)
+        setTimeout(() => {
+          element.classList.add("tutorial-highlight")
+        }, 300)
+      } else if (retryAttempt < 3) {
+        // Retry with exponential backoff
+        retryAttempt++
+        const delay = Math.min(1000 * Math.pow(2, retryAttempt - 1), 3000)
+        console.log(`[Tutorial] Retrying highlight in ${delay}ms...`)
+        setTimeout(attemptHighlight, delay)
+      }
+    }
+
+    attemptHighlight()
 
     return () => {
-      element.classList.remove("tutorial-highlight")
+      if (highlightedElement) {
+        highlightedElement.classList.remove("tutorial-highlight")
+      }
     }
   }, [currentStep?.highlightSelector, currentSubstep?.highlightSelector, currentSubstepIndex])
 
@@ -238,54 +234,29 @@ export function TutorialOverlay() {
           </div>
         </div>
 
-        {/* Tips */}
-        {currentStep.tips && currentStep.tips.length > 0 && (
-          <div className="px-4 py-3 border-b" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
-            <ul className="space-y-0.5">
-              {currentStep.tips.map((tip, idx) => (
-                <li
-                  key={idx}
-                  className={clsx(
-                    "text-xs",
-                    isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
-                  )}
-                >
-                  {tip}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Action Instructions */}
-        <div className="px-4 py-3 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
-          {showHint && (
-            <p
-              className={clsx("text-xs mt-2 p-2 rounded", isDark ? "bg-blue-600/20 text-blue-300" : "bg-blue-50 text-blue-700")}
-            >
-              {hasSubsteps
-                ? "Work through each part above, then press Next."
-                : activeAction === "navigate"
-                  ? `Use the navigation to open ${getTargetLabel(activeTarget)}. We'll advance automatically.`
-                  : "Interact with the highlighted section, then press Next. You can also jump with the progress dots."}
-            </p>
-          )}
-        </div>
-
         {/* Navigation and Progress Dots */}
         <div className="px-4 py-4 flex items-center justify-between gap-3">
+          {/* Previous Arrow */}
           <Button
-            onClick={skipTutorial}
+            onClick={() => {
+              if (currentSubstepIndex > 0) {
+                setCurrentSubstepIndex((prev) => prev - 1)
+              } else if (currentStepIndex > 0) {
+                goToStep(currentStepIndex - 1)
+              }
+            }}
+            disabled={currentStepIndex === 0 && currentSubstepIndex === 0}
             variant="ghost"
             size="sm"
             className={clsx(
-              "text-xs font-medium",
+              "text-xs font-medium h-8 w-8 p-0",
               isDark
-                ? "text-[#e8dcc4]/60 hover:text-[#e8dcc4] hover:bg-[#e8dcc4]/10"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10 disabled:text-[#e8dcc4]/30"
+                : "text-gray-700 hover:bg-gray-100 disabled:text-gray-300"
             )}
+            title="Previous step"
           >
-            Skip Tutorial
+            &lt;
           </Button>
 
           {/* Horizontal Progress Dots - Clickable */}
@@ -316,38 +287,42 @@ export function TutorialOverlay() {
             ))}
           </div>
 
-          <div className="relative group">
-            {!isLastStep || (hasSubsteps && currentSubstepIndex < totalSubsteps - 1) ? (
-              <Button
-                onClick={handleNextSubstep}
-                size="sm"
-                className={clsx(
-                  "text-xs font-medium",
-                  isDark ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-500 text-white hover:bg-blue-600"
-                )}
-              >
-                {hasSubsteps ? `Next (${currentSubstepIndex + 1}/${totalSubsteps})` : "Next"}
-              </Button>
-            ) : isLastStep ? (
-              <Button
-                onClick={nextStep}
-                size="sm"
-                className={clsx(
-                  "text-xs font-medium",
-                  isDark ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-500 text-white hover:bg-blue-600"
-                )}
-              >
-                Done
-              </Button>
-            ) : null}
-            <span
+          {/* Close/Next Arrow */}
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={skipTutorial}
+              variant="ghost"
+              size="sm"
               className={clsx(
-                "pointer-events-none absolute bottom-full right-1/2 translate-x-1/2 mb-3 w-48 rounded-lg px-3 py-2 text-[11px] leading-relaxed font-medium opacity-0 transition-all duration-200 group-hover:opacity-100 shadow-xl border backdrop-blur-sm",
-                isDark ? "bg-[#0f172a]/95 text-white border-blue-500/30" : "bg-white/95 text-gray-700 border-blue-400/30"
+                "text-xs font-medium",
+                isDark
+                  ? "text-[#e8dcc4]/60 hover:text-[#e8dcc4] hover:bg-[#e8dcc4]/10"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               )}
+              title="Close tutorial"
             >
-              {nextButtonTooltip}
-            </span>
+              ✕
+            </Button>
+            <Button
+              onClick={() => {
+                if (!isLastStep || (hasSubsteps && currentSubstepIndex < totalSubsteps - 1)) {
+                  handleNextSubstep()
+                } else {
+                  nextStep()
+                }
+              }}
+              variant="ghost"
+              size="sm"
+              className={clsx(
+                "text-xs font-medium h-8 w-8 p-0",
+                isDark
+                  ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10"
+                  : "text-gray-700 hover:bg-gray-100"
+              )}
+              title="Next step"
+            >
+              &gt;
+            </Button>
           </div>
         </div>
       </div>
