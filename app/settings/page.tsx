@@ -119,7 +119,7 @@ export default function SettingsPage() {
       cuisine_preferences: cuisinePreferences,
       cooking_time_preference: cookingTimePreference,
       postal_code: postalCode || null,
-      grocery_distance_km: Number.parseInt(groceryDistance) || 10,
+      grocery_distance_miles: Number.parseInt(groceryDistance) || 10,
       dietary_preferences: dietaryPreferences,
       theme_preference: selectedTheme,
     }
@@ -183,7 +183,7 @@ export default function SettingsPage() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("primary_goal, cooking_level, budget_range, cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_km, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at, theme_preference")
+        .select("primary_goal, cooking_level, budget_range, cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_miles, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at, theme_preference")
         .eq("id", user.id)
         .single()
 
@@ -196,7 +196,7 @@ export default function SettingsPage() {
         setCuisinePreferences(data.cuisine_preferences || [])
         setCookingTimePreference(data.cooking_time_preference || "any")
         setPostalCode(data.postal_code || "")
-        setGroceryDistance(String(data.grocery_distance_km || 10))
+        setGroceryDistance(String(data.grocery_distance_miles || 10))
         setDietaryPreferences(data.dietary_preferences || [])
         setTutorialCompleted(data.tutorial_completed || false)
         setTutorialPath(data.tutorial_path || null)

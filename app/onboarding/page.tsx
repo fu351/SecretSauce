@@ -531,7 +531,7 @@ export default function OnboardingPage() {
         cuisine_preferences: cuisinePreferences,
         cooking_time_preference: cookingTimePreference,
         postal_code: postalCode || null,
-        grocery_distance_km: Number.parseInt(groceryDistance) || 10,
+        grocery_distance_miles: Number.parseInt(groceryDistance) || 10,
         theme_preference: selectedTheme,
       })
 

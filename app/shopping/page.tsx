@@ -47,11 +47,15 @@ interface Recipe {
   ingredients: any[]
 }
 
+const DEFAULT_GROCERY_DISTANCE_MILES = 10
+
 interface StoreComparison {
   store: string
   items: (GroceryItem & { shoppingItemId: string })[]
   total: number
   savings: number
+  outOfRadius?: boolean
+  distanceMiles?: number
 }
 
 /**
@@ -72,7 +76,7 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 export default function ShoppingPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [zipCode, setZipCode] = useState("")
-  const [groceryDistanceKm, setGroceryDistanceKm] = useState<number | undefined>(undefined)
+  const [groceryDistanceMiles, setGroceryDistanceMiles] = useState<number | undefined>(DEFAULT_GROCERY_DISTANCE_MILES)
   const [searchResults, setSearchResults] = useState<GroceryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([])
@@ -125,7 +129,7 @@ export default function ShoppingPage() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("postal_code, grocery_distance_km")
+        .select("postal_code, grocery_distance_miles")
         .eq("id", user.id)
         .single()
 
@@ -134,8 +138,8 @@ export default function ShoppingPage() {
       if (data?.postal_code) {
         setZipCode(data.postal_code)
       }
-      if (data?.grocery_distance_km) {
-        setGroceryDistanceKm(data.grocery_distance_km)
+      if (data?.grocery_distance_miles) {
+        setGroceryDistanceMiles(data.grocery_distance_miles)
       }
     } catch (error) {
       console.error("Error loading user preferences:", error)
@@ -526,35 +530,60 @@ export default function ShoppingPage() {
 
       // Filter by distance if user has set a max distance preference
       let filteredComparisons = comparisons
-      if (groceryDistanceKm && groceryDistanceKm > 0) {
+      if (groceryDistanceMiles && groceryDistanceMiles > 0) {
         try {
-          const maxDistanceMiles = groceryDistanceKm * 0.621371
+          const maxDistanceMiles = groceryDistanceMiles
           const userLoc = await getUserLocation()
 
           if (userLoc) {
             const storeNames = comparisons.map((comp) => comp.store)
-            const geocodedStores = await geocodeMultipleStores(storeNames, zipCode, userLoc)
+            const geocodedStores = await geocodeMultipleStores(storeNames, zipCode, userLoc, groceryDistanceMiles)
 
-            filteredComparisons = comparisons.filter((comparison) => {
+            const storeDistances = new Map<string, number>()
+            comparisons.forEach((comparison) => {
               const geocoded = geocodedStores.get(comparison.store)
-              if (!geocoded) return true // Include stores that couldn't be geocoded
-
-              const distance = calculateDistance(userLoc.lat, userLoc.lng, geocoded.lat, geocoded.lng)
-              return distance <= maxDistanceMiles
+              if (geocoded) {
+                const distance = calculateDistance(userLoc.lat, userLoc.lng, geocoded.lat, geocoded.lng)
+                storeDistances.set(comparison.store, distance)
+              }
             })
 
-            console.log(`[Shopping] Filtered ${comparisons.length} stores to ${filteredComparisons.length} within ${maxDistanceMiles.toFixed(1)} miles`)
+            const inRange: StoreComparison[] = []
+            const outOfRange: StoreComparison[] = []
+            const outOfRangeNames: string[] = []
 
-            if (filteredComparisons.length === 0 && comparisons.length > 0) {
+            comparisons.forEach((comparison) => {
+              const distance = storeDistances.get(comparison.store)
+              const comparisonWithDistance = {
+                ...comparison,
+                distanceMiles: distance,
+              }
+
+              if (distance !== undefined && distance > maxDistanceMiles) {
+                outOfRange.push({ ...comparisonWithDistance, outOfRadius: true })
+                outOfRangeNames.push(comparison.store)
+              } else {
+                inRange.push(comparisonWithDistance)
+              }
+            })
+
+            filteredComparisons = [...inRange, ...outOfRange]
+
+            if (outOfRangeNames.length > 0) {
               setDistanceFilterWarning(
-                `No stores were within ${maxDistanceMiles.toFixed(1)} miles of your location. Showing all stores instead.`,
+                `${outOfRangeNames.join(", ")} ${
+                  outOfRangeNames.length === 1 ? "is" : "are"
+                } outside your ${maxDistanceMiles.toFixed(0)} mile radius. We've moved ${
+                  outOfRangeNames.length === 1 ? "it" : "them"
+                } to the end of the list and hidden ${
+                  outOfRangeNames.length === 1 ? "its" : "their"
+                } map marker${outOfRangeNames.length === 1 ? "" : "s"}.`,
               )
-              filteredComparisons = comparisons
             } else {
               setDistanceFilterWarning(null)
             }
           } else {
-            setDistanceFilterWarning(null)
+            setDistanceFilterWarning("We couldn't access your location, so distance filtering was skipped.")
           }
         } catch (error) {
           console.error("Error filtering by distance:", error)
@@ -953,7 +982,11 @@ export default function ShoppingPage() {
                     >
                       {massSearchResults.map((comparison, index) => (
                         <div key={comparison.store} className="flex-shrink-0 w-full snap-center">
-                          <Card className={`h-full ${cardBgClass} ${index === 0 ? "border-2 border-green-500" : ""}`}>
+                          <Card
+                            className={`h-full ${cardBgClass} ${
+                              index === 0 ? "border-2 border-green-500" : comparison.outOfRadius ? "border-yellow-500/60" : ""
+                            }`}
+                          >
                             <CardHeader>
                               <CardTitle className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
@@ -962,7 +995,17 @@ export default function ShoppingPage() {
                                     <div className="flex items-center gap-2">
                                       <span className={`text-2xl ${textClass}`}>{comparison.store}</span>
                                       {index === 0 && <Badge className="bg-green-500 text-white">Best Price</Badge>}
+                                      {comparison.outOfRadius && (
+                                        <Badge variant="destructive" className="bg-yellow-500 text-black">
+                                          Outside Radius
+                                        </Badge>
+                                      )}
                                     </div>
+                                    {comparison.distanceMiles && (
+                                      <p className={`text-sm ${mutedTextClass}`}>
+                                        {comparison.distanceMiles.toFixed(1)} miles away
+                                      </p>
+                                    )}
                                     <div className="text-right mt-1">
                                       <div className={`text-3xl font-bold ${textClass}`}>
                                         ${comparison.total.toFixed(2)}
@@ -976,6 +1019,12 @@ export default function ShoppingPage() {
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
+                              {comparison.outOfRadius && (
+                                <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-3">
+                                      Outside your {groceryDistanceMiles ?? DEFAULT_GROCERY_DISTANCE_MILES} mile radius. Hidden from the map but included
+                                  here for reference.
+                                </p>
+                              )}
                               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                                 {comparison.items.map((item) => {
                                   const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)
@@ -1113,7 +1162,7 @@ export default function ShoppingPage() {
                       userPostalCode={zipCode}
                       selectedStoreIndex={carouselIndex}
                       onStoreSelected={(index) => scrollToStore(index)}
-                      maxDistanceMiles={groceryDistanceKm ? groceryDistanceKm * 0.621371 : undefined}
+                      maxDistanceMiles={groceryDistanceMiles}
                     />
                   </div>
                 </div>

@@ -35,23 +35,17 @@ const knownStoreCoordinates: Record<string, GeocodeResult> = {
 export async function geocodeStore(
   storeName: string,
   userPostalCode?: string,
-  userCoordinates?: { lat: number; lng: number }
+  userCoordinates?: { lat: number; lng: number },
+  groceryDistanceMiles: number = 10
 ): Promise<GeocodeResult | null> {
   try {
     // Check cache first
-    const cacheKey = `${storeName}-${userPostalCode || "none"}`
+    const locationKey = userCoordinates ? `${userCoordinates.lat.toFixed(2)},${userCoordinates.lng.toFixed(2)}` : "none"
+    const cacheKey = `${storeName}-${userPostalCode || "none"}-${locationKey}`
     if (geocodeCache.has(cacheKey)) {
       const cached = geocodeCache.get(cacheKey)
       console.log(`[Geocoding] Cache hit for ${storeName}`)
       return cached || null
-    }
-
-    // Check if we have known coordinates for this store
-    if (knownStoreCoordinates[storeName]) {
-      const known = knownStoreCoordinates[storeName]
-      console.log(`[Geocoding] Using known coordinates for ${storeName}`)
-      geocodeCache.set(cacheKey, known)
-      return known
     }
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -62,6 +56,23 @@ export async function geocodeStore(
         return knownStoreCoordinates[storeName]
       }
       return null
+    }
+
+    // If we have user coordinates, attempt to find the nearest store using Places Text Search
+    if (userCoordinates) {
+      const nearestStore = await findNearestStoreWithPlaces(storeName, userCoordinates, apiKey, groceryDistanceMiles)
+      if (nearestStore) {
+        geocodeCache.set(cacheKey, nearestStore)
+        return nearestStore
+      }
+    }
+
+    // Check if we have known coordinates for this store (used when user location unavailable)
+    if (!userCoordinates && knownStoreCoordinates[storeName]) {
+      const known = knownStoreCoordinates[storeName]
+      console.log(`[Geocoding] Using known coordinates for ${storeName}`)
+      geocodeCache.set(cacheKey, known)
+      return known
     }
 
     // Build search query: store name + postal code for better accuracy
@@ -160,20 +171,79 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 }
 
 /**
+ * Use Google Places Text Search to find the closest matching store to the user's coordinates
+ */
+async function findNearestStoreWithPlaces(
+  storeName: string,
+  userCoordinates: { lat: number; lng: number },
+  apiKey: string,
+  groceryDistanceMiles: number
+): Promise<GeocodeResult | null> {
+  try {
+    const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
+    const radiusMeters = effectiveMiles * 1609.34
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
+      storeName
+    )}&location=${userCoordinates.lat},${userCoordinates.lng}&radius=${radiusMeters}&key=${apiKey}`
+
+    const response = await fetch(url)
+    if (!response.ok) {
+      console.error(`[Geocoding] Places API error for ${storeName}:`, response.statusText)
+      return null
+    }
+
+    const data = await response.json()
+    if (data.status !== "OK" || !data.results || data.results.length === 0) {
+      console.warn(`[Geocoding] Places API returned no results for ${storeName}: ${data.status}`)
+      return null
+    }
+
+    let selected = data.results[0]
+    if (data.results.length > 1) {
+      selected = data.results.reduce((closest: any, current: any) => {
+        const closestDist = calculateDistance(
+          userCoordinates.lat,
+          userCoordinates.lng,
+          closest.geometry.location.lat,
+          closest.geometry.location.lng
+        )
+        const currentDist = calculateDistance(
+          userCoordinates.lat,
+          userCoordinates.lng,
+          current.geometry.location.lat,
+          current.geometry.location.lng
+        )
+        return currentDist < closestDist ? current : closest
+      })
+    }
+
+    return {
+      lat: selected.geometry.location.lat,
+      lng: selected.geometry.location.lng,
+      formattedAddress: selected.formatted_address,
+    }
+  } catch (error) {
+    console.error(`[Geocoding] Error finding nearest store for ${storeName}:`, error)
+    return null
+  }
+}
+
+/**
  * Geocode multiple stores and return their coordinates
  * Useful for batch processing store comparison results
  */
 export async function geocodeMultipleStores(
   storeNames: string[],
   userPostalCode?: string,
-  userCoordinates?: { lat: number; lng: number }
+  userCoordinates?: { lat: number; lng: number },
+  groceryDistanceMiles: number = 10
 ): Promise<Map<string, GeocodeResult>> {
   const results = new Map<string, GeocodeResult>()
 
   console.log(`[Geocoding] Starting batch geocoding for ${storeNames.length} stores:`, storeNames)
 
   for (const storeName of storeNames) {
-    const geocoded = await geocodeStore(storeName, userPostalCode, userCoordinates)
+    const geocoded = await geocodeStore(storeName, userPostalCode, userCoordinates, groceryDistanceMiles)
     if (geocoded) {
       results.set(storeName, geocoded)
       console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${geocoded.lat}, lng=${geocoded.lng}`)

@@ -135,6 +135,8 @@ interface StoreComparison {
   items: any[]
   total: number
   savings: number
+  outOfRadius?: boolean
+  distanceMiles?: number
 }
 
 interface StoreMapProps {
@@ -362,7 +364,12 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
         // Geocode stores and add markers
         const storeNames = comparisons.map((comp) => comp.store)
         console.log(`[StoreMap] Found ${comparisons.length} stores to geocode:`, storeNames)
-        const geocodedStores = await geocodeMultipleStores(storeNames, userPostalCode, userLoc || undefined)
+        const geocodedStores = await geocodeMultipleStores(
+          storeNames,
+          userPostalCode,
+          userLoc || undefined,
+          maxDistanceMiles
+        )
         console.log(`[StoreMap] Geocoded ${geocodedStores.size} stores:`, Array.from(geocodedStores.keys()))
 
         const bounds = new google.maps.LatLngBounds()
@@ -374,6 +381,10 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
         // Add markers for each store
         comparisons.forEach((comparison, index) => {
+          if (comparison.outOfRadius) {
+            console.log(`[StoreMap] Skipping ${comparison.store} because it is marked out of radius`)
+            return
+          }
           const geocoded = geocodedStores.get(comparison.store)
           console.log(`[StoreMap] Processing store #${index}: ${comparison.store}, geocoded:`, geocoded)
 
@@ -492,7 +503,12 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
     console.log(`[StoreMap] Requesting directions for ${comparisons.length} stores with mode: ${travelMode}`)
 
     for (let i = 0; i < comparisons.length; i++) {
-      const geocoded = await geocodeMultipleStores([comparisons[i].store])
+      const geocoded = await geocodeMultipleStores(
+        [comparisons[i].store],
+        userPostalCode,
+        userLocation,
+        maxDistanceMiles
+      )
       const storeLocation = geocoded.get(comparisons[i].store)
 
       if (!storeLocation) {

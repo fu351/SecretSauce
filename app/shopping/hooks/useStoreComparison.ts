@@ -10,6 +10,8 @@ export interface StoreComparison {
   items: GroceryItem[]
   total: number
   savings: number
+  outOfRadius?: boolean
+  distanceMiles?: number
 }
 
 /**
