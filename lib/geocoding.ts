@@ -60,20 +60,18 @@ export async function geocodeStore(
     }
 
     // If we have user coordinates, attempt to find the nearest store using Places Text Search
+    const knownLocation = knownStoreCoordinates[storeName]
+    if (knownLocation) {
+      geocodeCache.set(cacheKey, knownLocation)
+      return knownLocation
+    }
+
     if (userCoordinates) {
       const nearestStore = await findNearestStoreWithPlaces(storeName, userCoordinates, apiKey, groceryDistanceMiles)
       if (nearestStore) {
         geocodeCache.set(cacheKey, nearestStore)
         return nearestStore
       }
-    }
-
-    // Check if we have known coordinates for this store (used when user location unavailable)
-    if (!userCoordinates && knownStoreCoordinates[storeName]) {
-      const known = knownStoreCoordinates[storeName]
-      console.log(`[Geocoding] Using known coordinates for ${storeName}`)
-      geocodeCache.set(cacheKey, known)
-      return known
     }
 
     // Build search query: store name + postal code for better accuracy

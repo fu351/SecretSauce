@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   if (cacheResult.cached && cacheResult.cached.length > 0) {
     console.log(`Found ${cacheResult.cached.length} fresh cached results for "${sanitizedSearchTerm}" from cache`)
-    const formattedResults = formatCachedResults(cacheResult.cached)
+    const formattedResults = formatCachedResults(cacheResult.cached, sanitizedSearchTerm)
     return NextResponse.json({ results: formattedResults, cached: true, source: "database" })
   }
 
@@ -481,13 +481,17 @@ function formatCachedResults(
     product_url: string | null
     product_id: string | null
     expires_at: string
-  }>
+  }>,
+  fallbackName?: string
 ): any[] {
   return cachedItems.map((item) => {
     const quantityDisplay = `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
-    const fallbackTitle = item.standardized_ingredient_id
-      ? `${item.standardized_ingredient_id} (${quantityDisplay})`
-      : quantityDisplay
+    const fallbackBase =
+      fallbackName ||
+      item.product_name ||
+      item.standardized_ingredient_id ||
+      "Ingredient"
+    const fallbackTitle = `${fallbackBase} (${quantityDisplay})`
 
     return {
       id: item.product_id || item.id,

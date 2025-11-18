@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react"
 import { useTheme } from "@/contexts/theme-context"
-import { geocodeMultipleStores, getUserLocation } from "@/lib/geocoding"
+import { geocodeMultipleStores, geocodePostalCode, getUserLocation } from "@/lib/geocoding"
 import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -317,8 +317,11 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           return
         }
 
-        // Get user location
-        const userLoc = await getUserLocation()
+        // Get user location (fallback to postal code if geolocation not available)
+        let userLoc = await getUserLocation()
+        if (!userLoc && userPostalCode) {
+          userLoc = await geocodePostalCode(userPostalCode)
+        }
         setUserLocation(userLoc)
 
         if (!mapRef.current) {
@@ -394,16 +397,6 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           }
 
           const position = { lat: geocoded.lat, lng: geocoded.lng }
-
-          // Filter by distance if maxDistanceMiles is set and user location is available
-          if (maxDistanceMiles && userLoc) {
-            const distance = calculateDistance(userLoc.lat, userLoc.lng, position.lat, position.lng)
-            if (distance > maxDistanceMiles) {
-              console.log(`[StoreMap] Skipping store ${comparison.store} - distance ${distance.toFixed(2)} miles exceeds max ${maxDistanceMiles} miles`)
-              return
-            }
-            console.log(`[StoreMap] Including store ${comparison.store} - distance ${distance.toFixed(2)} miles within max ${maxDistanceMiles} miles`)
-          }
 
           bounds.extend(position)
 
