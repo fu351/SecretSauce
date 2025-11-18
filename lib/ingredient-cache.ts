@@ -24,12 +24,13 @@ export async function searchIngredientCache(
 ): Promise<CachedIngredient[]> {
   try {
     const client = createServerClient()
+    const normalizedSearch = searchTerm.trim().toLowerCase()
 
     // First, find standardized ingredients matching the search term
     const { data: standardizedIngredients, error: stdError } = await client
       .from("standardized_ingredients")
       .select("id")
-      .ilike("canonical_name", `%${searchTerm}%`)
+      .ilike("canonical_name", `%${normalizedSearch}%`)
 
     if (stdError) {
       console.error("Error searching standardized ingredients:", stdError)
@@ -290,6 +291,70 @@ export async function getMappedIngredient(
 }
 
 /**
+ * Attempt to resolve a standardized ingredient ID using canonical names or ingredient mappings
+ */
+async function findStandardizedIngredientIdByName(
+  ingredientName: string
+): Promise<string | null> {
+  try {
+    const client = createServerClient()
+    const normalizedName = ingredientName.trim().toLowerCase()
+
+    // Try exact canonical name match first
+    const { data: exactMatch, error: exactError } = await client
+      .from("standardized_ingredients")
+      .select("id")
+      .eq("canonical_name", normalizedName)
+      .maybeSingle()
+
+    if (exactError && exactError.code !== "PGRST116") {
+      console.error("Error searching standardized ingredients (exact):", exactError)
+    }
+
+    if (exactMatch?.id) {
+      return exactMatch.id
+    }
+
+    // Try fuzzy canonical name match
+    const { data: fuzzyMatch, error: fuzzyError } = await client
+      .from("standardized_ingredients")
+      .select("id")
+      .ilike("canonical_name", `%${normalizedName}%`)
+      .limit(1)
+      .maybeSingle()
+
+    if (fuzzyError && fuzzyError.code !== "PGRST116") {
+      console.error("Error searching standardized ingredients (fuzzy):", fuzzyError)
+    }
+
+    if (fuzzyMatch?.id) {
+      return fuzzyMatch.id
+    }
+
+    // Fall back to ingredient mappings (original recipe names)
+    const { data: mappingMatch, error: mappingError } = await client
+      .from("ingredient_mappings")
+      .select("standardized_ingredient_id")
+      .ilike("original_name", `%${normalizedName}%`)
+      .limit(1)
+      .maybeSingle()
+
+    if (mappingError && mappingError.code !== "PGRST116") {
+      console.error("Error searching ingredient mappings:", mappingError)
+    }
+
+    if (mappingMatch?.standardized_ingredient_id) {
+      return mappingMatch.standardized_ingredient_id
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error resolving standardized ingredient ID:", error)
+    return null
+  }
+}
+
+/**
  * Intelligent search: Check cache first, return fresh results if available
  * This prevents unnecessary scraping when data is already cached
  */
@@ -303,12 +368,45 @@ export async function searchWithCache(
   standardizedId: string | null
 }> {
   try {
-    console.log(`[Cache] Searching for "${ingredientName}" in cache...`)
+    const normalizedName = ingredientName.trim().toLowerCase()
+    console.log(`[Cache] Searching for "${normalizedName}" in cache...`)
 
-    // First, normalize and find or create a standardized ingredient
-    const standardizedId = await getOrCreateStandardizedIngredient(
-      ingredientName.toLowerCase()
-    )
+    // Try fuzzy cache lookup first
+    const fuzzyCache = await searchIngredientCache(normalizedName, stores)
+    if (fuzzyCache && fuzzyCache.length > 0) {
+      console.log(
+        `[Cache] Found ${fuzzyCache.length} cached results for "${normalizedName}" via fuzzy search`
+      )
+      return {
+        cached: fuzzyCache,
+        source: "cache",
+        standardizedId: fuzzyCache[0]?.standardized_ingredient_id || null,
+      }
+    }
+
+    // Try to resolve an existing standardized ingredient ID
+    let standardizedId =
+      (await findStandardizedIngredientIdByName(normalizedName)) || null
+
+    // If we resolved an ID, explicitly fetch cache entries for it (covers mapped names)
+    if (standardizedId) {
+      const cachedById = await getCachedIngredientById(standardizedId, stores)
+      if (cachedById && cachedById.length > 0) {
+        console.log(
+          `[Cache] Found ${cachedById.length} cached results for "${normalizedName}" via mapped ID`
+        )
+        return {
+          cached: cachedById,
+          source: "cache",
+          standardizedId,
+        }
+      }
+    }
+
+    // No cache hit; optionally create a new standardized ingredient for scraping
+    if (!standardizedId && useScraperFallback) {
+      standardizedId = await getOrCreateStandardizedIngredient(normalizedName)
+    }
 
     if (!standardizedId) {
       console.warn(`[Cache] Could not standardize ingredient: ${ingredientName}`)
@@ -319,22 +417,8 @@ export async function searchWithCache(
       }
     }
 
-    // Check cache for non-expired entries
-    const cachedResults = await getCachedIngredientById(standardizedId, stores)
-
-    if (cachedResults && cachedResults.length > 0) {
-      console.log(
-        `[Cache] Found ${cachedResults.length} fresh cached results for "${ingredientName}"`
-      )
-      return {
-        cached: cachedResults,
-        source: "cache",
-        standardizedId,
-      }
-    }
-
     console.log(
-      `[Cache] No fresh cache found for "${ingredientName}", would scrape if enabled`
+      `[Cache] No fresh cache found for "${normalizedName}", falling back to scrapers`
     )
     return {
       cached: [],
@@ -393,7 +477,10 @@ export async function cacheScrapedResults(
     provider: string
     product_url?: string
     product_id?: string
-  }>
+  }>,
+  options?: {
+    standardizedIngredientId?: string | null
+  }
 ): Promise<number> {
   try {
     if (!scrapedItems || scrapedItems.length === 0) {
@@ -404,9 +491,9 @@ export async function cacheScrapedResults(
 
     for (const item of scrapedItems) {
       // Get or create standardized ingredient based on title
-      const standardizedId = await getOrCreateStandardizedIngredient(
-        item.title.toLowerCase()
-      )
+      let standardizedId =
+        options?.standardizedIngredientId ||
+        (await getOrCreateStandardizedIngredient(item.title.toLowerCase()))
 
       if (!standardizedId) {
         console.warn(`Could not standardize ingredient: ${item.title}`)

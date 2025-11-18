@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     sanitizedSearchTerm,
     storeKey ? [mapStoreKeyToName(storeKey)] : undefined
   )
+  const standardizedIngredientId = cacheResult.standardizedId
 
   if (cacheResult.cached && cacheResult.cached.length > 0) {
     console.log(`Found ${cacheResult.cached.length} fresh cached results for "${sanitizedSearchTerm}" from cache`)
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
             provider: item.provider,
             product_url: item.product_url,
             product_id: item.id,
-          }))
+          })), { standardizedIngredientId }
         )
         console.log(`Cached ${cachedCount}/${results.length} scraped results from ${storeKey}`)
       }
@@ -95,7 +96,7 @@ export async function GET(request: NextRequest) {
             provider: item.provider,
             product_url: item.product_url,
             product_id: item.id,
-          }))
+          })), { standardizedIngredientId }
         )
         console.log(`Cached ${cachedCount}/${data.results.length} results from Python service`)
 
@@ -271,7 +272,7 @@ export async function GET(request: NextRequest) {
           provider: item.provider,
           product_url: item.product_url,
           product_id: item.id,
-        }))
+        })), { standardizedIngredientId }
       )
       console.log(`Cached ${cachedCount}/${allItems.length} scraped results from local scrapers`)
 

@@ -247,6 +247,26 @@ export default function ShoppingPage() {
     }
   }
 
+  const upsertCustomShoppingItem = (incomingItem: ShoppingListItem) => {
+    const normalizedName = incomingItem.name.trim().toLowerCase()
+    const existingIndex = shoppingList.findIndex(
+      (item) => !item.recipeId && item.name.trim().toLowerCase() === normalizedName,
+    )
+
+    let updatedList: ShoppingListItem[]
+    if (existingIndex >= 0) {
+      updatedList = shoppingList.map((item, index) =>
+        index === existingIndex ? { ...item, quantity: item.quantity + incomingItem.quantity } : item,
+      )
+    } else {
+      updatedList = [...shoppingList, incomingItem]
+    }
+
+    setShoppingList(updatedList)
+    saveShoppingList(updatedList)
+    return updatedList
+  }
+
   const addToShoppingList = (item: GroceryItem) => {
     const newShoppingItem: ShoppingListItem = {
       id: Date.now().toString(),
@@ -256,9 +276,7 @@ export default function ShoppingPage() {
       checked: false,
     }
 
-    const updatedList = [...shoppingList, newShoppingItem]
-    setShoppingList(updatedList)
-    saveShoppingList(updatedList)
+    upsertCustomShoppingItem(newShoppingItem)
 
     toast({
       title: "Added to shopping list",
@@ -361,22 +379,20 @@ export default function ShoppingPage() {
   const addCustomItem = () => {
     if (!newItem.trim()) return
 
-    const newShoppingItem: ShoppingListItem = {
+    const trimmedName = newItem.trim()
+    upsertCustomShoppingItem({
       id: Date.now().toString(),
-      name: newItem.trim(),
+      name: trimmedName,
       quantity: 1,
       unit: "piece",
       checked: false,
-    }
+    })
 
-    const updatedList = [...shoppingList, newShoppingItem]
-    setShoppingList(updatedList)
-    saveShoppingList(updatedList)
     setNewItem("")
 
     toast({
       title: "Added to shopping list",
-      description: `${newItem.trim()} has been added to your shopping list.`,
+      description: `${trimmedName} has been added to your shopping list.`,
     })
   }
 
@@ -608,6 +624,12 @@ export default function ShoppingPage() {
     {} as Record<string, { recipeName: string; items: ShoppingListItem[] }>,
   )
 
+  const groupedShoppingListEntries = Object.entries(groupedShoppingList).sort((a, b) => {
+    if (a[0] === "custom" && b[0] !== "custom") return -1
+    if (b[0] === "custom" && a[0] !== "custom") return 1
+    return a[1].recipeName.localeCompare(b[1].recipeName)
+  })
+
   const scrollToStore = (index: number) => {
     if (carouselRef.current) {
       const cardWidth = carouselRef.current.scrollWidth / massSearchResults.length
@@ -766,7 +788,7 @@ export default function ShoppingPage() {
                 </div>
 
                 <div className="space-y-6">
-                  {Object.entries(groupedShoppingList).map(([key, group]) => (
+                  {groupedShoppingListEntries.map(([key, group]) => (
                     <div key={key}>
                       <h3 className={`font-semibold text-lg mb-3 flex items-center gap-2 ${textClass}`}>
                         {key !== "custom" && <ChefHat className="h-5 w-5 text-orange-500" />}
