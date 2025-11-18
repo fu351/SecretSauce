@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { searchIngredientCache, cacheIngredientPrice, getOrCreateStandardizedIngredient } from "@/lib/ingredient-cache"
+import {
+  searchWithCache,
+  cacheScrapedResults,
+} from "@/lib/ingredient-cache"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -13,18 +16,40 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Search term is required" }, { status: 400 })
   }
 
-  // Try to get cached results first
-  const cachedResults = await searchIngredientCache(sanitizedSearchTerm, storeKey ? [mapStoreKeyToName(storeKey)] : undefined)
+  // Try to get cached results first using intelligent cache search
+  const cacheResult = await searchWithCache(
+    sanitizedSearchTerm,
+    storeKey ? [mapStoreKeyToName(storeKey)] : undefined
+  )
 
-  if (cachedResults && cachedResults.length > 0) {
-    console.log(`Found ${cachedResults.length} cached results for "${sanitizedSearchTerm}"`)
-    const formattedResults = formatCachedResults(cachedResults)
-    return NextResponse.json({ results: formattedResults, cached: true })
+  if (cacheResult.cached && cacheResult.cached.length > 0) {
+    console.log(`Found ${cacheResult.cached.length} fresh cached results for "${sanitizedSearchTerm}" from cache`)
+    const formattedResults = formatCachedResults(cacheResult.cached)
+    return NextResponse.json({ results: formattedResults, cached: true, source: "database" })
   }
 
   if (storeKey) {
     try {
       const results = await runStoreSpecificSearch(storeKey, sanitizedSearchTerm, zipCode)
+
+      // Cache the scraped results for future searches
+      if (results && results.length > 0) {
+        const cachedCount = await cacheScrapedResults(
+          results.map(item => ({
+            title: item.title,
+            brand: item.brand || undefined,
+            price: item.price,
+            pricePerUnit: item.pricePerUnit,
+            unit: item.unit,
+            image_url: item.image_url,
+            provider: item.provider,
+            product_url: item.product_url,
+            product_id: item.id,
+          }))
+        )
+        console.log(`Cached ${cachedCount}/${results.length} scraped results from ${storeKey}`)
+      }
+
       return NextResponse.json({ results })
     } catch (error) {
       console.error(`Error running ${storeKey} scraper:`, error)
@@ -54,7 +79,30 @@ export async function GET(request: NextRequest) {
 
     if (response.ok) {
       const data = await response.json()
-      return NextResponse.json(data)
+      // Check if Python service returned results
+      if (data.results && data.results.length > 0) {
+        console.log(`[Python Service] Got ${data.results.length} results from Python service`)
+
+        // Cache the Python service results for future searches
+        const cachedCount = await cacheScrapedResults(
+          data.results.map((item: any) => ({
+            title: item.title,
+            brand: item.brand || undefined,
+            price: item.price,
+            pricePerUnit: item.pricePerUnit,
+            unit: item.unit,
+            image_url: item.image_url,
+            provider: item.provider,
+            product_url: item.product_url,
+            product_id: item.id,
+          }))
+        )
+        console.log(`Cached ${cachedCount}/${data.results.length} results from Python service`)
+
+        return NextResponse.json(data)
+      } else {
+        console.warn("Python service returned no results, falling back to local scrapers")
+      }
     }
   } catch (error) {
     console.warn("Python service not available, using local scrapers:", error)
@@ -209,25 +257,41 @@ export async function GET(request: NextRequest) {
       console.warn("Aldi scraper failed or returned no results")
     }
 
-    // If we have results from any scraper, return them
+    // If we have results from any scraper, cache them and return
     if (allItems.length > 0) {
+      // Cache all the scraped results for future searches
+      const cachedCount = await cacheScrapedResults(
+        allItems.map(item => ({
+          title: item.title,
+          brand: item.brand || undefined,
+          price: item.price,
+          pricePerUnit: item.pricePerUnit,
+          unit: item.unit,
+          image_url: item.image_url,
+          provider: item.provider,
+          product_url: item.product_url,
+          product_id: item.id,
+        }))
+      )
+      console.log(`Cached ${cachedCount}/${allItems.length} scraped results from local scrapers`)
+
       return NextResponse.json({ results: allItems })
     }
 
     // If no scrapers worked, return mock data
     console.warn("All scrapers failed, returning mock data")
-    const mockResults = generateMockResults(sanitizedSearchTerm, zipCode)
+    const mockResults = generateMockResults()
     return NextResponse.json({ results: mockResults })
 
   } catch (error) {
     console.error("Error using local scrapers:", error)
     // Return mock data when scrapers fail
-    const mockResults = generateMockResults(sanitizedSearchTerm, zipCode)
+    const mockResults = generateMockResults()
     return NextResponse.json({ results: mockResults })
   }
 }
 
-function generateMockResults(searchTerm: string, zipCode: string) {
+function generateMockResults() {
   const stores = [
     { name: "Target", location: "West Lafayette Target" },
     { name: "Kroger", location: "West Lafayette Kroger" },
@@ -237,34 +301,19 @@ function generateMockResults(searchTerm: string, zipCode: string) {
     { name: "Aldi", location: "Aldi Store" },
   ]
 
-  const results: any[] = []
-
-  stores.forEach((store, storeIndex) => {
-    // Generate 3-5 items per store
-    const itemCount = Math.floor(Math.random() * 3) + 3
-
-    for (let i = 0; i < itemCount; i++) {
-      const basePrice = Math.random() * 8 + 1
-      const quantity = Math.random() * 2 + 0.5
-      const totalPrice = basePrice * quantity
-
-      results.push({
-        id: `${store.name.toLowerCase()}-${searchTerm.toLowerCase()}-${i}`,
-        title: `${searchTerm} ${i + 1}`,
-        brand: i === 0 ? `${store.name} Brand` : `Brand ${String.fromCharCode(65 + i)}`,
-        price: Number(totalPrice.toFixed(2)),
-        pricePerUnit: `$${basePrice.toFixed(2)}/lb`,
-        unit: "lb",
-        image_url: `/placeholder.svg?height=100&width=100&text=${encodeURIComponent(searchTerm)}`,
-        provider: store.name,
-        location: store.location,
-        category: "Grocery",
-      })
-    }
-  })
-
-  // Sort by price
-  return results.sort((a, b) => a.price - b.price)
+  // Return stores with unavailable message instead of fake prices
+  return stores.map((store) => ({
+    id: `${store.name.toLowerCase()}-unavailable`,
+    title: "Real-time prices unavailable",
+    brand: "",
+    price: 0,
+    pricePerUnit: undefined,
+    unit: "",
+    image_url: "/placeholder.svg",
+    provider: store.name,
+    location: store.location,
+    category: "Grocery",
+  }))
 }
 
 function resolveStoreKey(storeParam: string) {

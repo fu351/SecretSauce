@@ -11,6 +11,18 @@ export interface GeocodeResult {
 // Simple in-memory cache for geocoding results (resets on page reload)
 const geocodeCache = new Map<string, GeocodeResult>()
 
+// Fallback coordinates for known stores in the West Lafayette, IN area (zip 47906)
+const knownStoreCoordinates: Record<string, GeocodeResult> = {
+  "Target": { lat: 40.4406, lng: -86.9144, formattedAddress: "Target, West Lafayette, IN" },
+  "Kroger": { lat: 40.4427, lng: -86.9122, formattedAddress: "Kroger, West Lafayette, IN" },
+  "Meijer": { lat: 40.4380, lng: -86.9200, formattedAddress: "Meijer, West Lafayette, IN" },
+  "99 Ranch": { lat: 40.4400, lng: -86.9100, formattedAddress: "99 Ranch Market, West Lafayette, IN" },
+  "99Ranch": { lat: 40.4400, lng: -86.9100, formattedAddress: "99 Ranch Market, West Lafayette, IN" },
+  "Walmart": { lat: 40.4350, lng: -86.9250, formattedAddress: "Walmart, West Lafayette, IN" },
+  "Trader Joe's": { lat: 40.4450, lng: -86.9000, formattedAddress: "Trader Joe's, West Lafayette, IN" },
+  "Aldi": { lat: 40.4380, lng: -86.9050, formattedAddress: "Aldi, West Lafayette, IN" },
+}
+
 /**
  * Geocode a store name to get its latitude and longitude
  * Uses Google Geocoding API to find the closest match
@@ -29,17 +41,32 @@ export async function geocodeStore(
     // Check cache first
     const cacheKey = `${storeName}-${userPostalCode || "none"}`
     if (geocodeCache.has(cacheKey)) {
-      return geocodeCache.get(cacheKey) || null
+      const cached = geocodeCache.get(cacheKey)
+      console.log(`[Geocoding] Cache hit for ${storeName}`)
+      return cached || null
+    }
+
+    // Check if we have known coordinates for this store
+    if (knownStoreCoordinates[storeName]) {
+      const known = knownStoreCoordinates[storeName]
+      console.log(`[Geocoding] Using known coordinates for ${storeName}`)
+      geocodeCache.set(cacheKey, known)
+      return known
     }
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     if (!apiKey) {
       console.error("Google Maps API key not found in environment variables")
+      // Fall back to known coordinates if available
+      if (knownStoreCoordinates[storeName]) {
+        return knownStoreCoordinates[storeName]
+      }
       return null
     }
 
     // Build search query: store name + postal code for better accuracy
     const searchQuery = userPostalCode ? `${storeName} ${userPostalCode}` : storeName
+    console.log(`[Geocoding] Attempting to geocode ${storeName} with query: ${searchQuery}`)
 
     // Call Google Geocoding API
     const response = await fetch(
@@ -50,13 +77,22 @@ export async function geocodeStore(
 
     if (!response.ok) {
       console.error("Geocoding API error:", response.statusText)
+      // Fall back to known coordinates
+      if (knownStoreCoordinates[storeName]) {
+        console.log(`[Geocoding] API failed, using fallback for ${storeName}`)
+        return knownStoreCoordinates[storeName]
+      }
       return null
     }
 
     const data = await response.json()
 
     if (data.status !== "OK" || !data.results || data.results.length === 0) {
-      console.warn(`No geocoding results found for: ${storeName}`)
+      console.warn(`No geocoding results found for: ${storeName}, using fallback`)
+      // Fall back to known coordinates
+      if (knownStoreCoordinates[storeName]) {
+        return knownStoreCoordinates[storeName]
+      }
       return null
     }
 
@@ -91,10 +127,16 @@ export async function geocodeStore(
 
     // Cache the result
     geocodeCache.set(cacheKey, result)
+    console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${result.lat}, lng=${result.lng}`)
 
     return result
   } catch (error) {
     console.error("Geocoding error:", error)
+    // Fall back to known coordinates as last resort
+    if (knownStoreCoordinates[storeName]) {
+      console.log(`[Geocoding] Exception occurred, using fallback for ${storeName}`)
+      return knownStoreCoordinates[storeName]
+    }
     return null
   }
 }
@@ -128,12 +170,19 @@ export async function geocodeMultipleStores(
 ): Promise<Map<string, GeocodeResult>> {
   const results = new Map<string, GeocodeResult>()
 
+  console.log(`[Geocoding] Starting batch geocoding for ${storeNames.length} stores:`, storeNames)
+
   for (const storeName of storeNames) {
     const geocoded = await geocodeStore(storeName, userPostalCode, userCoordinates)
     if (geocoded) {
       results.set(storeName, geocoded)
+      console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${geocoded.lat}, lng=${geocoded.lng}`)
+    } else {
+      console.warn(`[Geocoding] Failed to geocode ${storeName}`)
     }
   }
+
+  console.log(`[Geocoding] Batch geocoding complete: ${results.size}/${storeNames.length} stores geocoded`)
 
   return results
 }

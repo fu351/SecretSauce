@@ -227,3 +227,228 @@ export async function cleanupExpiredCache(): Promise<number> {
     return 0
   }
 }
+
+/**
+ * Get or create ingredient mapping for recipe ingredients
+ * Maps original ingredient names to standardized ingredient IDs
+ */
+export async function mapIngredientToStandardized(
+  recipeId: string,
+  originalName: string,
+  standardizedIngredientId: string
+): Promise<boolean> {
+  try {
+    const client = createServerClient()
+
+    const { error } = await client.from("ingredient_mappings").insert({
+      recipe_id: recipeId,
+      original_name: originalName,
+      standardized_ingredient_id: standardizedIngredientId,
+    })
+
+    if (error && error.code !== "23505") {
+      // 23505 = unique constraint violation, which is fine (mapping already exists)
+      console.error("Error creating ingredient mapping:", error)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error in mapIngredientToStandardized:", error)
+    return false
+  }
+}
+
+/**
+ * Get standardized ingredient ID for a recipe ingredient using mapping
+ */
+export async function getMappedIngredient(
+  recipeId: string,
+  originalName: string
+): Promise<string | null> {
+  try {
+    const client = createServerClient()
+
+    const { data, error } = await client
+      .from("ingredient_mappings")
+      .select("standardized_ingredient_id")
+      .eq("recipe_id", recipeId)
+      .eq("original_name", originalName)
+      .single()
+
+    if (error && error.code !== "PGRST116") {
+      // PGRST116 = not found
+      console.error("Error getting ingredient mapping:", error)
+      return null
+    }
+
+    return data?.standardized_ingredient_id || null
+  } catch (error) {
+    console.error("Error in getMappedIngredient:", error)
+    return null
+  }
+}
+
+/**
+ * Intelligent search: Check cache first, return fresh results if available
+ * This prevents unnecessary scraping when data is already cached
+ */
+export async function searchWithCache(
+  ingredientName: string,
+  stores?: string[],
+  useScraperFallback: boolean = true
+): Promise<{
+  cached: CachedIngredient[]
+  source: "cache" | "scraper"
+  standardizedId: string | null
+}> {
+  try {
+    console.log(`[Cache] Searching for "${ingredientName}" in cache...`)
+
+    // First, normalize and find or create a standardized ingredient
+    const standardizedId = await getOrCreateStandardizedIngredient(
+      ingredientName.toLowerCase()
+    )
+
+    if (!standardizedId) {
+      console.warn(`[Cache] Could not standardize ingredient: ${ingredientName}`)
+      return {
+        cached: [],
+        source: "scraper",
+        standardizedId: null,
+      }
+    }
+
+    // Check cache for non-expired entries
+    const cachedResults = await getCachedIngredientById(standardizedId, stores)
+
+    if (cachedResults && cachedResults.length > 0) {
+      console.log(
+        `[Cache] Found ${cachedResults.length} fresh cached results for "${ingredientName}"`
+      )
+      return {
+        cached: cachedResults,
+        source: "cache",
+        standardizedId,
+      }
+    }
+
+    console.log(
+      `[Cache] No fresh cache found for "${ingredientName}", would scrape if enabled`
+    )
+    return {
+      cached: [],
+      source: "scraper",
+      standardizedId,
+    }
+  } catch (error) {
+    console.error("Error in searchWithCache:", error)
+    return {
+      cached: [],
+      source: "scraper",
+      standardizedId: null,
+    }
+  }
+}
+
+/**
+ * Batch search multiple ingredients with cache checking
+ * Useful for recipe ingredient lists
+ */
+export async function batchSearchWithCache(
+  ingredients: string[],
+  stores?: string[]
+): Promise<
+  Map<
+    string,
+    {
+      cached: CachedIngredient[]
+      source: "cache" | "scraper"
+      standardizedId: string | null
+    }
+  >
+> {
+  const results = new Map()
+
+  for (const ingredient of ingredients) {
+    const result = await searchWithCache(ingredient, stores)
+    results.set(ingredient, result)
+  }
+
+  return results
+}
+
+/**
+ * Cache scraped grocery items to the ingredient_cache table
+ * Called after successful scraping to populate the cache
+ */
+export async function cacheScrapedResults(
+  scrapedItems: Array<{
+    title: string
+    brand?: string
+    price: number
+    pricePerUnit?: string
+    unit?: string
+    image_url?: string
+    provider: string
+    product_url?: string
+    product_id?: string
+  }>
+): Promise<number> {
+  try {
+    if (!scrapedItems || scrapedItems.length === 0) {
+      return 0
+    }
+
+    let cachedCount = 0
+
+    for (const item of scrapedItems) {
+      // Get or create standardized ingredient based on title
+      const standardizedId = await getOrCreateStandardizedIngredient(
+        item.title.toLowerCase()
+      )
+
+      if (!standardizedId) {
+        console.warn(`Could not standardize ingredient: ${item.title}`)
+        continue
+      }
+
+      // Parse unit price if available
+      let unitPrice: number | null = null
+      if (item.pricePerUnit) {
+        const priceMatch = item.pricePerUnit.match(/\$?([\d.]+)/)
+        if (priceMatch) {
+          unitPrice = parseFloat(priceMatch[1])
+        }
+      }
+
+      // Cache the item
+      const success = await cacheIngredientPrice(
+        standardizedId,
+        item.provider,
+        item.price,
+        1, // quantity
+        item.unit || "unit",
+        unitPrice,
+        item.image_url || null,
+        item.product_url || null,
+        item.product_id || null
+      )
+
+      if (success) {
+        cachedCount++
+      }
+    }
+
+    if (cachedCount > 0) {
+      console.log(
+        `[Cache] Cached ${cachedCount}/${scrapedItems.length} scraped items`
+      )
+    }
+
+    return cachedCount
+  } catch (error) {
+    console.error("Error caching scraped results:", error)
+    return 0
+  }
+}

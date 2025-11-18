@@ -21,11 +21,53 @@ export function TutorialOverlay() {
   const [currentSubstepIndex, setCurrentSubstepIndex] = useState(0)
 
   const isDark = theme === "dark"
+  const getTargetLabel = (target?: string | null) => {
+    switch (target) {
+      case "/recipes":
+        return "the Recipes page"
+      case "/meal-planner":
+        return "the Meal Planner"
+      case "/shopping":
+        return "the Shopping page"
+      case "/dashboard":
+        return "your Dashboard"
+      default:
+        return target || "the next section"
+    }
+  }
 
   // Get current substep if available, otherwise use main step
   const hasSubsteps = currentStep?.substeps && currentStep.substeps.length > 0
   const currentSubstep = hasSubsteps ? currentStep.substeps[currentSubstepIndex] : null
   const totalSubsteps = hasSubsteps ? currentStep.substeps.length : 1
+  const activeAction = currentSubstep?.action ?? currentStep?.action ?? "highlight"
+  const activeTarget = currentSubstep?.actionTarget ?? currentStep?.actionTarget
+  const actionMessage = (() => {
+    switch (activeAction) {
+      case "navigate":
+        return `Use the site navigation to open ${getTargetLabel(activeTarget)}. We'll move you to the next step when you arrive.`
+      case "click":
+        return "Click the highlighted element to continue. You can interact with it freely before pressing Next."
+      case "explore":
+        return "Scroll, hover, or click around this area to get familiar with it. When you're ready, press Next."
+      case "highlight":
+      default:
+        return "Focus on the highlighted area. You can interact with it, then press Next to keep going."
+    }
+  })()
+  const nextButtonTooltip = (() => {
+    switch (activeAction) {
+      case "navigate":
+        return `After you open ${getTargetLabel(activeTarget)}, we'll advance automatically.`
+      case "click":
+        return "Use the highlighted control, then press Next to continue."
+      case "explore":
+        return "Take your time exploring. When you're done, click Next."
+      case "highlight":
+      default:
+        return "Review this area, then hit Next whenever you're ready."
+    }
+  })()
 
   // Auto-advance when user navigates to the next step's required page
   useEffect(() => {
@@ -153,24 +195,34 @@ export function TutorialOverlay() {
               {currentStep.title}
             </h3>
             {hasSubsteps ? (
-              <p
-                className={clsx(
-                  "text-xs",
-                  isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
+              <>
+                <p
+                  className={clsx("text-xs", isDark ? "text-[#e8dcc4]/60" : "text-gray-500")}
+                >
+                  {currentSubstep?.instruction}
+                </p>
+                <p
+                  className={clsx("mt-2 text-xs", isDark ? "text-[#e8dcc4]/50" : "text-gray-500")}
+                >
+                  {actionMessage}
+                </p>
+              </>
+            ) : (
+              <>
+                {currentStep.description && (
+                  <p
+                    className={clsx("text-xs", isDark ? "text-[#e8dcc4]/60" : "text-gray-500")}
+                  >
+                    {currentStep.description}
+                  </p>
                 )}
-              >
-                {currentSubstep?.instruction}
-              </p>
-            ) : currentStep.description ? (
-              <p
-                className={clsx(
-                  "text-xs",
-                  isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
-                )}
-              >
-                {currentStep.description}
-              </p>
-            ) : null}
+                <p
+                  className={clsx("mt-2 text-xs", isDark ? "text-[#e8dcc4]/50" : "text-gray-500")}
+                >
+                  {actionMessage}
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -195,22 +247,15 @@ export function TutorialOverlay() {
 
         {/* Action Instructions */}
         <div className="px-4 py-3 border-t" style={{ borderColor: isDark ? "#e8dcc4/20" : "#f0f0f0" }}>
-          {!hasSubsteps && (
-            <p
-              className={clsx("text-xs leading-relaxed", isDark ? "text-[#e8dcc4]/70" : "text-gray-600")}
-            >
-              {currentStep.action === "navigate"
-                ? `Navigate to ${currentStep.actionTarget === "/recipes" ? "Recipes" : currentStep.actionTarget === "/meal-planner" ? "Meal Planner" : currentStep.actionTarget === "/shopping" ? "Shopping" : currentStep.actionTarget === "/dashboard" ? "Dashboard" : currentStep.actionTarget}. You'll automatically advance to the next step.`
-                : currentStep.action === "click"
-                  ? "Click the highlighted area to continue."
-                  : "Explore this section and get familiar with the features."}
-            </p>
-          )}
           {showHint && (
             <p
               className={clsx("text-xs mt-2 p-2 rounded", isDark ? "bg-blue-600/20 text-blue-300" : "bg-blue-50 text-blue-700")}
             >
-              {hasSubsteps ? "Complete this step to move forward." : "Need help? Try the action above, or click any progress dot to jump to that step."}
+              {hasSubsteps
+                ? "Work through each part above, then press Next."
+                : activeAction === "navigate"
+                  ? `Use the navigation to open ${getTargetLabel(activeTarget)}. We'll advance automatically.`
+                  : "Interact with the highlighted section, then press Next. You can also jump with the progress dots."}
             </p>
           )}
         </div>
@@ -259,33 +304,39 @@ export function TutorialOverlay() {
             ))}
           </div>
 
-          {!isLastStep || (hasSubsteps && currentSubstepIndex < totalSubsteps - 1) ? (
-            <Button
-              onClick={handleNextSubstep}
-              size="sm"
+          <div className="relative group">
+            {!isLastStep || (hasSubsteps && currentSubstepIndex < totalSubsteps - 1) ? (
+              <Button
+                onClick={handleNextSubstep}
+                size="sm"
+                className={clsx(
+                  "text-xs font-medium",
+                  isDark ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-500 text-white hover:bg-blue-600"
+                )}
+              >
+                {hasSubsteps ? `Next (${currentSubstepIndex + 1}/${totalSubsteps})` : "Next"}
+              </Button>
+            ) : isLastStep ? (
+              <Button
+                onClick={nextStep}
+                size="sm"
+                className={clsx(
+                  "text-xs font-medium",
+                  isDark ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-500 text-white hover:bg-blue-600"
+                )}
+              >
+                Done
+              </Button>
+            ) : null}
+            <span
               className={clsx(
-                "text-xs font-medium",
-                isDark
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "bg-blue-500 text-white hover:bg-blue-600"
+                "pointer-events-none absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-48 rounded-md px-3 py-2 text-[11px] opacity-0 transition-opacity group-hover:opacity-100 shadow-lg border",
+                isDark ? "bg-[#0f172a] text-white border-white/10" : "bg-white text-gray-700 border-gray-200"
               )}
             >
-              {hasSubsteps ? `Next (${currentSubstepIndex + 1}/${totalSubsteps})` : "Next"}
-            </Button>
-          ) : isLastStep ? (
-            <Button
-              onClick={nextStep}
-              size="sm"
-              className={clsx(
-                "text-xs font-medium",
-                isDark
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "bg-blue-500 text-white hover:bg-blue-600"
-              )}
-            >
-              Done
-            </Button>
-          ) : null}
+              {nextButtonTooltip}
+            </span>
+          </div>
         </div>
       </div>
 

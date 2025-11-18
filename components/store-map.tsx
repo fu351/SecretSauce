@@ -3,8 +3,130 @@
 import { useEffect, useRef, useState, useMemo } from "react"
 import { useTheme } from "@/contexts/theme-context"
 import { geocodeMultipleStores, getUserLocation } from "@/lib/geocoding"
-import { Loader2, MapPin, AlertCircle } from "lucide-react"
+import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car } from "lucide-react"
 import clsx from "clsx"
+
+// Declare google namespace for TypeScript
+declare global {
+  namespace google {
+    namespace maps {
+      class Map {
+        constructor(element: HTMLElement, options: google.maps.MapOptions)
+        setCenter(latlng: google.maps.LatLng | google.maps.LatLngLiteral): void
+        setZoom(zoom: number): void
+        setOptions(options: google.maps.MapOptions): void
+        fitBounds(bounds: google.maps.LatLngBounds, padding?: number | google.maps.Padding): void
+      }
+      class Marker {
+        constructor(options: google.maps.MarkerOptions)
+        addListener(eventName: string, callback: Function): void
+        setIcon(icon: string | google.maps.Icon | google.maps.Symbol): void
+        setMap(map: google.maps.Map | null): void
+      }
+      class InfoWindow {
+        constructor(options: google.maps.InfoWindowOptions)
+        open(map: google.maps.Map, anchor?: google.maps.Marker): void
+        setMap(map: google.maps.Map | null): void
+      }
+      class LatLngBounds {
+        extend(point: google.maps.LatLng | google.maps.LatLngLiteral): void
+      }
+      class DirectionsService {
+        route(request: google.maps.DirectionsRequest): Promise<google.maps.DirectionsResult>
+      }
+      class DirectionsRenderer {
+        constructor(options: google.maps.DirectionsRendererOptions)
+        setDirections(result: google.maps.DirectionsResult): void
+        setMap(map: google.maps.Map | null): void
+      }
+      enum TravelMode {
+        DRIVING = "DRIVING",
+        WALKING = "WALKING",
+        BICYCLING = "BICYCLING",
+        TRANSIT = "TRANSIT",
+      }
+      enum SymbolPath {
+        CIRCLE = 0,
+      }
+      interface MapOptions {
+        zoom?: number
+        mapTypeControl?: boolean
+        fullscreenControl?: boolean
+        zoomControl?: boolean
+        styles?: google.maps.MapTypeStyle[]
+      }
+      interface MarkerOptions {
+        position: google.maps.LatLng | google.maps.LatLngLiteral
+        map?: google.maps.Map
+        title?: string
+        icon?: string | google.maps.Icon | google.maps.Symbol
+        zIndex?: number
+      }
+      interface InfoWindowOptions {
+        content?: string
+      }
+      interface DirectionsRequest {
+        origin: google.maps.LatLng | google.maps.LatLngLiteral | string
+        destination: google.maps.LatLng | google.maps.LatLngLiteral | string
+        travelMode: google.maps.TravelMode
+      }
+      interface DirectionsRendererOptions {
+        map?: google.maps.Map
+        suppressMarkers?: boolean
+        polylineOptions?: google.maps.PolylineOptions
+      }
+      interface PolylineOptions {
+        strokeColor?: string
+        strokeOpacity?: number
+        strokeWeight?: number
+      }
+      interface DirectionsResult {
+        routes: google.maps.DirectionsRoute[]
+      }
+      interface DirectionsRoute {
+        legs: google.maps.DirectionsLeg[]
+      }
+      interface DirectionsLeg {
+        duration?: google.maps.Duration
+      }
+      interface Duration {
+        text: string
+      }
+      interface Icon {
+        path: string
+        scale: number
+        fillColor: string
+        fillOpacity: number
+        strokeColor: string
+        strokeWeight: number
+      }
+      interface Symbol {
+        path: number
+        scale: number
+        fillColor: string
+        fillOpacity: number
+        strokeColor: string
+        strokeWeight: number
+      }
+      interface MapTypeStyle {
+        elementType?: string
+        stylers: Array<{[key: string]: any}>
+        featureType?: string
+      }
+      interface LatLngLiteral {
+        lat: number
+        lng: number
+      }
+      class LatLng {}
+      interface Padding {
+        top: number
+        right: number
+        bottom: number
+        left: number
+      }
+    }
+  }
+}
 
 interface StoreComparison {
   store: string
@@ -33,10 +155,16 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
   const googleMapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<Map<number, google.maps.Marker>>(new Map())
   const userMarkerRef = useRef<google.maps.Marker | null>(null)
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
+  const directionsRenderersRef = useRef<Map<number, google.maps.DirectionsRenderer>>(new Map())
+  const travelTimesRef = useRef<Map<number, string>>(new Map())
 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [travelMode, setTravelMode] = useState<"WALKING" | "DRIVING">("DRIVING")
+  const [showRoutes, setShowRoutes] = useState(false)
+  const [travelTimes, setTravelTimes] = useState<Map<number, string>>(new Map())
 
   const isDark = theme === "dark"
 
@@ -107,6 +235,9 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
             zoomControl: true,
             styles: mapStyle,
           })
+
+          // Initialize Directions Service for route visualization
+          directionsServiceRef.current = new google.maps.DirectionsService()
         }
 
         const map = googleMapRef.current
@@ -131,7 +262,9 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
         // Geocode stores and add markers
         const storeNames = comparisons.map((comp) => comp.store)
+        console.log(`[StoreMap] Found ${comparisons.length} stores to geocode:`, storeNames)
         const geocodedStores = await geocodeMultipleStores(storeNames, userPostalCode, userLoc || undefined)
+        console.log(`[StoreMap] Geocoded ${geocodedStores.size} stores:`, Array.from(geocodedStores.keys()))
 
         const bounds = new google.maps.LatLngBounds()
 
@@ -143,6 +276,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
         // Add markers for each store
         comparisons.forEach((comparison, index) => {
           const geocoded = geocodedStores.get(comparison.store)
+          console.log(`[StoreMap] Processing store #${index}: ${comparison.store}, geocoded:`, geocoded)
 
           if (!geocoded) {
             console.warn(`Could not geocode store: ${comparison.store}`)
@@ -187,10 +321,13 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           })
 
           markersRef.current.set(index, marker)
+          console.log(`[StoreMap] Created marker #${index} for ${comparison.store} at lat: ${position.lat}, lng: ${position.lng}`)
         })
 
         // Center and zoom to fit all markers
+        console.log(`[StoreMap] Total markers created: ${markersRef.current.size}`)
         if (markersRef.current.size > 0) {
+          console.log(`[StoreMap] Fitting bounds with ${markersRef.current.size} markers`)
           map.fitBounds(bounds, {
             top: 100,
             right: 100,
@@ -198,6 +335,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
             left: 100,
           })
         } else if (userLoc) {
+          console.log(`[StoreMap] No markers created, centering on user location`)
           map.setCenter(userLoc)
           map.setZoom(12)
         }
@@ -230,6 +368,94 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
       )
     })
   }, [selectedStoreIndex, comparisons])
+
+  // Request and display routes to stores
+  const requestDirections = async () => {
+    if (!directionsServiceRef.current || !userLocation || !googleMapRef.current) {
+      console.warn("[StoreMap] Cannot request directions - missing required data")
+      return
+    }
+
+    const map = googleMapRef.current
+    const times = new Map<number, string>()
+
+    console.log(`[StoreMap] Requesting directions for ${comparisons.length} stores with mode: ${travelMode}`)
+
+    for (let i = 0; i < comparisons.length; i++) {
+      const geocoded = await geocodeMultipleStores([comparisons[i].store])
+      const storeLocation = geocoded.get(comparisons[i].store)
+
+      if (!storeLocation) {
+        console.warn(`[StoreMap] Could not geocode store for directions: ${comparisons[i].store}`)
+        continue
+      }
+
+      try {
+        const request: google.maps.DirectionsRequest = {
+          origin: userLocation,
+          destination: { lat: storeLocation.lat, lng: storeLocation.lng },
+          travelMode: google.maps.TravelMode[travelMode as keyof typeof google.maps.TravelMode],
+        }
+
+        const result = await directionsServiceRef.current!.route(request)
+
+        // Create or update directions renderer for this store
+        let renderer = directionsRenderersRef.current.get(i)
+        if (!renderer) {
+          renderer = new google.maps.DirectionsRenderer({
+            map,
+            suppressMarkers: true,
+            polylineOptions: {
+              strokeColor: i === selectedStoreIndex ? "#ff6b6b" : "#4a90e2",
+              strokeOpacity: 0.7,
+              strokeWeight: 3,
+            },
+          })
+          directionsRenderersRef.current.set(i, renderer)
+        }
+
+        renderer.setDirections(result)
+
+        // Extract travel time
+        const route = result.routes[0]
+        if (route && route.legs[0]) {
+          const duration = route.legs[0].duration?.text || "Unknown"
+          times.set(i, duration)
+          travelTimesRef.current.set(i, duration)
+          console.log(`[StoreMap] ${comparisons[i].store}: ${duration} via ${travelMode.toLowerCase()}`)
+        }
+      } catch (error) {
+        console.error(`[StoreMap] Error getting directions for ${comparisons[i].store}:`, error)
+      }
+    }
+
+    setTravelTimes(times)
+  }
+
+  // Handle travel mode changes
+  const handleTravelModeChange = (mode: "WALKING" | "DRIVING") => {
+    setTravelMode(mode)
+    // Don't hide routes, just clear them so we can re-request with new mode
+    directionsRenderersRef.current.forEach((renderer) => {
+      renderer.setMap(null)
+    })
+    directionsRenderersRef.current.clear()
+    setTravelTimes(new Map())
+    // Re-request directions with new mode
+    setTimeout(() => {
+      requestDirections()
+    }, 100)
+  }
+
+  // Auto-request directions when showRoutes changes and mode is set
+  useEffect(() => {
+    if (showRoutes && userLocation) {
+      const timer = setTimeout(() => {
+        requestDirections()
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [showRoutes, travelMode, userLocation])
 
   if (!comparisons || comparisons.length === 0) {
     return (
@@ -272,12 +498,98 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
         </div>
       )}
 
+      {/* Route Controls */}
+      {!isLoading && !error && (
+        <div className={clsx(
+          "flex flex-col sm:flex-row items-center gap-3 p-3 rounded-lg border",
+          isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-orange-50/50 border-orange-200/50"
+        )}>
+          <button
+            onClick={() => {
+              setShowRoutes(!showRoutes)
+              if (!showRoutes) {
+                requestDirections()
+              } else {
+                // Clear routes
+                directionsRenderersRef.current.forEach((renderer) => {
+                  renderer.setMap(null)
+                })
+                directionsRenderersRef.current.clear()
+                setTravelTimes(new Map())
+              }
+            }}
+            className={clsx(
+              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+              showRoutes
+                ? isDark ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-orange-200 text-orange-700"
+                : isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4]/70 hover:bg-[#e8dcc4]/20" : "bg-orange-100/50 text-orange-600 hover:bg-orange-200/50"
+            )}
+          >
+            <Navigation className="w-4 h-4" />
+            {showRoutes ? "Hide Routes" : "Show Routes"}
+          </button>
+
+          {showRoutes && (
+            <>
+              <button
+                onClick={() => handleTravelModeChange("WALKING")}
+                className={clsx(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  travelMode === "WALKING"
+                    ? isDark ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-orange-200 text-orange-700"
+                    : isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4]/70 hover:bg-[#e8dcc4]/20" : "bg-orange-100/50 text-orange-600 hover:bg-orange-200/50"
+                )}
+              >
+                <Footprints className="w-4 h-4" />
+                Walk
+              </button>
+
+              <button
+                onClick={() => handleTravelModeChange("DRIVING")}
+                className={clsx(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  travelMode === "DRIVING"
+                    ? isDark ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-orange-200 text-orange-700"
+                    : isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4]/70 hover:bg-[#e8dcc4]/20" : "bg-orange-100/50 text-orange-600 hover:bg-orange-200/50"
+                )}
+              >
+                <Car className="w-4 h-4" />
+                Drive
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div
         className={clsx("w-full rounded-lg border overflow-hidden", isDark ? "border-[#e8dcc4]/30" : "border-orange-200")}
         style={{ height: "500px", display: isLoading ? "none" : "block" }}
       >
         <div ref={mapRef} className="w-full h-full" />
       </div>
+
+      {/* Travel Times Display */}
+      {showRoutes && travelTimes.size > 0 && (
+        <div className={clsx(
+          "p-3 rounded-lg border",
+          isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-orange-50/50 border-orange-200/50"
+        )}>
+          <h3 className={clsx("text-sm font-semibold mb-2", isDark ? "text-[#e8dcc4]" : "text-orange-700")}>
+            Estimated Travel Times ({travelMode === "WALKING" ? "Walking" : "Driving"})
+          </h3>
+          <div className="space-y-1 text-xs">
+            {Array.from(travelTimes.entries()).map(([storeIndex, duration]) => (
+              <div key={storeIndex} className={clsx(
+                "flex justify-between items-center p-2 rounded",
+                isDark ? "bg-[#0a0a0a] text-[#e8dcc4]" : "bg-white text-orange-700"
+              )}>
+                <span className="font-medium">{comparisons[storeIndex]?.store || "Store"}</span>
+                <span>{duration}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div className={clsx("flex items-center gap-4 text-xs p-2 rounded-lg", isDark ? "bg-[#181813] border border-[#e8dcc4]/20" : "bg-orange-50/50 border border-orange-200/50")}>

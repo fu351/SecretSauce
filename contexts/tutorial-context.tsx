@@ -70,7 +70,8 @@ const tutorialPaths: Record<string, TutorialPath> = {
       {
         id: 1,
         title: "Start from your dashboard",
-        description: "Your dashboard shows reminders, saved recipes, and shopping alerts. We’ll use it as your home base.",
+        description:
+          "Your dashboard shows reminders, saved recipes, and shopping alerts. We’ll use it as your home base. When you’re ready, tap Next and we’ll jump you to each page automatically.",
         page: "/dashboard",
         action: "highlight",
         nextButtonText: "Show me around",
@@ -79,6 +80,18 @@ const tutorialPaths: Record<string, TutorialPath> = {
           "Use the quick links to jump to Recipes, Meal Planner, or Shopping",
           "Watch the notice cards for new reviews or price drops",
           "Click the logo anytime to return here",
+        ],
+        substeps: [
+          {
+            id: 1,
+            instruction: "Scan the dashboard cards so you know where to find reminders, favorites, and shopping alerts.",
+            action: "explore",
+          },
+          {
+            id: 2,
+            instruction: "When you're ready to keep going, press Next and we'll open the Recipes page for you.",
+            action: "highlight",
+          },
         ],
       },
       {
@@ -263,11 +276,24 @@ const tutorialPaths: Record<string, TutorialPath> = {
       {
         id: 1,
         title: "See today’s savings snapshot",
-        description: "The dashboard tiles show spending trends and alerts so you always know where your budget stands.",
+        description:
+          "The dashboard tiles show spending trends and alerts so you always know where your budget stands. Press Next whenever you’re ready and we’ll walk you through each page.",
         page: "/dashboard",
         action: "highlight",
         nextButtonText: "Let’s save",
         estimatedSeconds: 15,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Review the savings cards so you know your current spend and any alerts.",
+            action: "explore",
+          },
+          {
+            id: 2,
+            instruction: "When you want to move on, press Next and we'll navigate to your Shopping tools automatically.",
+            action: "highlight",
+          },
+        ],
       },
       {
         id: 2,
@@ -394,11 +420,24 @@ const tutorialPaths: Record<string, TutorialPath> = {
       {
         id: 1,
         title: "Welcome to your healthy routine",
-        description: "We’ll help you plan nourishing meals, cook on time, and shop smarter.",
+        description:
+          "We’ll help you plan nourishing meals, cook on time, and shop smarter. Tap Next below and we’ll take you to each step in order.",
         page: "/dashboard",
         action: "highlight",
         nextButtonText: "Let’s begin",
         estimatedSeconds: 15,
+        substeps: [
+          {
+            id: 1,
+            instruction: "Glance at the dashboard tiles to see upcoming meals and any health-focused reminders.",
+            action: "explore",
+          },
+          {
+            id: 2,
+            instruction: "Press Next when you're ready and we'll move you to the Meal Planner automatically.",
+            action: "highlight",
+          },
+        ],
       },
       {
         id: 2,

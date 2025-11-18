@@ -221,17 +221,12 @@ export default function DashboardPage() {
                     <RecipeCard
                       id={recipe.id}
                       title={recipe.title}
-                      image={recipe.image_url || ""}
-                      rating={recipe.average_rating || 0}
-                      difficulty={recipe.difficulty_level || "beginner"}
-                      comments={0}
-                      tags={recipe.tags || []}
-                      nutrition={{
-                        calories: recipe.calories,
-                        protein: recipe.protein,
-                        carbs: recipe.carbs,
-                        fat: recipe.fat,
-                      }}
+                      image={recipe.image_url || "/placeholder.svg"}
+                      rating={recipe.rating_avg || 0}
+                      difficulty={(recipe.difficulty as "beginner" | "intermediate" | "advanced") || "beginner"}
+                      comments={recipe.rating_count || 0}
+                      tags={recipe.dietary_tags || []}
+                      nutrition={recipe.nutrition}
                     />
                   </Link>
                 ))}
