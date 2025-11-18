@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import { useTheme } from "@/contexts/theme-context"
 import { geocodeMultipleStores, getUserLocation } from "@/lib/geocoding"
 import { Loader2, MapPin, AlertCircle } from "lucide-react"
@@ -41,36 +41,39 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
   const isDark = theme === "dark"
 
   // Map style for dark/warm theme
-  const mapStyle = isDark
-    ? [
-        { elementType: "geometry", stylers: [{ color: "#1a1a1a" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#1a1a1a" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#a0a0a0" }] },
-        { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b0" }] },
-        { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b0" }] },
-        { featureType: "poi.park", elementType: "geometry.fill", stylers: [{ color: "#263c3f" }] },
-        { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
-        { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
-        { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#4a4a4a" }] },
-        { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#5a5a5a" }] },
-        { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f3948" }] },
-        { featureType: "water", elementType: "geometry.fill", stylers: [{ color: "#0e1a1a" }] },
-      ]
-    : [
-        // Warm theme - matches site's orange aesthetic
-        { elementType: "geometry", stylers: [{ color: "#faf9f5" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#faf9f5" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#8b7355" }] },
-        { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d97706" }] },
-        { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d97706" }] },
-        { featureType: "poi.park", elementType: "geometry.fill", stylers: [{ color: "#fed7aa" }] },
-        { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-        { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#f3e8dc" }] },
-        { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#fef3c7" }] },
-        { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fde68a" }] },
-        { featureType: "transit", elementType: "geometry", stylers: [{ color: "#f5deb3" }] },
-        { featureType: "water", elementType: "geometry.fill", stylers: [{ color: "#e0e7ff" }] },
-      ]
+  const mapStyle = useMemo(() =>
+    isDark
+      ? [
+          { elementType: "geometry", stylers: [{ color: "#1a1a1a" }] },
+          { elementType: "labels.text.stroke", stylers: [{ color: "#1a1a1a" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#a0a0a0" }] },
+          { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b0" }] },
+          { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b0" }] },
+          { featureType: "poi.park", elementType: "geometry.fill", stylers: [{ color: "#263c3f" }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+          { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+          { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#4a4a4a" }] },
+          { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#5a5a5a" }] },
+          { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f3948" }] },
+          { featureType: "water", elementType: "geometry.fill", stylers: [{ color: "#0e1a1a" }] },
+        ]
+      : [
+          // Warm theme - matches site's orange aesthetic
+          { elementType: "geometry", stylers: [{ color: "#faf9f5" }] },
+          { elementType: "labels.text.stroke", stylers: [{ color: "#faf9f5" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#8b7355" }] },
+          { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d97706" }] },
+          { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d97706" }] },
+          { featureType: "poi.park", elementType: "geometry.fill", stylers: [{ color: "#fed7aa" }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+          { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#f3e8dc" }] },
+          { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#fef3c7" }] },
+          { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fde68a" }] },
+          { featureType: "transit", elementType: "geometry", stylers: [{ color: "#f5deb3" }] },
+          { featureType: "water", elementType: "geometry.fill", stylers: [{ color: "#e0e7ff" }] },
+        ],
+    [isDark]
+  )
 
   // Initialize map and load store locations
   useEffect(() => {
@@ -270,10 +273,11 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
       )}
 
       <div
-        ref={mapRef}
-        className={clsx("w-full h-96 rounded-lg border", isDark ? "border-[#e8dcc4]/30" : "border-orange-200")}
-        style={{ display: isLoading ? "none" : "block" }}
-      />
+        className={clsx("w-full rounded-lg border overflow-hidden", isDark ? "border-[#e8dcc4]/30" : "border-orange-200")}
+        style={{ height: "500px", display: isLoading ? "none" : "block" }}
+      >
+        <div ref={mapRef} className="w-full h-full" />
+      </div>
 
       {/* Legend */}
       <div className={clsx("flex items-center gap-4 text-xs p-2 rounded-lg", isDark ? "bg-[#181813] border border-[#e8dcc4]/20" : "bg-orange-50/50 border border-orange-200/50")}>

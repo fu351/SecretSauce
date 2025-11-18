@@ -295,11 +295,22 @@ export default function ShoppingPage() {
 
   const handleModalSelection = (option: GroceryItem) => {
     if (itemSearchSource && itemSearchSource.type !== "search-results" && itemSearchSource.shoppingItemId) {
+      const shoppingItem = shoppingList.find((item) => item.id === itemSearchSource.shoppingItemId)
+
+      // Update shopping list with new product info
       const updatedList = shoppingList.map((item) =>
-        item.id === itemSearchSource.shoppingItemId ? { ...item, name: option.title, unit: option.unit || item.unit } : item,
+        item.id === itemSearchSource.shoppingItemId
+          ? {
+              ...item,
+              name: option.title,
+              unit: option.unit || item.unit,
+            }
+          : item,
       )
       setShoppingList(updatedList)
       saveShoppingList(updatedList)
+
+      // Remove from missing items
       setMissingItems((prev) => prev.filter((item) => item.id !== itemSearchSource.shoppingItemId))
 
       // If this was a missing item being reloaded, add it to the carousel results
@@ -307,7 +318,6 @@ export default function ShoppingPage() {
         const storeToAdd = itemSearchSource.store || massSearchResults[0].store
         const updatedResults = massSearchResults.map((result) => {
           if (result.store === storeToAdd) {
-            const shoppingItem = updatedList.find((si) => si.id === itemSearchSource.shoppingItemId)
             return {
               ...result,
               items: [
@@ -1009,7 +1019,7 @@ export default function ShoppingPage() {
                 {/* Carousel and Map Side by Side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Carousel Section */}
-                  <div className="relative">
+                  <div className="relative min-w-0">
                     {/* Carousel Navigation */}
                     <div className="flex items-center justify-between mb-4">
                       <h2 className={`text-2xl font-bold ${textClass}`}>Store Comparison</h2>
@@ -1105,7 +1115,7 @@ export default function ShoppingPage() {
                                               size="sm"
                                               variant="outline"
                                               onClick={() =>
-                                                openItemSearchOverlay(item.title, {
+                                                openItemSearchOverlay(shoppingItem?.name || item.title, {
                                                   type: "shopping-list",
                                                   shoppingItemId: item.shoppingItemId,
                                                   store: comparison.store,
@@ -1196,7 +1206,7 @@ export default function ShoppingPage() {
                   </div>
 
                   {/* Store Map Section */}
-                  <div ref={mapContainerRef} className="space-y-4">
+                  <div ref={mapContainerRef} className="space-y-4 min-w-0">
                     <div>
                       <h2 className={`text-2xl font-bold ${textClass} mb-2`}>Store Locations</h2>
                       <p className={mutedTextClass}>Click markers to sync with the carousel</p>

@@ -68,7 +68,7 @@ export function TutorialBlocker() {
   return (
     <div
       ref={blocker}
-      className="fixed inset-0 z-30 bg-black/20 backdrop-blur-sm pointer-events-none"
+      className="fixed inset-0 z-30 bg-black/10 pointer-events-none"
       aria-hidden="true"
     />
   )
