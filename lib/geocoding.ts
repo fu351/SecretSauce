@@ -66,6 +66,12 @@ export async function geocodeStore(
         groceryDistanceMiles
       )
       if (nearestStore) {
+        console.log("[Geocoding] Places nearest result", {
+          storeName,
+          userCoordinates,
+          storeHint,
+          nearestStore,
+        })
         geocodeCache.set(cacheKey, nearestStore)
         return nearestStore
       }
@@ -135,7 +141,7 @@ export async function geocodeStore(
 
     // Cache the result
     geocodeCache.set(cacheKey, result)
-    console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${result.lat}, lng=${result.lng}`)
+      console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${result.lat}, lng=${result.lng}`)
 
     return result
   } catch (error) {
@@ -184,6 +190,12 @@ async function findNearestStoreWithPlaces(
       userCoordinates.lat
     },${userCoordinates.lng}&radius=${radiusMeters}&keyword=${encodeURIComponent(keyword)}&key=${apiKey}`
 
+    console.log("[Geocoding] Nearby search request", {
+      storeName,
+      keyword,
+      userCoordinates,
+      radiusMeters,
+    })
     let response = await fetch(nearbyUrl)
     if (!response.ok) {
       console.error(`[Geocoding] Nearby search error for ${storeName}:`, response.statusText)
@@ -200,6 +212,7 @@ async function findNearestStoreWithPlaces(
       const textUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
         keyword
       )}&location=${userCoordinates.lat},${userCoordinates.lng}&radius=${radiusMeters}&key=${apiKey}`
+      console.log("[Geocoding] Text search request", { storeName, keyword, userCoordinates })
       response = await fetch(textUrl)
       if (!response.ok) {
         console.error(`[Geocoding] Places Text Search error for ${storeName}:`, response.statusText)
@@ -240,11 +253,13 @@ async function findNearestStoreWithPlaces(
       return null
     }
 
-    return {
+    const resolved = {
       lat: selected.geometry.location.lat,
       lng: selected.geometry.location.lng,
       formattedAddress: selected.vicinity || selected.formatted_address,
     }
+    console.log("[Geocoding] Places result selected", { storeName, keyword, resolved })
+    return resolved
   } catch (error) {
     console.error(`[Geocoding] Error finding nearest store for ${storeName}:`, error)
     return null

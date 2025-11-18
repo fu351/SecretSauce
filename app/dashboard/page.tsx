@@ -194,7 +194,7 @@ export default function DashboardPage() {
               <Link href="/shopping">
                 <Button className="w-full h-24 flex flex-col gap-2">
                   <ShoppingCart className="h-6 w-6" />
-                  <span>Shopping List</span>
+                  <span>Manage Pantry</span>
                 </Button>
               </Link>
             </div>

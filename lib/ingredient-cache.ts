@@ -136,8 +136,24 @@ export async function cacheIngredientPrice(
       return false
     }
 
-    if (existingEntry && Number(existingEntry.price) <= price) {
-      // Existing price is cheaper or equal; skip update
+    const normalizedPrice = Number(price)
+    const priceValue = Number.isFinite(normalizedPrice) ? normalizedPrice : 0
+
+    let existingPriceValue: number | null = null
+    if (existingEntry && existingEntry.price !== null && existingEntry.price !== undefined) {
+      const parsedExisting = Number(existingEntry.price)
+      if (Number.isFinite(parsedExisting)) {
+        existingPriceValue = parsedExisting
+      }
+    }
+
+    if (existingPriceValue !== null && existingPriceValue <= priceValue) {
+      console.log("[Cache] Skipping update because cached price is cheaper or equal", {
+        store,
+        standardizedIngredientId,
+        existingPrice: existingPriceValue,
+        newPrice: priceValue,
+      })
       return false
     }
 
@@ -150,7 +166,7 @@ export async function cacheIngredientPrice(
         standardized_ingredient_id: standardizedIngredientId,
         store,
         product_name: productName || null,
-        price,
+        price: priceValue,
         quantity,
         unit,
         unit_price: unitPrice,
@@ -169,6 +185,12 @@ export async function cacheIngredientPrice(
       return false
     }
 
+    console.log("[Cache] Upserted ingredient price", {
+      store,
+      standardizedIngredientId,
+      productName,
+      price: priceValue,
+    })
     return true
   } catch (error) {
     console.error("Error in cacheIngredientPrice:", error)
@@ -531,11 +553,12 @@ export async function cacheScrapedResults(
       }
 
       // Cache the item
+      const priceValue = Number(item.price)
       const success = await cacheIngredientPrice(
         standardizedId,
         item.provider,
         item.title,
-        item.price,
+        Number.isFinite(priceValue) ? priceValue : 0,
         1, // quantity
         item.unit || "unit",
         unitPrice,

@@ -65,6 +65,7 @@ interface StoreComparison {
   distanceMiles?: number
   locationHint?: string
   missingItems?: boolean
+  missingCount?: number
 }
 
 /**
@@ -118,7 +119,6 @@ export default function ShoppingPage() {
     return document.documentElement.classList.contains("dark") ? "dark" : "light"
   }
   const isDark = (mounted ? theme : getDomTheme()) === "dark"
-  const pageBgClass = isDark ? "bg-[#0f0f0d]" : "bg-gray-50"
   const { toast } = useToast()
   const loadPantryInventory = useCallback(async () => {
     if (!user) {
@@ -145,6 +145,7 @@ export default function ShoppingPage() {
         })
       })
       setPantryInventory(map)
+      console.log("[Pantry] Loaded pantry inventory", { count: map.size })
     } catch (error) {
       console.error("Error loading pantry items:", error)
     }
@@ -152,22 +153,32 @@ export default function ShoppingPage() {
 
   const sortComparisons = useCallback(
     (comparisons: StoreComparison[]) => {
+      const shoppingIds = shoppingList.map((item) => item.id)
       return [...comparisons]
-        .map((comparison) => ({
-          ...comparison,
-          missingItems: comparison.items.length < shoppingList.length,
-        }))
+        .map((comparison) => {
+          const missingCount = shoppingIds.filter(
+            (shoppingId) => !comparison.items.some((item) => item.shoppingItemId === shoppingId)
+          ).length
+          return {
+            ...comparison,
+            missingCount,
+            missingItems: missingCount > 0,
+          }
+        })
         .sort((a, b) => {
-          if (!!a.outOfRadius !== !!b.outOfRadius) {
-            return Number(a.outOfRadius) - Number(b.outOfRadius)
+          if (a.total !== b.total) {
+            return a.total - b.total
           }
           if (!!a.missingItems !== !!b.missingItems) {
             return Number(a.missingItems) - Number(b.missingItems)
           }
-          return a.total - b.total
+          if (!!a.outOfRadius !== !!b.outOfRadius) {
+            return Number(a.outOfRadius) - Number(b.outOfRadius)
+          }
+          return a.store.localeCompare(b.store)
         })
     },
-    [shoppingList.length]
+    [shoppingList]
   )
 
   useEffect(() => {
@@ -419,6 +430,11 @@ export default function ShoppingPage() {
     (storeName: string, shoppingItemId: string, option: GroceryItem) => {
       const shoppingMap = new Map(shoppingList.map((item) => [item.id, item]))
 
+      console.log("[Shopping] Integrating manual selection", {
+        storeName,
+        shoppingItemId,
+        optionTitle: option.title,
+      })
       setMassSearchResults((prev) => {
         const updated = prev.map((comparison) => {
           if (comparison.store !== storeName) {
@@ -451,6 +467,7 @@ export default function ShoppingPage() {
             ...comparison,
             items: updatedItems,
             total: newTotal,
+            locationHint: comparison.locationHint || normalizedItem.location || option.location,
           }
         })
 
@@ -468,6 +485,11 @@ export default function ShoppingPage() {
         massSearchResults[0]?.store
 
       if (preferredStore) {
+        console.log("[Shopping] Manual selection applied", {
+          preferredStore,
+          shoppingItemId: itemSearchSource.shoppingItemId,
+          optionTitle: option.title,
+        })
         integrateManualSelection(preferredStore, itemSearchSource.shoppingItemId, option)
         setMissingItems((prev) => prev.filter((item) => item.id !== itemSearchSource.shoppingItemId))
         toast({
@@ -542,6 +564,13 @@ export default function ShoppingPage() {
             unit: entry.unit,
           })
         }
+      })
+
+      console.log("[Pantry] Processing Add to Pantry", {
+        store: comparison.store,
+        items: itemsToProcess.length,
+        inserts: inserts.length,
+        updates: updates.length,
       })
 
       if (inserts.length > 0) {
@@ -679,6 +708,10 @@ export default function ShoppingPage() {
       return
     }
 
+    console.log("[Shopping] Starting mass search", {
+      itemCount: shoppingList.length,
+      items: shoppingList.map((item) => item.name),
+    })
     setComparisonLoading(true)
     setMissingItems([])
     try {
@@ -688,6 +721,12 @@ export default function ShoppingPage() {
       })
 
       const searchResults = await Promise.all(searchPromises)
+      console.log("[Shopping] Completed individual store lookups", {
+        details: searchResults.map(({ item, storeResults }) => ({
+          shoppingItem: item.name,
+          stores: storeResults.length,
+        })),
+      })
 
       const storeMap = new Map<string, StoreComparison>()
       const missing: ShoppingListItem[] = []
@@ -804,7 +843,17 @@ export default function ShoppingPage() {
         setDistanceFilterWarning(null)
       }
 
-      setMassSearchResults(sortComparisons(filteredComparisons))
+      const sorted = sortComparisons(filteredComparisons)
+      console.log("[Shopping] Mass search finalized", {
+        stores: sorted.map((comparison) => ({
+          store: comparison.store,
+          total: comparison.total,
+          missingItems: comparison.missingItems,
+          outOfRadius: comparison.outOfRadius,
+        })),
+        missingCount: missing.length,
+      })
+      setMassSearchResults(sorted)
       setMissingItems(missing)
     } catch (error) {
       console.error("Error performing mass search:", error)
@@ -907,7 +956,7 @@ export default function ShoppingPage() {
     }
   }
 
-  const bgClass = theme === "dark" ? "bg-[#181813]" : "bg-gray-50"
+  const bgClass = isDark ? "bg-[#181813]" : "bg-gray-50"
   const textClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
   const cardBgClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white"
   const mutedTextClass = theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"
@@ -1219,6 +1268,11 @@ export default function ShoppingPage() {
                                           Outside Radius
                                         </Badge>
                                       )}
+                                      {comparison.missingCount && comparison.missingCount > 0 && (
+                                        <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-200">
+                                          Missing {comparison.missingCount}
+                                        </Badge>
+                                      )}
                                     </div>
                                     {comparison.distanceMiles && (
                                       <p className={`text-sm ${mutedTextClass}`}>
@@ -1304,14 +1358,16 @@ export default function ShoppingPage() {
                                     </div>
                                   )
                                 })}
-                                {shoppingList.length > comparison.items.length && (
+                                {comparison.missingCount && comparison.missingCount > 0 && (
                                   <div className="mt-4 border-t border-dashed border-border pt-4">
-                                    <p className={`text-sm font-semibold ${textClass} mb-2`}>Missing Items</p>
+                                    <p className={`text-sm font-semibold ${textClass} mb-2`}>
+                                      Missing Items ({comparison.missingCount})
+                                    </p>
                                     <div className="space-y-2">
                                       {shoppingList
                                         .filter(
                                           (listItem) =>
-                                            !comparison.items.some((item) => item.shoppingItemId === listItem.id),
+                                            !comparison.items.some((item) => item.shoppingItemId === listItem.id)
                                         )
                                         .map((listItem) => (
                                           <div
@@ -1327,7 +1383,7 @@ export default function ShoppingPage() {
                                               variant="outline"
                                               onClick={() =>
                                                 openItemSearchOverlay(listItem.name, {
-                                                  type: "shopping-list",
+                                                  type: "missing",
                                                   shoppingItemId: listItem.id,
                                                   store: comparison.store,
                                                 })
