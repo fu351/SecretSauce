@@ -72,7 +72,7 @@ export default function ShoppingPage() {
   const [itemSearchModalLoading, setItemSearchModalLoading] = useState(false)
   const [itemSearchSource, setItemSearchSource] = useState<
     { type: "shopping-list" | "missing" | "search-results"; shoppingItemId?: string; store?: string } | null
-  >(null)
+  >(null);
 
   const [carouselIndex, setCarouselIndex] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
