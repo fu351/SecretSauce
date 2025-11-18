@@ -17,6 +17,7 @@ interface FeedbackWidgetProps {
 export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [message, setMessage] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { theme } = useTheme()
   const { user } = useAuth()
@@ -37,9 +38,13 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
 
     setIsSubmitting(true)
     try {
+      const feedbackMessage = selectedCategory
+        ? `[${selectedCategory}] ${message.trim()}`
+        : message.trim()
+
       const { error } = await supabase.from("feedback").insert({
         user_id: user?.id || null,
-        message: message.trim(),
+        message: feedbackMessage,
         created_at: new Date().toISOString(),
       })
 
@@ -51,6 +56,7 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
       })
 
       setMessage("")
+      setSelectedCategory(null)
       setIsOpen(false)
     } catch (error) {
       console.error("Error submitting feedback:", error)
@@ -62,6 +68,12 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleCloseModal = () => {
+    setIsOpen(false)
+    setMessage("")
+    setSelectedCategory(null)
   }
 
   return (
@@ -87,7 +99,7 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50"
-            onClick={() => setIsOpen(false)}
+            onClick={handleCloseModal}
           />
 
           {/* Modal Content */}
@@ -99,7 +111,7 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
           >
             {/* Close Button */}
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={handleCloseModal}
               className={clsx(
                 "absolute top-4 right-4 p-1 rounded hover:bg-gray-200",
                 isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-gray-600 hover:bg-gray-100"
@@ -127,12 +139,16 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
                 {["Suggestion", "Bug Report", "Concern", "Other"].map((category) => (
                   <button
                     key={category}
-                    onClick={() => setMessage((prev) => (prev ? prev : `[${category}] `))}
+                    onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}
                     className={clsx(
-                      "px-3 py-1 text-xs rounded-full border transition-colors cursor-pointer",
-                      isDark
-                        ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:border-[#e8dcc4]/60 hover:bg-[#e8dcc4]/10"
-                        : "border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50"
+                      "px-3 py-1 text-xs rounded-full border transition-colors cursor-pointer font-medium",
+                      selectedCategory === category
+                        ? isDark
+                          ? "border-blue-500 bg-blue-600/30 text-blue-300"
+                          : "border-blue-400 bg-blue-50 text-blue-700"
+                        : isDark
+                          ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:border-[#e8dcc4]/60 hover:bg-[#e8dcc4]/10"
+                          : "border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50"
                     )}
                   >
                     {category}
@@ -162,7 +178,7 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
             {/* Buttons */}
             <div className="flex gap-2">
               <Button
-                onClick={() => setIsOpen(false)}
+                onClick={handleCloseModal}
                 variant="ghost"
                 className={clsx(
                   "flex-1",

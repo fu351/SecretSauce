@@ -424,73 +424,93 @@ export default function MealPlannerPage() {
     <div className="min-h-screen flex flex-col md:flex-row bg-background">
       <div className="flex-1 overflow-y-auto p-3 md:p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 md:mb-6 gap-3 md:gap-4">
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 w-full md:w-auto">
-              <h1 className={`text-2xl md:text-3xl font-bold text-text`}>Meal Planner</h1>
+          {/* Header Section */}
+          <div className="flex flex-col gap-4 mb-6">
+            {/* Title Row */}
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl md:text-3xl font-bold text-text">Meal Planner</h1>
 
-              {/* Mobile: Sidebar toggle (top control) */}
+              {/* Mobile: Sidebar toggle */}
               {isMobile && (
                 <Button
                   size="sm"
                   onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className={`${
-                    isDark
-                      ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90"
-                  }`}
+                  className={isDark
+                    ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  }
                 >
-                  <Menu className="h-4 w-4 mr-1" />
+                  <Menu className="h-4 w-4 mr-2" />
                   Recipes
                 </Button>
               )}
-
-              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <div className={`flex items-center gap-1 md:gap-2 bg-card rounded-lg p-1 shadow`}>
-                  <Button variant="ghost" size="icon" onClick={goToPreviousWeek} className="h-8 w-8 md:h-10 md:w-10">
-                    <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
-                  </Button>
-                  <span className={`px-2 md:px-4 text-xs md:text-sm font-medium text-text`}>
-                    {formatDate(weekDates[0] || "")}
-                  </span>
-                  <Button variant="ghost" size="icon" onClick={goToNextWeek} className="h-8 w-8 md:h-10 md:w-10">
-                    <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
-                  </Button>
-                </div>
-
-                <div className={`flex items-center gap-1 bg-card rounded-lg p-1 shadow`}>
-                  <Button
-                    variant={viewMode === "by-day" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setViewMode("by-day")}
-                    className={`text-xs md:text-sm ${viewMode === "by-day" ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
-                  >
-                    <Calendar className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                    {!isMobile && "By Day"}
-                  </Button>
-                  <Button
-                    variant={viewMode === "by-meal" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setViewMode("by-meal")}
-                    className={`text-xs md:text-sm ${viewMode === "by-meal" ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}`}
-                  >
-                    <List className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                    {!isMobile && "By Meal"}
-                  </Button>
-                </div>
-              </div>
             </div>
 
-            <Button
-              size={isMobile ? "sm" : "default"}
-              className={`w-full md:w-auto bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm relative md:ml-4 ${
-                isMobile ? "pr-16" : "px-8"
-              }`}
-              onClick={addToShoppingList}
-              data-tutorial="meal-plan-add"
-            >
-              <ShoppingCart className="h-3 w-3 md:h-4 md:w-4 mr-2" />
-              {isMobile ? "ADD TO CART" : "ADD TO SHOPPING LIST"}
-            </Button>
+            {/* Controls Row */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {/* Week Navigation */}
+              <div className="flex items-center bg-card rounded-lg shadow-sm border border-border p-1.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={goToPreviousWeek}
+                  className="h-9 w-9 hover:bg-accent"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <span className="px-4 text-sm font-semibold text-text min-w-[140px] text-center">
+                  {formatDate(weekDates[0] || "")}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={goToNextWeek}
+                  className="h-9 w-9 hover:bg-accent"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </div>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-card rounded-lg shadow-sm border border-border p-1">
+                <Button
+                  variant={viewMode === "by-day" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("by-day")}
+                  className={`flex-1 sm:flex-none transition-all ${
+                    viewMode === "by-day"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "hover:bg-accent"
+                  }`}
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  By Day
+                </Button>
+                <Button
+                  variant={viewMode === "by-meal" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("by-meal")}
+                  className={`flex-1 sm:flex-none transition-all ${
+                    viewMode === "by-meal"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "hover:bg-accent"
+                  }`}
+                >
+                  <List className="h-4 w-4 mr-2" />
+                  By Meal
+                </Button>
+              </div>
+
+              {/* Add to Shopping List Button */}
+              <Button
+                className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm sm:ml-auto"
+                onClick={addToShoppingList}
+                data-tutorial="meal-plan-add"
+              >
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                {isMobile ? "Add to Cart" : "Add to Shopping List"}
+              </Button>
+            </div>
           </div>
 
           {viewMode === "by-day" ? (

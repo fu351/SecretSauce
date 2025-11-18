@@ -38,8 +38,8 @@ export function TutorialOverlay() {
 
   // Get current substep if available, otherwise use main step
   const hasSubsteps = currentStep?.substeps && currentStep.substeps.length > 0
-  const currentSubstep = hasSubsteps ? currentStep.substeps[currentSubstepIndex] : null
-  const totalSubsteps = hasSubsteps ? currentStep.substeps.length : 1
+  const currentSubstep = hasSubsteps && currentStep?.substeps ? currentStep.substeps[currentSubstepIndex] : null
+  const totalSubsteps = hasSubsteps && currentStep?.substeps ? currentStep.substeps.length : 1
   const activeAction = currentSubstep?.action ?? currentStep?.action ?? "highlight"
   const activeTarget = currentSubstep?.actionTarget ?? currentStep?.actionTarget
   const actionMessage = (() => {
@@ -77,7 +77,7 @@ export function TutorialOverlay() {
     if (currentStep.action === "navigate" && currentStep.page && pathname === currentStep.page) {
       const timer = setTimeout(() => {
         nextStep()
-      }, 2000)
+      }, 4000)
       return () => clearTimeout(timer)
     }
   }, [pathname, currentStep, nextStep])
@@ -114,12 +114,24 @@ export function TutorialOverlay() {
     // Check each matching element for visibility
     for (const element of Array.from(allMatches)) {
       const rect = element.getBoundingClientRect()
+      const style = window.getComputedStyle(element as HTMLElement)
 
-      // Element is visible if it has dimensions and is within viewport or scrollable area
+      // Element is visible if it has dimensions (even if opacity is 0 or outside viewport)
       if (rect.height > 0 && rect.width > 0) {
-        // Additional check: ensure element or parent is not hidden via display/visibility
+        // Ensure element is not explicitly hidden
+        if (style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0") {
+          return element as HTMLElement
+        }
+      }
+    }
+
+    // If no perfectly visible element found, return first match with dimensions
+    // This helps with elements that might be slightly off-screen or have opacity transitions
+    for (const element of Array.from(allMatches)) {
+      const rect = element.getBoundingClientRect()
+      if (rect.height > 0 && rect.width > 0) {
         const style = window.getComputedStyle(element as HTMLElement)
-        if (style.display !== "none" && style.visibility !== "hidden") {
+        if (style.display !== "none") {
           return element as HTMLElement
         }
       }
@@ -330,8 +342,8 @@ export function TutorialOverlay() {
             ) : null}
             <span
               className={clsx(
-                "pointer-events-none absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-48 rounded-md px-3 py-2 text-[11px] opacity-0 transition-opacity group-hover:opacity-100 shadow-lg border",
-                isDark ? "bg-[#0f172a] text-white border-white/10" : "bg-white text-gray-700 border-gray-200"
+                "pointer-events-none absolute bottom-full right-1/2 translate-x-1/2 mb-3 w-48 rounded-lg px-3 py-2 text-[11px] leading-relaxed font-medium opacity-0 transition-all duration-200 group-hover:opacity-100 shadow-xl border backdrop-blur-sm",
+                isDark ? "bg-[#0f172a]/95 text-white border-blue-500/30" : "bg-white/95 text-gray-700 border-blue-400/30"
               )}
             >
               {nextButtonTooltip}
