@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import { StoreMap } from "@/components/store-map"
+import { geocodeMultipleStores, getUserLocation } from "@/lib/geocoding"
 
 interface GroceryItem {
   id: string
@@ -51,6 +52,21 @@ interface StoreComparison {
   items: (GroceryItem & { shoppingItemId: string })[]
   total: number
   savings: number
+}
+
+/**
+ * Calculate distance between two coordinates using Haversine formula
+ * Returns distance in miles
+ */
+function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3959 // Earth's radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
 }
 
 export default function ShoppingPage() {
@@ -491,7 +507,34 @@ export default function ShoppingPage() {
 
       comparisons.sort((a, b) => a.total - b.total)
 
-      setMassSearchResults(comparisons)
+      // Filter by distance if user has set a max distance preference
+      let filteredComparisons = comparisons
+      if (groceryDistanceKm && groceryDistanceKm > 0) {
+        try {
+          const maxDistanceMiles = groceryDistanceKm * 0.621371
+          const userLoc = await getUserLocation()
+
+          if (userLoc) {
+            const storeNames = comparisons.map((comp) => comp.store)
+            const geocodedStores = await geocodeMultipleStores(storeNames, zipCode, userLoc)
+
+            filteredComparisons = comparisons.filter((comparison) => {
+              const geocoded = geocodedStores.get(comparison.store)
+              if (!geocoded) return true // Include stores that couldn't be geocoded
+
+              const distance = calculateDistance(userLoc.lat, userLoc.lng, geocoded.lat, geocoded.lng)
+              return distance <= maxDistanceMiles
+            })
+
+            console.log(`[Shopping] Filtered ${comparisons.length} stores to ${filteredComparisons.length} within ${maxDistanceMiles.toFixed(1)} miles`)
+          }
+        } catch (error) {
+          console.error("Error filtering by distance:", error)
+          // Continue with unfiltered results if filtering fails
+        }
+      }
+
+      setMassSearchResults(filteredComparisons)
       setMissingItems(missing)
     } catch (error) {
       console.error("Error performing mass search:", error)

@@ -561,7 +561,7 @@ export default function SettingsPage() {
                 htmlFor="distance-settings"
                 className={`mb-2 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}
               >
-                Maximum Distance (km)
+                Maximum Distance (mi)
               </Label>
               <Input
                 id="distance-settings"
