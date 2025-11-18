@@ -19,7 +19,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" })
 
 export const metadata: Metadata = {
-  title: "Secret Sauce - Meal Planning Made Easy",
+  title: "Secret Sauce - Save $$$ on Groceries",
   description: "Discover recipes, plan meals, and save on groceries",
   generator: "v0.dev",
   icons: {
