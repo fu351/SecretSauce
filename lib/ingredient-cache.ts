@@ -123,6 +123,24 @@ export async function cacheIngredientPrice(
   try {
     const client = createServerClient()
 
+    // Check existing entry for this ingredient/store
+    const { data: existingEntry, error: existingError } = await client
+      .from("ingredient_cache")
+      .select("id, price")
+      .eq("standardized_ingredient_id", standardizedIngredientId)
+      .eq("store", store)
+      .maybeSingle()
+
+    if (existingError && existingError.code !== "PGRST116") {
+      console.error("Error checking existing ingredient cache entry:", existingError)
+      return false
+    }
+
+    if (existingEntry && Number(existingEntry.price) <= price) {
+      // Existing price is cheaper or equal; skip update
+      return false
+    }
+
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 24)
 

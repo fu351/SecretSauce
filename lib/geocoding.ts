@@ -37,12 +37,14 @@ export async function geocodeStore(
   storeName: string,
   userPostalCode?: string,
   userCoordinates?: { lat: number; lng: number },
-  groceryDistanceMiles: number = 10
+  groceryDistanceMiles: number = 10,
+  storeHint?: string
 ): Promise<GeocodeResult | null> {
   try {
     // Check cache first
     const locationKey = userCoordinates ? `${userCoordinates.lat.toFixed(2)},${userCoordinates.lng.toFixed(2)}` : "none"
-    const cacheKey = `${storeName}-${userPostalCode || "none"}-${locationKey}`
+    const hintKey = storeHint ? storeHint.toLowerCase().trim() : "none"
+    const cacheKey = `${storeName}-${userPostalCode || "none"}-${locationKey}-${hintKey}`
     if (geocodeCache.has(cacheKey)) {
       const cached = geocodeCache.get(cacheKey)
       console.log(`[Geocoding] Cache hit for ${storeName}`)
@@ -67,7 +69,12 @@ export async function geocodeStore(
     }
 
     if (userCoordinates) {
-      const nearestStore = await findNearestStoreWithPlaces(storeName, userCoordinates, apiKey, groceryDistanceMiles)
+      const nearestStore = await findNearestStoreWithPlaces(
+        storeHint ? `${storeName} ${storeHint}` : storeName,
+        userCoordinates,
+        apiKey,
+        groceryDistanceMiles
+      )
       if (nearestStore) {
         geocodeCache.set(cacheKey, nearestStore)
         return nearestStore
@@ -75,7 +82,8 @@ export async function geocodeStore(
     }
 
     // Build search query: store name + postal code for better accuracy
-    const searchQuery = userPostalCode ? `${storeName} ${userPostalCode}` : storeName
+    const baseQuery = storeHint ? `${storeName} ${storeHint}` : storeName
+    const searchQuery = userPostalCode ? `${baseQuery} ${userPostalCode}` : baseQuery
     console.log(`[Geocoding] Attempting to geocode ${storeName} with query: ${searchQuery}`)
 
     // Call Google Geocoding API
@@ -235,7 +243,8 @@ export async function geocodeMultipleStores(
   storeNames: string[],
   userPostalCode?: string,
   userCoordinates?: { lat: number; lng: number },
-  groceryDistanceMiles: number = 10
+  groceryDistanceMiles: number = 10,
+  storeHints?: Map<string, string | undefined>
 ): Promise<Map<string, GeocodeResult>> {
   const results = new Map<string, GeocodeResult>()
 
@@ -251,7 +260,8 @@ export async function geocodeMultipleStores(
       storeName,
       userPostalCode,
       resolvedCoordinates ?? undefined,
-      groceryDistanceMiles
+      groceryDistanceMiles,
+      storeHints?.get(storeName)
     )
     if (geocoded) {
       results.set(storeName, geocoded)

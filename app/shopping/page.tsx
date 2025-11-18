@@ -57,6 +57,7 @@ interface StoreComparison {
   savings: number
   outOfRadius?: boolean
   distanceMiles?: number
+  locationHint?: string
 }
 
 /**
@@ -518,6 +519,9 @@ export default function ShoppingPage() {
               shoppingItemId: item.id,
             })
             store.total += bestItem.price * item.quantity
+            if (!store.locationHint && bestItem.location) {
+              store.locationHint = bestItem.location
+            }
           }
         })
       })
@@ -543,7 +547,8 @@ export default function ShoppingPage() {
 
           if (userLoc) {
             const storeNames = comparisons.map((comp) => comp.store)
-            const geocodedStores = await geocodeMultipleStores(storeNames, zipCode, userLoc, groceryDistanceMiles)
+            const storeHints = new Map(comparisons.map((comp) => [comp.store, comp.locationHint]))
+            const geocodedStores = await geocodeMultipleStores(storeNames, zipCode, userLoc, groceryDistanceMiles, storeHints)
 
             const storeDistances = new Map<string, number>()
             comparisons.forEach((comparison) => {

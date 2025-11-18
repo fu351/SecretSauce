@@ -525,7 +525,7 @@ export default function UploadRecipePage() {
               <CardContent className="space-y-3">
                 {instructions.map((instruction, index) => (
                   <div key={index} className="flex gap-2">
-                    <div className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center flex-shrink-0 mt-1">
+                    <div className="w-8 h-8 rounded-full bg-[#d4af37] text-black flex items-center justify-center flex-shrink-0 mt-1">
                       {instruction.step}
                     </div>
                     <Textarea

@@ -137,6 +137,7 @@ interface StoreComparison {
   savings: number
   outOfRadius?: boolean
   distanceMiles?: number
+  locationHint?: string
 }
 
 interface StoreMapProps {
@@ -366,12 +367,14 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
         // Geocode stores and add markers
         const storeNames = comparisons.map((comp) => comp.store)
+        const storeHints = new Map(comparisons.map((comp) => [comp.store, comp.locationHint]))
         console.log(`[StoreMap] Found ${comparisons.length} stores to geocode:`, storeNames)
         const geocodedStores = await geocodeMultipleStores(
           storeNames,
           userPostalCode,
           userLoc || undefined,
-          maxDistanceMiles
+          maxDistanceMiles,
+          storeHints
         )
         console.log(`[StoreMap] Geocoded ${geocodedStores.size} stores:`, Array.from(geocodedStores.keys()))
 
@@ -500,7 +503,8 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
         [comparisons[i].store],
         userPostalCode,
         userLocation,
-        maxDistanceMiles
+        maxDistanceMiles,
+        new Map([[comparisons[i].store, comparisons[i].locationHint]])
       )
       const storeLocation = geocoded.get(comparisons[i].store)
 
