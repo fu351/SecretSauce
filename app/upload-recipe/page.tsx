@@ -267,11 +267,11 @@ export default function UploadRecipePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-4xl mx-auto p-6">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Recipe</h1>
-          <p className="text-gray-600">Share your delicious recipe with the community</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Upload Recipe</h1>
+          <p className="text-muted-foreground">Share your delicious recipe with the community</p>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -360,14 +360,14 @@ export default function UploadRecipePage() {
                         {imageFile ? imageFile.name : "Choose an image file"}
                       </Button>
                       {imageFile && (
-                        <p className="text-sm text-gray-500 mt-2">{(imageFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        <p className="text-sm text-muted-foreground mt-2">{(imageFile.size / 1024 / 1024).toFixed(2)} MB</p>
                       )}
                     </div>
                   )}
 
                   {imagePreview && (
                     <div className="mt-3 relative">
-                      <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-100">
+                      <div className="relative w-full h-48 rounded-lg overflow-hidden bg-muted">
                         <Image
                           src={imagePreview || "/placeholder.svg"}
                           alt="Recipe preview"
