@@ -15,7 +15,21 @@ export function ThemeSync() {
 
   useEffect(() => {
     const preferredTheme = profile?.theme_preference
-    if (!preferredTheme) return
+
+    // Validate theme value - must be 'light' or 'dark'
+    const isValidTheme = (value: any): value is 'light' | 'dark' => {
+      return value === 'light' || value === 'dark'
+    }
+
+    // If no preference or invalid value, default to dark and apply it
+    if (!isValidTheme(preferredTheme)) {
+      if (currentTheme !== 'dark') {
+        setTheme('dark')
+      }
+      return
+    }
+
+    // If valid and different from current, update to user's preference
     if (preferredTheme !== currentTheme) {
       setTheme(preferredTheme)
     }

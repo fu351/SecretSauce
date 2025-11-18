@@ -18,24 +18,22 @@ export function TutorialBlocker() {
   useEffect(() => {
     if (!isActive) return
 
-    const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-
+    const isAllowedElement = (target: HTMLElement): boolean => {
       // Allow clicks on tutorial overlay
       if (target.closest("[data-tutorial-overlay]")) {
-        return
+        return true
       }
 
       // Allow clicks on highlighted elements
       if (target.closest(".tutorial-highlight")) {
-        return
+        return true
       }
 
       // Allow clicks on action target if it's a specific element
       if (currentStep?.actionTarget && currentStep.action === "click") {
         const actionElement = document.querySelector(currentStep.actionTarget)
         if (actionElement && actionElement.contains(target)) {
-          return
+          return true
         }
       }
 
@@ -43,23 +41,56 @@ export function TutorialBlocker() {
       if (currentStep?.actionTarget && currentStep.action === "navigate") {
         const link = target.closest("a") as HTMLAnchorElement
         if (link && link.href && link.href.includes(currentStep.actionTarget)) {
-          return
+          return true
         }
       }
 
-      // Block all other interactions
-      e.preventDefault()
-      e.stopPropagation()
-      e.stopImmediatePropagation()
+      return false
     }
 
-    // Add blocker listener with capture phase
-    document.addEventListener("mousedown", handleMouseDown, true)
-    document.addEventListener("click", handleMouseDown, true)
+    const handleBlockEvent = (e: Event) => {
+      const target = e.target as HTMLElement
+
+      // Allow events on whitelisted elements
+      if (isAllowedElement(target)) {
+        return
+      }
+
+      // Block the event
+      e.preventDefault()
+      if (e instanceof MouseEvent || e instanceof KeyboardEvent) {
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+      }
+    }
+
+    // Block pointer events (click, mousedown, etc.)
+    document.addEventListener("mousedown", handleBlockEvent as EventListener, true)
+    document.addEventListener("click", handleBlockEvent as EventListener, true)
+
+    // Block scroll and wheel events
+    document.addEventListener("scroll", handleBlockEvent, true)
+    document.addEventListener("wheel", handleBlockEvent as EventListener, true)
+
+    // Block keyboard events
+    document.addEventListener("keydown", handleBlockEvent as EventListener, true)
+    document.addEventListener("keyup", handleBlockEvent as EventListener, true)
+
+    // Block drag and text selection
+    document.addEventListener("dragstart", handleBlockEvent as EventListener, true)
+    document.addEventListener("selectstart", handleBlockEvent as EventListener, true)
+    document.addEventListener("touchstart", handleBlockEvent as EventListener, true)
 
     return () => {
-      document.removeEventListener("mousedown", handleMouseDown, true)
-      document.removeEventListener("click", handleMouseDown, true)
+      document.removeEventListener("mousedown", handleBlockEvent as EventListener, true)
+      document.removeEventListener("click", handleBlockEvent as EventListener, true)
+      document.removeEventListener("scroll", handleBlockEvent, true)
+      document.removeEventListener("wheel", handleBlockEvent as EventListener, true)
+      document.removeEventListener("keydown", handleBlockEvent as EventListener, true)
+      document.removeEventListener("keyup", handleBlockEvent as EventListener, true)
+      document.removeEventListener("dragstart", handleBlockEvent as EventListener, true)
+      document.removeEventListener("selectstart", handleBlockEvent as EventListener, true)
+      document.removeEventListener("touchstart", handleBlockEvent as EventListener, true)
     }
   }, [isActive, currentStep])
 

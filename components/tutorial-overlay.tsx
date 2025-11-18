@@ -65,6 +65,27 @@ export function TutorialOverlay() {
     }
   }
 
+  // Helper function to find visible element matching selector
+  const findVisibleElement = (selector: string): HTMLElement | null => {
+    const allMatches = document.querySelectorAll(selector)
+
+    // Check each matching element for visibility
+    for (const element of Array.from(allMatches)) {
+      const rect = element.getBoundingClientRect()
+
+      // Element is visible if it has dimensions and is within viewport or scrollable area
+      if (rect.height > 0 && rect.width > 0) {
+        // Additional check: ensure element or parent is not hidden via display/visibility
+        const style = window.getComputedStyle(element as HTMLElement)
+        if (style.display !== "none" && style.visibility !== "hidden") {
+          return element as HTMLElement
+        }
+      }
+    }
+
+    return null
+  }
+
   // Find and highlight the target element (use substep selector if available)
   useEffect(() => {
     const highlightSelector = currentSubstep?.highlightSelector || currentStep?.highlightSelector
@@ -73,7 +94,8 @@ export function TutorialOverlay() {
       return
     }
 
-    const element = document.querySelector(highlightSelector)
+    // Find first visible element matching the selector
+    const element = findVisibleElement(highlightSelector)
     if (!element) return
 
     // Scroll element into view

@@ -647,7 +647,8 @@ export default function ShoppingPage() {
         <div className="space-y-6">
           {/* Price Search Section - Only show when there's 1 item in shopping list */}
           {shoppingList.length === 1 && (
-            <Card className={cardBgClass}>
+            <>
+              <Card className={cardBgClass}>
               <CardHeader>
                 <CardTitle className={`flex items-center gap-2 ${textClass}`}>
                   <SearchIcon className="h-5 w-5" />
@@ -824,6 +825,7 @@ export default function ShoppingPage() {
                 </div>
               </div>
             )}
+            </>
           )}
 
           {/* Shopping List Section */}
