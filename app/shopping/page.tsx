@@ -83,6 +83,7 @@ export default function ShoppingPage() {
   const [comparisonLoading, setComparisonLoading] = useState(false)
   const [draggedRecipe, setDraggedRecipe] = useState<string | null>(null)
   const [missingItems, setMissingItems] = useState<ShoppingListItem[]>([])
+  const [distanceFilterWarning, setDistanceFilterWarning] = useState<string | null>(null)
   const [itemSearchModalOpen, setItemSearchModalOpen] = useState(false)
   const [itemSearchModalTerm, setItemSearchModalTerm] = useState("")
   const [itemSearchModalResults, setItemSearchModalResults] = useState<GroceryItem[]>([])
@@ -543,11 +544,25 @@ export default function ShoppingPage() {
             })
 
             console.log(`[Shopping] Filtered ${comparisons.length} stores to ${filteredComparisons.length} within ${maxDistanceMiles.toFixed(1)} miles`)
+
+            if (filteredComparisons.length === 0 && comparisons.length > 0) {
+              setDistanceFilterWarning(
+                `No stores were within ${maxDistanceMiles.toFixed(1)} miles of your location. Showing all stores instead.`,
+              )
+              filteredComparisons = comparisons
+            } else {
+              setDistanceFilterWarning(null)
+            }
+          } else {
+            setDistanceFilterWarning(null)
           }
         } catch (error) {
           console.error("Error filtering by distance:", error)
           // Continue with unfiltered results if filtering fails
+          setDistanceFilterWarning("We couldn't filter by distance, so all stores are shown.")
         }
+      } else {
+        setDistanceFilterWarning(null)
       }
 
       setMassSearchResults(filteredComparisons)
@@ -887,6 +902,17 @@ export default function ShoppingPage() {
               </Card>
             ) : massSearchResults.length > 0 ? (
               <div className="space-y-6">
+                {distanceFilterWarning && (
+                  <div
+                    className={`rounded-lg border px-4 py-3 text-sm ${
+                      theme === "dark"
+                        ? "border-yellow-600/60 bg-yellow-900/30 text-yellow-200"
+                        : "border-yellow-400 bg-yellow-50 text-yellow-800"
+                    }`}
+                  >
+                    {distanceFilterWarning}
+                  </div>
+                )}
                 {/* Carousel and Map Side by Side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Carousel Section */}
