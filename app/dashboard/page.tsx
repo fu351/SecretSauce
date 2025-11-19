@@ -191,7 +191,7 @@ export default function DashboardPage() {
                   <span>Plan Meals</span>
                 </Button>
               </Link>
-              <Link href="/shopping">
+              <Link href="/pantry">
                 <Button className="w-full h-24 flex flex-col gap-2">
                   <ShoppingCart className="h-6 w-6" />
                   <span>Manage Pantry</span>

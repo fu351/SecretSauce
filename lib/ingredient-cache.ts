@@ -160,37 +160,46 @@ export async function cacheIngredientPrice(
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 24)
 
-    // Upsert the cache entry (insert or update if exists)
-    const { error } = await client.from("ingredient_cache").upsert(
-      {
-        standardized_ingredient_id: standardizedIngredientId,
-        store,
-        product_name: productName || null,
-        price: priceValue,
-        quantity,
-        unit,
-        unit_price: unitPrice,
-        image_url: imageUrl,
-        product_url: productUrl,
-        product_id: productId,
-        expires_at: expiresAt.toISOString(),
-      },
-      {
-        onConflict: "standardized_ingredient_id,store",
-      }
-    )
-
-    if (error) {
-      console.error("Error caching ingredient price:", error)
-      return false
+    const payload = {
+      standardized_ingredient_id: standardizedIngredientId,
+      store,
+      product_name: productName || null,
+      price: priceValue,
+      quantity,
+      unit,
+      unit_price: unitPrice,
+      image_url: imageUrl,
+      product_url: productUrl,
+      product_id: productId,
+      expires_at: expiresAt.toISOString(),
+      updated_at: new Date().toISOString(),
     }
 
-    console.log("[Cache] Upserted ingredient price", {
-      store,
-      standardizedIngredientId,
-      productName,
-      price: priceValue,
-    })
+    if (existingEntry) {
+      const { error } = await client.from("ingredient_cache").update(payload).eq("id", existingEntry.id)
+      if (error) {
+        console.error("Error updating ingredient cache:", error)
+        return false
+      }
+      console.log("[Cache] Updated ingredient price", {
+        store,
+        standardizedIngredientId,
+        productName,
+        price: priceValue,
+      })
+    } else {
+      const { error } = await client.from("ingredient_cache").insert(payload)
+      if (error) {
+        console.error("Error inserting ingredient cache:", error)
+        return false
+      }
+      console.log("[Cache] Inserted ingredient price", {
+        store,
+        standardizedIngredientId,
+        productName,
+        price: priceValue,
+      })
+    }
     return true
   } catch (error) {
     console.error("Error in cacheIngredientPrice:", error)

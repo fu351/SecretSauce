@@ -166,14 +166,14 @@ export default function ShoppingPage() {
           }
         })
         .sort((a, b) => {
-          if (a.total !== b.total) {
-            return a.total - b.total
-          }
-          if (!!a.missingItems !== !!b.missingItems) {
-            return Number(a.missingItems) - Number(b.missingItems)
-          }
           if (!!a.outOfRadius !== !!b.outOfRadius) {
             return Number(a.outOfRadius) - Number(b.outOfRadius)
+          }
+          if ((a.missingCount || 0) !== (b.missingCount || 0)) {
+            return (a.missingCount || 0) - (b.missingCount || 0)
+          }
+          if (a.total !== b.total) {
+            return a.total - b.total
           }
           return a.store.localeCompare(b.store)
         })
@@ -1268,9 +1268,9 @@ export default function ShoppingPage() {
                                           Outside Radius
                                         </Badge>
                                       )}
-                                      {comparison.missingCount && comparison.missingCount > 0 && (
+                                      {comparison.missingItems && (
                                         <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-200">
-                                          Missing {comparison.missingCount}
+                                          Missing Items
                                         </Badge>
                                       )}
                                     </div>
@@ -1358,11 +1358,9 @@ export default function ShoppingPage() {
                                     </div>
                                   )
                                 })}
-                                {comparison.missingCount && comparison.missingCount > 0 && (
+                                {comparison.missingItems && (
                                   <div className="mt-4 border-t border-dashed border-border pt-4">
-                                    <p className={`text-sm font-semibold ${textClass} mb-2`}>
-                                      Missing Items ({comparison.missingCount})
-                                    </p>
+                                    <p className={`text-sm font-semibold ${textClass} mb-2`}>Missing Items</p>
                                     <div className="space-y-2">
                                       {shoppingList
                                         .filter(

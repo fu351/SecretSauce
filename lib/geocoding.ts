@@ -60,10 +60,11 @@ export async function geocodeStore(
     // If we have user coordinates, attempt to find the nearest store using Nearby Search
     if (userCoordinates) {
       const nearestStore = await findNearestStoreWithPlaces(
-        storeHint ? `${storeName} ${storeHint}` : storeName,
+        storeName,
         userCoordinates,
         apiKey,
-        groceryDistanceMiles
+        groceryDistanceMiles,
+        storeHint
       )
       if (nearestStore) {
         console.log("[Geocoding] Places nearest result", {
@@ -180,15 +181,16 @@ async function findNearestStoreWithPlaces(
   storeName: string,
   userCoordinates: { lat: number; lng: number },
   apiKey: string,
-  groceryDistanceMiles: number
+  groceryDistanceMiles: number,
+  storeHint?: string
 ): Promise<GeocodeResult | null> {
-  const keyword = storeName.trim()
+  const keyword = storeHint ? `${storeName} ${storeHint}` : `${storeName} store`
   try {
     const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
     const radiusMeters = Math.min(effectiveMiles * 1609.34, 50000) // Places API max radius 50km
     const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${
       userCoordinates.lat
-    },${userCoordinates.lng}&radius=${radiusMeters}&keyword=${encodeURIComponent(keyword)}&key=${apiKey}`
+    },${userCoordinates.lng}&radius=${radiusMeters}&keyword=${encodeURIComponent(keyword)}&type=store&key=${apiKey}`
 
     console.log("[Geocoding] Nearby search request", {
       storeName,
