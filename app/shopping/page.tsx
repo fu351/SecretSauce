@@ -715,12 +715,7 @@ export default function ShoppingPage() {
     setComparisonLoading(true)
     setMissingItems([])
     try {
-      The logic incorrectly returns 75 miles when groceryDistanceMiles is 0, but returns 0 when groceryDistanceMiles is undefined/null. This inconsistency could cause unexpected behavior. Consider using groceryDistanceMiles || 0 or handle null/undefined explicitly.
-
-Suggested change:
-
--     const baseAllowedMiles = Math.max(groceryDistanceMiles ? groceryDistanceMiles * 2 : 0, 75)
-+     const baseAllowedMiles = Math.max(((groceryDistanceMiles ?? 10) * 2), 75)
+      const searchPromises = shoppingList.map(async (item) => {
         const storeResults = await searchGroceryStores(item.name, zipCode)
         return { item, storeResults }
       })
