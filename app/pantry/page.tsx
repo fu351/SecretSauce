@@ -49,6 +49,8 @@ interface PantryItem {
   category: string
   created_at: string
   updated_at: string
+  standardized_ingredient_id?: string | null
+  standardized_name?: string | null
 }
 
 interface Recipe {
@@ -59,8 +61,16 @@ interface Recipe {
   cook_time: number
   servings: number
   difficulty: string
-  ingredients: any[]
+  ingredients: RecipeIngredient[]
   match_percentage: number
+}
+
+interface RecipeIngredient {
+  name: string
+  amount?: string
+  unit?: string
+  standardizedIngredientId?: string
+  standardized_ingredient_id?: string
 }
 
 const categories = [
@@ -167,6 +177,51 @@ export default function PantryPage() {
     }
   }
 
+  const standardizePantryItem = async (pantryItemId: string, name: string, quantity: number, unit: string) => {
+    if (!user) return
+    try {
+      const response = await fetch("/api/ingredients/standardize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: "pantry",
+          pantryItemId,
+          userId: user.id,
+          ingredients: [
+            {
+              id: "pantry-0",
+              name,
+              amount: String(quantity),
+              unit,
+            },
+          ],
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Standardization failed")
+      }
+
+      const payload = await response.json()
+      const match = payload?.standardized?.[0]
+      if (match) {
+        setPantryItems((items) =>
+          items.map((item) =>
+            item.id === pantryItemId
+              ? {
+                  ...item,
+                  standardized_ingredient_id: match.standardizedIngredientId,
+                  standardized_name: match.canonicalName,
+                }
+              : item,
+          ),
+        )
+      }
+    } catch (error) {
+      console.warn("Unable to standardize pantry item:", error)
+    }
+  }
+
   const findSuggestedRecipes = async () => {
     try {
       const { data: recipes, error } = await supabase.from("recipes").select("*").limit(50)
@@ -178,16 +233,30 @@ export default function PantryPage() {
         const recipesWithMatch = recipes.map((recipe) => {
           const recipeIngredients = recipe.ingredients || []
           const pantryIngredientNames = pantryItems.map((item) => item.name.toLowerCase())
+          const pantryStandardizedIds = new Set(
+            pantryItems
+              .map((item) => item.standardized_ingredient_id)
+              .filter((value): value is string => Boolean(value)),
+          )
 
           let matchCount = 0
           recipeIngredients.forEach((ingredient: any) => {
-            const ingredientName = ingredient.name.toLowerCase()
-            if (
-              pantryIngredientNames.some(
-                (pantryItem) => pantryItem.includes(ingredientName) || ingredientName.includes(pantryItem),
-              )
-            ) {
+            const standardizedId = ingredient.standardizedIngredientId || ingredient.standardized_ingredient_id
+            const ingredientName = ingredient.name?.toLowerCase?.() || ""
+
+            if (standardizedId && pantryStandardizedIds.has(standardizedId)) {
               matchCount++
+              return
+            }
+
+            if (ingredientName) {
+              if (
+                pantryIngredientNames.some(
+                  (pantryItem) => pantryItem.includes(ingredientName) || ingredientName.includes(pantryItem),
+                )
+              ) {
+                matchCount++
+              }
             }
           })
 
@@ -299,6 +368,7 @@ export default function PantryPage() {
       if (error) throw error
 
       setPantryItems([data, ...pantryItems])
+      standardizePantryItem(data.id, data.name, data.quantity, data.unit)
       setNewItem({
         name: "",
         quantity: 1,
@@ -820,6 +890,12 @@ export default function PantryPage() {
                               <div className="flex-1">
                                 <h3 className={`font-bold mb-2 text-lg ${pageTextClass}`}>{item.name}</h3>
                                 <div className="flex items-center gap-2">{getExpiryBadge(item.expiry_date)}</div>
+                                {item.standardized_name && (
+                                  <p className={`text-xs mt-1 ${subTextClass}`}>
+                                    Standardized:{" "}
+                                    <span className="font-semibold">{item.standardized_name}</span>
+                                  </p>
+                                )}
                               </div>
                             </div>
 

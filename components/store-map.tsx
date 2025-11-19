@@ -200,6 +200,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
   const [travelTimes, setTravelTimes] = useState<Map<number, string>>(new Map())
 
   const isDark = theme === "dark"
+  const radiusLimitMiles = maxDistanceMiles ? maxDistanceMiles * 3 : null
 
   const buildInfoWindowContent = useCallback(
     (comparison: StoreComparison, travelTime?: string) => {
@@ -382,6 +383,15 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           return
         }
 
+        // Clear previous markers and routes before re-rendering
+        markersRef.current.forEach((marker) => marker.setMap(null))
+        markersRef.current.clear()
+        storeLocationsRef.current.clear()
+        directionsRenderersRef.current.forEach((renderer) => renderer.setMap(null))
+        directionsRenderersRef.current.clear()
+        travelTimesRef.current.clear()
+        setTravelTimes(new Map())
+
         if (!googleMapRef.current) {
           // Initialize Google Map
           googleMapRef.current = new google.maps.Map(mapRef.current, {
@@ -394,7 +404,9 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
           // Initialize Directions Service for route visualization
           directionsServiceRef.current = new google.maps.DirectionsService()
-          infoWindowRef.current = new google.maps.InfoWindow()
+          infoWindowRef.current = new google.maps.InfoWindow({
+            maxWidth: 280,
+          })
         }
 
         const map = googleMapRef.current
@@ -460,6 +472,20 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           }
 
           const position = { lat: geocoded.lat, lng: geocoded.lng }
+          const distanceFromUser =
+            userLoc && position
+              ? calculateDistance(userLoc.lat, userLoc.lng, position.lat, position.lng)
+              : comparison.distanceMiles
+
+          if (radiusLimitMiles && typeof distanceFromUser === "number" && distanceFromUser > radiusLimitMiles) {
+            console.warn(`[StoreMap] Skipping ${comparison.store} marker beyond limit`, {
+              distanceMiles: distanceFromUser,
+              limitMiles: radiusLimitMiles,
+              coordinates: position,
+            })
+            return
+          }
+
           storeLocationsRef.current.set(index, position)
 
           bounds.extend(position)
@@ -515,7 +541,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
     }
 
     initializeMap()
-  }, [comparisons, userPostalCode, isDark, mapStyle])
+  }, [comparisons, userPostalCode, isDark, mapStyle, maxDistanceMiles])
 
   // Update map styles when theme changes
   useEffect(() => {

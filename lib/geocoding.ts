@@ -41,6 +41,19 @@ export async function geocodeStore(
     const baseRadius = Math.max(groceryDistanceMiles ?? 10, 5)
     const allowedMiles = baseRadius * (isRelaxed ? 3 : 1.5)
     const allowedDriveMiles = baseRadius * (isRelaxed ? 4 : 2)
+    const strictHintLimitMiles = baseRadius * 3
+
+    if (storeHint) {
+      const hintResult = await geocodeStoreHint(storeName, storeHint, apiKey, userCoordinates, strictHintLimitMiles)
+      if (hintResult) {
+        console.log("[Geocoding] Using direct hint geocode result", {
+          storeName,
+          storeHint,
+          coordinates: hintResult,
+        })
+        return hintResult
+      }
+    }
 
     const searchOrigins: Array<{ lat: number; lng: number; source: "user" | "postal" }> = []
     if (userCoordinates) {
@@ -208,6 +221,63 @@ export async function geocodeStore(
     return result
   } catch (error) {
     console.error("Geocoding error:", error)
+    return null
+  }
+}
+
+async function geocodeStoreHint(
+  storeName: string,
+  storeHint: string,
+  apiKey: string,
+  userCoordinates?: { lat: number; lng: number },
+  strictRadiusMiles?: number
+): Promise<GeocodeResult | null> {
+  const trimmedHint = storeHint?.trim()
+  if (!trimmedHint) {
+    return null
+  }
+
+  try {
+    const query =
+      trimmedHint.toLowerCase().includes(storeName.toLowerCase()) ? trimmedHint : `${storeName} ${trimmedHint}`
+
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`
+    )
+
+    if (!response.ok) {
+      console.warn(`[Geocoding] Hint geocode error for ${storeName}:`, response.statusText)
+      return null
+    }
+
+    const data = await response.json()
+    if (data.status !== "OK" || !data.results?.length) {
+      return null
+    }
+
+    const candidate = data.results[0]
+    const resolved: GeocodeResult = {
+      lat: candidate.geometry.location.lat,
+      lng: candidate.geometry.location.lng,
+      formattedAddress: candidate.formatted_address,
+    }
+
+    if (userCoordinates && typeof strictRadiusMiles === "number") {
+      const straightDistanceMiles =
+        calculateDistance(userCoordinates.lat, userCoordinates.lng, resolved.lat, resolved.lng) * KM_TO_MILES
+      if (straightDistanceMiles > strictRadiusMiles) {
+        console.warn(`[Geocoding] Hint result for ${storeName} exceeded radius`, {
+          straightDistanceMiles,
+          strictRadiusMiles,
+          storeHint,
+        })
+        return null
+      }
+    }
+
+    return resolved
+  } catch (error) {
+    console.warn(`[Geocoding] Failed to geocode hint for ${storeName}:`, error)
     return null
   }
 }

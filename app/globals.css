@@ -240,3 +240,20 @@ html {
 img {
   content-visibility: auto;
 }
+
+/* Google Maps InfoWindow overrides to avoid double backgrounds */
+.gm-style .gm-style-iw-c {
+  padding: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.gm-style .gm-style-iw-d {
+  overflow: visible !important;
+}
+
+.gm-style .gm-style-iw-t::after,
+.gm-style .gm-style-iw-t::before {
+  display: none !important;
+}

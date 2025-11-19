@@ -2,7 +2,15 @@ import { type NextRequest, NextResponse } from "next/server"
 import {
   searchWithCache,
   cacheScrapedResults,
+  getCachedIngredientById,
+  getStandardizedIngredientMetadata,
 } from "@/lib/ingredient-cache"
+
+type SearchAttempt = {
+  term: string
+  standardizedId?: string | null
+  fromCanonical?: boolean
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -11,284 +19,267 @@ export async function GET(request: NextRequest) {
   const zipCode = searchParams.get("zipCode") || "47906"
   const rawStoreParam = (searchParams.get("store") || "").trim()
   const storeKey = resolveStoreKey(rawStoreParam)
+  const storeFilter = storeKey ? [mapStoreKeyToName(storeKey)] : undefined
 
   if (!sanitizedSearchTerm) {
     return NextResponse.json({ error: "Search term is required" }, { status: 400 })
   }
 
-  // Try to get cached results first using intelligent cache search
-  const cacheResult = await searchWithCache(
-    sanitizedSearchTerm,
-    storeKey ? [mapStoreKeyToName(storeKey)] : undefined
-  )
-  const standardizedIngredientId = cacheResult.standardizedId
+  const initialCacheResult = await searchWithCache(sanitizedSearchTerm, storeFilter)
 
-  if (cacheResult.cached && cacheResult.cached.length > 0) {
-    console.log(`Found ${cacheResult.cached.length} fresh cached results for "${sanitizedSearchTerm}" from cache`)
-    const formattedResults = formatCachedResults(cacheResult.cached, sanitizedSearchTerm)
+  if (initialCacheResult.cached && initialCacheResult.cached.length > 0) {
+    console.log(`Found ${initialCacheResult.cached.length} cached results for "${sanitizedSearchTerm}"`)
+    const formattedResults = formatCachedResults(initialCacheResult.cached, sanitizedSearchTerm)
     return NextResponse.json({ results: formattedResults, cached: true, source: "database" })
+  }
+
+  const attempts: SearchAttempt[] = [
+    {
+      term: sanitizedSearchTerm,
+      standardizedId: initialCacheResult.standardizedId,
+    },
+  ]
+
+  if (initialCacheResult.standardizedId) {
+    const meta = await getStandardizedIngredientMetadata(initialCacheResult.standardizedId)
+    const canonicalName = meta?.canonical_name
+    if (
+      canonicalName &&
+      canonicalName.length > 0 &&
+      canonicalName.toLowerCase() !== sanitizedSearchTerm.toLowerCase()
+    ) {
+      attempts.push({
+        term: canonicalName,
+        standardizedId: initialCacheResult.standardizedId,
+        fromCanonical: true,
+      })
+    }
+  }
+
+  for (const attempt of attempts) {
+    const response = await executeSearchAttempt(attempt, { storeKey, storeFilter, zipCode })
+    if (response) {
+      return NextResponse.json(response)
+    }
+  }
+
+  console.warn(`All scrapers failed for "${sanitizedSearchTerm}". Returning placeholder results.`)
+  return NextResponse.json({ results: generateMockResults(zipCode) })
+}
+
+async function executeSearchAttempt(
+  attempt: SearchAttempt,
+  options: {
+    storeKey: string | null
+    storeFilter?: string[]
+    zipCode: string
+  },
+) {
+  const { storeKey, storeFilter, zipCode } = options
+  const searchTerm = attempt.term
+  const standardizedIngredientId = attempt.standardizedId
+
+  if (attempt.fromCanonical && standardizedIngredientId) {
+    const cached = await getCachedIngredientById(standardizedIngredientId, storeFilter)
+    if (cached.length > 0) {
+      console.log(
+        `[Cache] Found ${cached.length} cached items for canonical term "${searchTerm}" (standardized: ${standardizedIngredientId})`,
+      )
+      return { results: formatCachedResults(cached, searchTerm), cached: true, source: "database" }
+    }
   }
 
   if (storeKey) {
     try {
-      const results = await runStoreSpecificSearch(storeKey, sanitizedSearchTerm, zipCode)
-
-      // Cache the scraped results for future searches
-      if (results && results.length > 0) {
-        const cachedCount = await cacheScrapedResults(
-          results.map(item => ({
-            title: item.title,
-            brand: item.brand || undefined,
-            price: item.price,
-            pricePerUnit: item.pricePerUnit,
-            unit: item.unit,
-            image_url: item.image_url,
-            provider: item.provider,
-            product_url: item.product_url,
-            product_id: item.id,
-          })), { standardizedIngredientId }
-        )
-        console.log(`Cached ${cachedCount}/${results.length} scraped results from ${storeKey}`)
+      const storeResults = await runStoreSpecificSearch(storeKey, searchTerm, zipCode)
+      if (storeResults && storeResults.length > 0) {
+        await cacheScrapedResults(serializeForCache(storeResults), { standardizedIngredientId, searchTerm })
+        return { results: storeResults }
       }
-
-      return NextResponse.json({ results })
     } catch (error) {
       console.error(`Error running ${storeKey} scraper:`, error)
-      return NextResponse.json({ results: [] })
+      return { results: [] }
     }
+    return null
   }
 
-  try {
-    // Try to call the Python grocery search service
-    const pythonServiceUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000"
+  const pythonResults = await runPythonServiceSearch(searchTerm, zipCode)
+  if (pythonResults && pythonResults.length > 0) {
+    await cacheScrapedResults(serializeForCache(pythonResults), { standardizedIngredientId, searchTerm })
+    return { results: pythonResults }
+  }
 
+  const localResults = await runLocalScrapers(searchTerm, zipCode)
+  if (localResults && localResults.length > 0) {
+    await cacheScrapedResults(serializeForCache(localResults), { standardizedIngredientId, searchTerm })
+    return { results: localResults }
+  }
+
+  return null
+}
+
+function serializeForCache(items: any[]) {
+  return items.map((item) => ({
+    title: item.title || item.name || "Unknown Item",
+    brand: item.brand || undefined,
+    price: item.price,
+    pricePerUnit: item.pricePerUnit,
+    unit: item.unit,
+    image_url: item.image_url,
+    provider: item.provider,
+    product_url: item.product_url,
+    product_id: item.id,
+  }))
+}
+
+async function runPythonServiceSearch(searchTerm: string, zipCode: string) {
+  try {
+    const pythonServiceUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000"
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout for Python service
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
 
     const response = await fetch(
-      `${pythonServiceUrl}/grocery-search?searchTerm=${encodeURIComponent(sanitizedSearchTerm)}&zipCode=${zipCode}`,
+      `${pythonServiceUrl}/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}`,
       {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         signal: controller.signal,
       },
     )
 
     clearTimeout(timeoutId)
 
-    if (response.ok) {
-      const data = await response.json()
-      // Check if Python service returned results
-      if (data.results && data.results.length > 0) {
-        console.log(`[Python Service] Got ${data.results.length} results from Python service`)
+    if (!response.ok) {
+      return []
+    }
 
-        // Cache the Python service results for future searches
-        const cachedCount = await cacheScrapedResults(
-          data.results.map((item: any) => ({
-            title: item.title,
-            brand: item.brand || undefined,
-            price: item.price,
-            pricePerUnit: item.pricePerUnit,
-            unit: item.unit,
-            image_url: item.image_url,
-            provider: item.provider,
-            product_url: item.product_url,
-            product_id: item.id,
-          })), { standardizedIngredientId }
-        )
-        console.log(`Cached ${cachedCount}/${data.results.length} results from Python service`)
-
-        return NextResponse.json(data)
-      } else {
-        console.warn("Python service returned no results, falling back to local scrapers")
-      }
+    const data = await response.json()
+    if (data.results && data.results.length > 0) {
+      console.log(`[Python Service] Retrieved ${data.results.length} items for "${searchTerm}"`)
+      return data.results
     }
   } catch (error) {
-    console.warn("Python service not available, using local scrapers:", error)
+    console.warn("Python service unavailable:", error)
   }
+  return []
+}
 
-  // Try local scrapers if Python service is not available
+async function runLocalScrapers(searchTerm: string, zipCode: string) {
   try {
-    const scrapers = require('@/lib/scrapers')
-    
+    const scrapers = require("@/lib/scrapers")
     const results = await Promise.allSettled([
-      scrapers.getTargetProducts(sanitizedSearchTerm, null, zipCode),
-      scrapers.Krogers(zipCode, sanitizedSearchTerm),
-      scrapers.Meijers(zipCode, sanitizedSearchTerm),
-      scrapers.search99Ranch(sanitizedSearchTerm, zipCode),
-      scrapers.searchWalmartAPI(sanitizedSearchTerm, zipCode),
-      scrapers.searchTraderJoes(sanitizedSearchTerm, zipCode),
-      scrapers.searchAldi(sanitizedSearchTerm, zipCode)
+      scrapers.getTargetProducts(searchTerm, null, zipCode),
+      scrapers.Krogers(zipCode, searchTerm),
+      scrapers.Meijers(zipCode, searchTerm),
+      scrapers.search99Ranch(searchTerm, zipCode),
+      scrapers.searchWalmartAPI(searchTerm, zipCode),
+      scrapers.searchTraderJoes(searchTerm, zipCode),
+      scrapers.searchAldi(searchTerm, zipCode),
     ])
 
-    const allItems = []
-    
-    // Process Target results
-    if (results[0].status === 'fulfilled' && results[0].value.length > 0) {
-      const targetItems = results[0].value.map((item: any) => ({
-        id: item.id || `target-${Math.random()}`,
-        title: item.title || "Unknown Item",
-        brand: item.brand || "",
-        price: Number(item.price) || 0,
-        pricePerUnit: item.pricePerUnit,
-        unit: item.unit,
-        image_url: item.image_url || "/placeholder.svg",
-        provider: "Target",
-        location: item.location || getStoreLocationLabel("Target", zipCode),
-        category: item.category,
-      }))
-      allItems.push(...targetItems)
-    } else {
-      console.warn("Target scraper failed or returned no results")
+    const items: any[] = []
+
+    const pushItems = (status: PromiseSettledResult<any[]>, formatter: (value: any) => any) => {
+      if (status.status === "fulfilled" && status.value.length > 0) {
+        items.push(...status.value.map(formatter).filter(Boolean))
+      }
     }
 
-    // Process Kroger results
-    if (results[1].status === 'fulfilled' && results[1].value.length > 0) {
-      const krogerItems = results[1].value.map((item: any) => ({
-        id: item.id || `kroger-${Math.random()}`,
-        title: item.title || "Unknown Item",
-        brand: item.brand || "",
-        price: Number(item.price) || 0,
-        pricePerUnit: item.pricePerUnit,
-        unit: item.unit,
-        image_url: item.image_url || "/placeholder.svg",
-        provider: "Kroger",
-        location: item.location || getStoreLocationLabel("Kroger", zipCode),
-        category: item.category,
-      }))
-      allItems.push(...krogerItems)
-    } else {
-      console.warn("Kroger scraper failed or returned no results")
-    }
+    pushItems(results[0], (item: any) => ({
+      id: item.id || `target-${Math.random()}`,
+      title: item.title || "Unknown Item",
+      brand: item.brand || "",
+      price: Number(item.price) || 0,
+      pricePerUnit: item.pricePerUnit,
+      unit: item.unit,
+      image_url: item.image_url || "/placeholder.svg",
+      provider: "Target",
+      location: item.location || getStoreLocationLabel("Target", zipCode),
+      category: item.category,
+    }))
 
-    // Process Meijer results
-    if (results[2].status === 'fulfilled' && results[2].value.length > 0) {
-      const meijerItems = results[2].value.map((item: any) => ({
-        id: item.id || `meijer-${Math.random()}`,
-        title: item.name || "Unknown Item",
-        brand: item.brand || "",
-        price: Number(item.price) || 0,
-        pricePerUnit: item.pricePerUnit,
-        unit: item.unit,
-        image_url: item.image_url || "/placeholder.svg",
-        provider: "Meijer",
-        location: item.location || getStoreLocationLabel("Meijer", zipCode),
-        category: item.category,
-      }))
-      allItems.push(...meijerItems)
-    } else {
-      console.warn("Meijer scraper failed or returned no results")
-    }
+    pushItems(results[1], (item: any) => ({
+      id: item.id || `kroger-${Math.random()}`,
+      title: item.title || "Unknown Item",
+      brand: item.brand || "",
+      price: Number(item.price) || 0,
+      pricePerUnit: item.pricePerUnit,
+      unit: item.unit,
+      image_url: item.image_url || "/placeholder.svg",
+      provider: "Kroger",
+      location: item.location || getStoreLocationLabel("Kroger", zipCode),
+      category: item.category,
+    }))
 
-    // Process 99 Ranch results
-    if (results[3].status === 'fulfilled' && results[3].value.length > 0) {
-      const ranchItems = results[3].value.map((item: any) => ({
-        id: item.id || `99ranch-${Math.random()}`,
-        title: item.title || "Unknown Item",
-        brand: item.brand || "",
-        price: Number(item.price) || 0,
-        pricePerUnit: item.pricePerUnit,
-        unit: item.unit,
-        image_url: item.image_url || "/placeholder.svg",
-        provider: "99 Ranch",
-        location: item.location || "99 Ranch Market",
-        category: item.category,
-      }))
-      allItems.push(...ranchItems)
-    } else {
-      console.warn("99 Ranch scraper failed or returned no results")
-    }
+    pushItems(results[2], (item: any) => ({
+      id: item.id || `meijer-${Math.random()}`,
+      title: item.name || item.title || "Unknown Item",
+      brand: item.brand || "",
+      price: Number(item.price) || 0,
+      pricePerUnit: item.pricePerUnit,
+      unit: item.unit,
+      image_url: item.image_url || "/placeholder.svg",
+      provider: "Meijer",
+      location: item.location || getStoreLocationLabel("Meijer", zipCode),
+      category: item.category,
+    }))
 
-    // Process Walmart results
-    if (results[4].status === 'fulfilled' && results[4].value.length > 0) {
-      const walmartItems = results[4].value.map((item: any) => ({
-        id: item.id || `walmart-${Math.random()}`,
-        title: item.title || "Unknown Item",
-        brand: item.brand || "",
-        price: Number(item.price) || 0,
-        pricePerUnit: item.pricePerUnit,
-        unit: item.unit,
-        image_url: item.image_url || "/placeholder.svg",
-        provider: "Walmart",
-        location: item.location || "Walmart Store",
-        category: item.category,
-      }))
-      allItems.push(...walmartItems)
-    } else {
-      console.warn("Walmart scraper failed or returned no results")
-    }
+    pushItems(results[3], (item: any) => ({
+      id: item.id || `99ranch-${Math.random()}`,
+      title: item.title || "Unknown Item",
+      brand: item.brand || "",
+      price: Number(item.price) || 0,
+      pricePerUnit: item.pricePerUnit,
+      unit: item.unit,
+      image_url: item.image_url || "/placeholder.svg",
+      provider: "99 Ranch",
+      location: item.location || "99 Ranch Market",
+      category: item.category,
+    }))
 
-    // Process Trader Joe's results
-    if (results[5].status === 'fulfilled' && results[5].value.length > 0) {
-      const traderJoesItems = results[5].value.map((item: any) => ({
-        id: item.id || `traderjoes-${Math.random()}`,
-        title: item.title || "Unknown Item",
-        brand: item.brand || "Trader Joe's",
-        price: Number(item.price) || 0,
-        pricePerUnit: item.pricePerUnit,
-        unit: item.unit,
-        image_url: item.image_url || "/placeholder.svg",
-        provider: "Trader Joe's",
-        location: item.location || "Trader Joe's Store",
-        category: item.category,
-      }))
-      allItems.push(...traderJoesItems)
-    } else {
-      console.warn("Trader Joe's scraper failed or returned no results")
-    }
+    pushItems(results[4], (item: any) => ({
+      id: item.id || `walmart-${Math.random()}`,
+      title: item.title || "Unknown Item",
+      brand: item.brand || "",
+      price: Number(item.price) || 0,
+      pricePerUnit: item.pricePerUnit,
+      unit: item.unit,
+      image_url: item.image_url || "/placeholder.svg",
+      provider: "Walmart",
+      location: item.location || "Walmart Store",
+      category: item.category,
+    }))
 
-    // Process Aldi results
-    if (results[6].status === 'fulfilled' && results[6].value.length > 0) {
-      const aldiItems = results[6].value.map((item: any) => ({
-        id: item.id || `aldi-${Math.random()}`,
-        title: item.title || "Unknown Item",
-        brand: item.brand || "ALDI",
-        price: Number(item.price) || 0,
-        pricePerUnit: item.pricePerUnit,
-        unit: item.unit,
-        image_url: item.image_url || "/placeholder.svg",
-        provider: "Aldi",
-        location: item.location || "Aldi Store",
-        category: item.category,
-      }))
-      allItems.push(...aldiItems)
-    } else {
-      console.warn("Aldi scraper failed or returned no results")
-    }
+    pushItems(results[5], (item: any) => ({
+      id: item.id || `traderjoes-${Math.random()}`,
+      title: item.title || "Unknown Item",
+      brand: item.brand || "Trader Joe's",
+      price: Number(item.price) || 0,
+      pricePerUnit: item.pricePerUnit,
+      unit: item.unit,
+      image_url: item.image_url || "/placeholder.svg",
+      provider: "Trader Joe's",
+      location: item.location || "Trader Joe's Store",
+      category: item.category,
+    }))
 
-    // If we have results from any scraper, cache them and return
-    if (allItems.length > 0) {
-      // Cache all the scraped results for future searches
-      const cachedCount = await cacheScrapedResults(
-        allItems.map(item => ({
-          title: item.title,
-          brand: item.brand || undefined,
-          price: item.price,
-          pricePerUnit: item.pricePerUnit,
-          unit: item.unit,
-          image_url: item.image_url,
-          provider: item.provider,
-          product_url: item.product_url,
-          product_id: item.id,
-        })), { standardizedIngredientId }
-      )
-      console.log(`Cached ${cachedCount}/${allItems.length} scraped results from local scrapers`)
+    pushItems(results[6], (item: any) => ({
+      id: item.id || `aldi-${Math.random()}`,
+      title: item.title || "Unknown Item",
+      brand: item.brand || "ALDI",
+      price: Number(item.price) || 0,
+      pricePerUnit: item.pricePerUnit,
+      unit: item.unit,
+      image_url: item.image_url || "/placeholder.svg",
+      provider: "Aldi",
+      location: item.location || "Aldi Store",
+      category: item.category,
+    }))
 
-      return NextResponse.json({ results: allItems })
-    }
-
-    // If no scrapers worked, return mock data
-    console.warn("All scrapers failed, returning mock data")
-    const mockResults = generateMockResults(zipCode)
-    return NextResponse.json({ results: mockResults })
-
+    return items
   } catch (error) {
-    console.error("Error using local scrapers:", error)
-    // Return mock data when scrapers fail
-    const mockResults = generateMockResults(zipCode)
-    return NextResponse.json({ results: mockResults })
+    console.error("Error running local scrapers:", error)
+    return []
   }
 }
 
@@ -302,7 +293,6 @@ function generateMockResults(zipCode?: string) {
     { name: "Aldi", location: "Aldi Store" },
   ]
 
-  // Return stores with unavailable message instead of fake prices
   return stores.map((store) => ({
     id: `${store.name.toLowerCase()}-unavailable`,
     title: "Real-time prices unavailable",
@@ -424,7 +414,7 @@ async function runStoreSpecificSearch(storeKey: string, searchTerm: string, zipC
         category: item.category,
       }))
     },
-    "aldi": async () => {
+    aldi: async () => {
       const items = (await scrapers.searchAldi(searchTerm, zipCode)) || []
       return items.map((item: any) => ({
         id: item.id || `aldi-${Math.random()}`,
@@ -448,9 +438,6 @@ async function runStoreSpecificSearch(storeKey: string, searchTerm: string, zipC
   return handlers[storeKey]()
 }
 
-/**
- * Convert a store key to its full name for database queries
- */
 function mapStoreKeyToName(storeKey: string): string {
   const storeMap: Record<string, string> = {
     target: "Target",
@@ -459,7 +446,7 @@ function mapStoreKeyToName(storeKey: string): string {
     "99 ranch": "99 Ranch",
     walmart: "Walmart",
     "trader joes": "Trader Joe's",
-    "aldi": "Aldi",
+    aldi: "Aldi",
   }
   return storeMap[storeKey] || storeKey
 }
@@ -471,9 +458,6 @@ function getStoreLocationLabel(storeName: string, zipCode?: string) {
   return `${storeName} Store`
 }
 
-/**
- * Format cached ingredient results to match the expected API response format
- */
 function formatCachedResults(
   cachedItems: Array<{
     id: string
@@ -489,15 +473,12 @@ function formatCachedResults(
     product_id: string | null
     expires_at: string
   }>,
-  fallbackName?: string
+  fallbackName?: string,
 ): any[] {
   return cachedItems.map((item) => {
     const quantityDisplay = `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
     const fallbackBase =
-      fallbackName ||
-      item.product_name ||
-      item.standardized_ingredient_id ||
-      "Ingredient"
+      fallbackName || item.product_name || item.standardized_ingredient_id || "Ingredient"
     const fallbackTitle = `${fallbackBase} (${quantityDisplay})`
 
     return {

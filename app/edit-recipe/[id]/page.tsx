@@ -46,6 +46,8 @@ interface Ingredient {
   name: string
   amount: string
   unit: string
+  standardizedIngredientId?: string
+  standardizedName?: string
 }
 
 interface Instruction {
@@ -86,6 +88,41 @@ export default function EditRecipePage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([{ name: "", amount: "", unit: "" }])
   const [instructions, setInstructions] = useState<Instruction[]>([{ step: 1, description: "" }])
 
+  const standardizeRecipeIngredients = async (recipeId: string, recipeIngredients: Ingredient[]) => {
+    try {
+      const response = await fetch("/api/ingredients/standardize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: "recipe",
+          recipeId,
+          ingredients: recipeIngredients.map((ingredient, index) => ({
+            ...ingredient,
+            id: index,
+          })),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to standardize ingredients")
+      }
+
+      const payload = await response.json()
+      if (payload?.standardized?.length) {
+        toast({
+          title: "Ingredients standardized",
+          description: "Recipe ingredients were mapped to canonical grocery items.",
+        })
+      }
+    } catch (error) {
+      console.error("Ingredient standardization failed:", error)
+      toast({
+        title: "Standardization skipped",
+        description: "We couldn't standardize the ingredients automatically.",
+      })
+    }
+  }
+
   useEffect(() => {
     if (user && params.id) {
       fetchRecipe()
@@ -93,7 +130,8 @@ export default function EditRecipePage() {
   }, [user, params.id])
 
   const fetchRecipe = async () => {
-    if (!user || !params.id) return
+    const recipeId = Array.isArray(params.id) ? params.id[0] : params.id
+    if (!user || !recipeId) return
 
     try {
       setLoading(true)
@@ -292,16 +330,18 @@ export default function EditRecipePage() {
         updated_at: new Date().toISOString(),
       }
 
-      const { error } = await supabase.from("recipes").update(recipeData).eq("id", params.id).eq("author_id", user.id)
+      const { error } = await supabase.from("recipes").update(recipeData).eq("id", recipeId).eq("author_id", user.id)
 
       if (error) throw error
+
+      await standardizeRecipeIngredients(recipeId, recipeData.ingredients)
 
       toast({
         title: "Recipe updated!",
         description: "Your recipe has been successfully updated.",
       })
 
-      router.push(`/recipes/${params.id}`)
+      router.push(`/recipes/${recipeId}`)
     } catch (error: any) {
       console.error("Error updating recipe:", error)
       toast({

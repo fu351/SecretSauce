@@ -15,6 +15,143 @@ export interface CachedIngredient {
   expires_at: string
 }
 
+type SupabaseClientType = ReturnType<typeof createServerClient>
+type StandardizedIngredientRow = { id: string; canonical_name: string; category?: string | null }
+
+const INGREDIENT_STOP_WORDS = new Set([
+  "fresh",
+  "large",
+  "small",
+  "boneless",
+  "skinless",
+  "ripe",
+  "optional",
+  "chopped",
+  "sliced",
+  "diced",
+  "minced",
+  "ground",
+  "crushed",
+  "grated",
+  "shredded",
+  "cooked",
+  "uncooked",
+  "raw",
+  "whole",
+  "dried",
+  "toasted",
+  "packed",
+  "divided",
+])
+
+const STANDARDIZED_CACHE_TTL_MS = 1000 * 60 * 5
+let standardizedIngredientCache: StandardizedIngredientRow[] | null = null
+let standardizedIngredientCacheExpiresAt = 0
+const standardizedIngredientIndex = new Map<string, StandardizedIngredientRow>()
+
+function simplifyIngredientTokens(value: string): string {
+  return value
+    .replace(/\(.*?\)/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token && !INGREDIENT_STOP_WORDS.has(token))
+    .join(" ")
+    .trim()
+}
+
+function normalizeIngredientKey(value?: string | null): string | null {
+  if (!value) return null
+  const normalized = simplifyIngredientTokens(value.toLowerCase())
+  return normalized || null
+}
+
+function buildSearchVariants(value: string): string[] {
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return []
+
+  const variants = new Set<string>()
+  variants.add(normalized.replace(/\s+/g, " "))
+
+  const beforeComma = normalized.split(",")[0]?.trim()
+  if (beforeComma) {
+    variants.add(beforeComma)
+  }
+
+  const withoutParens = normalized.replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim()
+  if (withoutParens) {
+    variants.add(withoutParens)
+  }
+
+  const slashSplit = normalized.split("/")[0]?.trim()
+  if (slashSplit) {
+    variants.add(slashSplit)
+  }
+
+  const simplified = simplifyIngredientTokens(normalized)
+  if (simplified) {
+    variants.add(simplified)
+  }
+
+  return Array.from(variants).filter(Boolean)
+}
+
+async function loadStandardizedIngredientCache(client: SupabaseClientType): Promise<StandardizedIngredientRow[]> {
+  if (standardizedIngredientCache && Date.now() < standardizedIngredientCacheExpiresAt) {
+    return standardizedIngredientCache
+  }
+
+  const { data, error } = await client.from("standardized_ingredients").select("id, canonical_name, category")
+  if (error || !data) {
+    console.error("Error loading standardized ingredients for lookup:", error)
+    return []
+  }
+
+  standardizedIngredientCache = data.map((row) => ({
+    id: row.id,
+    canonical_name: row.canonical_name.toLowerCase().trim(),
+    category: row.category ?? null,
+  }))
+  standardizedIngredientCacheExpiresAt = Date.now() + STANDARDIZED_CACHE_TTL_MS
+  standardizedIngredientIndex.clear()
+  standardizedIngredientCache.forEach((row) => {
+    standardizedIngredientIndex.set(row.id, row)
+  })
+  return standardizedIngredientCache
+}
+
+export async function getStandardizedIngredientMetadata(
+  standardizedIngredientId: string
+): Promise<StandardizedIngredientRow | null> {
+  if (!standardizedIngredientId) return null
+  if (standardizedIngredientIndex.has(standardizedIngredientId)) {
+    return standardizedIngredientIndex.get(standardizedIngredientId)!
+  }
+
+  try {
+    const client = createServerClient()
+    const { data, error } = await client
+      .from("standardized_ingredients")
+      .select("id, canonical_name, category")
+      .eq("id", standardizedIngredientId)
+      .maybeSingle()
+
+    if (error || !data) {
+      return null
+    }
+
+    const normalized: StandardizedIngredientRow = {
+      id: data.id,
+      canonical_name: data.canonical_name.toLowerCase().trim(),
+      category: data.category ?? null,
+    }
+    standardizedIngredientIndex.set(normalized.id, normalized)
+    return normalized
+  } catch (error) {
+    console.error("Error loading standardized ingredient metadata:", error)
+    return null
+  }
+}
+
 /**
  * Search ingredient cache for matching ingredients that haven't expired
  * Uses fuzzy matching on ingredient name against standardized_ingredients
@@ -350,53 +487,49 @@ async function findStandardizedIngredientIdByName(
 ): Promise<string | null> {
   try {
     const client = createServerClient()
-    const normalizedName = ingredientName.trim().toLowerCase()
+    const variants = buildSearchVariants(ingredientName)
 
-    // Try exact canonical name match first
-    const { data: exactMatch, error: exactError } = await client
-      .from("standardized_ingredients")
-      .select("id")
-      .eq("canonical_name", normalizedName)
-      .maybeSingle()
-
-    if (exactError && exactError.code !== "PGRST116") {
-      console.error("Error searching standardized ingredients (exact):", exactError)
+    if (variants.length === 0) {
+      return null
     }
 
-    if (exactMatch?.id) {
-      return exactMatch.id
+    const canonicalList = await loadStandardizedIngredientCache(client)
+
+    for (const variant of variants) {
+      const directMatch = canonicalList.find((entry) => entry.canonical_name === variant)
+      if (directMatch) {
+        return directMatch.id
+      }
     }
 
-    // Try fuzzy canonical name match
-    const { data: fuzzyMatch, error: fuzzyError } = await client
-      .from("standardized_ingredients")
-      .select("id")
-      .ilike("canonical_name", `%${normalizedName}%`)
-      .limit(1)
-      .maybeSingle()
-
-    if (fuzzyError && fuzzyError.code !== "PGRST116") {
-      console.error("Error searching standardized ingredients (fuzzy):", fuzzyError)
+    for (const variant of variants) {
+      if (variant.length < 3) continue
+      const containsMatch = canonicalList.find(
+        (entry) =>
+          entry.canonical_name.includes(variant) ||
+          variant.includes(entry.canonical_name)
+      )
+      if (containsMatch) {
+        return containsMatch.id
+      }
     }
 
-    if (fuzzyMatch?.id) {
-      return fuzzyMatch.id
-    }
+    for (const variant of variants) {
+      const { data: mappingMatch, error: mappingError } = await client
+        .from("ingredient_mappings")
+        .select("standardized_ingredient_id")
+        .ilike("original_name", `%${variant}%`)
+        .limit(1)
+        .maybeSingle()
 
-    // Fall back to ingredient mappings (original recipe names)
-    const { data: mappingMatch, error: mappingError } = await client
-      .from("ingredient_mappings")
-      .select("standardized_ingredient_id")
-      .ilike("original_name", `%${normalizedName}%`)
-      .limit(1)
-      .maybeSingle()
+      if (mappingError && mappingError.code !== "PGRST116") {
+        console.error("Error searching ingredient mappings:", mappingError)
+        continue
+      }
 
-    if (mappingError && mappingError.code !== "PGRST116") {
-      console.error("Error searching ingredient mappings:", mappingError)
-    }
-
-    if (mappingMatch?.standardized_ingredient_id) {
-      return mappingMatch.standardized_ingredient_id
+      if (mappingMatch?.standardized_ingredient_id) {
+        return mappingMatch.standardized_ingredient_id
+      }
     }
 
     return null
@@ -532,6 +665,7 @@ export async function cacheScrapedResults(
   }>,
   options?: {
     standardizedIngredientId?: string | null
+    searchTerm?: string
   }
 ): Promise<number> {
   try {
@@ -540,16 +674,43 @@ export async function cacheScrapedResults(
     }
 
     let cachedCount = 0
+    let sharedStandardizedId = options?.standardizedIngredientId || null
+    const searchTermForLookup = options?.searchTerm?.trim()
+    const normalizedSearchName = normalizeIngredientKey(searchTermForLookup) || null
+
+    if (!sharedStandardizedId && searchTermForLookup) {
+      sharedStandardizedId = await findStandardizedIngredientIdByName(searchTermForLookup)
+    }
 
     for (const item of scrapedItems) {
-      // Get or create standardized ingredient based on title
-      let standardizedId =
-        options?.standardizedIngredientId ||
-        (await getOrCreateStandardizedIngredient(item.title.toLowerCase()))
+      let standardizedId = sharedStandardizedId
+
+      if (!standardizedId && searchTermForLookup) {
+        standardizedId = await findStandardizedIngredientIdByName(searchTermForLookup)
+      }
+
+      if (!standardizedId && item.title) {
+        standardizedId = await findStandardizedIngredientIdByName(item.title)
+      }
+
+      if (!standardizedId && normalizedSearchName) {
+        standardizedId = await getOrCreateStandardizedIngredient(normalizedSearchName)
+      }
 
       if (!standardizedId) {
-        console.warn(`Could not standardize ingredient: ${item.title}`)
+        const normalizedTitle = normalizeIngredientKey(item.title) || item.title.toLowerCase()
+        if (normalizedTitle) {
+          standardizedId = await getOrCreateStandardizedIngredient(normalizedTitle)
+        }
+      }
+
+      if (!standardizedId) {
+        console.warn(`[Cache] Could not standardize scraped item`, { title: item.title })
         continue
+      }
+
+      if (!sharedStandardizedId) {
+        sharedStandardizedId = standardizedId
       }
 
       // Parse unit price if available

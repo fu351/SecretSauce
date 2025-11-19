@@ -35,6 +35,8 @@ interface Ingredient {
   name: string
   amount: string
   unit: string
+  standardizedIngredientId?: string
+  standardizedName?: string
 }
 
 interface Instruction {
@@ -71,6 +73,41 @@ export default function UploadRecipePage() {
 
   const [ingredients, setIngredients] = useState<Ingredient[]>([{ name: "", amount: "", unit: "" }])
   const [instructions, setInstructions] = useState<Instruction[]>([{ step: 1, description: "" }])
+
+  const standardizeRecipeIngredients = async (recipeId: string, recipeIngredients: Ingredient[]) => {
+    try {
+      const response = await fetch("/api/ingredients/standardize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: "recipe",
+          recipeId,
+          ingredients: recipeIngredients.map((ingredient, index) => ({
+            ...ingredient,
+            id: index,
+          })),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to standardize ingredients")
+      }
+
+      const payload = await response.json()
+      if (payload?.standardized?.length) {
+        toast({
+          title: "Ingredients standardized",
+          description: "Recipe ingredients were mapped to canonical grocery items.",
+        })
+      }
+    } catch (error) {
+      console.error("Ingredient standardization failed:", error)
+      toast({
+        title: "Standardization skipped",
+        description: "We couldn't standardize the ingredients automatically.",
+      })
+    }
+  }
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -247,6 +284,8 @@ export default function UploadRecipePage() {
       if (!data || data.length === 0) {
         throw new Error("No data returned from insert")
       }
+
+      await standardizeRecipeIngredients(data[0].id, recipeData.ingredients)
 
       toast({
         title: "Recipe uploaded!",
