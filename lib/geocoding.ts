@@ -71,7 +71,8 @@ export async function geocodeStore(
         { lat: origin.lat, lng: origin.lng },
         apiKey,
         groceryDistanceMiles,
-        storeHint
+        storeHint,
+        userPostalCode
       )
 
       // double-check with a larger radius if nothing is found
@@ -83,7 +84,8 @@ export async function geocodeStore(
             { lat: origin.lat, lng: origin.lng },
             apiKey,
             expandedRadius,
-            storeHint
+            storeHint,
+            userPostalCode
           )
           if (nearestStore) {
             console.log("[Geocoding] Found store after radius expansion", {
@@ -249,9 +251,11 @@ async function findNearestStoreWithPlaces(
   userCoordinates: { lat: number; lng: number },
   apiKey: string,
   groceryDistanceMiles: number,
-  storeHint?: string
+  storeHint?: string,
+  postalCode?: string
 ): Promise<GeocodeResult | null> {
-  const keyword = storeHint ? `${storeName} ${storeHint}` : `${storeName} store`
+  const keywordParts = [storeName, storeHint, postalCode ? `zip ${postalCode}` : null].filter(Boolean)
+  const keyword = keywordParts.length > 0 ? keywordParts.join(" ") : `${storeName} store`
   try {
     const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
     const radiusMeters = Math.min(effectiveMiles * 1609.34, 50000) // Places API max radius 50km

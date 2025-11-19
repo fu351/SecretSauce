@@ -483,6 +483,13 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
       marker.setIcon(
         `http://maps.google.com/mapfiles/ms/icons/${isSelected ? "red" : "blue"}-dot.png`
       )
+
+      if (isSelected && googleMapRef.current) {
+        const position = marker.getPosition()
+        if (position) {
+          googleMapRef.current.panTo(position)
+        }
+      }
     })
   }, [selectedStoreIndex, comparisons])
 

@@ -3,13 +3,6 @@ import { createClient } from "@supabase/supabase-js"
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl) {
-  throw new Error("Missing env.NEXT_PUBLIC_SUPABASE_URL")
-}
-if (!supabaseAnonKey) {
-  throw new Error("Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY")
-}
-
 const createMonitoredClient = (url: string, key: string, options: any) => {
   const client = createClient(url, key, options)
 
@@ -66,18 +59,35 @@ const createMonitoredClient = (url: string, key: string, options: any) => {
   return client
 }
 
-export const supabase = createMonitoredClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: typeof window !== "undefined" ? window.localStorage : undefined,
-    flowType: "pkce",
-  },
-  global: {
-    fetch: fetch.bind(globalThis),
-  },
-})
+const createMissingEnvProxy = (message: string) => {
+  return new Proxy(
+    {},
+    {
+      get() {
+        throw new Error(message)
+      },
+    },
+  ) as ReturnType<typeof createClient>
+}
+
+const missingEnvMessage =
+  "Supabase client is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
+
+export const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createMonitoredClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storage: typeof window !== "undefined" ? window.localStorage : undefined,
+          flowType: "pkce",
+        },
+        global: {
+          fetch: fetch.bind(globalThis),
+        },
+      })
+    : createMissingEnvProxy(missingEnvMessage)
 
 // Server-side client for admin operations
 export const createServerClient = () => {
@@ -88,6 +98,10 @@ export const createServerClient = () => {
 
   if (!supabaseServiceKey) {
     throw new Error("Missing Supabase service credentials. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY.")
+  }
+
+  if (!supabaseUrl) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.")
   }
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

@@ -779,11 +779,22 @@ export default function ShoppingPage() {
         try {
           const maxDistanceMiles = groceryDistanceMiles
           let userLoc = await getUserLocation()
+          let locationSource: "browser" | "postal" | "none" = userLoc ? "browser" : "none"
           if (!userLoc && zipCode) {
-            userLoc = await geocodePostalCode(zipCode)
+            const postalCoords = await geocodePostalCode(zipCode)
+            if (postalCoords) {
+              userLoc = postalCoords
+              locationSource = "postal"
+            }
           }
 
           if (userLoc) {
+            console.log("[Geocoding] Using user location for distance filtering", {
+              source: locationSource,
+              coordinates: userLoc,
+              postalCode: zipCode,
+              radiusMiles: groceryDistanceMiles,
+            })
             const storeNames = comparisons.map((comp) => comp.store)
             const storeHints = new Map(comparisons.map((comp) => [comp.store, comp.locationHint]))
             const geocodedStores = await geocodeMultipleStores(storeNames, zipCode, userLoc, groceryDistanceMiles, storeHints)
@@ -803,15 +814,27 @@ export default function ShoppingPage() {
 
             comparisons.forEach((comparison) => {
               const distance = storeDistances.get(comparison.store)
+              const geocoded = geocodedStores.get(comparison.store)
               const comparisonWithDistance = {
                 ...comparison,
                 distanceMiles: distance,
               }
 
               if (distance === undefined) {
+                console.warn("[Geocoding] Skipping map marker due to missing coordinates", {
+                  store: comparison.store,
+                  hint: comparison.locationHint,
+                  formattedAddress: geocoded?.formattedAddress,
+                })
                 outOfRange.push({ ...comparisonWithDistance, outOfRadius: true })
                 outOfRangeNames.push(`${comparison.store} (location unavailable)`)
               } else if (distance > maxDistanceMiles) {
+                console.warn("[Geocoding] Store filtered for exceeding radius", {
+                  store: comparison.store,
+                  distanceMiles: distance,
+                  formattedAddress: geocoded?.formattedAddress,
+                  radiusMiles: maxDistanceMiles,
+                })
                 outOfRange.push({ ...comparisonWithDistance, outOfRadius: true })
                 outOfRangeNames.push(comparison.store)
               } else {
@@ -835,6 +858,7 @@ export default function ShoppingPage() {
               setDistanceFilterWarning(null)
             }
           } else {
+            console.warn("[Geocoding] User location unavailable; skipping distance filtering", { postalCode: zipCode })
             setDistanceFilterWarning("We couldn't determine your location, so distance filtering was skipped.")
           }
         } catch (error) {
@@ -957,6 +981,14 @@ export default function ShoppingPage() {
     if (carouselIndex > 0) {
       scrollToStore(carouselIndex - 1)
     }
+  }
+
+  const handleStoreCardClick = (index: number, event: React.MouseEvent) => {
+    const target = event.target as HTMLElement
+    if (target.closest("button")) {
+      return
+    }
+    scrollToStore(index)
   }
 
   const bgClass = isDark ? "bg-[#181813]" : "bg-gray-50"
@@ -1252,7 +1284,11 @@ export default function ShoppingPage() {
                       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                     >
                       {massSearchResults.map((comparison, index) => (
-                        <div key={comparison.store} className="flex-shrink-0 w-full snap-center">
+                        <div
+                          key={comparison.store}
+                          className="flex-shrink-0 w-full snap-center"
+                          onClick={(event) => handleStoreCardClick(index, event)}
+                        >
                           <Card
                             className={`h-full flex flex-col ${cardBgClass} ${
                               index === 0 ? "border-2 border-green-500" : comparison.outOfRadius ? "border-yellow-500/60" : ""
@@ -1277,11 +1313,11 @@ export default function ShoppingPage() {
                                         </Badge>
                                       )}
                                     </div>
-                                    {comparison.distanceMiles && (
-                                      <p className={`text-sm ${mutedTextClass}`}>
-                                        {comparison.distanceMiles.toFixed(1)} miles away
-                                      </p>
-                                    )}
+                                      {typeof comparison.distanceMiles === "number" ? (
+                                        <p className={`text-sm ${mutedTextClass}`}>
+                                          {comparison.distanceMiles.toFixed(1)} miles away
+                                        </p>
+                                      ) : null}
                                     <div className="text-right mt-1">
                                       <div className={`text-3xl font-bold ${textClass}`}>
                                         ${comparison.total.toFixed(2)}
