@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -715,42 +715,48 @@ export default function ShoppingPage() {
     setComparisonLoading(true)
     setMissingItems([])
     try {
-      const storeMap = new Map<string, StoreComparison>()
-      const missing: ShoppingListItem[] = []
-      const timeoutMsPerItem = Math.max(5000, shoppingList.length * 5000)
-      console.log("[Shopping] Dynamic timeout configured", {
-        perItemMs: timeoutMsPerItem,
-        shoppingCount: shoppingList.length,
+      The logic incorrectly returns 75 miles when groceryDistanceMiles is 0, but returns 0 when groceryDistanceMiles is undefined/null. This inconsistency could cause unexpected behavior. Consider using groceryDistanceMiles || 0 or handle null/undefined explicitly.
+
+Suggested change:
+
+-     const baseAllowedMiles = Math.max(groceryDistanceMiles ? groceryDistanceMiles * 2 : 0, 75)
++     const baseAllowedMiles = Math.max(((groceryDistanceMiles ?? 10) * 2), 75)
+        const storeResults = await searchGroceryStores(item.name, zipCode)
+        return { item, storeResults }
       })
 
-      for (const item of shoppingList) {
-        try {
-          const storeResults = await searchGroceryStores(item.name, zipCode, undefined, timeoutMsPerItem)
-          console.log("[Shopping] Store lookup complete", {
-            shoppingItem: item.name,
-            stores: storeResults.length,
-          })
+      const searchResults = await Promise.all(searchPromises)
+      console.log("[Shopping] Completed individual store lookups", {
+        details: searchResults.map(({ item, storeResults }) => ({
+          shoppingItem: item.name,
+          stores: storeResults.length,
+        })),
+      })
 
-          const hasResults = storeResults.some((storeResult) => storeResult.items && storeResult.items.length > 0)
-          if (!hasResults) {
-            missing.push(item)
-            continue
+      const storeMap = new Map<string, StoreComparison>()
+      const missing: ShoppingListItem[] = []
+
+      searchResults.forEach(({ item, storeResults }) => {
+        const hasResults = storeResults.some((storeResult) => storeResult.items && storeResult.items.length > 0)
+        if (!hasResults) {
+          missing.push(item)
+          return
+        }
+
+        storeResults.forEach((storeResult) => {
+          if (!storeMap.has(storeResult.store)) {
+            storeMap.set(storeResult.store, {
+              store: storeResult.store,
+              items: [],
+              total: 0,
+              savings: 0,
+            })
           }
 
-          storeResults.forEach((storeResult) => {
-            if (!storeMap.has(storeResult.store)) {
-              storeMap.set(storeResult.store, {
-                store: storeResult.store,
-                items: [],
-                total: 0,
-                savings: 0,
-              })
-            }
+          const store = storeMap.get(storeResult.store)!
+          const bestItem = storeResult.items.reduce((best, current) => (current.price < best.price ? current : best))
 
-            const store = storeMap.get(storeResult.store)!
-            const bestItem = storeResult.items.reduce((best, current) => (current.price < best.price ? current : best))
-
-            if (bestItem) {
+          if (bestItem) {
               store.items.push({
                 ...bestItem,
                 shoppingItemId: item.id,
@@ -760,24 +766,17 @@ export default function ShoppingPage() {
                 store.locationHint = bestItem.location
               }
             }
-          })
+        })
+      })
 
-          const sortedSoFar = sortComparisons(Array.from(storeMap.values()))
-          setMassSearchResults(sortedSoFar)
-        } catch (error) {
-          console.error("Error searching for item:", item.name, error)
-          missing.push(item)
-        }
-      }
+      const comparisons = Array.from(storeMap.values())
+      const minTotal = Math.min(...comparisons.map((c) => c.total))
 
-      let comparisons = Array.from(storeMap.values())
-      if (comparisons.length > 0) {
-        const minTotal = Math.min(...comparisons.map((c) => c.total))
-        comparisons = comparisons.map((comparison) => ({
-          ...comparison,
-          savings: comparison.total - minTotal,
-        }))
-      }
+      comparisons.forEach((comparison) => {
+        comparison.savings = comparison.total - minTotal
+      })
+
+      comparisons.sort((a, b) => a.total - b.total)
 
       // Filter by distance if user has set a max distance preference
       let filteredComparisons = comparisons
@@ -814,7 +813,10 @@ export default function ShoppingPage() {
                 distanceMiles: distance,
               }
 
-              if (distance !== undefined && distance > maxDistanceMiles) {
+              if (distance === undefined) {
+                outOfRange.push({ ...comparisonWithDistance, outOfRadius: true })
+                outOfRangeNames.push(`${comparison.store} (location unavailable)`)
+              } else if (distance > maxDistanceMiles) {
                 outOfRange.push({ ...comparisonWithDistance, outOfRadius: true })
                 outOfRangeNames.push(comparison.store)
               } else {
@@ -828,7 +830,7 @@ export default function ShoppingPage() {
               setDistanceFilterWarning(
                 `${outOfRangeNames.join(", ")} ${
                   outOfRangeNames.length === 1 ? "is" : "are"
-                } outside your ${maxDistanceMiles.toFixed(0)} mile radius. We've moved ${
+                } outside your ${maxDistanceMiles.toFixed(0)} mile radius or missing a precise location. We've moved ${
                   outOfRangeNames.length === 1 ? "it" : "them"
                 } to the end of the list and hidden ${
                   outOfRangeNames.length === 1 ? "its" : "their"
@@ -972,8 +974,6 @@ export default function ShoppingPage() {
     theme === "dark"
       ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
       : "border-gray-300 hover:bg-[#e8dcc4]/10"
-  const showBlockingOverlay = loading || (comparisonLoading && massSearchResults.length === 0)
-  const showComparisonProgress = comparisonLoading && massSearchResults.length > 0
 
   if (!mounted) {
     return <div className={`min-h-screen ${bgClass}`} />
@@ -981,7 +981,7 @@ export default function ShoppingPage() {
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
-      {showBlockingOverlay && (
+      {(loading || comparisonLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div
             className={`mx-4 max-w-md rounded-2xl p-8 text-center shadow-2xl ${
@@ -1218,18 +1218,6 @@ export default function ShoppingPage() {
                     {distanceFilterWarning}
                   </div>
                 )}
-                {showComparisonProgress && (
-                  <div
-                    className={`rounded-lg border px-4 py-2 text-sm flex items-center gap-2 ${
-                      theme === "dark"
-                        ? "border-[#e8dcc4]/30 text-[#e8dcc4] bg-[#1f1e1a]"
-                        : "border-gray-200 text-gray-700 bg-white"
-                    }`}
-                  >
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Still fetching prices from the remaining stores&hellip;
-                  </div>
-                )}
                 {/* Carousel and Map Side by Side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Carousel Section */}
@@ -1311,14 +1299,14 @@ export default function ShoppingPage() {
                                 </div>
                               </CardTitle>
                             </CardHeader>
-                            <CardContent className="flex flex-col h-full">
+                            <CardContent className="flex-1 flex flex-col">
                               {comparison.outOfRadius && (
                                 <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-3">
                                       Outside your {groceryDistanceMiles ?? DEFAULT_GROCERY_DISTANCE_MILES} mile radius. Hidden from the map but included
                                   here for reference.
                                 </p>
                               )}
-                              <div className="space-y-3 flex-1 overflow-y-auto pr-1 max-h-[500px]">
+                              <div className="space-y-3 flex-1 max-h-[500px] overflow-y-auto pr-1">
                                 {comparison.items.map((item) => {
                                   const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)
                                   return (
@@ -1379,7 +1367,7 @@ export default function ShoppingPage() {
                                   )
                                 })}
                                 {comparison.missingItems && (
-                                  <div className="mt-4 border-t border-dashed border-border/40 pt-4">
+                                  <div className="mt-4 border-t border-dashed border-border pt-4">
                                     <p className={`text-sm font-semibold ${textClass} mb-2`}>Missing Items</p>
                                     <div className="space-y-2">
                                       {shoppingList
@@ -1417,17 +1405,17 @@ export default function ShoppingPage() {
                                   </div>
                                 )}
                               </div>
-                              <div className="pt-4 mt-4 border-t border-dashed border-border/40 flex justify-end">
-                                <Button
-                                  size="sm"
-                                  className={`h-8 px-3 ${buttonClass}`}
-                                  onClick={() => addStoreItemsToPantry(comparison)}
-                                  disabled={!user || comparison.items.length === 0}
-                                >
-                                  Add to Pantry
-                                </Button>
-                              </div>
                             </CardContent>
+                            <CardFooter className="border-t border-dashed border-border/40 flex justify-end">
+                              <Button
+                                size="sm"
+                                className={`h-8 px-3 ${buttonClass}`}
+                                onClick={() => addStoreItemsToPantry(comparison)}
+                                disabled={!user || comparison.items.length === 0}
+                              >
+                                Add to Pantry
+                              </Button>
+                            </CardFooter>
                           </Card>
                         </div>
                       ))}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -35,10 +35,10 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
+import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { useTheme } from "@/contexts/theme-context"
 
 interface PantryItem {
   id: string
@@ -78,6 +78,13 @@ const categories = [
 
 const units = ["each", "lbs", "oz", "cups", "tbsp", "tsp", "gallons", "quarts", "pints", "cans", "boxes", "bags"]
 
+const normalizeCategory = (value?: string | null) => {
+  if (value && value.trim().length > 0) {
+    return value
+  }
+  return "Other"
+}
+
 export default function PantryPage() {
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
   const [filteredItems, setFilteredItems] = useState<PantryItem[]>([])
@@ -109,9 +116,18 @@ export default function PantryPage() {
   const pageTextClass = isDark ? "text-[#f1e7cf]" : "text-gray-900"
   const subTextClass = isDark ? "text-[#e8dcc4]/70" : "text-gray-600"
   const translucentCardClass = isDark
-    ? "bg-[#1f1e1a]/80 border border-[#e8dcc4]/15 shadow-none"
+    ? "bg-[#1f1e1a]/85 border border-[#e8dcc4]/15 shadow-none"
     : "bg-white/80 backdrop-blur-sm border-0 shadow-lg"
-  const inputThemeClass = isDark ? "bg-[#0f0f0d] border-[#e8dcc4]/30 text-[#f1e7cf] placeholder:text-[#e8dcc4]/50" : ""
+  const inputThemeClass = isDark ? "bg-[#0f0f0d] border-[#e8dcc4]/30 text-[#f1e7cf] placeholder:text-[#e8dcc4]/40" : ""
+  const accentButtonClass =
+    isDark ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-gray-900 text-white hover:bg-gray-800"
+  const displayCategories = useMemo(() => {
+    if (filteredItems.length === 0) return []
+    const normalized = Array.from(new Set(filteredItems.map((item) => normalizeCategory(item.category))))
+    const preferred = categories.filter((cat) => normalized.includes(cat))
+    const extras = normalized.filter((cat) => !categories.includes(cat))
+    return [...preferred, ...extras]
+  }, [filteredItems])
 
   useEffect(() => {
     if (user) {
@@ -221,18 +237,13 @@ export default function PantryPage() {
     let filtered = pantryItems
 
     // Search filter
-    const normalizedSearch = searchTerm.trim().toLowerCase()
-    if (normalizedSearch) {
-      const tokens = normalizedSearch.split(/\s+/).filter(Boolean)
-      filtered = filtered.filter((item) => {
-        const haystack = `${item.name} ${item.category || ""} ${item.unit || ""}`.toLowerCase()
-        return tokens.every((token) => haystack.includes(token))
-      })
+    if (searchTerm) {
+      filtered = filtered.filter((item) => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
     }
 
     // Category filter
     if (selectedCategory !== "all") {
-      filtered = filtered.filter((item) => item.category === selectedCategory)
+      filtered = filtered.filter((item) => normalizeCategory(item.category) === selectedCategory)
     }
 
     // Expiring soon filter
@@ -249,15 +260,17 @@ export default function PantryPage() {
     // Group by category
     const groupedByCategory: Record<string, PantryItem[]> = {}
     filtered.forEach((item) => {
-      if (!groupedByCategory[item.category]) {
-        groupedByCategory[item.category] = []
+      const categoryKey = normalizeCategory(item.category)
+      if (!groupedByCategory[categoryKey]) {
+        groupedByCategory[categoryKey] = []
       }
-      groupedByCategory[item.category].push(item)
+      groupedByCategory[categoryKey].push(item)
     })
 
-    // Flatten but keep category order
     const orderedFiltered: PantryItem[] = []
-    categories.forEach((category) => {
+    const existingCategories = Object.keys(groupedByCategory)
+    const extraCategories = existingCategories.filter((cat) => !categories.includes(cat))
+    ;[...categories, ...extraCategories].forEach((category) => {
       if (groupedByCategory[category]) {
         orderedFiltered.push(...groupedByCategory[category])
       }
@@ -413,7 +426,7 @@ export default function PantryPage() {
       return <Badge variant="destructive">Expired</Badge>
     } else if (isExpiringSoon(expiryDate)) {
       return (
-        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/60 dark:text-yellow-100">
+        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-100">
           Expires Soon
         </Badge>
       )
@@ -450,10 +463,10 @@ export default function PantryPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-[#0f0f0d] dark:to-[#1c1c16] flex items-center justify-center">
         <div className="animate-pulse space-y-8 w-full max-w-6xl px-6">
-          <div className="h-8 bg-gray-200 dark:bg-[#1c1c16] rounded w-1/3"></div>
+          <div className="h-8 rounded w-1/3 bg-gray-200 dark:bg-[#1f1e1a]"></div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 dark:bg-[#1c1c16] rounded-lg"></div>
+              <div key={i} className="h-32 rounded-lg bg-gray-200 dark:bg-[#1f1e1a]"></div>
             ))}
           </div>
         </div>
@@ -464,18 +477,18 @@ export default function PantryPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-[#0f0f0d] dark:to-[#1c1c16]">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b dark:bg-[#181813] dark:border-[#e8dcc4]/15">
+      <div className="bg-white shadow-sm border-b dark:bg-[#181813] dark:border-[#e8dcc4]/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-[#f1e7cf]">My Pantry</h1>
-              <p className="text-gray-600 dark:text-[#e8dcc4]/70 mt-1">Keep track of your ingredients and reduce food waste</p>
+              <h1 className={`text-3xl font-bold ${pageTextClass}`}>My Pantry</h1>
+              <p className={`${subTextClass} mt-1`}>Keep track of your ingredients and reduce food waste</p>
             </div>
 
             <div className="flex items-center gap-3">
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-orange-500 hover:bg-orange-600 shadow-lg dark:text-[#181813] dark:hover:bg-orange-400">
+                  <Button className={`${accentButtonClass} shadow-lg`}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Item
                   </Button>
@@ -513,9 +526,7 @@ export default function PantryPage() {
                       <div>
                         <Label htmlFor="unit">Unit</Label>
                         <Select value={newItem.unit} onValueChange={(value) => setNewItem({ ...newItem, unit: value })}>
-                          <SelectTrigger
-                            className={`mt-1 ${isDark ? "bg-[#0f0f0d] border-[#e8dcc4]/30 text-[#f1e7cf]" : ""}`}
-                          >
+                          <SelectTrigger className={`mt-1 ${inputThemeClass}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -535,9 +546,7 @@ export default function PantryPage() {
                         value={newItem.category}
                         onValueChange={(value) => setNewItem({ ...newItem, category: value })}
                       >
-                        <SelectTrigger
-                          className={`mt-1 ${isDark ? "bg-[#0f0f0d] border-[#e8dcc4]/30 text-[#f1e7cf]" : ""}`}
-                        >
+                        <SelectTrigger className={`mt-1 ${inputThemeClass}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -619,8 +628,8 @@ export default function PantryPage() {
         {/* Expiration Notifications */}
         <div className="space-y-4 mb-8">
           {expirationNotifications.expiresToday.length > 0 && (
-            <Alert className="border-orange-200 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-950/40">
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <Alert className="border-orange-200 bg-orange-50 dark:border-orange-500/30 dark:bg-orange-950/40">
+              <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-200" />
               <AlertDescription className="text-orange-800 dark:text-orange-100">
                 <div className="flex items-center justify-between">
                   <span>
@@ -640,8 +649,8 @@ export default function PantryPage() {
           )}
 
           {expirationNotifications.expiredYesterday.length > 0 && (
-            <Alert className="border-red-200 bg-red-50 dark:border-red-500/40 dark:bg-red-950/40">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
+            <Alert className="border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-950/40">
+              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-200" />
               <AlertDescription className="text-red-800 dark:text-red-100">
                 <div className="flex items-center justify-between">
                   <span>
@@ -688,7 +697,7 @@ export default function PantryPage() {
                             <div className="flex-1">
                               <div className="flex items-center justify-between mb-3">
                                 <h4 className={`font-semibold line-clamp-2 ${pageTextClass}`}>{recipe.title}</h4>
-                                <Badge className="bg-green-100 text-green-800 font-medium dark:bg-green-900 dark:text-green-200">
+                                <Badge className="bg-green-100 text-green-800 font-medium dark:bg-green-900/40 dark:text-green-200">
                                   {recipe.match_percentage}% match
                                 </Badge>
                               </div>
@@ -732,9 +741,7 @@ export default function PantryPage() {
                 </div>
 
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger
-                    className={`w-full lg:w-48 h-12 ${isDark ? "bg-[#0f0f0d] border-[#e8dcc4]/30 text-[#f1e7cf]" : ""}`}
-                  >
+                  <SelectTrigger className={`w-full lg:w-48 h-12 ${inputThemeClass}`}>
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
                   <SelectContent>
@@ -750,7 +757,9 @@ export default function PantryPage() {
                 <Button
                   variant={showExpiringSoon ? "default" : "outline"}
                   onClick={() => setShowExpiringSoon(!showExpiringSoon)}
-                  className={`h-12 ${showExpiringSoon ? "bg-orange-500 hover:bg-orange-600 dark:text-[#181813]" : ""}`}
+                  className={`h-12 ${
+                    showExpiringSoon ? accentButtonClass : isDark ? "border-[#e8dcc4]/30 text-[#e8dcc4]" : ""
+                  }`}
                 >
                   <AlertTriangle className="h-4 w-4 mr-2" />
                   Expiring Soon
@@ -775,10 +784,7 @@ export default function PantryPage() {
                     : "Try adjusting your search or filters to find what you're looking for"}
                 </p>
                 {pantryItems.length === 0 && (
-                  <Button
-                    onClick={() => setIsAddDialogOpen(true)}
-                    className="bg-orange-500 hover:bg-orange-600 dark:text-[#181813]"
-                  >
+                  <Button onClick={() => setIsAddDialogOpen(true)} className={accentButtonClass}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Your First Item
                   </Button>
@@ -788,8 +794,10 @@ export default function PantryPage() {
           ) : (
             <div className="space-y-8">
               {/* Group by category */}
-              {categories.map((category) => {
-                const categoryItems = filteredItems.filter((item) => item.category === category)
+              {displayCategories.map((category) => {
+                const categoryItems = filteredItems.filter(
+                  (item) => normalizeCategory(item.category) === category
+                )
                 if (categoryItems.length === 0) return null
 
                 return (
@@ -823,7 +831,7 @@ export default function PantryPage() {
                                     size="sm"
                                     variant="outline"
                                     onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                    className="h-8 w-8 p-0"
+                                    className={`h-8 w-8 p-0 ${isDark ? "border-[#e8dcc4]/20" : ""}`}
                                   >
                                     -
                                   </Button>
@@ -834,7 +842,7 @@ export default function PantryPage() {
                                     size="sm"
                                     variant="outline"
                                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                    className="h-8 w-8 p-0"
+                                    className={`h-8 w-8 p-0 ${isDark ? "border-[#e8dcc4]/20" : ""}`}
                                   >
                                     +
                                   </Button>

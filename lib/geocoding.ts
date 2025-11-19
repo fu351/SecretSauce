@@ -11,18 +11,8 @@ export interface GeocodeResult {
 // Simple in-memory cache for geocoding results (resets on page reload)
 const geocodeCache = new Map<string, GeocodeResult>()
 const postalCodeCache = new Map<string, GeocodeResult>()
-
-// Fallback coordinates for known stores in the West Lafayette, IN area (zip 47906)
-const knownStoreCoordinates: Record<string, GeocodeResult> = {
-  "Target": { lat: 40.4406, lng: -86.9144, formattedAddress: "Target, West Lafayette, IN" },
-  "Kroger": { lat: 40.4427, lng: -86.9122, formattedAddress: "Kroger, West Lafayette, IN" },
-  "Meijer": { lat: 40.4380, lng: -86.9200, formattedAddress: "Meijer, West Lafayette, IN" },
-  "99 Ranch": { lat: 40.4400, lng: -86.9100, formattedAddress: "99 Ranch Market, West Lafayette, IN" },
-  "99Ranch": { lat: 40.4400, lng: -86.9100, formattedAddress: "99 Ranch Market, West Lafayette, IN" },
-  "Walmart": { lat: 40.4350, lng: -86.9250, formattedAddress: "Walmart, West Lafayette, IN" },
-  "Trader Joe's": { lat: 40.4450, lng: -86.9000, formattedAddress: "Trader Joe's, West Lafayette, IN" },
-  "Aldi": { lat: 40.4380, lng: -86.9050, formattedAddress: "Aldi, West Lafayette, IN" },
-}
+const KM_TO_MILES = 0.621371
+const METERS_TO_MILES = 0.000621371
 
 /**
  * Geocode a store name to get its latitude and longitude
@@ -38,9 +28,11 @@ export async function geocodeStore(
   userPostalCode?: string,
   userCoordinates?: { lat: number; lng: number },
   groceryDistanceMiles: number = 10,
-  storeHint?: string
+  storeHint?: string,
+  options?: { relaxed?: boolean }
 ): Promise<GeocodeResult | null> {
   try {
+    const isRelaxed = options?.relaxed ?? false
     // Check cache first
     const locationKey = userCoordinates ? `${userCoordinates.lat.toFixed(4)},${userCoordinates.lng.toFixed(4)}` : "none"
     const hintKey = storeHint ? storeHint.toLowerCase().trim() : "none"
@@ -54,25 +46,79 @@ export async function geocodeStore(
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     if (!apiKey) {
       console.error("Google Maps API key not found in environment variables")
-      return knownStoreCoordinates[storeName] || null
+      return null
     }
 
-    // If we have user coordinates, attempt to find the nearest store using Nearby Search
+    const baseAllowedMiles = Math.max(((groceryDistanceMiles ?? 10) * 2), 75)
+    const allowedMiles = isRelaxed ? baseAllowedMiles * 2 : baseAllowedMiles
+    const allowedDriveMiles = Math.max(groceryDistanceMiles || 10, 1) * (isRelaxed ? 4 : 2)
+
+    const searchOrigins: Array<{ lat: number; lng: number; source: "user" | "postal" }> = []
     if (userCoordinates) {
-      const nearestStore = await findNearestStoreWithPlaces(
+      searchOrigins.push({ ...userCoordinates, source: "user" })
+    }
+    if (userPostalCode) {
+      const postalCoords = await geocodePostalCode(userPostalCode)
+      if (postalCoords && (!userCoordinates || postalCoords.lat !== userCoordinates.lat || postalCoords.lng !== userCoordinates.lng)) {
+        searchOrigins.push({ ...postalCoords, source: "postal" })
+      }
+    }
+
+    for (const origin of searchOrigins) {
+      // primary attempt using configured radius
+      let nearestStore = await findNearestStoreWithPlaces(
         storeName,
-        userCoordinates,
+        { lat: origin.lat, lng: origin.lng },
         apiKey,
         groceryDistanceMiles,
         storeHint
       )
+
+      // double-check with a larger radius if nothing is found
+      if (!nearestStore) {
+        const expandedRadius = Math.max(groceryDistanceMiles * 2, groceryDistanceMiles + 5, 10)
+        if (expandedRadius !== groceryDistanceMiles) {
+          nearestStore = await findNearestStoreWithPlaces(
+            storeName,
+            { lat: origin.lat, lng: origin.lng },
+            apiKey,
+            expandedRadius,
+            storeHint
+          )
+          if (nearestStore) {
+            console.log("[Geocoding] Found store after radius expansion", {
+              storeName,
+              expandedRadius,
+              origin: origin.source,
+            })
+          }
+        }
+      }
+
       if (nearestStore) {
-        console.log("[Geocoding] Places nearest result", {
+        console.log("[Geocoding] Places result", {
           storeName,
-          userCoordinates,
+          origin: origin.source,
           storeHint,
           nearestStore,
         })
+        if (userCoordinates) {
+          const routeCheck = await verifyRouteDistance(userCoordinates, nearestStore, apiKey)
+          if (routeCheck.ok && routeCheck.distanceMiles !== undefined) {
+            if (routeCheck.distanceMiles > allowedDriveMiles) {
+              console.warn(
+                `[Geocoding] ${storeName} driving distance ${routeCheck.distanceMiles.toFixed(
+                  1
+                )} miles exceeds limit (${allowedDriveMiles.toFixed(1)}).`
+              )
+              if (!isRelaxed) {
+                continue
+              }
+            }
+          }
+          // if route check fails we fall back to straight-line validation later
+        }
+
         geocodeCache.set(cacheKey, nearestStore)
         return nearestStore
       }
@@ -92,22 +138,13 @@ export async function geocodeStore(
 
     if (!response.ok) {
       console.error("Geocoding API error:", response.statusText)
-      // Fall back to known coordinates
-      if (knownStoreCoordinates[storeName]) {
-        console.log(`[Geocoding] API failed, using fallback for ${storeName}`)
-        return knownStoreCoordinates[storeName]
-      }
       return null
     }
 
     const data = await response.json()
 
     if (data.status !== "OK" || !data.results || data.results.length === 0) {
-      console.warn(`No geocoding results found for: ${storeName}, using fallback`)
-      // Fall back to known coordinates
-      if (knownStoreCoordinates[storeName]) {
-        return knownStoreCoordinates[storeName]
-      }
+      console.warn(`No geocoding results found for: ${storeName}`)
       return null
     }
 
@@ -140,18 +177,48 @@ export async function geocodeStore(
       formattedAddress: selectedResult.formatted_address,
     }
 
-    // Cache the result
+    if (userCoordinates) {
+      const distanceKm = calculateDistance(
+        userCoordinates.lat,
+        userCoordinates.lng,
+        result.lat,
+        result.lng
+      )
+      const distanceMiles = distanceKm * KM_TO_MILES
+      if (distanceMiles > allowedMiles) {
+        console.warn(
+          `[Geocoding] ${storeName} geocoded ${distanceMiles.toFixed(
+            1
+          )} miles away (limit ${allowedMiles.toFixed(1)}).${isRelaxed ? " Keeping due to relaxed mode." : " Ignoring this result."}`
+        )
+        if (!isRelaxed) {
+          return null
+        }
+      }
+
+      const routeCheck = await verifyRouteDistance(userCoordinates, result, apiKey)
+      if (!routeCheck.ok) {
+        console.warn(`[Geocoding] Routes API failed for ${storeName}, relying on straight-line distance.`)
+      } else if (routeCheck.distanceMiles !== undefined) {
+        if (routeCheck.distanceMiles > allowedDriveMiles) {
+          console.warn(
+            `[Geocoding] ${storeName} driving distance ${routeCheck.distanceMiles.toFixed(
+              1
+            )} miles exceeds limit (${allowedDriveMiles.toFixed(1)}).${isRelaxed ? " Keeping due to relaxed mode." : " Ignoring this result."}`
+          )
+          if (!isRelaxed) {
+            return null
+          }
+        }
+      }
+    }
+
     geocodeCache.set(cacheKey, result)
-      console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${result.lat}, lng=${result.lng}`)
+    console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${result.lat}, lng=${result.lng}`)
 
     return result
   } catch (error) {
     console.error("Geocoding error:", error)
-    // Fall back to known coordinates as last resort
-    if (knownStoreCoordinates[storeName]) {
-      console.log(`[Geocoding] Exception occurred, using fallback for ${storeName}`)
-      return knownStoreCoordinates[storeName]
-    }
     return null
   }
 }
@@ -268,6 +335,50 @@ async function findNearestStoreWithPlaces(
   }
 }
 
+async function verifyRouteDistance(
+  origin: { lat: number; lng: number },
+  destination: GeocodeResult,
+  apiKey: string
+): Promise<{ ok: boolean; distanceMiles?: number; duration?: string }> {
+  try {
+    const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+      },
+      body: JSON.stringify({
+        origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
+        destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } },
+        travelMode: "DRIVE",
+        routingPreference: "TRAFFIC_AWARE",
+      }),
+    })
+
+    if (!response.ok) {
+      console.warn("[Geocoding] Routes API error:", response.statusText)
+      return { ok: false }
+    }
+
+    const data = await response.json()
+    const route = data.routes?.[0]
+    if (!route || typeof route.distanceMeters !== "number") {
+      return { ok: false }
+    }
+
+    const distanceMiles = route.distanceMeters * METERS_TO_MILES
+    return {
+      ok: true,
+      distanceMiles,
+      duration: route.duration,
+    }
+  } catch (error) {
+    console.warn("[Geocoding] Failed to verify route distance:", error)
+    return { ok: false }
+  }
+}
+
 /**
  * Geocode multiple stores and return their coordinates
  * Useful for batch processing store comparison results
@@ -289,13 +400,26 @@ export async function geocodeMultipleStores(
   }
 
   for (const storeName of storeNames) {
-    const geocoded = await geocodeStore(
+    let geocoded = await geocodeStore(
       storeName,
       userPostalCode,
       resolvedCoordinates ?? undefined,
       groceryDistanceMiles,
       storeHints?.get(storeName)
     )
+
+    if (!geocoded) {
+      console.warn(`[Geocoding] Retrying ${storeName} with relaxed constraints`)
+      geocoded = await geocodeStore(
+        storeName,
+        userPostalCode,
+        resolvedCoordinates ?? undefined,
+        groceryDistanceMiles,
+        storeHints?.get(storeName),
+        { relaxed: true }
+      )
+    }
+
     if (geocoded) {
       results.set(storeName, geocoded)
       console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${geocoded.lat}, lng=${geocoded.lng}`)

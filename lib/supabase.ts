@@ -81,10 +81,19 @@ export const supabase = createMonitoredClient(supabaseUrl, supabaseAnonKey, {
 
 // Server-side client for admin operations
 export const createServerClient = () => {
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseServiceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_ANON_KEY
 
   if (!supabaseServiceKey) {
-    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable")
+    throw new Error("Missing Supabase service credentials. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY.")
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn(
+      "[Supabase] SUPABASE_SERVICE_ROLE_KEY is not set. Falling back to a non-privileged key; cache writes may fail if RLS is enabled."
+    )
   }
 
   return createMonitoredClient(supabaseUrl, supabaseServiceKey, {
