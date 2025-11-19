@@ -8,8 +8,6 @@ export interface GeocodeResult {
   formattedAddress?: string
 }
 
-// Simple in-memory cache for geocoding results (resets on page reload)
-const geocodeCache = new Map<string, GeocodeResult>()
 const postalCodeCache = new Map<string, GeocodeResult>()
 const KM_TO_MILES = 0.621371
 const METERS_TO_MILES = 0.000621371
@@ -33,15 +31,6 @@ export async function geocodeStore(
 ): Promise<GeocodeResult | null> {
   try {
     const isRelaxed = options?.relaxed ?? false
-    // Check cache first
-    const locationKey = userCoordinates ? `${userCoordinates.lat.toFixed(4)},${userCoordinates.lng.toFixed(4)}` : "none"
-    const hintKey = storeHint ? storeHint.toLowerCase().trim() : "none"
-    const cacheKey = `${storeName}-${userPostalCode || "none"}-${locationKey}-${hintKey}`
-    if (geocodeCache.has(cacheKey)) {
-      const cached = geocodeCache.get(cacheKey)
-      console.log(`[Geocoding] Cache hit for ${storeName}`)
-      return cached || null
-    }
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     if (!apiKey) {
@@ -49,9 +38,9 @@ export async function geocodeStore(
       return null
     }
 
-    const baseAllowedMiles = Math.max(((groceryDistanceMiles ?? 10) * 2), 75)
-    const allowedMiles = isRelaxed ? baseAllowedMiles * 2 : baseAllowedMiles
-    const allowedDriveMiles = Math.max(groceryDistanceMiles || 10, 1) * (isRelaxed ? 4 : 2)
+    const baseRadius = Math.max(groceryDistanceMiles ?? 10, 5)
+    const allowedMiles = baseRadius * (isRelaxed ? 3 : 1.5)
+    const allowedDriveMiles = baseRadius * (isRelaxed ? 4 : 2)
 
     const searchOrigins: Array<{ lat: number; lng: number; source: "user" | "postal" }> = []
     if (userCoordinates) {
@@ -121,7 +110,6 @@ export async function geocodeStore(
           // if route check fails we fall back to straight-line validation later
         }
 
-        geocodeCache.set(cacheKey, nearestStore)
         return nearestStore
       }
     }
@@ -215,7 +203,6 @@ export async function geocodeStore(
       }
     }
 
-    geocodeCache.set(cacheKey, result)
     console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${result.lat}, lng=${result.lng}`)
 
     return result
@@ -503,6 +490,36 @@ export async function geocodePostalCode(postalCode: string): Promise<{ lat: numb
     return { lat, lng }
   } catch (error) {
     console.error(`[Geocoding] Error geocoding postal code ${normalized}:`, error)
+    return null
+  }
+}
+
+export async function reverseGeocodeCoordinates(lat: number, lng: number): Promise<string | null> {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  if (!apiKey) {
+    console.error("Google Maps API key not found; cannot reverse geocode coordinates")
+    return null
+  }
+
+  try {
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
+    )
+
+    if (!response.ok) {
+      console.error("[Geocoding] Reverse geocode error:", response.statusText)
+      return null
+    }
+
+    const data = await response.json()
+    if (data.status !== "OK" || !data.results?.length) {
+      console.warn("[Geocoding] No reverse geocode results for coordinates", { lat, lng })
+      return null
+    }
+
+    return data.results[0].formatted_address || null
+  } catch (error) {
+    console.error("[Geocoding] Failed to reverse geocode coordinates", { lat, lng, error })
     return null
   }
 }

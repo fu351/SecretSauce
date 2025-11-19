@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import { StoreMap } from "@/components/store-map"
-import { geocodeMultipleStores, geocodePostalCode, getUserLocation } from "@/lib/geocoding"
+import { geocodeMultipleStores, geocodePostalCode, getUserLocation, reverseGeocodeCoordinates } from "@/lib/geocoding"
 
 interface GroceryItem {
   id: string
@@ -789,11 +789,17 @@ export default function ShoppingPage() {
           }
 
           if (userLoc) {
+            let startAddress = await reverseGeocodeCoordinates(userLoc.lat, userLoc.lng)
+            if (!startAddress && locationSource === "postal" && zipCode) {
+              startAddress = `Postal code ${zipCode}`
+            }
+
             console.log("[Geocoding] Using user location for distance filtering", {
               source: locationSource,
               coordinates: userLoc,
               postalCode: zipCode,
               radiusMiles: groceryDistanceMiles,
+              address: startAddress,
             })
             const storeNames = comparisons.map((comp) => comp.store)
             const storeHints = new Map(comparisons.map((comp) => [comp.store, comp.locationHint]))
@@ -825,6 +831,7 @@ export default function ShoppingPage() {
                   store: comparison.store,
                   hint: comparison.locationHint,
                   formattedAddress: geocoded?.formattedAddress,
+                  coordinates: geocoded ? { lat: geocoded.lat, lng: geocoded.lng } : null,
                 })
                 outOfRange.push({ ...comparisonWithDistance, outOfRadius: true })
                 outOfRangeNames.push(`${comparison.store} (location unavailable)`)
@@ -833,6 +840,7 @@ export default function ShoppingPage() {
                   store: comparison.store,
                   distanceMiles: distance,
                   formattedAddress: geocoded?.formattedAddress,
+                  coordinates: geocoded ? { lat: geocoded.lat, lng: geocoded.lng } : null,
                   radiusMiles: maxDistanceMiles,
                 })
                 outOfRange.push({ ...comparisonWithDistance, outOfRadius: true })
@@ -1286,7 +1294,7 @@ export default function ShoppingPage() {
                       {massSearchResults.map((comparison, index) => (
                         <div
                           key={comparison.store}
-                          className="flex-shrink-0 w-full snap-center"
+                          className="flex-shrink-0 w-full snap-center cursor-pointer"
                           onClick={(event) => handleStoreCardClick(index, event)}
                         >
                           <Card
