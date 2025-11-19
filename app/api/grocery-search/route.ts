@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
         unit: item.unit,
         image_url: item.image_url || "/placeholder.svg",
         provider: "Target",
-        location: "West Lafayette Target",
+        location: item.location || getStoreLocationLabel("Target", zipCode),
         category: item.category,
       }))
       allItems.push(...targetItems)
@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
         unit: item.unit,
         image_url: item.image_url || "/placeholder.svg",
         provider: "Kroger",
-        location: item.location || "West Lafayette Kroger",
+        location: item.location || getStoreLocationLabel("Kroger", zipCode),
         category: item.category,
       }))
       allItems.push(...krogerItems)
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
         unit: item.unit,
         image_url: item.image_url || "/placeholder.svg",
         provider: "Meijer",
-        location: "West Lafayette Meijer",
+        location: item.location || getStoreLocationLabel("Meijer", zipCode),
         category: item.category,
       }))
       allItems.push(...meijerItems)
@@ -281,22 +281,22 @@ export async function GET(request: NextRequest) {
 
     // If no scrapers worked, return mock data
     console.warn("All scrapers failed, returning mock data")
-    const mockResults = generateMockResults()
+    const mockResults = generateMockResults(zipCode)
     return NextResponse.json({ results: mockResults })
 
   } catch (error) {
     console.error("Error using local scrapers:", error)
     // Return mock data when scrapers fail
-    const mockResults = generateMockResults()
+    const mockResults = generateMockResults(zipCode)
     return NextResponse.json({ results: mockResults })
   }
 }
 
-function generateMockResults() {
+function generateMockResults(zipCode?: string) {
   const stores = [
-    { name: "Target", location: "West Lafayette Target" },
-    { name: "Kroger", location: "West Lafayette Kroger" },
-    { name: "Meijer", location: "West Lafayette Meijer" },
+    { name: "Target", location: getStoreLocationLabel("Target", zipCode) },
+    { name: "Kroger", location: getStoreLocationLabel("Kroger", zipCode) },
+    { name: "Meijer", location: getStoreLocationLabel("Meijer", zipCode) },
     { name: "99 Ranch", location: "99 Ranch Market" },
     { name: "Trader Joe's", location: "Trader Joe's Store" },
     { name: "Aldi", location: "Aldi Store" },
@@ -345,7 +345,7 @@ async function runStoreSpecificSearch(storeKey: string, searchTerm: string, zipC
         unit: item.unit,
         image_url: item.image_url || "/placeholder.svg",
         provider: "Target",
-        location: "West Lafayette Target",
+        location: item.location || getStoreLocationLabel("Target", zipCode),
         category: item.category,
       }))
     },
@@ -360,7 +360,7 @@ async function runStoreSpecificSearch(storeKey: string, searchTerm: string, zipC
         unit: item.unit,
         image_url: item.image_url || "/placeholder.svg",
         provider: "Kroger",
-        location: item.location || "West Lafayette Kroger",
+        location: item.location || getStoreLocationLabel("Kroger", zipCode),
         category: item.category,
       }))
     },
@@ -375,7 +375,7 @@ async function runStoreSpecificSearch(storeKey: string, searchTerm: string, zipC
         unit: item.unit,
         image_url: item.image_url || "/placeholder.svg",
         provider: "Meijer",
-        location: "West Lafayette Meijer",
+        location: item.location || getStoreLocationLabel("Meijer", zipCode),
         category: item.category,
       }))
     },
@@ -462,6 +462,13 @@ function mapStoreKeyToName(storeKey: string): string {
     "aldi": "Aldi",
   }
   return storeMap[storeKey] || storeKey
+}
+
+function getStoreLocationLabel(storeName: string, zipCode?: string) {
+  if (zipCode) {
+    return `${storeName} (${zipCode})`
+  }
+  return `${storeName} Store`
 }
 
 /**
