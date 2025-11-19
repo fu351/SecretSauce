@@ -17,11 +17,16 @@ interface StoreResults {
   total: number
 }
 
-export async function searchGroceryStores(searchTerm: string, zipCode = "47906", store?: string): Promise<StoreResults[]> {
+export async function searchGroceryStores(
+  searchTerm: string,
+  zipCode = "47906",
+  store?: string,
+  timeoutMs: number = 60000
+): Promise<StoreResults[]> {
   try {
     // Use the local API route which can access the scrapers
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 60000) // Increased to 60 seconds for slower scrapers
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
     const storeQuery = store ? `&store=${encodeURIComponent(store)}` : ""
     const response = await fetch(
       `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}${storeQuery}`,

@@ -179,24 +179,24 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Link href="/upload-recipe">
-                <Button className="w-full h-24 flex flex-col gap-2">
+              <Button asChild className="w-full h-24 flex flex-col gap-2">
+                <Link href="/upload-recipe">
                   <Plus className="h-6 w-6" />
                   <span>Add Recipe</span>
-                </Button>
-              </Link>
-              <Link href="/meal-planner">
-                <Button className="w-full h-24 flex flex-col gap-2">
+                </Link>
+              </Button>
+              <Button asChild className="w-full h-24 flex flex-col gap-2">
+                <Link href="/meal-planner">
                   <Calendar className="h-6 w-6" />
                   <span>Plan Meals</span>
-                </Button>
-              </Link>
-              <Link href="/pantry">
-                <Button className="w-full h-24 flex flex-col gap-2">
+                </Link>
+              </Button>
+              <Button asChild className="w-full h-24 flex flex-col gap-2">
+                <Link href="/pantry">
                   <ShoppingCart className="h-6 w-6" />
                   <span>Manage Pantry</span>
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
