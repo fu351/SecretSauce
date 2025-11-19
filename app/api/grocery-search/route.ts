@@ -10,6 +10,7 @@ type SearchAttempt = {
   term: string
   standardizedId?: string | null
   fromCanonical?: boolean
+  canonicalTerm?: string | null
 }
 
 export async function GET(request: NextRequest) {
@@ -33,16 +34,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results: formattedResults, cached: true, source: "database" })
   }
 
+  let canonicalSearchTerm: string | null = null
   const attempts: SearchAttempt[] = [
     {
       term: sanitizedSearchTerm,
       standardizedId: initialCacheResult.standardizedId,
+      canonicalTerm: null,
     },
   ]
 
   if (initialCacheResult.standardizedId) {
     const meta = await getStandardizedIngredientMetadata(initialCacheResult.standardizedId)
-    const canonicalName = meta?.canonical_name
+    const canonicalName = meta?.canonical_name?.trim() ?? null
+    canonicalSearchTerm = canonicalName
+    attempts[0].canonicalTerm = canonicalName
     if (
       canonicalName &&
       canonicalName.length > 0 &&
@@ -52,6 +57,7 @@ export async function GET(request: NextRequest) {
         term: canonicalName,
         standardizedId: initialCacheResult.standardizedId,
         fromCanonical: true,
+        canonicalTerm: canonicalName,
       })
     }
   }
@@ -78,6 +84,7 @@ async function executeSearchAttempt(
   const { storeKey, storeFilter, zipCode } = options
   const searchTerm = attempt.term
   const standardizedIngredientId = attempt.standardizedId
+  const normalizedPrimary = searchTerm.trim().toLowerCase()
 
   if (attempt.fromCanonical && standardizedIngredientId) {
     const cached = await getCachedIngredientById(standardizedIngredientId, storeFilter)
@@ -89,30 +96,66 @@ async function executeSearchAttempt(
     }
   }
 
-  if (storeKey) {
-    try {
-      const storeResults = await runStoreSpecificSearch(storeKey, searchTerm, zipCode)
-      if (storeResults && storeResults.length > 0) {
-        await cacheScrapedResults(serializeForCache(storeResults), { standardizedIngredientId, searchTerm })
-        return { results: storeResults }
+  const cacheSearchTerm = attempt.canonicalTerm?.trim() || searchTerm
+
+  const runScrapePipeline = async (term: string, reason: string): Promise<{ results: any[] } | null> => {
+    if (storeKey) {
+      try {
+        const storeResults = await runStoreSpecificSearch(storeKey, term, zipCode)
+        if (storeResults && storeResults.length > 0) {
+          await cacheScrapedResults(serializeForCache(storeResults), {
+            standardizedIngredientId,
+            searchTerm: cacheSearchTerm,
+          })
+          return { results: storeResults }
+        }
+      } catch (error) {
+        console.error(`Error running ${storeKey} scraper (${reason}):`, error)
+        return null
       }
-    } catch (error) {
-      console.error(`Error running ${storeKey} scraper:`, error)
-      return { results: [] }
+      return null
+    } else {
+      const pythonResults = await runPythonServiceSearch(term, zipCode)
+      if (pythonResults && pythonResults.length > 0) {
+        await cacheScrapedResults(serializeForCache(pythonResults), {
+          standardizedIngredientId,
+          searchTerm: cacheSearchTerm,
+        })
+        return { results: pythonResults }
+      }
+
+      const localResults = await runLocalScrapers(term, zipCode)
+      if (localResults && localResults.length > 0) {
+        await cacheScrapedResults(serializeForCache(localResults), {
+          standardizedIngredientId,
+          searchTerm: cacheSearchTerm,
+        })
+        return { results: localResults }
+      }
     }
+
     return null
   }
 
-  const pythonResults = await runPythonServiceSearch(searchTerm, zipCode)
-  if (pythonResults && pythonResults.length > 0) {
-    await cacheScrapedResults(serializeForCache(pythonResults), { standardizedIngredientId, searchTerm })
-    return { results: pythonResults }
+  const primaryResult = await runScrapePipeline(searchTerm, "primary")
+  if (primaryResult) {
+    return primaryResult
   }
 
-  const localResults = await runLocalScrapers(searchTerm, zipCode)
-  if (localResults && localResults.length > 0) {
-    await cacheScrapedResults(serializeForCache(localResults), { standardizedIngredientId, searchTerm })
-    return { results: localResults }
+  const fallbackTerm = attempt.canonicalTerm?.trim()
+  const normalizedFallback = fallbackTerm?.toLowerCase()
+
+  if (
+    !attempt.fromCanonical &&
+    fallbackTerm &&
+    normalizedFallback &&
+    normalizedFallback.length > 0 &&
+    normalizedFallback !== normalizedPrimary
+  ) {
+    console.log(
+      `[Scraper] Primary search "${searchTerm}" returned no results; retrying with standardized term "${fallbackTerm}"`
+    )
+    return runScrapePipeline(fallbackTerm, "canonical-fallback")
   }
 
   return null

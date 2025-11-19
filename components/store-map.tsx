@@ -2,11 +2,22 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react"
 import { useTheme } from "@/contexts/theme-context"
-import { geocodeMultipleStores, geocodePostalCode, getUserLocation } from "@/lib/geocoding"
+import { geocodeMultipleStores, geocodePostalCode, getUserLocation, canonicalizeStoreName } from "@/lib/geocoding"
 import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import clsx from "clsx"
+
+const HTML_ESCAPE_LOOKUP: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+}
+
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (char) => HTML_ESCAPE_LOOKUP[char as keyof typeof HTML_ESCAPE_LOOKUP] ?? char)
 
 // Declare google namespace for TypeScript
 declare global {
@@ -184,6 +195,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
   const googleMapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<Map<number, google.maps.Marker>>(new Map())
   const storeLocationsRef = useRef<Map<number, { lat: number; lng: number }>>(new Map())
+  const storeResolvedNamesRef = useRef<Map<number, string | undefined>>(new Map())
   const userMarkerRef = useRef<google.maps.Marker | null>(null)
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
   const directionsRenderersRef = useRef<Map<number, google.maps.DirectionsRenderer>>(new Map())
@@ -198,12 +210,13 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
   const [travelMode, setTravelMode] = useState<"WALKING" | "DRIVING">("DRIVING")
   const [showRoutes, setShowRoutes] = useState(false)
   const [travelTimes, setTravelTimes] = useState<Map<number, string>>(new Map())
+  const [skippedStores, setSkippedStores] = useState<string[]>([])
 
   const isDark = theme === "dark"
   const radiusLimitMiles = maxDistanceMiles ? maxDistanceMiles * 3 : null
 
   const buildInfoWindowContent = useCallback(
-    (comparison: StoreComparison, travelTime?: string) => {
+    (comparison: StoreComparison, travelTime?: string, matchedName?: string) => {
       const bgColor = isDark ? "#1f1e1a" : "#ffffff"
       const textColor = isDark ? "#f5f2e9" : "#1f2937"
       const mutedColor = isDark ? "#c8c3b5" : "#4b5563"
@@ -217,10 +230,43 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
             travelMode === "WALKING" ? "walk" : "drive"
           }: ${travelTime}</div>`
         : ""
+      const brandName = comparison.store?.trim() ?? ""
+      const requestedAlias = comparison.providerAliases?.[0]?.trim() || brandName
+      const additionalAliases =
+        comparison.providerAliases
+          ?.slice(1)
+          ?.filter((alias) => alias && alias.toLowerCase() !== brandName.toLowerCase()) ?? []
+      const resolvedName = matchedName?.trim()
+      const fallbackName = requestedAlias || brandName || resolvedName || "Store"
+      const safeResolvedName = escapeHtml(resolvedName || fallbackName)
+      const safeRequested = escapeHtml(requestedAlias || fallbackName)
+      const aliasMeta: string[] = []
+      if (brandName && brandName.toLowerCase() !== (resolvedName || "").toLowerCase()) {
+        aliasMeta.push(`Brand: ${escapeHtml(brandName)}`)
+      }
+      if (requestedAlias && requestedAlias.toLowerCase() !== brandName.toLowerCase()) {
+        aliasMeta.push(`Requested: ${safeRequested}`)
+      }
+      if (additionalAliases.length) {
+        const aliasPreview =
+          additionalAliases.length > 2
+            ? `${additionalAliases.slice(0, 2).join(", ")}…`
+            : additionalAliases.join(", ")
+        aliasMeta.push(`Also seen as: ${escapeHtml(aliasPreview)}`)
+      }
+
+      const titleHtml = resolvedName
+        ? `<div style="font-size:15px;font-weight:600;">Found: ${safeResolvedName}</div>`
+        : `<div style="font-size:15px;font-weight:600;">${safeRequested}</div>`
+      const subtitleHtml =
+        aliasMeta.length > 0
+          ? `<div style="margin-top:4px;font-size:12px;color:${mutedColor};">${aliasMeta.join(" • ")}</div>`
+          : ""
 
       return `
         <div style="min-width:220px;background:${bgColor};color:${textColor};padding:12px;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.25);font-family:'Inter',system-ui,sans-serif;">
-          <div style="font-size:15px;font-weight:600;">${comparison.store}</div>
+          ${titleHtml}
+          ${subtitleHtml}
           <div style="margin-top:6px;font-size:14px;">Total: <strong>$${comparison.total.toFixed(2)}</strong></div>
           ${
             comparison.savings > 0
@@ -351,6 +397,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
   useEffect(() => {
     const initializeMap = async () => {
       try {
+        setSkippedStores([])
         setError(null)
 
         // Check if Google Maps API is loaded
@@ -412,6 +459,10 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
         const map = googleMapRef.current
 
         // Add user location marker if available
+        if (userMarkerRef.current) {
+          userMarkerRef.current.setMap(null)
+          userMarkerRef.current = null
+        }
         if (userLoc) {
           userMarkerRef.current = new google.maps.Marker({
             position: userLoc,
@@ -427,11 +478,24 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
             },
             zIndex: 1000,
           })
+        } else {
+          userMarkerRef.current = null
         }
 
         // Geocode stores and add markers
-        const storeNames = comparisons.map((comp) => comp.store)
-        const storeHints = new Map(comparisons.map((comp) => [comp.store, comp.locationHint]))
+        const storeQueryEntries = comparisons.map((comparison, index) => {
+          const primaryAlias = (comparison.providerAliases?.[0] || comparison.store || "").trim()
+          const aliasHints = comparison.providerAliases?.slice(1)?.filter(Boolean)
+          const hintPieces = [comparison.locationHint, aliasHints?.length ? aliasHints.join(", ") : null].filter(
+            Boolean,
+          )
+          return {
+            queryName: primaryAlias || comparison.store || `Store ${index + 1}`,
+            hint: hintPieces.length > 0 ? hintPieces.join(" • ") : undefined,
+          }
+        })
+        const storeNames = storeQueryEntries.map((entry) => entry.queryName)
+        const storeHints = new Map(storeQueryEntries.map((entry) => [entry.queryName, entry.hint]))
         console.log(`[StoreMap] Found ${comparisons.length} stores to geocode:`, storeNames)
         const geocodedStores = await geocodeMultipleStores(
           storeNames,
@@ -444,6 +508,8 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
         const bounds = new google.maps.LatLngBounds()
 
+        const missingMarkers: string[] = []
+
         // Add user location to bounds
         if (userLoc) {
           bounds.extend(userLoc)
@@ -451,16 +517,20 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
         // Reset stored marker positions
         storeLocationsRef.current = new Map()
+        storeResolvedNamesRef.current = new Map()
 
         // Add markers for each store
         comparisons.forEach((comparison, index) => {
-          const geocoded = geocodedStores.get(comparison.store)
+          const canonicalName =
+            comparison.canonicalKey || canonicalizeStoreName(storeQueryEntries[index]?.queryName || comparison.store)
+          const geocoded = geocodedStores.get(canonicalName)
 
           if (comparison.outOfRadius) {
             console.log(`[StoreMap] Skipping ${comparison.store} because it is marked out of radius`, {
               coordinates: geocoded ? { lat: geocoded.lat, lng: geocoded.lng } : null,
               formattedAddress: geocoded?.formattedAddress,
             })
+            missingMarkers.push(`${comparison.store} (outside your distance filter)`)
             return
           }
 
@@ -468,10 +538,12 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
           if (!geocoded) {
             console.warn(`Could not geocode store: ${comparison.store}`)
+            missingMarkers.push(`${comparison.store} (no matching map location)`)
             return
           }
 
           const position = { lat: geocoded.lat, lng: geocoded.lng }
+          const resolvedStoreName = geocoded.matchedName?.trim()
           const distanceFromUser =
             userLoc && position
               ? calculateDistance(userLoc.lat, userLoc.lng, position.lat, position.lng)
@@ -483,10 +555,14 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
               limitMiles: radiusLimitMiles,
               coordinates: position,
             })
+            missingMarkers.push(
+              `${comparison.store} (${distanceFromUser?.toFixed(1)}mi away exceeds ${radiusLimitMiles.toFixed(0)}mi map radius)`
+            )
             return
           }
 
           storeLocationsRef.current.set(index, position)
+          storeResolvedNamesRef.current.set(index, resolvedStoreName)
 
           bounds.extend(position)
 
@@ -494,10 +570,19 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           const isSelected = selectedStoreIndex === index
           const markerColor = isSelected ? "FF6B6B" : "4A90E2"
 
+          const markerTitleParts = Array.from(
+            new Set(
+              [resolvedStoreName, comparison.store, ...(comparison.providerAliases ?? [])].filter(
+                (name): name is string => !!name?.trim(),
+              ),
+            ),
+          )
+          const markerTitle = markerTitleParts.join(" • ")
+
           const marker = new google.maps.Marker({
             position,
             map,
-            title: comparison.store,
+            title: markerTitle,
             icon: `http://maps.google.com/mapfiles/ms/icons/${markerColor === "FF6B6B" ? "red" : "blue"}-dot.png`,
           })
 
@@ -507,7 +592,8 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
             }
             if (infoWindowRef.current) {
               const travelTime = travelTimesRef.current.get(index)
-              infoWindowRef.current.setContent(buildInfoWindowContent(comparison, travelTime))
+              const resolvedName = storeResolvedNamesRef.current.get(index)
+              infoWindowRef.current.setContent(buildInfoWindowContent(comparison, travelTime, resolvedName))
               infoWindowRef.current.open(map, marker)
             }
           })
@@ -515,6 +601,8 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           markersRef.current.set(index, marker)
           console.log(`[StoreMap] Created marker #${index} for ${comparison.store} at lat: ${position.lat}, lng: ${position.lng}`)
         })
+
+        setSkippedStores(Array.from(new Set(missingMarkers)))
 
         // Center and zoom to fit all markers
         console.log(`[StoreMap] Total markers created: ${markersRef.current.size}`)
@@ -568,7 +656,8 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           const comparison = comparisons[index]
           if (comparison) {
             const travelTime = travelTimesRef.current.get(index)
-            infoWindowRef.current.setContent(buildInfoWindowContent(comparison, travelTime))
+            const resolvedName = storeResolvedNamesRef.current.get(index)
+            infoWindowRef.current.setContent(buildInfoWindowContent(comparison, travelTime, resolvedName))
           }
         }
       }
@@ -581,7 +670,8 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
     const comparison = comparisons[selectedStoreIndex]
     if (!marker || !comparison || !infoWindowRef.current) return
     const travelTime = travelTimesRef.current.get(selectedStoreIndex)
-    infoWindowRef.current.setContent(buildInfoWindowContent(comparison, travelTime))
+    const resolvedName = storeResolvedNamesRef.current.get(selectedStoreIndex)
+    infoWindowRef.current.setContent(buildInfoWindowContent(comparison, travelTime, resolvedName))
   }, [travelTimes, selectedStoreIndex, comparisons, buildInfoWindowContent])
 
   // Request and display routes to stores
@@ -822,6 +912,22 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
       >
         <div ref={mapRef} className="w-full h-full" />
       </div>
+
+      {!isLoading && skippedStores.length > 0 && (
+        <div
+          className={clsx(
+            "text-xs rounded-lg border p-3",
+            isDark ? "bg-[#181813] border-[#e8dcc4]/20 text-[#e8dcc4]/70" : "bg-orange-50/60 border-orange-200/70 text-orange-800"
+          )}
+        >
+          <p className="font-medium mb-1">Couldn&apos;t map these stores:</p>
+          <ul className="list-disc list-inside space-y-1">
+            {skippedStores.map((store) => (
+              <li key={store}>{store}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Travel Times Display */}
       {showRoutes && travelTimes.size > 0 && (

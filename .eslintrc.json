@@ -1,0 +1,16 @@
+{
+  "extends": [
+    "next/core-web-vitals"
+  ],
+  "ignorePatterns": [
+    "node_modules/",
+    ".next/",
+    "python-api/**",
+    "scripts/**/*.sql"
+  ],
+  "rules": {
+    "semi": ["error", "never"],
+    "quotes": ["error", "double", { "avoidEscape": true }],
+    "indent": ["error", 2, { "SwitchCase": 1 }]
+  }
+}

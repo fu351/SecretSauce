@@ -16,7 +16,13 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import { StoreMap } from "@/components/store-map"
-import { geocodeMultipleStores, geocodePostalCode, getUserLocation, reverseGeocodeCoordinates } from "@/lib/geocoding"
+import {
+  geocodeMultipleStores,
+  geocodePostalCode,
+  getUserLocation,
+  reverseGeocodeCoordinates,
+  canonicalizeStoreName,
+} from "@/lib/geocoding"
 
 interface GroceryItem {
   id: string
@@ -55,6 +61,98 @@ type PantryItemInfo = {
 
 const DEFAULT_GROCERY_DISTANCE_MILES = 10
 const DEFAULT_SHOPPING_ZIP = "94709"
+const STORE_BRAND_ALIASES: Array<{ brand: string; keywords: string[] }> = [
+  { brand: "Walmart", keywords: ["walmart", "neighborhoodmarket", "samsclub"] },
+  { brand: "Target", keywords: ["target"] },
+  {
+    brand: "Kroger",
+    keywords: [
+      "kroger",
+      "ralphs",
+      "fredmeyer",
+      "smiths",
+      "frys",
+      "kingsoopers",
+      "marianos",
+      "picknsave",
+      "food4less",
+      "foodsco",
+      "foodco",
+      "citymarket",
+      "dillons",
+      "harristeeter",
+      "bakers",
+      "gerbes",
+    ],
+  },
+  { brand: "Trader Joe's", keywords: ["traderjoe"] },
+  { brand: "Aldi", keywords: ["aldi"] },
+  { brand: "Whole Foods", keywords: ["wholefoods", "wholefood"] },
+  { brand: "Costco", keywords: ["costco"] },
+  { brand: "99 Ranch", keywords: ["99ranch", "ranchmarket"] },
+  { brand: "Meijer", keywords: ["meijer"] },
+]
+
+const buildStoreKey = (storeName?: string) => canonicalizeStoreName(storeName || "")
+
+const deriveStoreBrandLabel = (storeKey: string, fallback: string) => {
+  if (!storeKey) return fallback
+  const aliasMatch = STORE_BRAND_ALIASES.find((entry) => entry.keywords.some((keyword) => storeKey.includes(keyword)))
+  return aliasMatch ? aliasMatch.brand : fallback
+}
+const WARM_COMPARISON_MESSAGES = [
+  {
+    title: "Comparing stores…",
+    description: "Counting coupons like finals week crammers.",
+  },
+  {
+    title: "Sniffing out deals…",
+    description: "Asking the produce section for its juiciest gossip.",
+  },
+  {
+    title: "Coaching shopping carts…",
+    description: "Running victory laps past every clearance bin.",
+  },
+  {
+    title: "Consulting sale oracles…",
+    description: "Reading tea leaves in the bulk spice aisle.",
+  },
+  {
+    title: "Weighing price tags…",
+    description: "Negotiating peace between kale and coupons.",
+  },
+  {
+    title: "Gathering receipts…",
+    description: "Dusting off old loyalty cards for secret codes.",
+  },
+] as const
+
+const DARK_COMPARISON_MESSAGES = [
+  {
+    title: "Running shadow analysis…",
+    description: "Triangulating whispers from midnight stock rooms.",
+  },
+  {
+    title: "Tracing price signals…",
+    description: "Decrypting receipts recovered from the void.",
+  },
+  {
+    title: "Projecting outcomes…",
+    description: "Cross-referencing stellar drift with sale cycles.",
+  },
+  {
+    title: "Auditing supply lines…",
+    description: "Questioning silent shelves about hidden fees.",
+  },
+  {
+    title: "Balancing ledgers…",
+    description: "Letting algorithms decide which store blinks first.",
+  },
+  {
+    title: "Collating intel…",
+    description: "Tuning antennae for faint coupon transmissions.",
+  },
+] as const
 
 interface StoreComparison {
   store: string
@@ -66,6 +164,13 @@ interface StoreComparison {
   locationHint?: string
   missingItems?: boolean
   missingCount?: number
+  providerAliases?: string[]
+  canonicalKey?: string
+}
+
+type StoreAggregationEntry = StoreComparison & {
+  canonicalKey: string
+  aliasSet: Set<string>
 }
 
 /**
@@ -107,6 +212,7 @@ export default function ShoppingPage() {
     { type: "shopping-list" | "missing" | "search-results"; shoppingItemId?: string; store?: string } | null
   >(null);
   const [pantryInventory, setPantryInventory] = useState<Map<string, PantryItemInfo>>(new Map())
+  const [comparisonMessageIndex, setComparisonMessageIndex] = useState(0)
 
   const [carouselIndex, setCarouselIndex] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
@@ -115,10 +221,17 @@ export default function ShoppingPage() {
   const { user } = useAuth()
   const { theme } = useTheme()
   const getDomTheme = () => {
-    if (typeof document === "undefined") return "light"
-    return document.documentElement.classList.contains("dark") ? "dark" : "light"
+    if (typeof document !== "undefined") {
+      return document.documentElement.classList.contains("dark") ? "dark" : "light"
+    }
+    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+    }
+    return "dark" // default to site's base theme during SSR
   }
   const isDark = (mounted ? theme : getDomTheme()) === "dark"
+  const comparisonMessages = isDark ? DARK_COMPARISON_MESSAGES : WARM_COMPARISON_MESSAGES
+  const comparisonStatus = comparisonMessages[comparisonMessageIndex % comparisonMessages.length] ?? comparisonMessages[0]
   const { toast } = useToast()
   const loadPantryInventory = useCallback(async () => {
     if (!user) {
@@ -184,6 +297,18 @@ export default function ShoppingPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!comparisonLoading) {
+      setComparisonMessageIndex(0)
+      return
+    }
+    const totalMessages = comparisonMessages.length || 1
+    const rotateInterval = window.setInterval(() => {
+      setComparisonMessageIndex((prev) => (prev + 1) % totalMessages)
+    }, 2400)
+    return () => clearInterval(rotateInterval)
+  }, [comparisonLoading, comparisonMessages])
 
   useEffect(() => {
     if (user) {
@@ -728,7 +853,7 @@ export default function ShoppingPage() {
         })),
       })
 
-      const storeMap = new Map<string, StoreComparison>()
+      const storeMap = new Map<string, StoreAggregationEntry>()
       const missing: ShoppingListItem[] = []
 
       searchResults.forEach(({ item, storeResults }) => {
@@ -739,32 +864,62 @@ export default function ShoppingPage() {
         }
 
         storeResults.forEach((storeResult) => {
-          if (!storeMap.has(storeResult.store)) {
-            storeMap.set(storeResult.store, {
-              store: storeResult.store,
+          if (!storeResult.items || storeResult.items.length === 0) {
+            return
+          }
+          const bestItem = storeResult.items.reduce((best, current) => (current.price < best.price ? current : best))
+          if (!bestItem) {
+            return
+          }
+
+          const rawStoreLabel =
+            storeResult.store?.trim() ||
+            bestItem.provider?.trim() ||
+            bestItem.location?.trim() ||
+            "Unknown Store"
+          const normalizedKey = buildStoreKey(rawStoreLabel)
+          const fallbackKey = rawStoreLabel.toLowerCase()
+          const storeKey = normalizedKey || fallbackKey || `store-${storeMap.size + 1}`
+
+          if (!storeMap.has(storeKey)) {
+            const aliasSet = new Set<string>()
+            if (rawStoreLabel) {
+              aliasSet.add(rawStoreLabel)
+            }
+            storeMap.set(storeKey, {
+              store: deriveStoreBrandLabel(storeKey, rawStoreLabel || "Unknown Store"),
               items: [],
               total: 0,
               savings: 0,
+              canonicalKey: storeKey,
+              aliasSet,
+              providerAliases: aliasSet.size ? Array.from(aliasSet) : undefined,
             })
           }
 
-          const store = storeMap.get(storeResult.store)!
-          const bestItem = storeResult.items.reduce((best, current) => (current.price < best.price ? current : best))
+          const store = storeMap.get(storeKey)!
+          if (rawStoreLabel && !store.aliasSet.has(rawStoreLabel)) {
+            store.aliasSet.add(rawStoreLabel)
+            store.providerAliases = Array.from(store.aliasSet)
+          }
+          const primaryAlias = store.providerAliases?.[0] || rawStoreLabel
+          store.store = deriveStoreBrandLabel(store.canonicalKey, primaryAlias || store.store)
 
-          if (bestItem) {
-              store.items.push({
-                ...bestItem,
-                shoppingItemId: item.id,
-              })
-              store.total += bestItem.price * item.quantity
-              if (!store.locationHint && bestItem.location) {
-                store.locationHint = bestItem.location
-              }
-            }
+          store.items.push({
+            ...bestItem,
+            shoppingItemId: item.id,
+          })
+          store.total += bestItem.price * item.quantity
+          if (!store.locationHint) {
+            store.locationHint = bestItem.location || primaryAlias
+          }
         })
       })
 
-      const comparisons = Array.from(storeMap.values())
+      const comparisons = Array.from(storeMap.values()).map(({ aliasSet, ...rest }) => ({
+        ...rest,
+        providerAliases: rest.providerAliases ?? Array.from(aliasSet),
+      }))
       const minTotal = Math.min(...comparisons.map((c) => c.total))
 
       comparisons.forEach((comparison) => {
@@ -801,16 +956,39 @@ export default function ShoppingPage() {
               radiusMiles: groceryDistanceMiles,
               address: startAddress,
             })
-            const storeNames = comparisons.map((comp) => comp.store)
-            const storeHints = new Map(comparisons.map((comp) => [comp.store, comp.locationHint]))
-            const geocodedStores = await geocodeMultipleStores(storeNames, zipCode, userLoc, groceryDistanceMiles, storeHints)
+            const storeQueryEntries = comparisons.map((comparison, index) => {
+              const primaryAlias = (comparison.providerAliases?.[0] || comparison.store || "").trim()
+              const aliasHints = comparison.providerAliases?.slice(1)?.filter(Boolean)
+              const hintPieces = [comparison.locationHint, aliasHints?.length ? aliasHints.join(", ") : null].filter(
+                Boolean,
+              )
+              return {
+                queryName: primaryAlias || comparison.store || `Store ${index + 1}`,
+                hint: hintPieces.length > 0 ? hintPieces.join(" • ") : undefined,
+              }
+            })
+
+            const storeNames = storeQueryEntries.map(
+              (entry, idx) => entry.queryName || comparisons[idx]?.store || "Unknown Store",
+            )
+            const storeHints = new Map(storeQueryEntries.map((entry) => [entry.queryName, entry.hint]))
+            const geocodedStores = await geocodeMultipleStores(
+              storeNames,
+              zipCode,
+              userLoc,
+              groceryDistanceMiles,
+              storeHints,
+            )
 
             const storeDistances = new Map<string, number>()
-            comparisons.forEach((comparison) => {
-              const geocoded = geocodedStores.get(comparison.store)
+            comparisons.forEach((comparison, idx) => {
+              const lookupKey =
+                comparison.canonicalKey || buildStoreKey(storeQueryEntries[idx]?.queryName || comparison.store)
+              if (!lookupKey) return
+              const geocoded = geocodedStores.get(lookupKey)
               if (geocoded) {
                 const distance = calculateDistance(userLoc.lat, userLoc.lng, geocoded.lat, geocoded.lng)
-                storeDistances.set(comparison.store, distance)
+                storeDistances.set(lookupKey, distance)
               }
             })
 
@@ -818,9 +996,11 @@ export default function ShoppingPage() {
             const outOfRange: StoreComparison[] = []
             const outOfRangeNames: string[] = []
 
-            comparisons.forEach((comparison) => {
-              const distance = storeDistances.get(comparison.store)
-              const geocoded = geocodedStores.get(comparison.store)
+            comparisons.forEach((comparison, index) => {
+              const lookupKey =
+                comparison.canonicalKey || buildStoreKey(storeQueryEntries[index]?.queryName || comparison.store)
+              const distance = lookupKey ? storeDistances.get(lookupKey) : undefined
+              const geocoded = lookupKey ? geocodedStores.get(lookupKey) : undefined
               const comparisonWithDistance = {
                 ...comparison,
                 distanceMiles: distance,
@@ -1009,6 +1189,14 @@ export default function ShoppingPage() {
     theme === "dark"
       ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
       : "border-gray-300 hover:bg-[#e8dcc4]/10"
+  const spinnerAccentClass =
+    theme === "dark"
+      ? "border-[#e8dcc4]/80 shadow-[0_0_28px_rgba(232,220,196,0.35)]"
+      : "border-orange-400/80 shadow-[0_0_28px_rgba(249,115,22,0.35)]"
+  const overlayTitle = comparisonLoading ? comparisonStatus.title : "Searching for groceries…"
+  const overlayMessage = comparisonLoading
+    ? comparisonStatus.description
+    : "Hang tight while we check every store in range."
 
   if (!mounted) {
     return <div className={`min-h-screen ${bgClass}`} />
@@ -1027,16 +1215,12 @@ export default function ShoppingPage() {
             aria-label={comparisonLoading ? "Store comparison in progress" : "Grocery search in progress"}
           >
             <div className="mb-4 flex justify-center">
-              <span className="h-12 w-12 animate-spin rounded-full border-4 border-[#e8dcc4] border-t-transparent"></span>
+              <span
+                className={`h-12 w-12 animate-spin rounded-full border-4 border-t-transparent ${spinnerAccentClass}`}
+              ></span>
             </div>
-            <h2 className="text-2xl font-semibold mb-2">
-              {comparisonLoading ? "Comparing stores…" : "Searching for groceries…"}
-            </h2>
-            <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"}>
-              {comparisonLoading
-                ? "Finding the best prices across all your nearby stores."
-                : "Hang tight while we compare prices across nearby stores."}
-            </p>
+            <h2 className="text-2xl font-semibold mb-2">{overlayTitle}</h2>
+            <p className={theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"}>{overlayMessage}</p>
           </div>
         </div>
       )}
@@ -1291,60 +1475,72 @@ export default function ShoppingPage() {
                       className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
                       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                     >
-                      {massSearchResults.map((comparison, index) => (
-                        <div
-                          key={comparison.store}
-                          className="flex-shrink-0 w-full snap-center cursor-pointer"
-                          onClick={(event) => handleStoreCardClick(index, event)}
-                        >
-                          <Card
-                            className={`h-full flex flex-col ${cardBgClass} ${
-                              index === 0 ? "border-2 border-green-500" : comparison.outOfRadius ? "border-yellow-500/60" : ""
-                            }`}
+                      {massSearchResults.map((comparison, index) => {
+                        const aliasNames =
+                          comparison.providerAliases?.filter(
+                            (alias) => alias && alias.toLowerCase() !== comparison.store.toLowerCase(),
+                          ) ?? []
+                        const aliasPreview =
+                          aliasNames.length > 0
+                            ? aliasNames.slice(0, 2).join(", ") + (aliasNames.length > 2 ? "…" : "")
+                            : null
+                        return (
+                          <div
+                            key={`${comparison.canonicalKey || comparison.store}-${index}`}
+                            className="flex-shrink-0 w-full snap-center cursor-pointer"
+                            onClick={(event) => handleStoreCardClick(index, event)}
                           >
-                            <CardHeader>
-                              <CardTitle className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-4xl">{getStoreIcon(comparison.store)}</span>
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-2xl ${textClass}`}>{comparison.store}</span>
-                                      {index === 0 && <Badge className="bg-green-500 text-white">Best Price</Badge>}
-                                      {comparison.outOfRadius && (
-                                        <Badge variant="destructive" className="bg-yellow-500 text-black">
-                                          Outside Radius
-                                        </Badge>
+                            <Card
+                              className={`h-full flex flex-col ${cardBgClass} ${
+                                index === 0 ? "border-2 border-green-500" : comparison.outOfRadius ? "border-yellow-500/60" : ""
+                              }`}
+                            >
+                              <CardHeader>
+                                <CardTitle className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-4xl">{getStoreIcon(comparison.store)}</span>
+                                    <div>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`text-2xl ${textClass}`}>{comparison.store}</span>
+                                        {index === 0 && <Badge className="bg-green-500 text-white">Best Price</Badge>}
+                                        {comparison.outOfRadius && (
+                                          <Badge variant="destructive" className="bg-yellow-500 text-black">
+                                            Outside Radius
+                                          </Badge>
+                                        )}
+                                        {comparison.missingItems && (
+                                          <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-200">
+                                            Missing Items
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      {aliasPreview && (
+                                        <p className={`text-xs ${mutedTextClass}`}>Local signage: {aliasPreview}</p>
                                       )}
-                                      {comparison.missingItems && (
-                                        <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-200">
-                                          Missing Items
-                                        </Badge>
-                                      )}
-                                    </div>
                                       {typeof comparison.distanceMiles === "number" ? (
                                         <p className={`text-sm ${mutedTextClass}`}>
                                           {comparison.distanceMiles.toFixed(1)} miles away
                                         </p>
                                       ) : null}
-                                    <div className="text-right mt-1">
-                                      <div className={`text-3xl font-bold ${textClass}`}>
-                                        ${comparison.total.toFixed(2)}
+                                      <div className="text-right mt-1">
+                                        <div className={`text-3xl font-bold ${textClass}`}>
+                                          ${comparison.total.toFixed(2)}
+                                        </div>
+                                        {comparison.savings > 0 && (
+                                          <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
+                                        )}
                                       </div>
-                                      {comparison.savings > 0 && (
-                                        <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
-                                      )}
                                     </div>
                                   </div>
-                                </div>
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="flex-1 flex flex-col">
-                              {comparison.outOfRadius && (
-                                <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-3">
-                                      Outside your {groceryDistanceMiles ?? DEFAULT_GROCERY_DISTANCE_MILES} mile radius. Hidden from the map but included
-                                  here for reference.
-                                </p>
-                              )}
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="flex-1 flex flex-col">
+                                {comparison.outOfRadius && (
+                                  <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-3">
+                                        Outside your {groceryDistanceMiles ?? DEFAULT_GROCERY_DISTANCE_MILES} mile radius. Hidden from the map but included
+                                    here for reference.
+                                  </p>
+                                )}
                               <div className="space-y-3 flex-1 max-h-[500px] overflow-y-auto pr-1">
                                 {comparison.items.map((item) => {
                                   const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)

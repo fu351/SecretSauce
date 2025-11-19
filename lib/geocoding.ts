@@ -6,11 +6,36 @@ export interface GeocodeResult {
   lat: number
   lng: number
   formattedAddress?: string
+  matchedName?: string
 }
 
 const postalCodeCache = new Map<string, GeocodeResult>()
 const KM_TO_MILES = 0.621371
 const METERS_TO_MILES = 0.000621371
+const DIACRITIC_REGEX = /[\u0300-\u036f]/g
+const CURLY_APOSTROPHE_REGEX = /[\u2019\u2018]/g
+
+const cleanStoreValue = (value: string) =>
+  value
+    .normalize("NFKD")
+    .replace(DIACRITIC_REGEX, "")
+    .replace(CURLY_APOSTROPHE_REGEX, "'")
+
+const normalizeStoreMatchValue = (value?: string): string => {
+  if (!value) return ""
+  return cleanStoreValue(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+}
+
+const coordinatesAppearValid = (lat: number, lng: number) =>
+  Number.isFinite(lat) && Number.isFinite(lng) && (Math.abs(lat) > 0.0001 || Math.abs(lng) > 0.0001)
+
+export function canonicalizeStoreName(value: string): string {
+  return cleanStoreValue(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+}
 
 /**
  * Geocode a store name to get its latitude and longitude
@@ -178,6 +203,15 @@ export async function geocodeStore(
       lat: selectedResult.geometry.location.lat,
       lng: selectedResult.geometry.location.lng,
       formattedAddress: selectedResult.formatted_address,
+      matchedName: selectedResult.address_components?.[0]?.long_name || storeHint || storeName,
+    }
+
+    if (!coordinatesAppearValid(result.lat, result.lng)) {
+      console.warn(`[Geocoding] ${storeName} fallback geocode returned invalid coordinates`, {
+        coordinates: result,
+        searchQuery,
+      })
+      return null
     }
 
     if (userCoordinates) {
@@ -260,6 +294,15 @@ async function geocodeStoreHint(
       lat: candidate.geometry.location.lat,
       lng: candidate.geometry.location.lng,
       formattedAddress: candidate.formatted_address,
+      matchedName: storeHint || candidate.address_components?.[0]?.long_name,
+    }
+
+    if (!coordinatesAppearValid(resolved.lat, resolved.lng)) {
+      console.warn(`[Geocoding] Hint result for ${storeName} returned invalid coordinates`, {
+        storeHint,
+        resolved,
+      })
+      return null
     }
 
     if (userCoordinates && typeof strictRadiusMiles === "number") {
@@ -356,40 +399,61 @@ async function findNearestStoreWithPlaces(
       candidates = data.results
     }
 
-    const normalizedStoreName = storeName.toLowerCase()
-    let selected = candidates
-      .filter((result) => result.name && result.name.toLowerCase().includes(normalizedStoreName))
-      .reduce((closest: any, current: any) => {
-        const closestDist = calculateDistance(
-          userCoordinates.lat,
-          userCoordinates.lng,
-          closest.geometry.location.lat,
-          closest.geometry.location.lng
-        )
-        const currentDist = calculateDistance(
-          userCoordinates.lat,
-          userCoordinates.lng,
-          current.geometry.location.lat,
-          current.geometry.location.lng
-        )
-        return currentDist < closestDist ? current : closest
-      }, candidates[0])
-
-    if (!selected && candidates.length > 0) {
-      selected = candidates[0]
+    const normalizedStoreName = normalizeStoreMatchValue(storeName)
+    const normalizedHint = normalizeStoreMatchValue(storeHint)
+    const matchesRequestedStore = (value?: string) => {
+      const normalized = normalizeStoreMatchValue(value)
+      if (!normalized) return false
+      if (normalizedStoreName && normalized.includes(normalizedStoreName)) return true
+      if (normalizedHint && normalized.includes(normalizedHint)) return true
+      return false
     }
 
-    if (!selected) {
+    const preferredCandidates = candidates.filter(
+      (candidate) => matchesRequestedStore(candidate.name) || matchesRequestedStore(candidate.vicinity)
+    )
+    const candidatePool = preferredCandidates.length > 0 ? preferredCandidates : candidates
+
+    if (!candidatePool.length) {
+      console.warn(`[Geocoding] Places search returned no usable candidates for ${storeName}`)
       return null
     }
 
-    const resolved = {
-      lat: selected.geometry.location.lat,
-      lng: selected.geometry.location.lng,
-      formattedAddress: selected.vicinity || selected.formatted_address,
+    const sortedCandidates = candidatePool
+      .map((candidate) => {
+        const lat = candidate.geometry?.location?.lat ?? 0
+        const lng = candidate.geometry?.location?.lng ?? 0
+        return {
+          candidate,
+          distance: calculateDistance(userCoordinates.lat, userCoordinates.lng, lat, lng),
+        }
+      })
+      .sort((a, b) => a.distance - b.distance)
+
+    for (const entry of sortedCandidates) {
+      const candidate = entry.candidate
+      const lat = candidate.geometry?.location?.lat
+      const lng = candidate.geometry?.location?.lng
+      if (!coordinatesAppearValid(lat, lng)) {
+        console.warn(`[Geocoding] Ignoring ${storeName} candidate with invalid coordinates`, {
+          candidateName: candidate.name,
+          location: candidate.geometry?.location,
+        })
+        continue
+      }
+
+      const resolved: GeocodeResult = {
+        lat,
+        lng,
+        formattedAddress: candidate.vicinity || candidate.formatted_address,
+        matchedName: candidate.name,
+      }
+      console.log("[Geocoding] Places result selected", { storeName, keyword, resolved })
+      return resolved
     }
-    console.log("[Geocoding] Places result selected", { storeName, keyword, resolved })
-    return resolved
+
+    console.warn(`[Geocoding] No Places candidates for ${storeName} had valid coordinates`)
+    return null
   } catch (error) {
     console.error(`[Geocoding] Error finding nearest store for ${storeName}:`, error)
     return null
@@ -455,41 +519,58 @@ export async function geocodeMultipleStores(
 
   console.log(`[Geocoding] Starting batch geocoding for ${storeNames.length} stores:`, storeNames)
 
+  const hintLookup = new Map<string, string | undefined>()
+  if (storeHints) {
+    storeHints.forEach((hint, rawName) => {
+      hintLookup.set(canonicalizeStoreName(rawName), hint)
+    })
+  }
+
+  const uniqueStoreEntries = new Map<string, string>()
+  for (const storeName of storeNames) {
+    const canonical = canonicalizeStoreName(storeName)
+    if (!uniqueStoreEntries.has(canonical)) {
+      uniqueStoreEntries.set(canonical, storeName)
+    }
+  }
+
   let resolvedCoordinates = userCoordinates
   if (!resolvedCoordinates && userPostalCode) {
     resolvedCoordinates = await geocodePostalCode(userPostalCode)
   }
 
-  for (const storeName of storeNames) {
+  for (const [canonicalName, originalName] of uniqueStoreEntries.entries()) {
     let geocoded = await geocodeStore(
-      storeName,
+      originalName,
       userPostalCode,
       resolvedCoordinates ?? undefined,
       groceryDistanceMiles,
-      storeHints?.get(storeName)
+      hintLookup.get(canonicalName)
     )
 
     if (!geocoded) {
-      console.warn(`[Geocoding] Retrying ${storeName} with relaxed constraints`)
+      console.warn(`[Geocoding] Retrying ${originalName} with relaxed constraints`)
       geocoded = await geocodeStore(
-        storeName,
+        originalName,
         userPostalCode,
         resolvedCoordinates ?? undefined,
         groceryDistanceMiles,
-        storeHints?.get(storeName),
+        hintLookup.get(canonicalName),
         { relaxed: true }
       )
     }
 
     if (geocoded) {
-      results.set(storeName, geocoded)
-      console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${geocoded.lat}, lng=${geocoded.lng}`)
+      results.set(canonicalName, geocoded)
+      console.log(`[Geocoding] Successfully geocoded ${originalName}: lat=${geocoded.lat}, lng=${geocoded.lng}`)
     } else {
-      console.warn(`[Geocoding] Failed to geocode ${storeName}`)
+      console.warn(`[Geocoding] Failed to geocode ${originalName}`)
     }
   }
 
-  console.log(`[Geocoding] Batch geocoding complete: ${results.size}/${storeNames.length} stores geocoded`)
+  console.log(
+    `[Geocoding] Batch geocoding complete: ${results.size}/${uniqueStoreEntries.size} unique stores geocoded`
+  )
 
   return results
 }
