@@ -87,6 +87,7 @@ const createStoreSignatureMatcher = (
   aliasTokens?: string[]
 ): ((value?: string) => boolean) => {
   const normalizedTargets = new Set<string>()
+  const targetSignature = canonicalizeStoreName(storeName)
   const hasLetters = /[a-z]/i
 
   const addToken = (value?: string) => {
@@ -114,7 +115,18 @@ const createStoreSignatureMatcher = (
   }
 
   addToken(storeName)
-  aliasTokens?.forEach((alias) => addToken(alias))
+  aliasTokens
+    ?.filter((alias) => {
+      if (!alias) return false
+      const aliasSignature = canonicalizeStoreName(alias)
+      if (!aliasSignature) return false
+      if (!targetSignature || targetSignature.length < MIN_SIGNATURE_LENGTH) return true
+      return (
+        aliasSignature.includes(targetSignature) ||
+        targetSignature.includes(aliasSignature)
+      )
+    })
+    .forEach((alias) => addToken(alias))
   if (storeHint) {
     storeHint.split(/[•\-|,]+/).forEach((segment) => addToken(segment))
   }
