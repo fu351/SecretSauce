@@ -1179,6 +1179,159 @@ export default function ShoppingPage() {
     scrollToStore(index)
   }
 
+  const renderStoreCard = (comparison: StoreComparison, index: number) => {
+    const aliasNames =
+      comparison.providerAliases?.filter(
+        (alias) => alias && alias.toLowerCase() !== comparison.store.toLowerCase(),
+      ) ?? []
+    const aliasPreview =
+      aliasNames.length > 0 ? aliasNames.slice(0, 2).join(", ") + (aliasNames.length > 2 ? "…" : "") : null
+
+    return (
+      <div
+        key={`${comparison.canonicalKey || comparison.store}-${index}`}
+        className="flex-shrink-0 w-full snap-center cursor-pointer"
+        onClick={(event) => handleStoreCardClick(index, event)}
+      >
+        <Card
+          className={`h-full flex flex-col ${cardBgClass} ${
+            index === 0 ? "border-2 border-green-500" : comparison.outOfRadius ? "border-yellow-500/60" : ""
+          }`}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-4xl">{getStoreIcon(comparison.store)}</span>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-2xl ${textClass}`}>{comparison.store}</span>
+                    {index === 0 && <Badge className="bg-green-500 text-white">Best Price</Badge>}
+                    {comparison.outOfRadius && (
+                      <Badge variant="destructive" className="bg-yellow-500 text-black">
+                        Outside Radius
+                      </Badge>
+                    )}
+                    {comparison.missingItems && (
+                      <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-200">
+                        Missing Items
+                      </Badge>
+                    )}
+                  </div>
+                  {aliasPreview && <p className={`text-xs ${mutedTextClass}`}>Local signage: {aliasPreview}</p>}
+                  {typeof comparison.distanceMiles === "number" ? (
+                    <p className={`text-sm ${mutedTextClass}`}>{comparison.distanceMiles.toFixed(1)} miles away</p>
+                  ) : null}
+                  <div className="text-right mt-1">
+                    <div className={`text-3xl font-bold ${textClass}`}>${comparison.total.toFixed(2)}</div>
+                    {comparison.savings > 0 && (
+                      <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col">
+            {comparison.outOfRadius && (
+              <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-3">
+                Outside your {groceryDistanceMiles ?? DEFAULT_GROCERY_DISTANCE_MILES} mile radius. Hidden from the map but
+                included here for reference.
+              </p>
+            )}
+            <div className="space-y-3 flex-1 max-h-[500px] overflow-y-auto pr-1">
+              {comparison.items.map((item) => {
+                const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex items-start gap-3 p-4 rounded-lg ${
+                      theme === "dark" ? "bg-[#181813]" : "bg-gray-50"
+                    }`}
+                  >
+                    <img src={item.image_url || "/placeholder.svg"} alt={item.title} className="w-16 h-16 object-cover rounded" />
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
+                      <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
+                      {shoppingItem && <p className={`text-xs ${mutedTextClass} mt-1`}>Qty: {shoppingItem.quantity}</p>}
+                      <div className="flex items-center justify-between mt-2 gap-2">
+                        <div className="text-sm">
+                          <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
+                          {item.pricePerUnit && <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>}
+                          {shoppingItem && shoppingItem.quantity > 1 && (
+                            <span className={`${mutedTextClass} ml-2`}>
+                              Total: ${(item.price * shoppingItem.quantity).toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              openItemSearchOverlay(shoppingItem?.name || item.title, {
+                                type: "shopping-list",
+                                shoppingItemId: item.shoppingItemId,
+                                store: comparison.store,
+                              })
+                            }
+                            className={`h-6 px-2 ${buttonOutlineClass}`}
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Reload
+                          </Button>
+                          <Button size="sm" onClick={() => addToShoppingList(item)} className={`h-6 px-2 ${buttonClass}`}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {comparison.missingItems && (
+                <div className="mt-4 border-t border-dashed border-border pt-4">
+                  <p className={`text-sm font-semibold ${textClass} mb-2`}>Missing Items</p>
+                  <div className="space-y-2">
+                    {shoppingList
+                      .filter((listItem) => !comparison.items.some((item) => item.shoppingItemId === listItem.id))
+                      .map((listItem) => (
+                        <div key={listItem.id} className={`text-sm ${mutedTextClass} flex items-center justify-between gap-4`}>
+                          <div>
+                            <div>{listItem.name}</div>
+                            <div className="text-xs">Qty: {listItem.quantity}</div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              openItemSearchOverlay(listItem.name, {
+                                type: "missing",
+                                shoppingItemId: listItem.id,
+                                store: comparison.store,
+                              })
+                            }
+                            className={`h-7 px-2 text-xs ${buttonOutlineClass}`}
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Reload
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter className="border-t border-dashed border-border/40 flex justify-end">
+            <Button size="sm" className={`h-8 px-3 ${buttonClass}`} onClick={() => addStoreItemsToPantry(comparison)} disabled={!user || comparison.items.length === 0}>
+              Add to Pantry
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
   const bgClass = isDark ? "bg-[#181813]" : "bg-gray-50"
   const textClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
   const cardBgClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white"
@@ -1475,185 +1628,7 @@ export default function ShoppingPage() {
                       className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
                       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                     >
-                      {massSearchResults.map((comparison, index) => {
-                        const aliasNames =
-                          comparison.providerAliases?.filter(
-                            (alias) => alias && alias.toLowerCase() !== comparison.store.toLowerCase(),
-                          ) ?? []
-                        const aliasPreview =
-                          aliasNames.length > 0
-                            ? aliasNames.slice(0, 2).join(", ") + (aliasNames.length > 2 ? "…" : "")
-                            : null
-                        return (
-                          <div
-                            key={`${comparison.canonicalKey || comparison.store}-${index}`}
-                            className="flex-shrink-0 w-full snap-center cursor-pointer"
-                            onClick={(event) => handleStoreCardClick(index, event)}
-                          >
-                            <Card
-                              className={`h-full flex flex-col ${cardBgClass} ${
-                                index === 0 ? "border-2 border-green-500" : comparison.outOfRadius ? "border-yellow-500/60" : ""
-                              }`}
-                            >
-                              <CardHeader>
-                                <CardTitle className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-4xl">{getStoreIcon(comparison.store)}</span>
-                                    <div>
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className={`text-2xl ${textClass}`}>{comparison.store}</span>
-                                        {index === 0 && <Badge className="bg-green-500 text-white">Best Price</Badge>}
-                                        {comparison.outOfRadius && (
-                                          <Badge variant="destructive" className="bg-yellow-500 text-black">
-                                            Outside Radius
-                                          </Badge>
-                                        )}
-                                        {comparison.missingItems && (
-                                          <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-200">
-                                            Missing Items
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      {aliasPreview && (
-                                        <p className={`text-xs ${mutedTextClass}`}>Local signage: {aliasPreview}</p>
-                                      )}
-                                      {typeof comparison.distanceMiles === "number" ? (
-                                        <p className={`text-sm ${mutedTextClass}`}>
-                                          {comparison.distanceMiles.toFixed(1)} miles away
-                                        </p>
-                                      ) : null}
-                                      <div className="text-right mt-1">
-                                        <div className={`text-3xl font-bold ${textClass}`}>
-                                          ${comparison.total.toFixed(2)}
-                                        </div>
-                                        {comparison.savings > 0 && (
-                                          <div className="text-sm text-red-600">+${comparison.savings.toFixed(2)} more</div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="flex-1 flex flex-col">
-                                {comparison.outOfRadius && (
-                                  <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-3">
-                                        Outside your {groceryDistanceMiles ?? DEFAULT_GROCERY_DISTANCE_MILES} mile radius. Hidden from the map but included
-                                    here for reference.
-                                  </p>
-                                )}
-                              <div className="space-y-3 flex-1 max-h-[500px] overflow-y-auto pr-1">
-                                {comparison.items.map((item) => {
-                                  const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)
-                                  return (
-                                    <div
-                                      key={item.id}
-                                      className={`flex items-start gap-3 p-4 rounded-lg ${theme === "dark" ? "bg-[#181813]" : "bg-gray-50"}`}
-                                    >
-                                      <img
-                                        src={item.image_url || "/placeholder.svg"}
-                                        alt={item.title}
-                                        className="w-16 h-16 object-cover rounded"
-                                      />
-                                      <div className="flex-1 min-w-0">
-                                        <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
-                                        <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
-                                        {shoppingItem && (
-                                          <p className={`text-xs ${mutedTextClass} mt-1`}>Qty: {shoppingItem.quantity}</p>
-                                        )}
-                                        <div className="flex items-center justify-between mt-2 gap-2">
-                                          <div className="text-sm">
-                                            <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
-                                            {item.pricePerUnit && (
-                                              <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>
-                                            )}
-                                            {shoppingItem && shoppingItem.quantity > 1 && (
-                                              <span className={`${mutedTextClass} ml-2`}>
-                                                Total: ${(item.price * shoppingItem.quantity).toFixed(2)}
-                                              </span>
-                                            )}
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              onClick={() =>
-                                                openItemSearchOverlay(shoppingItem?.name || item.title, {
-                                                  type: "shopping-list",
-                                                  shoppingItemId: item.shoppingItemId,
-                                                  store: comparison.store,
-                                                })
-                                              }
-                                              className={`h-6 px-2 ${buttonOutlineClass}`}
-                                            >
-                                              <RefreshCw className="h-3 w-3 mr-1" />
-                                              Reload
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              onClick={() => addToShoppingList(item)}
-                                              className={`h-6 px-2 ${buttonClass}`}
-                                            >
-                                              <Plus className="h-3 w-3" />
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                                {comparison.missingItems && (
-                                  <div className="mt-4 border-t border-dashed border-border pt-4">
-                                    <p className={`text-sm font-semibold ${textClass} mb-2`}>Missing Items</p>
-                                    <div className="space-y-2">
-                                      {shoppingList
-                                        .filter(
-                                          (listItem) =>
-                                            !comparison.items.some((item) => item.shoppingItemId === listItem.id)
-                                        )
-                                        .map((listItem) => (
-                                          <div
-                                            key={listItem.id}
-                                            className={`text-sm ${mutedTextClass} flex items-center justify-between gap-4`}
-                                          >
-                                            <div>
-                                              <div>{listItem.name}</div>
-                                              <div className="text-xs">Qty: {listItem.quantity}</div>
-                                            </div>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              onClick={() =>
-                                                openItemSearchOverlay(listItem.name, {
-                                                  type: "missing",
-                                                  shoppingItemId: listItem.id,
-                                                  store: comparison.store,
-                                                })
-                                              }
-                                              className={`h-7 px-2 text-xs ${buttonOutlineClass}`}
-                                            >
-                                              <RefreshCw className="h-3 w-3 mr-1" />
-                                              Reload
-                                            </Button>
-                                          </div>
-                                        ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </CardContent>
-                            <CardFooter className="border-t border-dashed border-border/40 flex justify-end">
-                              <Button
-                                size="sm"
-                                className={`h-8 px-3 ${buttonClass}`}
-                                onClick={() => addStoreItemsToPantry(comparison)}
-                                disabled={!user || comparison.items.length === 0}
-                              >
-                                Add to Pantry
-                              </Button>
-                            </CardFooter>
-                          </Card>
-                        </div>
-                      ))}
+                      {massSearchResults.map(renderStoreCard)}
                     </div>
 
                     {/* Carousel Dots Indicator */}
