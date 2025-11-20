@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, Heart, X, ChevronLeft, ChevronRight, ShoppingCart, ChevronRightIcon, List, Menu } from "lucide-react"
@@ -50,6 +50,31 @@ interface MealPlan {
   created_at: string
   updated_at: string
 }
+
+type NutritionTotals = {
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  meals: number
+}
+
+type MacroKey = "calories" | "protein" | "carbs" | "fat"
+
+const createEmptyNutritionTotals = (): NutritionTotals => ({
+  calories: 0,
+  protein: 0,
+  carbs: 0,
+  fat: 0,
+  meals: 0,
+})
+
+const WEEKLY_STAT_FIELDS = [
+  { key: "calories", label: "Calories", unit: "cal" },
+  { key: "protein", label: "Protein", unit: "g" },
+  { key: "carbs", label: "Carbs", unit: "g" },
+  { key: "fat", label: "Fat", unit: "g" },
+] as const
 
 export default function MealPlannerPage() {
   const { user } = useAuth()
@@ -386,6 +411,53 @@ export default function MealPlannerPage() {
   const buttonOutlineClass = isDark
     ? "border-[#e8dcc4]/40 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 hover:text-[#e8dcc4]"
     : "border-gray-300 hover:bg-[#e8dcc4]/10"
+
+  const dailyNutritionTotals = useMemo(() => {
+    if (!weekDates.length) return {} as Record<string, NutritionTotals>
+    const totals: Record<string, NutritionTotals> = {}
+    weekDates.forEach((date) => {
+      totals[date] = { ...createEmptyNutritionTotals() }
+    })
+
+    const weekSet = new Set(weekDates)
+    const meals = mealPlan?.meals || []
+    meals.forEach((meal) => {
+      if (!weekSet.has(meal.date)) return
+      const recipe = recipesById[meal.recipe_id]
+      if (!recipe?.nutrition) return
+      const dayTotals = totals[meal.date] ?? (totals[meal.date] = { ...createEmptyNutritionTotals() })
+      dayTotals.calories += recipe.nutrition.calories || 0
+      dayTotals.protein += recipe.nutrition.protein || 0
+      dayTotals.carbs += recipe.nutrition.carbs || 0
+      dayTotals.fat += recipe.nutrition.fat || 0
+      dayTotals.meals += 1
+    })
+
+    return totals
+  }, [mealPlan?.meals, weekDates, recipesById])
+
+  const weeklyNutritionSummary = useMemo<{
+    totals: Record<MacroKey, number>
+    averages: Record<MacroKey, number>
+  }>(() => {
+    const totals: Record<MacroKey, number> = { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    weekDates.forEach((date) => {
+      const dayTotals = dailyNutritionTotals[date]
+      if (!dayTotals) return
+      totals.calories += dayTotals.calories
+      totals.protein += dayTotals.protein
+      totals.carbs += dayTotals.carbs
+      totals.fat += dayTotals.fat
+    })
+    const divisor = weekDates.length || 1
+    const averages: Record<MacroKey, number> = {
+      calories: totals.calories / divisor,
+      protein: totals.protein / divisor,
+      carbs: totals.carbs / divisor,
+      fat: totals.fat / divisor,
+    }
+    return { totals, averages }
+  }, [dailyNutritionTotals, weekDates])
   function getSidebarClassName(isMobile: boolean, sidebarOpen: boolean) {
     if (isMobile) {
       return sidebarOpen
@@ -513,101 +585,161 @@ export default function MealPlannerPage() {
             </div>
           </div>
 
-          {viewMode === "by-day" ? (
-            <div className="space-y-4 md:space-y-8">
-              {weekDates.slice(0, 7).map((date, dayIndex) => (
-                <div key={date} className={`bg-card rounded-lg shadow p-3 md:p-6`}>
-                  <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
-                    <div
-                      className={`${isDark ? "bg-accent text-accent-foreground" : "bg-gray-100 text-gray-600"} rounded-full w-10 h-10 md:w-12 md:h-12 flex items-center justify-center font-bold text-sm md:text-base`}
-                    >
-                      {new Date(date).getDate()}
-                    </div>
-                    <div>
-                      <h2 className={`text-xl md:text-2xl font-bold text-text`}>{weekdays[dayIndex]}</h2>
-                      <p className={`text-xs md:text-sm text-muted-foreground`}>{formatDate(date)}</p>
-                    </div>
+            {weekDates.length > 0 && (
+              <div className={`rounded-2xl border border-border bg-card/80 shadow-sm p-4`}>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between mb-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Weekly averages</p>
+                    <p className={`text-lg font-semibold ${textClass}`}>
+                      {Math.round(weeklyNutritionSummary.averages.calories) || 0} cal / day
+                    </p>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Weekly total: {Math.round(weeklyNutritionSummary.totals.calories) || 0} cal
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                  {WEEKLY_STAT_FIELDS.map((stat) => (
+                    <div
+                      key={stat.key}
+                      className={`rounded-xl border border-border/50 ${isDark ? "bg-[#181813]" : "bg-white"} p-3`}
+                    >
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{stat.label}</p>
+                      <p className={`text-lg font-semibold ${textClass}`}>
+                        {Math.round(weeklyNutritionSummary.averages[stat.key as MacroKey]) || 0} {stat.unit}
+                        <span className="text-xs font-normal text-muted-foreground ml-1">avg</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        total {Math.round(weeklyNutritionSummary.totals[stat.key as MacroKey]) || 0} {stat.unit}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                    {mealTypes.map((mealType) => {
-                      const recipe = getMealForSlot(date, mealType.key)
+          {viewMode === "by-day" ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7">
+              {weekDates.slice(0, 7).map((date, dayIndex) => {
+                const dayTotals = dailyNutritionTotals[date] || createEmptyNutritionTotals()
+                return (
+                  <div key={date} className={`bg-card border border-border/60 rounded-2xl shadow-sm p-3 flex flex-col gap-3`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`${isDark ? "bg-accent text-accent-foreground" : "bg-gray-100 text-gray-600"} rounded-full w-9 h-9 flex items-center justify-center font-semibold text-sm`}
+                        >
+                          {new Date(date).getDate()}
+                        </div>
+                        <div>
+                          <h2 className={`text-lg font-semibold text-text`}>{weekdays[dayIndex]}</h2>
+                          <p className={`text-xs text-muted-foreground`}>{formatDate(date)}</p>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-muted-foreground">
+                        <p>{dayTotals.meals} meals</p>
+                      </div>
+                    </div>
 
-                      return (
-                        <div key={mealType.key}>
-                          <h3 className={`text-xs font-semibold text-text mb-2`}>{mealType.label}</h3>
-                          <div
-                            className={`relative rounded-lg border-2 border-dashed ${
-                              recipe
-                                ? "border-transparent"
-                                : isDark
-                                  ? "border-accent/20 bg-background"
-                                  : "border-border bg-background"
-                            } min-h-[150px] md:min-h-[180px] transition-colors`}
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => handleDrop(e, mealType.key, date)}
-                          >
-                            {recipe ? (
-                              <div className="relative group h-full">
-                                <img
-                                  src={recipe.image_url || "/placeholder.svg?height=180&width=300"}
-                                  alt={recipe.title}
-                                  className="w-full h-32 md:h-40 object-cover rounded-lg"
-                                />
-                                <button
-                                  onClick={() => removeFromMealPlan(mealType.key, date)}
-                                  className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <X className="h-3 w-3 md:h-4 md:w-4" />
-                                </button>
-                                <div className="p-2 md:p-3">
-                                  <h4 className={`font-semibold text-xs md:text-sm mb-2 line-clamp-2 text-text`}>
-                                    {recipe.title}
-                                  </h4>
-                                  {recipe.nutrition && !isMobile && (
-                                    <div className="grid grid-cols-4 gap-1 md:gap-2 text-xs">
-                                      <div>
-                                        <div className="text-muted-foreground">CAL</div>
-                                        <div className={`font-semibold text-text`}>
-                                          {recipe.nutrition.calories || "-"}
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      {WEEKLY_STAT_FIELDS.map((stat) => (
+                        <div
+                          key={`${date}-${stat.key}`}
+                          className={`${isDark ? "bg-[#181813]" : "bg-gray-50"} rounded-lg p-2`}
+                        >
+                          <p className="text-[10px] uppercase text-muted-foreground">{stat.label}</p>
+                          <p className={`font-semibold ${textClass}`}>
+                            {Math.round(dayTotals[stat.key as MacroKey]) || 0} {stat.unit}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {mealTypes.map((mealType) => {
+                        const recipe = getMealForSlot(date, mealType.key)
+
+                        return (
+                          <div key={mealType.key} className="flex flex-col">
+                            <h3 className={`text-[10px] font-semibold text-text mb-1`}>{mealType.label}</h3>
+                            <div
+                              className={`relative rounded-lg border-2 border-dashed ${
+                                recipe
+                                  ? "border-transparent"
+                                  : isDark
+                                    ? "border-accent/20 bg-background"
+                                    : "border-border bg-background"
+                              } min-h-[110px] sm:min-h-[130px] transition-colors`}
+                              onDragOver={handleDragOver}
+                              onDrop={(e) => handleDrop(e, mealType.key, date)}
+                            >
+                              {recipe ? (
+                                <div className="relative group h-full">
+                                  <img
+                                    src={recipe.image_url || "/placeholder.svg?height=160&width=260"}
+                                    alt={recipe.title}
+                                    className="w-full h-28 object-cover rounded-lg"
+                                  />
+                                  <button
+                                    onClick={() => removeFromMealPlan(mealType.key, date)}
+                                    className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                  <div className="p-2">
+                                    <h4 className={`font-semibold text-xs mb-1 line-clamp-2 text-text`}>
+                                      {recipe.title}
+                                    </h4>
+                                  </div>
+                                  {recipe.nutrition && (
+                                    <div
+                                      className={`absolute inset-0 rounded-lg ${
+                                        isDark ? "bg-black/70" : "bg-black/60"
+                                      } text-white opacity-0 group-hover:opacity-100 group-active:opacity-100 group-focus-within:opacity-100 transition-opacity text-[10px] flex flex-col justify-center p-3`}
+                                    >
+                                      <p className="uppercase tracking-wide text-[9px] mb-2 text-white/70">Nutrition</p>
+                                      <div className="grid grid-cols-4 gap-2 text-center">
+                                        <div>
+                                          <div className="text-white/60">CAL</div>
+                                          <div className="font-semibold">{recipe.nutrition.calories || "-"}</div>
                                         </div>
-                                      </div>
-                                      <div>
-                                        <div className="text-muted-foreground">FAT</div>
-                                        <div className={`font-semibold text-text`}>
-                                          {recipe.nutrition.fat ? `${recipe.nutrition.fat}g` : "-"}
+                                        <div>
+                                          <div className="text-white/60">FAT</div>
+                                          <div className="font-semibold">
+                                            {recipe.nutrition.fat ? `${recipe.nutrition.fat}g` : "-"}
+                                          </div>
                                         </div>
-                                      </div>
-                                      <div>
-                                        <div className="text-muted-foreground">PRO</div>
-                                        <div className={`font-semibold text-text`}>
-                                          {recipe.nutrition.protein ? `${recipe.nutrition.protein}g` : "-"}
+                                        <div>
+                                          <div className="text-white/60">PRO</div>
+                                          <div className="font-semibold">
+                                            {recipe.nutrition.protein ? `${recipe.nutrition.protein}g` : "-"}
+                                          </div>
                                         </div>
-                                      </div>
-                                      <div>
-                                        <div className="text-muted-foreground">CARB</div>
-                                        <div className={`font-semibold text-text`}>
-                                          {recipe.nutrition.carbs ? `${recipe.nutrition.carbs}g` : "-"}
+                                        <div>
+                                          <div className="text-white/60">CARB</div>
+                                          <div className="font-semibold">
+                                            {recipe.nutrition.carbs ? `${recipe.nutrition.carbs}g` : "-"}
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
                                   )}
                                 </div>
-                              </div>
-                            ) : (
-                              <div
-                                className={`flex items-center justify-center h-full text-muted-foreground text-xs md:text-sm px-2 text-center`}
-                              >
-                                {isMobile ? "Tap recipe below" : "Drag recipe here"}
-                              </div>
-                            )}
+                              ) : (
+                                <div
+                                  className={`flex items-center justify-center h-full text-muted-foreground text-[10px] sm:text-xs px-2 text-center`}
+                                >
+                                  {isMobile ? "Tap recipe below" : "Drag recipe here"}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="space-y-8">
@@ -655,6 +787,39 @@ export default function MealPlannerPage() {
                                   <div className="p-3">
                                     <h4 className={`font-semibold text-sm line-clamp-2 text-text`}>{recipe.title}</h4>
                                   </div>
+                                  {recipe.nutrition && (
+                                    <div
+                                      className={`absolute inset-0 rounded-lg ${
+                                        isDark ? "bg-black/70" : "bg-black/60"
+                                      } text-white opacity-0 group-hover:opacity-100 group-active:opacity-100 group-focus-within:opacity-100 transition-opacity text-xs flex flex-col justify-center p-4`}
+                                    >
+                                      <p className="uppercase tracking-wide text-[11px] mb-2 text-white/70">Nutrition</p>
+                                      <div className="grid grid-cols-4 gap-3 text-center text-[11px]">
+                                        <div>
+                                          <div className="text-white/60">CAL</div>
+                                          <div className="font-semibold">{recipe.nutrition.calories || "-"}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-white/60">FAT</div>
+                                          <div className="font-semibold">
+                                            {recipe.nutrition.fat ? `${recipe.nutrition.fat}g` : "-"}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="text-white/60">PRO</div>
+                                          <div className="font-semibold">
+                                            {recipe.nutrition.protein ? `${recipe.nutrition.protein}g` : "-"}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="text-white/60">CARB</div>
+                                          <div className="font-semibold">
+                                            {recipe.nutrition.carbs ? `${recipe.nutrition.carbs}g` : "-"}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 <div
