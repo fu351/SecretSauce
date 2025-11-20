@@ -100,6 +100,16 @@ async function executeSearchAttempt(
 
   const runScrapePipeline = async (term: string, reason: string): Promise<{ results: any[] } | null> => {
     if (storeKey) {
+      const storeName = mapStoreKeyToName(storeKey)
+      if (standardizedIngredientId) {
+        const cachedForStore = await getCachedIngredientById(standardizedIngredientId, [storeName])
+        if (cachedForStore.length > 0) {
+          console.log(
+            `[Cache] Using ${cachedForStore.length} cached items for ${storeName} (${reason})`,
+          )
+          return { results: formatCachedResults(cachedForStore, cacheSearchTerm) }
+        }
+      }
       try {
         const storeResults = await runStoreSpecificSearch(storeKey, term, zipCode)
         if (storeResults && storeResults.length > 0) {
@@ -115,22 +125,61 @@ async function executeSearchAttempt(
       }
       return null
     } else {
+      const cachedItems =
+        standardizedIngredientId && !storeFilter?.length
+          ? await getCachedIngredientById(standardizedIngredientId)
+          : standardizedIngredientId
+            ? await getCachedIngredientById(standardizedIngredientId, storeFilter)
+            : []
+
+      const cachedStoreSet = new Set(
+        cachedItems.map((item) => item.store?.trim().toLowerCase()).filter(Boolean) as string[]
+      )
+      const cachedResults = cachedItems.length > 0 ? formatCachedResults(cachedItems, cacheSearchTerm) : []
+
       const pythonResults = await runPythonServiceSearch(term, zipCode)
-      if (pythonResults && pythonResults.length > 0) {
-        await cacheScrapedResults(serializeForCache(pythonResults), {
+      const pythonFiltered =
+        pythonResults?.filter((item: any) => {
+          const key = (item.provider || item.location || "").trim().toLowerCase()
+          return key ? !cachedStoreSet.has(key) : true
+        }) || []
+
+      if (pythonFiltered.length > 0) {
+        await cacheScrapedResults(serializeForCache(pythonFiltered), {
           standardizedIngredientId,
           searchTerm: cacheSearchTerm,
+          recipeId: null,
         })
-        return { results: pythonResults }
+        const combined = [...cachedResults, ...pythonFiltered]
+        if (combined.length > 0) {
+          return { results: combined }
+        }
+        return { results: pythonFiltered }
       }
 
-      const localResults = await runLocalScrapers(term, zipCode)
-      if (localResults && localResults.length > 0) {
-        await cacheScrapedResults(serializeForCache(localResults), {
+      const localResults = await runLocalScrapers(term, zipCode, standardizedIngredientId, cachedStoreSet)
+      const localFiltered =
+        localResults?.filter((item: any) => {
+          const key = (item.provider || item.location || "").trim().toLowerCase()
+          return key ? !cachedStoreSet.has(key) : true
+        }) || []
+
+      if (localFiltered.length > 0) {
+        await cacheScrapedResults(serializeForCache(localFiltered), {
           standardizedIngredientId,
           searchTerm: cacheSearchTerm,
+          recipeId: null,
         })
-        return { results: localResults }
+        const combined = [...cachedResults, ...localFiltered]
+        if (combined.length > 0) {
+          return { results: combined }
+        }
+        return { results: localFiltered }
+      }
+
+      if (cachedResults.length > 0) {
+        console.log("[Cache] Returning cached-only results after scraping skipped")
+        return { results: cachedResults, cached: true }
       }
     }
 
@@ -207,17 +256,68 @@ async function runPythonServiceSearch(searchTerm: string, zipCode: string) {
   return []
 }
 
-async function runLocalScrapers(searchTerm: string, zipCode: string) {
+async function runLocalScrapers(
+  searchTerm: string,
+  zipCode: string,
+  standardizedIngredientId?: string | null,
+  cachedStoreSet?: Set<string>
+) {
   try {
+    const cachedItemsByStore = new Map<string, any[]>()
+    if (standardizedIngredientId) {
+      const cachedItems = await getCachedIngredientById(standardizedIngredientId)
+      cachedItems.forEach((item) => {
+        const key = item.store?.trim()
+        if (!key) return
+        const list = cachedItemsByStore.get(key) || []
+        list.push(item)
+        cachedItemsByStore.set(key, list)
+      })
+    }
+
+    const cachedStoreNames = new Set<string>(
+      Array.from(cachedItemsByStore.keys()).map((name) => name.trim().toLowerCase())
+    )
+    if (cachedStoreSet) {
+      cachedStoreNames.forEach((name) => cachedStoreSet.add(name))
+    }
+
+    const cachedRowToItem = (row: any) => ({
+      id: row.product_id || row.id,
+      title: row.product_name || searchTerm || "Unknown Item",
+      brand: "",
+      price: Number(row.price) || 0,
+      pricePerUnit: row.unit_price ? `$${row.unit_price}/${row.unit}` : undefined,
+      unit: row.unit,
+      image_url: row.image_url || "/placeholder.svg",
+      provider: row.store,
+      location: getStoreLocationLabel(row.store, zipCode),
+      category: "Grocery",
+    })
+
     const scrapers = require("@/lib/scrapers")
     const results = await Promise.allSettled([
-      scrapers.getTargetProducts(searchTerm, null, zipCode),
-      scrapers.Krogers(zipCode, searchTerm),
-      scrapers.Meijers(zipCode, searchTerm),
-      scrapers.search99Ranch(searchTerm, zipCode),
-      scrapers.searchWalmartAPI(searchTerm, zipCode),
-      scrapers.searchTraderJoes(searchTerm, zipCode),
-      scrapers.searchAldi(searchTerm, zipCode),
+      cachedItemsByStore.has("Target")
+        ? Promise.resolve(cachedItemsByStore.get("Target")!.map(cachedRowToItem))
+        : scrapers.getTargetProducts(searchTerm, null, zipCode),
+      cachedItemsByStore.has("Kroger")
+        ? Promise.resolve(cachedItemsByStore.get("Kroger")!.map(cachedRowToItem))
+        : scrapers.Krogers(zipCode, searchTerm),
+      cachedItemsByStore.has("Meijer")
+        ? Promise.resolve(cachedItemsByStore.get("Meijer")!.map(cachedRowToItem))
+        : scrapers.Meijers(zipCode, searchTerm),
+      cachedItemsByStore.has("99 Ranch")
+        ? Promise.resolve(cachedItemsByStore.get("99 Ranch")!.map(cachedRowToItem))
+        : scrapers.search99Ranch(searchTerm, zipCode),
+      cachedItemsByStore.has("Walmart")
+        ? Promise.resolve(cachedItemsByStore.get("Walmart")!.map(cachedRowToItem))
+        : scrapers.searchWalmartAPI(searchTerm, zipCode),
+      cachedItemsByStore.has("Trader Joe's")
+        ? Promise.resolve(cachedItemsByStore.get("Trader Joe's")!.map(cachedRowToItem))
+        : scrapers.searchTraderJoes(searchTerm, zipCode),
+      cachedItemsByStore.has("Aldi")
+        ? Promise.resolve(cachedItemsByStore.get("Aldi")!.map(cachedRowToItem))
+        : scrapers.searchAldi(searchTerm, zipCode),
     ])
 
     const items: any[] = []

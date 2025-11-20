@@ -1,4 +1,5 @@
 import { createServerClient } from "./supabase"
+import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
 
 export interface CachedIngredient {
   id: string
@@ -480,6 +481,32 @@ export async function getMappedIngredient(
 }
 
 /**
+ * Upsert a freeform search term -> standardized ingredient mapping (non-recipe context)
+ * Useful for custom searches so we reuse the same canonical ID next time.
+ */
+async function upsertFreeformMapping(originalName: string, standardizedIngredientId: string): Promise<void> {
+  if (!originalName || !standardizedIngredientId) return
+  try {
+    const client = createServerClient()
+    const { error } = await client
+      .from("ingredient_mappings")
+      .upsert(
+        {
+          recipe_id: null,
+          original_name: originalName,
+          standardized_ingredient_id: standardizedIngredientId,
+        },
+        { onConflict: "recipe_id,original_name" }
+      )
+    if (error) {
+      console.warn("[Cache] Failed to upsert freeform mapping", { originalName, error })
+    }
+  } catch (error) {
+    console.warn("[Cache] Error in upsertFreeformMapping", error)
+  }
+}
+
+/**
  * Attempt to resolve a standardized ingredient ID using canonical names or ingredient mappings
  */
 async function findStandardizedIngredientIdByName(
@@ -651,6 +678,7 @@ export async function cacheScrapedResults(
   options?: {
     standardizedIngredientId?: string | null
     searchTerm?: string
+    recipeId?: string | null
   }
 ): Promise<number> {
   try {
@@ -659,9 +687,11 @@ export async function cacheScrapedResults(
     }
 
     let cachedCount = 0
-    let sharedStandardizedId = options?.standardizedIngredientId || null
     const searchTermForLookup = options?.searchTerm?.trim()
     const normalizedSearchName = normalizeIngredientKey(searchTermForLookup) || null
+
+    // Resolve or create a standardized ingredient ID once per batch
+    let sharedStandardizedId = options?.standardizedIngredientId || null
 
     if (!sharedStandardizedId && searchTermForLookup) {
       sharedStandardizedId = await findStandardizedIngredientIdByName(searchTermForLookup)
@@ -671,19 +701,63 @@ export async function cacheScrapedResults(
       sharedStandardizedId = await findStandardizedIngredientIdByName(normalizedSearchName)
     }
 
+    if (!sharedStandardizedId && searchTermForLookup) {
+      const aiStandardized = await standardizeIngredientsWithAI(
+        [{ id: "0", name: searchTermForLookup }],
+        "recipe"
+      )
+      const aiTop = aiStandardized?.[0]
+      const canonicalName = aiTop?.canonicalName?.trim()
+      if (canonicalName) {
+        const existingId = await findStandardizedIngredientIdByName(canonicalName)
+        if (existingId) {
+          sharedStandardizedId = existingId
+        } else {
+          const createdId = await getOrCreateStandardizedIngredient(canonicalName, aiTop?.category ?? null)
+          if (createdId) {
+            sharedStandardizedId = createdId
+          }
+        }
+        if (sharedStandardizedId) {
+          const mappingName = normalizedSearchName || searchTermForLookup
+          await upsertFreeformMapping(mappingName, sharedStandardizedId)
+          if (options?.recipeId) {
+            await mapIngredientToStandardized(options.recipeId, searchTermForLookup, sharedStandardizedId)
+          }
+        }
+      }
+    }
+
+    // Cache each item, allowing per-item resolution when the shared ID is unavailable
+    const aiTitleCache = new Map<string, string | null>()
     for (const item of scrapedItems) {
       let standardizedId = sharedStandardizedId
 
-      if (!standardizedId && searchTermForLookup) {
-        standardizedId = await findStandardizedIngredientIdByName(searchTermForLookup)
+      // If the batch-level ID didn't resolve, try per-item matching to keep cache warm
+      if (!standardizedId) {
+        const normalizedTitle = normalizeIngredientKey(item.title) || item.title?.trim()
+        if (normalizedTitle) {
+          standardizedId = await findStandardizedIngredientIdByName(normalizedTitle)
+        }
       }
 
-      if (!standardizedId && normalizedSearchName) {
-        standardizedId = await findStandardizedIngredientIdByName(normalizedSearchName)
-      }
-
+      // As a last resort, attempt AI standardization on the item title
       if (!standardizedId && item.title) {
-        standardizedId = await findStandardizedIngredientIdByName(item.title)
+        const titleKey = item.title.trim().toLowerCase()
+        if (!aiTitleCache.has(titleKey)) {
+          const aiStandardized = await standardizeIngredientsWithAI([{ id: "0", name: item.title }], "recipe")
+          const aiTop = aiStandardized?.[0]
+          const canonicalName = aiTop?.canonicalName?.trim()
+          let resolvedId: string | null = null
+          if (canonicalName) {
+            resolvedId = (await findStandardizedIngredientIdByName(canonicalName)) || null
+            if (!resolvedId) {
+              resolvedId = (await getOrCreateStandardizedIngredient(canonicalName, aiTop?.category ?? null)) || null
+            }
+          }
+          aiTitleCache.set(titleKey, resolvedId)
+        }
+        standardizedId = aiTitleCache.get(titleKey) || null
       }
 
       if (!standardizedId) {
@@ -692,10 +766,6 @@ export async function cacheScrapedResults(
           searchTerm: searchTermForLookup,
         })
         continue
-      }
-
-      if (!sharedStandardizedId) {
-        sharedStandardizedId = standardizedId
       }
 
       // Parse unit price if available
