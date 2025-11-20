@@ -326,11 +326,21 @@ export async function geocodeStore(
       })
     }
 
+    const primaryComponent = selectedResult.address_components?.find((component: any) => {
+      const types: string[] | undefined = component?.types
+      if (!types) return false
+      return types.includes("establishment") || types.includes("point_of_interest")
+    })
+
+    const fallbackComponent = selectedResult.address_components?.[0]
+    const candidateName = primaryComponent?.long_name || fallbackComponent?.long_name || null
+    const formattedTop = selectedResult.formatted_address?.split(",")?.[0]?.trim() || undefined
+
     const result: GeocodeResult = {
       lat: selectedResult.geometry.location.lat,
       lng: selectedResult.geometry.location.lng,
       formattedAddress: selectedResult.formatted_address,
-      matchedName: selectedResult.address_components?.[0]?.long_name || storeHint || storeName,
+      matchedName: candidateName || formattedTop || undefined,
     }
 
     if (
@@ -551,20 +561,24 @@ async function findNearestStoreWithPlaces(
 
     const sortedCandidates = candidatePool
       .map((candidate) => {
-        const lat = candidate.geometry?.location?.lat ?? 0
-        const lng = candidate.geometry?.location?.lng ?? 0
+        const lat = candidate.geometry?.location?.lat
+        const lng = candidate.geometry?.location?.lng
+        if (typeof lat !== "number" || typeof lng !== "number") {
+          return null
+        }
         return {
           candidate,
           distance: calculateDistance(userCoordinates.lat, userCoordinates.lng, lat, lng),
         }
       })
+      .filter((entry): entry is { candidate: GooglePlacesCandidate; distance: number } => Boolean(entry))
       .sort((a, b) => a.distance - b.distance)
 
     for (const entry of sortedCandidates) {
       const candidate = entry.candidate
       const lat = candidate.geometry?.location?.lat
       const lng = candidate.geometry?.location?.lng
-      if (!coordinatesAppearValid(lat, lng)) {
+      if (typeof lat !== "number" || typeof lng !== "number" || !coordinatesAppearValid(lat, lng)) {
         console.warn(`[Geocoding] Ignoring ${storeName} candidate with invalid coordinates`, {
           candidateName: candidate.name,
           location: candidate.geometry?.location,
@@ -674,7 +688,10 @@ export async function geocodeMultipleStores(
 
   let resolvedCoordinates = userCoordinates
   if (!resolvedCoordinates && userPostalCode) {
-    resolvedCoordinates = await geocodePostalCode(userPostalCode)
+    const postalCoords = await geocodePostalCode(userPostalCode)
+    if (postalCoords) {
+      resolvedCoordinates = postalCoords
+    }
   }
 
   for (const [canonicalName, originalName] of uniqueStoreEntries.entries()) {

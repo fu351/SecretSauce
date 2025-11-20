@@ -545,8 +545,7 @@ async function findStandardizedIngredientIdByName(
  */
 export async function searchWithCache(
   ingredientName: string,
-  stores?: string[],
-  useScraperFallback: boolean = true
+  stores?: string[]
 ): Promise<{
   cached: CachedIngredient[]
   source: "cache" | "scraper"
@@ -588,27 +587,13 @@ export async function searchWithCache(
       }
     }
 
-    // No cache hit; optionally create a new standardized ingredient for scraping
-    if (!standardizedId && useScraperFallback) {
-      standardizedId = await getOrCreateStandardizedIngredient(normalizedName)
-    }
-
-    if (!standardizedId) {
-      console.warn(`[Cache] Could not standardize ingredient: ${ingredientName}`)
-      return {
-        cached: [],
-        source: "scraper",
-        standardizedId: null,
-      }
-    }
-
     console.log(
       `[Cache] No fresh cache found for "${normalizedName}", falling back to scrapers`
     )
     return {
       cached: [],
       source: "scraper",
-      standardizedId,
+      standardizedId: standardizedId ?? null,
     }
   } catch (error) {
     console.error("Error in searchWithCache:", error)
@@ -682,6 +667,10 @@ export async function cacheScrapedResults(
       sharedStandardizedId = await findStandardizedIngredientIdByName(searchTermForLookup)
     }
 
+    if (!sharedStandardizedId && normalizedSearchName) {
+      sharedStandardizedId = await findStandardizedIngredientIdByName(normalizedSearchName)
+    }
+
     for (const item of scrapedItems) {
       let standardizedId = sharedStandardizedId
 
@@ -689,23 +678,19 @@ export async function cacheScrapedResults(
         standardizedId = await findStandardizedIngredientIdByName(searchTermForLookup)
       }
 
+      if (!standardizedId && normalizedSearchName) {
+        standardizedId = await findStandardizedIngredientIdByName(normalizedSearchName)
+      }
+
       if (!standardizedId && item.title) {
         standardizedId = await findStandardizedIngredientIdByName(item.title)
       }
 
-      if (!standardizedId && normalizedSearchName) {
-        standardizedId = await getOrCreateStandardizedIngredient(normalizedSearchName)
-      }
-
       if (!standardizedId) {
-        const normalizedTitle = normalizeIngredientKey(item.title) || item.title.toLowerCase()
-        if (normalizedTitle) {
-          standardizedId = await getOrCreateStandardizedIngredient(normalizedTitle)
-        }
-      }
-
-      if (!standardizedId) {
-        console.warn(`[Cache] Could not standardize scraped item`, { title: item.title })
+        console.warn(`[Cache] Could not map scraped item to standardized ingredient`, {
+          title: item.title,
+          searchTerm: searchTermForLookup,
+        })
         continue
       }
 
