@@ -5,7 +5,19 @@ import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Calendar, Heart, X, ChevronLeft, ChevronRight, ShoppingCart, ChevronRightIcon, List, Menu } from "lucide-react"
+import {
+  Calendar,
+  Heart,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  ShoppingCart,
+  ChevronRightIcon,
+  List,
+  Menu,
+} from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
@@ -91,7 +103,11 @@ export default function MealPlannerPage() {
   const [draggedRecipe, setDraggedRecipe] = useState<Recipe | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
   const [viewMode, setViewMode] = useState<"by-day" | "by-meal">("by-day")
+  const [weeklySummaryPinnedOpen, setWeeklySummaryPinnedOpen] = useState(false)
+  const [weeklySummaryHovering, setWeeklySummaryHovering] = useState(false)
+  const [hasAutoScrolledIntoGrid, setHasAutoScrolledIntoGrid] = useState(false)
   const router = useRouter()
+  const weeklySummaryDetailsVisible = weeklySummaryPinnedOpen || (!isMobile && weeklySummaryHovering)
 
   const mealTypes = [
     { key: "breakfast", label: "BREAKFAST" },
@@ -125,6 +141,19 @@ export default function MealPlannerPage() {
       setLoading(false)
     }
   }, [user, weekDates])
+
+  useEffect(() => {
+    if (loading || hasAutoScrolledIntoGrid) return
+    if (typeof window === "undefined") return
+    if (window.scrollY > 80) {
+      setHasAutoScrolledIntoGrid(true)
+      return
+    }
+    window.requestAnimationFrame(() => {
+      window.scrollBy({ top: isMobile ? 240 : 180, behavior: "smooth" })
+    })
+    setHasAutoScrolledIntoGrid(true)
+  }, [hasAutoScrolledIntoGrid, isMobile, loading])
 
   const loadAllData = async () => {
     setLoading(true)
@@ -586,34 +615,76 @@ export default function MealPlannerPage() {
           </div>
 
             {weekDates.length > 0 && (
-              <div className={`rounded-2xl border border-border bg-card/80 shadow-sm p-4`}>
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between mb-3">
+              <div
+                className={`rounded-2xl border border-border bg-card/70 shadow-sm p-3 transition-colors group`}
+                onMouseEnter={() => !isMobile && setWeeklySummaryHovering(true)}
+                onMouseLeave={() => !isMobile && setWeeklySummaryHovering(false)}
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Weekly averages</p>
-                    <p className={`text-lg font-semibold ${textClass}`}>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Weekly snapshot</p>
+                    <p className={`text-base font-semibold ${textClass}`}>
                       {Math.round(weeklyNutritionSummary.averages.calories) || 0} cal / day
                     </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Total {Math.round(weeklyNutritionSummary.totals.calories) || 0} cal this week
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Weekly total: {Math.round(weeklyNutritionSummary.totals.calories) || 0} cal
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                  {WEEKLY_STAT_FIELDS.map((stat) => (
-                    <div
-                      key={stat.key}
-                      className={`rounded-xl border border-border/50 ${isDark ? "bg-[#181813]" : "bg-white"} p-3`}
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="hidden sm:inline">
+                      {weeklySummaryDetailsVisible ? "Move mouse away to hide details" : "Hover for macros"}
+                    </span>
+                    <span className="sm:hidden">
+                      {weeklySummaryPinnedOpen ? "Tap to hide details" : "Tap to peek macros"}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      aria-pressed={weeklySummaryPinnedOpen}
+                      aria-expanded={weeklySummaryPinnedOpen}
+                      aria-controls="weekly-summary-panel"
+                      onClick={() => setWeeklySummaryPinnedOpen((prev) => !prev)}
+                      className={`h-7 px-2 text-xs ${isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-gray-700"}`}
                     >
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{stat.label}</p>
-                      <p className={`text-lg font-semibold ${textClass}`}>
-                        {Math.round(weeklyNutritionSummary.averages[stat.key as MacroKey]) || 0} {stat.unit}
-                        <span className="text-xs font-normal text-muted-foreground ml-1">avg</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        total {Math.round(weeklyNutritionSummary.totals[stat.key as MacroKey]) || 0} {stat.unit}
-                      </p>
-                    </div>
-                  ))}
+                      {weeklySummaryPinnedOpen ? (
+                        <>
+                          <ChevronUp className="h-3.5 w-3.5 mr-1" />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-3.5 w-3.5 mr-1" />
+                          Show
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div
+                  id="weekly-summary-panel"
+                  className={`transition-[max-height,margin-top] duration-300 ease-out overflow-hidden ${
+                    weeklySummaryDetailsVisible ? "max-h-96 mt-3" : "max-h-0 mt-0 pointer-events-none"
+                  }`}
+                  aria-hidden={!weeklySummaryDetailsVisible}
+                >
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                    {WEEKLY_STAT_FIELDS.map((stat) => (
+                      <div
+                        key={stat.key}
+                        className={`rounded-xl border border-border/50 ${isDark ? "bg-[#181813]" : "bg-white"} p-3`}
+                      >
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{stat.label}</p>
+                        <p className={`text-base font-semibold ${textClass}`}>
+                          {Math.round(weeklyNutritionSummary.averages[stat.key as MacroKey]) || 0} {stat.unit}
+                          <span className="text-[11px] font-normal text-muted-foreground ml-1">avg</span>
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          total {Math.round(weeklyNutritionSummary.totals[stat.key as MacroKey]) || 0} {stat.unit}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
