@@ -390,45 +390,25 @@ export type Database = {
           updated_at?: string
         }
       }
-      recipe_ratings: {
-        Row: {
-          id: string
-          recipe_id: string
-          user_id: string
-          rating: number
-          review: string | null
-          created_at: string
-        }
-        Insert: {
-          recipe_id: string
-          user_id: string
-          rating: number
-          review?: string | null
-        }
-        Update: {
-          rating?: number
-          review?: string | null
-        }
-      }
       recipe_reviews: {
         Row: {
           id: string
-          recipe_id: string | null
-          user_id: string | null
+          recipe_id: string
+          user_id: string
           rating: number
           comment: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
-          recipe_id?: string | null
-          user_id?: string | null
+          recipe_id: string
+          user_id: string
           rating: number
           comment?: string | null
         }
         Update: {
-          recipe_id?: string | null
-          user_id?: string | null
+          recipe_id?: string
+          user_id?: string
           rating?: number
           comment?: string | null
           updated_at?: string
