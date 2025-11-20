@@ -957,27 +957,38 @@ export default function ShoppingPage() {
               address: startAddress,
             })
             const storeQueryEntries = comparisons.map((comparison, index) => {
-              const primaryAlias = (comparison.providerAliases?.[0] || comparison.store || "").trim()
-              const aliasHints = comparison.providerAliases?.slice(1)?.filter(Boolean)
-              const hintPieces = [comparison.locationHint, aliasHints?.length ? aliasHints.join(", ") : null].filter(
-                Boolean,
+              const aliasCandidates = Array.from(
+                new Set(
+                  [
+                    ...(comparison.providerAliases ?? []),
+                    comparison.store,
+                  ]
+                    .map((alias) => alias?.trim())
+                    .filter((alias): alias is string => !!alias)
+                )
               )
+              const primaryAlias = aliasCandidates[0] || comparison.store || `Store ${index + 1}`
+              const aliasHints = aliasCandidates.slice(1)
+              const hintPieces = [comparison.locationHint, aliasHints.length ? aliasHints.join(", ") : null].filter(Boolean)
               return {
                 queryName: primaryAlias || comparison.store || `Store ${index + 1}`,
                 hint: hintPieces.length > 0 ? hintPieces.join(" • ") : undefined,
+                aliases: aliasCandidates.length ? aliasCandidates : undefined,
               }
             })
 
             const storeNames = storeQueryEntries.map(
               (entry, idx) => entry.queryName || comparisons[idx]?.store || "Unknown Store",
             )
-            const storeHints = new Map(storeQueryEntries.map((entry) => [entry.queryName, entry.hint]))
+            const storeMetadata = new Map(
+              storeQueryEntries.map((entry) => [entry.queryName, { hint: entry.hint, aliases: entry.aliases }]),
+            )
             const geocodedStores = await geocodeMultipleStores(
               storeNames,
               zipCode,
               userLoc,
               groceryDistanceMiles,
-              storeHints,
+              storeMetadata,
             )
 
             const storeDistances = new Map<string, number>()

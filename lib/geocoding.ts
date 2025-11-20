@@ -9,6 +9,40 @@ export interface GeocodeResult {
   matchedName?: string
 }
 
+export interface StoreGeocodeMetadata {
+  hint?: string
+  aliases?: string[]
+}
+
+type GoogleGeocodeResult = {
+  geometry: { location: { lat: number; lng: number } }
+  formatted_address: string
+  address_components?: Array<{ long_name: string }>
+}
+
+type GoogleGeocodeResponse = {
+  status: string
+  results?: GoogleGeocodeResult[]
+}
+
+type GooglePlacesCandidate = {
+  name?: string
+  vicinity?: string
+  formatted_address?: string
+  geometry?: { location?: { lat?: number; lng?: number } }
+}
+
+type GooglePlacesResponse = {
+  status: string
+  results?: GooglePlacesCandidate[]
+}
+
+type GoogleRoutesResponse = {
+  routes?: Array<{ distanceMeters?: number; duration?: string }>
+}
+
+type MapsProxyAction = "geocode" | "place-nearby" | "place-text" | "routes"
+
 const postalCodeCache = new Map<string, GeocodeResult>()
 const KM_TO_MILES = 0.621371
 const METERS_TO_MILES = 0.000621371
@@ -28,6 +62,79 @@ const normalizeStoreMatchValue = (value?: string): string => {
     .replace(/[^a-z0-9]/g, "")
 }
 
+const MIN_SIGNATURE_LENGTH = 3
+const SPLIT_SIGNATURE_REGEX = /[^a-z0-9]+/i
+const STORE_SIGNATURE_STOPWORDS = new Set([
+  "store",
+  "stores",
+  "market",
+  "markets",
+  "mart",
+  "grocery",
+  "grocer",
+  "food",
+  "foods",
+  "zip",
+  "code",
+  "co",
+  "inc",
+  "llc",
+])
+
+const createStoreSignatureMatcher = (
+  storeName: string,
+  storeHint?: string,
+  aliasTokens?: string[]
+): ((value?: string) => boolean) => {
+  const normalizedTargets = new Set<string>()
+  const hasLetters = /[a-z]/i
+
+  const addToken = (value?: string) => {
+    if (!value) return
+    const normalized = normalizeStoreMatchValue(value)
+    if (
+      normalized &&
+      normalized.length >= MIN_SIGNATURE_LENGTH &&
+      hasLetters.test(normalized) &&
+      !STORE_SIGNATURE_STOPWORDS.has(normalized)
+    ) {
+      normalizedTargets.add(normalized)
+    }
+    value
+      .split(SPLIT_SIGNATURE_REGEX)
+      .map((part) => normalizeStoreMatchValue(part))
+      .filter(
+        (part) =>
+          part &&
+          part.length >= MIN_SIGNATURE_LENGTH &&
+          hasLetters.test(part) &&
+          !STORE_SIGNATURE_STOPWORDS.has(part)
+      )
+      .forEach((part) => normalizedTargets.add(part))
+  }
+
+  addToken(storeName)
+  aliasTokens?.forEach((alias) => addToken(alias))
+  if (storeHint) {
+    storeHint.split(/[•\-|,]+/).forEach((segment) => addToken(segment))
+  }
+
+  if (normalizedTargets.size === 0) {
+    return () => false
+  }
+
+  return (value?: string) => {
+    const normalizedValue = normalizeStoreMatchValue(value)
+    if (!normalizedValue) return false
+    for (const target of normalizedTargets) {
+      if (normalizedValue.includes(target) || target.includes(normalizedValue)) {
+        return true
+      }
+    }
+    return false
+  }
+}
+
 const coordinatesAppearValid = (lat: number, lng: number) =>
   Number.isFinite(lat) && Number.isFinite(lng) && (Math.abs(lat) > 0.0001 || Math.abs(lng) > 0.0001)
 
@@ -35,6 +142,37 @@ export function canonicalizeStoreName(value: string): string {
   return cleanStoreValue(value || "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
+}
+
+const getMapsProxyUrl = () => {
+  if (typeof window !== "undefined") {
+    return "/api/maps"
+  }
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
+  return `${baseUrl}/api/maps`
+}
+
+async function callMapsProxy<T>(action: MapsProxyAction, params: Record<string, any>): Promise<T | null> {
+  try {
+    const response = await fetch(getMapsProxyUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, params }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[Geocoding] Maps proxy ${action} failed`, errorText)
+      return null
+    }
+
+    return (await response.json()) as T
+  } catch (error) {
+    console.error(`[Geocoding] Maps proxy ${action} error`, error)
+    return null
+  }
 }
 
 /**
@@ -52,16 +190,11 @@ export async function geocodeStore(
   userCoordinates?: { lat: number; lng: number },
   groceryDistanceMiles: number = 10,
   storeHint?: string,
-  options?: { relaxed?: boolean }
+  options?: { relaxed?: boolean; aliasTokens?: string[] }
 ): Promise<GeocodeResult | null> {
   try {
     const isRelaxed = options?.relaxed ?? false
-
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-    if (!apiKey) {
-      console.error("Google Maps API key not found in environment variables")
-      return null
-    }
+    const matchesRequestedStore = createStoreSignatureMatcher(storeName, storeHint, options?.aliasTokens)
 
     const baseRadius = Math.max(groceryDistanceMiles ?? 10, 5)
     const allowedMiles = baseRadius * (isRelaxed ? 3 : 1.5)
@@ -69,7 +202,7 @@ export async function geocodeStore(
     const strictHintLimitMiles = baseRadius * 3
 
     if (storeHint) {
-      const hintResult = await geocodeStoreHint(storeName, storeHint, apiKey, userCoordinates, strictHintLimitMiles)
+      const hintResult = await geocodeStoreHint(storeName, storeHint, matchesRequestedStore, userCoordinates, strictHintLimitMiles)
       if (hintResult) {
         console.log("[Geocoding] Using direct hint geocode result", {
           storeName,
@@ -96,10 +229,10 @@ export async function geocodeStore(
       let nearestStore = await findNearestStoreWithPlaces(
         storeName,
         { lat: origin.lat, lng: origin.lng },
-        apiKey,
         groceryDistanceMiles,
         storeHint,
-        userPostalCode
+        userPostalCode,
+        matchesRequestedStore
       )
 
       // double-check with a larger radius if nothing is found
@@ -109,10 +242,10 @@ export async function geocodeStore(
           nearestStore = await findNearestStoreWithPlaces(
             storeName,
             { lat: origin.lat, lng: origin.lng },
-            apiKey,
             expandedRadius,
             storeHint,
-            userPostalCode
+            userPostalCode,
+            matchesRequestedStore
           )
           if (nearestStore) {
             console.log("[Geocoding] Found store after radius expansion", {
@@ -132,7 +265,7 @@ export async function geocodeStore(
           nearestStore,
         })
         if (userCoordinates) {
-          const routeCheck = await verifyRouteDistance(userCoordinates, nearestStore, apiKey)
+          const routeCheck = await verifyRouteDistance(userCoordinates, nearestStore)
           if (routeCheck.ok && routeCheck.distanceMiles !== undefined) {
             if (routeCheck.distanceMiles > allowedDriveMiles) {
               console.warn(
@@ -148,7 +281,9 @@ export async function geocodeStore(
           // if route check fails we fall back to straight-line validation later
         }
 
-        return nearestStore
+        if (matchesRequestedStore(nearestStore.matchedName) || matchesRequestedStore(nearestStore.formattedAddress)) {
+          return nearestStore
+        }
       }
     }
 
@@ -157,19 +292,11 @@ export async function geocodeStore(
     const searchQuery = userPostalCode ? `${baseQuery} ${userPostalCode}` : baseQuery
     console.log(`[Geocoding] Attempting to geocode ${storeName} with query: ${searchQuery}`)
 
-    // Call Google Geocoding API
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-        searchQuery
-      )}&key=${apiKey}`
-    )
-
-    if (!response.ok) {
-      console.error("Geocoding API error:", response.statusText)
+    const data = await callMapsProxy<GoogleGeocodeResponse>("geocode", { address: searchQuery })
+    if (!data) {
+      console.error("Geocoding API error: empty response")
       return null
     }
-
-    const data = await response.json()
 
     if (data.status !== "OK" || !data.results || data.results.length === 0) {
       console.warn(`No geocoding results found for: ${storeName}`)
@@ -206,6 +333,18 @@ export async function geocodeStore(
       matchedName: selectedResult.address_components?.[0]?.long_name || storeHint || storeName,
     }
 
+    if (
+      !matchesRequestedStore(result.matchedName) &&
+      !matchesRequestedStore(result.formattedAddress)
+    ) {
+      console.warn(`[Geocoding] ${storeName} geocode result did not match requested store metadata`, {
+        storeHint,
+        matchedName: result.matchedName,
+        formattedAddress: result.formattedAddress,
+      })
+      return null
+    }
+
     if (!coordinatesAppearValid(result.lat, result.lng)) {
       console.warn(`[Geocoding] ${storeName} fallback geocode returned invalid coordinates`, {
         coordinates: result,
@@ -233,7 +372,7 @@ export async function geocodeStore(
         }
       }
 
-      const routeCheck = await verifyRouteDistance(userCoordinates, result, apiKey)
+      const routeCheck = await verifyRouteDistance(userCoordinates, result)
       if (!routeCheck.ok) {
         console.warn(`[Geocoding] Routes API failed for ${storeName}, relying on straight-line distance.`)
       } else if (routeCheck.distanceMiles !== undefined) {
@@ -262,7 +401,7 @@ export async function geocodeStore(
 async function geocodeStoreHint(
   storeName: string,
   storeHint: string,
-  apiKey: string,
+  matchesRequestedStore: (value?: string) => boolean,
   userCoordinates?: { lat: number; lng: number },
   strictRadiusMiles?: number
 ): Promise<GeocodeResult | null> {
@@ -275,16 +414,12 @@ async function geocodeStoreHint(
     const query =
       trimmedHint.toLowerCase().includes(storeName.toLowerCase()) ? trimmedHint : `${storeName} ${trimmedHint}`
 
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`
-    )
-
-    if (!response.ok) {
-      console.warn(`[Geocoding] Hint geocode error for ${storeName}:`, response.statusText)
+    const data = await callMapsProxy<GoogleGeocodeResponse>("geocode", { address: query })
+    if (!data) {
+      console.warn(`[Geocoding] Hint geocode error for ${storeName}: empty response`)
       return null
     }
 
-    const data = await response.json()
     if (data.status !== "OK" || !data.results?.length) {
       return null
     }
@@ -295,6 +430,17 @@ async function geocodeStoreHint(
       lng: candidate.geometry.location.lng,
       formattedAddress: candidate.formatted_address,
       matchedName: storeHint || candidate.address_components?.[0]?.long_name,
+    }
+
+    if (
+      !matchesRequestedStore(resolved.matchedName) &&
+      !matchesRequestedStore(resolved.formattedAddress)
+    ) {
+      console.warn(`[Geocoding] Hint result for ${storeName} failed signature match`, {
+        storeHint,
+        resolved,
+      })
+      return null
     }
 
     if (!coordinatesAppearValid(resolved.lat, resolved.lng)) {
@@ -349,19 +495,16 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 async function findNearestStoreWithPlaces(
   storeName: string,
   userCoordinates: { lat: number; lng: number },
-  apiKey: string,
   groceryDistanceMiles: number,
   storeHint?: string,
-  postalCode?: string
+  postalCode?: string,
+  matchesRequestedStore?: (value?: string) => boolean
 ): Promise<GeocodeResult | null> {
   const keywordParts = [storeName, storeHint, postalCode ? `zip ${postalCode}` : null].filter(Boolean)
   const keyword = keywordParts.length > 0 ? keywordParts.join(" ") : `${storeName} store`
   try {
     const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
     const radiusMeters = Math.min(effectiveMiles * 1609.34, 50000) // Places API max radius 50km
-    const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${
-      userCoordinates.lat
-    },${userCoordinates.lng}&radius=${radiusMeters}&keyword=${encodeURIComponent(keyword)}&type=store&key=${apiKey}`
 
     console.log("[Geocoding] Nearby search request", {
       storeName,
@@ -369,48 +512,35 @@ async function findNearestStoreWithPlaces(
       userCoordinates,
       radiusMeters,
     })
-    let response = await fetch(nearbyUrl)
-    if (!response.ok) {
-      console.error(`[Geocoding] Nearby search error for ${storeName}:`, response.statusText)
-      return null
-    }
 
-    let data = await response.json()
-    let candidates: any[] = []
-    if (data.status === "OK" && data.results?.length) {
+    let data = await callMapsProxy<GooglePlacesResponse>("place-nearby", {
+      location: userCoordinates,
+      radius: radiusMeters,
+      keyword,
+      type: "store",
+    })
+
+    let candidates: GooglePlacesCandidate[] = []
+    if (data?.status === "OK" && data.results?.length) {
       candidates = data.results
     } else {
-      // Fallback to Text Search if Nearby fails
-      console.warn(`[Geocoding] Nearby search returned ${data.status} for ${storeName}, falling back to Text Search`)
-      const textUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
-        keyword
-      )}&location=${userCoordinates.lat},${userCoordinates.lng}&radius=${radiusMeters}&key=${apiKey}`
-      console.log("[Geocoding] Text search request", { storeName, keyword, userCoordinates })
-      response = await fetch(textUrl)
-      if (!response.ok) {
-        console.error(`[Geocoding] Places Text Search error for ${storeName}:`, response.statusText)
-        return null
-      }
-      data = await response.json()
-      if (data.status !== "OK" || !data.results?.length) {
-        console.warn(`[Geocoding] Places Text Search returned ${data.status} for ${storeName}`)
+      console.warn(`[Geocoding] Nearby search returned ${data?.status ?? "NO_RESPONSE"} for ${storeName}, falling back to Text Search`)
+      data = await callMapsProxy<GooglePlacesResponse>("place-text", {
+        query: keyword,
+        location: userCoordinates,
+        radius: radiusMeters,
+      })
+      if (!data || data.status !== "OK" || !data.results?.length) {
+        console.warn(`[Geocoding] Places Text Search returned ${data?.status ?? "NO_RESPONSE"} for ${storeName}`)
         return null
       }
       candidates = data.results
     }
 
-    const normalizedStoreName = normalizeStoreMatchValue(storeName)
-    const normalizedHint = normalizeStoreMatchValue(storeHint)
-    const matchesRequestedStore = (value?: string) => {
-      const normalized = normalizeStoreMatchValue(value)
-      if (!normalized) return false
-      if (normalizedStoreName && normalized.includes(normalizedStoreName)) return true
-      if (normalizedHint && normalized.includes(normalizedHint)) return true
-      return false
-    }
+    const matcher = matchesRequestedStore ?? (() => false)
 
     const preferredCandidates = candidates.filter(
-      (candidate) => matchesRequestedStore(candidate.name) || matchesRequestedStore(candidate.vicinity)
+      (candidate) => matcher(candidate.name) || matcher(candidate.vicinity) || matcher(candidate.formatted_address)
     )
     const candidatePool = preferredCandidates.length > 0 ? preferredCandidates : candidates
 
@@ -448,8 +578,13 @@ async function findNearestStoreWithPlaces(
         formattedAddress: candidate.vicinity || candidate.formatted_address,
         matchedName: candidate.name,
       }
-      console.log("[Geocoding] Places result selected", { storeName, keyword, resolved })
-      return resolved
+      if (
+        matcher(resolved.matchedName) ||
+        matcher(resolved.formattedAddress)
+      ) {
+        console.log("[Geocoding] Places result selected", { storeName, keyword, resolved })
+        return resolved
+      }
     }
 
     console.warn(`[Geocoding] No Places candidates for ${storeName} had valid coordinates`)
@@ -462,31 +597,20 @@ async function findNearestStoreWithPlaces(
 
 async function verifyRouteDistance(
   origin: { lat: number; lng: number },
-  destination: GeocodeResult,
-  apiKey: string
+  destination: GeocodeResult
 ): Promise<{ ok: boolean; distanceMiles?: number; duration?: string }> {
   try {
-    const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
-      },
-      body: JSON.stringify({
-        origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
-        destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } },
-        travelMode: "DRIVE",
-        routingPreference: "TRAFFIC_AWARE",
-      }),
+    const data = await callMapsProxy<GoogleRoutesResponse>("routes", {
+      origin,
+      destination,
+      travelMode: "DRIVE",
     })
 
-    if (!response.ok) {
-      console.warn("[Geocoding] Routes API error:", response.statusText)
+    if (!data) {
+      console.warn("[Geocoding] Routes API error via proxy")
       return { ok: false }
     }
 
-    const data = await response.json()
     const route = data.routes?.[0]
     if (!route || typeof route.distanceMeters !== "number") {
       return { ok: false }
@@ -513,16 +637,30 @@ export async function geocodeMultipleStores(
   userPostalCode?: string,
   userCoordinates?: { lat: number; lng: number },
   groceryDistanceMiles: number = 10,
-  storeHints?: Map<string, string | undefined>
+  storeMetadata?: Map<string, StoreGeocodeMetadata>
 ): Promise<Map<string, GeocodeResult>> {
   const results = new Map<string, GeocodeResult>()
 
   console.log(`[Geocoding] Starting batch geocoding for ${storeNames.length} stores:`, storeNames)
 
-  const hintLookup = new Map<string, string | undefined>()
-  if (storeHints) {
-    storeHints.forEach((hint, rawName) => {
-      hintLookup.set(canonicalizeStoreName(rawName), hint)
+  const metadataLookup = new Map<string, StoreGeocodeMetadata>()
+  if (storeMetadata) {
+    storeMetadata.forEach((meta, rawName) => {
+      const canonical = canonicalizeStoreName(rawName)
+      const existing = metadataLookup.get(canonical)
+      if (!existing) {
+        metadataLookup.set(canonical, {
+          hint: meta?.hint,
+          aliases: meta?.aliases ? Array.from(new Set(meta.aliases)) : undefined,
+        })
+      } else {
+        if (!existing.hint && meta?.hint) {
+          existing.hint = meta.hint
+        }
+        if (meta?.aliases?.length) {
+          existing.aliases = Array.from(new Set([...(existing.aliases ?? []), ...meta.aliases]))
+        }
+      }
     })
   }
 
@@ -540,12 +678,14 @@ export async function geocodeMultipleStores(
   }
 
   for (const [canonicalName, originalName] of uniqueStoreEntries.entries()) {
+    const metadata = metadataLookup.get(canonicalName)
     let geocoded = await geocodeStore(
       originalName,
       userPostalCode,
       resolvedCoordinates ?? undefined,
       groceryDistanceMiles,
-      hintLookup.get(canonicalName)
+      metadata?.hint,
+      { aliasTokens: metadata?.aliases }
     )
 
     if (!geocoded) {
@@ -555,8 +695,8 @@ export async function geocodeMultipleStores(
         userPostalCode,
         resolvedCoordinates ?? undefined,
         groceryDistanceMiles,
-        hintLookup.get(canonicalName),
-        { relaxed: true }
+        metadata?.hint,
+        { relaxed: true, aliasTokens: metadata?.aliases }
       )
     }
 
@@ -614,23 +754,13 @@ export async function geocodePostalCode(postalCode: string): Promise<{ lat: numb
     return { lat: cached.lat, lng: cached.lng }
   }
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-  if (!apiKey) {
-    console.error("Google Maps API key not found; cannot geocode postal code")
-    return null
-  }
-
   try {
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(normalized)}&key=${apiKey}`
-    )
-
-    if (!response.ok) {
-      console.error(`[Geocoding] Postal code geocode error (${normalized}):`, response.statusText)
+    const data = await callMapsProxy<GoogleGeocodeResponse>("geocode", { address: normalized })
+    if (!data) {
+      console.error(`[Geocoding] Postal code geocode error (${normalized}): empty response`)
       return null
     }
 
-    const data = await response.json()
     if (data.status !== "OK" || !data.results?.length) {
       console.warn(`[Geocoding] No results for postal code: ${normalized}`)
       return null
@@ -646,23 +776,13 @@ export async function geocodePostalCode(postalCode: string): Promise<{ lat: numb
 }
 
 export async function reverseGeocodeCoordinates(lat: number, lng: number): Promise<string | null> {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-  if (!apiKey) {
-    console.error("Google Maps API key not found; cannot reverse geocode coordinates")
-    return null
-  }
-
   try {
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
-    )
-
-    if (!response.ok) {
-      console.error("[Geocoding] Reverse geocode error:", response.statusText)
+    const data = await callMapsProxy<GoogleGeocodeResponse>("geocode", { latlng: `${lat},${lng}` })
+    if (!data) {
+      console.error("[Geocoding] Reverse geocode error: empty response")
       return null
     }
 
-    const data = await response.json()
     if (data.status !== "OK" || !data.results?.length) {
       console.warn("[Geocoding] No reverse geocode results for coordinates", { lat, lng })
       return null

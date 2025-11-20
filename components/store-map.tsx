@@ -149,6 +149,8 @@ interface StoreComparison {
   outOfRadius?: boolean
   distanceMiles?: number
   locationHint?: string
+  providerAliases?: string[]
+  canonicalKey?: string
 }
 
 interface StoreMapProps {
@@ -238,8 +240,9 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           ?.filter((alias) => alias && alias.toLowerCase() !== brandName.toLowerCase()) ?? []
       const resolvedName = matchedName?.trim()
       const fallbackName = requestedAlias || brandName || resolvedName || "Store"
+      const rawRequested = requestedAlias || fallbackName
       const safeResolvedName = escapeHtml(resolvedName || fallbackName)
-      const safeRequested = escapeHtml(requestedAlias || fallbackName)
+      const safeRequested = escapeHtml(rawRequested)
       const aliasMeta: string[] = []
       if (brandName && brandName.toLowerCase() !== (resolvedName || "").toLowerCase()) {
         aliasMeta.push(`Brand: ${escapeHtml(brandName)}`)
@@ -255,13 +258,17 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
         aliasMeta.push(`Also seen as: ${escapeHtml(aliasPreview)}`)
       }
 
-      const titleHtml = resolvedName
-        ? `<div style="font-size:15px;font-weight:600;">Found: ${safeResolvedName}</div>`
-        : `<div style="font-size:15px;font-weight:600;">${safeRequested}</div>`
-      const subtitleHtml =
-        aliasMeta.length > 0
-          ? `<div style="margin-top:4px;font-size:12px;color:${mutedColor};">${aliasMeta.join(" • ")}</div>`
-          : ""
+      const titleHtml = `<div style="font-size:15px;font-weight:600;">${safeRequested}</div>`
+      const subtitleParts: string[] = []
+      if (resolvedName && rawRequested && resolvedName.toLowerCase() !== rawRequested.toLowerCase()) {
+        subtitleParts.push(`Found: ${safeResolvedName}`)
+      }
+      if (aliasMeta.length > 0) {
+        subtitleParts.push(aliasMeta.join(" • "))
+      }
+      const subtitleHtml = subtitleParts.length
+        ? `<div style="margin-top:4px;font-size:12px;color:${mutedColor};">${subtitleParts.join(" • ")}</div>`
+        : ""
 
       return `
         <div style="min-width:220px;background:${bgColor};color:${textColor};padding:12px;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.25);font-family:'Inter',system-ui,sans-serif;">
@@ -484,25 +491,36 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
         // Geocode stores and add markers
         const storeQueryEntries = comparisons.map((comparison, index) => {
-          const primaryAlias = (comparison.providerAliases?.[0] || comparison.store || "").trim()
-          const aliasHints = comparison.providerAliases?.slice(1)?.filter(Boolean)
-          const hintPieces = [comparison.locationHint, aliasHints?.length ? aliasHints.join(", ") : null].filter(
-            Boolean,
+          const aliasCandidates = Array.from(
+            new Set(
+              [
+                ...(comparison.providerAliases ?? []),
+                comparison.store,
+              ]
+                .map((alias) => alias?.trim())
+                .filter((alias): alias is string => !!alias)
+            )
           )
+          const primaryAlias = aliasCandidates[0] || comparison.store || `Store ${index + 1}`
+          const aliasHints = aliasCandidates.slice(1)
+          const hintPieces = [comparison.locationHint, aliasHints.length ? aliasHints.join(", ") : null].filter(Boolean)
           return {
             queryName: primaryAlias || comparison.store || `Store ${index + 1}`,
             hint: hintPieces.length > 0 ? hintPieces.join(" • ") : undefined,
+            aliases: aliasCandidates.length ? aliasCandidates : undefined,
           }
         })
         const storeNames = storeQueryEntries.map((entry) => entry.queryName)
-        const storeHints = new Map(storeQueryEntries.map((entry) => [entry.queryName, entry.hint]))
+        const storeMetadata = new Map(
+          storeQueryEntries.map((entry) => [entry.queryName, { hint: entry.hint, aliases: entry.aliases }])
+        )
         console.log(`[StoreMap] Found ${comparisons.length} stores to geocode:`, storeNames)
         const geocodedStores = await geocodeMultipleStores(
           storeNames,
           userPostalCode,
           userLoc || undefined,
           maxDistanceMiles,
-          storeHints
+          storeMetadata
         )
         console.log(`[StoreMap] Geocoded ${geocodedStores.size} stores:`, Array.from(geocodedStores.keys()))
 

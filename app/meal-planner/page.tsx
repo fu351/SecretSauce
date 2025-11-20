@@ -108,6 +108,7 @@ export default function MealPlannerPage() {
   const [hasAutoScrolledIntoGrid, setHasAutoScrolledIntoGrid] = useState(false)
   const router = useRouter()
   const weeklySummaryDetailsVisible = weeklySummaryPinnedOpen || (!isMobile && weeklySummaryHovering)
+  const showSidebarOverlayLayout = isMobile && sidebarOpen
 
   const mealTypes = [
     { key: "breakfast", label: "BREAKFAST" },
@@ -501,6 +502,10 @@ export default function MealPlannerPage() {
 
   const sidebarClassName = getSidebarClassName(isMobile, sidebarOpen)
   const stickySidebarClass = isMobile ? "" : "md:sticky md:top-6 md:h-[calc(100vh-3rem)] md:self-start"
+  const dayContainerClass = showSidebarOverlayLayout ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "flex flex-wrap gap-3 xl:flex-nowrap"
+  const dayCardFlexStyle = showSidebarOverlayLayout
+    ? undefined
+    : ({ flex: "1 1 calc(14.285% - 12px)", minWidth: 140, maxWidth: 210 } as React.CSSProperties)
 
   if (!user) {
     return (
@@ -616,70 +621,57 @@ export default function MealPlannerPage() {
 
             {weekDates.length > 0 && (
               <div
-                className={`rounded-2xl border border-border bg-card/70 shadow-sm p-3 transition-colors group`}
+                className={`rounded-2xl border border-border bg-card/60 shadow-sm p-2.5 md:p-3 transition-colors group`}
                 onMouseEnter={() => !isMobile && setWeeklySummaryHovering(true)}
                 onMouseLeave={() => !isMobile && setWeeklySummaryHovering(false)}
               >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Weekly snapshot</p>
-                    <p className={`text-base font-semibold ${textClass}`}>
-                      {Math.round(weeklyNutritionSummary.averages.calories) || 0} cal / day
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Total {Math.round(weeklyNutritionSummary.totals.calories) || 0} cal this week
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Weekly snapshot</p>
+                    <p className={`text-sm font-semibold ${textClass}`}>
+                      {Math.round(weeklyNutritionSummary.averages.calories) || 0} cal avg · {Math.round(weeklyNutritionSummary.totals.calories) || 0} total
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="hidden sm:inline">
-                      {weeklySummaryDetailsVisible ? "Move mouse away to hide details" : "Hover for macros"}
-                    </span>
-                    <span className="sm:hidden">
-                      {weeklySummaryPinnedOpen ? "Tap to hide details" : "Tap to peek macros"}
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      aria-pressed={weeklySummaryPinnedOpen}
-                      aria-expanded={weeklySummaryPinnedOpen}
-                      aria-controls="weekly-summary-panel"
-                      onClick={() => setWeeklySummaryPinnedOpen((prev) => !prev)}
-                      className={`h-7 px-2 text-xs ${isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-gray-700"}`}
-                    >
-                      {weeklySummaryPinnedOpen ? (
-                        <>
-                          <ChevronUp className="h-3.5 w-3.5 mr-1" />
-                          Hide
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="h-3.5 w-3.5 mr-1" />
-                          Show
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-pressed={weeklySummaryPinnedOpen}
+                    aria-expanded={weeklySummaryPinnedOpen}
+                    aria-controls="weekly-summary-panel"
+                    onClick={() => setWeeklySummaryPinnedOpen((prev) => !prev)}
+                    className={`h-7 px-2 text-[11px] ${isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "text-gray-700"}`}
+                  >
+                    {weeklySummaryPinnedOpen ? (
+                      <>
+                        <ChevronUp className="h-3 w-3 mr-1" /> Hide
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3 w-3 mr-1" /> Macros
+                      </>
+                    )}
+                  </Button>
                 </div>
                 <div
                   id="weekly-summary-panel"
                   className={`transition-[max-height,margin-top] duration-300 ease-out overflow-hidden ${
-                    weeklySummaryDetailsVisible ? "max-h-96 mt-3" : "max-h-0 mt-0 pointer-events-none"
+                    weeklySummaryDetailsVisible ? "max-h-40 mt-2" : "max-h-0 mt-0 pointer-events-none"
                   }`}
                   aria-hidden={!weeklySummaryDetailsVisible}
                 >
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                  <div className="grid grid-cols-2 gap-2 text-[11px] md:grid-cols-4">
                     {WEEKLY_STAT_FIELDS.map((stat) => (
                       <div
                         key={stat.key}
-                        className={`rounded-xl border border-border/50 ${isDark ? "bg-[#181813]" : "bg-white"} p-3`}
+                        className={`rounded-lg border border-border/50 ${isDark ? "bg-[#181813]" : "bg-white"} p-2`}
                       >
-                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{stat.label}</p>
-                        <p className={`text-base font-semibold ${textClass}`}>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{stat.label}</p>
+                        <p className={`text-sm font-semibold ${textClass}`}>
                           {Math.round(weeklyNutritionSummary.averages[stat.key as MacroKey]) || 0} {stat.unit}
-                          <span className="text-[11px] font-normal text-muted-foreground ml-1">avg</span>
+                          <span className="text-[10px] font-normal text-muted-foreground ml-1">avg</span>
                         </p>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-[10px] text-muted-foreground">
                           total {Math.round(weeklyNutritionSummary.totals[stat.key as MacroKey]) || 0} {stat.unit}
                         </p>
                       </div>
@@ -690,11 +682,15 @@ export default function MealPlannerPage() {
             )}
 
           {viewMode === "by-day" ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7">
+            <div className={dayContainerClass}>
               {weekDates.slice(0, 7).map((date, dayIndex) => {
                 const dayTotals = dailyNutritionTotals[date] || createEmptyNutritionTotals()
                 return (
-                  <div key={date} className={`bg-card border border-border/60 rounded-2xl shadow-sm p-3 flex flex-col gap-3`}>
+                  <div
+                    key={date}
+                    style={dayCardFlexStyle}
+                    className={`bg-card border border-border/60 rounded-2xl shadow-sm p-2.5 flex flex-col gap-2 w-full`}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <div
@@ -712,11 +708,11 @@ export default function MealPlannerPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                       {WEEKLY_STAT_FIELDS.map((stat) => (
                         <div
                           key={`${date}-${stat.key}`}
-                          className={`${isDark ? "bg-[#181813]" : "bg-gray-50"} rounded-lg p-2`}
+                          className={`${isDark ? "bg-[#181813]" : "bg-gray-50"} rounded-md p-1.5`}
                         >
                           <p className="text-[10px] uppercase text-muted-foreground">{stat.label}</p>
                           <p className={`font-semibold ${textClass}`}>
@@ -726,7 +722,7 @@ export default function MealPlannerPage() {
                       ))}
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="flex flex-col gap-2">
                       {mealTypes.map((mealType) => {
                         const recipe = getMealForSlot(date, mealType.key)
 
@@ -734,13 +730,13 @@ export default function MealPlannerPage() {
                           <div key={mealType.key} className="flex flex-col">
                             <h3 className={`text-[10px] font-semibold text-text mb-1`}>{mealType.label}</h3>
                             <div
-                              className={`relative rounded-lg border-2 border-dashed ${
+                              className={`relative rounded-lg border border-dashed ${
                                 recipe
                                   ? "border-transparent"
                                   : isDark
                                     ? "border-accent/20 bg-background"
                                     : "border-border bg-background"
-                              } min-h-[110px] sm:min-h-[130px] transition-colors`}
+                              } min-h-[100px] transition-colors`}
                               onDragOver={handleDragOver}
                               onDrop={(e) => handleDrop(e, mealType.key, date)}
                             >
@@ -749,7 +745,7 @@ export default function MealPlannerPage() {
                                   <img
                                     src={recipe.image_url || "/placeholder.svg?height=160&width=260"}
                                     alt={recipe.title}
-                                    className="w-full h-28 object-cover rounded-lg"
+                                    className="w-full h-24 object-cover rounded-lg"
                                   />
                                   <button
                                     onClick={() => removeFromMealPlan(mealType.key, date)}
