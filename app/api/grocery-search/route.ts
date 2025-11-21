@@ -33,17 +33,39 @@ export async function GET(request: NextRequest) {
   const rawSearchTerm = searchParams.get("searchTerm") || ""
   const sanitizedSearchTerm = (rawSearchTerm.split(",")[0] || "").trim() || rawSearchTerm.trim()
   const zipParam = searchParams.get("zipCode") || ""
-  const normalizedZip = normalizeZipInput(zipParam) || "47906"
+  let zipToUse = normalizeZipInput(zipParam)
   const recipeId = searchParams.get("recipeId")
   const rawStoreParam = (searchParams.get("store") || "").trim()
   const storeKey = resolveStoreKey(rawStoreParam)
   const storeKeys = storeKey ? [storeKey] : DEFAULT_STORE_KEYS
 
+  const supabaseClient = createServerClient()
+
+  // If no usable zip supplied, try the recipe author's profile postal_code
+  if (!zipToUse && recipeId) {
+    try {
+      const { data: recipe } = await supabaseClient.from("recipes").select("author_id").eq("id", recipeId).maybeSingle()
+      if (recipe?.author_id) {
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select("postal_code")
+          .eq("id", recipe.author_id)
+          .maybeSingle()
+        zipToUse = normalizeZipInput(profile?.postal_code)
+      }
+    } catch (error) {
+      console.warn("[grocery-search] Failed to derive zip from recipe profile", error)
+    }
+  }
+
+  if (!zipToUse) {
+    zipToUse = "47906"
+  }
+
   if (!sanitizedSearchTerm) {
     return NextResponse.json({ error: "Search term is required" }, { status: 400 })
   }
 
-  const supabaseClient = createServerClient()
   let standardizedIngredientId: string | null = null
   let cachedRows: IngredientCacheResult[] = []
 
@@ -59,8 +81,7 @@ export async function GET(request: NextRequest) {
     if (standardizedIngredientId) {
       for (const store of storeKeys) {
         const row = await getOrRefreshIngredientPrice(supabaseClient, standardizedIngredientId, store, {
-          zipCode: normalizedZip,
-          address: zipParam || null,
+          zipCode: zipToUse,
         })
         if (row) {
           cachedRows.push(row)
@@ -68,8 +89,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       cachedRows = await searchOrCreateIngredientAndPrices(supabaseClient, sanitizedSearchTerm, storeKeys, {
-        zipCode: normalizedZip,
-        address: zipParam || null,
+        zipCode: zipToUse,
       })
       if (cachedRows.length > 0) {
         standardizedIngredientId = cachedRows[0].standardized_ingredient_id
@@ -86,7 +106,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const formatted = formatCacheResults(cachedRows, sanitizedSearchTerm, zipCode)
+  const formatted = formatCacheResults(cachedRows, sanitizedSearchTerm, zipToUse)
   return NextResponse.json({
     results: formatted,
     cached: true,
