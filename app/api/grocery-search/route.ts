@@ -253,7 +253,6 @@ export async function GET(request: NextRequest) {
                 ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
                 : null,
               image_url: item.image_url || null,
-              product_url: item.product_url || null,
               product_id: item.id,
               expires_at: expires,
             }

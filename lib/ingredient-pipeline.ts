@@ -348,7 +348,6 @@ function buildCachePayload(
     unit: product.unit || "unit",
     unit_price: product.unit_price ?? null,
     image_url: product.image_url || null,
-    product_url: product.product_url || null,
     product_id: product.product_id || null,
     expires_at: expires.toISOString(),
   }

@@ -261,7 +261,6 @@ export type Database = {
           unit: string
           unit_price: number | null
           image_url: string | null
-          product_url: string | null
           product_id: string | null
           expires_at: string
           created_at: string
@@ -276,7 +275,6 @@ export type Database = {
           unit: string
           unit_price?: number | null
           image_url?: string | null
-          product_url?: string | null
           product_id?: string | null
           expires_at: string
         }
@@ -288,7 +286,6 @@ export type Database = {
           unit?: string
           unit_price?: number | null
           image_url?: string | null
-          product_url?: string | null
           product_id?: string | null
           expires_at?: string
           updated_at?: string

@@ -523,8 +523,18 @@ async function geocodeStoreHint(
   }
 
   try {
-    const query =
-      trimmedHint.toLowerCase().includes(storeName.toLowerCase()) ? trimmedHint : `${storeName} ${trimmedHint}`
+    // Check if the hint appears to be a full street address (contains typical address patterns)
+    // Examples: "300 W State St, Ste 100, West Lafayette, IN, 47906-3539"
+    //           "1032 Sagamore Pkwy W, West Lafayette, IN, 47906"
+    const isFullStreetAddress = /^\d+\s+[\w\s]+,/.test(trimmedHint) && /\d{5}/.test(trimmedHint)
+
+    // For full street addresses from scrapers, use the address directly without prepending store name
+    // This gives more accurate geocoding results
+    const query = isFullStreetAddress
+      ? trimmedHint
+      : trimmedHint.toLowerCase().includes(storeName.toLowerCase())
+        ? trimmedHint
+        : `${storeName} ${trimmedHint}`
 
     const data = await callMapsProxy<GoogleGeocodeResponse>("geocode", { address: query })
     if (!data) {
@@ -544,24 +554,33 @@ async function geocodeStoreHint(
       matchedName: storeHint || candidate.address_components?.[0]?.long_name,
     }
 
-    if (
-      !matchesRequestedStore(resolved.matchedName) &&
-      !matchesRequestedStore(resolved.formattedAddress) &&
-      !brandMatcher(resolved.matchedName) &&
-      !brandMatcher(resolved.formattedAddress)
-    ) {
-      console.warn(`[Geocoding] Hint result for ${storeName} failed signature match`, {
-        storeHint,
+    // Skip brand validation for full street addresses from scrapers
+    // These are exact store locations from the store's own API, so we trust them
+    if (!isFullStreetAddress) {
+      if (
+        !matchesRequestedStore(resolved.matchedName) &&
+        !matchesRequestedStore(resolved.formattedAddress) &&
+        !brandMatcher(resolved.matchedName) &&
+        !brandMatcher(resolved.formattedAddress)
+      ) {
+        console.warn(`[Geocoding] Hint result for ${storeName} failed signature match`, {
+          storeHint,
+          resolved,
+        })
+        return null
+      }
+      if (!brandMatcher(resolved.matchedName) && !brandMatcher(resolved.formattedAddress)) {
+        console.warn(`[Geocoding] Hint result for ${storeName} failed brand check`, {
+          storeHint,
+          resolved,
+        })
+        return null
+      }
+    } else {
+      console.log(`[Geocoding] Using direct street address from scraper for ${storeName}`, {
+        storeHint: trimmedHint,
         resolved,
       })
-      return null
-    }
-    if (!brandMatcher(resolved.matchedName) && !brandMatcher(resolved.formattedAddress)) {
-      console.warn(`[Geocoding] Hint result for ${storeName} failed brand check`, {
-        storeHint,
-        resolved,
-      })
-      return null
     }
 
     if (!coordinatesAppearValid(resolved.lat, resolved.lng)) {

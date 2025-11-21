@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ChefHat, SearchIcon, DollarSign, Plus, X, ShoppingCart, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
+import { ChefHat, SearchIcon, DollarSign, X, ShoppingCart, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
@@ -99,6 +99,84 @@ const deriveStoreBrandLabel = (storeKey: string, fallback: string) => {
   if (!storeKey) return fallback
   const aliasMatch = STORE_BRAND_ALIASES.find((entry) => entry.keywords.some((keyword) => storeKey.includes(keyword)))
   return aliasMatch ? aliasMatch.brand : fallback
+}
+
+const MEASUREMENT_UNIT_KEYWORDS = [
+  "tsp",
+  "teaspoon",
+  "tbsp",
+  "tablespoon",
+  "cup",
+  "ounce",
+  "oz",
+  "floz",
+  "fl oz",
+  "pint",
+  "quart",
+  "gallon",
+  "ml",
+  "milliliter",
+  "millilitre",
+  "liter",
+  "litre",
+  "l",
+  "kg",
+  "kilogram",
+  "gram",
+  "g",
+  "lb",
+  "lbs",
+  "pound",
+  "pounds",
+]
+
+const COUNTABLE_UNIT_KEYWORDS = [
+  "unit",
+  "units",
+  "piece",
+  "pieces",
+  "count",
+  "item",
+  "items",
+  "pack",
+  "package",
+  "pkg",
+  "bag",
+  "box",
+  "bottle",
+  "can",
+  "loaf",
+  "dozen",
+  "carton",
+  "tray",
+  "cluster",
+  "bunch",
+]
+
+const normalizeUnit = (unit?: string) => unit?.toLowerCase().replace(/\./g, "").trim() ?? ""
+
+const isMeasurementUnit = (unit: string) => {
+  const compact = unit.replace(/\s+/g, "")
+  return MEASUREMENT_UNIT_KEYWORDS.some((keyword) => compact.includes(keyword.replace(/\s+/g, "")))
+}
+
+// Avoid multiplying prices by recipe-sized measurements; fall back to full package counts
+const getPurchaseQuantity = (shoppingItem?: ShoppingListItem) => {
+  if (!shoppingItem) return 1
+
+  const normalizedUnit = normalizeUnit(shoppingItem.unit)
+  const rawQuantity = Number(shoppingItem.quantity) || 0
+  const roundedQuantity = Math.max(1, Math.ceil(rawQuantity))
+
+  if (normalizedUnit && isMeasurementUnit(normalizedUnit)) {
+    return rawQuantity >= 1 ? roundedQuantity : 1
+  }
+
+  if (normalizedUnit && COUNTABLE_UNIT_KEYWORDS.some((keyword) => normalizedUnit.includes(keyword))) {
+    return roundedQuantity
+  }
+
+  return roundedQuantity
 }
 const WARM_COMPARISON_MESSAGES = [
   {
@@ -270,33 +348,70 @@ export default function ShoppingPage() {
   }, [user])
 
   const sortComparisons = useCallback(
-    (comparisons: StoreComparison[]) => {
-      const shoppingIds = shoppingList.map((item) => item.id)
-      return [...comparisons]
-        .map((comparison) => {
-          const missingCount = shoppingIds.filter(
-            (shoppingId) => !comparison.items.some((item) => item.shoppingItemId === shoppingId)
+    (comparisons: StoreComparison[], list: ShoppingListItem[] = shoppingList) => {
+      if (!comparisons || comparisons.length === 0) return []
+
+      const shoppingIds = list.map((item) => item.id)
+      const enriched = comparisons.map((comparison) => {
+        const missingCount = shoppingIds.filter(
+          (shoppingId) => !comparison.items.some((item) => item.shoppingItemId === shoppingId),
+        ).length
+        return {
+          ...comparison,
+          missingCount,
+          missingItems: missingCount > 0,
+        }
+      })
+
+      const minTotal = enriched.reduce((min, comparison) => Math.min(min, comparison.total), enriched[0]?.total ?? 0)
+      const withSavings = enriched.map((comparison) => ({
+        ...comparison,
+        savings: comparison.total - minTotal,
+      }))
+
+      return withSavings.sort((a, b) => {
+        if (!!a.outOfRadius !== !!b.outOfRadius) {
+          return Number(a.outOfRadius) - Number(b.outOfRadius)
+        }
+        if ((a.missingCount || 0) !== (b.missingCount || 0)) {
+          return (a.missingCount || 0) - (b.missingCount || 0)
+        }
+        if (a.total !== b.total) {
+          return a.total - b.total
+        }
+        return a.store.localeCompare(b.store)
+      })
+    },
+    [shoppingList],
+  )
+
+  const refreshComparisonTotals = useCallback(
+    (updatedList: ShoppingListItem[]) => {
+      setMassSearchResults((prev) => {
+        if (prev.length === 0) return prev
+
+        const shoppingMap = new Map(updatedList.map((item) => [item.id, item]))
+        const recalculated = prev.map((comparison) => {
+          const total = comparison.items.reduce((sum, item) => {
+            const source = shoppingMap.get(item.shoppingItemId)
+            return sum + item.price * getPurchaseQuantity(source)
+          }, 0)
+          const missingCount = updatedList.filter(
+            (listItem) => !comparison.items.some((item) => item.shoppingItemId === listItem.id),
           ).length
+
           return {
             ...comparison,
+            total,
             missingCount,
             missingItems: missingCount > 0,
           }
         })
-        .sort((a, b) => {
-          if (!!a.outOfRadius !== !!b.outOfRadius) {
-            return Number(a.outOfRadius) - Number(b.outOfRadius)
-          }
-          if ((a.missingCount || 0) !== (b.missingCount || 0)) {
-            return (a.missingCount || 0) - (b.missingCount || 0)
-          }
-          if (a.total !== b.total) {
-            return a.total - b.total
-          }
-          return a.store.localeCompare(b.store)
-        })
+
+        return sortComparisons(recalculated, updatedList)
+      })
     },
-    [shoppingList]
+    [sortComparisons],
   )
 
   useEffect(() => {
@@ -499,6 +614,7 @@ export default function ShoppingPage() {
 
     setShoppingList(updatedList)
     saveShoppingList(updatedList)
+    refreshComparisonTotals(updatedList)
     return updatedList
   }
 
@@ -600,7 +716,7 @@ export default function ShoppingPage() {
 
           const newTotal = updatedItems.reduce((sum, item) => {
             const source = shoppingMap.get(item.shoppingItemId)
-            return sum + item.price * (source?.quantity ?? 1)
+            return sum + item.price * getPurchaseQuantity(source)
           }, 0)
 
           return {
@@ -779,6 +895,7 @@ export default function ShoppingPage() {
     )
     setShoppingList(updatedList)
     saveShoppingList(updatedList)
+    refreshComparisonTotals(updatedList)
   }
 
   const normalizeZip = (value: string) => {
@@ -830,12 +947,14 @@ export default function ShoppingPage() {
     const updatedList = shoppingList.filter((item) => item.id !== id)
     setShoppingList(updatedList)
     saveShoppingList(updatedList)
+    refreshComparisonTotals(updatedList)
   }
 
   const removeRecipeItems = (recipeId: string, recipeName: string) => {
     const updatedList = shoppingList.filter((item) => item.recipeId !== recipeId)
     setShoppingList(updatedList)
     saveShoppingList(updatedList)
+    refreshComparisonTotals(updatedList)
 
     toast({
       title: "Recipe removed",
@@ -870,6 +989,7 @@ export default function ShoppingPage() {
     setShoppingList(mergedList)
     saveShoppingList(mergedList)
     setShowRecipeDialog(false)
+    refreshComparisonTotals(mergedList)
 
     toast({
       title: "Ingredients added",
@@ -973,7 +1093,8 @@ export default function ShoppingPage() {
             ...bestItem,
             shoppingItemId: item.id,
           })
-          store.total += bestItem.price * item.quantity
+          const purchaseQuantity = getPurchaseQuantity(item)
+          store.total += bestItem.price * purchaseQuantity
           if (!store.locationHint) {
             store.locationHint = bestItem.location || primaryAlias
           }
@@ -1340,6 +1461,7 @@ const getStoreLogoPath = (store: string) => {
             <div className="space-y-3 flex-1 max-h-[500px] overflow-y-auto pr-1">
               {comparison.items.map((item) => {
                 const shoppingItem = shoppingList.find((si) => si.id === item.shoppingItemId)
+                const purchaseQuantity = getPurchaseQuantity(shoppingItem)
                 return (
                   <div
                     key={item.id}
@@ -1351,14 +1473,20 @@ const getStoreLogoPath = (store: string) => {
                     <div className="flex-1 min-w-0">
                       <h3 className={`font-medium text-sm truncate ${textClass}`}>{item.title}</h3>
                       <p className={`text-xs ${mutedTextClass}`}>{item.brand}</p>
-                      {shoppingItem && <p className={`text-xs ${mutedTextClass} mt-1`}>Qty: {shoppingItem.quantity}</p>}
+                      {shoppingItem && (
+                        <p className={`text-xs ${mutedTextClass} mt-1`}>
+                          Qty: {shoppingItem.quantity}
+                          {shoppingItem.unit ? ` ${shoppingItem.unit}` : ""}
+                          {purchaseQuantity > 1 ? ` • Buying ${purchaseQuantity}` : ""}
+                        </p>
+                      )}
                       <div className="flex items-center justify-between mt-2 gap-2">
                         <div className="text-sm">
                           <span className={`font-semibold ${textClass}`}>${item.price.toFixed(2)}</span>
                           {item.pricePerUnit && <span className={`${mutedTextClass} ml-1`}>({item.pricePerUnit})</span>}
-                          {shoppingItem && shoppingItem.quantity > 1 && (
+                          {shoppingItem && purchaseQuantity > 1 && (
                             <span className={`${mutedTextClass} ml-2`}>
-                              Total: ${(item.price * shoppingItem.quantity).toFixed(2)}
+                              Total: ${(item.price * purchaseQuantity).toFixed(2)}
                             </span>
                           )}
                         </div>
@@ -1378,9 +1506,28 @@ const getStoreLogoPath = (store: string) => {
                             <RefreshCw className="h-3 w-3 mr-1" />
                             Reload
                           </Button>
-                          <Button size="sm" onClick={() => addToShoppingList(item)} className={`h-6 px-2 ${buttonClass}`}>
-                            <Plus className="h-3 w-3" />
-                          </Button>
+                          {shoppingItem && (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateItemQuantity(shoppingItem.id, -1)}
+                                disabled={shoppingItem.quantity <= 1}
+                                className={`h-7 px-2 ${buttonOutlineClass}`}
+                              >
+                                -
+                              </Button>
+                              <span className={`min-w-[34px] text-center text-sm ${textClass}`}>{shoppingItem.quantity}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateItemQuantity(shoppingItem.id, 1)}
+                                className={`h-7 px-2 ${buttonOutlineClass}`}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
