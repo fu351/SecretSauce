@@ -95,6 +95,50 @@ function normalizeZipInput(value?: string | null): string | undefined {
   return undefined
 }
 
+function normalizeCanonicalName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\(.*?\)/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+}
+
+async function resolveStandardizedIdForTerm(
+  supabaseClient: ReturnType<typeof createServerClient>,
+  term: string,
+  recipeId?: string | null,
+): Promise<string | null> {
+  try {
+    if (recipeId) {
+      return await resolveStandardizedIngredientForRecipe(supabaseClient, recipeId, term)
+    }
+
+    const canonical = normalizeCanonicalName(term)
+    const { data: existing } = await supabaseClient
+      .from("standardized_ingredients")
+      .select("id")
+      .eq("canonical_name", canonical)
+      .maybeSingle()
+
+    if (existing?.id) return existing.id
+
+    const { data: inserted, error } = await supabaseClient
+      .from("standardized_ingredients")
+      .insert({ canonical_name: canonical })
+      .select("id")
+      .maybeSingle()
+    if (error) {
+      console.warn("[grocery-search] Failed to insert standardized ingredient", error)
+      return null
+    }
+    return inserted?.id || null
+  } catch (error) {
+    console.error("[grocery-search] resolveStandardizedIdForTerm error", error)
+    return null
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const rawSearchTerm = searchParams.get("searchTerm") || ""
@@ -189,6 +233,62 @@ export async function GET(request: NextRequest) {
     })
 
     const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse)
+    if (directItems.length > 0) {
+      // Fire-and-forget cache write so the user gets results immediately
+      Promise.resolve()
+        .then(async () => {
+          const standardizedId =
+            standardizedIngredientId || (await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId))
+          if (!standardizedId) return
+          const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          for (const item of directItems) {
+            const payload = {
+              standardized_ingredient_id: standardizedId,
+              store: mapStoreKeyToName(item.provider.toLowerCase()),
+              product_name: item.title,
+              price: item.price,
+              quantity: 1,
+              unit: item.unit || "unit",
+              unit_price: item.pricePerUnit
+                ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
+                : null,
+              image_url: item.image_url || null,
+              product_url: item.product_url || null,
+              product_id: item.id,
+              expires_at: expires,
+            }
+            await supabaseClient
+              .from("ingredient_cache")
+              .upsert(payload, { onConflict: "standardized_ingredient_id,store,product_id" })
+          }
+        })
+        .catch((error) => console.warn("[grocery-search] Failed to cache direct scraper results", error))
+
+      return NextResponse.json({
+        results: directItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          brand: "",
+          price: item.price,
+          pricePerUnit: item.pricePerUnit || (item.unit ? `${item.price}/${item.unit}` : undefined),
+          unit: item.unit || "",
+          image_url: item.image_url || "/placeholder.svg",
+          provider: mapStoreKeyToName(item.provider.toLowerCase()),
+          location: `${mapStoreKeyToName(item.provider.toLowerCase())} Store`,
+          category: "Grocery",
+        })),
+        cached: false,
+        source: "scraper-direct",
+      })
+    }
+
+    return NextResponse.json({
+      results: [],
+      cached: false,
+      source: "unavailable",
+      message: "No prices available right now. Please try again.",
+    })
+  }
     if (directItems.length > 0) {
       return NextResponse.json({
         results: directItems.map((item) => ({
