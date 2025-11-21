@@ -721,14 +721,9 @@ export default function MealPlannerPage() {
                           <div key={mealType.key} className="flex flex-col py-2 first:pt-0 last:pb-0">
                             <div className="flex items-center justify-between mb-1">
                               <h3 className={`text-[11px] font-semibold text-text`}>{mealType.label}</h3>
-                              {recipe?.nutrition?.calories ? (
-                                <span className="text-[11px] text-muted-foreground">
-                                  {Math.round(recipe.nutrition.calories)} cal
-                                </span>
-                              ) : null}
                             </div>
                             <div
-                              className={`relative rounded-lg border ${
+                              className={`relative rounded-lg border group ${
                                 recipe
                                   ? "border-border/40"
                                   : isDark
@@ -755,9 +750,6 @@ export default function MealPlannerPage() {
                                     <h4 className={`font-semibold text-xs mb-1 line-clamp-2 text-text`}>
                                       {recipe.title}
                                     </h4>
-                                    <div className="text-[11px] text-muted-foreground">
-                                      {recipe.nutrition?.calories ? `${recipe.nutrition.calories} cal` : ""}
-                                    </div>
                                   </div>
                                   {recipe.nutrition && (
                                     <div
@@ -822,7 +814,7 @@ export default function MealPlannerPage() {
                         return (
                           <div key={date}>
                             <div
-                              className={`relative rounded-lg border-2 ${
+                              className={`relative rounded-lg border-2 group ${
                                 recipe
                                   ? isDark
                                     ? "border-accent/20"
@@ -854,9 +846,6 @@ export default function MealPlannerPage() {
                                   </button>
                                   <div className="p-3">
                                     <h4 className={`font-semibold text-sm line-clamp-2 text-text`}>{recipe.title}</h4>
-                                    <div className="text-[12px] text-muted-foreground mt-1">
-                                      {recipe.nutrition?.calories ? `${recipe.nutrition.calories} cal` : ""}
-                                    </div>
                                   </div>
                                   {recipe.nutrition && (
                                     <div

@@ -41,20 +41,21 @@ export async function GET(request: NextRequest) {
 
   const supabaseClient = createServerClient()
 
-  // If no usable zip supplied, try the recipe author's profile postal_code
-  if (!zipToUse && recipeId) {
+  // Prefer current user's profile postal_code if logged in
+  if (!zipToUse) {
     try {
-      const { data: recipe } = await supabaseClient.from("recipes").select("author_id").eq("id", recipeId).maybeSingle()
-      if (recipe?.author_id) {
+      const { data: authUserRes } = await supabaseClient.auth.getUser()
+      const userId = authUserRes?.user?.id
+      if (userId) {
         const { data: profile } = await supabaseClient
           .from("profiles")
           .select("postal_code")
-          .eq("id", recipe.author_id)
+          .eq("id", userId)
           .maybeSingle()
         zipToUse = normalizeZipInput(profile?.postal_code)
       }
     } catch (error) {
-      console.warn("[grocery-search] Failed to derive zip from recipe profile", error)
+      console.warn("[grocery-search] Failed to derive zip from current user profile", error)
     }
   }
 

@@ -348,13 +348,8 @@ export default function ShoppingPage() {
 
       if (error) throw error
 
-      if (data?.formatted_address) {
-        setZipCode(data.formatted_address)
-      } else if (data?.postal_code) {
-        setZipCode(data.postal_code)
-      } else {
-        setZipCode(DEFAULT_SHOPPING_ZIP)
-      }
+      const resolvedZip = data?.postal_code || DEFAULT_SHOPPING_ZIP
+      setZipCode(resolvedZip)
       if (data?.grocery_distance_miles) {
         setGroceryDistanceMiles(data.grocery_distance_miles)
       }
