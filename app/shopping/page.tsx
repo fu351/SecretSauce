@@ -60,7 +60,7 @@ type PantryItemInfo = {
 }
 
 const DEFAULT_GROCERY_DISTANCE_MILES = 10
-const DEFAULT_SHOPPING_ZIP = "94709"
+const DEFAULT_SHOPPING_ZIP = ""
 const STORE_BRAND_ALIASES: Array<{ brand: string; keywords: string[] }> = [
   { brand: "Walmart", keywords: ["walmart", "neighborhoodmarket", "samsclub"] },
   { brand: "Target", keywords: ["target"] },
@@ -192,6 +192,8 @@ export default function ShoppingPage() {
   const [mounted, setMounted] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)
+  const [zipPromptOpen, setZipPromptOpen] = useState(false)
+  const [zipDraft, setZipDraft] = useState("")
   const [groceryDistanceMiles, setGroceryDistanceMiles] = useState<number | undefined>(DEFAULT_GROCERY_DISTANCE_MILES)
   const [searchResults, setSearchResults] = useState<GroceryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -350,6 +352,10 @@ export default function ShoppingPage() {
 
       const resolvedZip = data?.postal_code || DEFAULT_SHOPPING_ZIP
       setZipCode(resolvedZip)
+      setZipDraft(resolvedZip)
+      if (!resolvedZip) {
+        setZipPromptOpen(true)
+      }
       if (data?.grocery_distance_miles) {
         setGroceryDistanceMiles(data.grocery_distance_miles)
       }
@@ -763,6 +769,45 @@ export default function ShoppingPage() {
     saveShoppingList(updatedList)
   }
 
+  const normalizeZip = (value: string) => {
+    const match = value.match(/\b\d{5}(?:-\d{4})?\b/)
+    if (match) return match[0].slice(0, 5)
+    const trimmed = value.trim()
+    return /^\d{5}$/.test(trimmed) ? trimmed : ""
+  }
+
+  const saveZipToProfile = async (value: string) => {
+    if (!user) return
+    const sanitized = normalizeZip(value)
+    if (!sanitized) {
+      toast({
+        title: "Enter a valid ZIP",
+        description: "Please provide a 5-digit ZIP code.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ postal_code: sanitized })
+        .eq("id", user.id)
+      if (error) throw error
+      setZipCode(sanitized)
+      setZipDraft(sanitized)
+      setZipPromptOpen(false)
+      toast({ title: "ZIP saved", description: "We’ll use this to find nearby stores." })
+    } catch (error) {
+      console.error("Error saving ZIP:", error)
+      toast({
+        title: "Unable to save ZIP",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const toggleItemChecked = (id: string) => {
     const updatedList = shoppingList.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item))
     setShoppingList(updatedList)
@@ -821,6 +866,16 @@ export default function ShoppingPage() {
   }
 
   const performMassSearch = async () => {
+    if (!zipCode) {
+      setZipPromptOpen(true)
+      toast({
+        title: "ZIP code required",
+        description: "Add your ZIP to find nearby store prices.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (shoppingList.length === 0) {
       toast({
         title: "Empty shopping list",
@@ -1377,6 +1432,29 @@ const getStoreLogoPath = (store: string) => {
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
+      <Dialog open={zipPromptOpen} onOpenChange={setZipPromptOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enter your ZIP code</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">We need your ZIP to show prices from nearby stores.</p>
+            <Input
+              value={zipDraft}
+              onChange={(e) => setZipDraft(e.target.value)}
+              placeholder="e.g., 94709"
+              inputMode="numeric"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setZipPromptOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => saveZipToProfile(zipDraft)}>Save ZIP</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {(loading || comparisonLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div
