@@ -289,33 +289,6 @@ export async function GET(request: NextRequest) {
       message: "No prices available right now. Please try again.",
     })
   }
-    if (directItems.length > 0) {
-      return NextResponse.json({
-        results: directItems.map((item) => ({
-          id: item.id,
-          title: item.title,
-          brand: "",
-          price: item.price,
-          pricePerUnit: item.pricePerUnit || (item.unit ? `${item.price}/${item.unit}` : undefined),
-          unit: item.unit || "",
-          image_url: item.image_url || "/placeholder.svg",
-          provider: mapStoreKeyToName(item.provider.toLowerCase()),
-          location: `${mapStoreKeyToName(item.provider.toLowerCase())} Store`,
-          category: "Grocery",
-        })),
-        cached: false,
-        source: "scraper-direct",
-      })
-    }
-
-    return NextResponse.json({
-      results: [],
-      cached: false,
-      source: "unavailable",
-      message: "No prices available right now. Please try again.",
-    })
-  }
-
   const formatted = formatCacheResults(cachedRows, sanitizedSearchTerm, zipToUse)
   return NextResponse.json({
     results: formatted,
