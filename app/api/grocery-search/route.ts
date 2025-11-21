@@ -113,9 +113,10 @@ async function executeSearchAttempt(
       try {
         const storeResults = await runStoreSpecificSearch(storeKey, term, zipCode)
         if (storeResults && storeResults.length > 0) {
-          await cacheScrapedResults(serializeForCache(storeResults), {
+          scheduleCheapestCache(storeResults, {
             standardizedIngredientId,
             searchTerm: cacheSearchTerm,
+            recipeId: null,
           })
           return { results: storeResults }
         }
@@ -145,7 +146,7 @@ async function executeSearchAttempt(
         }) || []
 
       if (pythonFiltered.length > 0) {
-        await cacheScrapedResults(serializeForCache(pythonFiltered), {
+        scheduleCheapestCache(pythonFiltered, {
           standardizedIngredientId,
           searchTerm: cacheSearchTerm,
           recipeId: null,
@@ -162,10 +163,10 @@ async function executeSearchAttempt(
         localResults?.filter((item: any) => {
           const key = (item.provider || item.location || "").trim().toLowerCase()
           return key ? !cachedStoreSet.has(key) : true
-        }) || []
+      }) || []
 
       if (localFiltered.length > 0) {
-        await cacheScrapedResults(serializeForCache(localFiltered), {
+        scheduleCheapestCache(localFiltered, {
           standardizedIngredientId,
           searchTerm: cacheSearchTerm,
           recipeId: null,
@@ -222,6 +223,30 @@ function serializeForCache(items: any[]) {
     product_url: item.product_url,
     product_id: item.id,
   }))
+}
+
+function pickCheapestPerProvider(items: any[]) {
+  const cheapestByProvider = new Map<string, any>()
+  items.forEach((item) => {
+    const provider = (item.provider || item.location || "Unknown Store").trim()
+    const current = cheapestByProvider.get(provider)
+    if (!current || Number(item.price) < Number(current.price)) {
+      cheapestByProvider.set(provider, item)
+    }
+  })
+  return Array.from(cheapestByProvider.values())
+}
+
+function scheduleCheapestCache(
+  items: any[],
+  options: { standardizedIngredientId?: string | null; searchTerm?: string; recipeId?: string | null }
+) {
+  if (!items || items.length === 0) return
+  const cheapest = pickCheapestPerProvider(items)
+  if (cheapest.length === 0) return
+  Promise.resolve()
+    .then(() => cacheScrapedResults(serializeForCache(cheapest), options))
+    .catch((error) => console.error("[Cache] Background caching failed", error))
 }
 
 async function runPythonServiceSearch(searchTerm: string, zipCode: string) {

@@ -14,6 +14,7 @@ import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen } from "lucide-
 import { supabase } from "@/lib/supabase"
 import { TutorialSelectionModal } from "@/components/tutorial-selection-modal"
 import type { Database } from "@/lib/supabase"
+import { AddressAutocomplete } from "@/components/address-autocomplete"
 
 type ProfileUpdates = Database["public"]["Tables"]["profiles"]["Update"]
 
@@ -29,6 +30,14 @@ export default function SettingsPage() {
   const [cuisinePreferences, setCuisinePreferences] = useState<string[]>([])
   const [cookingTimePreference, setCookingTimePreference] = useState("any")
   const [postalCode, setPostalCode] = useState("")
+  const [formattedAddress, setFormattedAddress] = useState("")
+  const [addressLine1, setAddressLine1] = useState("")
+  const [addressLine2, setAddressLine2] = useState("")
+  const [city, setCity] = useState("")
+  const [stateRegion, setStateRegion] = useState("")
+  const [country, setCountry] = useState("")
+  const [lat, setLat] = useState<number | null>(null)
+  const [lng, setLng] = useState<number | null>(null)
   const [groceryDistance, setGroceryDistance] = useState("10")
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
   const [tutorialCompleted, setTutorialCompleted] = useState(false)
@@ -119,6 +128,14 @@ export default function SettingsPage() {
       cuisine_preferences: cuisinePreferences,
       cooking_time_preference: cookingTimePreference,
       postal_code: postalCode || null,
+      formatted_address: formattedAddress || null,
+      address_line1: addressLine1 || null,
+      address_line2: addressLine2 || null,
+      city: city || null,
+      state: stateRegion || null,
+      country: country || null,
+      latitude: lat,
+      longitude: lng,
       grocery_distance_miles: Number.parseInt(groceryDistance) || 10,
       dietary_preferences: dietaryPreferences,
       theme_preference: selectedTheme,
@@ -145,6 +162,14 @@ export default function SettingsPage() {
     cuisinePreferences,
     cookingTimePreference,
     postalCode,
+    formattedAddress,
+    addressLine1,
+    addressLine2,
+    city,
+    stateRegion,
+    country,
+    lat,
+    lng,
     groceryDistance,
     dietaryPreferences,
     selectedTheme,
@@ -183,7 +208,7 @@ export default function SettingsPage() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("primary_goal, cooking_level, budget_range, cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_miles, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at, theme_preference")
+        .select("primary_goal, cooking_level, budget_range, cuisine_preferences, cooking_time_preference, postal_code, grocery_distance_miles, dietary_preferences, tutorial_completed, tutorial_path, tutorial_completed_at, theme_preference, formatted_address, address_line1, address_line2, city, state, country, latitude, longitude")
         .eq("id", user.id)
         .single()
 
@@ -196,6 +221,14 @@ export default function SettingsPage() {
         setCuisinePreferences(data.cuisine_preferences || [])
         setCookingTimePreference(data.cooking_time_preference || "any")
         setPostalCode(data.postal_code || "")
+        setFormattedAddress(data.formatted_address || "")
+        setAddressLine1(data.address_line1 || "")
+        setAddressLine2(data.address_line2 || "")
+        setCity(data.city || "")
+        setStateRegion(data.state || "")
+        setCountry(data.country || "")
+        setLat(data.latitude ?? null)
+        setLng(data.longitude ?? null)
         setGroceryDistance(String(data.grocery_distance_miles || 10))
         setDietaryPreferences(data.dietary_preferences || [])
         setTutorialCompleted(data.tutorial_completed || false)
@@ -539,21 +572,78 @@ export default function SettingsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label
-                htmlFor="postal-code-settings"
-                className={`mb-2 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}
-              >
-                Postal Code
-              </Label>
-              <Input
-                id="postal-code-settings"
-                type="text"
-                placeholder="Enter your postal code"
-                value={postalCode}
-                onChange={(e) => setPostalCode(e.target.value)}
-                className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+            <div className="space-y-2">
+              <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>Home Address</Label>
+              <AddressAutocomplete
+                value={{
+                  formattedAddress,
+                  addressLine1,
+                  addressLine2,
+                  city,
+                  state: stateRegion,
+                  postalCode,
+                  country,
+                  lat,
+                  lng,
+                }}
+                onChange={(addr) => {
+                  setFormattedAddress(addr.formattedAddress || "")
+                  setAddressLine1(addr.addressLine1 || "")
+                  setAddressLine2(addr.addressLine2 || "")
+                  setCity(addr.city || "")
+                  setStateRegion(addr.state || "")
+                  setCountry(addr.country || "")
+                  setPostalCode(addr.postalCode || "")
+                  setLat(addr.lat ?? null)
+                  setLng(addr.lng ?? null)
+                }}
+                placeholder="Search your address"
               />
+              <Input
+                placeholder="Apartment, suite, etc. (optional)"
+                value={addressLine2}
+                onChange={(e) => setAddressLine2(e.target.value)}
+                className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : ""}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>City</Label>
+                <Input
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="City"
+                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+                />
+              </div>
+              <div>
+                <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>State/Region</Label>
+                <Input
+                  value={stateRegion}
+                  onChange={(e) => setStateRegion(e.target.value)}
+                  placeholder="State"
+                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+                />
+              </div>
+              <div>
+                <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>Postal Code</Label>
+                <Input
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  placeholder="ZIP/Postal"
+                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+                />
+              </div>
+              <div>
+                <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>Country</Label>
+                <Input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="Country"
+                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+                />
+              </div>
             </div>
 
             <div>

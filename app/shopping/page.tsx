@@ -342,13 +342,15 @@ export default function ShoppingPage() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("postal_code, grocery_distance_miles")
+        .select("postal_code, grocery_distance_miles, formatted_address")
         .eq("id", user.id)
         .single()
 
       if (error) throw error
 
-      if (data?.postal_code) {
+      if (data?.formatted_address) {
+        setZipCode(data.formatted_address)
+      } else if (data?.postal_code) {
         setZipCode(data.postal_code)
       } else {
         setZipCode(DEFAULT_SHOPPING_ZIP)

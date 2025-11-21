@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChefHat, DollarSign, Users, Check, MapPin, Clock } from "lucide-react"
+import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/contexts/theme-context"
+import { AddressAutocomplete } from "@/components/address-autocomplete"
 
 const goals = [
   {
@@ -149,11 +150,21 @@ export default function OnboardingPage() {
   const [cuisinePreferences, setCuisinePreferences] = useState<string[]>([])
   const [cookingTimePreference, setCookingTimePreference] = useState("")
   const [postalCode, setPostalCode] = useState("")
+  const [formattedAddress, setFormattedAddress] = useState("")
+  const [addressLine1, setAddressLine1] = useState("")
+  const [addressLine2, setAddressLine2] = useState("")
+  const [city, setCity] = useState("")
+  const [stateRegion, setStateRegion] = useState("")
+  const [country, setCountry] = useState("")
+  const [lat, setLat] = useState<number | null>(null)
+  const [lng, setLng] = useState<number | null>(null)
   const [groceryDistance, setGroceryDistance] = useState("")
   const [loading, setLoading] = useState(false)
   const { theme: currentTheme, setTheme } = useTheme()
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(currentTheme === "dark" ? "dark" : "light")
-  const questionRefs = useRef<Record<QuestionId, HTMLDivElement | null>>({})
+  const [activeIndex, setActiveIndex] = useState(0)
+  const lastStepIndex = questionOrder.length - 1
+  const atLastStep = activeIndex === lastStepIndex
 
   const router = useRouter()
   const { updateProfile } = useAuth()
@@ -178,46 +189,52 @@ export default function OnboardingPage() {
     )
   }
 
-  const scrollToQuestion = (id: QuestionId) => {
-    const node = questionRefs.current[id]
-    if (node) {
-      node.scrollIntoView({ behavior: "smooth", block: "start" })
+  const currentQuestion = questionOrder[activeIndex]
+
+  const isStepComplete = (id: QuestionId) => {
+    switch (id) {
+      case "goal":
+        return !!selectedGoal
+      case "cookingLevel":
+        return !!cookingLevel
+      case "budget":
+        return !!budgetRange
+      case "dietary":
+        return dietaryPreferences.length > 0
+      case "cuisine":
+        return cuisinePreferences.length > 0
+      case "cookingTime":
+        return !!cookingTimePreference
+      case "location":
+        return !!formattedAddress || !!postalCode || (!!lat && !!lng)
+      case "theme":
+        return !!selectedTheme
+      default:
+        return false
     }
   }
 
-  const goToNextQuestion = (currentId: QuestionId) => {
-    const currentIndex = questionOrder.findIndex((question) => question.id === currentId)
-    if (currentIndex >= 0 && currentIndex < questionOrder.length - 1) {
-      const nextQuestionId = questionOrder[currentIndex + 1].id
-      scrollToQuestion(nextQuestionId)
-    }
+  const canProceedCurrent = () => {
+    if (!currentQuestion) return false
+    if (!currentQuestion.required) return true
+    return isStepComplete(currentQuestion.id)
   }
 
-  const questionCompletion: Record<QuestionId, boolean> = {
-    goal: Boolean(selectedGoal),
-    cookingLevel: Boolean(cookingLevel),
-    budget: Boolean(budgetRange),
-    dietary: dietaryPreferences.length > 0,
-    cuisine: cuisinePreferences.length > 0,
-    cookingTime: Boolean(cookingTimePreference),
-    location: Boolean(postalCode) || Boolean(groceryDistance),
-    theme: Boolean(selectedTheme),
-  }
-
-  const allRequiredAnswered = questionOrder
-    .filter((question) => question.required)
-    .every((question) => questionCompletion[question.id])
+  const allRequiredAnswered = questionOrder.filter((q) => q.required).every((q) => isStepComplete(q.id))
 
   const handleSingleSelect = (updateFn: (value: string) => void, value: string, questionId: QuestionId) => {
     updateFn(value)
     const questionConfig = questionOrder.find((question) => question.id === questionId)
     if (questionConfig?.autoAdvance) {
-      setTimeout(() => goToNextQuestion(questionId), 50)
+      setTimeout(() => {
+        setActiveIndex((prev) => Math.min(prev + 1, lastStepIndex))
+      }, 80)
     }
   }
 
-  const setQuestionRef = (id: QuestionId) => (el: HTMLDivElement | null) => {
-    questionRefs.current[id] = el
+  const goToStep = (index: number) => {
+    const clamped = Math.max(0, Math.min(index, lastStepIndex))
+    setActiveIndex(clamped)
   }
 
   const isDark = selectedTheme === "dark"
@@ -427,41 +444,104 @@ export default function OnboardingPage() {
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="space-y-6">
-              <div>
-                <Label htmlFor="postal-code" className={`mb-2 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>
-                  Postal Code (optional)
+              <div className="space-y-3">
+                <Label htmlFor="address" className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>
+                  Home Address
                 </Label>
                 <div className="relative">
                   <MapPin className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-orange-700"}`} />
+                  <AddressAutocomplete
+                    value={{
+                      formattedAddress,
+                      addressLine1,
+                      addressLine2,
+                      city,
+                      state: stateRegion,
+                      postalCode,
+                      country,
+                      lat,
+                      lng,
+                    }}
+                    onChange={(addr) => {
+                      setFormattedAddress(addr.formattedAddress || "")
+                      setAddressLine1(addr.addressLine1 || "")
+                      setAddressLine2(addr.addressLine2 || "")
+                      setCity(addr.city || "")
+                      setStateRegion(addr.state || "")
+                      setCountry(addr.country || "")
+                      setPostalCode(addr.postalCode || "")
+                      setLat(addr.lat ?? null)
+                      setLng(addr.lng ?? null)
+                    }}
+                    placeholder="Search your address"
+                  />
+                </div>
+                <Input
+                  id="address-line2"
+                  type="text"
+                  placeholder="Apartment, suite, etc. (optional)"
+                  value={addressLine2}
+                  onChange={(e) => setAddressLine2(e.target.value)}
+                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "bg-white border-orange-400 text-amber-950 placeholder:text-amber-700"}
+                />
+                <p className={`text-xs ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>Use the search to auto-complete your address for better store accuracy.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>City</Label>
                   <Input
-                    id="postal-code"
-                    type="text"
-                    placeholder="Enter your postal code"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="City"
+                    className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-orange-400 text-amber-950"}
+                  />
+                </div>
+                <div>
+                  <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>State/Region</Label>
+                  <Input
+                    value={stateRegion}
+                    onChange={(e) => setStateRegion(e.target.value)}
+                    placeholder="State"
+                    className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-orange-400 text-amber-950"}
+                  />
+                </div>
+                <div>
+                  <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>Postal Code</Label>
+                  <Input
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
-                    className={isDark ? "pl-10 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "pl-10 bg-white border-orange-400 text-amber-950 placeholder:text-amber-700"}
+                    placeholder="ZIP/Postal"
+                    className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-orange-400 text-amber-950"}
                   />
                 </div>
-                <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>We'll use this to find nearby grocery stores.</p>
-              </div>
-              <div>
-                <Label htmlFor="distance" className={`mb-2 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>
-                  Maximum Distance (miles)
-                </Label>
-                <div className="relative">
-                  <Clock className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-orange-700"}`} />
+                <div>
+                  <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>Country</Label>
                   <Input
-                    id="distance"
-                    type="number"
-                    min="1"
-                    max="100"
-                    placeholder="10"
-                    value={groceryDistance}
-                    onChange={(e) => setGroceryDistance(e.target.value)}
-                    className={isDark ? "pl-10 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "pl-10 bg-white border-orange-400 text-amber-950 placeholder:text-amber-700"}
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    placeholder="Country"
+                    className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-orange-400 text-amber-950"}
                   />
                 </div>
-                <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>How far are you willing to travel for groceries?</p>
+                <div className="col-span-2">
+                  <Label htmlFor="distance" className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>
+                    Maximum Distance (miles)
+                  </Label>
+                  <div className="relative">
+                    <Clock className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-orange-700"}`} />
+                    <Input
+                      id="distance"
+                      type="number"
+                      min="1"
+                      max="100"
+                      placeholder="10"
+                      value={groceryDistance}
+                      onChange={(e) => setGroceryDistance(e.target.value)}
+                      className={isDark ? "pl-10 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "pl-10 bg-white border-orange-400 text-amber-950 placeholder:text-amber-700"}
+                    />
+                  </div>
+                  <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>How far are you willing to travel for groceries?</p>
+                </div>
               </div>
             </div>
           </Card>
@@ -533,6 +613,14 @@ export default function OnboardingPage() {
         postal_code: postalCode || null,
         grocery_distance_miles: Number.parseInt(groceryDistance) || 10,
         theme_preference: selectedTheme,
+        formatted_address: formattedAddress || null,
+        address_line1: addressLine1 || null,
+        address_line2: addressLine2 || null,
+        city: city || null,
+        state: stateRegion || null,
+        country: country || null,
+        latitude: lat,
+        longitude: lng,
       })
 
       toast({
@@ -577,80 +665,83 @@ export default function OnboardingPage() {
             </div>
           </header>
 
-          {questionOrder.map((question) => (
-            <section
-              key={question.id}
-              ref={setQuestionRef(question.id)}
-              id={`question-${question.id}`}
-              className="scroll-mt-28"
+          <div className="relative">
+            <div
+              key={currentQuestion.id}
+              className="transition-all duration-200 ease-in-out transform"
             >
-              {renderQuestion(question.id)}
-            </section>
-          ))}
+              {renderQuestion(currentQuestion.id)}
+            </div>
+          </div>
 
-          <div className="pt-4">
+          <div className="flex items-center justify-between gap-3 mt-6 flex-wrap">
             <Button
-              disabled={!allRequiredAnswered || loading}
-              onClick={handleComplete}
-              className={`w-full py-6 font-light tracking-wide disabled:opacity-50 disabled:cursor-not-allowed ${
+              variant="outline"
+              onClick={() => goToStep(activeIndex - 1)}
+              disabled={activeIndex === 0}
+              className="min-w-[100px]"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                {questionOrder.map((step, idx) => {
+                  const isActive = idx === activeIndex
+                  const isVisited = idx < activeIndex
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      onClick={() => goToStep(idx)}
+                      className={`px-3 py-2 rounded-full border text-sm transition-colors ${
+                        isActive
+                          ? isDark
+                            ? "border-[#e8dcc4] text-[#181813] bg-[#e8dcc4]"
+                            : "border-orange-500 text-white bg-orange-500"
+                          : isVisited
+                            ? isDark
+                              ? "border-[#e8dcc4]/40 text-[#e8dcc4]"
+                              : "border-orange-300 text-orange-700"
+                            : isDark
+                              ? "border-[#e8dcc4]/20 text-[#e8dcc4]/70"
+                              : "border-orange-200 text-orange-500"
+                      }`}
+                    >
+                      <span className="text-xs font-semibold mr-2">{idx + 1}</span>
+                      <span className="text-xs">{step.title}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <Button
+              onClick={() => {
+                if (atLastStep) {
+                  handleComplete()
+                } else {
+                  goToStep(activeIndex + 1)
+                }
+              }}
+              disabled={
+                loading || (currentQuestion?.required && !canProceedCurrent()) || (atLastStep && !allRequiredAnswered)
+              }
+              className={`min-w-[120px] py-3 font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
                 isDark
                   ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
                   : "bg-orange-500 text-white hover:bg-orange-600"
               }`}
             >
-              {loading ? "Saving..." : "Finish setup"}
+              {atLastStep ? "Finish" : "Next"}
+              <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
-            <p className={`text-xs text-center mt-3 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-              You can adjust these preferences anytime in settings.
-            </p>
           </div>
+          <p className={`text-xs text-center mt-3 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
+            You can adjust these preferences anytime in settings.
+          </p>
         </div>
-
-        {/* Progress indicator - sticky on right side */}
-        <aside className="hidden md:flex fixed right-8 top-1/2 -translate-y-1/2 z-40">
-          <div className="flex flex-col items-center gap-3">
-            {questionOrder.map((question, index) => (
-              <div key={question.id} className="flex flex-col items-center">
-                <button
-                  type="button"
-                  onClick={() => scrollToQuestion(question.id)}
-                  className="flex flex-col items-center gap-2 group focus:outline-none transition-transform hover:scale-110"
-                  aria-label={`Jump to question ${index + 1}: ${question.title}`}
-                >
-                  <div
-                    className={`w-12 h-12 rounded-full border-2 flex items-center justify-center text-sm font-semibold transition-all duration-300 cursor-pointer ${
-                      questionCompletion[question.id]
-                        ? isDark
-                          ? "bg-[#e8dcc4] text-[#181813] border-[#e8dcc4] shadow-lg"
-                          : "bg-orange-500 text-white border-orange-500 shadow-lg"
-                        : isDark
-                          ? "border-[#e8dcc4]/40 text-[#e8dcc4]/70 group-hover:border-[#e8dcc4] group-hover:text-[#e8dcc4] group-hover:shadow-md"
-                          : "border-orange-300 text-orange-600 group-hover:border-orange-500 group-hover:text-orange-700 group-hover:shadow-md"
-                    }`}
-                  >
-                    {questionCompletion[question.id] ? (
-                      <Check className="h-5 w-5" />
-                    ) : (
-                      <span className="text-lg">{index + 1}</span>
-                    )}
-                  </div>
-                </button>
-                {/* Connecting line between circles (except last) */}
-                {index < questionOrder.length - 1 && (
-                  <div className={`w-1 h-4 transition-colors ${
-                    questionCompletion[question.id]
-                      ? isDark
-                        ? "bg-[#e8dcc4]"
-                        : "bg-orange-500"
-                      : isDark
-                        ? "bg-[#e8dcc4]/20"
-                        : "bg-orange-200"
-                  }`} />
-                )}
-              </div>
-            ))}
-          </div>
-        </aside>
       </div>
     </div>
   )
