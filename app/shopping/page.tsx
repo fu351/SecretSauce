@@ -194,6 +194,9 @@ export default function ShoppingPage() {
   const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)
   const [zipPromptOpen, setZipPromptOpen] = useState(false)
   const [zipDraft, setZipDraft] = useState("")
+  const [profileLocation, setProfileLocation] = useState<{ lat: number; lng: number; formattedAddress?: string } | null>(
+    null,
+  )
   const [groceryDistanceMiles, setGroceryDistanceMiles] = useState<number | undefined>(DEFAULT_GROCERY_DISTANCE_MILES)
   const [searchResults, setSearchResults] = useState<GroceryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -344,7 +347,7 @@ export default function ShoppingPage() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("postal_code, grocery_distance_miles, formatted_address")
+        .select("postal_code, grocery_distance_miles, formatted_address, latitude, longitude")
         .eq("id", user.id)
         .single()
 
@@ -355,6 +358,15 @@ export default function ShoppingPage() {
       setZipDraft(resolvedZip)
       if (!resolvedZip) {
         setZipPromptOpen(true)
+      }
+      if (data?.latitude && data?.longitude) {
+        setProfileLocation({
+          lat: data.latitude,
+          lng: data.longitude,
+          formattedAddress: data.formatted_address || undefined,
+        })
+      } else {
+        setProfileLocation(null)
       }
       if (data?.grocery_distance_miles) {
         setGroceryDistanceMiles(data.grocery_distance_miles)
@@ -985,8 +997,17 @@ export default function ShoppingPage() {
       if (groceryDistanceMiles && groceryDistanceMiles > 0) {
         try {
           const maxDistanceMiles = groceryDistanceMiles
-          let userLoc = await getUserLocation()
-          let locationSource: "browser" | "postal" | "none" = userLoc ? "browser" : "none"
+          let userLoc = profileLocation
+          let locationSource: "profile" | "browser" | "postal" | "none" = userLoc ? "profile" : "none"
+
+          if (!userLoc) {
+            const browserLoc = await getUserLocation()
+            if (browserLoc) {
+              userLoc = browserLoc
+              locationSource = "browser"
+            }
+          }
+
           if (!userLoc && zipCode) {
             const postalCoords = await geocodePostalCode(zipCode)
             if (postalCoords) {
@@ -996,7 +1017,10 @@ export default function ShoppingPage() {
           }
 
           if (userLoc) {
-            let startAddress = await reverseGeocodeCoordinates(userLoc.lat, userLoc.lng)
+            let startAddress =
+              locationSource === "profile"
+                ? profileLocation?.formattedAddress
+                : await reverseGeocodeCoordinates(userLoc.lat, userLoc.lng)
             if (!startAddress && locationSource === "postal" && zipCode) {
               startAddress = `Postal code ${zipCode}`
             }
@@ -1491,7 +1515,7 @@ const getStoreLogoPath = (store: string) => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                   <Dialog open={showRecipeDialog} onOpenChange={setShowRecipeDialog}>
                     <DialogTrigger asChild>
                       <Button variant="outline" className={buttonOutlineClass}>
@@ -1548,14 +1572,14 @@ const getStoreLogoPath = (store: string) => {
                     onClick={performMassSearch}
                     disabled={shoppingList.length === 0}
                     variant="outline"
-                    className={buttonOutlineClass}
+                    className={`${buttonOutlineClass} w-full sm:w-auto`}
                   >
                     <DollarSign className="h-4 w-4 mr-2" />
                     Compare Stores
                   </Button>
                 </div>
 
-                <div className="flex gap-2" data-tutorial="shopping-add-item">
+                <div className="flex flex-col gap-2 sm:flex-row" data-tutorial="shopping-add-item">
                   <Input
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
@@ -1567,7 +1591,11 @@ const getStoreLogoPath = (store: string) => {
                         : ""
                     }
                   />
-                  <Button onClick={addCustomItem} disabled={!newItem.trim()} className={buttonClass}>
+                  <Button
+                    onClick={addCustomItem}
+                    disabled={!newItem.trim()}
+                    className={`${buttonClass} w-full sm:w-auto`}
+                  >
                     Add
                   </Button>
                 </div>

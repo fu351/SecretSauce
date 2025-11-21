@@ -551,7 +551,7 @@ export default function MealPlannerPage() {
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 justify-start w-full">
+              <div className="flex flex-wrap items-center gap-2 w-full">
                 <div className="flex items-center bg-card rounded-lg shadow-sm border border-border p-1.5">
                   <Button
                     variant="ghost"
@@ -599,14 +599,16 @@ export default function MealPlannerPage() {
                   </Button>
                 </div>
 
-                <Button
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shrink-0"
-                  onClick={addToShoppingList}
-                  data-tutorial="meal-plan-add"
-                >
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  {isMobile ? "Add to Cart" : "Add to Shopping List"}
-                </Button>
+                <div className="ml-auto">
+                  <Button
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shrink-0"
+                    onClick={addToShoppingList}
+                    data-tutorial="meal-plan-add"
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {isMobile ? "Add to Cart" : "Add to Shopping List"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
