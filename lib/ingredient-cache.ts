@@ -728,6 +728,14 @@ export async function cacheScrapedResults(
       }
     }
 
+    if (!sharedStandardizedId && normalizedSearchName) {
+      const createdId = await getOrCreateStandardizedIngredient(normalizedSearchName, null)
+      if (createdId) {
+        sharedStandardizedId = createdId
+        await upsertFreeformMapping(normalizedSearchName, createdId)
+      }
+    }
+
     // Cache each item, allowing per-item resolution when the shared ID is unavailable
     const aiTitleCache = new Map<string, string | null>()
     for (const item of scrapedItems) {
@@ -758,6 +766,17 @@ export async function cacheScrapedResults(
           aiTitleCache.set(titleKey, resolvedId)
         }
         standardizedId = aiTitleCache.get(titleKey) || null
+      }
+
+      if (!standardizedId && item.title) {
+        const fallbackName = normalizeIngredientKey(item.title) || item.title.trim()
+        if (fallbackName) {
+          const createdId = await getOrCreateStandardizedIngredient(fallbackName, null)
+          if (createdId) {
+            standardizedId = createdId
+            await upsertFreeformMapping(fallbackName, createdId)
+          }
+        }
       }
 
       if (!standardizedId) {

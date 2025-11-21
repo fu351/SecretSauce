@@ -345,8 +345,10 @@ export async function geocodeStore(
         }
 
         if (
-          (matchesRequestedStore(nearestStore.matchedName) || matchesRequestedStore(nearestStore.formattedAddress)) &&
-          (brandMatcher(nearestStore.matchedName) || brandMatcher(nearestStore.formattedAddress))
+          matchesRequestedStore(nearestStore.matchedName) ||
+          matchesRequestedStore(nearestStore.formattedAddress) ||
+          brandMatcher(nearestStore.matchedName) ||
+          brandMatcher(nearestStore.formattedAddress)
         ) {
           return nearestStore
         }
@@ -411,7 +413,9 @@ export async function geocodeStore(
 
     if (
       !matchesRequestedStore(result.matchedName) &&
-      !matchesRequestedStore(result.formattedAddress)
+      !matchesRequestedStore(result.formattedAddress) &&
+      !brandMatcher(result.matchedName) &&
+      !brandMatcher(result.formattedAddress)
     ) {
       console.warn(`[Geocoding] ${storeName} geocode result did not match requested store metadata`, {
         storeHint,
@@ -518,7 +522,9 @@ async function geocodeStoreHint(
 
     if (
       !matchesRequestedStore(resolved.matchedName) &&
-      !matchesRequestedStore(resolved.formattedAddress)
+      !matchesRequestedStore(resolved.formattedAddress) &&
+      !brandMatcher(resolved.matchedName) &&
+      !brandMatcher(resolved.formattedAddress)
     ) {
       console.warn(`[Geocoding] Hint result for ${storeName} failed signature match`, {
         storeHint,
@@ -630,27 +636,14 @@ async function findNearestStoreWithPlaces(
     }
 
     const matcher = matchesRequestedStore ?? (() => true)
-    const brandCheck = brandMatcher ?? (() => true)
+    const brandCheck = brandMatcher ?? (() => false)
 
-    const preferredCandidates = candidates.filter((candidate) => {
-      const signatureHit =
-        matcher(candidate.name) || matcher(candidate.vicinity) || matcher(candidate.formatted_address)
-      const brandHit =
-        brandCheck(candidate.name) || brandCheck(candidate.vicinity) || brandCheck(candidate.formatted_address)
-      return signatureHit && brandHit
-    })
-
-    const brandFiltered = candidates.filter(
+    const preferredCandidates = candidates.filter(
       (candidate) =>
-        brandCheck(candidate.name) || brandCheck(candidate.vicinity) || brandCheck(candidate.formatted_address)
+        matcher(candidate.name) || matcher(candidate.vicinity) || matcher(candidate.formatted_address) || brandCheck(candidate.name)
     )
 
-    const candidatePool =
-      preferredCandidates.length > 0
-        ? preferredCandidates
-        : brandFiltered.length > 0
-          ? brandFiltered
-          : candidates
+    const candidatePool = preferredCandidates.length > 0 ? preferredCandidates : candidates
 
     if (!candidatePool.length) {
       console.warn(`[Geocoding] Places search returned no usable candidates for ${storeName}`)
@@ -691,8 +684,10 @@ async function findNearestStoreWithPlaces(
         matchedName: candidate.name,
       }
       if (
-        (matcher(resolved.matchedName) || matcher(resolved.formattedAddress)) &&
-        (brandCheck(resolved.matchedName) || brandCheck(resolved.formattedAddress))
+        matcher(resolved.matchedName) ||
+        matcher(resolved.formattedAddress) ||
+        brandCheck(resolved.matchedName) ||
+        brandCheck(resolved.formattedAddress)
       ) {
         console.log("[Geocoding] Places result selected", { storeName, keyword, resolved })
         return resolved

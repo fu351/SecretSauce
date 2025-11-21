@@ -1093,20 +1093,32 @@ export default function ShoppingPage() {
     }
   }
 
-  const getStoreIcon = (store: string) => {
-    switch (store.toLowerCase()) {
-      case "target":
-        return "🎯"
-      case "kroger":
+const getStoreIcon = (store: string) => {
+  switch (store.toLowerCase()) {
+    case "target":
+      return "🎯"
+    case "kroger":
         return "🛒"
       case "meijer":
         return "🏪"
       case "99 ranch":
         return "🥬"
-      default:
-        return "🏪"
-    }
+    default:
+      return "🏪"
   }
+}
+
+const getStoreLogoPath = (store: string) => {
+  const key = store.trim().toLowerCase()
+  if (key.includes("target")) return "/Target.jpg"
+  if (key.includes("kroger")) return "/kroger.jpg"
+  if (key.includes("meijer")) return "/meijers.png"
+  if (key.includes("99")) return "/99ranch.png"
+  if (key.includes("walmart")) return "/walmart.png"
+  if (key.includes("trader")) return "/trader-joes.png"
+  if (key.includes("aldi")) return "/aldi.png"
+  return "/placeholder-logo.png"
+}
 
   const groupResultsByStore = (results: GroceryItem[]) => {
     const grouped = results.reduce(
@@ -1631,6 +1643,40 @@ export default function ShoppingPage() {
                           <ChevronRight className="h-4 w-4" />
                         </Button>
                       </div>
+                    </div>
+
+                    {/* Quick Store Nav */}
+                    <div className="flex flex-wrap gap-3 mb-4">
+                      {massSearchResults.map((store, index) => {
+                        const isActive = index === carouselIndex
+                        const logoPath = getStoreLogoPath(store.store)
+                        return (
+                          <button
+                            key={`${store.store}-${index}`}
+                            onClick={() => scrollToStore(index)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                              isActive
+                                ? "border-primary bg-primary/10"
+                                : theme === "dark"
+                                  ? "border-border/60 hover:border-primary/60"
+                                  : "border-border hover:border-primary/60"
+                            }`}
+                            title={`Jump to ${store.store}`}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border/50">
+                              <img
+                                src={logoPath}
+                                alt={`${store.store} logo`}
+                                className="w-7 h-7 object-contain"
+                              />
+                            </div>
+                            <div className="text-left">
+                              <p className={`text-sm font-semibold ${textClass}`}>{store.store}</p>
+                              <p className="text-xs text-muted-foreground">${store.total.toFixed(2)}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
 
                     {/* Carousel Container */}
