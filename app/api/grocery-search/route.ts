@@ -19,11 +19,21 @@ const DEFAULT_STORE_KEYS = [
   "wholefoods",
 ]
 
+function normalizeZipInput(value?: string | null): string | undefined {
+  if (!value) return undefined
+  const match = value.match(/\b\d{5}(?:-\d{4})?\b/)
+  if (match) return match[0].slice(0, 5)
+  const trimmed = value.trim()
+  if (/^\d{5}$/.test(trimmed)) return trimmed
+  return undefined
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const rawSearchTerm = searchParams.get("searchTerm") || ""
   const sanitizedSearchTerm = (rawSearchTerm.split(",")[0] || "").trim() || rawSearchTerm.trim()
-  const zipCode = searchParams.get("zipCode") || "47906"
+  const zipParam = searchParams.get("zipCode") || ""
+  const normalizedZip = normalizeZipInput(zipParam) || "47906"
   const recipeId = searchParams.get("recipeId")
   const rawStoreParam = (searchParams.get("store") || "").trim()
   const storeKey = resolveStoreKey(rawStoreParam)
@@ -49,7 +59,8 @@ export async function GET(request: NextRequest) {
     if (standardizedIngredientId) {
       for (const store of storeKeys) {
         const row = await getOrRefreshIngredientPrice(supabaseClient, standardizedIngredientId, store, {
-          zipCode,
+          zipCode: normalizedZip,
+          address: zipParam || null,
         })
         if (row) {
           cachedRows.push(row)
@@ -57,7 +68,8 @@ export async function GET(request: NextRequest) {
       }
     } else {
       cachedRows = await searchOrCreateIngredientAndPrices(supabaseClient, sanitizedSearchTerm, storeKeys, {
-        zipCode,
+        zipCode: normalizedZip,
+        address: zipParam || null,
       })
       if (cachedRows.length > 0) {
         standardizedIngredientId = cachedRows[0].standardized_ingredient_id

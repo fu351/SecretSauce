@@ -226,6 +226,15 @@ type StoreLookupOptions = {
   address?: string | null
 }
 
+function normalizeZipInput(value?: string | null): string | undefined {
+  if (!value) return undefined
+  const match = value.match(/\b\d{5}(?:-\d{4})?\b/)
+  if (match) return match[0].slice(0, 5)
+  const trimmed = value.trim()
+  if (/^\d{5}$/.test(trimmed)) return trimmed
+  return undefined
+}
+
 function deriveZipFromAddress(address?: string | null): string | undefined {
   if (!address) return undefined
   const match = address.match(/\b\d{5}(?:-\d{4})?\b/)
@@ -238,7 +247,7 @@ async function runStoreScraper(
   options: StoreLookupOptions = {},
 ): Promise<ScraperResult[]> {
   const normalizedStore = store.toLowerCase()
-  const zip = options.zipCode || deriveZipFromAddress(options.address)
+  const zip = normalizeZipInput(options.zipCode) || deriveZipFromAddress(options.address)
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const scrapers = require("./scrapers")
