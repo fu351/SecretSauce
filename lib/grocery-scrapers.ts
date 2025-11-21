@@ -39,6 +39,9 @@ export async function searchGroceryStores(
     }
 
     const data = await response.json()
+    if (data.message) {
+      console.warn("[GrocerySearch] API message:", data.message)
+    }
     clearTimeout(timeout)
 
     // Group results by store
@@ -75,48 +78,6 @@ export async function searchGroceryStores(
     return results.sort((a, b) => a.total - b.total)
   } catch (error) {
     console.error("Error fetching from grocery API:", error)
-    return getMockGroceryData(searchTerm)
+    return []
   }
-}
-
-function getMockGroceryData(searchTerm: string): StoreResults[] {
-  const mockItems = [
-    {
-      id: "1",
-      title: `Organic ${searchTerm}`,
-      brand: "Store Brand",
-      price: 3.99,
-      pricePerUnit: "$3.99/lb",
-      unit: "lb",
-      image_url: "/placeholder.svg",
-      provider: "Target",
-      category: "Produce",
-    },
-    {
-      id: "2",
-      title: `Fresh ${searchTerm}`,
-      brand: "Premium",
-      price: 4.49,
-      pricePerUnit: "$4.49/lb",
-      unit: "lb",
-      image_url: "/placeholder.svg",
-      provider: "Target",
-      category: "Produce",
-    },
-  ]
-
-  const stores = ["Target", "Kroger", "Meijer", "99 Ranch"]
-
-  return stores
-    .map((store) => ({
-      store,
-      items: mockItems.map((item) => ({
-        ...item,
-        id: `${store}-${item.id}`,
-        provider: store,
-        price: item.price + (Math.random() - 0.5) * 2, // Add some price variation
-      })),
-      total: mockItems.reduce((sum, item) => sum + item.price, 0),
-    }))
-    .sort((a, b) => a.total - b.total)
 }
