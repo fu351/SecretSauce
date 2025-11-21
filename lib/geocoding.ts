@@ -356,9 +356,11 @@ export async function geocodeStore(
     }
 
     // Build search query: store name + postal code for better accuracy
+    // Note: This is a fallback - Places Nearby Search should have found the store above
+    // If we reach here, it means Places API didn't return any matching results
     const baseQuery = storeHint || storeName
     const searchQuery = userPostalCode ? `${baseQuery} ${userPostalCode}` : baseQuery
-    console.log(`[Geocoding] Attempting to geocode ${storeName} with query: ${searchQuery}`)
+    console.log(`[Geocoding] Places API failed to find ${storeName}, falling back to geocode with query: ${searchQuery}`)
 
     const data = await callMapsProxy<GoogleGeocodeResponse>("geocode", { address: searchQuery })
     if (!data) {
@@ -529,10 +531,19 @@ async function geocodeStoreHint(
     // Must start with a street number, have at least one comma, and contain a zip code
     const isFullStreetAddress = /^\d+\s+[\w\s]+,/.test(trimmedHint) && /\d{5}/.test(trimmedHint)
 
-    // Check if the hint is just a fallback format like "StoreName (zipCode)" or "StoreName Store/Grocery"
+    // Check if the hint is just a fallback format like "StoreName (zipCode)" or "StoreName Grocery"
     // These should NOT be trusted for geocoding as they'll just return zip code centroids
-    const isFallbackFormat = /^[\w\s']+\s*\(\d{5}\)$/.test(trimmedHint) ||
-                             /^[\w\s']+\s+(Store|Grocery)$/i.test(trimmedHint)
+    // Patterns to detect:
+    // - "StoreName (zipCode)" e.g., "Aldi (94704)"
+    // - "StoreName Grocery" e.g., "Aldi Grocery", "Walmart Grocery"
+    // - "StoreName Store" e.g., "Target Store"
+    // - "City, State" only (without street address) e.g., "West Lafayette, IN"
+    // - Just a store name with optional location suffix
+    const isFallbackFormat =
+      /^[\w\s']+\s*\(\d{5}\)$/.test(trimmedHint) ||                    // StoreName (zipCode)
+      /^[\w\s']+\s+(Store|Grocery|Market|Supermarket)$/i.test(trimmedHint) ||  // StoreName Grocery
+      /^[\w\s]+,\s*[A-Z]{2}$/i.test(trimmedHint) ||                    // City, State (no street)
+      /^(Target|Walmart|Kroger|Aldi|Meijer|Trader Joe'?s?|Whole Foods|99 Ranch)\s*(Grocery|Store|Market)?$/i.test(trimmedHint)  // Just brand name
 
     if (isFallbackFormat) {
       console.log(`[Geocoding] Hint "${trimmedHint}" is a fallback format, skipping hint geocoding for ${storeName}`)
@@ -652,13 +663,11 @@ async function findNearestStoreWithPlaces(
   matchesRequestedStore?: (value?: string) => boolean,
   brandMatcher?: (value?: string) => boolean
 ): Promise<GeocodeResult | null> {
-  const keywordParts = [
-    `${storeName} grocery store`,
-    `${storeName} supermarket`,
-    storeHint,
-    postalCode ? `zip ${postalCode}` : null,
-  ].filter(Boolean)
-  const keyword = keywordParts.length > 0 ? keywordParts.join(" ") : `${storeName} grocery store`
+  // Build a clean search keyword - prioritize just the store name for Places API
+  // The location/radius parameters will handle proximity filtering
+  // Don't add the hint if it's a generic fallback like "Aldi Grocery" - just use the store name
+  const isGenericHint = storeHint && /^[\w\s']+\s*(Grocery|Store|Market|Supermarket)?$/i.test(storeHint)
+  const keyword = isGenericHint ? `${storeName}` : `${storeName} grocery store`
   try {
     const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
     const radiusMeters = Math.min(effectiveMiles * 1609.34, 50000) // Places API max radius 50km
