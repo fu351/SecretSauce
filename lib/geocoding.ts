@@ -622,8 +622,13 @@ async function findNearestStoreWithPlaces(
   matchesRequestedStore?: (value?: string) => boolean,
   brandMatcher?: (value?: string) => boolean
 ): Promise<GeocodeResult | null> {
-  const keywordParts = [storeName, storeHint, postalCode ? `zip ${postalCode}` : null].filter(Boolean)
-  const keyword = keywordParts.length > 0 ? keywordParts.join(" ") : `${storeName} store`
+  const keywordParts = [
+    `${storeName} grocery store`,
+    `${storeName} supermarket`,
+    storeHint,
+    postalCode ? `zip ${postalCode}` : null,
+  ].filter(Boolean)
+  const keyword = keywordParts.length > 0 ? keywordParts.join(" ") : `${storeName} grocery store`
   try {
     const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
     const radiusMeters = Math.min(effectiveMiles * 1609.34, 50000) // Places API max radius 50km
@@ -639,7 +644,7 @@ async function findNearestStoreWithPlaces(
       location: userCoordinates,
       radius: radiusMeters,
       keyword,
-      type: "store",
+      type: "grocery_or_supermarket",
     })
 
     let candidates: GooglePlacesCandidate[] = []
@@ -648,7 +653,7 @@ async function findNearestStoreWithPlaces(
     } else {
       console.warn(`[Geocoding] Nearby search returned ${data?.status ?? "NO_RESPONSE"} for ${storeName}, falling back to Text Search`)
       data = await callMapsProxy<GooglePlacesResponse>("place-text", {
-        query: keyword,
+        query: `${keyword} grocery store`,
         location: userCoordinates,
         radius: radiusMeters,
       })
@@ -670,6 +675,7 @@ async function findNearestStoreWithPlaces(
         matcher(name) ||
         matcher(vicinity) ||
         matcher(formatted) ||
+        matcher(`${name} grocery store`) ||
         brandCheck(name) ||
         brandCheck(vicinity) ||
         brandCheck(formatted)

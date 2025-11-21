@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   const rawSearchTerm = searchParams.get("searchTerm") || ""
   const sanitizedSearchTerm = (rawSearchTerm.split(",")[0] || "").trim() || rawSearchTerm.trim()
   const zipCode = searchParams.get("zipCode") || "47906"
+  const recipeId = searchParams.get("recipeId")
   const rawStoreParam = (searchParams.get("store") || "").trim()
   const storeKey = resolveStoreKey(rawStoreParam)
   const storeFilter = storeKey ? [mapStoreKeyToName(storeKey)] : undefined
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
   }
 
   for (const attempt of attempts) {
-    const response = await executeSearchAttempt(attempt, { storeKey, storeFilter, zipCode })
+    const response = await executeSearchAttempt(attempt, { storeKey, storeFilter, zipCode, recipeId })
     if (response) {
       return NextResponse.json(response)
     }
@@ -79,9 +80,10 @@ async function executeSearchAttempt(
     storeKey: string | null
     storeFilter?: string[]
     zipCode: string
+    recipeId?: string | null
   },
 ) {
-  const { storeKey, storeFilter, zipCode } = options
+  const { storeKey, storeFilter, zipCode, recipeId } = options
   const searchTerm = attempt.term
   const standardizedIngredientId = attempt.standardizedId
   const normalizedPrimary = searchTerm.trim().toLowerCase()
@@ -116,7 +118,7 @@ async function executeSearchAttempt(
           scheduleCheapestCache(storeResults, {
             standardizedIngredientId,
             searchTerm: cacheSearchTerm,
-            recipeId: null,
+            recipeId,
           })
           return { results: storeResults }
         }
@@ -149,7 +151,7 @@ async function executeSearchAttempt(
         scheduleCheapestCache(pythonFiltered, {
           standardizedIngredientId,
           searchTerm: cacheSearchTerm,
-          recipeId: null,
+          recipeId,
         })
         const combined = [...cachedResults, ...pythonFiltered]
         if (combined.length > 0) {
@@ -169,7 +171,7 @@ async function executeSearchAttempt(
         scheduleCheapestCache(localFiltered, {
           standardizedIngredientId,
           searchTerm: cacheSearchTerm,
-          recipeId: null,
+          recipeId,
         })
         const combined = [...cachedResults, ...localFiltered]
         if (combined.length > 0) {

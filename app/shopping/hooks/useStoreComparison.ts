@@ -37,7 +37,7 @@ export function useStoreComparison() {
         const missing: ShoppingListItem[] = []
 
         for (const item of items) {
-          const storeResults = await searchGroceryStores(item.name, zipCode)
+          const storeResults = await searchGroceryStores(item.name, zipCode, undefined, item.recipeId)
           const hasResults = storeResults.length > 0
 
           if (!hasResults) {

@@ -843,7 +843,7 @@ export default function ShoppingPage() {
     setMissingItems([])
     try {
       const searchPromises = shoppingList.map(async (item) => {
-        const storeResults = await searchGroceryStores(item.name, zipCode)
+        const storeResults = await searchGroceryStores(item.name, zipCode, undefined, item.recipeId)
         return { item, storeResults }
       })
 

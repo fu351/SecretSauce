@@ -277,24 +277,6 @@ export async function cacheIngredientPrice(
     const normalizedPrice = Number(price)
     const priceValue = Number.isFinite(normalizedPrice) ? normalizedPrice : 0
 
-    let existingPriceValue: number | null = null
-    if (existingEntry && existingEntry.price !== null && existingEntry.price !== undefined) {
-      const parsedExisting = Number(existingEntry.price)
-      if (Number.isFinite(parsedExisting)) {
-        existingPriceValue = parsedExisting
-      }
-    }
-
-    if (existingPriceValue !== null && existingPriceValue <= priceValue) {
-      console.log("[Cache] Skipping update because cached price is cheaper or equal", {
-        store,
-        standardizedIngredientId,
-        existingPrice: existingPriceValue,
-        newPrice: priceValue,
-      })
-      return false
-    }
-
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 24)
 
@@ -324,6 +306,7 @@ export async function cacheIngredientPrice(
         standardizedIngredientId,
         productName,
         price: priceValue,
+        mode: "replace_existing",
       })
     } else {
       const { error } = await client.from("ingredient_cache").insert(payload)
@@ -336,6 +319,7 @@ export async function cacheIngredientPrice(
         standardizedIngredientId,
         productName,
         price: priceValue,
+        mode: "insert",
       })
     }
     return true
@@ -354,18 +338,19 @@ export async function getOrCreateStandardizedIngredient(
 ): Promise<string | null> {
   try {
     const client = createServerClient()
+    const normalizedCanonical = canonicalName.trim().toLowerCase()
 
     // Check if it exists
     const { data: existing, error: searchError } = await client
       .from("standardized_ingredients")
       .select("id")
-      .eq("canonical_name", canonicalName)
+      .eq("canonical_name", normalizedCanonical)
       .single()
 
     if (existing?.id) {
       const normalized: StandardizedIngredientRow = {
         id: existing.id,
-        canonical_name: canonicalName.toLowerCase(),
+        canonical_name: normalizedCanonical,
         category,
       }
       standardizedIngredientIndex.set(existing.id, normalized)
@@ -381,11 +366,14 @@ export async function getOrCreateStandardizedIngredient(
     // Create new standardized ingredient
     const { data: newIngredient, error: createError } = await client
       .from("standardized_ingredients")
-      .insert({
-        canonical_name: canonicalName,
-        category,
-      })
-      .select("id")
+      .upsert(
+        {
+          canonical_name: normalizedCanonical,
+          category,
+        },
+        { onConflict: "canonical_name" }
+      )
+      .select("id, canonical_name, category")
       .single()
 
     if (createError) {
@@ -396,8 +384,8 @@ export async function getOrCreateStandardizedIngredient(
     if (newIngredient?.id) {
       const normalized: StandardizedIngredientRow = {
         id: newIngredient.id,
-        canonical_name: canonicalName.toLowerCase(),
-        category,
+        canonical_name: newIngredient.canonical_name?.toLowerCase() || normalizedCanonical,
+        category: newIngredient.category ?? category ?? null,
       }
       standardizedIngredientIndex.set(normalized.id, normalized)
       return newIngredient.id
@@ -500,16 +488,19 @@ export async function getMappedIngredient(
  * Upsert a freeform search term -> standardized ingredient mapping (non-recipe context)
  * Useful for custom searches so we reuse the same canonical ID next time.
  */
-async function upsertFreeformMapping(originalName: string, standardizedIngredientId: string): Promise<void> {
-  // ingredient_mappings schema requires recipe_id NOT NULL, so skip freeform mapping for now
-  return
+async function upsertFreeformMapping(
+  originalName: string,
+  standardizedIngredientId: string,
+  recipeId?: string | null
+): Promise<void> {
+  if (!recipeId || !originalName || !standardizedIngredientId) return
   try {
     const client = createServerClient()
     const { error } = await client
       .from("ingredient_mappings")
       .upsert(
         {
-          recipe_id: null,
+          recipe_id: recipeId,
           original_name: originalName,
           standardized_ingredient_id: standardizedIngredientId,
         },
@@ -531,7 +522,7 @@ async function findStandardizedIngredientIdByName(
 ): Promise<string | null> {
   try {
     const client = createServerClient()
-    const variants = buildSearchVariants(ingredientName)
+    const variants = buildSearchVariants(ingredientName.toLowerCase())
 
     if (variants.length === 0) {
       return null
@@ -703,6 +694,7 @@ export async function cacheScrapedResults(
       itemCount: scrapedItems?.length ?? 0,
       searchTerm: options?.searchTerm,
       standardizedIngredientId: options?.standardizedIngredientId,
+      recipeId: options?.recipeId,
     })
     if (!scrapedItems || scrapedItems.length === 0) {
       return 0
@@ -742,8 +734,8 @@ export async function cacheScrapedResults(
         }
         if (sharedStandardizedId) {
           const mappingName = normalizedSearchName || searchTermForLookup
-          await upsertFreeformMapping(mappingName, sharedStandardizedId)
           if (options?.recipeId) {
+            await upsertFreeformMapping(mappingName, sharedStandardizedId, options.recipeId)
             await mapIngredientToStandardized(options.recipeId, searchTermForLookup, sharedStandardizedId)
           }
         }
@@ -754,7 +746,9 @@ export async function cacheScrapedResults(
       const createdId = await getOrCreateStandardizedIngredient(normalizedSearchName, null)
       if (createdId) {
         sharedStandardizedId = createdId
-        await upsertFreeformMapping(normalizedSearchName, createdId)
+        if (options?.recipeId) {
+          await upsertFreeformMapping(normalizedSearchName, createdId, options.recipeId)
+        }
       }
     }
 
