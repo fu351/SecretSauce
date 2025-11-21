@@ -242,6 +242,7 @@ async function runStoreScraper(
   const normalizedStore = store.toLowerCase()
   const zip = normalizeZipInput(options.zipCode)
   try {
+    console.log("[ingredient-pipeline] Running scraper", { store: normalizedStore, canonicalName, zip })
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const scrapers = require("./scrapers")
 
@@ -302,7 +303,7 @@ async function runStoreScraper(
     if (results?.items && Array.isArray(results.items)) return results.items
     return []
   } catch (error) {
-    console.error(`[ingredient-pipeline] Scraper failed for ${store}`, error)
+    console.error(`[ingredient-pipeline] Scraper failed for ${store}`, { error, store, canonicalName, zip })
     return []
   }
 }

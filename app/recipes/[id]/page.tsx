@@ -62,7 +62,7 @@ export default function RecipeDetailPage() {
 
   const pageBackgroundClass = isDark ? "bg-background" : "bg-gradient-to-br from-orange-50 to-yellow-50"
   const floatingButtonClass = clsx(
-    "font-bold text-lg px-6 py-3 shadow-lg border transition-colors",
+    "font-bold text-lg px-6 py-3 shadow-lg border transition-colors w-full sm:w-auto justify-center",
     isDark
       ? "bg-card text-foreground border-border hover:bg-card/90"
       : "bg-white/80 text-gray-700 border-gray-200 hover:bg-white/90 backdrop-blur-sm",
@@ -307,7 +307,12 @@ export default function RecipeDetailPage() {
 
   return (
     <div className={clsx("min-h-screen transition-colors", pageBackgroundClass)}>
-      <div className={`fixed z-50 ${isFloating ? "top-8" : "top-24"} left-8 transition-all duration-300`}>
+      <div
+        className={clsx(
+          "fixed z-50 transition-all duration-300",
+          isFloating ? "top-4 left-4 sm:top-6 sm:left-6" : "top-16 left-4 sm:top-24 sm:left-6",
+        )}
+      >
         <Button variant="ghost" onClick={() => router.back()} className={floatingButtonClass}>
           <ArrowLeft className="w-5 h-5 mr-2" />
           Back
@@ -326,7 +331,7 @@ export default function RecipeDetailPage() {
               <img
                 src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
                 alt={recipe.title}
-                className="w-full h-[500px] object-cover"
+                className="w-full h-[360px] sm:h-[420px] md:h-[500px] object-cover"
               />
               <div className="absolute top-4 right-4">
                 <Button
@@ -351,14 +356,19 @@ export default function RecipeDetailPage() {
             <Card className={infoPanelClass}>
               <CardContent className="p-8 space-y-8">
                 <div>
-                  <h1 className={clsx("text-3xl font-bold leading-tight", isDark ? "text-foreground" : "text-gray-900")}>
+                  <h1
+                    className={clsx(
+                      "text-2xl sm:text-3xl font-bold leading-tight",
+                      isDark ? "text-foreground" : "text-gray-900",
+                    )}
+                  >
                     {recipe.title}
                   </h1>
                 </div>
 
-                <p className={clsx("leading-relaxed text-lg", descriptionTextClass)}>{recipe.description}</p>
+                <p className={clsx("leading-relaxed text-base sm:text-lg", descriptionTextClass)}>{recipe.description}</p>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div className={statCardClass}>
                     <Clock className={clsx("h-5 w-5", statIconClass)} />
                     <div>
@@ -438,74 +448,66 @@ export default function RecipeDetailPage() {
         </div>
 
         {/* Recipe Pricing Section */}
-        <div className="flex justify-center">
-          <div className="w-full max-w-6xl" style={{ width: "95%" }}>
+        <div className="space-y-8">
+          <div className="w-full">
             <RecipePricingInfo recipeId={recipe.id} />
           </div>
-        </div>
 
-        <div className="flex justify-center">
-          <div className="w-full max-w-6xl" style={{ width: "95%" }}>
-            <Card className={sectionCardClass}>
-              <CardContent className="p-8 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className={clsx("text-2xl font-bold", isDark ? "text-foreground" : "text-gray-900")}>Ingredients</h3>
-                  {user && (
-                    <Button size="sm" onClick={addIngredientsToShoppingList} className={primaryButtonClass}>
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Add to cart
-                    </Button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {recipe.ingredients.map((ingredient, index) => (
-                    <div key={index} className={itemPillClass}>
-                      <span className="text-sm leading-relaxed font-medium">
-                        {ingredient.amount} {ingredient.unit} {ingredient.name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        <div className="flex justify-center">
-          <div className="w-full max-w-4xl" style={{ width: "85%" }}>
-            <Card className={sectionCardClass}>
-              <CardContent className="p-8 space-y-6">
-                <h3
-                  className={clsx(
-                    "text-2xl font-bold flex items-center gap-2",
-                    isDark ? "text-foreground" : "text-gray-900",
-                  )}
-                >
-                  <ChefHat className={clsx("h-6 w-6", isDark ? "text-primary" : "text-orange-500")} />
-                  Instructions
+          <Card className={sectionCardClass}>
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h3 className={clsx("text-2xl font-bold", isDark ? "text-foreground" : "text-gray-900")}>
+                  Ingredients
                 </h3>
-                <div className="space-y-4">
-                  {recipe.instructions.map((instruction, index) => (
-                    <div key={index} className={instructionCardClass}>
-                      <div className={instructionStepBadgeClass}>{index + 1}</div>
-                      <div className="flex-1">
-                        <p className={clsx("leading-relaxed", instructionTextClass)}>
-                          {typeof instruction === "string"
-                            ? instruction
-                            : instruction.description || instruction.step || "Step description not available"}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                {user && (
+                  <Button size="sm" onClick={addIngredientsToShoppingList} className={`${primaryButtonClass} w-full sm:w-auto`}>
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Add to cart
+                  </Button>
+                )}
+              </div>
 
-        <div className="flex justify-center">
-          <div className="w-full max-w-6xl" style={{ width: "95%" }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recipe.ingredients.map((ingredient, index) => (
+                  <div key={index} className={itemPillClass}>
+                    <span className="text-sm leading-relaxed font-medium">
+                      {ingredient.amount} {ingredient.unit} {ingredient.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={sectionCardClass}>
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              <h3
+                className={clsx(
+                  "text-2xl font-bold flex items-center gap-2",
+                  isDark ? "text-foreground" : "text-gray-900",
+                )}
+              >
+                <ChefHat className={clsx("h-6 w-6", isDark ? "text-primary" : "text-orange-500")} />
+                Instructions
+              </h3>
+              <div className="space-y-3 sm:space-y-4">
+                {recipe.instructions.map((instruction, index) => (
+                  <div key={index} className={instructionCardClass}>
+                    <div className={instructionStepBadgeClass}>{index + 1}</div>
+                    <div className="flex-1">
+                      <p className={clsx("leading-relaxed", instructionTextClass)}>
+                        {typeof instruction === "string"
+                          ? instruction
+                          : instruction.description || instruction.step || "Step description not available"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="w-full">
             <RecipeReviews recipeId={recipe.id} />
           </div>
         </div>

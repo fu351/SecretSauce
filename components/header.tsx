@@ -73,8 +73,8 @@ export function Header() {
 
   return (
     <header
-      className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b ${
-        isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FAF4E5] border-border"
+      className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b sticky top-0 z-40 ${
+        isDark ? "bg-[#181813]/95 backdrop-blur border-[#e8dcc4]/20" : "bg-[#FAF4E5]/95 backdrop-blur border-border"
       }`}
     >
       <div className="flex items-center">
