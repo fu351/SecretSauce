@@ -341,7 +341,7 @@ function buildCachePayload(
 
   return {
     standardized_ingredient_id: standardizedIngredientId,
-    store,
+    store: store.toLowerCase().trim(), // Normalize to lowercase for consistent lookups
     product_name: product.product_name || product.title || null,
     price: Number(product.price) || 0,
     quantity: Number(product.quantity) || 1,
@@ -394,13 +394,13 @@ async function upsertCacheEntry(
     }
   }
 
-  // Manual fallback: check if entry exists
+  // Manual fallback: check if entry exists (case-insensitive store match)
   console.log("[ingredient-pipeline] Checking for existing entry...")
   const { data: existing, error: existingError } = await client
     .from("ingredient_cache")
     .select("id")
     .eq("standardized_ingredient_id", payload.standardized_ingredient_id)
-    .eq("store", payload.store)
+    .ilike("store", payload.store)
     .eq("product_id", payload.product_id)
     .maybeSingle()
 
@@ -505,11 +505,22 @@ export async function getOrRefreshIngredientPrice(
   if (!standardizedIngredientId) throw new Error("standardizedIngredientId is required")
   if (!store) throw new Error("store is required")
 
+  // Normalize store name for cache lookup (handle both "target" and "Target")
+  const normalizedStore = store.toLowerCase().trim()
+
+  console.log("[ingredient-pipeline] getOrRefreshIngredientPrice called", {
+    standardizedIngredientId,
+    store,
+    normalizedStore,
+    zipCode: options.zipCode,
+  })
+
+  // Try to find cached result - case-insensitive store match
   const { data: cached, error: cacheError } = await supabaseClient
     .from("ingredient_cache")
     .select("*")
     .eq("standardized_ingredient_id", standardizedIngredientId)
-    .eq("store", store)
+    .ilike("store", normalizedStore)
     .gt("expires_at", new Date().toISOString())
     .order("unit_price", { ascending: true, nullsLast: true })
     .order("price", { ascending: true })
@@ -521,8 +532,16 @@ export async function getOrRefreshIngredientPrice(
   }
 
   if (cached) {
+    console.log("[ingredient-pipeline] Cache HIT", {
+      store: normalizedStore,
+      product_name: cached.product_name,
+      price: cached.price,
+      expires_at: cached.expires_at,
+    })
     return cached
   }
+
+  console.log("[ingredient-pipeline] Cache MISS, will scrape", { store: normalizedStore, standardizedIngredientId })
 
   const canonicalName = await loadCanonicalName(supabaseClient, standardizedIngredientId)
   if (!canonicalName) {

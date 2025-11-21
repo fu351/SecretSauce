@@ -526,7 +526,18 @@ async function geocodeStoreHint(
     // Check if the hint appears to be a full street address (contains typical address patterns)
     // Examples: "300 W State St, Ste 100, West Lafayette, IN, 47906-3539"
     //           "1032 Sagamore Pkwy W, West Lafayette, IN, 47906"
+    // Must start with a street number, have at least one comma, and contain a zip code
     const isFullStreetAddress = /^\d+\s+[\w\s]+,/.test(trimmedHint) && /\d{5}/.test(trimmedHint)
+
+    // Check if the hint is just a fallback format like "StoreName (zipCode)" or "StoreName Store/Grocery"
+    // These should NOT be trusted for geocoding as they'll just return zip code centroids
+    const isFallbackFormat = /^[\w\s']+\s*\(\d{5}\)$/.test(trimmedHint) ||
+                             /^[\w\s']+\s+(Store|Grocery)$/i.test(trimmedHint)
+
+    if (isFallbackFormat) {
+      console.log(`[Geocoding] Hint "${trimmedHint}" is a fallback format, skipping hint geocoding for ${storeName}`)
+      return null
+    }
 
     // For full street addresses from scrapers, use the address directly without prepending store name
     // This gives more accurate geocoding results

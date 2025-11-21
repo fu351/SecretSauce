@@ -582,9 +582,10 @@ export default function MealPlannerPage() {
                     className={`flex-1 sm:flex-none transition-all ${
                       viewMode === "by-day" ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-accent"
                     }`}
+                    title="By Day"
                   >
-                    <Calendar className="h-4 w-4 mr-2" />
-                    By Day
+                    <Calendar className={`h-4 w-4 ${!sidebarOpen && !isMobile ? "mr-2" : ""}`} />
+                    {!sidebarOpen && !isMobile && "By Day"}
                   </Button>
                   <Button
                     variant={viewMode === "by-meal" ? "default" : "ghost"}
@@ -593,9 +594,10 @@ export default function MealPlannerPage() {
                     className={`flex-1 sm:flex-none transition-all ${
                       viewMode === "by-meal" ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-accent"
                     }`}
+                    title="By Meal"
                   >
-                    <List className="h-4 w-4 mr-2" />
-                    By Meal
+                    <List className={`h-4 w-4 ${!sidebarOpen && !isMobile ? "mr-2" : ""}`} />
+                    {!sidebarOpen && !isMobile && "By Meal"}
                   </Button>
                 </div>
 

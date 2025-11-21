@@ -237,14 +237,31 @@ export async function GET(request: NextRequest) {
       // Fire-and-forget cache write so the user gets results immediately
       Promise.resolve()
         .then(async () => {
+          console.log("[grocery-search] Starting background cache write for direct scraper results", {
+            itemCount: directItems.length,
+            searchTerm: sanitizedSearchTerm,
+          })
+
           const standardizedId =
             standardizedIngredientId || (await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId))
-          if (!standardizedId) return
+
+          if (!standardizedId) {
+            console.warn("[grocery-search] Could not resolve standardized ID for caching", { searchTerm: sanitizedSearchTerm })
+            return
+          }
+
+          console.log("[grocery-search] Resolved standardized ID for caching", { standardizedId, searchTerm: sanitizedSearchTerm })
+
           const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          let successCount = 0
+          let failCount = 0
+
           for (const item of directItems) {
+            // Store with lowercase key for consistent cache lookups
+            const storeKey = item.provider.toLowerCase()
             const payload = {
               standardized_ingredient_id: standardizedId,
-              store: mapStoreKeyToName(item.provider.toLowerCase()),
+              store: storeKey,
               product_name: item.title,
               price: item.price,
               quantity: 1,
@@ -256,12 +273,49 @@ export async function GET(request: NextRequest) {
               product_id: item.id,
               expires_at: expires,
             }
-            await supabaseClient
+
+            console.log("[grocery-search] Upserting cache entry", {
+              store: payload.store,
+              product_id: payload.product_id,
+              product_name: payload.product_name,
+              price: payload.price,
+            })
+
+            const { data, error } = await supabaseClient
               .from("ingredient_cache")
               .upsert(payload, { onConflict: "standardized_ingredient_id,store,product_id" })
+              .select("id")
+              .maybeSingle()
+
+            if (error) {
+              console.error("[grocery-search] Cache upsert FAILED", {
+                store: payload.store,
+                product_id: payload.product_id,
+                error: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint,
+              })
+              failCount++
+            } else {
+              console.log("[grocery-search] Cache upsert SUCCESS", {
+                id: data?.id,
+                store: payload.store,
+              })
+              successCount++
+            }
           }
+
+          console.log("[grocery-search] Background cache write complete", {
+            successCount,
+            failCount,
+            total: directItems.length,
+          })
         })
-        .catch((error) => console.warn("[grocery-search] Failed to cache direct scraper results", error))
+        .catch((error) => console.error("[grocery-search] Failed to cache direct scraper results", {
+          error: error.message,
+          stack: error.stack,
+        }))
 
       return NextResponse.json({
         results: directItems.map((item) => ({
@@ -273,7 +327,7 @@ export async function GET(request: NextRequest) {
           unit: item.unit || "",
           image_url: item.image_url || "/placeholder.svg",
           provider: mapStoreKeyToName(item.provider.toLowerCase()),
-          location: `${mapStoreKeyToName(item.provider.toLowerCase())} Store`,
+          location: `${mapStoreKeyToName(item.provider.toLowerCase())} Grocery`,
           category: "Grocery",
         })),
         cached: false,
@@ -331,7 +385,7 @@ function getStoreLocationLabel(storeName: string, zipCode?: string) {
   if (zipCode) {
     return `${storeName} (${zipCode})`
   }
-  return `${storeName} Store`
+  return `${storeName} Grocery`
 }
 
 function formatCacheResults(
