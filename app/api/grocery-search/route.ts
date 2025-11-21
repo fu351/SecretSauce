@@ -19,6 +19,73 @@ const DEFAULT_STORE_KEYS = [
   "wholefoods",
 ]
 
+async function scrapeDirectFallback(
+  term: string,
+  stores: string[],
+  zip?: string,
+): Promise<
+  Array<{
+    id: string
+    title: string
+    price: number
+    unit?: string | null
+    pricePerUnit?: string | null
+    image_url?: string | null
+    provider: string
+  }>
+> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const scrapers = require("@/lib/scrapers")
+    const scraperMap: Record<string, any> = {
+      walmart: scrapers.searchWalmartAPI,
+      target: scrapers.getTargetProducts,
+      kroger: scrapers.Krogers,
+      meijer: scrapers.Meijers,
+      "99ranch": scrapers.search99Ranch,
+      ranch99: scrapers.search99Ranch,
+      traderjoes: scrapers.searchTraderJoes,
+      aldi: scrapers.searchAldi,
+      andronicos: scrapers.searchAndronicos,
+      wholefoods: scrapers.searchWholeFoods,
+    }
+
+    const results: any[] = []
+    for (const store of stores) {
+      const scraper = scraperMap[store]
+      if (!scraper) continue
+      try {
+        let data: any[] = []
+        if (store === "kroger" || store === "meijer") {
+          data = (await scraper(zip, term)) || []
+        } else if (store === "target") {
+          data = (await scraper(term, null, zip)) || []
+        } else {
+          data = (await scraper(term, zip)) || []
+        }
+        if (!Array.isArray(data)) continue
+        data
+          .map((item: any) => ({
+            id: item.id || `${store}-${Math.random()}`,
+            title: item.title || item.name || term,
+            price: Number(item.price) || 0,
+            unit: item.unit || null,
+            pricePerUnit: item.pricePerUnit || null,
+            image_url: item.image_url || null,
+            provider: store,
+          }))
+          .forEach((item: any) => results.push(item))
+      } catch (error) {
+        console.warn("[grocery-search] Fallback scraper error", { store, error })
+      }
+    }
+    return results
+  } catch (error) {
+    console.error("[grocery-search] Failed fallback scraping", error)
+    return []
+  }
+}
+
 function normalizeZipInput(value?: string | null): string | undefined {
   if (!value) return undefined
   const match = value.match(/\b\d{5}(?:-\d{4})?\b/)
@@ -70,6 +137,13 @@ export async function GET(request: NextRequest) {
   let standardizedIngredientId: string | null = null
   let cachedRows: IngredientCacheResult[] = []
 
+  console.log("[grocery-search] Incoming request", {
+    searchTerm: sanitizedSearchTerm,
+    zipParam,
+    zipToUse,
+    recipeId,
+    stores: storeKeys,
+  })
   try {
     if (recipeId) {
       standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
@@ -77,18 +151,24 @@ export async function GET(request: NextRequest) {
         recipeId,
         sanitizedSearchTerm,
       )
+      console.log("[grocery-search] Resolved standardized ingredient", { standardizedIngredientId })
     }
 
     if (standardizedIngredientId) {
       for (const store of storeKeys) {
+        console.log("[grocery-search] Fetching cache/scrape per store", { store, standardizedIngredientId, zipToUse })
         const row = await getOrRefreshIngredientPrice(supabaseClient, standardizedIngredientId, store, {
           zipCode: zipToUse,
         })
         if (row) {
           cachedRows.push(row)
         }
+        console.log("[grocery-search] Store result", { store, found: !!row })
       }
     } else {
+      console.log("[grocery-search] No standardized ID yet, running searchOrCreate workflow", {
+        searchTerm: sanitizedSearchTerm,
+      })
       cachedRows = await searchOrCreateIngredientAndPrices(supabaseClient, sanitizedSearchTerm, storeKeys, {
         zipCode: zipToUse,
       })
@@ -101,10 +181,39 @@ export async function GET(request: NextRequest) {
   }
 
   if (!cachedRows || cachedRows.length === 0) {
-    return NextResponse.json(
-      { results: [], cached: false, source: "unavailable", message: "No prices available right now. Please try again." },
-      { status: 404 },
-    )
+    console.warn("[grocery-search] No cached/scraped results via pipeline, attempting direct scrapers", {
+      searchTerm: sanitizedSearchTerm,
+      zipToUse,
+      standardizedIngredientId,
+      stores: storeKeys,
+    })
+
+    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse)
+    if (directItems.length > 0) {
+      return NextResponse.json({
+        results: directItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          brand: "",
+          price: item.price,
+          pricePerUnit: item.pricePerUnit || (item.unit ? `${item.price}/${item.unit}` : undefined),
+          unit: item.unit || "",
+          image_url: item.image_url || "/placeholder.svg",
+          provider: mapStoreKeyToName(item.provider.toLowerCase()),
+          location: `${mapStoreKeyToName(item.provider.toLowerCase())} Store`,
+          category: "Grocery",
+        })),
+        cached: false,
+        source: "scraper-direct",
+      })
+    }
+
+    return NextResponse.json({
+      results: [],
+      cached: false,
+      source: "unavailable",
+      message: "No prices available right now. Please try again.",
+    })
   }
 
   const formatted = formatCacheResults(cachedRows, sanitizedSearchTerm, zipToUse)

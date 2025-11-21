@@ -298,9 +298,19 @@ async function runStoreScraper(
         break
     }
 
-    if (!results) return []
-    if (Array.isArray(results)) return results
-    if (results?.items && Array.isArray(results.items)) return results.items
+    if (!results) {
+      console.warn("[ingredient-pipeline] Scraper returned no results", { store: normalizedStore, canonicalName, zip })
+      return []
+    }
+    if (Array.isArray(results)) {
+      console.log("[ingredient-pipeline] Scraper results", { store: normalizedStore, count: results.length })
+      return results
+    }
+    if (results?.items && Array.isArray(results.items)) {
+      console.log("[ingredient-pipeline] Scraper results (items field)", { store: normalizedStore, count: results.items.length })
+      return results.items
+    }
+    console.warn("[ingredient-pipeline] Scraper results not in expected format", { store: normalizedStore, canonicalName, zip })
     return []
   } catch (error) {
     console.error(`[ingredient-pipeline] Scraper failed for ${store}`, { error, store, canonicalName, zip })
