@@ -106,6 +106,7 @@ export default function MealPlannerPage() {
   const [weeklySummaryPinnedOpen, setWeeklySummaryPinnedOpen] = useState(false)
   const [weeklySummaryHovering, setWeeklySummaryHovering] = useState(false)
   const [hasAutoScrolledIntoGrid, setHasAutoScrolledIntoGrid] = useState(false)
+  const [openNutritionKey, setOpenNutritionKey] = useState<string | null>(null)
   const router = useRouter()
   const weeklySummaryDetailsVisible = weeklySummaryPinnedOpen || (!isMobile && weeklySummaryHovering)
   const showSidebarOverlayLayout = isMobile && sidebarOpen

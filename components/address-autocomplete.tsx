@@ -74,10 +74,17 @@ function parsePlace(place: any): ParsedAddress {
 
 export function AddressAutocomplete({ value, onChange, placeholder, disabled }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const initialValue = useMemo(
+  const controlledValue = useMemo(
     () => value?.formattedAddress || value?.addressLine1 || "",
     [value?.addressLine1, value?.formattedAddress],
   )
+
+  // Sync the input when upstream value changes
+  useEffect(() => {
+    if (inputRef.current && controlledValue !== inputRef.current.value) {
+      inputRef.current.value = controlledValue
+    }
+  }, [controlledValue])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -93,6 +100,9 @@ export function AddressAutocomplete({ value, onChange, placeholder, disabled }: 
     const listener = autocomplete.addListener("place_changed", () => {
       const place = autocomplete.getPlace()
       const parsed = parsePlace(place)
+      if (parsed.formattedAddress && inputRef.current) {
+        inputRef.current.value = parsed.formattedAddress
+      }
       onChange({
         ...value,
         ...parsed,
@@ -109,7 +119,7 @@ export function AddressAutocomplete({ value, onChange, placeholder, disabled }: 
       ref={inputRef}
       placeholder={placeholder}
       disabled={disabled}
-      defaultValue={initialValue}
+      value={controlledValue}
       onChange={(e) =>
         onChange({
           ...value,

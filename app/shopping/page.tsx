@@ -1238,7 +1238,7 @@ const getStoreLogoPath = (store: string) => {
                     )}
                     {comparison.missingItems && (
                       <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-200">
-                        Missing Items
+                        Missing Items{typeof comparison.missingCount === "number" ? ` (${comparison.missingCount})` : ""}
                       </Badge>
                     )}
                   </div>

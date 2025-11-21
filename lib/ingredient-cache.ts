@@ -682,6 +682,11 @@ export async function cacheScrapedResults(
   }
 ): Promise<number> {
   try {
+    console.log("[Cache] Starting cacheScrapedResults", {
+      itemCount: scrapedItems?.length ?? 0,
+      searchTerm: options?.searchTerm,
+      standardizedIngredientId: options?.standardizedIngredientId,
+    })
     if (!scrapedItems || scrapedItems.length === 0) {
       return 0
     }
@@ -820,6 +825,11 @@ export async function cacheScrapedResults(
       console.log(
         `[Cache] Cached ${cachedCount}/${scrapedItems.length} scraped items`
       )
+    } else {
+      console.warn("[Cache] No items cached from scrape batch", {
+        searchTerm: searchTermForLookup,
+        sharedStandardizedId,
+      })
     }
 
     return cachedCount
