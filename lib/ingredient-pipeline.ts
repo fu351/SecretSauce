@@ -357,6 +357,14 @@ async function upsertCacheEntry(
   client: SupabaseLike,
   payload: DB["ingredient_cache"]["Insert"]
 ): Promise<IngredientCacheResult | null> {
+  console.log("[ingredient-pipeline] upsertCacheEntry called", {
+    standardized_ingredient_id: payload.standardized_ingredient_id,
+    store: payload.store,
+    product_id: payload.product_id,
+    product_name: payload.product_name,
+    price: payload.price,
+  })
+
   // Try onConflict first; fall back to manual update if constraint is missing
   const upsertAttempt = await client
     .from("ingredient_cache")
@@ -364,12 +372,31 @@ async function upsertCacheEntry(
     .select("*")
     .maybeSingle()
 
-  if (upsertAttempt.data) return upsertAttempt.data
-  if (upsertAttempt.error && !upsertAttempt.error.message.includes("duplicate key value")) {
-    console.warn("[ingredient-pipeline] Upsert with constraint failed, retrying with manual path", upsertAttempt.error)
+  if (upsertAttempt.data) {
+    console.log("[ingredient-pipeline] Upsert SUCCESS", {
+      id: upsertAttempt.data.id,
+      store: upsertAttempt.data.store,
+      product_name: upsertAttempt.data.product_name,
+    })
+    return upsertAttempt.data
   }
 
-  const { data: existing } = await client
+  if (upsertAttempt.error) {
+    console.warn("[ingredient-pipeline] Upsert FAILED", {
+      error: upsertAttempt.error.message,
+      code: upsertAttempt.error.code,
+      details: upsertAttempt.error.details,
+      hint: upsertAttempt.error.hint,
+    })
+
+    if (!upsertAttempt.error.message.includes("duplicate key value")) {
+      console.log("[ingredient-pipeline] Attempting manual fallback path...")
+    }
+  }
+
+  // Manual fallback: check if entry exists
+  console.log("[ingredient-pipeline] Checking for existing entry...")
+  const { data: existing, error: existingError } = await client
     .from("ingredient_cache")
     .select("id")
     .eq("standardized_ingredient_id", payload.standardized_ingredient_id)
@@ -377,7 +404,12 @@ async function upsertCacheEntry(
     .eq("product_id", payload.product_id)
     .maybeSingle()
 
+  if (existingError) {
+    console.warn("[ingredient-pipeline] Error checking existing entry", existingError)
+  }
+
   if (existing?.id) {
+    console.log("[ingredient-pipeline] Found existing entry, updating...", { existingId: existing.id })
     const { data, error } = await client
       .from("ingredient_cache")
       .update({ ...payload, updated_at: new Date().toISOString() })
@@ -385,12 +417,18 @@ async function upsertCacheEntry(
       .select("*")
       .maybeSingle()
     if (error) {
-      console.error("[ingredient-pipeline] Failed to update cache entry", error)
+      console.error("[ingredient-pipeline] UPDATE FAILED", {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+      })
       return null
     }
+    console.log("[ingredient-pipeline] UPDATE SUCCESS", { id: data?.id })
     return data
   }
 
+  console.log("[ingredient-pipeline] No existing entry, inserting new...")
   const { data, error } = await client
     .from("ingredient_cache")
     .insert(payload)
@@ -398,10 +436,16 @@ async function upsertCacheEntry(
     .maybeSingle()
 
   if (error) {
-    console.error("[ingredient-pipeline] Failed to insert cache entry", error)
+    console.error("[ingredient-pipeline] INSERT FAILED", {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
     return null
   }
 
+  console.log("[ingredient-pipeline] INSERT SUCCESS", { id: data?.id, store: data?.store })
   return data
 }
 
