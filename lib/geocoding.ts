@@ -424,6 +424,30 @@ export async function geocodeStore(
       })
       return null
     }
+
+    if (userCoordinates) {
+      const distanceKm = calculateDistance(
+        userCoordinates.lat,
+        userCoordinates.lng,
+        result.lat,
+        result.lng
+      )
+      const distanceMiles = distanceKm * KM_TO_MILES
+      if (
+        distanceMiles < 0.2 &&
+        !matchesRequestedStore(result.matchedName) &&
+        !matchesRequestedStore(result.formattedAddress) &&
+        !brandMatcher(result.matchedName)
+      ) {
+        console.warn("[Geocoding] Ignoring result that matches user coordinates but not store", {
+          storeName,
+          matchedName: result.matchedName,
+          formattedAddress: result.formattedAddress,
+          distanceMiles,
+        })
+        return null
+      }
+    }
     if (!brandMatcher(result.matchedName) && !brandMatcher(result.formattedAddress)) {
       console.warn(`[Geocoding] ${storeName} geocode result failed brand check`, {
         matchedName: result.matchedName,
@@ -635,13 +659,22 @@ async function findNearestStoreWithPlaces(
       candidates = data.results
     }
 
-    const matcher = matchesRequestedStore ?? (() => true)
+    const matcher = matchesRequestedStore ?? (() => false)
     const brandCheck = brandMatcher ?? (() => false)
 
-    const preferredCandidates = candidates.filter(
-      (candidate) =>
-        matcher(candidate.name) || matcher(candidate.vicinity) || matcher(candidate.formatted_address) || brandCheck(candidate.name)
-    )
+    const preferredCandidates = candidates.filter((candidate) => {
+      const name = candidate.name
+      const vicinity = candidate.vicinity
+      const formatted = candidate.formatted_address
+      return (
+        matcher(name) ||
+        matcher(vicinity) ||
+        matcher(formatted) ||
+        brandCheck(name) ||
+        brandCheck(vicinity) ||
+        brandCheck(formatted)
+      )
+    })
 
     const candidatePool = preferredCandidates.length > 0 ? preferredCandidates : candidates
 
@@ -682,6 +715,20 @@ async function findNearestStoreWithPlaces(
         lng,
         formattedAddress: candidate.vicinity || candidate.formatted_address,
         matchedName: candidate.name,
+      }
+
+      if (
+        userCoordinates &&
+        calculateDistance(userCoordinates.lat, userCoordinates.lng, lat, lng) * KM_TO_MILES < 0.2 &&
+        !matcher(resolved.matchedName) &&
+        !brandMatcher?.(resolved.matchedName)
+      ) {
+        console.warn("[Geocoding] Skipping candidate located at user origin without brand match", {
+          storeName,
+          candidateName: candidate.name,
+          formattedAddress: candidate.formatted_address,
+        })
+        continue
       }
       if (
         matcher(resolved.matchedName) ||

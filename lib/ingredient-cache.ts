@@ -362,7 +362,13 @@ export async function getOrCreateStandardizedIngredient(
       .eq("canonical_name", canonicalName)
       .single()
 
-    if (existing) {
+    if (existing?.id) {
+      const normalized: StandardizedIngredientRow = {
+        id: existing.id,
+        canonical_name: canonicalName.toLowerCase(),
+        category,
+      }
+      standardizedIngredientIndex.set(existing.id, normalized)
       return existing.id
     }
 
@@ -387,7 +393,17 @@ export async function getOrCreateStandardizedIngredient(
       return null
     }
 
-    return newIngredient?.id || null
+    if (newIngredient?.id) {
+      const normalized: StandardizedIngredientRow = {
+        id: newIngredient.id,
+        canonical_name: canonicalName.toLowerCase(),
+        category,
+      }
+      standardizedIngredientIndex.set(normalized.id, normalized)
+      return newIngredient.id
+    }
+
+    return null
   } catch (error) {
     console.error("Error in getOrCreateStandardizedIngredient:", error)
     return null
@@ -485,7 +501,8 @@ export async function getMappedIngredient(
  * Useful for custom searches so we reuse the same canonical ID next time.
  */
 async function upsertFreeformMapping(originalName: string, standardizedIngredientId: string): Promise<void> {
-  if (!originalName || !standardizedIngredientId) return
+  // ingredient_mappings schema requires recipe_id NOT NULL, so skip freeform mapping for now
+  return
   try {
     const client = createServerClient()
     const { error } = await client
@@ -826,10 +843,11 @@ export async function cacheScrapedResults(
         `[Cache] Cached ${cachedCount}/${scrapedItems.length} scraped items`
       )
     } else {
-      console.warn("[Cache] No items cached from scrape batch", {
-        searchTerm: searchTermForLookup,
-        sharedStandardizedId,
-      })
+        console.warn("[Cache] No items cached from scrape batch", {
+          searchTerm: searchTermForLookup,
+          sharedStandardizedId,
+          itemCount: scrapedItems.length,
+        })
     }
 
     return cachedCount

@@ -99,11 +99,11 @@ async function executeSearchAttempt(
   const cacheSearchTerm = attempt.canonicalTerm?.trim() || searchTerm
 
   const runScrapePipeline = async (term: string, reason: string): Promise<{ results: any[] } | null> => {
-    if (storeKey) {
-      const storeName = mapStoreKeyToName(storeKey)
-      if (standardizedIngredientId) {
-        const cachedForStore = await getCachedIngredientById(standardizedIngredientId, [storeName])
-        if (cachedForStore.length > 0) {
+  if (storeKey) {
+    const storeName = mapStoreKeyToName(storeKey)
+    if (standardizedIngredientId) {
+      const cachedForStore = await getCachedIngredientById(standardizedIngredientId, [storeName])
+      if (cachedForStore.length > 0) {
           console.log(
             `[Cache] Using ${cachedForStore.length} cached items for ${storeName} (${reason})`,
           )
@@ -242,6 +242,11 @@ function scheduleCheapestCache(
   options: { standardizedIngredientId?: string | null; searchTerm?: string; recipeId?: string | null }
 ) {
   if (!items || items.length === 0) return
+  console.log("[Cache] Scheduling background cache", {
+    items: items.length,
+    searchTerm: options.searchTerm,
+    standardizedIngredientId: options.standardizedIngredientId,
+  })
   const cheapest = pickCheapestPerProvider(items)
   if (cheapest.length === 0) return
   Promise.resolve()

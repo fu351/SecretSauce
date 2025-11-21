@@ -106,7 +106,6 @@ export default function MealPlannerPage() {
   const [weeklySummaryPinnedOpen, setWeeklySummaryPinnedOpen] = useState(false)
   const [weeklySummaryHovering, setWeeklySummaryHovering] = useState(false)
   const [hasAutoScrolledIntoGrid, setHasAutoScrolledIntoGrid] = useState(false)
-  const [openNutritionKey, setOpenNutritionKey] = useState<string | null>(null)
   const router = useRouter()
   const weeklySummaryDetailsVisible = weeklySummaryPinnedOpen || (!isMobile && weeklySummaryHovering)
   const showSidebarOverlayLayout = isMobile && sidebarOpen
@@ -533,7 +532,7 @@ export default function MealPlannerPage() {
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
           <div className="flex flex-col gap-3 mb-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl md:text-3xl font-bold text-text">Meal Planner</h1>
                 {isMobile && (
@@ -552,7 +551,7 @@ export default function MealPlannerPage() {
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 justify-end w-full md:w-auto">
+              <div className="flex flex-wrap items-center gap-2 justify-start w-full">
                 <div className="flex items-center bg-card rounded-lg shadow-sm border border-border p-1.5">
                   <Button
                     variant="ghost"
@@ -718,9 +717,6 @@ export default function MealPlannerPage() {
                     <div className="flex flex-col divide-y divide-border/40">
                       {mealTypes.map((mealType) => {
                         const recipe = getMealForSlot(date, mealType.key)
-                        const cardKey = `${mealType.key}-${date}`
-                        const isNutritionOpen = openNutritionKey === cardKey
-
                         return (
                           <div key={mealType.key} className="flex flex-col py-2 first:pt-0 last:pb-0">
                             <div className="flex items-center justify-between mb-1">
@@ -759,22 +755,15 @@ export default function MealPlannerPage() {
                                     <h4 className={`font-semibold text-xs mb-1 line-clamp-2 text-text`}>
                                       {recipe.title}
                                     </h4>
-                                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                                      <span>{recipe.nutrition?.calories ? `${recipe.nutrition.calories} cal` : ""}</span>
-                                      <button
-                                        type="button"
-                                        className="text-primary hover:underline text-[11px]"
-                                        onClick={() => setOpenNutritionKey(isNutritionOpen ? null : cardKey)}
-                                      >
-                                        {isNutritionOpen ? "Hide macros" : "View macros"}
-                                      </button>
+                                    <div className="text-[11px] text-muted-foreground">
+                                      {recipe.nutrition?.calories ? `${recipe.nutrition.calories} cal` : ""}
                                     </div>
                                   </div>
-                                  {recipe.nutrition && isNutritionOpen && (
+                                  {recipe.nutrition && (
                                     <div
                                       className={`absolute inset-0 rounded-lg ${
                                         isDark ? "bg-black/70" : "bg-black/60"
-                                      } text-white transition-opacity text-[10px] flex flex-col justify-center p-3 pointer-events-none z-10`}
+                                      } text-white opacity-0 group-hover:opacity-100 transition-opacity text-[10px] flex flex-col justify-center p-3 pointer-events-none z-10`}
                                     >
                                       <p className="uppercase tracking-wide text-[9px] mb-2 text-white/70">Nutrition</p>
                                       <div className="grid grid-cols-4 gap-2 text-center">
@@ -830,8 +819,6 @@ export default function MealPlannerPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {weekDates.map((date, dayIndex) => {
                         const recipe = getMealForSlot(date, mealType.key)
-                        const cardKey = `${mealType.key}-${date}`
-                        const isNutritionOpen = openNutritionKey === cardKey
                         return (
                           <div key={date}>
                             <div
@@ -867,22 +854,15 @@ export default function MealPlannerPage() {
                                   </button>
                                   <div className="p-3">
                                     <h4 className={`font-semibold text-sm line-clamp-2 text-text`}>{recipe.title}</h4>
-                                    <div className="flex items-center justify-between text-[12px] text-muted-foreground mt-1">
-                                      <span>{recipe.nutrition?.calories ? `${recipe.nutrition.calories} cal` : ""}</span>
-                                      <button
-                                        type="button"
-                                        className="text-primary hover:underline text-[12px]"
-                                        onClick={() => setOpenNutritionKey(isNutritionOpen ? null : cardKey)}
-                                      >
-                                        {isNutritionOpen ? "Hide macros" : "View macros"}
-                                      </button>
+                                    <div className="text-[12px] text-muted-foreground mt-1">
+                                      {recipe.nutrition?.calories ? `${recipe.nutrition.calories} cal` : ""}
                                     </div>
                                   </div>
-                                  {recipe.nutrition && isNutritionOpen && (
+                                  {recipe.nutrition && (
                                     <div
                                       className={`absolute inset-0 rounded-lg ${
                                         isDark ? "bg-black/70" : "bg-black/60"
-                                      } text-white transition-opacity text-xs flex flex-col justify-center p-4 pointer-events-none z-10`}
+                                      } text-white opacity-0 group-hover:opacity-100 transition-opacity text-xs flex flex-col justify-center p-4 pointer-events-none z-10`}
                                     >
                                       <p className="uppercase tracking-wide text-[11px] mb-2 text-white/70">Nutrition</p>
                                       <div className="grid grid-cols-4 gap-3 text-center text-[11px]">
