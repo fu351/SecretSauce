@@ -253,6 +253,31 @@ img {
   overflow: visible !important;
 }
 
+.gm-style .gm-style-iw-c button.gm-ui-hover-effect {
+  top: 10px !important;
+  right: 10px !important;
+  width: 28px !important;
+  height: 28px !important;
+  transform: translate(0, 0) !important;
+  border-radius: 8px !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  box-shadow: none !important;
+}
+
+html.dark .gm-style .gm-style-iw-c button.gm-ui-hover-effect {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.gm-style .gm-style-iw-c button.gm-ui-hover-effect span {
+  width: 12px !important;
+  height: 12px !important;
+  margin: 8px !important;
+}
+
+html.dark .gm-style .gm-style-iw-c button.gm-ui-hover-effect span {
+  filter: invert(1);
+}
+
 .gm-style .gm-style-iw-t::after,
 .gm-style .gm-style-iw-t::before {
   display: none !important;
