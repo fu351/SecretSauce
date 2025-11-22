@@ -719,7 +719,15 @@ async function findNearestStoreWithPlaces(
       )
     })
 
-    const candidatePool = preferredCandidates.length > 0 ? preferredCandidates : candidates
+    const brandCandidates = candidates.filter((candidate) => {
+      const name = candidate.name
+      const vicinity = candidate.vicinity
+      const formatted = candidate.formatted_address
+      return brandCheck(name) || brandCheck(vicinity) || brandCheck(formatted)
+    })
+
+    const candidatePool =
+      brandCandidates.length > 0 ? brandCandidates : preferredCandidates.length > 0 ? preferredCandidates : candidates
 
     if (!candidatePool.length) {
       console.warn(`[Geocoding] Places search returned no usable candidates for ${storeName}`)
@@ -817,6 +825,7 @@ async function findNearestStoreWithPlaces(
         continue
       }
 
+      // Require a brand-family alignment to accept the candidate
       console.log("[Geocoding] Places result selected", { storeName, keywords: keywordsToTry, resolved })
       return resolved
     }
