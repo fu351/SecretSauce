@@ -49,6 +49,64 @@ const METERS_TO_MILES = 0.000621371
 const DIACRITIC_REGEX = /[\u0300-\u036f]/g
 const CURLY_APOSTROPHE_REGEX = /[\u2019\u2018]/g
 
+/**
+ * Calculate Levenshtein edit distance between two strings
+ * Uses optimized single-row algorithm for O(n) space complexity
+ */
+function levenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length
+  if (b.length === 0) return a.length
+  if (a === b) return 0
+
+  // Ensure a is the shorter string for space optimization
+  if (a.length > b.length) {
+    const temp = a
+    a = b
+    b = temp
+  }
+
+  const aLen = a.length
+  const bLen = b.length
+
+  // Single row optimization
+  const row = new Array(aLen + 1)
+  for (let i = 0; i <= aLen; i++) {
+    row[i] = i
+  }
+
+  for (let i = 1; i <= bLen; i++) {
+    let prev = i
+    for (let j = 1; j <= aLen; j++) {
+      const val = b[i - 1] === a[j - 1] ? row[j - 1] : Math.min(row[j - 1], prev, row[j]) + 1
+      row[j - 1] = prev
+      prev = val
+    }
+    row[aLen] = prev
+  }
+
+  return row[aLen]
+}
+
+/**
+ * Check if two strings are similar using Levenshtein distance
+ * Returns true if edit distance is within acceptable threshold
+ */
+function isFuzzyMatch(a: string, b: string, maxDistance?: number): boolean {
+  if (!a || !b) return false
+
+  const normA = a.toLowerCase().replace(/[^a-z0-9]/g, "")
+  const normB = b.toLowerCase().replace(/[^a-z0-9]/g, "")
+
+  if (normA === normB) return true
+  if (normA.length < 3 || normB.length < 3) return false
+
+  // Dynamic threshold: allow ~20% edit distance for longer strings
+  const threshold = maxDistance ?? Math.max(1, Math.floor(Math.min(normA.length, normB.length) * 0.2))
+  const distance = levenshteinDistance(normA, normB)
+
+  return distance <= threshold
+}
+
 const cleanStoreValue = (value: string) =>
   value
     .normalize("NFKD")
@@ -266,11 +324,20 @@ const createBrandMatcher = (storeName: string, aliasTokens?: string[]): ((value?
     if (!tokens.length) return false
     for (const sig of signatures) {
       for (const token of tokens) {
+        // Exact match
         if (token === sig) return true
+        // Token ends with signature (e.g., "superkroger" ends with "kroger")
         if (token.endsWith(sig) && token.length - sig.length <= 4) return true
+        // Signature ends with token (e.g., "kroger" ends with "oger" - but limit to very short differences)
         if (sig.endsWith(token) && sig.length - token.length <= 2) return true
-        // Also check if token contains the signature (more lenient matching)
-        if (token.includes(sig) || sig.includes(token)) return true
+        // Token starts with signature (e.g., "krogerplus" starts with "kroger")
+        if (token.startsWith(sig) && token.length - sig.length <= 4) return true
+        // STRICT: Only allow contains match if the signature is long enough (>=5 chars)
+        // This prevents "bowl" from matching "bowl" in "Berkeley Bowl"
+        if (sig.length >= 5 && token.includes(sig)) return true
+        // Fuzzy match using Levenshtein distance for typos/variations
+        // Only for signatures >= 4 chars to avoid false positives on short words
+        if (sig.length >= 4 && isFuzzyMatch(token, sig)) return true
       }
     }
     return false
@@ -704,30 +771,24 @@ async function findNearestStoreWithPlaces(
     const matcher = matchesRequestedStore ?? (() => false)
     const brandCheck = brandMatcher ?? (() => false)
 
-    const preferredCandidates = candidates.filter((candidate) => {
-      const name = candidate.name
-      const vicinity = candidate.vicinity
-      const formatted = candidate.formatted_address
-      return (
-        matcher(name) ||
-        matcher(vicinity) ||
-        matcher(formatted) ||
-        matcher(`${name} grocery store`) ||
-        brandCheck(name) ||
-        brandCheck(vicinity) ||
-        brandCheck(formatted)
-      )
-    })
-
+    // STRICT: Only use candidates that pass brand check - don't fall back to non-brand matches
     const brandCandidates = candidates.filter((candidate) => {
       const name = candidate.name
       const vicinity = candidate.vicinity
       const formatted = candidate.formatted_address
-      return brandCheck(name) || brandCheck(vicinity) || brandCheck(formatted)
+      const passes = brandCheck(name) || brandCheck(vicinity) || brandCheck(formatted)
+      if (!passes && name) {
+        console.log("[Geocoding] Rejecting candidate - no brand match", {
+          storeName,
+          candidateName: name,
+          vicinity,
+        })
+      }
+      return passes
     })
 
-    const candidatePool =
-      brandCandidates.length > 0 ? brandCandidates : preferredCandidates.length > 0 ? preferredCandidates : candidates
+    // Only use brand-matched candidates - don't fall back to unmatched results
+    const candidatePool = brandCandidates
 
     if (!candidatePool.length) {
       console.warn(`[Geocoding] Places search returned no usable candidates for ${storeName}`)
