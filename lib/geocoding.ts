@@ -757,7 +757,7 @@ async function findNearestStoreWithPlaces(
   if (isGenericHint) {
     keywordsToTry.push(storeName)
   } else {
-    keywordsToTry.push(`${storeName} grocery store`)
+    keywordsToTry.push(`${storeName} store`)
   }
 
   // Add regional subsidiary names as fallbacks (e.g., "Foods Co" for Kroger in Bay Area)
@@ -765,13 +765,20 @@ async function findNearestStoreWithPlaces(
   for (const member of familyMembers) {
     const normalizedMember = member.toLowerCase().replace(/[^a-z0-9]/g, "")
     if (normalizedMember !== normalizedStore) {
-      keywordsToTry.push(`${member} grocery store`)
+      keywordsToTry.push(`${member} store`)
     }
   }
 
   try {
     const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
     const radiusMeters = Math.min(effectiveMiles * 1609.34, 50000) // Places API max radius 50km
+
+    console.log("[Geocoding] Starting Places search", {
+      storeName,
+      keywordsToTry,
+      familyMembers,
+      radiusMeters,
+    })
 
     let candidates: GooglePlacesCandidate[] = []
 
@@ -891,18 +898,24 @@ async function findNearestStoreWithPlaces(
         })
         continue
       }
-      if (
-        matcher(resolved.matchedName) ||
-        matcher(resolved.formattedAddress) ||
-        brandCheck(resolved.matchedName) ||
-        brandCheck(resolved.formattedAddress)
-      ) {
-        console.log("[Geocoding] Places result selected", { storeName, keyword, resolved })
+      const matcherResult = matcher(resolved.matchedName) || matcher(resolved.formattedAddress)
+      const brandCheckResult = brandCheck(resolved.matchedName) || brandCheck(resolved.formattedAddress)
+
+      if (matcherResult || brandCheckResult) {
+        console.log("[Geocoding] Places result selected", { storeName, keywords: keywordsToTry, resolved })
         return resolved
+      } else {
+        console.log("[Geocoding] Candidate didn't pass brand check", {
+          storeName,
+          candidateName: resolved.matchedName,
+          formattedAddress: resolved.formattedAddress,
+          matcherResult,
+          brandCheckResult,
+        })
       }
     }
 
-    console.warn(`[Geocoding] No Places candidates for ${storeName} had valid coordinates`)
+    console.warn(`[Geocoding] No Places candidates for ${storeName} passed brand check`, { keywordsToTry })
     return null
   } catch (error) {
     console.error(`[Geocoding] Error finding nearest store for ${storeName}:`, error)
