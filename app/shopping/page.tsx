@@ -635,12 +635,12 @@ export default function ShoppingPage() {
     })
   }
 
-  const fetchCheapestOptions = async (term: string, storeOverride?: string) => {
+  const fetchCheapestOptions = async (term: string, storeOverride?: string, forceRefresh?: boolean) => {
     if (!term.trim()) return
     setItemSearchModalLoading(true)
     try {
       const targetStore = storeOverride ?? itemSearchSource?.store
-      const storeResults = await searchGroceryStores(term, zipCode, targetStore)
+      const storeResults = await searchGroceryStores(term, zipCode, targetStore, undefined, forceRefresh)
       const flattened = storeResults.flatMap((store) =>
         store.items.map((item) => ({
           ...item,
@@ -665,6 +665,7 @@ export default function ShoppingPage() {
   const openItemSearchOverlay = (
     term: string,
     source: { type: "shopping-list" | "missing" | "search-results"; shoppingItemId?: string; store?: string } | null = null,
+    forceRefresh?: boolean,
   ) => {
     const normalizedTerm = term.trim()
     const storeOverride = source?.store
@@ -673,7 +674,7 @@ export default function ShoppingPage() {
     setItemSearchModalResults([])
     setItemSearchModalOpen(true)
     if (normalizedTerm) {
-      fetchCheapestOptions(normalizedTerm, storeOverride)
+      fetchCheapestOptions(normalizedTerm, storeOverride, forceRefresh)
     }
   }
 
@@ -1499,7 +1500,7 @@ const getStoreLogoPath = (store: string) => {
                                 type: "shopping-list",
                                 shoppingItemId: item.shoppingItemId,
                                 store: comparison.store,
-                              })
+                              }, true) // forceRefresh = true to bypass cache
                             }
                             className={`h-6 px-2 ${buttonOutlineClass}`}
                           >
@@ -1554,7 +1555,7 @@ const getStoreLogoPath = (store: string) => {
                                 type: "missing",
                                 shoppingItemId: listItem.id,
                                 store: comparison.store,
-                              })
+                              }, true) // forceRefresh = true to bypass cache
                             }
                             className={`h-7 px-2 text-xs ${buttonOutlineClass}`}
                           >
@@ -2044,7 +2045,7 @@ const getStoreLogoPath = (store: string) => {
                                 size="sm"
                                 variant="outline"
                                 onClick={() =>
-                                  openItemSearchOverlay(item.name, { type: "missing", shoppingItemId: item.id })
+                                  openItemSearchOverlay(item.name, { type: "missing", shoppingItemId: item.id }, true) // forceRefresh
                                 }
                                 className={`h-9 px-3 ${buttonOutlineClass}`}
                               >

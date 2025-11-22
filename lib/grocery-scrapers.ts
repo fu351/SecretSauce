@@ -21,7 +21,8 @@ export async function searchGroceryStores(
   searchTerm: string,
   zipCode = "47906",
   store?: string,
-  recipeId?: string
+  recipeId?: string,
+  forceRefresh?: boolean
 ): Promise<StoreResults[]> {
   try {
     // Use the local API route which can access the scrapers
@@ -29,8 +30,9 @@ export async function searchGroceryStores(
     const timeout = setTimeout(() => controller.abort(), 60000) // Increased to 60 seconds for slower scrapers
     const storeQuery = store ? `&store=${encodeURIComponent(store)}` : ""
     const recipeQuery = recipeId ? `&recipeId=${encodeURIComponent(recipeId)}` : ""
+    const forceRefreshQuery = forceRefresh ? "&forceRefresh=true" : ""
     const response = await fetch(
-      `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}${storeQuery}${recipeQuery}`,
+      `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}${storeQuery}${recipeQuery}${forceRefreshQuery}`,
       { signal: controller.signal }
     )
 

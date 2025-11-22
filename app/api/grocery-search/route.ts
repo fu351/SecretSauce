@@ -32,6 +32,7 @@ async function scrapeDirectFallback(
     pricePerUnit?: string | null
     image_url?: string | null
     provider: string
+    location?: string | null
   }>
 > {
   try {
@@ -73,6 +74,7 @@ async function scrapeDirectFallback(
             pricePerUnit: item.pricePerUnit || null,
             image_url: item.image_url || null,
             provider: store,
+            location: item.location || null,
           }))
           .forEach((item: any) => results.push(item))
       } catch (error) {
@@ -149,6 +151,7 @@ export async function GET(request: NextRequest) {
   const rawStoreParam = (searchParams.get("store") || "").trim()
   const storeKey = resolveStoreKey(rawStoreParam)
   const storeKeys = storeKey ? [storeKey] : DEFAULT_STORE_KEYS
+  const forceRefresh = searchParams.get("forceRefresh") === "true"
 
   const supabaseClient = createServerClient()
 
@@ -187,7 +190,86 @@ export async function GET(request: NextRequest) {
     zipToUse,
     recipeId,
     stores: storeKeys,
+    forceRefresh,
   })
+
+  // If forceRefresh is true, skip cache and go directly to scrapers
+  if (forceRefresh) {
+    console.log("[grocery-search] Force refresh requested, bypassing cache and scraping directly")
+
+    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse)
+
+    if (directItems.length > 0) {
+      // Resolve standardized ID for caching
+      if (recipeId) {
+        standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
+          supabaseClient,
+          recipeId,
+          sanitizedSearchTerm,
+        )
+      }
+      if (!standardizedIngredientId) {
+        standardizedIngredientId = await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId)
+      }
+
+      // Fire-and-forget cache write
+      if (standardizedIngredientId) {
+        Promise.resolve()
+          .then(async () => {
+            const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            for (const item of directItems) {
+              const storeKey = item.provider.toLowerCase()
+              const payload = {
+                standardized_ingredient_id: standardizedIngredientId,
+                store: storeKey,
+                product_name: item.title,
+                price: item.price,
+                quantity: 1,
+                unit: item.unit || "unit",
+                unit_price: item.pricePerUnit
+                  ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
+                  : null,
+                image_url: item.image_url || null,
+                product_id: item.id,
+                location: item.location || null,
+                expires_at: expires,
+              }
+
+              await supabaseClient
+                .from("ingredient_cache")
+                .upsert(payload, { onConflict: "standardized_ingredient_id,store,product_id" })
+            }
+            console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
+          })
+          .catch((error) => console.error("[grocery-search] Force refresh cache write failed", error))
+      }
+
+      return NextResponse.json({
+        results: directItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          brand: "",
+          price: item.price,
+          pricePerUnit: item.pricePerUnit || (item.unit ? `${item.price}/${item.unit}` : undefined),
+          unit: item.unit || "",
+          image_url: item.image_url || "/placeholder.svg",
+          provider: mapStoreKeyToName(item.provider.toLowerCase()),
+          location: item.location || `${mapStoreKeyToName(item.provider.toLowerCase())} Grocery`,
+          category: "Grocery",
+        })),
+        cached: false,
+        source: "scraper-force-refresh",
+      })
+    }
+
+    return NextResponse.json({
+      results: [],
+      cached: false,
+      source: "unavailable",
+      message: "No prices available right now. Please try again.",
+    })
+  }
+
   try {
     if (recipeId) {
       standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
