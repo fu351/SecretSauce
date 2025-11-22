@@ -520,20 +520,19 @@ async function geocodeStoreHint(
       lat: candidate.geometry.location.lat,
       lng: candidate.geometry.location.lng,
       formattedAddress: candidate.formatted_address,
-      matchedName: storeHint || candidate.address_components?.[0]?.long_name,
+      matchedName: candidate.address_components?.[0]?.long_name || candidate.formatted_address,
     }
 
     // Skip brand validation for full street addresses from scrapers
     // These are exact store locations from the store's own API, so we trust them
     if (!isFullStreetAddress) {
       const signatureHit =
-        matchesRequestedStore(resolved.matchedName) ||
-        matchesRequestedStore(resolved.formattedAddress) ||
-        brandMatcher(resolved.matchedName) ||
-        brandMatcher(resolved.formattedAddress)
+        matchesRequestedStore(resolved.matchedName) || matchesRequestedStore(resolved.formattedAddress)
+      const brandHit = brandMatcher(resolved.matchedName) || brandMatcher(resolved.formattedAddress)
 
       if (
         !signatureHit &&
+        !brandHit &&
         !(isFallbackFormat && zipFromHint && resolved.formattedAddress?.includes(zipFromHint))
       ) {
         console.warn(`[Geocoding] Hint result for ${storeName} failed signature/brand check`, {
