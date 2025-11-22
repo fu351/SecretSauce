@@ -796,10 +796,7 @@ async function findNearestStoreWithPlaces(
       const matcherResult = matcher(resolved.matchedName) || matcher(resolved.formattedAddress)
       const brandCheckResult = brandCheck(resolved.matchedName) || brandCheck(resolved.formattedAddress)
 
-      if (matcherResult || brandCheckResult) {
-        console.log("[Geocoding] Places result selected", { storeName, keywords: keywordsToTry, resolved })
-        return resolved
-      } else {
+      if (!brandCheckResult && !matcherResult) {
         console.log("[Geocoding] Candidate didn't pass brand check", {
           storeName,
           candidateName: resolved.matchedName,
@@ -807,7 +804,22 @@ async function findNearestStoreWithPlaces(
           matcherResult,
           brandCheckResult,
         })
+        continue
       }
+
+      if (!brandCheckResult) {
+        console.log("[Geocoding] Skipping off-brand candidate despite signature match", {
+          storeName,
+          candidateName: resolved.matchedName,
+          formattedAddress: resolved.formattedAddress,
+          matcherResult,
+          brandCheckResult,
+        })
+        continue
+      }
+
+      console.log("[Geocoding] Places result selected", { storeName, keywords: keywordsToTry, resolved })
+      return resolved
     }
 
     console.warn(`[Geocoding] No Places candidates for ${storeName} passed brand check`, { keywordsToTry })
