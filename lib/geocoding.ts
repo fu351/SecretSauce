@@ -85,7 +85,8 @@ const BRAND_FAMILY_MAP: Record<string, string[]> = {
   kroger: [
     "kroger", "ralphs", "fredmeyer", "fred meyer", "smiths", "frys", "fry's",
     "kingsoopers", "king soopers", "marianos", "mariano's", "picknsave", "pick n save",
-    "food4less", "food 4 less", "foodsco", "foods co", "food co", "citymarket", "city market",
+    "food4less", "food 4 less", "food4-less", "food 4-less", "foodsco", "foods co", "food co", "foodco",
+    "citymarket", "city market",
     "dillons", "harristeeter", "harris teeter", "bakers", "gerbes", "qfc", "metro market"
   ],
   safeway: [
@@ -129,6 +130,12 @@ function getBrandFamilyMembers(storeName: string): string[] {
   }
 
   return []
+}
+
+const looksLikeFormattedAddress = (value?: string) => {
+  if (!value) return false
+  const normalized = value.trim()
+  return /\d{3,}/.test(normalized) && /[,]/.test(normalized)
 }
 
 const createStoreSignatureMatcher = (
@@ -328,13 +335,14 @@ export async function geocodeStore(
     const isRelaxed = options?.relaxed ?? false
     const matchesRequestedStore = createStoreSignatureMatcher(storeName, storeHint, options?.aliasTokens)
     const brandMatcher = createBrandMatcher(storeName, options?.aliasTokens)
+    const hintLooksLikeAddress = looksLikeFormattedAddress(storeHint)
 
     const baseRadius = Math.max(groceryDistanceMiles ?? 10, 5)
     const allowedMiles = baseRadius * (isRelaxed ? 3 : 1.5)
     const allowedDriveMiles = baseRadius * (isRelaxed ? 4 : 2)
     const strictHintLimitMiles = baseRadius * 3
 
-    if (storeHint) {
+    if (storeHint && hintLooksLikeAddress) {
       const hintResult = await geocodeStoreHint(
         storeName,
         storeHint,
@@ -440,152 +448,8 @@ export async function geocodeStore(
       }
     }
 
-    // Build search query: store name + postal code for better accuracy
-    // Note: This is a fallback - Places Nearby Search should have found the store above
-    // If we reach here, it means Places API didn't return any matching results
-    const baseQuery = storeHint || storeName
-    const searchQuery = userPostalCode ? `${baseQuery} ${userPostalCode}` : baseQuery
-    console.log(`[Geocoding] Places API failed to find ${storeName}, falling back to geocode with query: ${searchQuery}`)
-
-    const data = await callMapsProxy<GoogleGeocodeResponse>("geocode", { address: searchQuery })
-    if (!data) {
-      console.error("Geocoding API error: empty response")
-      return null
-    }
-
-    if (data.status !== "OK" || !data.results || data.results.length === 0) {
-      console.warn(`No geocoding results found for: ${storeName}`)
-      return null
-    }
-
-    // If user coordinates provided, find the closest result
-    let selectedResult = data.results[0]
-
-    if (userCoordinates && data.results.length > 1) {
-      selectedResult = data.results.reduce((closest: any, current: any) => {
-        const closestDist = calculateDistance(
-          userCoordinates.lat,
-          userCoordinates.lng,
-          closest.geometry.location.lat,
-          closest.geometry.location.lng
-        )
-
-        const currentDist = calculateDistance(
-          userCoordinates.lat,
-          userCoordinates.lng,
-          current.geometry.location.lat,
-          current.geometry.location.lng
-        )
-
-        return currentDist < closestDist ? current : closest
-      })
-    }
-
-    const primaryComponent = selectedResult.address_components?.find((component: any) => {
-      const types: string[] | undefined = component?.types
-      if (!types) return false
-      return types.includes("establishment") || types.includes("point_of_interest")
-    })
-
-    const fallbackComponent = selectedResult.address_components?.[0]
-    const candidateName = primaryComponent?.long_name || fallbackComponent?.long_name || null
-    const formattedTop = selectedResult.formatted_address?.split(",")?.[0]?.trim() || undefined
-
-    const result: GeocodeResult = {
-      lat: selectedResult.geometry.location.lat,
-      lng: selectedResult.geometry.location.lng,
-      formattedAddress: selectedResult.formatted_address,
-      matchedName: candidateName || formattedTop || undefined,
-    }
-
-    // Check if the result matches our store - use lenient matching
-    const signatureMatch = matchesRequestedStore(result.matchedName) || matchesRequestedStore(result.formattedAddress)
-    const brandMatch = brandMatcher(result.matchedName) || brandMatcher(result.formattedAddress)
-
-    if (!signatureMatch && !brandMatch) {
-      // Log for debugging but be more lenient - if we got a result from geocoding the store name,
-      // it's probably correct even if the exact name matching fails
-      console.log(`[Geocoding] ${storeName} geocode result name check (lenient mode):`, {
-        storeHint,
-        matchedName: result.matchedName,
-        formattedAddress: result.formattedAddress,
-        signatureMatch,
-        brandMatch,
-      })
-      // Don't reject - proceed with the result since we searched for this specific store
-    }
-
-    if (userCoordinates) {
-      const distanceKm = calculateDistance(
-        userCoordinates.lat,
-        userCoordinates.lng,
-        result.lat,
-        result.lng
-      )
-      const distanceMiles = distanceKm * KM_TO_MILES
-      if (
-        distanceMiles < 0.2 &&
-        !matchesRequestedStore(result.matchedName) &&
-        !matchesRequestedStore(result.formattedAddress) &&
-        !brandMatcher(result.matchedName)
-      ) {
-        console.warn("[Geocoding] Ignoring result that matches user coordinates but not store", {
-          storeName,
-          matchedName: result.matchedName,
-          formattedAddress: result.formattedAddress,
-          distanceMiles,
-        })
-        return null
-      }
-    }
-
-    if (!coordinatesAppearValid(result.lat, result.lng)) {
-      console.warn(`[Geocoding] ${storeName} fallback geocode returned invalid coordinates`, {
-        coordinates: result,
-        searchQuery,
-      })
-      return null
-    }
-
-    if (userCoordinates) {
-      const distanceKm = calculateDistance(
-        userCoordinates.lat,
-        userCoordinates.lng,
-        result.lat,
-        result.lng
-      )
-      const distanceMiles = distanceKm * KM_TO_MILES
-      if (distanceMiles > allowedMiles) {
-        console.warn(
-          `[Geocoding] ${storeName} geocoded ${distanceMiles.toFixed(
-            1
-          )} miles away (limit ${allowedMiles.toFixed(1)}).${isRelaxed ? " Keeping due to relaxed mode." : " Ignoring this result."}`
-        )
-        if (!isRelaxed) {
-          return null
-        }
-      }
-
-      const routeCheck = await verifyRouteDistance(userCoordinates, result)
-      if (!routeCheck.ok) {
-        console.warn(`[Geocoding] Routes API failed for ${storeName}, relying on straight-line distance.`)
-      } else if (routeCheck.distanceMiles !== undefined) {
-        if (routeCheck.distanceMiles > allowedDriveMiles) {
-          console.warn(
-            `[Geocoding] ${storeName} driving distance ${routeCheck.distanceMiles.toFixed(
-              1
-            )} miles exceeds limit (${allowedDriveMiles.toFixed(1)}).${isRelaxed ? " Keeping due to relaxed mode." : " Ignoring this result."}`
-          )
-          if (!isRelaxed) {
-            return null
-          }
-        }
-      }
-    }
-
-    console.log(`[Geocoding] Successfully geocoded ${storeName}: lat=${result.lat}, lng=${result.lng}`)
-
-    return result
+    console.warn(`[Geocoding] No Places candidates for ${storeName} passed validation`)
+    return null
   } catch (error) {
     console.error("Geocoding error:", error)
     return null
@@ -613,31 +477,33 @@ async function geocodeStoreHint(
     const isFullStreetAddress = /^\d+\s+[\w\s]+,/.test(trimmedHint) && /\d{5}/.test(trimmedHint)
 
     // Check if the hint is just a fallback format like "StoreName (zipCode)" or "StoreName Grocery"
-    // These should NOT be trusted for geocoding as they'll just return zip code centroids
-    // Patterns to detect:
-    // - "StoreName (zipCode)" e.g., "Aldi (94704)"
-    // - "StoreName Grocery" e.g., "Aldi Grocery", "Walmart Grocery"
-    // - "StoreName Store" e.g., "Target Store"
-    // - "City, State" only (without street address) e.g., "West Lafayette, IN"
-    // - Just a store name with optional location suffix
+    // These can be coarse, but we'll still attempt a relaxed geocode instead of skipping entirely.
     const isFallbackFormat =
-      /^[\w\s']+\s*\(\d{5}\)$/.test(trimmedHint) ||                    // StoreName (zipCode)
-      /^[\w\s']+\s+(Store|Grocery|Market|Supermarket)$/i.test(trimmedHint) ||  // StoreName Grocery
-      /^[\w\s]+,\s*[A-Z]{2}$/i.test(trimmedHint) ||                    // City, State (no street)
-      /^(Target|Walmart|Kroger|Aldi|Meijer|Trader Joe'?s?|Whole Foods|99 Ranch)\s*(Grocery|Store|Market)?$/i.test(trimmedHint)  // Just brand name
+      /^[\w\s']+\s*\(\d{5}\)$/.test(trimmedHint) || // StoreName (zipCode)
+      /^[\w\s']+\s+(Store|Grocery|Market|Supermarket)$/i.test(trimmedHint) || // StoreName Grocery
+      /^[\w\s]+,\s*[A-Z]{2}$/i.test(trimmedHint) || // City, State (no street)
+      /^(Target|Walmart|Kroger|Aldi|Meijer|Trader Joe'?s?|Whole Foods|99 Ranch)\s*(Grocery|Store|Market)?$/i.test(
+        trimmedHint,
+      ) // Just brand name
 
-    if (isFallbackFormat) {
-      console.log(`[Geocoding] Hint "${trimmedHint}" is a fallback format, skipping hint geocoding for ${storeName}`)
-      return null
-    }
+    const zipFromHint = trimmedHint.match(/\b\d{5}\b/)?.[0]
 
     // For full street addresses from scrapers, use the address directly without prepending store name
-    // This gives more accurate geocoding results
+    // Otherwise, build a query that keeps the store name in front. For fallback hints, lean on the zip/city.
     const query = isFullStreetAddress
       ? trimmedHint
-      : trimmedHint.toLowerCase().includes(storeName.toLowerCase())
-        ? trimmedHint
-        : `${storeName} ${trimmedHint}`
+      : isFallbackFormat
+        ? `${storeName} near ${zipFromHint ?? trimmedHint}`
+        : trimmedHint.toLowerCase().includes(storeName.toLowerCase())
+          ? trimmedHint
+          : `${storeName} ${trimmedHint}`
+
+    if (isFallbackFormat) {
+      console.log(`[Geocoding] Hint "${trimmedHint}" is a fallback format, attempting coarse geocode for ${storeName}`, {
+        query,
+        zipFromHint,
+      })
+    }
 
     const data = await callMapsProxy<GoogleGeocodeResponse>("geocode", { address: query })
     if (!data) {
@@ -660,22 +526,21 @@ async function geocodeStoreHint(
     // Skip brand validation for full street addresses from scrapers
     // These are exact store locations from the store's own API, so we trust them
     if (!isFullStreetAddress) {
+      const signatureHit =
+        matchesRequestedStore(resolved.matchedName) ||
+        matchesRequestedStore(resolved.formattedAddress) ||
+        brandMatcher(resolved.matchedName) ||
+        brandMatcher(resolved.formattedAddress)
+
       if (
-        !matchesRequestedStore(resolved.matchedName) &&
-        !matchesRequestedStore(resolved.formattedAddress) &&
-        !brandMatcher(resolved.matchedName) &&
-        !brandMatcher(resolved.formattedAddress)
+        !signatureHit &&
+        !(isFallbackFormat && zipFromHint && resolved.formattedAddress?.includes(zipFromHint))
       ) {
-        console.warn(`[Geocoding] Hint result for ${storeName} failed signature match`, {
+        console.warn(`[Geocoding] Hint result for ${storeName} failed signature/brand check`, {
           storeHint,
           resolved,
-        })
-        return null
-      }
-      if (!brandMatcher(resolved.matchedName) && !brandMatcher(resolved.formattedAddress)) {
-        console.warn(`[Geocoding] Hint result for ${storeName} failed brand check`, {
-          storeHint,
-          resolved,
+          isFallbackFormat,
+          zipFromHint,
         })
         return null
       }
@@ -744,8 +609,8 @@ async function findNearestStoreWithPlaces(
   matchesRequestedStore?: (value?: string) => boolean,
   brandMatcher?: (value?: string) => boolean
 ): Promise<GeocodeResult | null> {
-  // Build a clean search keyword - prioritize just the store name for Places API
-  // The location/radius parameters will handle proximity filtering
+  // Build a clean search keyword - prioritize just the store name for Places API.
+  // Text Search handles "Store near ZIP" more robustly than Nearby; we try Text first, then Nearby.
   // Don't add the hint if it's a generic fallback like "Aldi Grocery" - just use the store name
   const isGenericHint = storeHint && /^[\w\s']+\s*(Grocery|Store|Market|Supermarket)?$/i.test(storeHint)
 
@@ -784,41 +649,52 @@ async function findNearestStoreWithPlaces(
 
     // Try each keyword until we get results
     for (const keyword of keywordsToTry) {
-      console.log("[Geocoding] Nearby search request", {
-        storeName,
-        keyword,
-        userCoordinates,
-        radiusMeters,
+      const textQuery = postalCode ? `${keyword} near ${postalCode}` : keyword
+
+      // Text Search first (better for "Store + ZIP")
+      const textData = await callMapsProxy<GooglePlacesResponse>("place-text", {
+        query: textQuery,
+        location: userCoordinates,
+        radius: radiusMeters,
       })
 
-      let data = await callMapsProxy<GooglePlacesResponse>("place-nearby", {
+      if (textData?.status === "OK" && textData.results?.length) {
+        console.log(`[Geocoding] Found ${textData.results.length} results for "${textQuery}" via Text Search`)
+        candidates = textData.results
+        break
+      }
+
+      console.warn(`[Geocoding] Text Search returned ${textData?.status ?? "NO_RESPONSE"} for ${textQuery}, trying Nearby`)
+
+      // Nearby Search fallback for this keyword
+      const nearbyData = await callMapsProxy<GooglePlacesResponse>("place-nearby", {
         location: userCoordinates,
         radius: radiusMeters,
         keyword,
         type: "grocery_or_supermarket",
       })
 
-      if (data?.status === "OK" && data.results?.length) {
-        console.log(`[Geocoding] Found ${data.results.length} results for "${keyword}" via Nearby Search`)
-        candidates = data.results
-        break // Found results, stop trying
+      if (nearbyData?.status === "OK" && nearbyData.results?.length) {
+        console.log(`[Geocoding] Found ${nearbyData.results.length} results for "${keyword}" via Nearby Search`)
+        candidates = nearbyData.results
+        break
       }
 
-      // Try text search as fallback for this keyword
-      console.warn(`[Geocoding] Nearby search returned ${data?.status ?? "NO_RESPONSE"} for ${keyword}, trying Text Search`)
-      data = await callMapsProxy<GooglePlacesResponse>("place-text", {
-        query: `${keyword}`,
+      console.warn(
+        `[Geocoding] Nearby search also returned ${nearbyData?.status ?? "NO_RESPONSE"} for ${keyword}`
+      )
+    }
+
+    if (candidates.length === 0 && postalCode) {
+      console.warn(`[Geocoding] No keyword hits for ${storeName}, trying postal-only text search`, { postalCode })
+      const data = await callMapsProxy<GooglePlacesResponse>("place-text", {
+        query: `${storeName} near ${postalCode}`,
         location: userCoordinates,
-        radius: radiusMeters,
+        radius: Math.min(effectiveMiles * 1609.34 * 2, 50000),
       })
-
       if (data?.status === "OK" && data.results?.length) {
-        console.log(`[Geocoding] Found ${data.results.length} results for "${keyword}" via Text Search`)
         candidates = data.results
-        break // Found results, stop trying
       }
-
-      console.warn(`[Geocoding] Text Search also returned ${data?.status ?? "NO_RESPONSE"} for ${keyword}`)
     }
 
     if (candidates.length === 0) {
@@ -856,6 +732,11 @@ async function findNearestStoreWithPlaces(
         const lat = candidate.geometry?.location?.lat
         const lng = candidate.geometry?.location?.lng
         if (typeof lat !== "number" || typeof lng !== "number") {
+          console.warn("[Geocoding] Candidate missing coordinates", {
+            storeName,
+            candidateName: candidate.name,
+            vicinity: candidate.vicinity,
+          })
           return null
         }
         return {
@@ -865,6 +746,13 @@ async function findNearestStoreWithPlaces(
       })
       .filter((entry): entry is { candidate: GooglePlacesCandidate; distance: number } => Boolean(entry))
       .sort((a, b) => a.distance - b.distance)
+
+    if (sortedCandidates.length === 0) {
+      console.warn(`[Geocoding] No Places candidates for ${storeName} had valid coordinates`, {
+        candidateNames: candidatePool.map((c) => c.name),
+      })
+      return null
+    }
 
     for (const entry of sortedCandidates) {
       const candidate = entry.candidate
@@ -884,6 +772,13 @@ async function findNearestStoreWithPlaces(
         formattedAddress: candidate.vicinity || candidate.formatted_address,
         matchedName: candidate.name,
       }
+
+      console.log("[Geocoding] Evaluating Places candidate", {
+        storeName,
+        candidateName: candidate.name,
+        distanceMiles: calculateDistance(userCoordinates.lat, userCoordinates.lng, lat, lng) * KM_TO_MILES,
+        vicinity: candidate.vicinity || candidate.formatted_address,
+      })
 
       if (
         userCoordinates &&

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react"
+import { APIProvider, Map, useMap } from "@vis.gl/react-google-maps"
 import { useTheme } from "@/contexts/theme-context"
 import { geocodeMultipleStores, geocodePostalCode, getUserLocation, canonicalizeStoreName } from "@/lib/geocoding"
 import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car, Search } from "lucide-react"
@@ -18,6 +19,16 @@ const HTML_ESCAPE_LOOKUP: Record<string, string> = {
 
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (char) => HTML_ESCAPE_LOOKUP[char as keyof typeof HTML_ESCAPE_LOOKUP] ?? char)
+
+const MapInstanceBridge = ({ onReady }: { onReady: (map: google.maps.Map) => void }) => {
+  const map = useMap()
+  useEffect(() => {
+    if (map) {
+      onReady(map)
+    }
+  }, [map, onReady])
+  return null
+}
 
 // Declare google namespace for TypeScript
 declare global {
@@ -193,7 +204,6 @@ function calculateDistance(
  */
 export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selectedStoreIndex, maxDistanceMiles }: StoreMapProps) {
   const { theme } = useTheme()
-  const mapRef = useRef<HTMLDivElement>(null)
   const googleMapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<Map<number, google.maps.Marker>>(new Map())
   const storeLocationsRef = useRef<Map<number, { lat: number; lng: number }>>(new Map())
@@ -213,9 +223,24 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
   const [showRoutes, setShowRoutes] = useState(false)
   const [travelTimes, setTravelTimes] = useState<Map<number, string>>(new Map())
   const [skippedStores, setSkippedStores] = useState<string[]>([])
+  const [mapReady, setMapReady] = useState(false)
+
+  const mapApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID
 
   const isDark = theme === "dark"
   const radiusLimitMiles = maxDistanceMiles ? maxDistanceMiles * 3 : null
+  const handleMapReady = useCallback((map: google.maps.Map) => {
+    googleMapRef.current = map
+    setMapReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mapApiKey) {
+      setError("Google Maps API key not configured")
+      setIsLoading(false)
+    }
+  }, [mapApiKey])
 
   const buildInfoWindowContent = useCallback(
     (comparison: StoreComparison, travelTime?: string, matchedName?: string) => {
@@ -407,9 +432,18 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
         setSkippedStores([])
         setError(null)
 
-        // Check if Google Maps API is loaded
-        if (typeof google === "undefined") {
-          setError("Google Maps API not loaded. Please ensure you have configured NEXT_PUBLIC_GOOGLE_MAPS_API_KEY.")
+        if (!mapApiKey) {
+          setError("Google Maps API key not configured")
+          setIsLoading(false)
+          return
+        }
+
+        // Wait for map context to be ready
+        if (!mapReady) {
+          return
+        }
+        if (typeof google === "undefined" || !googleMapRef.current) {
+          setError("Google Maps API not loaded. Please ensure the script is available.")
           setIsLoading(false)
           return
         }
@@ -431,12 +465,6 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           console.warn("[StoreMap] No user location available for initial map render", { userPostalCode })
         }
 
-        if (!mapRef.current) {
-          setError("Map container not found")
-          setIsLoading(false)
-          return
-        }
-
         // Clear previous markers and routes before re-rendering
         markersRef.current.forEach((marker) => marker.setMap(null))
         markersRef.current.clear()
@@ -446,24 +474,22 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
         travelTimesRef.current.clear()
         setTravelTimes(new Map())
 
-        if (!googleMapRef.current) {
-          // Initialize Google Map
-          googleMapRef.current = new google.maps.Map(mapRef.current, {
-            zoom: 12,
-            mapTypeControl: true,
-            fullscreenControl: true,
-            zoomControl: true,
-            styles: mapStyle,
-          })
+        const map = googleMapRef.current
+        map.setOptions({
+          mapTypeControl: true,
+          fullscreenControl: true,
+          zoomControl: true,
+          styles: mapStyle,
+        })
 
-          // Initialize Directions Service for route visualization
+        if (!directionsServiceRef.current) {
           directionsServiceRef.current = new google.maps.DirectionsService()
+        }
+        if (!infoWindowRef.current) {
           infoWindowRef.current = new google.maps.InfoWindow({
             maxWidth: 280,
           })
         }
-
-        const map = googleMapRef.current
 
         // Add user location marker if available
         if (userMarkerRef.current) {
@@ -647,7 +673,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
     }
 
     initializeMap()
-  }, [comparisons, userPostalCode, isDark, mapStyle, maxDistanceMiles])
+  }, [comparisons, userPostalCode, isDark, mapStyle, maxDistanceMiles, mapReady, mapApiKey])
 
   // Update map styles when theme changes
   useEffect(() => {
@@ -926,9 +952,25 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
 
       <div
         className={clsx("w-full rounded-lg border overflow-hidden", isDark ? "border-[#e8dcc4]/30" : "border-orange-200")}
-        style={{ height: "500px", display: isLoading ? "none" : "block" }}
+        style={{ height: "500px" }}
       >
-        <div ref={mapRef} className="w-full h-full" />
+        {mapApiKey ? (
+          <APIProvider apiKey={mapApiKey} libraries={["places"]}>
+            <Map
+              mapId={mapId}
+              defaultCenter={userLocation ?? { lat: 37.7749, lng: -122.4194 }}
+              defaultZoom={12}
+              gestureHandling="greedy"
+              className="w-full h-full"
+            >
+              <MapInstanceBridge onReady={handleMapReady} />
+            </Map>
+          </APIProvider>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-sm text-red-600 bg-red-50">
+            Missing Google Maps API key.
+          </div>
+        )}
       </div>
 
       {!isLoading && skippedStores.length > 0 && (

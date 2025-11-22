@@ -40,6 +40,7 @@
     "@radix-ui/react-tooltip": "latest",
     "@supabase/supabase-js": "latest",
     "@types/lodash": "^4.17.20",
+    "@vis.gl/react-google-maps": "^1.7.7",
     "@vercel/speed-insights": "latest",
     "autoprefixer": "^10.4.20",
     "axios": "latest",
