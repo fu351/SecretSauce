@@ -318,11 +318,30 @@ const createBrandMatcher = (storeName: string, aliasTokens?: string[]): ((value?
     return () => false
   }
 
+  // Get all brand family members for fuzzy matching
+  const familyMembers = getBrandFamilyMembers(storeName)
+  const allFamilySignatures = new Set<string>()
+  for (const member of familyMembers) {
+    const sig = canonicalizeStoreName(member)
+    if (sig && sig.length >= MIN_SIGNATURE_LENGTH) {
+      allFamilySignatures.add(sig)
+    }
+  }
+
   return (value?: string) => {
     if (!value) return false
     const tokens = normalizeTokens(value)
     if (!tokens.length) return false
+
+    // Also check the full normalized value for multi-word matches like "trader joes"
+    const fullNormalized = canonicalizeStoreName(value)
+
     for (const sig of signatures) {
+      // Check full value first (handles "Trader Joe's" -> "traderjoes")
+      if (fullNormalized === sig) return true
+      if (sig.length >= 5 && fullNormalized.includes(sig)) return true
+      if (fullNormalized.startsWith(sig) && fullNormalized.length - sig.length <= 4) return true
+
       for (const token of tokens) {
         // Exact match
         if (token === sig) return true
@@ -335,11 +354,18 @@ const createBrandMatcher = (storeName: string, aliasTokens?: string[]): ((value?
         // STRICT: Only allow contains match if the signature is long enough (>=5 chars)
         // This prevents "bowl" from matching "bowl" in "Berkeley Bowl"
         if (sig.length >= 5 && token.includes(sig)) return true
-        // Fuzzy match using Levenshtein distance for typos/variations
-        // Only for signatures >= 4 chars to avoid false positives on short words
-        if (sig.length >= 4 && isFuzzyMatch(token, sig)) return true
       }
     }
+
+    // Fuzzy match against brand family members
+    // This catches typos like "Krogar" -> "Kroger" or regional variants
+    for (const familySig of allFamilySignatures) {
+      if (familySig.length >= 4 && isFuzzyMatch(fullNormalized, familySig)) return true
+      for (const token of tokens) {
+        if (familySig.length >= 4 && isFuzzyMatch(token, familySig)) return true
+      }
+    }
+
     return false
   }
 }
