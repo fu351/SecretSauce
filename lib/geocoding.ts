@@ -748,40 +748,75 @@ async function findNearestStoreWithPlaces(
   // The location/radius parameters will handle proximity filtering
   // Don't add the hint if it's a generic fallback like "Aldi Grocery" - just use the store name
   const isGenericHint = storeHint && /^[\w\s']+\s*(Grocery|Store|Market|Supermarket)?$/i.test(storeHint)
-  const keyword = isGenericHint ? `${storeName}` : `${storeName} grocery store`
+
+  // Get brand family members for fallback searches (e.g., Kroger -> Foods Co in Bay Area)
+  const familyMembers = getBrandFamilyMembers(storeName)
+
+  // Build list of keywords to try - primary first, then regional subsidiaries
+  const keywordsToTry: string[] = []
+  if (isGenericHint) {
+    keywordsToTry.push(storeName)
+  } else {
+    keywordsToTry.push(`${storeName} grocery store`)
+  }
+
+  // Add regional subsidiary names as fallbacks (e.g., "Foods Co" for Kroger in Bay Area)
+  const normalizedStore = storeName.toLowerCase().replace(/[^a-z0-9]/g, "")
+  for (const member of familyMembers) {
+    const normalizedMember = member.toLowerCase().replace(/[^a-z0-9]/g, "")
+    if (normalizedMember !== normalizedStore) {
+      keywordsToTry.push(`${member} grocery store`)
+    }
+  }
+
   try {
     const effectiveMiles = Math.max(groceryDistanceMiles || 10, 1)
     const radiusMeters = Math.min(effectiveMiles * 1609.34, 50000) // Places API max radius 50km
 
-    console.log("[Geocoding] Nearby search request", {
-      storeName,
-      keyword,
-      userCoordinates,
-      radiusMeters,
-    })
-
-    let data = await callMapsProxy<GooglePlacesResponse>("place-nearby", {
-      location: userCoordinates,
-      radius: radiusMeters,
-      keyword,
-      type: "grocery_or_supermarket",
-    })
-
     let candidates: GooglePlacesCandidate[] = []
-    if (data?.status === "OK" && data.results?.length) {
-      candidates = data.results
-    } else {
-      console.warn(`[Geocoding] Nearby search returned ${data?.status ?? "NO_RESPONSE"} for ${storeName}, falling back to Text Search`)
+
+    // Try each keyword until we get results
+    for (const keyword of keywordsToTry) {
+      console.log("[Geocoding] Nearby search request", {
+        storeName,
+        keyword,
+        userCoordinates,
+        radiusMeters,
+      })
+
+      let data = await callMapsProxy<GooglePlacesResponse>("place-nearby", {
+        location: userCoordinates,
+        radius: radiusMeters,
+        keyword,
+        type: "grocery_or_supermarket",
+      })
+
+      if (data?.status === "OK" && data.results?.length) {
+        console.log(`[Geocoding] Found ${data.results.length} results for "${keyword}" via Nearby Search`)
+        candidates = data.results
+        break // Found results, stop trying
+      }
+
+      // Try text search as fallback for this keyword
+      console.warn(`[Geocoding] Nearby search returned ${data?.status ?? "NO_RESPONSE"} for ${keyword}, trying Text Search`)
       data = await callMapsProxy<GooglePlacesResponse>("place-text", {
-        query: `${keyword} grocery store`,
+        query: `${keyword}`,
         location: userCoordinates,
         radius: radiusMeters,
       })
-      if (!data || data.status !== "OK" || !data.results?.length) {
-        console.warn(`[Geocoding] Places Text Search returned ${data?.status ?? "NO_RESPONSE"} for ${storeName}`)
-        return null
+
+      if (data?.status === "OK" && data.results?.length) {
+        console.log(`[Geocoding] Found ${data.results.length} results for "${keyword}" via Text Search`)
+        candidates = data.results
+        break // Found results, stop trying
       }
-      candidates = data.results
+
+      console.warn(`[Geocoding] Text Search also returned ${data?.status ?? "NO_RESPONSE"} for ${keyword}`)
+    }
+
+    if (candidates.length === 0) {
+      console.warn(`[Geocoding] No results found for any keyword for ${storeName}:`, keywordsToTry)
+      return null
     }
 
     const matcher = matchesRequestedStore ?? (() => false)
