@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react"
-import { APIProvider, Map, useMap } from "@vis.gl/react-google-maps"
+import { APIProvider, Map as GoogleMap, useMap } from "@vis.gl/react-google-maps"
 import { useTheme } from "@/contexts/theme-context"
 import { geocodeMultipleStores, geocodePostalCode, getUserLocation, canonicalizeStoreName } from "@/lib/geocoding"
 import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car, Search } from "lucide-react"
@@ -956,7 +956,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
       >
         {mapApiKey ? (
           <APIProvider apiKey={mapApiKey} libraries={["places"]}>
-            <Map
+            <GoogleMap
               mapId={mapId}
               defaultCenter={userLocation ?? { lat: 37.7749, lng: -122.4194 }}
               defaultZoom={12}
@@ -964,7 +964,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
               className="w-full h-full"
             >
               <MapInstanceBridge onReady={handleMapReady} />
-            </Map>
+            </GoogleMap>
           </APIProvider>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-sm text-red-600 bg-red-50">
