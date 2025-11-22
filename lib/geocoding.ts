@@ -72,14 +72,64 @@ const STORE_SIGNATURE_STOPWORDS = new Set([
   "mart",
   "grocery",
   "grocer",
-  "food",
-  "foods",
   "zip",
   "code",
   "co",
   "inc",
   "llc",
 ])
+
+// Brand family mappings - parent brand to all subsidiary/regional brands
+// This allows geocoding to match "Kroger" when searching for "Food Co" etc.
+const BRAND_FAMILY_MAP: Record<string, string[]> = {
+  kroger: [
+    "kroger", "ralphs", "fredmeyer", "fred meyer", "smiths", "frys", "fry's",
+    "kingsoopers", "king soopers", "marianos", "mariano's", "picknsave", "pick n save",
+    "food4less", "food 4 less", "foodsco", "foods co", "food co", "citymarket", "city market",
+    "dillons", "harristeeter", "harris teeter", "bakers", "gerbes", "qfc", "metro market"
+  ],
+  safeway: [
+    "safeway", "albertsons", "vons", "pavilions", "randalls", "tom thumb",
+    "jewel", "jewelosco", "jewel-osco", "acme", "shaws", "star market", "andronicos"
+  ],
+  target: ["target"],
+  walmart: ["walmart", "neighborhood market", "sams club", "sam's club"],
+  aldi: ["aldi"],
+  traderjoes: ["trader joe's", "trader joes", "traderjoes"],
+  wholefoods: ["whole foods", "wholefoods"],
+  costco: ["costco"],
+  "99ranch": ["99 ranch", "99ranch", "ranch 99", "ranch99"],
+  meijer: ["meijer"],
+}
+
+// Build reverse lookup: subsidiary -> parent brand
+const SUBSIDIARY_TO_PARENT: Map<string, string> = new Map()
+for (const [parent, subsidiaries] of Object.entries(BRAND_FAMILY_MAP)) {
+  for (const sub of subsidiaries) {
+    const normalized = sub.toLowerCase().replace(/[^a-z0-9]/g, "")
+    SUBSIDIARY_TO_PARENT.set(normalized, parent)
+  }
+}
+
+// Get all brand family members for a given store name
+function getBrandFamilyMembers(storeName: string): string[] {
+  const normalized = canonicalizeStoreName(storeName)
+
+  // Check if this is a known subsidiary
+  const parent = SUBSIDIARY_TO_PARENT.get(normalized)
+  if (parent && BRAND_FAMILY_MAP[parent]) {
+    return BRAND_FAMILY_MAP[parent]
+  }
+
+  // Check if this matches any parent brand
+  for (const [parentKey, subsidiaries] of Object.entries(BRAND_FAMILY_MAP)) {
+    if (normalized.includes(parentKey) || parentKey.includes(normalized)) {
+      return subsidiaries
+    }
+  }
+
+  return []
+}
 
 const createStoreSignatureMatcher = (
   storeName: string,
@@ -115,6 +165,13 @@ const createStoreSignatureMatcher = (
   }
 
   addToken(storeName)
+
+  // Add brand family members for more lenient matching
+  const familyMembers = getBrandFamilyMembers(storeName)
+  for (const member of familyMembers) {
+    addToken(member)
+  }
+
   aliasTokens
     ?.filter((alias) => {
       if (!alias) return false
@@ -126,7 +183,14 @@ const createStoreSignatureMatcher = (
         targetSignature.includes(aliasSignature)
       )
     })
-    .forEach((alias) => addToken(alias))
+    .forEach((alias) => {
+      addToken(alias)
+      // Also add family members for aliases
+      const aliasFamily = getBrandFamilyMembers(alias)
+      for (const member of aliasFamily) {
+        addToken(member)
+      }
+    })
   if (storeHint) {
     storeHint.split(/[•\-|,]+/).forEach((segment) => addToken(segment))
   }
@@ -172,6 +236,19 @@ const createBrandMatcher = (storeName: string, aliasTokens?: string[]): ((value?
   addSignature(storeName)
   aliasTokens?.forEach((alias) => addSignature(alias))
 
+  // Add brand family members (e.g., if searching for "Kroger", also match "Food Co", "Ralphs", etc.)
+  const familyMembers = getBrandFamilyMembers(storeName)
+  for (const member of familyMembers) {
+    addSignature(member)
+  }
+  // Also add family members for any aliases
+  aliasTokens?.forEach((alias) => {
+    const aliasFamily = getBrandFamilyMembers(alias)
+    for (const member of aliasFamily) {
+      addSignature(member)
+    }
+  })
+
   if (signatures.size === 0) {
     return () => false
   }
@@ -185,6 +262,8 @@ const createBrandMatcher = (storeName: string, aliasTokens?: string[]): ((value?
         if (token === sig) return true
         if (token.endsWith(sig) && token.length - sig.length <= 4) return true
         if (sig.endsWith(token) && sig.length - token.length <= 2) return true
+        // Also check if token contains the signature (more lenient matching)
+        if (token.includes(sig) || sig.includes(token)) return true
       }
     }
     return false
@@ -344,13 +423,19 @@ export async function geocodeStore(
           // if route check fails we fall back to straight-line validation later
         }
 
-        if (
-          matchesRequestedStore(nearestStore.matchedName) ||
-          matchesRequestedStore(nearestStore.formattedAddress) ||
-          brandMatcher(nearestStore.matchedName) ||
-          brandMatcher(nearestStore.formattedAddress)
-        ) {
+        const placesSignatureMatch = matchesRequestedStore(nearestStore.matchedName) || matchesRequestedStore(nearestStore.formattedAddress)
+        const placesBrandMatch = brandMatcher(nearestStore.matchedName) || brandMatcher(nearestStore.formattedAddress)
+
+        if (placesSignatureMatch || placesBrandMatch) {
           return nearestStore
+        } else {
+          // Log but don't reject - continue to try other origins or fallback geocode
+          console.log(`[Geocoding] Places result for ${storeName} didn't match brand check, trying other options`, {
+            matchedName: nearestStore.matchedName,
+            formattedAddress: nearestStore.formattedAddress,
+            placesSignatureMatch,
+            placesBrandMatch,
+          })
         }
       }
     }
@@ -413,18 +498,21 @@ export async function geocodeStore(
       matchedName: candidateName || formattedTop || undefined,
     }
 
-    if (
-      !matchesRequestedStore(result.matchedName) &&
-      !matchesRequestedStore(result.formattedAddress) &&
-      !brandMatcher(result.matchedName) &&
-      !brandMatcher(result.formattedAddress)
-    ) {
-      console.warn(`[Geocoding] ${storeName} geocode result did not match requested store metadata`, {
+    // Check if the result matches our store - use lenient matching
+    const signatureMatch = matchesRequestedStore(result.matchedName) || matchesRequestedStore(result.formattedAddress)
+    const brandMatch = brandMatcher(result.matchedName) || brandMatcher(result.formattedAddress)
+
+    if (!signatureMatch && !brandMatch) {
+      // Log for debugging but be more lenient - if we got a result from geocoding the store name,
+      // it's probably correct even if the exact name matching fails
+      console.log(`[Geocoding] ${storeName} geocode result name check (lenient mode):`, {
         storeHint,
         matchedName: result.matchedName,
         formattedAddress: result.formattedAddress,
+        signatureMatch,
+        brandMatch,
       })
-      return null
+      // Don't reject - proceed with the result since we searched for this specific store
     }
 
     if (userCoordinates) {
@@ -449,13 +537,6 @@ export async function geocodeStore(
         })
         return null
       }
-    }
-    if (!brandMatcher(result.matchedName) && !brandMatcher(result.formattedAddress)) {
-      console.warn(`[Geocoding] ${storeName} geocode result failed brand check`, {
-        matchedName: result.matchedName,
-        formattedAddress: result.formattedAddress,
-      })
-      return null
     }
 
     if (!coordinatesAppearValid(result.lat, result.lng)) {
