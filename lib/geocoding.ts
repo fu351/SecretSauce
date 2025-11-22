@@ -318,8 +318,7 @@ const createBrandMatcher = (storeName: string, aliasTokens?: string[]): ((value?
     return () => false
   }
 
-  // Get all brand family members for fuzzy matching
-  const familyMembers = getBrandFamilyMembers(storeName)
+  // Build set of family signatures for fuzzy matching (reuse familyMembers from above)
   const allFamilySignatures = new Set<string>()
   for (const member of familyMembers) {
     const sig = canonicalizeStoreName(member)
