@@ -434,7 +434,12 @@ export async function geocodeStore(
     const allowedDriveMiles = baseRadius * (isRelaxed ? 4 : 2)
     const strictHintLimitMiles = baseRadius * 3
 
+    // PRIORITY 1: If we have a physical address from the scraper, use geocoding API directly
     if (storeHint && hintLooksLikeAddress) {
+      console.log("[Geocoding] Attempting direct address geocoding (top priority)", {
+        storeName,
+        storeHint,
+      })
       const hintResult = await geocodeStoreHint(
         storeName,
         storeHint,
@@ -444,13 +449,17 @@ export async function geocodeStore(
         strictHintLimitMiles
       )
       if (hintResult) {
-        console.log("[Geocoding] Using direct hint geocode result", {
+        console.log("[Geocoding] SUCCESS: Using physical address from scraper", {
           storeName,
           storeHint,
           coordinates: hintResult,
         })
         return hintResult
       }
+      console.warn("[Geocoding] Physical address geocoding failed, falling back to text-search", {
+        storeName,
+        storeHint,
+      })
     }
 
     const searchOrigins: Array<{ lat: number; lng: number; source: "user" | "postal" }> = []
@@ -690,6 +699,7 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 
 /**
  * Use Google Places Text Search to find the closest matching store to the user's coordinates
+ * This is used as a FALLBACK when no physical address is provided by the scraper
  */
 async function findNearestStoreWithPlaces(
   storeName: string,
@@ -738,11 +748,10 @@ async function findNearestStoreWithPlaces(
 
     let candidates: GooglePlacesCandidate[] = []
 
-    // Try each keyword until we get results
+    // Try each keyword until we get results (text-search only)
     for (const keyword of keywordsToTry) {
       const textQuery = postalCode ? `${keyword} near ${postalCode}` : keyword
 
-      // Text Search first (better for "Store + ZIP")
       const textData = await callMapsProxy<GooglePlacesResponse>("place-text", {
         query: textQuery,
         location: userCoordinates,
@@ -755,25 +764,7 @@ async function findNearestStoreWithPlaces(
         break
       }
 
-      console.warn(`[Geocoding] Text Search returned ${textData?.status ?? "NO_RESPONSE"} for ${textQuery}, trying Nearby`)
-
-      // Nearby Search fallback for this keyword
-      const nearbyData = await callMapsProxy<GooglePlacesResponse>("place-nearby", {
-        location: userCoordinates,
-        radius: radiusMeters,
-        keyword,
-        type: "grocery_or_supermarket",
-      })
-
-      if (nearbyData?.status === "OK" && nearbyData.results?.length) {
-        console.log(`[Geocoding] Found ${nearbyData.results.length} results for "${keyword}" via Nearby Search`)
-        candidates = nearbyData.results
-        break
-      }
-
-      console.warn(
-        `[Geocoding] Nearby search also returned ${nearbyData?.status ?? "NO_RESPONSE"} for ${keyword}`
-      )
+      console.warn(`[Geocoding] Text Search returned ${textData?.status ?? "NO_RESPONSE"} for ${textQuery}`)
     }
 
     if (candidates.length === 0 && postalCode) {

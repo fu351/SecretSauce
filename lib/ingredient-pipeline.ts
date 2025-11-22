@@ -219,6 +219,7 @@ type ScraperResult = {
   image_url?: string | null
   product_url?: string | null
   product_id?: string | null
+  location?: string | null
 }
 
 type StoreLookupOptions = {
@@ -349,6 +350,7 @@ function buildCachePayload(
     unit_price: product.unit_price ?? null,
     image_url: product.image_url || null,
     product_id: product.product_id || null,
+    location: product.location || null,
     expires_at: expires.toISOString(),
   }
 }

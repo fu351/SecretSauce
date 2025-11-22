@@ -398,6 +398,9 @@ function formatCacheResults(
     const quantityDisplay = `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`
     const fallbackTitle = `${fallbackName || item.product_name || "Ingredient"} (${quantityDisplay})`
 
+    // Use cached location (physical address from scraper) if available, otherwise fall back to generic label
+    const locationHint = item.location || getStoreLocationLabel(storeName, zipCode)
+
     return {
       id: item.product_id || item.id,
       title: item.product_name || fallbackTitle,
@@ -408,7 +411,7 @@ function formatCacheResults(
       image_url: item.image_url || "/placeholder.svg",
       product_url: (item as any).product_url,
       provider: storeName,
-      location: getStoreLocationLabel(storeName, zipCode),
+      location: locationHint,
       category: "Grocery",
     }
   })

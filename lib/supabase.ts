@@ -262,6 +262,7 @@ export type Database = {
           unit_price: number | null
           image_url: string | null
           product_id: string | null
+          location: string | null
           expires_at: string
           created_at: string
           updated_at: string
@@ -276,6 +277,7 @@ export type Database = {
           unit_price?: number | null
           image_url?: string | null
           product_id?: string | null
+          location?: string | null
           expires_at: string
         }
         Update: {
@@ -287,6 +289,7 @@ export type Database = {
           unit_price?: number | null
           image_url?: string | null
           product_id?: string | null
+          location?: string | null
           expires_at?: string
           updated_at?: string
         }
