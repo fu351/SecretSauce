@@ -250,7 +250,7 @@ async function runStoreScraper(
     const scraperMap: Record<string, ((query: string, zip?: string | null) => Promise<ScraperResult[] | any>) | undefined> =
       {
         walmart: scrapers.searchWalmartAPI,
-        safeway: scrapers.searchAndronicos,
+        safeway: scrapers.searchSafeway,
         andronicos: scrapers.searchAndronicos,
         traderjoes: scrapers.searchTraderJoes,
         wholefoods: scrapers.searchWholeFoods,
