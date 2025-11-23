@@ -71,7 +71,8 @@
     "vaul": "latest",
     "vue-router": "latest",
     "zod": "^3.24.1",
-    "playwright-chromium": "latest"
+    "playwright-core": "latest",
+    "@sparticuz/chromium": "latest"
   },
   "devDependencies": {
     "@flydotio/dockerfile": "^0.7.10",
