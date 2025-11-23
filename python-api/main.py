@@ -1,13 +1,19 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import asyncio
 import subprocess
 import json
 import os
 import logging
 import tempfile
+import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
+import httpx
+from recipe_scrapers import scrape_html
+from openai import OpenAI
+import instaloader
 
 # Configure logging
 logging.basicConfig(
@@ -16,12 +22,63 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Grocery Scraper API")
+app = FastAPI(title="Grocery & Recipe Scraper API")
+
+# Initialize OpenAI client (will use OPENAI_API_KEY env var)
+openai_client = None
+try:
+    openai_client = OpenAI()
+except Exception as e:
+    logger.warning(f"OpenAI client initialization failed: {e}")
+
+# Pydantic models for recipe import
+class Ingredient(BaseModel):
+    name: str
+    amount: str
+    unit: str
+
+class Instruction(BaseModel):
+    step: int
+    description: str
+
+class ImportedRecipe(BaseModel):
+    title: str
+    description: Optional[str] = None
+    ingredients: List[Ingredient]
+    instructions: List[Instruction]
+    image_url: Optional[str] = None
+    prep_time: Optional[int] = None
+    cook_time: Optional[int] = None
+    total_time: Optional[int] = None
+    servings: Optional[int] = None
+    cuisine: Optional[str] = None
+    source_url: Optional[str] = None
+    source_type: str
+
+class RecipeImportResponse(BaseModel):
+    success: bool
+    recipe: Optional[ImportedRecipe] = None
+    error: Optional[str] = None
+    warnings: Optional[List[str]] = None
+
+class URLImportRequest(BaseModel):
+    url: str
+
+class InstagramImportRequest(BaseModel):
+    url: str
+
+class TextParseRequest(BaseModel):
+    text: str
+    source_type: str = "text"
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your domain
+    allow_origins=[
+        "https://the-secret-sauce.vercel.app",
+        "https://thesecretssauce.com",
+        "http://localhost:3000",  # For local development
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -189,6 +246,302 @@ async def grocery_search(
             "total_items": len(results)
         }
     }
+
+# ============================================================================
+# Recipe Import Endpoints
+# ============================================================================
+
+def parse_time_string(time_str: Optional[str]) -> Optional[int]:
+    """Convert time string like 'PT30M' or '30 minutes' to minutes integer."""
+    if not time_str:
+        return None
+
+    # Handle ISO 8601 duration format (PT30M, PT1H30M, etc.)
+    if time_str.startswith('PT'):
+        total_minutes = 0
+        hours_match = re.search(r'(\d+)H', time_str)
+        mins_match = re.search(r'(\d+)M', time_str)
+        if hours_match:
+            total_minutes += int(hours_match.group(1)) * 60
+        if mins_match:
+            total_minutes += int(mins_match.group(1))
+        return total_minutes if total_minutes > 0 else None
+
+    # Try to extract just the number
+    numbers = re.findall(r'\d+', str(time_str))
+    if numbers:
+        return int(numbers[0])
+
+    return None
+
+def parse_servings(servings_str) -> Optional[int]:
+    """Extract servings number from various formats."""
+    if servings_str is None:
+        return None
+    if isinstance(servings_str, int):
+        return servings_str
+
+    # Try to extract number from string
+    numbers = re.findall(r'\d+', str(servings_str))
+    if numbers:
+        return int(numbers[0])
+    return None
+
+async def parse_recipe_with_ai(text: str, source_type: str = "text") -> ImportedRecipe:
+    """
+    Use OpenAI to parse unstructured recipe text into structured format.
+    Used for Instagram captions and OCR results.
+    """
+    if not openai_client:
+        raise HTTPException(status_code=500, detail="OpenAI client not configured")
+
+    prompt = f"""Parse the following recipe text and extract structured information.
+Return a JSON object with these fields:
+- title: string (the recipe name)
+- description: string or null (brief description if present)
+- ingredients: array of objects with {{name, amount, unit}} - parse quantities carefully
+- instructions: array of objects with {{step, description}} - number steps starting from 1
+- servings: number or null
+- prep_time: number in minutes or null
+- cook_time: number in minutes or null
+
+Recipe text:
+{text}
+
+Return ONLY valid JSON, no markdown or explanation."""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a recipe parser. Extract structured recipe data from text. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+
+        result = json.loads(response.choices[0].message.content)
+
+        # Build the recipe object
+        ingredients = [
+            Ingredient(
+                name=ing.get("name", ""),
+                amount=str(ing.get("amount", "")),
+                unit=ing.get("unit", "")
+            )
+            for ing in result.get("ingredients", [])
+        ]
+
+        instructions = [
+            Instruction(
+                step=inst.get("step", idx + 1),
+                description=inst.get("description", "")
+            )
+            for idx, inst in enumerate(result.get("instructions", []))
+        ]
+
+        return ImportedRecipe(
+            title=result.get("title", "Untitled Recipe"),
+            description=result.get("description"),
+            ingredients=ingredients,
+            instructions=instructions,
+            servings=result.get("servings"),
+            prep_time=result.get("prep_time"),
+            cook_time=result.get("cook_time"),
+            source_type=source_type
+        )
+
+    except Exception as e:
+        logger.error(f"AI parsing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to parse recipe text: {str(e)}")
+
+
+@app.post("/recipe-import/url", response_model=RecipeImportResponse)
+async def import_recipe_from_url(request: URLImportRequest):
+    """
+    Scrape a recipe from a URL using the recipe-scrapers library.
+    Supports 400+ recipe websites.
+    """
+    url = request.url
+    logger.info(f"Importing recipe from URL: {url}")
+
+    try:
+        # Fetch the HTML content
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            html = response.text
+
+        # Parse with recipe-scrapers
+        scraper = scrape_html(html, org_url=url)
+
+        # Extract ingredients - recipe-scrapers returns list of strings
+        raw_ingredients = scraper.ingredients()
+        ingredients = []
+        for ing_str in raw_ingredients:
+            # Simple parsing - could be improved with AI
+            parts = ing_str.split(" ", 2)
+            if len(parts) >= 3:
+                ingredients.append(Ingredient(
+                    amount=parts[0],
+                    unit=parts[1],
+                    name=parts[2]
+                ))
+            elif len(parts) == 2:
+                ingredients.append(Ingredient(
+                    amount=parts[0],
+                    unit="",
+                    name=parts[1]
+                ))
+            else:
+                ingredients.append(Ingredient(
+                    amount="",
+                    unit="",
+                    name=ing_str
+                ))
+
+        # Extract instructions
+        raw_instructions = scraper.instructions_list() if hasattr(scraper, 'instructions_list') else scraper.instructions().split('\n')
+        instructions = [
+            Instruction(step=idx + 1, description=inst.strip())
+            for idx, inst in enumerate(raw_instructions)
+            if inst.strip()
+        ]
+
+        # Build recipe object
+        recipe = ImportedRecipe(
+            title=scraper.title(),
+            description=scraper.description() if hasattr(scraper, 'description') else None,
+            ingredients=ingredients,
+            instructions=instructions,
+            image_url=scraper.image() if hasattr(scraper, 'image') else None,
+            prep_time=parse_time_string(scraper.prep_time() if hasattr(scraper, 'prep_time') else None),
+            cook_time=parse_time_string(scraper.cook_time() if hasattr(scraper, 'cook_time') else None),
+            total_time=parse_time_string(scraper.total_time() if hasattr(scraper, 'total_time') else None),
+            servings=parse_servings(scraper.yields() if hasattr(scraper, 'yields') else None),
+            source_url=url,
+            source_type="url"
+        )
+
+        logger.info(f"Successfully parsed recipe: {recipe.title}")
+        return RecipeImportResponse(success=True, recipe=recipe)
+
+    except httpx.HTTPError as e:
+        error_msg = f"Failed to fetch URL: {str(e)}"
+        logger.error(error_msg)
+        return RecipeImportResponse(success=False, error=error_msg)
+
+    except Exception as e:
+        error_msg = f"Failed to parse recipe: {str(e)}"
+        logger.error(error_msg)
+        return RecipeImportResponse(success=False, error=error_msg)
+
+
+@app.post("/recipe-import/instagram", response_model=RecipeImportResponse)
+async def import_recipe_from_instagram(request: InstagramImportRequest):
+    """
+    Import a recipe from an Instagram post URL.
+    Extracts the caption and image, then uses AI to parse the recipe.
+    """
+    url = request.url
+    logger.info(f"Importing recipe from Instagram: {url}")
+
+    try:
+        # Extract shortcode from Instagram URL
+        # URLs can be like: https://www.instagram.com/p/ABC123/ or /reel/ABC123/
+        match = re.search(r'instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)', url)
+        if not match:
+            return RecipeImportResponse(
+                success=False,
+                error="Invalid Instagram URL. Please provide a link to a post, reel, or video."
+            )
+
+        shortcode = match.group(1)
+        logger.info(f"Extracted shortcode: {shortcode}")
+
+        # Initialize Instaloader
+        L = instaloader.Instaloader(
+            download_pictures=False,
+            download_videos=False,
+            download_video_thumbnails=False,
+            download_geotags=False,
+            download_comments=False,
+            save_metadata=False
+        )
+
+        # Try to load session if available
+        session_file = Path(__file__).parent / "instagram_session"
+        if session_file.exists():
+            try:
+                L.load_session_from_file("", str(session_file))
+                logger.info("Loaded Instagram session")
+            except Exception as e:
+                logger.warning(f"Could not load Instagram session: {e}")
+
+        # Fetch the post
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+
+        caption = post.caption or ""
+        image_url = post.url  # Direct image URL
+        username = post.owner_username
+
+        if not caption:
+            return RecipeImportResponse(
+                success=False,
+                error="Instagram post has no caption. Cannot extract recipe."
+            )
+
+        logger.info(f"Retrieved Instagram post from @{username}, caption length: {len(caption)}")
+
+        # Parse caption with AI
+        recipe = await parse_recipe_with_ai(caption, source_type="instagram")
+
+        # Add Instagram-specific fields
+        recipe.image_url = image_url
+        recipe.source_url = url
+
+        return RecipeImportResponse(success=True, recipe=recipe)
+
+    except instaloader.exceptions.InstaloaderException as e:
+        error_msg = f"Instagram error: {str(e)}"
+        logger.error(error_msg)
+        return RecipeImportResponse(success=False, error=error_msg)
+
+    except Exception as e:
+        error_msg = f"Failed to import from Instagram: {str(e)}"
+        logger.error(error_msg)
+        return RecipeImportResponse(success=False, error=error_msg)
+
+
+@app.post("/recipe-import/text", response_model=RecipeImportResponse)
+async def parse_recipe_text(request: TextParseRequest):
+    """
+    Parse unstructured recipe text (e.g., from OCR) into structured format using AI.
+    """
+    logger.info(f"Parsing recipe text, length: {len(request.text)}")
+
+    if len(request.text.strip()) < 20:
+        return RecipeImportResponse(
+            success=False,
+            error="Text is too short to be a valid recipe"
+        )
+
+    try:
+        recipe = await parse_recipe_with_ai(request.text, source_type=request.source_type)
+        return RecipeImportResponse(success=True, recipe=recipe)
+
+    except HTTPException as e:
+        return RecipeImportResponse(success=False, error=e.detail)
+
+    except Exception as e:
+        error_msg = f"Failed to parse recipe text: {str(e)}"
+        logger.error(error_msg)
+        return RecipeImportResponse(success=False, error=error_msg)
+
 
 if __name__ == "__main__":
     import uvicorn
