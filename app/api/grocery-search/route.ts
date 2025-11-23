@@ -445,7 +445,8 @@ function resolveStoreKey(storeParam: string) {
   if (value.includes("walmart")) return "walmart"
   if (value.includes("trader")) return "traderjoes"
   if (value.includes("aldi")) return "aldi"
-  if (value.includes("safeway") || value.includes("andronico")) return "safeway"
+  if (value.includes("andronico")) return "andronicos"
+  if (value.includes("safeway")) return "safeway"
   if (value.includes("whole")) return "wholefoods"
   return null
 }
@@ -459,7 +460,7 @@ function mapStoreKeyToName(storeKey: string): string {
     walmart: "Walmart",
     traderjoes: "Trader Joe's",
     aldi: "Aldi",
-    andronicos: "Safeway / Andronicos",
+    andronicos: "Andronico's Community Markets",
     wholefoods: "Whole Foods",
     safeway: "Safeway",
   }

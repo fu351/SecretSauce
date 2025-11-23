@@ -91,6 +91,7 @@ const STORE_BRAND_ALIASES: Array<{ brand: string; keywords: string[] }> = [
   { brand: "Costco", keywords: ["costco"] },
   { brand: "99 Ranch", keywords: ["99ranch", "ranchmarket"] },
   { brand: "Meijer", keywords: ["meijer"] },
+  { brand: "Safeway", keywords: ["safeway"] },
 ]
 
 const buildStoreKey = (storeName?: string) => canonicalizeStoreName(storeName || "")

@@ -583,7 +583,7 @@ async function geocodeStoreHint(
       /^[\w\s']+\s*\(\d{5}\)$/.test(trimmedHint) || // StoreName (zipCode)
       /^[\w\s']+\s+(Store|Grocery|Market|Supermarket)$/i.test(trimmedHint) || // StoreName Grocery
       /^[\w\s]+,\s*[A-Z]{2}$/i.test(trimmedHint) || // City, State (no street)
-      /^(Target|Walmart|Kroger|Aldi|Meijer|Trader Joe'?s?|Whole Foods|99 Ranch)\s*(Grocery|Store|Market)?$/i.test(
+      /^(Target|Walmart|Kroger|Aldi|Meijer|Safeway|Trader Joe'?s?|Whole Foods|99 Ranch)\s*(Grocery|Store|Market)?$/i.test(
         trimmedHint,
       ) // Just brand name
 
