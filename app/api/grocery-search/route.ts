@@ -17,6 +17,7 @@ const DEFAULT_STORE_KEYS = [
   "aldi",
   "andronicos",
   "wholefoods",
+  "safeway",
 ]
 
 async function scrapeDirectFallback(
@@ -49,6 +50,7 @@ async function scrapeDirectFallback(
       aldi: scrapers.searchAldi,
       andronicos: scrapers.searchAndronicos,
       wholefoods: scrapers.searchWholeFoods,
+      safeway: scrapers.searchSafeway,
     }
 
     const results: any[] = []
@@ -443,7 +445,7 @@ function resolveStoreKey(storeParam: string) {
   if (value.includes("walmart")) return "walmart"
   if (value.includes("trader")) return "traderjoes"
   if (value.includes("aldi")) return "aldi"
-  if (value.includes("safeway") || value.includes("andronico")) return "andronicos"
+  if (value.includes("safeway") || value.includes("andronico")) return "safeway"
   if (value.includes("whole")) return "wholefoods"
   return null
 }
@@ -459,6 +461,7 @@ function mapStoreKeyToName(storeKey: string): string {
     aldi: "Aldi",
     andronicos: "Safeway / Andronicos",
     wholefoods: "Whole Foods",
+    safeway: "Safeway",
   }
   return storeMap[storeKey] || storeKey
 }
