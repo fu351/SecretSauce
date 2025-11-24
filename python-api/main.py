@@ -41,6 +41,14 @@ class Instruction(BaseModel):
     step: int
     description: str
 
+class NutritionInfo(BaseModel):
+    calories: Optional[int] = None
+    protein: Optional[int] = None
+    carbs: Optional[int] = None
+    fat: Optional[int] = None
+    fiber: Optional[int] = None
+    sodium: Optional[int] = None
+
 class ImportedRecipe(BaseModel):
     title: str
     description: Optional[str] = None
@@ -52,6 +60,7 @@ class ImportedRecipe(BaseModel):
     total_time: Optional[int] = None
     servings: Optional[int] = None
     cuisine: Optional[str] = None
+    nutrition: Optional[NutritionInfo] = None
     source_url: Optional[str] = None
     source_type: str
 
@@ -292,6 +301,37 @@ def parse_servings(servings_str) -> Optional[int]:
     numbers = re.findall(r'\d+', str(servings_str))
     if numbers:
         return int(numbers[0])
+    return None
+
+def parse_nutrition(nutrients_dict) -> Optional[NutritionInfo]:
+    """Parse nutrition data from recipe-scrapers nutrients() output."""
+    if not nutrients_dict:
+        return None
+
+    def extract_number(value) -> Optional[int]:
+        """Extract numeric value from string like '250 kcal' or '15g'."""
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return int(value)
+        # Extract numbers from string
+        numbers = re.findall(r'[\d.]+', str(value))
+        if numbers:
+            return int(float(numbers[0]))
+        return None
+
+    nutrition = NutritionInfo(
+        calories=extract_number(nutrients_dict.get('calories') or nutrients_dict.get('caloriesContent')),
+        protein=extract_number(nutrients_dict.get('proteinContent') or nutrients_dict.get('protein')),
+        carbs=extract_number(nutrients_dict.get('carbohydrateContent') or nutrients_dict.get('carbs')),
+        fat=extract_number(nutrients_dict.get('fatContent') or nutrients_dict.get('fat')),
+        fiber=extract_number(nutrients_dict.get('fiberContent') or nutrients_dict.get('fiber')),
+        sodium=extract_number(nutrients_dict.get('sodiumContent') or nutrients_dict.get('sodium')),
+    )
+
+    # Only return if at least one field has data
+    if any([nutrition.calories, nutrition.protein, nutrition.carbs, nutrition.fat]):
+        return nutrition
     return None
 
 async def parse_recipe_with_ai(text: str, source_type: str = "text") -> ImportedRecipe:
@@ -545,6 +585,17 @@ async def import_recipe_from_url(request: URLImportRequest):
         raw_instructions = scraper.instructions_list() if hasattr(scraper, 'instructions_list') else scraper.instructions().split('\n')
         instructions = await parse_instructions_with_ai(raw_instructions)
 
+        # Extract nutrition if available
+        nutrition = None
+        try:
+            if hasattr(scraper, 'nutrients'):
+                raw_nutrients = scraper.nutrients()
+                nutrition = parse_nutrition(raw_nutrients)
+                if nutrition:
+                    logger.info(f"Extracted nutrition: calories={nutrition.calories}, protein={nutrition.protein}g")
+        except Exception as e:
+            logger.warning(f"Failed to extract nutrition: {e}")
+
         # Build recipe object
         recipe = ImportedRecipe(
             title=scraper.title(),
@@ -556,6 +607,7 @@ async def import_recipe_from_url(request: URLImportRequest):
             cook_time=parse_time_string(scraper.cook_time() if hasattr(scraper, 'cook_time') else None),
             total_time=parse_time_string(scraper.total_time() if hasattr(scraper, 'total_time') else None),
             servings=parse_servings(scraper.yields() if hasattr(scraper, 'yields') else None),
+            nutrition=nutrition,
             source_url=url,
             source_type="url"
         )

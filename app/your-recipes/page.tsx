@@ -121,7 +121,7 @@ export default function YourRecipesPage() {
                     showFavorite={false}
                   />
                 </Link>
-                <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-4 left-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
                     size="sm"
                     onClick={(e) => {

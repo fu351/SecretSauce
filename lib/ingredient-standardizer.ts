@@ -60,15 +60,23 @@ function buildPrompt(inputs: IngredientInput[], canonicalNames: string[], contex
   return `
 You are an ingredient normalizer helping a cooking app map free-form ${context} entries to canonical grocery ingredients.
 
-Use the provided canonical ingredient list when possible: ${canonicalList}
+EXISTING canonical ingredients (MUST match to these when possible): ${canonicalList}
 
 Instructions:
-1. For each input, return a canonical grocery ingredient name (singular, lowercase) whenever possible.
-2. If the input already matches a canonical ingredient, keep it.
-3. If no close match exists, output a reasonable general ingredient (e.g., "cheddar cheese", "fresh basil").
-4. Include the most likely category from: produce, dairy, meat & seafood, pantry staples, frozen, beverages, snacks, condiments, baking, other.
-5. Output confidence between 0 and 1.
-6. Return ONLY valid JSON (no markdown) as an array of objects using this shape:
+1. ALWAYS try to match to an existing canonical ingredient from the list above. This is critical for the app to work correctly.
+2. Strip away ALL preparation methods and descriptors: chopped, minced, diced, sliced, grated, shredded, crushed, fresh, dried, cooked, raw, large, small, ripe, etc.
+3. Remove qualifiers like "to taste", "optional", "for garnish", "divided", etc.
+4. Simplify to the BASE ingredient:
+   - "chopped fresh parsley" → "parsley" (if parsley exists) or just "parsley"
+   - "grated parmesan cheese" → "parmesan cheese" or "cheese"
+   - "dry white wine" → "white wine" or "wine"
+   - "salt and black pepper to taste" → "salt and pepper" or "salt"
+   - "boneless skinless chicken breast" → "chicken breast"
+5. For each input, return a canonical grocery ingredient name (singular, lowercase).
+6. ONLY create a new canonical name if absolutely no match exists in the list. Prefer existing matches even if slightly different.
+7. Include the most likely category from: produce, dairy, meat & seafood, pantry staples, frozen, beverages, snacks, condiments, baking, other.
+8. Output confidence between 0 and 1 (higher if matched to existing canonical).
+9. Return ONLY valid JSON (no markdown) as an array of objects using this shape:
    [{"id":"input-id","originalName":"original input","canonicalName":"canonical","category":"category","confidence":0.92}]
 
 Inputs:

@@ -241,6 +241,18 @@ img {
   content-visibility: auto;
 }
 
+/* Make placeholder text fainter for better UX */
+::placeholder {
+  color: hsl(var(--muted-foreground) / 0.4) !important;
+  opacity: 1;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: hsl(var(--muted-foreground) / 0.4) !important;
+  opacity: 1;
+}
+
 /* Google Maps InfoWindow overrides to avoid double backgrounds */
 .gm-style .gm-style-iw-c {
   padding: 0 !important;
