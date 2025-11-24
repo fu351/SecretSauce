@@ -242,7 +242,7 @@ export async function GET(request: NextRequest) {
 
               await supabaseClient
                 .from("ingredient_cache")
-                .upsert(payload, { onConflict: "standardized_ingredient_id,store,product_id" })
+                .upsert(payload, { onConflict: "standardized_ingredient_id,store" })
             }
             console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
           })
@@ -413,7 +413,7 @@ export async function GET(request: NextRequest) {
 
             const { data, error } = await supabaseClient
               .from("ingredient_cache")
-              .upsert(payload, { onConflict: "standardized_ingredient_id,store,product_id" })
+              .upsert(payload, { onConflict: "standardized_ingredient_id,store" })
               .select("id")
               .maybeSingle()
 

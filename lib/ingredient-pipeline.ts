@@ -375,10 +375,11 @@ async function upsertCacheEntry(
     price: payload.price,
   })
 
-  // Try onConflict first; fall back to manual update if constraint is missing
+  // Try onConflict first using the actual DB constraint (2 columns, not 3)
+  // The DB has constraint "ingredient_cache_unique_per_store" on (standardized_ingredient_id, store)
   const upsertAttempt = await client
     .from("ingredient_cache")
-    .upsert(payload, { onConflict: "standardized_ingredient_id,store,product_id" })
+    .upsert(payload, { onConflict: "standardized_ingredient_id,store" })
     .select("*")
     .maybeSingle()
 
