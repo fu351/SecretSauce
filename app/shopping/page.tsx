@@ -1036,6 +1036,8 @@ export default function ShoppingPage() {
         details: searchResults.map(({ item, storeResults }) => ({
           shoppingItem: item.name,
           stores: storeResults.length,
+          storeNames: storeResults.map(sr => sr.store),
+          itemCounts: storeResults.map(sr => sr.items?.length || 0),
         })),
       })
 
@@ -1107,6 +1109,14 @@ export default function ShoppingPage() {
         ...rest,
         providerAliases: rest.providerAliases ?? Array.from(aliasSet),
       }))
+
+      console.log("[Shopping] Built comparisons from storeMap", {
+        storeMapSize: storeMap.size,
+        comparisonsCount: comparisons.length,
+        missingCount: missing.length,
+        stores: comparisons.map(c => ({ store: c.store, items: c.items.length, total: c.total })),
+      })
+
       const minTotal = Math.min(...comparisons.map((c) => c.total))
 
       comparisons.forEach((comparison) => {
@@ -1316,6 +1326,7 @@ const getStoreLogoPath = (store: string) => {
   if (key.includes("walmart")) return "/walmart.png"
   if (key.includes("trader")) return "/trader-joes.png"
   if (key.includes("aldi")) return "/aldi.png"
+  if (key.includes("safeway")) return "/safeway.jpeg"
   return "/placeholder-logo.png"
 }
 

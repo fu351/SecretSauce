@@ -16,6 +16,9 @@ export interface RecipePricingInfo {
   cheapest: StorePricing | null
   byStore: StorePricing[]
   allStores: string[]
+  totalIngredients: number
+  cachedIngredients: number
+  isComplete: boolean
 }
 
 /**
@@ -57,8 +60,13 @@ export async function getRecipePricingInfo(recipeId: string): Promise<RecipePric
         cheapest: null,
         byStore: [],
         allStores: [],
+        totalIngredients: 0,
+        cachedIngredients: 0,
+        isComplete: false,
       }
     }
+
+    const totalIngredients = ingredientMappings.length
 
     const ingredientIds = ingredientMappings.map((m) => m.standardized_ingredient_id)
 
@@ -81,6 +89,9 @@ export async function getRecipePricingInfo(recipeId: string): Promise<RecipePric
         cheapest: null,
         byStore: [],
         allStores: [],
+        totalIngredients,
+        cachedIngredients: 0,
+        isComplete: false,
       }
     }
 
@@ -127,11 +138,23 @@ export async function getRecipePricingInfo(recipeId: string): Promise<RecipePric
     // Sort by total price
     storePricings.sort((a, b) => a.total - b.total)
 
+    // Count unique ingredients that have cached prices (across all stores)
+    const uniqueCachedIngredients = new Set(
+      cachedPrices.map((p) => p.standardized_ingredient_id)
+    ).size
+
+    // Check if the cheapest store has all ingredients
+    const isComplete = storePricings.length > 0 &&
+      storePricings[0].items.length === totalIngredients
+
     return {
       recipeName: recipe.title,
       cheapest: storePricings.length > 0 ? storePricings[0] : null,
       byStore: storePricings,
       allStores: Array.from(pricesByStore.keys()),
+      totalIngredients,
+      cachedIngredients: uniqueCachedIngredients,
+      isComplete,
     }
   } catch (error) {
     console.error("Error in getRecipePricingInfo:", error)

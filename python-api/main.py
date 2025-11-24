@@ -251,10 +251,17 @@ async def grocery_search(
 # Recipe Import Endpoints
 # ============================================================================
 
-def parse_time_string(time_str: Optional[str]) -> Optional[int]:
+def parse_time_string(time_str) -> Optional[int]:
     """Convert time string like 'PT30M' or '30 minutes' to minutes integer."""
-    if not time_str:
+    if time_str is None:
         return None
+
+    # If already an integer, return it directly
+    if isinstance(time_str, int):
+        return time_str
+
+    # Convert to string for processing
+    time_str = str(time_str)
 
     # Handle ISO 8601 duration format (PT30M, PT1H30M, etc.)
     if time_str.startswith('PT'):
@@ -357,6 +364,157 @@ Return ONLY valid JSON, no markdown or explanation."""
         raise HTTPException(status_code=500, detail=f"Failed to parse recipe text: {str(e)}")
 
 
+async def parse_ingredients_with_ai(raw_ingredients: List[str]) -> List[Ingredient]:
+    """
+    Use OpenAI to parse raw ingredient strings into structured format.
+    Handles complex formats like "1 (14 oz) can diced tomatoes" or "Salt to taste".
+    """
+    if not openai_client:
+        # Fallback to simple parsing if OpenAI not available
+        return simple_parse_ingredients(raw_ingredients)
+
+    if not raw_ingredients:
+        return []
+
+    ingredients_text = "\n".join(f"- {ing}" for ing in raw_ingredients)
+
+    prompt = f"""Parse these ingredient strings into structured data.
+For each ingredient, extract:
+- amount: the quantity (e.g., "1", "1/2", "2-3", "" if none)
+- unit: the measurement unit (e.g., "cup", "tablespoon", "oz", "lb", "" if none)
+- name: the ingredient name with any preparation notes (e.g., "garlic, minced", "chicken breast, diced")
+
+Important rules:
+- For "1 (14 oz) can diced tomatoes": amount="1", unit="can (14 oz)", name="diced tomatoes"
+- For "Salt and pepper to taste": amount="", unit="", name="salt and pepper to taste"
+- For "2 large eggs": amount="2", unit="large", name="eggs"
+- For "1/2 cup all-purpose flour": amount="1/2", unit="cup", name="all-purpose flour"
+- Keep preparation instructions with the name (minced, diced, chopped, etc.)
+
+Ingredients:
+{ingredients_text}
+
+Return a JSON object with an "ingredients" array containing objects with "amount", "unit", and "name" fields.
+Return ONLY valid JSON, no markdown or explanation."""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an ingredient parser. Extract structured data from ingredient strings. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+
+        result = json.loads(response.choices[0].message.content)
+
+        return [
+            Ingredient(
+                name=ing.get("name", ""),
+                amount=str(ing.get("amount", "")),
+                unit=ing.get("unit", "")
+            )
+            for ing in result.get("ingredients", [])
+        ]
+
+    except Exception as e:
+        logger.warning(f"AI ingredient parsing failed, using fallback: {e}")
+        return simple_parse_ingredients(raw_ingredients)
+
+
+def simple_parse_ingredients(raw_ingredients: List[str]) -> List[Ingredient]:
+    """Fallback simple parsing when AI is not available."""
+    ingredients = []
+    for ing_str in raw_ingredients:
+        parts = ing_str.split(" ", 2)
+        if len(parts) >= 3:
+            ingredients.append(Ingredient(
+                amount=parts[0],
+                unit=parts[1],
+                name=parts[2]
+            ))
+        elif len(parts) == 2:
+            ingredients.append(Ingredient(
+                amount=parts[0],
+                unit="",
+                name=parts[1]
+            ))
+        else:
+            ingredients.append(Ingredient(
+                amount="",
+                unit="",
+                name=ing_str
+            ))
+    return ingredients
+
+
+async def parse_instructions_with_ai(raw_instructions: List[str]) -> List[Instruction]:
+    """
+    Use OpenAI to clean up and structure instructions.
+    Handles poorly formatted instructions and combines/splits as needed.
+    """
+    if not openai_client:
+        # Fallback to simple parsing
+        return [
+            Instruction(step=idx + 1, description=inst.strip())
+            for idx, inst in enumerate(raw_instructions)
+            if inst.strip()
+        ]
+
+    if not raw_instructions:
+        return []
+
+    instructions_text = "\n".join(f"{idx + 1}. {inst}" for idx, inst in enumerate(raw_instructions))
+
+    prompt = f"""Clean up and structure these recipe instructions.
+
+Rules:
+- Each step should be a clear, actionable instruction
+- Remove any duplicate steps
+- Split overly long steps into logical sub-steps if needed
+- Combine very short related steps if appropriate
+- Remove any non-instruction content (ads, notes about the recipe, etc.)
+- Keep timing information (e.g., "cook for 5 minutes")
+- Number steps starting from 1
+
+Instructions:
+{instructions_text}
+
+Return a JSON object with an "instructions" array containing objects with "step" (number) and "description" (string) fields.
+Return ONLY valid JSON, no markdown or explanation."""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a recipe instruction formatter. Clean up and structure cooking instructions. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+
+        result = json.loads(response.choices[0].message.content)
+
+        return [
+            Instruction(
+                step=inst.get("step", idx + 1),
+                description=inst.get("description", "")
+            )
+            for idx, inst in enumerate(result.get("instructions", []))
+        ]
+
+    except Exception as e:
+        logger.warning(f"AI instruction parsing failed, using fallback: {e}")
+        return [
+            Instruction(step=idx + 1, description=inst.strip())
+            for idx, inst in enumerate(raw_instructions)
+            if inst.strip()
+        ]
+
+
 @app.post("/recipe-import/url", response_model=RecipeImportResponse)
 async def import_recipe_from_url(request: URLImportRequest):
     """
@@ -379,38 +537,13 @@ async def import_recipe_from_url(request: URLImportRequest):
         # Parse with recipe-scrapers
         scraper = scrape_html(html, org_url=url)
 
-        # Extract ingredients - recipe-scrapers returns list of strings
+        # Extract and parse ingredients with AI
         raw_ingredients = scraper.ingredients()
-        ingredients = []
-        for ing_str in raw_ingredients:
-            # Simple parsing - could be improved with AI
-            parts = ing_str.split(" ", 2)
-            if len(parts) >= 3:
-                ingredients.append(Ingredient(
-                    amount=parts[0],
-                    unit=parts[1],
-                    name=parts[2]
-                ))
-            elif len(parts) == 2:
-                ingredients.append(Ingredient(
-                    amount=parts[0],
-                    unit="",
-                    name=parts[1]
-                ))
-            else:
-                ingredients.append(Ingredient(
-                    amount="",
-                    unit="",
-                    name=ing_str
-                ))
+        ingredients = await parse_ingredients_with_ai(raw_ingredients)
 
-        # Extract instructions
+        # Extract and parse instructions with AI
         raw_instructions = scraper.instructions_list() if hasattr(scraper, 'instructions_list') else scraper.instructions().split('\n')
-        instructions = [
-            Instruction(step=idx + 1, description=inst.strip())
-            for idx, inst in enumerate(raw_instructions)
-            if inst.strip()
-        ]
+        instructions = await parse_instructions_with_ai(raw_instructions)
 
         # Build recipe object
         recipe = ImportedRecipe(

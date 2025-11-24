@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { DollarSign, TrendingDown, AlertCircle } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTheme } from "@/contexts/theme-context"
 import clsx from "clsx"
+import Image from "next/image"
 
 interface StorePricing {
   store: string
@@ -22,6 +22,19 @@ interface RecipePricingProps {
   recipeId: string
 }
 
+const getStoreLogoPath = (store: string) => {
+  const key = store.trim().toLowerCase()
+  if (key.includes("target")) return "/Target.jpg"
+  if (key.includes("kroger")) return "/kroger.jpg"
+  if (key.includes("meijer")) return "/meijers.png"
+  if (key.includes("99")) return "/99ranch.png"
+  if (key.includes("walmart")) return "/walmart.png"
+  if (key.includes("trader")) return "/trader-joes.png"
+  if (key.includes("aldi")) return "/aldi.png"
+  if (key.includes("safeway")) return "/safeway.jpeg"
+  return "/placeholder-logo.png"
+}
+
 /**
  * Component to display recipe pricing information
  * Shows the cheapest store option and breakdown by store
@@ -32,6 +45,9 @@ export function RecipePricingInfo({ recipeId }: RecipePricingProps) {
     cheapest: StorePricing | null
     byStore: StorePricing[]
     allStores: string[]
+    totalIngredients: number
+    cachedIngredients: number
+    isComplete: boolean
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -86,7 +102,7 @@ export function RecipePricingInfo({ recipeId }: RecipePricingProps) {
     )
   }
 
-  if (error || !pricingData || !pricingData.cheapest) {
+  if (error || !pricingData || !pricingData.cheapest || !pricingData.isComplete) {
     return (
       <Card
         className={clsx(
@@ -102,7 +118,9 @@ export function RecipePricingInfo({ recipeId }: RecipePricingProps) {
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground">
-            {error || "Recipe pricing not yet available. Ingredients may not be standardized."}
+            {error || (pricingData && !pricingData.isComplete
+              ? `Pricing incomplete: ${pricingData.cachedIngredients} of ${pricingData.totalIngredients} ingredients have cached prices.`
+              : "Recipe pricing not yet available. Ingredients may not be standardized.")}
           </div>
         </CardContent>
       </Card>
@@ -139,10 +157,18 @@ export function RecipePricingInfo({ recipeId }: RecipePricingProps) {
               : "bg-gradient-to-br from-green-100 to-emerald-100 border-green-300"
           )}
         >
-          <div className="flex items-baseline justify-between gap-4">
-            <div>
-              <div className="text-sm font-medium text-muted-foreground">Cheapest at</div>
-              <div className="text-2xl font-bold">{cheapest.store}</div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border/50 shadow-sm">
+                <Image
+                  src={getStoreLogoPath(cheapest.store)}
+                  alt={`${cheapest.store} logo`}
+                  width={40}
+                  height={40}
+                  className="object-contain"
+                />
+              </div>
+              <div className="text-sm font-medium text-muted-foreground">Cheapest</div>
             </div>
             <div className="text-right">
               <div className="text-4xl font-bold text-green-600">${cheapest.total.toFixed(2)}</div>
@@ -187,7 +213,7 @@ export function RecipePricingInfo({ recipeId }: RecipePricingProps) {
                 <div
                   key={idx}
                   className={clsx(
-                    "p-2 rounded text-sm border",
+                    "p-2 rounded text-sm border flex items-center gap-2",
                     store.store === cheapest.store
                       ? isDark
                         ? "bg-green-500/10 border-green-500/30"
@@ -197,8 +223,16 @@ export function RecipePricingInfo({ recipeId }: RecipePricingProps) {
                         : "bg-gray-100 border-gray-200"
                   )}
                 >
-                  <div className="font-medium">{store.store}</div>
-                  <div className={clsx(store.store === cheapest.store && "text-green-600 font-semibold")}>
+                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border/50 flex-shrink-0">
+                    <Image
+                      src={getStoreLogoPath(store.store)}
+                      alt={`${store.store} logo`}
+                      width={28}
+                      height={28}
+                      className="object-contain"
+                    />
+                  </div>
+                  <div className={clsx("font-medium", store.store === cheapest.store && "text-green-600")}>
                     ${store.total.toFixed(2)}
                   </div>
                 </div>
