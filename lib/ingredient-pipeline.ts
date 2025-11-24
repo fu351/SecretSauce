@@ -314,7 +314,15 @@ async function runStoreScraper(
     console.warn("[ingredient-pipeline] Scraper results not in expected format", { store: normalizedStore, canonicalName, zip })
     return []
   } catch (error) {
-    console.error(`[ingredient-pipeline] Scraper failed for ${store}`, { error, store, canonicalName, zip })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    console.error(`[ingredient-pipeline] Scraper failed for ${store}`, {
+      store,
+      canonicalName,
+      zip,
+      errorMessage,
+      errorStack: errorStack?.split('\n').slice(0, 3).join('\n') // First 3 lines of stack
+    })
     return []
   }
 }
@@ -552,11 +560,29 @@ export async function getOrRefreshIngredientPrice(
   }
 
   const scraped = await runStoreScraper(store, canonicalName, options)
+  console.log("[ingredient-pipeline] Scraper raw results", {
+    store: normalizedStore,
+    canonicalName,
+    resultsCount: scraped?.length || 0,
+    hasResults: scraped && scraped.length > 0
+  })
+
   const bestProduct = pickBestScrapedProduct(scraped)
   if (!bestProduct) {
-    console.warn("[ingredient-pipeline] Scraper returned no products", { store, canonicalName })
+    console.warn("[ingredient-pipeline] Scraper returned no usable products", {
+      store,
+      canonicalName,
+      rawResultsCount: scraped?.length || 0,
+      reason: scraped?.length === 0 ? "Empty array returned" : "No valid products in results"
+    })
     return null
   }
+
+  console.log("[ingredient-pipeline] Best product selected", {
+    store: normalizedStore,
+    productName: bestProduct.product_name || bestProduct.title,
+    price: bestProduct.price
+  })
 
   const payload = buildCachePayload(standardizedIngredientId, store, bestProduct)
   return upsertCacheEntry(supabaseClient, payload)

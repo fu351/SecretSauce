@@ -299,19 +299,50 @@ export async function GET(request: NextRequest) {
 
       const storeResults = await Promise.all(storePromises)
 
+      console.log("[grocery-search] All store fetch attempts completed", {
+        totalStores: storeKeys.length,
+        searchTerm: sanitizedSearchTerm,
+      })
+
+      const storeSuccessMap: Record<string, boolean> = {}
       storeResults.forEach(({ store, row }) => {
+        storeSuccessMap[store] = !!row
         if (row) {
           cachedRows.push(row)
+          console.log("[grocery-search] Store SUCCESS", {
+            store,
+            productName: row.product_name,
+            price: row.price,
+            location: row.location
+          })
+        } else {
+          console.log("[grocery-search] Store FAILED", { store, reason: "No results returned" })
         }
-        console.log("[grocery-search] Store result", { store, found: !!row })
+      })
+
+      console.log("[grocery-search] Store results summary", {
+        successCount: cachedRows.length,
+        failedCount: storeKeys.length - cachedRows.length,
+        successStores: Object.entries(storeSuccessMap).filter(([_, v]) => v).map(([k]) => k),
+        failedStores: Object.entries(storeSuccessMap).filter(([_, v]) => !v).map(([k]) => k),
       })
     } else {
       console.log("[grocery-search] No standardized ID yet, running searchOrCreate workflow", {
         searchTerm: sanitizedSearchTerm,
+        stores: storeKeys,
+        zipCode: zipToUse,
       })
       cachedRows = await searchOrCreateIngredientAndPrices(supabaseClient, sanitizedSearchTerm, storeKeys, {
         zipCode: zipToUse,
       })
+
+      console.log("[grocery-search] searchOrCreate workflow completed", {
+        searchTerm: sanitizedSearchTerm,
+        resultsCount: cachedRows.length,
+        storesWithResults: cachedRows.map(r => r.store),
+        storesWithoutResults: storeKeys.filter(s => !cachedRows.some(r => r.store.toLowerCase() === s.toLowerCase()))
+      })
+
       if (cachedRows.length > 0) {
         standardizedIngredientId = cachedRows[0].standardized_ingredient_id
       }
