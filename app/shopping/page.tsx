@@ -1032,6 +1032,19 @@ export default function ShoppingPage() {
       })
 
       const searchResults = await Promise.all(searchPromises)
+
+      // Detailed logging for each item's store results
+      searchResults.forEach(({ item, storeResults }) => {
+        const storesWithItems = storeResults.filter(sr => sr.items && sr.items.length > 0)
+        const storesWithoutItems = storeResults.filter(sr => !sr.items || sr.items.length === 0)
+        console.log(`[Shopping] Item "${item.name}" results:`, {
+          totalStoresReturned: storeResults.length,
+          storesWithProducts: storesWithItems.map(sr => sr.store),
+          storesEmpty: storesWithoutItems.map(sr => sr.store),
+          productCounts: storeResults.map(sr => ({ store: sr.store, count: sr.items?.length || 0 }))
+        })
+      })
+
       console.log("[Shopping] Completed individual store lookups", {
         details: searchResults.map(({ item, storeResults }) => ({
           shoppingItem: item.name,
