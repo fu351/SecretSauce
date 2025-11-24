@@ -144,6 +144,9 @@ async function resolveStandardizedIdForTerm(
 }
 
 export async function GET(request: NextRequest) {
+  // Debug logging version: 2025-11-23-v2
+  console.log("[grocery-search] API endpoint hit", { timestamp: new Date().toISOString() })
+
   const { searchParams } = new URL(request.url)
   const rawSearchTerm = searchParams.get("searchTerm") || ""
   const sanitizedSearchTerm = (rawSearchTerm.split(",")[0] || "").trim() || rawSearchTerm.trim()
