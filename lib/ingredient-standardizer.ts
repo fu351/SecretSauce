@@ -63,18 +63,20 @@ You are an ingredient normalizer helping a cooking app map free-form ${context} 
 EXISTING canonical ingredients (MUST match to these when possible): ${canonicalList}
 
 Instructions:
-1. ALWAYS try to match to an existing canonical ingredient from the list above. This is critical for the app to work correctly.
-2. Strip away ALL preparation methods and descriptors: chopped, minced, diced, sliced, grated, shredded, crushed, fresh, dried, cooked, raw, large, small, ripe, etc.
+1. ALWAYS try to match to an existing canonical ingredient from the list above first.
+2. Strip away preparation methods and descriptors: chopped, minced, diced, sliced, grated, shredded, crushed, cooked, raw, large, small, ripe, etc.
 3. Remove qualifiers like "to taste", "optional", "for garnish", "divided", etc.
-4. Simplify to the BASE ingredient:
-   - "chopped fresh parsley" → "parsley" (if parsley exists) or just "parsley"
-   - "grated parmesan cheese" → "parmesan cheese" or "cheese"
-   - "dry white wine" → "white wine" or "wine"
-   - "salt and black pepper to taste" → "salt and pepper" or "salt"
+4. Keep ingredient names SPECIFIC ENOUGH to be useful for grocery shopping:
+   - "grated parmesan cheese" → "parmesan cheese" (NOT just "cheese")
+   - "dry white wine" → "white wine" (NOT just "wine")
+   - "fresh basil leaves" → "basil"
+   - "chopped yellow onion" → "onion"
    - "boneless skinless chicken breast" → "chicken breast"
+   - "extra virgin olive oil" → "olive oil"
+   - "salt and black pepper to taste" → "salt and pepper"
 5. For each input, return a canonical grocery ingredient name (singular, lowercase).
-6. ONLY create a new canonical name if absolutely no match exists in the list. Prefer existing matches even if slightly different.
-7. Include the most likely category from: produce, dairy, meat & seafood, pantry staples, frozen, beverages, snacks, condiments, baking, other.
+6. If no existing match, create a new canonical name that is specific enough to find in a grocery store.
+7. REQUIRED: Include a specific category from ONLY these options: produce, dairy, meat & seafood, pantry staples, frozen, beverages, snacks, condiments, baking. NEVER use "other" - always pick the most appropriate category.
 8. Output confidence between 0 and 1 (higher if matched to existing canonical).
 9. Return ONLY valid JSON (no markdown) as an array of objects using this shape:
    [{"id":"input-id","originalName":"original input","canonicalName":"canonical","category":"category","confidence":0.92}]
