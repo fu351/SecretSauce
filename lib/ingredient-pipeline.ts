@@ -593,16 +593,15 @@ export async function searchOrCreateIngredientAndPrices(
 ): Promise<IngredientCacheResult[]> {
   if (!query) throw new Error("query is required")
   const standardizedId = await resolveOrCreateStandardizedId(supabaseClient, query)
-  const results: IngredientCacheResult[] = []
 
-  for (const store of stores) {
-    const cacheRow = await getOrRefreshIngredientPrice(supabaseClient, standardizedId, store, options)
-    if (cacheRow) {
-      results.push(cacheRow)
-    }
-  }
+  // Fetch from all stores in parallel for faster response
+  const storePromises = stores.map(async (store) => {
+    return getOrRefreshIngredientPrice(supabaseClient, standardizedId, store, options)
+  })
 
-  return results
+  const storeResults = await Promise.all(storePromises)
+
+  return storeResults.filter((row): row is IngredientCacheResult => row !== null)
 }
 
 export interface IngredientInput {

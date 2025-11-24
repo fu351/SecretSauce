@@ -283,16 +283,28 @@ export async function GET(request: NextRequest) {
     }
 
     if (standardizedIngredientId) {
-      for (const store of storeKeys) {
-        console.log("[grocery-search] Fetching cache/scrape per store", { store, standardizedIngredientId, zipToUse })
+      // Fetch from all stores in parallel for faster response
+      console.log("[grocery-search] Fetching cache/scrape for all stores in parallel", {
+        stores: storeKeys,
+        standardizedIngredientId,
+        zipToUse
+      })
+
+      const storePromises = storeKeys.map(async (store) => {
         const row = await getOrRefreshIngredientPrice(supabaseClient, standardizedIngredientId, store, {
           zipCode: zipToUse,
         })
+        return { store, row }
+      })
+
+      const storeResults = await Promise.all(storePromises)
+
+      storeResults.forEach(({ store, row }) => {
         if (row) {
           cachedRows.push(row)
         }
         console.log("[grocery-search] Store result", { store, found: !!row })
-      }
+      })
     } else {
       console.log("[grocery-search] No standardized ID yet, running searchOrCreate workflow", {
         searchTerm: sanitizedSearchTerm,
