@@ -243,13 +243,13 @@ img {
 
 /* Make placeholder text fainter for better UX */
 ::placeholder {
-  color: hsl(var(--muted-foreground) / 0.4) !important;
+  color: hsl(var(--muted-foreground) / 0.25) !important;
   opacity: 1;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: hsl(var(--muted-foreground) / 0.4) !important;
+  color: hsl(var(--muted-foreground) / 0.25) !important;
   opacity: 1;
 }
 
