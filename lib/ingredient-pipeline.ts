@@ -453,6 +453,47 @@ async function upsertCacheEntry(
       details: error.details,
       hint: error.hint,
     })
+
+    // If INSERT failed due to duplicate key, try to fetch and update the existing entry
+    if (error.code === '23505') {
+      console.log("[ingredient-pipeline] Duplicate key - fetching existing entry to update...")
+      const { data: existingData, error: fetchError } = await client
+        .from("ingredient_cache")
+        .select("*")
+        .eq("standardized_ingredient_id", payload.standardized_ingredient_id)
+        .ilike("store", payload.store)
+        .maybeSingle()
+
+      if (fetchError) {
+        console.error("[ingredient-pipeline] Failed to fetch existing entry", fetchError)
+        return null
+      }
+
+      if (existingData) {
+        // Update the existing entry with new data
+        const { data: updated, error: updateError } = await client
+          .from("ingredient_cache")
+          .update({
+            ...payload,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", existingData.id)
+          .select("*")
+          .maybeSingle()
+
+        if (updateError) {
+          console.error("[ingredient-pipeline] Failed to update existing entry", updateError)
+          return existingData // Return old data as fallback
+        }
+
+        console.log("[ingredient-pipeline] Updated existing entry after duplicate key error", {
+          id: updated?.id,
+          store: updated?.store
+        })
+        return updated || existingData
+      }
+    }
+
     return null
   }
 
@@ -519,12 +560,32 @@ export async function getOrRefreshIngredientPrice(
   // Normalize store name for cache lookup (handle both "target" and "Target")
   const normalizedStore = store.toLowerCase().trim()
 
+  const startTime = Date.now()
   console.log("[ingredient-pipeline] getOrRefreshIngredientPrice called", {
     standardizedIngredientId,
     store,
     normalizedStore,
     zipCode: options.zipCode,
   })
+
+  // First check if ANY cached data exists (even expired) - for debugging
+  const { data: anyCache } = await supabaseClient
+    .from("ingredient_cache")
+    .select("id, store, expires_at, product_name")
+    .eq("standardized_ingredient_id", standardizedIngredientId)
+    .ilike("store", normalizedStore)
+    .limit(1)
+    .maybeSingle()
+
+  if (anyCache) {
+    const isExpired = new Date(anyCache.expires_at) < new Date()
+    console.log("[ingredient-pipeline] Cache entry exists", {
+      store: normalizedStore,
+      product_name: anyCache.product_name,
+      expires_at: anyCache.expires_at,
+      isExpired,
+    })
+  }
 
   // Try to find cached result - case-insensitive store match
   const { data: cached, error: cacheError } = await supabaseClient
@@ -543,16 +604,21 @@ export async function getOrRefreshIngredientPrice(
   }
 
   if (cached) {
-    console.log("[ingredient-pipeline] Cache HIT", {
+    console.log("[ingredient-pipeline] Cache HIT (valid)", {
       store: normalizedStore,
       product_name: cached.product_name,
       price: cached.price,
       expires_at: cached.expires_at,
+      timeMs: Date.now() - startTime,
     })
     return cached
   }
 
-  console.log("[ingredient-pipeline] Cache MISS, will scrape", { store: normalizedStore, standardizedIngredientId })
+  console.log("[ingredient-pipeline] Cache MISS (expired or not found), will scrape", {
+    store: normalizedStore,
+    standardizedIngredientId,
+    timeMs: Date.now() - startTime,
+  })
 
   const canonicalName = await loadCanonicalName(supabaseClient, standardizedIngredientId)
   if (!canonicalName) {
@@ -560,12 +626,15 @@ export async function getOrRefreshIngredientPrice(
     return null
   }
 
+  const scrapeStart = Date.now()
   const scraped = await runStoreScraper(store, canonicalName, options)
+  const scrapeTime = Date.now() - scrapeStart
   console.log("[ingredient-pipeline] Scraper raw results", {
     store: normalizedStore,
     canonicalName,
     resultsCount: scraped?.length || 0,
-    hasResults: scraped && scraped.length > 0
+    hasResults: scraped && scraped.length > 0,
+    scrapeTimeMs: scrapeTime,
   })
 
   const bestProduct = pickBestScrapedProduct(scraped)
@@ -586,7 +655,18 @@ export async function getOrRefreshIngredientPrice(
   })
 
   const payload = buildCachePayload(standardizedIngredientId, store, bestProduct)
-  return upsertCacheEntry(supabaseClient, payload)
+  const upsertStart = Date.now()
+  const result = await upsertCacheEntry(supabaseClient, payload)
+  const totalTime = Date.now() - startTime
+
+  console.log("[ingredient-pipeline] getOrRefreshIngredientPrice completed", {
+    store: normalizedStore,
+    success: !!result,
+    upsertTimeMs: Date.now() - upsertStart,
+    totalTimeMs: totalTime,
+  })
+
+  return result
 }
 
 async function resolveOrCreateStandardizedId(

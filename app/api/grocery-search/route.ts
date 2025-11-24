@@ -144,7 +144,8 @@ async function resolveStandardizedIdForTerm(
 }
 
 export async function GET(request: NextRequest) {
-  // Debug logging version: 2025-11-23-v2
+  const requestStart = Date.now()
+  // Debug logging version: 2025-11-23-v3
   console.log("[grocery-search] API endpoint hit", { timestamp: new Date().toISOString() })
 
   const { searchParams } = new URL(request.url)
@@ -473,6 +474,15 @@ export async function GET(request: NextRequest) {
     })
   }
   const formatted = formatCacheResults(cachedRows, sanitizedSearchTerm, zipToUse)
+  const totalTime = Date.now() - requestStart
+
+  console.log("[grocery-search] Request completed", {
+    searchTerm: sanitizedSearchTerm,
+    resultsCount: formatted.length,
+    storesReturned: [...new Set(formatted.map(r => r.provider))],
+    totalTimeMs: totalTime,
+  })
+
   return NextResponse.json({
     results: formatted,
     cached: true,
