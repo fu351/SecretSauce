@@ -3,8 +3,17 @@ import { createServerClient } from "@/lib/supabase"
 import { cacheIngredientPrice } from "@/lib/ingredient-cache"
 
 // List of stores to scrape
-const STORES = ["Target", "Kroger", "Meijer", "99 Ranch", "Walmart"]
-const DEFAULT_ZIP_CODE = "47906"
+const STORES = [
+  "Target",
+  "Kroger",
+  "Meijer",
+  "99 Ranch",
+  "Walmart",
+  "Aldi",
+  "Safeway",
+  "Trader Joes"
+]
+const DEFAULT_ZIP_CODE = "94704"
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,8 +103,9 @@ export async function GET(request: NextRequest) {
 async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: string, store: string) {
   try {
     const scrapers = require("@/lib/scrapers")
+    const { simplifyIngredientTokens } = require("@/lib/ingredient-cache")
 
-    // Call the appropriate scraper based on store
+    // Try scraping with canonical name first
     let scrapedItems: any[] = []
 
     switch (store) {
@@ -114,8 +124,52 @@ async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: st
       case "Walmart":
         scrapedItems = (await scrapers.searchWalmartAPI(ingredientName, DEFAULT_ZIP_CODE)) || []
         break
+      case "Aldi":
+        scrapedItems = (await scrapers.searchAldi(ingredientName, DEFAULT_ZIP_CODE)) || []
+        break
+      case "Safeway":
+        scrapedItems = (await scrapers.searchSafeway(ingredientName, DEFAULT_ZIP_CODE)) || []
+        break
+      case "Trader Joes":
+        scrapedItems = (await scrapers.searchTraderJoes(ingredientName, DEFAULT_ZIP_CODE)) || []
+        break
       default:
         throw new Error(`Unknown store: ${store}`)
+    }
+
+    // Fallback: If no results, try with simplified name (removes stop words)
+    if ((!scrapedItems || scrapedItems.length === 0) && ingredientName.includes(" ")) {
+      const simplifiedName = simplifyIngredientTokens(ingredientName)
+      if (simplifiedName && simplifiedName !== ingredientName) {
+        console.log(`[${store}] No results for "${ingredientName}", trying simplified: "${simplifiedName}"`)
+
+        switch (store) {
+          case "Target":
+            scrapedItems = (await scrapers.getTargetProducts(simplifiedName, null, DEFAULT_ZIP_CODE)) || []
+            break
+          case "Kroger":
+            scrapedItems = (await scrapers.Krogers(DEFAULT_ZIP_CODE, simplifiedName)) || []
+            break
+          case "Meijer":
+            scrapedItems = (await scrapers.Meijers(DEFAULT_ZIP_CODE, simplifiedName)) || []
+            break
+          case "99 Ranch":
+            scrapedItems = (await scrapers.search99Ranch(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            break
+          case "Walmart":
+            scrapedItems = (await scrapers.searchWalmartAPI(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            break
+          case "Aldi":
+            scrapedItems = (await scrapers.searchAldi(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            break
+          case "Safeway":
+            scrapedItems = (await scrapers.searchSafeway(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            break
+          case "Trader Joes":
+            scrapedItems = (await scrapers.searchTraderJoes(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            break
+        }
+      }
     }
 
     // If we got results, cache the cheapest one from this store

@@ -50,7 +50,7 @@ let standardizedIngredientCache: StandardizedIngredientRow[] | null = null
 let standardizedIngredientCacheExpiresAt = 0
 const standardizedIngredientIndex = new Map<string, StandardizedIngredientRow>()
 
-function simplifyIngredientTokens(value: string): string {
+export function simplifyIngredientTokens(value: string): string {
   return value
     .replace(/\(.*?\)/g, " ")
     .replace(/[^a-z0-9\s]/g, " ")

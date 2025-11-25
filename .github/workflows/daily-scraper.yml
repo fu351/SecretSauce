@@ -1,0 +1,47 @@
+name: Daily Ingredient Scraper
+
+on:
+  # Run daily at 2 AM UTC (9 PM EST / 6 PM PST)
+  schedule:
+    - cron: '0 2 * * *'
+
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    name: Scrape Ingredient Prices
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # Max 1 hour for the entire job
+
+    steps:
+      - name: Trigger Fly.io Daily Scraper
+        run: |
+          echo "Triggering daily ingredient scraper on Fly.io..."
+
+          RESPONSE=$(curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s \
+            https://your-app.fly.dev/daily-ingredient-scraper)
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+
+          echo "Response Status: $HTTP_STATUS"
+          echo "Response Body: $BODY"
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "✅ Daily scraper completed successfully"
+            exit 0
+          else
+            echo "❌ Daily scraper failed with status $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Report Failure
+        if: failure()
+        run: |
+          echo "::error::Daily ingredient scraper failed. Check Fly.io logs for details."
+          echo "Run: fly logs -a your-app-name"
