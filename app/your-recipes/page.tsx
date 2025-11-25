@@ -1,70 +1,23 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Pencil, Plus } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
 import { getRecipeImageUrl } from "@/lib/image-helper"
-
-interface Recipe {
-  id: string
-  title: string
-  description: string
-  image_url: string
-  difficulty: string
-  prep_time: number
-  cook_time: number
-  rating_avg: number
-  rating_count: number
-  dietary_tags: string[]
-  nutrition?: {
-    calories?: number
-    protein?: number
-    carbs?: number
-    fat?: number
-  }
-}
+import { useUserRecipes } from "@/hooks/use-recipes"
 
 export default function YourRecipesPage() {
   const { user } = useAuth()
   const { theme } = useTheme()
   const router = useRouter()
-  const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (user) {
-      fetchUserRecipes()
-    }
-  }, [user])
-
-  const fetchUserRecipes = async () => {
-    if (!user) return
-
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from("recipes")
-        .select(
-          "id, title, description, image_url, difficulty, prep_time, cook_time, rating_avg, rating_count, dietary_tags, nutrition",
-        )
-        .eq("author_id", user.id)
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-      setRecipes(data || [])
-    } catch (error) {
-      console.error("Error fetching recipes:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Use React Query hook for data fetching with caching
+  const { data: recipes = [], isLoading: loading } = useUserRecipes(user?.id || null)
 
   if (loading) {
     return (

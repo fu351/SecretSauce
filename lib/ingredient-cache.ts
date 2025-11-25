@@ -330,6 +330,92 @@ export async function cacheIngredientPrice(
 }
 
 /**
+ * Batch get or create standardized ingredients
+ * OPTIMIZED: Single upsert for all items instead of one per ingredient
+ */
+export async function batchGetOrCreateStandardizedIngredients(
+  items: Array<{ canonicalName: string; category: string | null }>
+): Promise<Map<string, string>> {
+  const resultMap = new Map<string, string>()
+  if (!items || items.length === 0) return resultMap
+
+  try {
+    const client = createServerClient()
+
+    // Normalize all names
+    const payloads = items.map(item => ({
+      canonical_name: item.canonicalName.trim().toLowerCase(),
+      category: item.category,
+    }))
+
+    // Single batch upsert
+    const { data, error } = await client
+      .from("standardized_ingredients")
+      .upsert(payloads, { onConflict: "canonical_name" })
+      .select("id, canonical_name, category")
+
+    if (error) {
+      console.error("Error batch creating standardized ingredients:", error)
+      return resultMap
+    }
+
+    // Build result map and update cache
+    if (data) {
+      for (const row of data) {
+        const normalized: StandardizedIngredientRow = {
+          id: row.id,
+          canonical_name: row.canonical_name.toLowerCase(),
+          category: row.category ?? null,
+        }
+        standardizedIngredientIndex.set(row.id, normalized)
+        resultMap.set(row.canonical_name.toLowerCase(), row.id)
+      }
+    }
+
+    return resultMap
+  } catch (error) {
+    console.error("Error in batchGetOrCreateStandardizedIngredients:", error)
+    return resultMap
+  }
+}
+
+/**
+ * Batch create ingredient mappings
+ * OPTIMIZED: Single insert for all mappings instead of one per ingredient
+ */
+export async function batchMapIngredientsToStandardized(
+  recipeId: string,
+  mappings: Array<{ originalName: string; standardizedIngredientId: string }>
+): Promise<boolean> {
+  if (!mappings || mappings.length === 0) return true
+
+  try {
+    const client = createServerClient()
+
+    const payloads = mappings.map(m => ({
+      recipe_id: recipeId,
+      original_name: m.originalName,
+      standardized_ingredient_id: m.standardizedIngredientId,
+    }))
+
+    // Use upsert to handle duplicates gracefully
+    const { error } = await client
+      .from("ingredient_mappings")
+      .upsert(payloads, { onConflict: "recipe_id,original_name" })
+
+    if (error) {
+      console.error("Error batch creating ingredient mappings:", error)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error in batchMapIngredientsToStandardized:", error)
+    return false
+  }
+}
+
+/**
  * Get or create a standardized ingredient by name
  */
 export async function getOrCreateStandardizedIngredient(
@@ -395,6 +481,68 @@ export async function getOrCreateStandardizedIngredient(
   } catch (error) {
     console.error("Error in getOrCreateStandardizedIngredient:", error)
     return null
+  }
+}
+
+/**
+ * Batch upsert multiple cache entries at once
+ * OPTIMIZED: Single query instead of one per item
+ */
+export async function batchCacheIngredientPrices(
+  items: Array<{
+    standardizedIngredientId: string
+    store: string
+    productName: string | null
+    price: number
+    quantity: number
+    unit: string
+    unitPrice: number | null
+    imageUrl: string | null
+    productUrl: string | null
+    productId: string | null
+  }>
+): Promise<number> {
+  if (!items || items.length === 0) return 0
+
+  try {
+    const client = createServerClient()
+    const expiresAt = new Date()
+    expiresAt.setHours(expiresAt.getHours() + 24)
+    const expiresAtStr = expiresAt.toISOString()
+    const updatedAt = new Date().toISOString()
+
+    // Build batch payload
+    const payloads = items.map(item => ({
+      standardized_ingredient_id: item.standardizedIngredientId,
+      store: item.store.toLowerCase(),
+      product_name: item.productName || null,
+      price: Number.isFinite(item.price) ? item.price : 0,
+      quantity: item.quantity,
+      unit: item.unit,
+      unit_price: item.unitPrice,
+      image_url: item.imageUrl,
+      product_url: item.productUrl,
+      product_id: item.productId,
+      expires_at: expiresAtStr,
+      updated_at: updatedAt,
+    }))
+
+    // Single batch upsert
+    const { data, error } = await client
+      .from("ingredient_cache")
+      .upsert(payloads, { onConflict: "standardized_ingredient_id,store" })
+      .select("id")
+
+    if (error) {
+      console.error("[Cache] Batch upsert failed:", error)
+      return 0
+    }
+
+    console.log(`[Cache] Batch upserted ${data?.length || 0} items`)
+    return data?.length || 0
+  } catch (error) {
+    console.error("[Cache] Error in batchCacheIngredientPrices:", error)
+    return 0
   }
 }
 
@@ -516,6 +664,7 @@ async function upsertFreeformMapping(
 
 /**
  * Attempt to resolve a standardized ingredient ID using canonical names or ingredient mappings
+ * OPTIMIZED: Uses single batched query instead of per-variant loop
  */
 async function findStandardizedIngredientIdByName(
   ingredientName: string
@@ -528,8 +677,10 @@ async function findStandardizedIngredientIdByName(
       return null
     }
 
+    // First check in-memory cache (no DB queries needed)
     const canonicalList = await loadStandardizedIngredientCache(client)
 
+    // Direct match check - O(n) in memory, no DB call
     for (const variant of variants) {
       const directMatch = canonicalList.find((entry) => entry.canonical_name === variant)
       if (directMatch) {
@@ -537,6 +688,7 @@ async function findStandardizedIngredientIdByName(
       }
     }
 
+    // Contains match check - O(n) in memory, no DB call
     for (const variant of variants) {
       if (variant.length < 3) continue
       const containsMatch = canonicalList.find(
@@ -549,21 +701,24 @@ async function findStandardizedIngredientIdByName(
       }
     }
 
-    for (const variant of variants) {
-      const { data: mappingMatch, error: mappingError } = await client
+    // OPTIMIZED: Single DB query for all variants instead of one per variant
+    // Filter to valid variants (length >= 2) to avoid overly broad matches
+    const validVariants = variants.filter(v => v.length >= 2)
+    if (validVariants.length > 0) {
+      // Build OR conditions for PostgREST query
+      const orConditions = validVariants.map(v => `original_name.ilike.%${v}%`).join(',')
+      const { data: mappingMatches, error: mappingError } = await client
         .from("ingredient_mappings")
         .select("standardized_ingredient_id")
-        .ilike("original_name", `%${variant}%`)
+        .or(orConditions)
         .limit(1)
-        .maybeSingle()
 
       if (mappingError && mappingError.code !== "PGRST116") {
         console.error("Error searching ingredient mappings:", mappingError)
-        continue
       }
 
-      if (mappingMatch?.standardized_ingredient_id) {
-        return mappingMatch.standardized_ingredient_id
+      if (mappingMatches && mappingMatches.length > 0) {
+        return mappingMatches[0].standardized_ingredient_id
       }
     }
 
@@ -643,6 +798,7 @@ export async function searchWithCache(
 /**
  * Batch search multiple ingredients with cache checking
  * Useful for recipe ingredient lists
+ * OPTIMIZED: Parallelized with Promise.all instead of sequential loop
  */
 export async function batchSearchWithCache(
   ingredients: string[],
@@ -659,8 +815,15 @@ export async function batchSearchWithCache(
 > {
   const results = new Map()
 
-  for (const ingredient of ingredients) {
+  // OPTIMIZED: Run all searches in parallel instead of sequentially
+  const searchPromises = ingredients.map(async (ingredient) => {
     const result = await searchWithCache(ingredient, stores)
+    return { ingredient, result }
+  })
+
+  const searchResults = await Promise.all(searchPromises)
+
+  for (const { ingredient, result } of searchResults) {
     results.set(ingredient, result)
   }
 
@@ -752,8 +915,21 @@ export async function cacheScrapedResults(
       }
     }
 
-    // Cache each item, allowing per-item resolution when the shared ID is unavailable
+    // OPTIMIZED: Collect all items for batch insert instead of per-item DB calls
     const aiTitleCache = new Map<string, string | null>()
+    const cachePayloads: Array<{
+      standardizedIngredientId: string
+      store: string
+      productName: string | null
+      price: number
+      quantity: number
+      unit: string
+      unitPrice: number | null
+      imageUrl: string | null
+      productUrl: string | null
+      productId: string | null
+    }> = []
+
     for (const item of scrapedItems) {
       let standardizedId = sharedStandardizedId
 
@@ -812,36 +988,33 @@ export async function cacheScrapedResults(
         }
       }
 
-      // Cache the item
-      const priceValue = Number(item.price)
-      const success = await cacheIngredientPrice(
-        standardizedId,
-        item.provider,
-        item.title,
-        Number.isFinite(priceValue) ? priceValue : 0,
-        1, // quantity
-        item.unit || "unit",
+      // Collect payload for batch insert
+      cachePayloads.push({
+        standardizedIngredientId: standardizedId,
+        store: item.provider,
+        productName: item.title,
+        price: Number(item.price),
+        quantity: 1,
+        unit: item.unit || "unit",
         unitPrice,
-        item.image_url || null,
-        item.product_url || null,
-        item.product_id || null
-      )
-
-      if (success) {
-        cachedCount++
-      }
+        imageUrl: item.image_url || null,
+        productUrl: item.product_url || null,
+        productId: item.product_id || null,
+      })
     }
 
-    if (cachedCount > 0) {
+    // OPTIMIZED: Single batch upsert instead of per-item calls
+    if (cachePayloads.length > 0) {
+      cachedCount = await batchCacheIngredientPrices(cachePayloads)
       console.log(
-        `[Cache] Cached ${cachedCount}/${scrapedItems.length} scraped items`
+        `[Cache] Batch cached ${cachedCount}/${scrapedItems.length} scraped items`
       )
     } else {
-        console.warn("[Cache] No items cached from scrape batch", {
-          searchTerm: searchTermForLookup,
-          sharedStandardizedId,
-          itemCount: scrapedItems.length,
-        })
+      console.warn("[Cache] No items to cache from scrape batch", {
+        searchTerm: searchTermForLookup,
+        sharedStandardizedId,
+        itemCount: scrapedItems.length,
+      })
     }
 
     return cachedCount

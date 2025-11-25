@@ -38,7 +38,9 @@
     "@radix-ui/react-toggle": "latest",
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
+    "@sparticuz/chromium": "latest",
     "@supabase/supabase-js": "latest",
+    "@tanstack/react-query": "^5.90.10",
     "@types/lodash": "^4.17.20",
     "@vercel/speed-insights": "latest",
     "@vis.gl/react-google-maps": "^1.7.1",
@@ -58,6 +60,7 @@
     "next": "15.2.4",
     "next-themes": "latest",
     "path": "latest",
+    "playwright-core": "latest",
     "react": "^19",
     "react-day-picker": "latest",
     "react-dom": "^19",
@@ -70,9 +73,7 @@
     "tesseract.js": "^6.0.1",
     "vaul": "latest",
     "vue-router": "latest",
-    "zod": "^3.24.1",
-    "playwright-core": "latest",
-    "@sparticuz/chromium": "latest"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@flydotio/dockerfile": "^0.7.10",

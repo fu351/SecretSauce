@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import {
-  getOrRefreshIngredientPrice,
+  getOrRefreshIngredientPricesForStores,
   resolveStandardizedIngredientForRecipe,
   searchOrCreateIngredientAndPrices,
   type IngredientCacheResult,
@@ -24,6 +24,8 @@ async function scrapeDirectFallback(
   term: string,
   stores: string[],
   zip?: string,
+  standardizedIngredientId?: string | null,
+  supabaseClient?: ReturnType<typeof createServerClient> | null,
 ): Promise<
   Array<{
     id: string
@@ -34,6 +36,7 @@ async function scrapeDirectFallback(
     image_url?: string | null
     provider: string
     location?: string | null
+    fromCache?: boolean
   }>
 > {
   try {
@@ -54,21 +57,75 @@ async function scrapeDirectFallback(
     }
 
     const results: any[] = []
-    for (const store of stores) {
-      const scraper = scraperMap[store]
-      if (!scraper) continue
-      try {
-        let data: any[] = []
-        if (store === "kroger" || store === "meijer") {
-          data = (await scraper(zip, term)) || []
-        } else if (store === "target") {
-          data = (await scraper(term, null, zip)) || []
+
+    // Check cache for all stores at once if we have a standardized ID
+    const storesToScrape: string[] = []
+    const cachedStores: string[] = []
+
+    if (standardizedIngredientId && supabaseClient) {
+      // Single batched query for all stores
+      const { data: cachedItems } = await supabaseClient
+        .from("ingredient_cache")
+        .select("*")
+        .eq("standardized_ingredient_id", standardizedIngredientId)
+        .in("store", stores.map(s => s.toLowerCase()))
+        .gt("expires_at", new Date().toISOString())
+
+      // Build a map of cached stores
+      const cachedByStore = new Map<string, any>()
+      if (cachedItems) {
+        cachedItems.forEach(cached => {
+          cachedByStore.set(cached.store.toLowerCase(), cached)
+        })
+      }
+
+      // Process each store - use cache if available, otherwise mark for scraping
+      for (const store of stores) {
+        const cached = cachedByStore.get(store.toLowerCase())
+        if (cached) {
+          results.push({
+            id: cached.product_id || cached.id,
+            title: cached.product_name || term,
+            price: Number(cached.price) || 0,
+            unit: cached.unit || null,
+            pricePerUnit: cached.unit_price ? `$${cached.unit_price}/${cached.unit}` : null,
+            image_url: cached.image_url || null,
+            provider: store,
+            location: cached.location || null,
+            fromCache: true,
+          })
+          cachedStores.push(store)
         } else {
-          data = (await scraper(term, zip)) || []
+          storesToScrape.push(store)
         }
-        if (!Array.isArray(data)) continue
-        data
-          .map((item: any) => ({
+      }
+
+      console.log("[grocery-search] Cache check complete", {
+        cachedStores,
+        storesToScrape,
+        term,
+      })
+    } else {
+      // No standardized ID, scrape all stores
+      storesToScrape.push(...stores)
+    }
+
+    // Scrape stores in parallel for better performance
+    const scrapePromises = storesToScrape
+      .filter(store => scraperMap[store])
+      .map(async (store) => {
+        const scraper = scraperMap[store]
+        try {
+          let data: any[] = []
+          if (store === "kroger" || store === "meijer") {
+            data = (await scraper(zip, term)) || []
+          } else if (store === "target") {
+            data = (await scraper(term, null, zip)) || []
+          } else {
+            data = (await scraper(term, zip)) || []
+          }
+          if (!Array.isArray(data)) return []
+          return data.map((item: any) => ({
             id: item.id || `${store}-${Math.random()}`,
             title: item.title || item.name || term,
             price: Number(item.price) || 0,
@@ -77,12 +134,17 @@ async function scrapeDirectFallback(
             image_url: item.image_url || null,
             provider: store,
             location: item.location || null,
+            fromCache: false,
           }))
-          .forEach((item: any) => results.push(item))
-      } catch (error) {
-        console.warn("[grocery-search] Fallback scraper error", { store, error })
-      }
-    }
+        } catch (error) {
+          console.warn("[grocery-search] Fallback scraper error", { store, error })
+          return []
+        }
+      })
+
+    const scrapeResults = await Promise.all(scrapePromises)
+    scrapeResults.forEach(storeResults => results.push(...storeResults))
+
     return results
   } catch (error) {
     console.error("[grocery-search] Failed fallback scraping", error)
@@ -203,7 +265,7 @@ export async function GET(request: NextRequest) {
   if (forceRefresh) {
     console.log("[grocery-search] Force refresh requested, bypassing cache and scraping directly")
 
-    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse)
+    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, null, null)
 
     if (directItems.length > 0) {
       // Resolve standardized ID for caching
@@ -218,33 +280,31 @@ export async function GET(request: NextRequest) {
         standardizedIngredientId = await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId)
       }
 
-      // Fire-and-forget cache write
+      // Fire-and-forget batch cache write
       if (standardizedIngredientId) {
         Promise.resolve()
           .then(async () => {
             const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-            for (const item of directItems) {
-              const storeKey = item.provider.toLowerCase()
-              const payload = {
-                standardized_ingredient_id: standardizedIngredientId,
-                store: storeKey,
-                product_name: item.title,
-                price: item.price,
-                quantity: 1,
-                unit: item.unit || "unit",
-                unit_price: item.pricePerUnit
-                  ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
-                  : null,
-                image_url: item.image_url || null,
-                product_id: item.id,
-                location: item.location || null,
-                expires_at: expires,
-              }
+            const payloads = directItems.map(item => ({
+              standardized_ingredient_id: standardizedIngredientId,
+              store: item.provider.toLowerCase(),
+              product_name: item.title,
+              price: item.price,
+              quantity: 1,
+              unit: item.unit || "unit",
+              unit_price: item.pricePerUnit
+                ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
+                : null,
+              image_url: item.image_url || null,
+              product_id: item.id,
+              location: item.location || null,
+              expires_at: expires,
+            }))
 
-              await supabaseClient
-                .from("ingredient_cache")
-                .upsert(payload, { onConflict: "standardized_ingredient_id,store" })
-            }
+            await supabaseClient
+              .from("ingredient_cache")
+              .upsert(payloads, { onConflict: "standardized_ingredient_id,store" })
+
             console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
           })
           .catch((error) => console.error("[grocery-search] Force refresh cache write failed", error))
@@ -287,48 +347,26 @@ export async function GET(request: NextRequest) {
     }
 
     if (standardizedIngredientId) {
-      // Fetch from all stores in parallel for faster response
-      console.log("[grocery-search] Fetching cache/scrape for all stores in parallel", {
+      // OPTIMIZED: Single batched call for all stores instead of one per store
+      console.log("[grocery-search] Fetching cache/scrape for all stores (batched)", {
         stores: storeKeys,
         standardizedIngredientId,
         zipToUse
       })
 
-      const storePromises = storeKeys.map(async (store) => {
-        const row = await getOrRefreshIngredientPrice(supabaseClient, standardizedIngredientId, store, {
-          zipCode: zipToUse,
-        })
-        return { store, row }
-      })
+      cachedRows = await getOrRefreshIngredientPricesForStores(
+        supabaseClient,
+        standardizedIngredientId,
+        storeKeys,
+        { zipCode: zipToUse }
+      )
 
-      const storeResults = await Promise.all(storePromises)
-
-      console.log("[grocery-search] All store fetch attempts completed", {
+      console.log("[grocery-search] Batch fetch completed", {
         totalStores: storeKeys.length,
+        resultsCount: cachedRows.length,
         searchTerm: sanitizedSearchTerm,
-      })
-
-      const storeSuccessMap: Record<string, boolean> = {}
-      storeResults.forEach(({ store, row }) => {
-        storeSuccessMap[store] = !!row
-        if (row) {
-          cachedRows.push(row)
-          console.log("[grocery-search] Store SUCCESS", {
-            store,
-            productName: row.product_name,
-            price: row.price,
-            location: row.location
-          })
-        } else {
-          console.log("[grocery-search] Store FAILED", { store, reason: "No results returned" })
-        }
-      })
-
-      console.log("[grocery-search] Store results summary", {
-        successCount: cachedRows.length,
-        failedCount: storeKeys.length - cachedRows.length,
-        successStores: Object.entries(storeSuccessMap).filter(([_, v]) => v).map(([k]) => k),
-        failedStores: Object.entries(storeSuccessMap).filter(([_, v]) => !v).map(([k]) => k),
+        successStores: cachedRows.map(r => r.store),
+        failedStores: storeKeys.filter(s => !cachedRows.some(r => r.store.toLowerCase() === s.toLowerCase())),
       })
     } else {
       console.log("[grocery-search] No standardized ID yet, running searchOrCreate workflow", {
@@ -363,7 +401,7 @@ export async function GET(request: NextRequest) {
       stores: storeKeys,
     })
 
-    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse)
+    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, standardizedIngredientId, supabaseClient)
     if (directItems.length > 0) {
       // Fire-and-forget cache write so the user gets results immediately
       Promise.resolve()
@@ -384,15 +422,13 @@ export async function GET(request: NextRequest) {
           console.log("[grocery-search] Resolved standardized ID for caching", { standardizedId, searchTerm: sanitizedSearchTerm })
 
           const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          let successCount = 0
-          let failCount = 0
 
-          for (const item of directItems) {
-            // Store with lowercase key for consistent cache lookups
-            const storeKey = item.provider.toLowerCase()
-            const payload = {
+          // Build all payloads for batch upsert
+          const payloads = directItems
+            .filter(item => !item.fromCache) // Only cache scraped items, not already-cached ones
+            .map(item => ({
               standardized_ingredient_id: standardizedId,
-              store: storeKey,
+              store: item.provider.toLowerCase(),
               product_name: item.title,
               price: item.price,
               quantity: 1,
@@ -402,46 +438,39 @@ export async function GET(request: NextRequest) {
                 : null,
               image_url: item.image_url || null,
               product_id: item.id,
+              location: item.location || null,
               expires_at: expires,
-            }
+            }))
 
-            console.log("[grocery-search] Upserting cache entry", {
-              store: payload.store,
-              product_id: payload.product_id,
-              product_name: payload.product_name,
-              price: payload.price,
-            })
-
-            const { data, error } = await supabaseClient
-              .from("ingredient_cache")
-              .upsert(payload, { onConflict: "standardized_ingredient_id,store" })
-              .select("id")
-              .maybeSingle()
-
-            if (error) {
-              console.error("[grocery-search] Cache upsert FAILED", {
-                store: payload.store,
-                product_id: payload.product_id,
-                error: error.message,
-                code: error.code,
-                details: error.details,
-                hint: error.hint,
-              })
-              failCount++
-            } else {
-              console.log("[grocery-search] Cache upsert SUCCESS", {
-                id: data?.id,
-                store: payload.store,
-              })
-              successCount++
-            }
+          if (payloads.length === 0) {
+            console.log("[grocery-search] No new items to cache (all from cache)")
+            return
           }
 
-          console.log("[grocery-search] Background cache write complete", {
-            successCount,
-            failCount,
-            total: directItems.length,
+          console.log("[grocery-search] Batch upserting cache entries", {
+            count: payloads.length,
+            stores: payloads.map(p => p.store),
           })
+
+          // Batch upsert all cache entries at once
+          const { data, error } = await supabaseClient
+            .from("ingredient_cache")
+            .upsert(payloads, { onConflict: "standardized_ingredient_id,store" })
+            .select("id, store")
+
+          if (error) {
+            console.error("[grocery-search] Batch cache upsert FAILED", {
+              error: error.message,
+              code: error.code,
+              details: error.details,
+              hint: error.hint,
+            })
+          } else {
+            console.log("[grocery-search] Batch cache upsert SUCCESS", {
+              count: data?.length || 0,
+              stores: data?.map(d => d.store) || [],
+            })
+          }
         })
         .catch((error) => console.error("[grocery-search] Failed to cache direct scraper results", {
           error: error.message,

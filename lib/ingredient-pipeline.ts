@@ -548,6 +548,108 @@ export async function resolveStandardizedIngredientForRecipe(
   return standardizedId
 }
 
+/**
+ * Batch get or refresh ingredient prices for multiple stores at once
+ * OPTIMIZED: Single cache lookup for all stores instead of one per store
+ */
+export async function getOrRefreshIngredientPricesForStores(
+  supabaseClient: SupabaseLike = createServerClient(),
+  standardizedIngredientId: string,
+  stores: string[],
+  options: StoreLookupOptions = {}
+): Promise<IngredientCacheResult[]> {
+  if (!standardizedIngredientId) throw new Error("standardizedIngredientId is required")
+  if (!stores || stores.length === 0) return []
+
+  const startTime = Date.now()
+  const normalizedStores = stores.map(s => s.toLowerCase().trim())
+
+  console.log("[ingredient-pipeline] getOrRefreshIngredientPricesForStores called", {
+    standardizedIngredientId,
+    stores: normalizedStores,
+    zipCode: options.zipCode,
+  })
+
+  // OPTIMIZED: Single batched query for all stores
+  const { data: cachedItems, error: cacheError } = await supabaseClient
+    .from("ingredient_cache")
+    .select("*")
+    .eq("standardized_ingredient_id", standardizedIngredientId)
+    .in("store", normalizedStores)
+    .gt("expires_at", new Date().toISOString())
+
+  if (cacheError && cacheError.code !== "PGRST116") {
+    console.warn("[ingredient-pipeline] Batch cache lookup failed", cacheError)
+  }
+
+  // Build map of cached stores
+  const cachedByStore = new Map<string, IngredientCacheResult>()
+  if (cachedItems) {
+    for (const item of cachedItems) {
+      cachedByStore.set(item.store.toLowerCase(), item)
+    }
+  }
+
+  // Identify stores that need scraping
+  const storesToScrape = normalizedStores.filter(store => !cachedByStore.has(store))
+  const results: IngredientCacheResult[] = Array.from(cachedByStore.values())
+
+  console.log("[ingredient-pipeline] Batch cache check complete", {
+    cachedCount: cachedByStore.size,
+    storesToScrape,
+    timeMs: Date.now() - startTime,
+  })
+
+  if (storesToScrape.length === 0) {
+    return results
+  }
+
+  // Load canonical name once for all scrapers
+  const canonicalName = await loadCanonicalName(supabaseClient, standardizedIngredientId)
+  if (!canonicalName) {
+    console.warn("[ingredient-pipeline] Missing canonical name for standardized ingredient", { standardizedIngredientId })
+    return results
+  }
+
+  // Scrape missing stores in parallel
+  const scrapePromises = storesToScrape.map(async (store) => {
+    const scraped = await runStoreScraper(store, canonicalName, options)
+    const bestProduct = pickBestScrapedProduct(scraped)
+    if (!bestProduct) return null
+
+    const payload = buildCachePayload(standardizedIngredientId, store, bestProduct)
+    return payload
+  })
+
+  const scrapeResults = await Promise.all(scrapePromises)
+  const validPayloads = scrapeResults.filter((p): p is DB["ingredient_cache"]["Insert"] => p !== null)
+
+  // Batch upsert all scraped results
+  if (validPayloads.length > 0) {
+    const { data: upsertedData, error: upsertError } = await supabaseClient
+      .from("ingredient_cache")
+      .upsert(validPayloads, { onConflict: "standardized_ingredient_id,store" })
+      .select("*")
+
+    if (upsertError) {
+      console.error("[ingredient-pipeline] Batch upsert failed", upsertError)
+    } else if (upsertedData) {
+      results.push(...upsertedData)
+      console.log("[ingredient-pipeline] Batch upserted scraped results", {
+        count: upsertedData.length,
+        stores: upsertedData.map(d => d.store),
+      })
+    }
+  }
+
+  console.log("[ingredient-pipeline] getOrRefreshIngredientPricesForStores completed", {
+    totalResults: results.length,
+    totalTimeMs: Date.now() - startTime,
+  })
+
+  return results
+}
+
 export async function getOrRefreshIngredientPrice(
   supabaseClient: SupabaseLike = createServerClient(),
   standardizedIngredientId: string,
@@ -568,32 +670,13 @@ export async function getOrRefreshIngredientPrice(
     zipCode: options.zipCode,
   })
 
-  // First check if ANY cached data exists (even expired) - for debugging
-  const { data: anyCache } = await supabaseClient
-    .from("ingredient_cache")
-    .select("id, store, expires_at, product_name")
-    .eq("standardized_ingredient_id", standardizedIngredientId)
-    .ilike("store", normalizedStore)
-    .limit(1)
-    .maybeSingle()
-
-  if (anyCache) {
-    const isExpired = new Date(anyCache.expires_at) < new Date()
-    console.log("[ingredient-pipeline] Cache entry exists", {
-      store: normalizedStore,
-      product_name: anyCache.product_name,
-      expires_at: anyCache.expires_at,
-      isExpired,
-    })
-  }
-
-  // Try to find cached result - case-insensitive store match
+  // Single query to check for cached result - case-insensitive store match
   const { data: cached, error: cacheError } = await supabaseClient
     .from("ingredient_cache")
     .select("*")
     .eq("standardized_ingredient_id", standardizedIngredientId)
     .ilike("store", normalizedStore)
-    .gt("expires_at", new Date().toISOString())
+    .order("expires_at", { ascending: false })
     .order("unit_price", { ascending: true, nullsLast: true })
     .order("price", { ascending: true })
     .limit(1)
@@ -603,22 +686,32 @@ export async function getOrRefreshIngredientPrice(
     console.warn("[ingredient-pipeline] Cache lookup failed", cacheError)
   }
 
+  // Check if cache exists and is still valid
   if (cached) {
-    console.log("[ingredient-pipeline] Cache HIT (valid)", {
+    const isExpired = new Date(cached.expires_at) < new Date()
+    if (!isExpired) {
+      console.log("[ingredient-pipeline] Cache HIT (valid)", {
+        store: normalizedStore,
+        product_name: cached.product_name,
+        price: cached.price,
+        expires_at: cached.expires_at,
+        timeMs: Date.now() - startTime,
+      })
+      return cached
+    }
+    console.log("[ingredient-pipeline] Cache EXPIRED, will scrape", {
       store: normalizedStore,
       product_name: cached.product_name,
-      price: cached.price,
       expires_at: cached.expires_at,
       timeMs: Date.now() - startTime,
     })
-    return cached
+  } else {
+    console.log("[ingredient-pipeline] Cache MISS (not found), will scrape", {
+      store: normalizedStore,
+      standardizedIngredientId,
+      timeMs: Date.now() - startTime,
+    })
   }
-
-  console.log("[ingredient-pipeline] Cache MISS (expired or not found), will scrape", {
-    store: normalizedStore,
-    standardizedIngredientId,
-    timeMs: Date.now() - startTime,
-  })
 
   const canonicalName = await loadCanonicalName(supabaseClient, standardizedIngredientId)
   if (!canonicalName) {
@@ -735,12 +828,14 @@ export async function estimateIngredientCostsForStore(
   const missing: IngredientInput[] = []
   let total = 0
 
-  for (const item of items) {
-    const displayName = item.name?.trim()
-    if (!displayName) {
-      missing.push(item)
-      continue
-    }
+  // Filter valid items first
+  const validItems = items.filter(item => item.name?.trim())
+  const invalidItems = items.filter(item => !item.name?.trim())
+  missing.push(...invalidItems)
+
+  // Process all items in parallel for better performance
+  const itemPromises = validItems.map(async (item) => {
+    const displayName = item.name!.trim()
 
     let standardizedId = item.standardizedIngredientId || null
     try {
@@ -760,22 +855,27 @@ export async function estimateIngredientCostsForStore(
         item,
         error,
       })
-      missing.push(item)
-      continue
+      return { item, success: false, cacheRow: null, standardizedId: null }
     }
 
     const cacheRow = await getOrRefreshIngredientPrice(supabaseClient, standardizedId, store, options)
+    return { item, success: !!cacheRow, cacheRow, standardizedId, displayName }
+  })
 
-    if (cacheRow) {
-      const quantityMultiplier = Number.isFinite(item.quantity) ? Number(item.quantity) : 1
-      total += cacheRow.price * quantityMultiplier
-      priced.push({
-        standardizedIngredientId: standardizedId,
-        name: displayName,
-        cache: cacheRow,
-      })
+  const results = await Promise.all(itemPromises)
+
+  // Process results
+  for (const result of results) {
+    if (!result.success || !result.cacheRow) {
+      missing.push(result.item)
     } else {
-      missing.push(item)
+      const quantityMultiplier = Number.isFinite(result.item.quantity) ? Number(result.item.quantity) : 1
+      total += result.cacheRow.price * quantityMultiplier
+      priced.push({
+        standardizedIngredientId: result.standardizedId!,
+        name: result.displayName!,
+        cache: result.cacheRow,
+      })
     }
   }
 

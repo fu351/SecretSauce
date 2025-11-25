@@ -14,49 +14,21 @@ import { Heart, Search, Upload, Grid, List, Clock, Users, Star, ChefHat, BarChar
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
-import { supabase } from "@/lib/supabase"
 import { RecipeCard } from "@/components/recipe-card"
 import { RecipeSkeleton } from "@/components/recipe-skeleton"
 import { DatabaseSetupNotice } from "@/components/database-setup-notice"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import Image from "next/image"
-
-interface Recipe {
-  id: string
-  title: string
-  description: string
-  prep_time: number
-  cook_time: number
-  servings: number
-  difficulty: string
-  cuisine: string
-  image_url: string
-  dietary_tags: string[]
-  ingredients: any[]
-  instructions: string[]
-  author_id: string
-  created_at: string
-  rating_avg: number
-  rating_count: number
-  nutrition?: {
-    calories?: number
-    protein?: number
-    carbs?: number
-    fat?: number
-  }
-}
+import { useRecipes, useFavorites, useToggleFavorite, type Recipe, type SortBy } from "@/hooks/use-recipes"
 
 export default function RecipesPage() {
-  const [recipes, setRecipes] = useState<Recipe[]>([])
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDifficulty, setSelectedDifficulty] = useState("all")
   const [selectedCuisine, setSelectedCuisine] = useState("all")
   const [selectedDiet, setSelectedDiet] = useState("all")
-  const [sortBy, setSortBy] = useState("created_at")
+  const [sortBy, setSortBy] = useState<SortBy>("created_at")
   const [viewMode, setViewMode] = useState<"tile" | "details">("tile")
-  const [loading, setLoading] = useState(true)
-  const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [searchInput, setSearchInput] = useState("")
 
   const { user } = useAuth()
@@ -66,12 +38,17 @@ export default function RecipesPage() {
   const searchParams = useSearchParams()
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
 
+  // Use React Query hooks for data fetching with caching
+  const { data: recipes = [], isLoading: loading } = useRecipes(sortBy)
+  const { data: favorites = new Set<string>() } = useFavorites(user?.id || null)
+  const toggleFavoriteMutation = useToggleFavorite()
+
   useEffect(() => {
     const urlSearch = searchParams.get("search") || ""
     const currentDifficulty = searchParams.get("difficulty") || "all"
     const currentCuisine = searchParams.get("cuisine") || "all"
     const currentDiet = searchParams.get("diet") || "all"
-    const currentSort = searchParams.get("sort") || "created_at"
+    const currentSort = (searchParams.get("sort") || "created_at") as SortBy
 
     setSearchTerm(urlSearch)
     setSelectedDifficulty(currentDifficulty)
@@ -79,14 +56,6 @@ export default function RecipesPage() {
     setSelectedDiet(currentDiet)
     setSortBy(currentSort)
   }, [searchParams])
-
-  useEffect(() => {
-    fetchRecipes()
-  }, [sortBy])
-
-  useEffect(() => {
-    if (user) fetchFavorites()
-  }, [user])
 
   useEffect(() => {
     filterRecipes()
@@ -111,48 +80,6 @@ export default function RecipesPage() {
     [searchParams, router],
   )
 
-  const fetchRecipes = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("recipes")
-        .select(
-          "id, title, description, prep_time, cook_time, servings, difficulty, cuisine, image_url, dietary_tags, ingredients, nutrition, rating_avg, rating_count, created_at, author_id",
-        )
-        .order(sortBy, { ascending: sortBy === "created_at" ? false : true })
-
-      if (error) {
-        console.warn("Error fetching recipes:", error.message)
-        setRecipes([])
-        return
-      }
-
-      setRecipes(data || [])
-    } catch (error) {
-      console.error("Error fetching recipes:", error)
-      setRecipes([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchFavorites = async () => {
-    if (!user) return
-
-    try {
-      const { data, error } = await supabase.from("recipe_favorites").select("recipe_id").eq("user_id", user.id)
-
-      if (error) {
-        console.warn("Error fetching favorites:", error)
-        return
-      }
-
-      const favoriteIds = new Set(data?.map((item) => item.recipe_id) || [])
-      setFavorites(favoriteIds)
-    } catch (error) {
-      console.error("Error fetching favorites:", error)
-    }
-  }
-
   const toggleFavorite = useCallback(
     async (recipeId: string, e: React.MouseEvent) => {
       e.preventDefault()
@@ -168,40 +95,18 @@ export default function RecipesPage() {
       }
 
       try {
-        if (favorites.has(recipeId)) {
-          const { error } = await supabase
-            .from("recipe_favorites")
-            .delete()
-            .eq("recipe_id", recipeId)
-            .eq("user_id", user.id)
+        await toggleFavoriteMutation.mutateAsync({
+          recipeId,
+          userId: user.id,
+          isFavorited: favorites.has(recipeId),
+        })
 
-          if (error) throw error
-
-          setFavorites((prev) => {
-            const newFavorites = new Set(prev)
-            newFavorites.delete(recipeId)
-            return newFavorites
-          })
-
-          toast({
-            title: "Removed from favorites",
-            description: "Recipe has been removed from your favorites.",
-          })
-        } else {
-          const { error } = await supabase.from("recipe_favorites").insert({
-            recipe_id: recipeId,
-            user_id: user.id,
-          })
-
-          if (error) throw error
-
-          setFavorites((prev) => new Set([...prev, recipeId]))
-
-          toast({
-            title: "Added to favorites",
-            description: "Recipe has been added to your favorites.",
-          })
-        }
+        toast({
+          title: favorites.has(recipeId) ? "Removed from favorites" : "Added to favorites",
+          description: favorites.has(recipeId)
+            ? "Recipe has been removed from your favorites."
+            : "Recipe has been added to your favorites.",
+        })
       } catch (error) {
         console.error("Error toggling favorite:", error)
         toast({
@@ -211,7 +116,7 @@ export default function RecipesPage() {
         })
       }
     },
-    [user, favorites, toast],
+    [user, favorites, toast, toggleFavoriteMutation],
   )
 
   const filterRecipes = useCallback(() => {

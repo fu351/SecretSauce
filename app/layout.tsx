@@ -5,6 +5,7 @@ import Script from "next/script"
 import "./globals.css"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/contexts/theme-context"
+import { QueryProvider } from "@/contexts/query-provider"
 import { Header } from "@/components/header"
 import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
@@ -46,18 +47,20 @@ export default function RootLayout({
       <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
         <ErrorBoundary>
           <ThemeProvider>
-            <AuthProvider>
-              <TutorialProvider>
-                <ThemeSync />
-                <TutorialBlocker />
-                <TutorialOverlay />
-                <FeedbackWidget position="bottom-left" />
-                <Header />
-                {children}
-                <Toaster />
-                <SpeedInsights />
-              </TutorialProvider>
-            </AuthProvider>
+            <QueryProvider>
+              <AuthProvider>
+                <TutorialProvider>
+                  <ThemeSync />
+                  <TutorialBlocker />
+                  <TutorialOverlay />
+                  <FeedbackWidget position="bottom-left" />
+                  <Header />
+                  {children}
+                  <Toaster />
+                  <SpeedInsights />
+                </TutorialProvider>
+              </AuthProvider>
+            </QueryProvider>
           </ThemeProvider>
         </ErrorBoundary>
       </body>

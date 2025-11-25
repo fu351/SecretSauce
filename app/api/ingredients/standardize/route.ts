@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { standardizeIngredientsWithAI } from "@/lib/ingredient-standardizer"
 import {
-  getOrCreateStandardizedIngredient,
-  mapIngredientToStandardized,
+  batchGetOrCreateStandardizedIngredients,
+  batchMapIngredientsToStandardized,
 } from "@/lib/ingredient-cache"
 import { createServerClient } from "@/lib/supabase"
 
@@ -73,6 +73,14 @@ export async function POST(request: NextRequest) {
     const aiResults = await standardizeIngredientsWithAI(normalizedInputs, context)
     const client = createServerClient()
 
+    // OPTIMIZED: Batch create all standardized ingredients in one query
+    const standardizedItems = aiResults.map(result => ({
+      canonicalName: result.canonicalName,
+      category: result.category || null,
+    }))
+
+    const standardizedIdMap = await batchGetOrCreateStandardizedIngredients(standardizedItems)
+
     const updates: Array<{
       id: string
       originalName: string
@@ -83,9 +91,12 @@ export async function POST(request: NextRequest) {
       originalIndex: number
     }> = []
 
+    const mappingsToCreate: Array<{ originalName: string; standardizedIngredientId: string }> = []
+
     for (const result of aiResults) {
       const target = normalizedInputs.find((input) => input.id === result.id) || normalizedInputs[0]
-      const standardizedId = await getOrCreateStandardizedIngredient(result.canonicalName, result.category || null)
+      const normalizedCanonical = result.canonicalName.trim().toLowerCase()
+      const standardizedId = standardizedIdMap.get(normalizedCanonical)
       if (!standardizedId) continue
 
       const payload = {
@@ -101,8 +112,16 @@ export async function POST(request: NextRequest) {
       updates.push(payload)
 
       if (context === "recipe" && recipeId) {
-        await mapIngredientToStandardized(recipeId, result.originalName, standardizedId)
+        mappingsToCreate.push({
+          originalName: result.originalName,
+          standardizedIngredientId: standardizedId,
+        })
       }
+    }
+
+    // OPTIMIZED: Batch create all mappings in one query
+    if (context === "recipe" && recipeId && mappingsToCreate.length > 0) {
+      await batchMapIngredientsToStandardized(recipeId, mappingsToCreate)
     }
 
     if (context === "recipe" && recipeId) {
