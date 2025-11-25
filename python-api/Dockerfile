@@ -1,16 +1,23 @@
 FROM python:3.11-slim
 
+# Install Node.js
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
+# Copy requirements and install Python dependencies
+COPY python-api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy Python API
+COPY python-api/main.py .
 
-# Expose port (Fly.io uses 8080 by default)
-EXPOSE 8080
+# Copy Node.js scrapers
+COPY lib/scrapers /app/lib/scrapers
 
-# Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
