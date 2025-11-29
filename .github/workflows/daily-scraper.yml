@@ -24,7 +24,7 @@ jobs:
             -H "Content-Type: application/json" \
             -w "\nHTTP_STATUS:%{http_code}" \
             -s \
-            https://secretsauce-api.fly.dev/daily-ingredient-scraper)
+            https://secretsauce.fly.dev/daily-ingredient-scraper)
 
           HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
           BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
