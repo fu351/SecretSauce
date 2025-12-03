@@ -140,10 +140,10 @@ async function retryFailedStores(failedResults) {
     return
   }
 
-  console.log(`\n🔄 Retrying ${failedResults.length} failed ingredients...`)
+  console.log(`\n🔄 Retrying ${failedResults.length} ingredients with failures...`)
 
-  // Process retries in smaller batches
-  const retryBatchSize = 5
+  // Process retries in smaller batches with forceRefresh
+  const retryBatchSize = 3 // Even smaller batches for retries (was 5)
   const retryBatches = []
 
   for (let i = 0; i < failedResults.length; i += retryBatchSize) {
@@ -154,15 +154,29 @@ async function retryFailedStores(failedResults) {
     const batch = retryBatches[i]
     console.log(`\n🔄 Retry batch ${i + 1}/${retryBatches.length}`)
 
-    await scrapeBatch(
-      batch.map(r => r.ingredient),
-      i + 1,
-      retryBatches.length
-    )
+    // Retry with forceRefresh to bypass cache
+    const response = await fetch(`${VERCEL_URL}/api/batch-scraper`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${CRON_SECRET}`
+      },
+      body: JSON.stringify({
+        ingredients: batch.map(r => ({ name: r.ingredient })),
+        zipCode: ZIP_CODE,
+        forceRefresh: true // Force refresh on retry
+      })
+    })
 
-    // Add delay between retry batches to avoid rate limiting
+    if (response.ok) {
+      const result = await response.json()
+      console.log(`✅ Retry batch ${i + 1} complete`)
+      console.log(`   Success: ${result.summary.successful}/${result.summary.totalAttempts}`)
+    }
+
+    // Add longer delay between retry batches to avoid rate limiting
     if (i < retryBatches.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await new Promise(resolve => setTimeout(resolve, 5000)) // Increased from 2s to 5s
     }
   }
 }
@@ -212,9 +226,9 @@ async function main() {
     const batchResults = await Promise.all(batchPromises)
     results.push(...batchResults)
 
-    // Add small delay between concurrent batch groups
+    // Add delay between concurrent batch groups to avoid rate limiting
     if (i + MAX_CONCURRENT_BATCHES < batches.length) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 3000)) // Increased from 1s to 3s
     }
   }
 
@@ -225,20 +239,22 @@ async function main() {
   const totalFailed = results.reduce((sum, r) => sum + (r.summary?.failed || 0), 0)
   const totalAttempts = results.reduce((sum, r) => sum + (r.summary?.totalAttempts || 0), 0)
 
-  // Find ingredients with high failure rates for retry
+  // Find ALL ingredients with any failures for retry (more aggressive)
   const failedIngredients = []
   results.forEach(result => {
     if (result.results) {
       result.results.forEach(ingredientResult => {
-        if (ingredientResult.failedStores > 4) { // More than half failed
+        if (ingredientResult.failedStores > 0) { // Retry ANY failures
           failedIngredients.push(ingredientResult)
         }
       })
     }
   })
 
-  // Retry failed stores
-  if (failedIngredients.length > 0 && failedIngredients.length < 20) {
+  // Retry failed stores with longer delay
+  if (failedIngredients.length > 0) {
+    console.log(`\n⏸️  Waiting 5 seconds before retrying ${failedIngredients.length} ingredients with failures...`)
+    await new Promise(resolve => setTimeout(resolve, 5000)) // 5s delay before retries
     await retryFailedStores(failedIngredients)
   }
 
