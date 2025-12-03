@@ -673,7 +673,9 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
     }
 
     initializeMap()
-  }, [comparisons, userPostalCode, isDark, mapStyle, maxDistanceMiles, mapReady, mapApiKey])
+    // IMPORTANT: Only re-geocode when comparisons, postal code, distance, or map readiness changes
+    // Do NOT re-geocode on theme changes (isDark, mapStyle) - that's wasteful and expensive!
+  }, [comparisons, userPostalCode, maxDistanceMiles, mapReady, mapApiKey])
 
   // Update map styles when theme changes
   useEffect(() => {

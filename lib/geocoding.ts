@@ -44,10 +44,20 @@ type GoogleRoutesResponse = {
 type MapsProxyAction = "geocode" | "place-nearby" | "place-text" | "routes"
 
 const postalCodeCache = new Map<string, GeocodeResult>()
+// In-memory cache for store locations - prevents re-geocoding same stores
+const storeLocationCache = new Map<string, GeocodeResult>()
 const KM_TO_MILES = 0.621371
 const METERS_TO_MILES = 0.000621371
 const DIACRITIC_REGEX = /[\u0300-\u036f]/g
 const CURLY_APOSTROPHE_REGEX = /[\u2019\u2018]/g
+
+/**
+ * Generate cache key for store location lookup
+ */
+function getStoreLocationCacheKey(storeName: string, postalCode?: string): string {
+  const canonical = canonicalizeStoreName(storeName)
+  return postalCode ? `${canonical}:${postalCode}` : canonical
+}
 
 /**
  * Calculate Levenshtein edit distance between two strings
@@ -407,8 +417,98 @@ async function callMapsProxy<T>(action: MapsProxyAction, params: Record<string, 
 }
 
 /**
+ * Check Supabase cache for store location
+ */
+async function getStoreCacheFromSupabase(
+  storeName: string,
+  postalCode?: string
+): Promise<GeocodeResult | null> {
+  if (typeof window === "undefined") {
+    // Skip cache on server-side
+    return null
+  }
+
+  try {
+    const { createBrowserClient } = await import("@/lib/supabase")
+    const supabase = createBrowserClient()
+    const canonical = canonicalizeStoreName(storeName)
+
+    const query = supabase
+      .from("store_locations_cache")
+      .select("lat, lng, formatted_address, matched_name")
+      .eq("store_canonical", canonical)
+
+    if (postalCode) {
+      query.eq("postal_code", postalCode)
+    }
+
+    const { data, error } = await query.maybeSingle()
+
+    if (error) {
+      console.warn(`[Geocoding Cache] Supabase lookup failed for ${storeName}:`, error)
+      return null
+    }
+
+    if (data) {
+      console.log(`[Geocoding Cache] ✅ HIT for ${storeName} (${postalCode || "any"})`)
+      return {
+        lat: data.lat,
+        lng: data.lng,
+        formattedAddress: data.formatted_address,
+        matchedName: data.matched_name || undefined,
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.warn(`[Geocoding Cache] Failed to check Supabase cache:`, error)
+    return null
+  }
+}
+
+/**
+ * Save store location to Supabase cache
+ */
+async function saveStoreCacheToSupabase(
+  storeName: string,
+  postalCode: string | undefined,
+  result: GeocodeResult
+): Promise<void> {
+  if (typeof window === "undefined") {
+    // Skip cache write on server-side
+    return
+  }
+
+  try {
+    const { createBrowserClient } = await import("@/lib/supabase")
+    const supabase = createBrowserClient()
+    const canonical = canonicalizeStoreName(storeName)
+
+    await supabase.from("store_locations_cache").upsert(
+      {
+        store_canonical: canonical,
+        postal_code: postalCode || "default",
+        lat: result.lat,
+        lng: result.lng,
+        formatted_address: result.formattedAddress,
+        matched_name: result.matchedName,
+      },
+      {
+        onConflict: "store_canonical,postal_code",
+      }
+    )
+
+    console.log(`[Geocoding Cache] 💾 SAVED ${storeName} (${postalCode || "default"})`)
+  } catch (error) {
+    console.warn(`[Geocoding Cache] Failed to save to Supabase:`, error)
+  }
+}
+
+/**
  * Geocode a store name to get its latitude and longitude
  * Uses Google Geocoding API to find the closest match
+ *
+ * NOW WITH CACHING: Checks in-memory and Supabase cache before calling Google Maps API
  *
  * @param storeName - The name of the store to geocode
  * @param userPostalCode - User's postal code (for proximity weighting)
@@ -424,6 +524,24 @@ export async function geocodeStore(
   options?: { relaxed?: boolean; aliasTokens?: string[] }
 ): Promise<GeocodeResult | null> {
   try {
+    // CACHE LAYER 1: Check in-memory cache first (instant)
+    const cacheKey = getStoreLocationCacheKey(storeName, userPostalCode)
+    const memoryCache = storeLocationCache.get(cacheKey)
+    if (memoryCache) {
+      console.log(`[Geocoding Cache] ⚡ MEMORY HIT for ${storeName} (${userPostalCode || "any"})`)
+      return memoryCache
+    }
+
+    // CACHE LAYER 2: Check Supabase cache (fast, persistent across users)
+    const supabaseCache = await getStoreCacheFromSupabase(storeName, userPostalCode)
+    if (supabaseCache) {
+      // Warm up in-memory cache for next time
+      storeLocationCache.set(cacheKey, supabaseCache)
+      return supabaseCache
+    }
+
+    console.log(`[Geocoding Cache] ❌ MISS - geocoding ${storeName} (${userPostalCode || "any"})`)
+
     const isRelaxed = options?.relaxed ?? false
     const matchesRequestedStore = createStoreSignatureMatcher(storeName, storeHint, options?.aliasTokens)
     const brandMatcher = createBrandMatcher(storeName, options?.aliasTokens)
@@ -454,6 +572,9 @@ export async function geocodeStore(
           storeHint,
           coordinates: hintResult,
         })
+        // Save to cache before returning
+        storeLocationCache.set(cacheKey, hintResult)
+        saveStoreCacheToSupabase(storeName, userPostalCode, hintResult).catch(console.error)
         return hintResult
       }
       console.warn("[Geocoding] Physical address geocoding failed, falling back to text-search", {
@@ -536,6 +657,9 @@ export async function geocodeStore(
         const placesBrandMatch = brandMatcher(nearestStore.matchedName) || brandMatcher(nearestStore.formattedAddress)
 
         if (placesSignatureMatch || placesBrandMatch) {
+          // Save to cache before returning
+          storeLocationCache.set(cacheKey, nearestStore)
+          saveStoreCacheToSupabase(storeName, userPostalCode, nearestStore).catch(console.error)
           return nearestStore
         } else {
           // Log but don't reject - continue to try other origins or fallback geocode

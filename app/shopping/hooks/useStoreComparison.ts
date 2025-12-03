@@ -36,8 +36,17 @@ export function useStoreComparison() {
         const storeMap = new Map<string, StoreComparison>()
         const missing: ShoppingListItem[] = []
 
-        for (const item of items) {
+        // OPTIMIZED: Search all ingredients in parallel instead of sequentially
+        const searchPromises = items.map(async (item) => {
           const storeResults = await searchGroceryStores(item.name, zipCode, undefined, item.recipeId)
+          return { item, storeResults }
+        })
+
+        // Wait for all searches to complete
+        const allResults = await Promise.all(searchPromises)
+
+        // Process all results
+        for (const { item, storeResults } of allResults) {
           const hasResults = storeResults.length > 0
 
           if (!hasResults) {
