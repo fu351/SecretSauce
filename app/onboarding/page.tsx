@@ -184,11 +184,16 @@ export default function OnboardingPage() {
   }, [])
 
   useEffect(() => {
-    // Force dark theme for onboarding experience
+    // Force dark theme for onboarding experience on initial mount
     // User can change to warm mode in the theme selection question
     setTheme("dark")
     setSelectedTheme("dark")
   }, [])
+
+  // Keep global theme in sync with selectedTheme when navigating between steps
+  useEffect(() => {
+    setTheme(selectedTheme)
+  }, [selectedTheme, setTheme])
 
   const handleDietaryToggle = (option: string) => {
     setDietaryPreferences((prev) =>
