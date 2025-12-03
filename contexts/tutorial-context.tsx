@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "./auth-context"
 
@@ -41,6 +41,7 @@ interface TutorialContextType {
   currentStepIndex: number
   currentStep: TutorialStep | null
   isCompleted: boolean
+  wasDismissed: boolean
   startTutorial: (pathId: "cooking" | "budgeting" | "health") => void
   nextStep: () => void
   prevStep: () => void
@@ -70,90 +71,65 @@ const tutorialPaths: Record<string, TutorialPath> = {
       {
         id: 1,
         title: "Your dashboard",
-        description: "Your home base for recipes, meals, and shopping.",
+        description: "Your home base for recipes, planning, and shopping shortcuts.",
         page: "/dashboard",
         action: "highlight",
         tips: [
-          "Quick links to Recipes, Meal Planner, and Shopping",
-          "Cards show alerts and saved items",
-          "Logo returns you here anytime",
+          "Jump into any section from the cards",
+          "The logo always returns you here",
+          "Your saved recipes and alerts live below",
         ],
       },
       {
         id: 2,
-        title: "Filter recipes",
-        description: "Find recipes by difficulty, cuisine, and cook time.",
+        title: "Filter recipes fast",
+        description: "Use the filter panel to narrow by difficulty, cuisine, and cook time.",
         page: "/recipes",
         highlightSelector: "[data-tutorial='recipe-filter']",
         action: "highlight",
         tips: [
-          "Combine filters for better results",
-          "Beginner recipes are easier to start with",
-          "Turn off filters to see everything",
+          "Try 'Beginner' + <30 minutes to start",
+          "Combine filters for precise results",
+          "Clear filters anytime to see everything",
         ],
       },
       {
         id: 3,
         title: "Open a recipe",
-        description: "Click any recipe to see ingredients, steps, nutrition, and prices.",
+        description: "Use any recipe card to see ingredients, timing, and the save (heart) button.",
         page: "/recipes",
         highlightSelector: "[data-tutorial='recipe-card']",
         action: "highlight",
         tips: [
-          "Check ingredients before you start",
-          "Read all steps first",
-          "Scroll to see nutrition and reviews",
+          "Tap the heart to save favorites",
+          "Scan ingredients before you cook",
+          "Scroll for nutrition and reviews",
         ],
       },
       {
         id: 4,
-        title: "Save and rate",
-        description: "Heart recipes you like and rate them to help the community.",
-        page: "/recipes",
-        highlightSelector: "[data-tutorial='recipe-card']",
-        action: "highlight",
-        tips: [
-          "Save recipes you want to cook",
-          "Reviews help you remember what worked",
-          "Ratings help others find great recipes",
-        ],
-      },
-      {
-        id: 5,
         title: "Plan your week",
-        description: "Add recipes to the weekly calendar to plan your dinners.",
+        description: "Click the highlighted button to add recipes to your weekly meal plan. Perfect for organizing your cooking schedule.",
         page: "/meal-planner",
         highlightSelector: "[data-tutorial='meal-plan-add']",
         action: "highlight",
         tips: [
-          "Busy nights need quick meals",
-          "Reuse ingredients across recipes to save",
-          "Drag meals to swap them around",
+          "Save quick meals for busy nights",
+          "Plan with shared ingredients to reduce waste",
+          "Drag and drop to rearrange",
         ],
       },
       {
-        id: 6,
-        title: "Shopping list",
-        description: "Compare prices across stores and build your shopping list.",
+        id: 5,
+        title: "Compare prices",
+        description: "Your shopping list shows prices across stores so you can pick the cheapest trip.",
         page: "/shopping",
         highlightSelector: "[data-tutorial='shopping-list']",
         action: "highlight",
         tips: [
-          "See where each item costs less",
-          "Check off items like a cart",
-          "Adjust quantities if you own something",
-        ],
-      },
-      {
-        id: 7,
-        title: "Ready to cook!",
-        description: "You've learned to find recipes, plan meals, and compare prices.",
-        page: "/dashboard",
-        action: "highlight",
-        tips: [
-          "Prep ingredients before starting",
-          "Swap meals anytime in the planner",
-          "Share your own recipes when you cook",
+          "Each store shows its price per item",
+          "Check off items as you shop",
+          "Adjust quantities for items you already have",
         ],
       },
     ],
@@ -165,78 +141,66 @@ const tutorialPaths: Record<string, TutorialPath> = {
     steps: [
       {
         id: 1,
-        title: "Savings snapshot",
-        description: "Dashboard cards show your spending and alerts.",
+        title: "Track your savings",
+        description: "See spending trends and budget alerts on your dashboard.",
         page: "/dashboard",
         action: "highlight",
         tips: [
-          "Track weekly spending trends",
+          "Weekly spending shows at a glance",
           "Set budget goals in settings",
-          "Check alerts for sales and deals",
+          "Price alerts appear in cards",
         ],
       },
       {
         id: 2,
-        title: "Add shopping items",
-        description: "Add staples you buy every week so we can compare prices.",
+        title: "Add items to compare",
+        description: "Use the highlighted button to add grocery items. We'll find prices across stores for you.",
         page: "/shopping",
         highlightSelector: "[data-tutorial='shopping-add-item']",
         action: "highlight",
         tips: [
-          "Start with proteins and produce",
-          "Add sale items to compare deals",
-          "Keep it focused for faster comparisons",
+          "Start with your weekly staples like milk, eggs, bread",
+          "Add proteins and produce you buy regularly",
+          "More items = better comparisons",
         ],
       },
       {
         id: 3,
-        title: "Compare stores",
-        description: "See which store has the cheapest prices for your items.",
+        title: "See the cheapest store",
+        description: "The comparison table shows where each item is cheapest. Pick your store(s) and save.",
         page: "/shopping",
         highlightSelector: "[data-tutorial='price-comparison']",
         action: "highlight",
         tips: [
-          "Check unit prices for hidden markups",
-          "Pick one main store to reduce trips",
-          "Bulk items save money if you use them",
+          "Compare unit prices to spot savings",
+          "Choose one or two stores to minimize trips",
+          "Bulk wins if you'll use it",
         ],
       },
       {
         id: 4,
-        title: "Budget-friendly recipes",
-        description: "Find recipes that use the ingredients you just priced.",
+        title: "Find budget recipes",
+        description: "Use the recipe filter (highlighted) to find meals that use your priced ingredients and fit your budget.",
         page: "/recipes",
         highlightSelector: "[data-tutorial='recipe-filter']",
         action: "highlight",
         tips: [
-          "Filter for recipes with pantry staples",
-          "Reuse sale ingredients in multiple recipes",
-          "Quick meals save on energy costs",
+          "Look for recipes with common pantry staples",
+          "Plan multiple meals using sale ingredients",
+          "Quick recipes save on energy costs too",
         ],
       },
       {
         id: 5,
-        title: "Plan meals",
-        description: "Plan meals to avoid buying extras you don't need.",
+        title: "Plan to save",
+        description: "Add recipes to your meal plan (highlighted button) to avoid impulse purchases and reduce food waste.",
         page: "/meal-planner",
         highlightSelector: "[data-tutorial='meal-plan-add']",
         action: "highlight",
         tips: [
-          "Use recipes that share ingredients",
-          "Cook once, eat twice with batch cooking",
-          "Move meals around based on leftovers",
-        ],
-      },
-      {
-        id: 6,
-        title: "Keep saving!",
-        description: "You can now build lists, compare stores, and plan meals to save money.",
-        page: "/dashboard",
-        action: "highlight",
-        tips: [
-          "Check prices once a week",
-          "Freeze extras to prevent waste",
-          "Update your list as you run low",
+          "Choose recipes that share ingredients",
+          "Cook larger batches to save time and money",
+          "Adjust your plan based on what's in your fridge",
         ],
       },
     ],
@@ -248,78 +212,53 @@ const tutorialPaths: Record<string, TutorialPath> = {
     steps: [
       {
         id: 1,
-        title: "Your healthy routine",
-        description: "Plan healthy meals, cook on time, and shop smartly.",
+        title: "Health at a glance",
+        description: "Your dashboard shows upcoming meals and nutrition insights to help you stay on track with your health goals.",
         page: "/dashboard",
         action: "highlight",
         tips: [
-          "Check upcoming meals and health reminders",
-          "Review your nutrition trends",
-          "Set dietary preferences in settings",
+          "View your planned meals for the week",
+          "Track nutrition trends over time",
+          "Update dietary preferences in settings anytime",
         ],
       },
       {
         id: 2,
-        title: "Plan balanced meals",
-        description: "Spread wholesome recipes across busy and calm days.",
+        title: "Build balanced meal plans",
+        description: "Use the highlighted button to add nutritious recipes to your weekly schedule. Balance quick meals and healthier options.",
         page: "/meal-planner",
         highlightSelector: "[data-tutorial='meal-plan-add']",
         action: "highlight",
         tips: [
-          "Mix proteins, veggies, and whole grains through the week",
-          "Leave one flexible night for leftovers",
-          "Prep ingredients the night before busy days",
+          "Include protein, vegetables, and whole grains each day",
+          "Keep one night flexible for leftovers or eating out",
+          "Prep ingredients ahead of time for busy weeknights",
         ],
       },
       {
         id: 3,
-        title: "Filter healthy recipes",
-        description: "Filter for quick cook times, preferred cuisines, or dietary needs.",
+        title: "Find healthy recipes",
+        description: "Use the filter panel to search by cook time, cuisine, and dietary preferences.",
         page: "/recipes",
         highlightSelector: "[data-tutorial='recipe-filter']",
         action: "highlight",
         tips: [
-          "Use the Cooking Time slider to find meals under 30 minutes",
-          "Search for terms like high protein or low sodium",
-          "Save the healthiest recipes to your favorites",
+          "Slide the cook time filter to find quick 30-minute meals",
+          "Filter by dietary needs like 'High Protein' or 'Low Sodium'",
+          "Save your favorite healthy recipes for easy access",
         ],
       },
       {
         id: 4,
-        title: "Check nutrition",
-        description: "Every recipe lists calories, macros, and key nutrients.",
-        page: "/recipes",
-        highlightSelector: "[data-tutorial='nutrition-info']",
-        action: "highlight",
-        tips: [
-          "Watch sodium and sugar if you track heart health",
-          "Aim for protein at every meal to stay full",
-          "Use the serving slider to scale portions",
-        ],
-      },
-      {
-        id: 5,
-        title: "Shop smart",
-        description: "Your shopping list groups ingredients by store for fresh options.",
+        title: "Shop for freshness",
+        description: "The shopping list (highlighted) organizes ingredients by store. Choose stores with the freshest produce.",
         page: "/shopping",
         highlightSelector: "[data-tutorial='shopping-list']",
         action: "highlight",
         tips: [
-          "Choose the store with the best produce for the week",
-          "Check off items as you prep them to stay organized",
-          "Replace processed items with fresh alternatives",
-        ],
-      },
-      {
-        id: 6,
-        title: "All set!",
-        description: "You know how to plan, filter, review nutrition, and shop without guesswork.",
-        page: "/dashboard",
-        action: "highlight",
-        tips: [
-          "Batch cook grains or proteins for grab-and-go meals",
-          "Log how each meal makes you feel",
-          "Come back weekly to refresh your plan",
+          "Pick stores known for quality fresh produce",
+          "Check off items as you add them to your cart",
+          "Swap processed ingredients for fresh alternatives",
         ],
       },
     ],
@@ -332,12 +271,20 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [isCompleted, setIsCompleted] = useState(false)
   const [redirectAfterComplete, setRedirectAfterComplete] = useState<string | null>(null)
+  const [wasDismissed, setWasDismissed] = useState(false)
   const router = useRouter()
-  const pathname = usePathname()
   const { user, profile } = useAuth()
+  const DISMISS_KEY = "tutorial_dismissed_v1"
 
   const currentPath = currentPathId ? tutorialPaths[currentPathId] : null
   const currentStep = currentPath ? currentPath.steps[currentStepIndex] : null
+
+  // Load dismissed state from localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const stored = window.localStorage.getItem(DISMISS_KEY)
+    setWasDismissed(stored === "1")
+  }, [])
 
   // Check if tutorial should be shown
   useEffect(() => {
@@ -349,8 +296,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // If user has a primary goal and hasn't completed tutorial, auto-start
-    if (profile.primary_goal && !isActive && !isCompleted) {
+    // If user has a primary goal and hasn't completed tutorial, auto-start (unless dismissed)
+    if (profile.primary_goal && !isActive && !isCompleted && !wasDismissed) {
       const pathMap: Record<string, "cooking" | "budgeting" | "health"> = {
         cooking: "cooking",
         budgeting: "budgeting",
@@ -361,16 +308,13 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         startTutorial(pathId)
       }
     }
-  }, [user, profile])
-
-  // Auto-navigate to tutorial page when step changes
-  useEffect(() => {
-    if (currentStep && pathname !== currentStep.page && isActive) {
-      router.push(currentStep.page)
-    }
-  }, [currentStep, pathname, isActive, router])
+  }, [user, profile, isActive, isCompleted, wasDismissed])
 
   const startTutorial = useCallback((pathId: "cooking" | "budgeting" | "health") => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(DISMISS_KEY)
+      setWasDismissed(false)
+    }
     setCurrentPathId(pathId)
     setCurrentStepIndex(0)
     setIsActive(true)
@@ -400,9 +344,12 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const skipTutorial = useCallback(async () => {
     if (!user) return
     try {
-      await supabase.from("profiles").update({ tutorial_completed: true }).eq("id", user.id)
       setIsActive(false)
-      setIsCompleted(true)
+      setIsCompleted(false)
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(DISMISS_KEY, "1")
+        setWasDismissed(true)
+      }
     } catch (error) {
       console.error("Error skipping tutorial:", error)
     }
@@ -429,6 +376,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   }, [user, currentPathId, redirectAfterComplete, router])
 
   const resetTutorial = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(DISMISS_KEY)
+      setWasDismissed(false)
+    }
     setIsActive(true)
     setCurrentStepIndex(0)
     setIsCompleted(false)
@@ -440,6 +391,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     currentStepIndex,
     currentStep,
     isCompleted,
+    wasDismissed,
     startTutorial,
     nextStep,
     prevStep,

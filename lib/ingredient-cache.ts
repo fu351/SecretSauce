@@ -45,6 +45,40 @@ const INGREDIENT_STOP_WORDS = new Set([
   "divided",
 ])
 
+/**
+ * Store-specific cache TTL in hours
+ * Different stores update prices at different frequencies
+ */
+const STORE_CACHE_TTL_HOURS: Record<string, number> = {
+  // Frequent price changes
+  walmart: 12,
+  target: 12,
+  kroger: 18,
+  meijer: 18,
+
+  // Moderate updates
+  safeway: 24,
+  wholefoods: 24,
+  whole_foods: 24,
+  andronicos: 24,
+
+  // Stable prices
+  traderjoes: 48,
+  aldi: 36,
+  "99ranch": 48,
+  ranch99: 48,
+}
+
+const DEFAULT_CACHE_TTL_HOURS = 24
+
+/**
+ * Get cache TTL for a specific store
+ */
+export function getCacheTTLForStore(store: string): number {
+  const normalizedStore = store.toLowerCase().trim()
+  return STORE_CACHE_TTL_HOURS[normalizedStore] || DEFAULT_CACHE_TTL_HOURS
+}
+
 const STANDARDIZED_CACHE_TTL_MS = 1000 * 60 * 5
 let standardizedIngredientCache: StandardizedIngredientRow[] | null = null
 let standardizedIngredientCacheExpiresAt = 0
@@ -155,7 +189,8 @@ export async function getStandardizedIngredientMetadata(
 
 /**
  * Search ingredient cache for matching ingredients that haven't expired
- * Uses fuzzy matching on ingredient name against standardized_ingredients
+ * Uses advanced fuzzy matching with variants, full-text search, and trigrams
+ * OPTIMIZED: Uses PostgreSQL search_standardized_ingredients() function if available
  */
 export async function searchIngredientCache(
   searchTerm: string,
@@ -165,22 +200,81 @@ export async function searchIngredientCache(
     const client = createServerClient()
     const normalizedSearch = searchTerm.trim().toLowerCase()
 
-    // First, find standardized ingredients matching the search term
-    const { data: standardizedIngredients, error: stdError } = await client
-      .from("standardized_ingredients")
-      .select("id")
-      .ilike("canonical_name", `%${normalizedSearch}%`)
-
-    if (stdError) {
-      console.error("Error searching standardized ingredients:", stdError)
+    if (!normalizedSearch) {
       return []
     }
 
-    if (!standardizedIngredients || standardizedIngredients.length === 0) {
+    console.log("[Cache] Searching for", { originalTerm: searchTerm })
+
+    let ingredientIds: string[] = []
+
+    // Try using the advanced PostgreSQL search function (if migration was run)
+    try {
+      const { data: advancedResults, error: rpcError } = await client.rpc(
+        'search_standardized_ingredients',
+        {
+          search_query: normalizedSearch,
+          similarity_threshold: 0.3,
+          max_results: 20
+        }
+      )
+
+      if (!rpcError && advancedResults && advancedResults.length > 0) {
+        ingredientIds = advancedResults.map((r: any) => r.id)
+        console.log("[Cache] Found matches via advanced search", {
+          count: ingredientIds.length,
+          matchTypes: advancedResults.map((r: any) => r.match_type)
+        })
+      }
+    } catch (rpcError) {
+      // Function doesn't exist yet (migration not run), fall back to variant search
+      console.log("[Cache] Advanced search unavailable, using variant search")
+    }
+
+    // Fallback to variant-based search if advanced search didn't work
+    if (ingredientIds.length === 0) {
+      const searchVariants = buildSearchVariants(normalizedSearch)
+      if (searchVariants.length === 0) {
+        return []
+      }
+
+      console.log("[Cache] Searching with variants", { variants: searchVariants })
+
+      // Try exact match first (fastest)
+      const exactMatch = await client
+        .from("standardized_ingredients")
+        .select("id")
+        .in("canonical_name", searchVariants)
+
+      if (exactMatch.data && exactMatch.data.length > 0) {
+        ingredientIds = exactMatch.data.map(ing => ing.id)
+        console.log("[Cache] Found exact matches", { count: ingredientIds.length })
+      } else {
+        // Fallback to ILIKE fuzzy search
+        const orConditions = searchVariants.map(v => `canonical_name.ilike.%${v}%`).join(',')
+        const fuzzyMatch = await client
+          .from("standardized_ingredients")
+          .select("id")
+          .or(orConditions)
+
+        if (fuzzyMatch.error) {
+          console.error("Error fuzzy searching standardized ingredients:", fuzzyMatch.error)
+          return []
+        }
+
+        if (fuzzyMatch.data && fuzzyMatch.data.length > 0) {
+          ingredientIds = fuzzyMatch.data.map(ing => ing.id)
+          console.log("[Cache] Found fuzzy matches", { count: ingredientIds.length })
+        }
+      }
+    }
+
+    if (ingredientIds.length === 0) {
       return []
     }
 
-    const ingredientIds = standardizedIngredients.map((ing) => ing.id)
+    // Normalize store names for consistent matching
+    const normalizedStores = stores?.map(s => s.toLowerCase().trim())
 
     // Query the cache for non-expired items matching the standardized ingredients
     let query = client
@@ -189,9 +283,9 @@ export async function searchIngredientCache(
       .in("standardized_ingredient_id", ingredientIds)
       .gt("expires_at", new Date().toISOString())
 
-    // Filter by stores if provided
-    if (stores && stores.length > 0) {
-      query = query.in("store", stores)
+    // Filter by stores if provided (case-insensitive)
+    if (normalizedStores && normalizedStores.length > 0) {
+      query = query.in("store", normalizedStores)
     }
 
     const { data: cachedItems, error: cacheError } = await query
@@ -200,6 +294,11 @@ export async function searchIngredientCache(
       console.error("Error searching ingredient cache:", cacheError)
       return []
     }
+
+    console.log("[Cache] Found cached items", {
+      count: cachedItems?.length || 0,
+      stores: cachedItems?.map(c => c.store) || []
+    })
 
     return cachedItems || []
   } catch (error) {
@@ -210,6 +309,7 @@ export async function searchIngredientCache(
 
 /**
  * Get all cached ingredients for a specific standardized ingredient ID
+ * OPTIMIZED: Normalizes store names for consistent cache lookups
  */
 export async function getCachedIngredientById(
   standardizedIngredientId: string,
@@ -218,14 +318,17 @@ export async function getCachedIngredientById(
   try {
     const client = createServerClient()
 
+    // Normalize store names for consistent matching
+    const normalizedStores = stores?.map(s => s.toLowerCase().trim())
+
     let query = client
       .from("ingredient_cache")
       .select("*")
       .eq("standardized_ingredient_id", standardizedIngredientId)
       .gt("expires_at", new Date().toISOString())
 
-    if (stores && stores.length > 0) {
-      query = query.in("store", stores)
+    if (normalizedStores && normalizedStores.length > 0) {
+      query = query.in("store", normalizedStores)
     }
 
     const { data, error } = await query
@@ -234,6 +337,12 @@ export async function getCachedIngredientById(
       console.error("Error getting cached ingredient:", error)
       return []
     }
+
+    console.log("[Cache] getCachedIngredientById results", {
+      standardizedIngredientId,
+      count: data?.length || 0,
+      stores: data?.map(d => d.store) || []
+    })
 
     return data || []
   } catch (error) {
@@ -244,7 +353,7 @@ export async function getCachedIngredientById(
 
 /**
  * Store or update a scraped ingredient in the cache
- * Expires in 24 hours
+ * Expires based on store-specific TTL (12-48 hours)
  */
 export async function cacheIngredientPrice(
   standardizedIngredientId: string,
@@ -277,8 +386,10 @@ export async function cacheIngredientPrice(
     const normalizedPrice = Number(price)
     const priceValue = Number.isFinite(normalizedPrice) ? normalizedPrice : 0
 
+    // Use store-specific TTL
+    const ttlHours = getCacheTTLForStore(store)
     const expiresAt = new Date()
-    expiresAt.setHours(expiresAt.getHours() + 24)
+    expiresAt.setHours(expiresAt.getHours() + ttlHours)
 
     const payload = {
       standardized_ingredient_id: standardizedIngredientId,
@@ -486,7 +597,7 @@ export async function getOrCreateStandardizedIngredient(
 
 /**
  * Batch upsert multiple cache entries at once
- * OPTIMIZED: Single query instead of one per item
+ * OPTIMIZED: Single query instead of one per item, uses store-specific TTL
  */
 export async function batchCacheIngredientPrices(
   items: Array<{
@@ -506,26 +617,29 @@ export async function batchCacheIngredientPrices(
 
   try {
     const client = createServerClient()
-    const expiresAt = new Date()
-    expiresAt.setHours(expiresAt.getHours() + 24)
-    const expiresAtStr = expiresAt.toISOString()
     const updatedAt = new Date().toISOString()
 
-    // Build batch payload
-    const payloads = items.map(item => ({
-      standardized_ingredient_id: item.standardizedIngredientId,
-      store: item.store.toLowerCase(),
-      product_name: item.productName || null,
-      price: Number.isFinite(item.price) ? item.price : 0,
-      quantity: item.quantity,
-      unit: item.unit,
-      unit_price: item.unitPrice,
-      image_url: item.imageUrl,
-      product_url: item.productUrl,
-      product_id: item.productId,
-      expires_at: expiresAtStr,
-      updated_at: updatedAt,
-    }))
+    // Build batch payload with store-specific TTL
+    const payloads = items.map(item => {
+      const ttlHours = getCacheTTLForStore(item.store)
+      const expiresAt = new Date()
+      expiresAt.setHours(expiresAt.getHours() + ttlHours)
+
+      return {
+        standardized_ingredient_id: item.standardizedIngredientId,
+        store: item.store.toLowerCase(),
+        product_name: item.productName || null,
+        price: Number.isFinite(item.price) ? item.price : 0,
+        quantity: item.quantity,
+        unit: item.unit,
+        unit_price: item.unitPrice,
+        image_url: item.imageUrl,
+        product_url: item.productUrl,
+        product_id: item.productId,
+        expires_at: expiresAt.toISOString(),
+        updated_at: updatedAt,
+      }
+    })
 
     // Single batch upsert
     const { data, error } = await client

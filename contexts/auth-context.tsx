@@ -174,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
         options: {
-          emailRedirectTo: `${getSiteUrl()}/dashboard`,
+          emailRedirectTo: `${getSiteUrl()}/auth/callback?next=/welcome`,
         },
       })
 

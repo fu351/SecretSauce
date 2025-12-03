@@ -762,7 +762,7 @@ export async function getOrRefreshIngredientPrice(
   return result
 }
 
-async function resolveOrCreateStandardizedId(
+export async function resolveOrCreateStandardizedId(
   supabaseClient: SupabaseLike,
   query: string
 ): Promise<string> {

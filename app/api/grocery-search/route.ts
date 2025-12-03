@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import {
   getOrRefreshIngredientPricesForStores,
+  resolveOrCreateStandardizedId,
   resolveStandardizedIngredientForRecipe,
   searchOrCreateIngredientAndPrices,
   type IngredientCacheResult,
@@ -161,15 +162,6 @@ function normalizeZipInput(value?: string | null): string | undefined {
   return undefined
 }
 
-function normalizeCanonicalName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/\(.*?\)/g, " ")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .trim()
-    .replace(/\s+/g, " ")
-}
-
 async function resolveStandardizedIdForTerm(
   supabaseClient: ReturnType<typeof createServerClient>,
   term: string,
@@ -180,25 +172,8 @@ async function resolveStandardizedIdForTerm(
       return await resolveStandardizedIngredientForRecipe(supabaseClient, recipeId, term)
     }
 
-    const canonical = normalizeCanonicalName(term)
-    const { data: existing } = await supabaseClient
-      .from("standardized_ingredients")
-      .select("id")
-      .eq("canonical_name", canonical)
-      .maybeSingle()
-
-    if (existing?.id) return existing.id
-
-    const { data: inserted, error } = await supabaseClient
-      .from("standardized_ingredients")
-      .insert({ canonical_name: canonical })
-      .select("id")
-      .maybeSingle()
-    if (error) {
-      console.warn("[grocery-search] Failed to insert standardized ingredient", error)
-      return null
-    }
-    return inserted?.id || null
+    // Use the shared pipeline resolver so fuzzy/normalized lookups reuse existing cache rows
+    return await resolveOrCreateStandardizedId(supabaseClient, term)
   } catch (error) {
     console.error("[grocery-search] resolveStandardizedIdForTerm error", error)
     return null
@@ -401,7 +376,18 @@ export async function GET(request: NextRequest) {
       stores: storeKeys,
     })
 
-    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, standardizedIngredientId, supabaseClient)
+    // Ensure we have a standardized ID so the fallback can reuse cache rows before scraping
+    if (!standardizedIngredientId) {
+      standardizedIngredientId = await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId)
+    }
+
+    const directItems = await scrapeDirectFallback(
+      sanitizedSearchTerm,
+      storeKeys,
+      zipToUse,
+      standardizedIngredientId,
+      supabaseClient
+    )
     if (directItems.length > 0) {
       // Fire-and-forget cache write so the user gets results immediately
       Promise.resolve()
