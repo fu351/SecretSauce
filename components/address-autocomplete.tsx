@@ -103,8 +103,8 @@ export function AddressAutocomplete({ value, onChange, placeholder, disabled }: 
       if (parsed.formattedAddress && inputRef.current) {
         inputRef.current.value = parsed.formattedAddress
       }
+      // Use callback ref pattern to avoid recreating listener on every value change
       onChange({
-        ...value,
         ...parsed,
       })
     })
@@ -112,7 +112,9 @@ export function AddressAutocomplete({ value, onChange, placeholder, disabled }: 
     return () => {
       if (listener) listener.remove()
     }
-  }, [onChange, value])
+    // Only recreate autocomplete if onChange function identity changes (not on every value update)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onChange])
 
   return (
     <Input

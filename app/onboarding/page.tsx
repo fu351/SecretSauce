@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -169,6 +169,19 @@ export default function OnboardingPage() {
   const router = useRouter()
   const { updateProfile } = useAuth()
   const { toast } = useToast()
+
+  // Memoize address change handler to prevent autocomplete recreation
+  const handleAddressChange = useCallback((addr: any) => {
+    setFormattedAddress(addr.formattedAddress || "")
+    setAddressLine1(addr.addressLine1 || "")
+    setAddressLine2(addr.addressLine2 || "")
+    setCity(addr.city || "")
+    setStateRegion(addr.state || "")
+    setCountry(addr.country || "")
+    setPostalCode(addr.postalCode || "")
+    setLat(addr.lat ?? null)
+    setLng(addr.lng ?? null)
+  }, [])
 
   useEffect(() => {
     // Force dark theme for onboarding experience
@@ -462,17 +475,7 @@ export default function OnboardingPage() {
                       lat,
                       lng,
                     }}
-                    onChange={(addr) => {
-                      setFormattedAddress(addr.formattedAddress || "")
-                      setAddressLine1(addr.addressLine1 || "")
-                      setAddressLine2(addr.addressLine2 || "")
-                      setCity(addr.city || "")
-                      setStateRegion(addr.state || "")
-                      setCountry(addr.country || "")
-                      setPostalCode(addr.postalCode || "")
-                      setLat(addr.lat ?? null)
-                      setLng(addr.lng ?? null)
-                    }}
+                    onChange={handleAddressChange}
                     placeholder="Search your address"
                   />
                 </div>
