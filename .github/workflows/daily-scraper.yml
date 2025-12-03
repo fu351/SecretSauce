@@ -1,47 +1,70 @@
 name: Daily Ingredient Scraper
 
 on:
-  # Run daily at 2 AM UTC (9 PM EST / 6 PM PST)
   schedule:
-    - cron: '0 2 * * *'
-
-  # Allow manual trigger for testing
+    # Run at 4 AM UTC every day (9 PM PST / 12 AM EST)
+    - cron: '0 4 * * *'
   workflow_dispatch:
+    # Allow manual triggering from GitHub UI
+    inputs:
+      zip_code:
+        description: 'Zip code for scraping (default: 94704)'
+        required: false
+        default: '94704'
+      max_ingredients:
+        description: 'Max ingredients to scrape (default: 50)'
+        required: false
+        default: '50'
 
 jobs:
-  scrape:
+  scrape-ingredients:
     name: Scrape Ingredient Prices
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Max 1 hour for the entire job
+    timeout-minutes: 30 # Fail if takes longer than 30 minutes
 
     steps:
-      - name: Trigger Fly.io Daily Scraper
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Daily Scraper
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_URL || 'https://the-secret-sauce.vercel.app' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ZIP_CODE: ${{ github.event.inputs.zip_code || '94704' }}
+          MAX_INGREDIENTS: ${{ github.event.inputs.max_ingredients || '50' }}
         run: |
-          echo "Triggering daily ingredient scraper on Fly.io..."
+          echo "🚀 Starting Daily Ingredient Scraper"
+          echo "Vercel URL: $VERCEL_URL"
+          echo "Zip Code: $ZIP_CODE"
+          echo "Max Ingredients: $MAX_INGREDIENTS"
+          echo ""
+          node scripts/daily-scraper.js
 
-          RESPONSE=$(curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json" \
-            -w "\nHTTP_STATUS:%{http_code}" \
-            -s \
-            https://secretsauce.fly.dev/daily-ingredient-scraper)
-
-          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
-          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
-
-          echo "Response Status: $HTTP_STATUS"
-          echo "Response Body: $BODY"
-
-          if [ "$HTTP_STATUS" -eq 200 ]; then
-            echo "✅ Daily scraper completed successfully"
-            exit 0
-          else
-            echo "❌ Daily scraper failed with status $HTTP_STATUS"
-            exit 1
-          fi
+      - name: Report Success
+        if: success()
+        run: |
+          echo "✅ Daily scraper completed successfully!"
+          echo "Check the logs above for detailed statistics."
 
       - name: Report Failure
         if: failure()
         run: |
-          echo "::error::Daily ingredient scraper failed. Check Fly.io logs for details."
-          echo "Run: fly logs -a your-app-name"
+          echo "❌ Daily scraper failed!"
+          echo "Check the logs above for error details."
+          exit 1
+
+      - name: Upload Logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-failure-logs
+          path: |
+            ${{ github.workspace }}/*.log
+          retention-days: 7
