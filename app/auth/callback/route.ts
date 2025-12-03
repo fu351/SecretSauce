@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
@@ -25,8 +24,19 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     try {
-      const cookieStore = cookies()
-      const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Missing Supabase environment variables')
+      }
+
+      // Create a Supabase client for this request
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          flowType: 'pkce',
+        },
+      })
 
       // Exchange the code for a session
       const { data, error } = await supabase.auth.exchangeCodeForSession(code)
@@ -48,12 +58,34 @@ export async function GET(request: NextRequest) {
         email: data.user?.email,
       })
 
-      // Successful authentication - redirect to the target page
+      // Create response with redirect
       const redirectUrl = new URL(next, requestUrl.origin)
+      const response = NextResponse.redirect(redirectUrl)
+
+      // Set session cookies
+      if (data.session) {
+        response.cookies.set({
+          name: 'sb-access-token',
+          value: data.session.access_token,
+          path: '/',
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 60 * 60 * 24 * 7, // 7 days
+        })
+
+        response.cookies.set({
+          name: 'sb-refresh-token',
+          value: data.session.refresh_token,
+          path: '/',
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 60 * 60 * 24 * 7, // 7 days
+        })
+      }
 
       console.log('[Auth Callback] Redirecting to:', redirectUrl.toString())
 
-      return NextResponse.redirect(redirectUrl)
+      return response
     } catch (error) {
       console.error('[Auth Callback] Exception:', error)
 
