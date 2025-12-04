@@ -65,15 +65,16 @@ export async function GET(request: NextRequest) {
         .eq('id', data.user.id)
         .maybeSingle()
 
-      // If profile doesn't exist or has no primary_goal, redirect to onboarding
-      // Otherwise use the 'next' parameter (usually /welcome)
       let redirectPath = next
-      if (profileError) {
-        console.warn('[Auth Callback] Profile query error:', profileError)
-        redirectPath = '/onboarding'
-      } else if (!profile || !profile.primary_goal) {
-        console.log('[Auth Callback] No profile or primary_goal, redirecting to onboarding')
-        redirectPath = '/onboarding'
+
+      // If profile doesn't exist or has no primary_goal, check for cached onboarding data
+      if (profileError || !profile || !profile.primary_goal) {
+        console.log('[Auth Callback] No profile or primary_goal found')
+
+        // NOTE: We can't access localStorage from server-side route handler
+        // The client will need to save cached data after redirect
+        // For now, redirect to a handler page that will check localStorage
+        redirectPath = '/auth/finalize-onboarding'
       } else {
         console.log('[Auth Callback] Profile exists with primary_goal, redirecting to:', next)
       }

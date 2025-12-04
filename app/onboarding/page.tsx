@@ -611,7 +611,7 @@ export default function OnboardingPage() {
     if (!allRequiredAnswered) return
     setLoading(true)
     try {
-      await updateProfile({
+      const onboardingData = {
         primary_goal: selectedGoal,
         cooking_level: cookingLevel,
         budget_range: budgetRange,
@@ -629,18 +629,30 @@ export default function OnboardingPage() {
         country: country || null,
         latitude: lat,
         longitude: lng,
-      })
+      }
+
+      // Try to save immediately if user is authenticated
+      // Otherwise cache in localStorage for after email verification
+      if (user) {
+        await updateProfile(onboardingData)
+        console.log('[Onboarding] User authenticated, saved preferences immediately')
+      } else {
+        // Cache onboarding data in localStorage for after verification
+        localStorage.setItem('pending_onboarding_data', JSON.stringify(onboardingData))
+        console.log('[Onboarding] User not authenticated yet, cached preferences for later')
+      }
 
       toast({
-        title: "All set!",
-        description: "Let's start your personalized tour.",
+        title: "Preferences saved!",
+        description: "Now verify your email to get started.",
       })
 
       setTheme(selectedTheme)
 
-      // Go to welcome page to start tutorial
-      router.push("/welcome")
+      // Redirect to check-email page to verify email
+      router.push("/check-email")
     } catch (error) {
+      console.error('[Onboarding] Error saving preferences:', error)
       toast({
         title: "Error",
         description: "Failed to save preferences. Please try again.",

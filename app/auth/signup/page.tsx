@@ -111,11 +111,11 @@ export default function SignUpPage() {
         }
       } else {
         toast({
-          title: "Check your email",
-          description: "We sent you a verification link.",
+          title: "Account created!",
+          description: "Let's set up your preferences while we send your verification email.",
         })
-        // Redirect to check-email page, then onboarding after verification
-        router.push("/check-email")
+        // Redirect to onboarding FIRST, they'll verify email after
+        router.push("/onboarding")
       }
     } catch (error) {
       toast({
