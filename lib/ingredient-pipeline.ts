@@ -102,6 +102,26 @@ function normalizeIngredientName(raw: string): string {
   return tokens.join(" ").trim()
 }
 
+async function findStandardizedIngredientViaMapping(
+  client: SupabaseLike,
+  originalName: string
+): Promise<string | null> {
+  // Check if this exact string was previously mapped (from any recipe)
+  // This leverages historical mappings to improve cache hits
+  const { data, error } = await client
+    .from("ingredient_mappings")
+    .select("standardized_ingredient_id")
+    .eq("original_name", originalName.trim())
+    .limit(1)
+    .maybeSingle()
+
+  if (error && error.code !== "PGRST116") {
+    console.warn("[ingredient-pipeline] Mapping lookup failed", error)
+  }
+
+  return data?.standardized_ingredient_id || null
+}
+
 async function findStandardizedIngredient(
   client: SupabaseLike,
   normalizedName: string,
@@ -121,19 +141,52 @@ async function findStandardizedIngredient(
     console.warn("[ingredient-pipeline] Exact canonical lookup failed", exact.error)
   }
 
-  const fuzzy = await client
+  // Improved fuzzy match: get multiple matches and rank by relevance
+  const { data: fuzzyResults, error: fuzzyError } = await client
     .from("standardized_ingredients")
     .select("id, canonical_name, category")
     .ilike("canonical_name", `%${searchValue}%`)
-    .limit(1)
-    .maybeSingle()
+    .limit(10)
 
-  if (fuzzy.data) return fuzzy.data
-  if (fuzzy.error && fuzzy.error.code !== "PGRST116") {
-    console.warn("[ingredient-pipeline] Fuzzy canonical lookup failed", fuzzy.error)
+  if (fuzzyError && fuzzyError.code !== "PGRST116") {
+    console.warn("[ingredient-pipeline] Fuzzy canonical lookup failed", fuzzyError)
+    return null
   }
 
-  return null
+  if (!fuzzyResults || fuzzyResults.length === 0) {
+    return null
+  }
+
+  // Rank by relevance: prefer shorter names (more specific) and exact substring matches
+  const ranked = fuzzyResults
+    .map(result => {
+      const canonical = result.canonical_name.toLowerCase()
+      const search = searchValue.toLowerCase()
+
+      // Score: lower is better
+      let score = canonical.length // Prefer shorter (more specific)
+
+      // Boost exact matches
+      if (canonical === search) score -= 1000
+
+      // Boost starts-with matches
+      if (canonical.startsWith(search)) score -= 100
+
+      // Boost word boundary matches
+      if (new RegExp(`\\b${search}\\b`).test(canonical)) score -= 50
+
+      return { ...result, score }
+    })
+    .sort((a, b) => a.score - b.score)
+
+  console.log("[ingredient-pipeline] Fuzzy match ranked results", {
+    searchValue,
+    topMatch: ranked[0]?.canonical_name,
+    score: ranked[0]?.score,
+    totalMatches: ranked.length
+  })
+
+  return ranked[0] || null
 }
 
 async function createStandardizedIngredient(
@@ -786,21 +839,43 @@ export async function resolveOrCreateStandardizedId(
   supabaseClient: SupabaseLike,
   query: string
 ): Promise<string> {
-  const normalized = normalizeIngredientName(query)
-  const existing = await findStandardizedIngredient(supabaseClient, normalized, query)
-  if (existing?.id) return existing.id
+  const trimmedQuery = query.trim()
 
-  let canonicalName = normalized || query
+  console.log("[ingredient-pipeline] resolveOrCreateStandardizedId", { query: trimmedQuery })
+
+  // STEP 1: Check if this exact string was previously mapped (from ANY recipe)
+  // This leverages historical mappings to improve cache hits
+  const mappedId = await findStandardizedIngredientViaMapping(supabaseClient, trimmedQuery)
+  if (mappedId) {
+    console.log("[ingredient-pipeline] Found via historical mapping", { query: trimmedQuery, mappedId })
+    return mappedId
+  }
+
+  // STEP 2: Normalize and look for exact/fuzzy match in standardized_ingredients
+  const normalized = normalizeIngredientName(trimmedQuery)
+  const existing = await findStandardizedIngredient(supabaseClient, normalized, trimmedQuery)
+  if (existing?.id) {
+    console.log("[ingredient-pipeline] Found via normalized lookup", { query: trimmedQuery, normalized, id: existing.id })
+    return existing.id
+  }
+
+  // STEP 3: Use AI to get better canonical name
+  let canonicalName = normalized || trimmedQuery
   try {
-    const aiStandardized = await standardizeIngredientsWithAI([{ id: "0", name: query }], "recipe")
+    const aiStandardized = await standardizeIngredientsWithAI([{ id: "0", name: trimmedQuery }], "recipe")
     const aiTop = aiStandardized?.[0]
     canonicalName = aiTop?.canonicalName?.trim() || canonicalName
+    console.log("[ingredient-pipeline] AI suggested canonical", { query: trimmedQuery, canonical: canonicalName })
   } catch (error) {
     console.warn("[ingredient-pipeline] AI standardization failed for freeform query, falling back", error)
   }
 
-  const aiExisting = await findStandardizedIngredient(supabaseClient, canonicalName, query)
-  if (aiExisting?.id) return aiExisting.id
+  // STEP 4: Try lookup with AI-suggested canonical name
+  const aiExisting = await findStandardizedIngredient(supabaseClient, canonicalName, trimmedQuery)
+  if (aiExisting?.id) {
+    console.log("[ingredient-pipeline] Found via AI canonical lookup", { query: trimmedQuery, canonical: canonicalName, id: aiExisting.id })
+    return aiExisting.id
+  }
 
   return createStandardizedIngredient(supabaseClient, canonicalName)
 }
