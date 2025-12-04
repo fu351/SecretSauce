@@ -26,6 +26,12 @@ export function Header() {
   const router = useRouter()
   const { toast } = useToast()
   const [isFirstTimeVisitor, setIsFirstTimeVisitor] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Check if user is visiting landing page for the first time
   useEffect(() => {
@@ -35,9 +41,13 @@ export function Header() {
     }
   }, [pathname])
 
-  // For unauthenticated users, always use dark mode (check both theme and DOM)
-  // This ensures dark mode is used even during theme initialization
-  const isDark = !user ? true : theme === "dark"
+  // Use theme directly from context - it handles defaults properly
+  const isDark = theme === "dark"
+
+  // Prevent flash during hydration
+  if (!mounted) {
+    return null
+  }
 
   // Hide header for: first-time landing page visitors, auth and onboarding routes when not logged in
   if (!user && (isFirstTimeVisitor || pathname.startsWith("/auth") || pathname === "/onboarding")) {
