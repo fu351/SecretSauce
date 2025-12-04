@@ -2,8 +2,8 @@ name: Daily Ingredient Scraper
 
 on:
   schedule:
-    # Run at 4 AM UTC every day (9 PM PST / 12 AM EST)
-    - cron: '0 4 * * *'
+    # Run at 4 AM PST every day (12 PM UTC)
+    - cron: '0 12 * * *'
   workflow_dispatch:
     # Allow manual triggering from GitHub UI
     inputs:
