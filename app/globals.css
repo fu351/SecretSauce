@@ -59,38 +59,38 @@
   }
 
   .dark {
-    /* Sleek slate + gold palette for dark mode */
-    --background: 221 18% 7%;      /* #0b0f14 */
-    --foreground: 45 42% 87%;      /* warm gold-cream text */
-    --card: 222 16% 11%;           /* #141821 */
+    /* Warm dark grey + gold palette for dark mode - consistent with Secret Sauce brand */
+    --background: 36 16% 7%;       /* #181813 - warm dark grey */
+    --foreground: 45 42% 87%;      /* #e8dcc4 - warm gold-cream text */
+    --card: 36 14% 11%;            /* #1f1e1a - slightly lighter warm grey */
     --card-foreground: 45 42% 87%;
-    --popover: 222 16% 11%;
+    --popover: 36 14% 11%;
     --popover-foreground: 45 42% 87%;
     --primary: 45 60% 74%;         /* polished gold */
-    --primary-foreground: 221 18% 7%;
-    --secondary: 221 14% 18%;      /* deep slate */
+    --primary-foreground: 36 16% 7%;
+    --secondary: 36 12% 18%;       /* deep warm grey */
     --secondary-foreground: 45 42% 87%;
-    --muted: 221 12% 22%;          /* softened slate */
+    --muted: 36 10% 22%;           /* softened warm grey */
     --muted-foreground: 45 32% 72%; /* desaturated gold */
     --accent: 45 60% 74%;
-    --accent-foreground: 221 18% 7%;
+    --accent-foreground: 36 16% 7%;
     --destructive: 0 70% 46%;
     --destructive-foreground: 45 42% 87%;
-    --border: 221 12% 26%;
-    --input: 221 14% 20%;
+    --border: 45 20% 20%;          /* warm grey border with gold tint */
+    --input: 36 14% 16%;           /* warm grey input background */
     --ring: 45 62% 72%;            /* gold focus ring */
     --chart-1: 210 60% 48%;
     --chart-2: 150 45% 42%;
     --chart-3: 45 70% 60%;
     --chart-4: 280 55% 58%;
     --chart-5: 350 60% 55%;
-    --sidebar-background: 222 16% 11%;
+    --sidebar-background: 36 14% 11%;
     --sidebar-foreground: 45 42% 87%;
     --sidebar-primary: 45 60% 74%;
-    --sidebar-primary-foreground: 221 18% 7%;
-    --sidebar-accent: 221 14% 20%;
+    --sidebar-primary-foreground: 36 16% 7%;
+    --sidebar-accent: 36 12% 20%;
     --sidebar-accent-foreground: 45 42% 87%;
-    --sidebar-border: 221 12% 26%;
+    --sidebar-border: 45 18% 20%;
     --sidebar-ring: 45 62% 72%;
   }
 }

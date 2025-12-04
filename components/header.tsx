@@ -74,7 +74,7 @@ export function Header() {
   return (
     <header
       className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b sticky top-0 z-40 ${
-        isDark ? "bg-[#181813]/95 backdrop-blur border-[#e8dcc4]/20" : "bg-[#FAF4E5]/95 backdrop-blur border-border"
+        isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
       }`}
     >
       <div className="flex items-center">
@@ -93,7 +93,7 @@ export function Header() {
         <Link
           href="/recipes"
           className={`hover:opacity-80 transition-opacity ${
-            pathname === "/recipes" ? "font-semibold" : isDark ? "text-[#e8dcc4]/80" : "text-gray-700"
+            pathname === "/recipes" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
         >
           Recipes
@@ -101,7 +101,7 @@ export function Header() {
         <Link
           href="/meal-planner"
           className={`hover:opacity-80 transition-opacity ${
-            pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-[#e8dcc4]/80" : "text-gray-700"
+            pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
         >
           Meal Planner
@@ -109,7 +109,7 @@ export function Header() {
         <Link
           href="/shopping"
           className={`hover:opacity-80 transition-opacity ${
-            pathname === "/shopping" ? "font-semibold" : isDark ? "text-[#e8dcc4]/80" : "text-gray-700"
+            pathname === "/shopping" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
         >
           Shopping
@@ -126,7 +126,7 @@ export function Header() {
                   variant="ghost"
                   size="icon"
                   asChild
-                  className={isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}
+                  className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
                 >
                   <Link href="/favorites">
                     <Heart className="h-5 w-5 text-red-500" />
@@ -137,7 +137,7 @@ export function Header() {
                   variant="ghost"
                   size="icon"
                   asChild
-                  className={isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}
+                  className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
                 >
                   <Link href="/shopping">
                     <ShoppingCart className="h-5 w-5 text-green-500" />
@@ -152,7 +152,7 @@ export function Header() {
                 <button
                   className={`relative inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold transition-all duration-200 rounded-lg shadow-md hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 ${
                     isDark
-                      ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] focus:ring-[#e8dcc4]"
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-ring"
                       : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 focus:ring-orange-500"
                   }`}
                 >
@@ -165,13 +165,13 @@ export function Header() {
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}>
+                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}>
                   <User className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className={isDark ? "bg-[#1f1e1a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+                className={isDark ? "bg-card border-border text-card-foreground" : ""}
               >
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard">
@@ -191,7 +191,7 @@ export function Header() {
                     Settings
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className={isDark ? "bg-[#e8dcc4]/20" : ""} />
+                <DropdownMenuSeparator className={isDark ? "bg-border" : ""} />
                 <DropdownMenuItem asChild>
                   <button onClick={handleSignOut} className="w-full flex items-center cursor-pointer">
                     <LogOut className="h-4 w-4 mr-2" />
@@ -204,13 +204,13 @@ export function Header() {
             {/* Mobile Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="md:hidden">
-                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}>
+                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}>
                   <Menu className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className={isDark ? "bg-[#1f1e1a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
+                className={isDark ? "bg-card border-border text-card-foreground" : ""}
               >
                 <DropdownMenuItem asChild>
                   <Link href="/recipes">Recipes</Link>
@@ -223,7 +223,7 @@ export function Header() {
                 </DropdownMenuItem>
                 {!pathname.includes("/upload-recipe") && (
                   <>
-                    <DropdownMenuSeparator className={isDark ? "bg-[#e8dcc4]/20" : ""} />
+                    <DropdownMenuSeparator className={isDark ? "bg-border" : ""} />
                     <DropdownMenuItem asChild>
                       <Link href="/upload-recipe">
                         <Plus className="h-4 w-4 mr-2" />
@@ -241,7 +241,7 @@ export function Header() {
               variant="ghost"
               size={isMobile ? "sm" : "default"}
               asChild
-              className={isDark ? "text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "hover:bg-gray-100"}
+              className={isDark ? "text-foreground hover:bg-muted" : "hover:bg-gray-100"}
             >
               <Link href="/auth/signin">Sign In</Link>
             </Button>
@@ -250,7 +250,7 @@ export function Header() {
               asChild
               className={
                 isDark
-                  ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
                   : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"
               }
             >
