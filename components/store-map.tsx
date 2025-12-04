@@ -675,7 +675,22 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
     initializeMap()
     // IMPORTANT: Only re-geocode when comparisons, postal code, distance, or map readiness changes
     // Do NOT re-geocode on theme changes (isDark, mapStyle) - that's wasteful and expensive!
-  }, [comparisons, userPostalCode, maxDistanceMiles, mapReady, mapApiKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    // Only include store identifiers, not items/totals
+    // This prevents re-geocoding when just item prices change
+    JSON.stringify(comparisons.map(c => ({
+      store: c.store,
+      canonicalKey: c.canonicalKey,
+      locationHint: c.locationHint,
+      providerAliases: c.providerAliases,
+      outOfRadius: c.outOfRadius
+    }))),
+    userPostalCode,
+    maxDistanceMiles,
+    mapReady,
+    mapApiKey
+  ])
 
   // Update map styles when theme changes
   useEffect(() => {
