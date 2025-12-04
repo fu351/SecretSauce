@@ -333,7 +333,10 @@ export async function GET(request: NextRequest) {
         supabaseClient,
         standardizedIngredientId,
         storeKeys,
-        { zipCode: zipToUse }
+        {
+          zipCode: zipToUse,
+          allowRealTimeScraping: false // Only return cached results - daily scraper pre-populates cache
+        }
       )
 
       console.log("[grocery-search] Batch fetch completed", {
@@ -351,6 +354,7 @@ export async function GET(request: NextRequest) {
       })
       cachedRows = await searchOrCreateIngredientAndPrices(supabaseClient, sanitizedSearchTerm, storeKeys, {
         zipCode: zipToUse,
+        allowRealTimeScraping: false // Only return cached results - daily scraper pre-populates cache
       })
 
       console.log("[grocery-search] searchOrCreate workflow completed", {

@@ -15,48 +15,29 @@ const ZIP_CODE = process.env.ZIP_CODE || '94704'
 
 // Configuration
 const BATCH_SIZE = 10 // Process 10 ingredients per batch
-const MAX_INGREDIENTS = 50 // Scrape top 50 ingredients
 
-async function fetchTopIngredients() {
-  console.log('📊 Fetching top ingredients from Supabase...')
+async function fetchAllCanonicalIngredients() {
+  console.log('📊 Fetching ALL canonical ingredients from Supabase...')
 
   try {
+    // Fetch ALL canonical ingredients from standardized_ingredients table
+    // This ensures we pre-populate cache for all ingredients, not just top 50
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/get_top_ingredients`,
+      `${SUPABASE_URL}/rest/v1/standardized_ingredients?select=canonical_name&order=canonical_name.asc`,
       {
-        method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'apikey': SUPABASE_SERVICE_KEY,
           'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
-        },
-        body: JSON.stringify({ limit_count: MAX_INGREDIENTS })
+        }
       }
     )
 
     if (!response.ok) {
-      // Fallback: fetch from standardized_ingredients table
-      console.log('⚠️  RPC function not found, fetching from table...')
-      const fallbackResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/standardized_ingredients?select=canonical_name&limit=${MAX_INGREDIENTS}`,
-        {
-          headers: {
-            'apikey': SUPABASE_SERVICE_KEY,
-            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
-          }
-        }
-      )
-
-      if (!fallbackResponse.ok) {
-        throw new Error(`Failed to fetch ingredients: ${fallbackResponse.statusText}`)
-      }
-
-      const data = await fallbackResponse.json()
-      return data.map(row => row.canonical_name)
+      throw new Error(`Failed to fetch ingredients: ${response.statusText}`)
     }
 
     const data = await response.json()
-    return data.map(row => row.canonical_name || row.ingredient_name)
+    return data.map(row => row.canonical_name).filter(Boolean)
   } catch (error) {
     console.error('❌ Error fetching ingredients:', error.message)
 
@@ -248,8 +229,8 @@ async function main() {
   console.log('🚀 Daily Ingredient Scraper Starting...')
   console.log(`   Vercel URL: ${VERCEL_URL}`)
   console.log(`   Zip Code: ${ZIP_CODE}`)
-  console.log(`   Max Ingredients: ${MAX_INGREDIENTS}`)
   console.log(`   Batch Size: ${BATCH_SIZE}`)
+  console.log(`   Strategy: Pre-populate cache with ALL canonical ingredients`)
 
   // Validate environment
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
@@ -262,9 +243,9 @@ async function main() {
     process.exit(1)
   }
 
-  // Fetch ingredients
-  const ingredients = await fetchTopIngredients()
-  console.log(`✅ Found ${ingredients.length} ingredients to scrape`)
+  // Fetch ALL canonical ingredients
+  const ingredients = await fetchAllCanonicalIngredients()
+  console.log(`✅ Found ${ingredients.length} canonical ingredients to scrape`)
 
   // Split into batches
   const batches = []

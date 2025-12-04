@@ -11,10 +11,6 @@ on:
         description: 'Zip code for scraping (default: 94704)'
         required: false
         default: '94704'
-      max_ingredients:
-        description: 'Max ingredients to scrape (default: 50)'
-        required: false
-        default: '50'
 
 jobs:
   scrape-ingredients:
@@ -38,12 +34,11 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           ZIP_CODE: ${{ github.event.inputs.zip_code || '94704' }}
-          MAX_INGREDIENTS: ${{ github.event.inputs.max_ingredients || '50' }}
         run: |
           echo "🚀 Starting Daily Ingredient Scraper"
           echo "Vercel URL: $VERCEL_URL"
           echo "Zip Code: $ZIP_CODE"
-          echo "Max Ingredients: $MAX_INGREDIENTS"
+          echo "Strategy: Scraping ALL canonical ingredients"
           echo ""
           node scripts/daily-scraper.js
 

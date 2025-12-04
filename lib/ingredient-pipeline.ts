@@ -224,6 +224,8 @@ type ScraperResult = {
 
 type StoreLookupOptions = {
   zipCode?: string | null
+  forceRefresh?: boolean
+  allowRealTimeScraping?: boolean // If false, only return cached results
 }
 
 function normalizeZipInput(value?: string | null): string | undefined {
@@ -604,6 +606,15 @@ export async function getOrRefreshIngredientPricesForStores(
     return results
   }
 
+  // If real-time scraping is disabled, return only cached results
+  if (options.allowRealTimeScraping === false) {
+    console.log("[ingredient-pipeline] Real-time scraping disabled, returning cached results only", {
+      cachedStores: Array.from(cachedByStore.keys()),
+      missedStores: storesToScrape,
+    })
+    return results
+  }
+
   // Load canonical name once for all scrapers
   const canonicalName = await loadCanonicalName(supabaseClient, standardizedIngredientId)
   if (!canonicalName) {
@@ -711,6 +722,15 @@ export async function getOrRefreshIngredientPrice(
       standardizedIngredientId,
       timeMs: Date.now() - startTime,
     })
+  }
+
+  // If real-time scraping is disabled, return null for missing/expired cache
+  if (options.allowRealTimeScraping === false) {
+    console.log("[ingredient-pipeline] Real-time scraping disabled, returning null for missing cache", {
+      store: normalizedStore,
+      standardizedIngredientId,
+    })
+    return null
   }
 
   const canonicalName = await loadCanonicalName(supabaseClient, standardizedIngredientId)
