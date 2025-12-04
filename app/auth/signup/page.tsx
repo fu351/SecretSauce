@@ -76,12 +76,11 @@ export default function SignUpPage() {
         }
       } else {
         toast({
-          title: "Access Granted",
-          description: "Welcome to the circle.",
+          title: "Check your email",
+          description: "We sent you a verification link.",
         })
-        // New users proceed through onboarding where they can select dark or warm mode
-        setTheme("dark")
-        router.push("/onboarding")
+        // Redirect to check-email page, then onboarding after verification
+        router.push("/check-email")
       }
     } catch (error) {
       toast({

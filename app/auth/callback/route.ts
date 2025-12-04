@@ -58,8 +58,18 @@ export async function GET(request: NextRequest) {
         email: data.user?.email,
       })
 
+      // Check if user has completed onboarding by checking for primary_goal
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('primary_goal')
+        .eq('id', data.user.id)
+        .single()
+
+      // If no primary_goal, redirect to onboarding instead of next page
+      const redirectPath = (!profile || !profile.primary_goal) ? '/onboarding' : next
+
       // Create response with redirect
-      const redirectUrl = new URL(next, requestUrl.origin)
+      const redirectUrl = new URL(redirectPath, requestUrl.origin)
       const response = NextResponse.redirect(redirectUrl)
 
       // Set session cookies

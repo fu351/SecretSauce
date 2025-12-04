@@ -633,13 +633,13 @@ export default function OnboardingPage() {
 
       toast({
         title: "All set!",
-        description: "Check your email to verify your account.",
+        description: "Let's start your personalized tour.",
       })
 
       setTheme(selectedTheme)
 
-      // Go to email verification - tutorial will start after they log in
-      router.push("/check-email")
+      // Go to welcome page to start tutorial
+      router.push("/welcome")
     } catch (error) {
       toast({
         title: "Error",

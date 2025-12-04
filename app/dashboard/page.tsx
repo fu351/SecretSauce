@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChefHat, Heart, Calendar, ShoppingCart, Plus, PlayCircle } from "lucide-react"
+import { ChefHat, Heart, Calendar, ShoppingCart, Plus } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { useTutorial } from "@/contexts/tutorial-context"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { format, startOfWeek } from "date-fns"
@@ -30,24 +29,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const { user, profile } = useAuth()
   const { theme } = useTheme()
-  const { startTutorial } = useTutorial()
-
   const isDark = theme === "dark"
-
-  const handleRestartTutorial = () => {
-    if (!profile?.primary_goal) return
-
-    const pathMap: Record<string, "cooking" | "budgeting" | "health"> = {
-      cooking: "cooking",
-      budgeting: "budgeting",
-      both: "health",
-    }
-
-    const tutorialPath = pathMap[profile.primary_goal]
-    if (tutorialPath) {
-      startTutorial(tutorialPath)
-    }
-  }
 
   useEffect(() => {
     if (user) {
@@ -195,7 +177,7 @@ export default function DashboardPage() {
             <CardTitle className="text-foreground">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Button asChild className="w-full h-24 flex flex-col gap-2">
                 <Link href="/upload-recipe">
                   <Plus className="h-6 w-6" />
@@ -213,15 +195,6 @@ export default function DashboardPage() {
                   <ShoppingCart className="h-6 w-6" />
                   <span>Manage Pantry</span>
                 </Link>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleRestartTutorial}
-                className="w-full h-24 flex flex-col gap-2"
-                disabled={!profile?.primary_goal}
-              >
-                <PlayCircle className="h-6 w-6" />
-                <span>Restart Tour</span>
               </Button>
             </div>
           </CardContent>

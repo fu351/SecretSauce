@@ -24,12 +24,6 @@ export default function WelcomePage() {
     }
   }, [user, loading, router])
 
-  useEffect(() => {
-    if (isActive) {
-      router.push("/dashboard")
-    }
-  }, [isActive, router])
-
   const handleStartTutorial = () => {
     if (!profile?.primary_goal) {
       router.push("/dashboard")
