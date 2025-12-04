@@ -142,8 +142,64 @@ async function retryFailedStores(failedResults) {
 
   console.log(`\n🔄 Retrying ${failedResults.length} ingredients with failures...`)
 
+  // Fetch canonical names from database for all failed ingredients
+  const ingredientNames = failedResults.map(r => r.ingredient)
+  console.log('📊 Fetching canonical names for failed ingredients...')
+
+  const canonicalMap = new Map()
+
+  try {
+    // Fetch canonical names from standardized_ingredients table
+    const canonicalNames = await Promise.all(
+      ingredientNames.map(async (name) => {
+        // Apply same canonicalization logic as batch-scraper API
+        const canonical = name
+          .toLowerCase()
+          .replace(/\(.*?\)/g, ' ')
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .trim()
+          .replace(/\s+/g, ' ')
+
+        try {
+          const response = await fetch(
+            `${SUPABASE_URL}/rest/v1/standardized_ingredients?select=canonical_name&canonical_name=eq.${encodeURIComponent(canonical)}`,
+            {
+              headers: {
+                'apikey': SUPABASE_SERVICE_KEY,
+                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+              }
+            }
+          )
+
+          if (response.ok) {
+            const data = await response.json()
+            if (data.length > 0) {
+              return { original: name, canonical: data[0].canonical_name }
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️  Could not fetch canonical name for "${name}":`, error.message)
+        }
+
+        // Fallback to computed canonical name
+        return { original: name, canonical }
+      })
+    )
+
+    // Build map of original -> canonical
+    canonicalNames.forEach(({ original, canonical }) => {
+      canonicalMap.set(original, canonical)
+      if (original !== canonical) {
+        console.log(`   "${original}" → "${canonical}"`)
+      }
+    })
+  } catch (error) {
+    console.error('❌ Error fetching canonical names:', error.message)
+    console.log('⚠️  Falling back to original names for retry')
+  }
+
   // Process retries in smaller batches with forceRefresh
-  const retryBatchSize = 3 // Even smaller batches for retries (was 5)
+  const retryBatchSize = 3 // Even smaller batches for retries
   const retryBatches = []
 
   for (let i = 0; i < failedResults.length; i += retryBatchSize) {
@@ -154,7 +210,12 @@ async function retryFailedStores(failedResults) {
     const batch = retryBatches[i]
     console.log(`\n🔄 Retry batch ${i + 1}/${retryBatches.length}`)
 
-    // Retry with forceRefresh to bypass cache
+    // Retry with canonical names and forceRefresh
+    const ingredients = batch.map(r => {
+      const canonical = canonicalMap.get(r.ingredient) || r.ingredient
+      return { name: canonical }
+    })
+
     const response = await fetch(`${VERCEL_URL}/api/batch-scraper`, {
       method: 'POST',
       headers: {
@@ -162,7 +223,7 @@ async function retryFailedStores(failedResults) {
         'Authorization': `Bearer ${CRON_SECRET}`
       },
       body: JSON.stringify({
-        ingredients: batch.map(r => ({ name: r.ingredient })),
+        ingredients,
         zipCode: ZIP_CODE,
         forceRefresh: true // Force refresh on retry
       })
@@ -176,7 +237,7 @@ async function retryFailedStores(failedResults) {
 
     // Add longer delay between retry batches to avoid rate limiting
     if (i < retryBatches.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 5000)) // Increased from 2s to 5s
+      await new Promise(resolve => setTimeout(resolve, 5000)) // 5s delay between retry batches
     }
   }
 }
