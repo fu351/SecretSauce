@@ -44,11 +44,36 @@ export default function SignUpPage() {
       const { error } = await signUp(email, password)
 
       if (error) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        })
+        // Check if error is about existing user
+        if (error.message.toLowerCase().includes("already registered") ||
+            error.message.toLowerCase().includes("already exists") ||
+            error.message.toLowerCase().includes("user already registered")) {
+          toast({
+            title: "Account Already Exists",
+            description: (
+              <div className="space-y-2">
+                <p>An account with this email already exists.</p>
+                <div className="flex gap-2 mt-2">
+                  <Link href="/auth/signin" className="text-[#e8dcc4] underline">
+                    Sign in
+                  </Link>
+                  <span>or</span>
+                  <Link href="/auth/forgot-password" className="text-[#e8dcc4] underline">
+                    Reset password
+                  </Link>
+                </div>
+              </div>
+            ) as any,
+            variant: "destructive",
+            duration: 6000,
+          })
+        } else {
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive",
+          })
+        }
       } else {
         toast({
           title: "Access Granted",
