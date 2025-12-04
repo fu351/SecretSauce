@@ -25,7 +25,14 @@ export default function WelcomePage() {
   }, [user, loading, router])
 
   const handleStartTutorial = () => {
+    console.log('[Welcome] handleStartTutorial called', {
+      profile,
+      primaryGoal: profile?.primary_goal,
+      isActive
+    })
+
     if (!profile?.primary_goal) {
+      console.warn('[Welcome] No primary_goal found, redirecting to dashboard')
       router.push("/dashboard")
       return
     }
@@ -39,13 +46,20 @@ export default function WelcomePage() {
     }
 
     const tutorialPath = pathMap[profile.primary_goal]
+    console.log('[Welcome] Mapped primary_goal to tutorial path:', {
+      primaryGoal: profile.primary_goal,
+      tutorialPath
+    })
 
     if (tutorialPath) {
+      console.log('[Welcome] Starting tutorial and navigating to dashboard')
       startTutorial(tutorialPath)
+      // Give the tutorial state time to update before navigation
       setTimeout(() => {
         router.push("/dashboard")
-      }, 100)
+      }, 300)
     } else {
+      console.warn('[Welcome] No tutorial path found for primary_goal:', profile.primary_goal)
       router.push("/dashboard")
     }
   }

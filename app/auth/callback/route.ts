@@ -59,14 +59,24 @@ export async function GET(request: NextRequest) {
       })
 
       // Check if user has completed onboarding by checking for primary_goal
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('primary_goal')
         .eq('id', data.user.id)
-        .single()
+        .maybeSingle()
 
-      // If no primary_goal, redirect to onboarding instead of next page
-      const redirectPath = (!profile || !profile.primary_goal) ? '/onboarding' : next
+      // If profile doesn't exist or has no primary_goal, redirect to onboarding
+      // Otherwise use the 'next' parameter (usually /welcome)
+      let redirectPath = next
+      if (profileError) {
+        console.warn('[Auth Callback] Profile query error:', profileError)
+        redirectPath = '/onboarding'
+      } else if (!profile || !profile.primary_goal) {
+        console.log('[Auth Callback] No profile or primary_goal, redirecting to onboarding')
+        redirectPath = '/onboarding'
+      } else {
+        console.log('[Auth Callback] Profile exists with primary_goal, redirecting to:', next)
+      }
 
       // Create response with redirect
       const redirectUrl = new URL(redirectPath, requestUrl.origin)

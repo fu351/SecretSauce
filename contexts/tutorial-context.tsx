@@ -288,10 +288,22 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   // Check if tutorial should be shown
   useEffect(() => {
-    if (!user || !profile) return
+    if (!user || !profile) {
+      console.log('[Tutorial] Waiting for user/profile', { hasUser: !!user, hasProfile: !!profile })
+      return
+    }
+
+    console.log('[Tutorial] Checking tutorial state', {
+      tutorialCompleted: profile.tutorial_completed,
+      primaryGoal: profile.primary_goal,
+      isActive,
+      isCompleted,
+      wasDismissed,
+    })
 
     // If user has completed tutorial, don't show it
-    if (profile.tutorial_completed) {
+    if (profile.tutorial_completed === true) {
+      console.log('[Tutorial] Tutorial already completed, not auto-starting')
       setIsActive(false)
       return
     }
@@ -305,12 +317,14 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       }
       const pathId = pathMap[profile.primary_goal]
       if (pathId) {
+        console.log('[Tutorial] Auto-starting tutorial:', pathId)
         startTutorial(pathId)
       }
     }
   }, [user, profile, isActive, isCompleted, wasDismissed])
 
   const startTutorial = useCallback((pathId: "cooking" | "budgeting" | "health") => {
+    console.log('[Tutorial] startTutorial called with pathId:', pathId)
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(DISMISS_KEY)
       setWasDismissed(false)
@@ -319,6 +333,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     setCurrentStepIndex(0)
     setIsActive(true)
     setIsCompleted(false)
+    console.log('[Tutorial] Tutorial started - isActive should now be true')
   }, [])
 
   const nextStep = useCallback(() => {

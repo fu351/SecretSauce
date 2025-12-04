@@ -83,18 +83,19 @@ export default function CheckEmailPage() {
 
     setSending(true)
     try {
-      // Request OTP code
-      const { error } = await supabase.auth.signInWithOtp({
+      // Request verification code (OTP for email verification, not signin)
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
         email: email,
         options: {
-          shouldCreateUser: false,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/welcome`,
         },
       })
       if (error) throw error
 
       toast({
         title: "Code sent",
-        description: `We just sent a 6-digit code to ${email}.`,
+        description: `We just sent a new verification code to ${email}.`,
       })
     } catch (error) {
       toast({
