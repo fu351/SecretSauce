@@ -67,14 +67,10 @@ export async function GET(request: NextRequest) {
 
       let redirectPath = next
 
-      // If profile doesn't exist or has no primary_goal, check for cached onboarding data
+      // If profile doesn't exist or has no primary_goal, redirect to onboarding
       if (profileError || !profile || !profile.primary_goal) {
-        console.log('[Auth Callback] No profile or primary_goal found')
-
-        // NOTE: We can't access localStorage from server-side route handler
-        // The client will need to save cached data after redirect
-        // For now, redirect to a handler page that will check localStorage
-        redirectPath = '/auth/finalize-onboarding'
+        console.log('[Auth Callback] No profile or primary_goal found, redirecting to onboarding')
+        redirectPath = '/onboarding'
       } else {
         console.log('[Auth Callback] Profile exists with primary_goal, redirecting to:', next)
       }

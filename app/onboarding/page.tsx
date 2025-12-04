@@ -631,16 +631,39 @@ export default function OnboardingPage() {
         longitude: lng,
       }
 
-      // Try to save immediately if user is authenticated
-      // Otherwise cache in localStorage for after email verification
-      if (user) {
-        await updateProfile(onboardingData)
-        console.log('[Onboarding] User authenticated, saved preferences immediately')
-      } else {
-        // Cache onboarding data in localStorage for after verification
-        localStorage.setItem('pending_onboarding_data', JSON.stringify(onboardingData))
-        console.log('[Onboarding] User not authenticated yet, cached preferences for later')
+      // Get the pending email from localStorage (stored during signup)
+      const pendingEmail = localStorage.getItem('pending_verification_email')
+
+      if (!pendingEmail) {
+        toast({
+          title: "Error",
+          description: "Email not found. Please sign up again.",
+          variant: "destructive",
+        })
+        router.push('/auth/signup')
+        return
       }
+
+      // Save onboarding data BEFORE email verification
+      // This creates/updates the profile with the unverified email
+      const { createBrowserClient } = await import("@/lib/supabase")
+      const supabase = createBrowserClient()
+
+      const { error } = await supabase.from("profiles").upsert({
+        email: pendingEmail,
+        ...onboardingData,
+        email_verified: false,
+        onboarding_completed_at: new Date().toISOString(),
+      }, {
+        onConflict: 'email'
+      })
+
+      if (error) {
+        console.error('[Onboarding] Error saving to profiles:', error)
+        throw error
+      }
+
+      console.log('[Onboarding] Successfully saved onboarding data to profiles table')
 
       toast({
         title: "Preferences saved!",
