@@ -41,10 +41,45 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
+      // PROACTIVE CHECK: Verify email doesn't already exist
+      // This prevents duplicate signups even if Supabase allows them
+      const { createBrowserClient } = await import("@/lib/supabase")
+      const supabase = createBrowserClient()
+
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle()
+
+      if (existingUser) {
+        toast({
+          title: "Account Already Exists",
+          description: (
+            <div className="space-y-2">
+              <p>An account with this email already exists.</p>
+              <div className="flex gap-2 mt-2">
+                <Link href="/auth/signin" className="text-[#e8dcc4] underline">
+                  Sign in
+                </Link>
+                <span>or</span>
+                <Link href="/auth/forgot-password" className="text-[#e8dcc4] underline">
+                  Reset password
+                </Link>
+              </div>
+            </div>
+          ) as any,
+          variant: "destructive",
+          duration: 6000,
+        })
+        setLoading(false)
+        return
+      }
+
       const { error } = await signUp(email, password)
 
       if (error) {
-        // Check if error is about existing user
+        // Check if error is about existing user (fallback check)
         if (error.message.toLowerCase().includes("already registered") ||
             error.message.toLowerCase().includes("already exists") ||
             error.message.toLowerCase().includes("user already registered")) {
