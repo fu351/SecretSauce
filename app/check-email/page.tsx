@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -21,9 +21,22 @@ export default function CheckEmailPage() {
   const [verifying, setVerifying] = useState(false)
   const [code, setCode] = useState("")
   const [activeTab, setActiveTab] = useState<"link" | "code">("link")
+  const [email, setEmail] = useState<string>("")
+
+  // Get email from user or localStorage
+  useEffect(() => {
+    if (user?.email) {
+      setEmail(user.email)
+    } else if (typeof window !== "undefined") {
+      const storedEmail = localStorage.getItem("pending_verification_email")
+      if (storedEmail) {
+        setEmail(storedEmail)
+      }
+    }
+  }, [user])
 
   const handleResendLink = async () => {
-    if (!user?.email) {
+    if (!email) {
       toast({
         title: "Missing email",
         description: "We can't find your email address. Please sign in again.",
@@ -36,7 +49,7 @@ export default function CheckEmailPage() {
     try {
       const { error } = await supabase.auth.resend({
         type: "signup",
-        email: user.email,
+        email: email,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback?next=/welcome`,
         },
@@ -45,7 +58,7 @@ export default function CheckEmailPage() {
 
       toast({
         title: "Link sent",
-        description: `We just sent a new verification link to ${user.email}.`,
+        description: `We just sent a new verification link to ${email}.`,
       })
     } catch (error) {
       toast({
@@ -59,7 +72,7 @@ export default function CheckEmailPage() {
   }
 
   const handleSendCode = async () => {
-    if (!user?.email) {
+    if (!email) {
       toast({
         title: "Missing email",
         description: "We can't find your email address. Please sign in again.",
@@ -72,7 +85,7 @@ export default function CheckEmailPage() {
     try {
       // Request OTP code
       const { error } = await supabase.auth.signInWithOtp({
-        email: user.email,
+        email: email,
         options: {
           shouldCreateUser: false,
         },
@@ -81,7 +94,7 @@ export default function CheckEmailPage() {
 
       toast({
         title: "Code sent",
-        description: `We just sent a 6-digit code to ${user.email}.`,
+        description: `We just sent a 6-digit code to ${email}.`,
       })
     } catch (error) {
       toast({
@@ -95,7 +108,7 @@ export default function CheckEmailPage() {
   }
 
   const handleVerifyCode = async () => {
-    if (!user?.email) {
+    if (!email) {
       toast({
         title: "Missing email",
         description: "Please sign in again.",
@@ -116,7 +129,7 @@ export default function CheckEmailPage() {
     setVerifying(true)
     try {
       const { data, error } = await supabase.auth.verifyOtp({
-        email: user.email,
+        email: email,
         token: code,
         type: "email",
       })
@@ -124,6 +137,11 @@ export default function CheckEmailPage() {
       if (error) throw error
 
       if (data.session) {
+        // Clear stored email after successful verification
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("pending_verification_email")
+        }
+
         toast({
           title: "Email verified!",
           description: "Redirecting you to your account...",
@@ -149,7 +167,7 @@ export default function CheckEmailPage() {
           <h1 className="text-3xl font-serif font-light">Verify your email</h1>
           <p className="text-muted-foreground">
             We sent verification options to{" "}
-            <span className="font-medium text-primary">{user?.email ?? "your email"}</span>
+            <span className="font-medium text-primary">{email || "your email"}</span>
           </p>
         </div>
 

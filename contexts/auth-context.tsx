@@ -187,6 +187,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       console.log("[v0] Sign up successful:", data.user?.email)
+
+      // Store email in localStorage for check-email page
+      if (typeof window !== "undefined" && email) {
+        localStorage.setItem("pending_verification_email", email)
+      }
+
       return { data, error: null }
     } catch (error) {
       const duration = performance.now() - startTime
