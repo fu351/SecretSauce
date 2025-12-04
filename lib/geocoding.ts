@@ -418,6 +418,7 @@ async function callMapsProxy<T>(action: MapsProxyAction, params: Record<string, 
 
 /**
  * Check Supabase cache for store location
+ * Cache entries expire after 1 year since stores rarely change location
  */
 async function getStoreCacheFromSupabase(
   storeName: string,
@@ -433,10 +434,15 @@ async function getStoreCacheFromSupabase(
     const supabase = createBrowserClient()
     const canonical = canonicalizeStoreName(storeName)
 
+    // Only retrieve entries created within the last year (1-year TTL)
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
     const query = supabase
       .from("store_locations_cache")
-      .select("lat, lng, formatted_address, matched_name")
+      .select("lat, lng, formatted_address, matched_name, created_at")
       .eq("store_canonical", canonical)
+      .gte("created_at", oneYearAgo.toISOString())
 
     if (postalCode) {
       query.eq("postal_code", postalCode)

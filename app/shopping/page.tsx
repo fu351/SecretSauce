@@ -1144,16 +1144,11 @@ export default function ShoppingPage() {
         try {
           const maxDistanceMiles = groceryDistanceMiles
           let userLoc = profileLocation
-          let locationSource: "profile" | "browser" | "postal" | "none" = userLoc ? "profile" : "none"
+          let locationSource: "profile" | "postal" | "none" = userLoc ? "profile" : "none"
 
-          if (!userLoc) {
-            const browserLoc = await getUserLocation()
-            if (browserLoc) {
-              userLoc = browserLoc
-              locationSource = "browser"
-            }
-          }
-
+          // Fall back to postal code geocoding if no profile location
+          // Note: We don't use browser geolocation here to avoid policy violations
+          // (browser geolocation requires explicit user gesture)
           if (!userLoc && zipCode) {
             const postalCoords = await geocodePostalCode(zipCode)
             if (postalCoords) {
