@@ -105,7 +105,6 @@ export default function MealPlannerPage() {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
   const [viewMode, setViewMode] = useState<"by-day" | "by-meal">("by-day")
   const [weeklySummaryPinnedOpen, setWeeklySummaryPinnedOpen] = useState(false)
-  const [weeklySummaryHovering, setWeeklySummaryHovering] = useState(false)
   const [hasAutoScrolledIntoGrid, setHasAutoScrolledIntoGrid] = useState(false)
   const [recipeSelectionModal, setRecipeSelectionModal] = useState<{
     open: boolean
@@ -113,7 +112,6 @@ export default function MealPlannerPage() {
     date: string | null
   }>({ open: false, mealType: null, date: null })
   const router = useRouter()
-  const weeklySummaryDetailsVisible = weeklySummaryPinnedOpen || (!isMobile && weeklySummaryHovering)
   const showSidebarOverlayLayout = isMobile && sidebarOpen
 
   const mealTypes = [
@@ -638,9 +636,7 @@ export default function MealPlannerPage() {
 
             {weekDates.length > 0 && (
               <div
-                className={`rounded-2xl border border-border bg-card/60 shadow-sm p-2.5 md:p-3 transition-colors group`}
-                onMouseEnter={() => !isMobile && setWeeklySummaryHovering(true)}
-                onMouseLeave={() => !isMobile && setWeeklySummaryHovering(false)}
+                className={`rounded-2xl border border-border bg-card/60 shadow-sm p-2.5 md:p-3 transition-colors`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -673,9 +669,9 @@ export default function MealPlannerPage() {
                 <div
                   id="weekly-summary-panel"
                   className={`transition-[max-height,margin-top] duration-300 ease-out overflow-hidden ${
-                    weeklySummaryDetailsVisible ? "max-h-40 mt-2" : "max-h-0 mt-0 pointer-events-none"
+                    weeklySummaryPinnedOpen ? "max-h-40 mt-2" : "max-h-0 mt-0 pointer-events-none"
                   }`}
-                  aria-hidden={!weeklySummaryDetailsVisible}
+                  aria-hidden={!weeklySummaryPinnedOpen}
                 >
                   <div className="grid grid-cols-2 gap-2 text-[11px] md:grid-cols-4">
                     {WEEKLY_STAT_FIELDS.map((stat) => (
@@ -963,7 +959,7 @@ export default function MealPlannerPage() {
 
         {sidebarOpen && (
           <div className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-border p-4 md:p-6">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border p-4 md:p-6 bg-card">
               <h3 className={`text-base md:text-lg font-semibold text-text`}>Recipes</h3>
               <Button
                 variant="ghost"

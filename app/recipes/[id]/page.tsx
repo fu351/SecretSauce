@@ -310,7 +310,7 @@ export default function RecipeDetailPage() {
       <div
         className={clsx(
           "fixed z-50 transition-all duration-300",
-          isFloating ? "top-20 left-4 sm:top-20 sm:left-6" : "top-20 left-4 sm:top-24 sm:left-6",
+          isFloating ? "top-24 left-4 sm:top-28 sm:left-6" : "top-24 left-4 sm:top-28 sm:left-6",
         )}
       >
         <Button variant="ghost" onClick={() => router.back()} className={floatingButtonClass}>
