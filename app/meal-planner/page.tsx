@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Calendar,
   Heart,
@@ -106,6 +107,11 @@ export default function MealPlannerPage() {
   const [weeklySummaryPinnedOpen, setWeeklySummaryPinnedOpen] = useState(false)
   const [weeklySummaryHovering, setWeeklySummaryHovering] = useState(false)
   const [hasAutoScrolledIntoGrid, setHasAutoScrolledIntoGrid] = useState(false)
+  const [recipeSelectionModal, setRecipeSelectionModal] = useState<{
+    open: boolean
+    mealType: string | null
+    date: string | null
+  }>({ open: false, mealType: null, date: null })
   const router = useRouter()
   const weeklySummaryDetailsVisible = weeklySummaryPinnedOpen || (!isMobile && weeklySummaryHovering)
   const showSidebarOverlayLayout = isMobile && sidebarOpen
@@ -402,6 +408,21 @@ export default function MealPlannerPage() {
     }
   }
 
+  const openRecipeSelector = (mealType: string, date: string) => {
+    setRecipeSelectionModal({ open: true, mealType, date })
+  }
+
+  const closeRecipeSelector = () => {
+    setRecipeSelectionModal({ open: false, mealType: null, date: null })
+  }
+
+  const handleRecipeSelection = async (recipe: Recipe) => {
+    if (recipeSelectionModal.mealType && recipeSelectionModal.date) {
+      await addToMealPlan(recipe, recipeSelectionModal.mealType, recipeSelectionModal.date)
+      closeRecipeSelector()
+    }
+  }
+
   const getMealForSlot = (date: string, mealType: string) => {
     if (!mealPlan) return null
     const meal = (mealPlan.meals || []).find((m) => m.date === date && m.meal_type === mealType)
@@ -491,7 +512,7 @@ export default function MealPlannerPage() {
   function getSidebarClassName(isMobile: boolean, sidebarOpen: boolean) {
     if (isMobile) {
       return sidebarOpen
-        ? "fixed inset-0 z-50 flex flex-col max-h-screen overflow-y-auto"
+        ? "fixed top-16 left-0 right-0 bottom-0 z-50 flex flex-col max-h-screen overflow-y-auto"
         : "hidden"
     } else {
       return sidebarOpen
@@ -791,9 +812,17 @@ export default function MealPlannerPage() {
                                 </div>
                               ) : (
                                 <div
-                                  className={`flex items-center justify-center h-full text-muted-foreground text-[10px] sm:text-xs px-2 text-center`}
+                                  className={`flex items-center justify-center h-full text-muted-foreground text-[10px] sm:text-xs px-2 text-center cursor-pointer hover:bg-accent/10 transition-colors`}
+                                  onClick={() => openRecipeSelector(mealType.key, date)}
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      openRecipeSelector(mealType.key, date)
+                                    }
+                                  }}
                                 >
-                                  {isMobile ? "Tap recipe below" : "Drag recipe here"}
+                                  {isMobile ? "Tap to add recipe" : "Click or drag recipe here"}
                                 </div>
                               )}
                             </div>
@@ -887,9 +916,17 @@ export default function MealPlannerPage() {
                                 </div>
                               ) : (
                                 <div
-                                  className={`flex items-center justify-center h-[200px] text-muted-foreground text-sm`}
+                                  className={`flex items-center justify-center h-[200px] text-muted-foreground text-sm cursor-pointer hover:bg-accent/10 transition-colors`}
+                                  onClick={() => openRecipeSelector(mealType.key, date)}
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      openRecipeSelector(mealType.key, date)
+                                    }
+                                  }}
                                 >
-                                  Drag recipe here
+                                  {isMobile ? "Tap to add recipe" : "Click or drag recipe here"}
                                 </div>
                               )}
                             </div>
@@ -1030,6 +1067,83 @@ export default function MealPlannerPage() {
           <Menu className="h-5 w-5" />
         </button>
       )}
+
+      {/* Recipe Selection Dialog */}
+      <Dialog open={recipeSelectionModal.open} onOpenChange={closeRecipeSelector}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {recipeSelectionModal.mealType && recipeSelectionModal.date && (
+                <>
+                  Select Recipe for {mealTypes.find(m => m.key === recipeSelectionModal.mealType)?.label} on{" "}
+                  {formatDate(recipeSelectionModal.date)}
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+            {favoriteRecipes.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-4">
+                  <Heart className="w-5 h-5 text-destructive" />
+                  <h3 className="text-lg font-semibold">Favorites ({favoriteRecipes.length})</h3>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {favoriteRecipes.map((recipe) => (
+                    <div
+                      key={recipe.id}
+                      className="group relative cursor-pointer rounded-lg border border-border hover:border-primary transition-colors"
+                      onClick={() => handleRecipeSelection(recipe)}
+                    >
+                      <img
+                        src={recipe.image_url || "/placeholder.svg?height=120&width=180"}
+                        alt={recipe.title}
+                        className="w-full h-24 object-cover rounded-t-lg"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
+                        <p className="text-white text-sm opacity-0 group-hover:opacity-100 text-center px-2 font-medium">
+                          Add to Plan
+                        </p>
+                      </div>
+                      <div className="p-2">
+                        <p className="text-xs line-clamp-2">{recipe.title}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <h3 className="text-lg font-semibold mb-4">Suggested Recipes</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {suggestedRecipes.slice(0, 12).map((recipe) => (
+                  <div
+                    key={recipe.id}
+                    className="group relative cursor-pointer rounded-lg border border-border hover:border-primary transition-colors"
+                    onClick={() => handleRecipeSelection(recipe)}
+                  >
+                    <img
+                      src={recipe.image_url || "/placeholder.svg?height=120&width=180"}
+                      alt={recipe.title}
+                      className="w-full h-24 object-cover rounded-t-lg"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
+                      <p className="text-white text-sm opacity-0 group-hover:opacity-100 text-center px-2 font-medium">
+                        Add to Plan
+                      </p>
+                    </div>
+                    <div className="p-2">
+                      <p className="text-xs line-clamp-2">{recipe.title}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
