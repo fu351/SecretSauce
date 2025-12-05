@@ -750,6 +750,44 @@ export default function ShoppingPage() {
         })
         integrateManualSelection(preferredStore, itemSearchSource.shoppingItemId, option)
         setMissingItems((prev) => prev.filter((item) => item.id !== itemSearchSource.shoppingItemId))
+
+        // Cache the user's manual selection for future searches
+        // This saves their preferred product choice to ingredient_cache
+        try {
+          const searchTerm = itemSearchModalTerm.trim()
+          if (searchTerm) {
+            console.log("[Shopping] Caching manual selection", { searchTerm, store: preferredStore, product: option.title })
+
+            // Get or create standardized_ingredient_id for this search term
+            const response = await fetch("/api/grocery-search/cache-selection", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                searchTerm,
+                store: preferredStore,
+                product: {
+                  id: option.id,
+                  title: option.title,
+                  price: option.price,
+                  unit: option.unit,
+                  pricePerUnit: option.pricePerUnit,
+                  image_url: option.image_url,
+                  location: option.location,
+                },
+              }),
+            })
+
+            if (response.ok) {
+              console.log("[Shopping] Successfully cached manual selection")
+            } else {
+              console.warn("[Shopping] Failed to cache selection:", await response.text())
+            }
+          }
+        } catch (error) {
+          console.error("[Shopping] Error caching manual selection:", error)
+          // Don't show error to user - this is a background optimization
+        }
+
         toast({
           title: "Item linked",
           description: `${option.title} added to ${preferredStore}.`,
