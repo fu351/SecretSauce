@@ -597,9 +597,6 @@ export default function SettingsPage() {
                     }`}
                   >
                     <div className="font-medium text-sm">{option.label}</div>
-                    <div className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`}>
-                      {option.description.split(' ').slice(0, 3).join(' ')}...
-                    </div>
                   </button>
                 ))}
               </div>
@@ -627,9 +624,6 @@ export default function SettingsPage() {
                     }`}
                   >
                     <div className="font-medium text-sm">{option.label}</div>
-                    <div className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`}>
-                      {option.description.split(' ').slice(0, 2).join(' ')}
-                    </div>
                   </button>
                 ))}
               </div>
@@ -657,9 +651,6 @@ export default function SettingsPage() {
                     }`}
                   >
                     <div className="font-medium text-sm">{option.label}</div>
-                    <div className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`}>
-                      {option.description.split(' ').slice(0, 2).join(' ')}
-                    </div>
                   </button>
                 ))}
               </div>

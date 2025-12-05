@@ -81,7 +81,7 @@ export async function generateWeeklyDinnerPlan(userId: string): Promise<WeeklyDi
   let bestPlan: WeeklyDinnerPlan | null = null
 
   for (const store of candidateStores) {
-    const hits = await searchPriceAwareRecipes("dinner", {
+    const hits = await searchPriceAwareRecipes("", {
       requiredStoreId: store.id,
       maxTimeMinutes: profile?.cookingTimePreference === "quick" ? 40 : undefined,
       dietType: profile?.dietaryPreferences?.[0],
