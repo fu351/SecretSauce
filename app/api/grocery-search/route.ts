@@ -339,13 +339,28 @@ export async function GET(request: NextRequest) {
         }
       )
 
+      const cacheHitStores = cachedRows.map(r => r.store)
+      const cacheMissStores = storeKeys.filter(s => !cachedRows.some(r => r.store.toLowerCase() === s.toLowerCase()))
+
       console.log("[grocery-search] Batch fetch completed", {
-        totalStores: storeKeys.length,
-        resultsCount: cachedRows.length,
         searchTerm: sanitizedSearchTerm,
-        successStores: cachedRows.map(r => r.store),
-        failedStores: storeKeys.filter(s => !cachedRows.some(r => r.store.toLowerCase() === s.toLowerCase())),
+        standardizedIngredientId,
+        totalStores: storeKeys.length,
+        cacheHits: cacheHitStores.length,
+        cacheMisses: cacheMissStores.length,
+        cacheHitStores,
+        cacheMissStores,
+        hitRate: `${((cacheHitStores.length / storeKeys.length) * 100).toFixed(1)}%`,
       })
+
+      if (cacheMissStores.length > 0) {
+        console.warn("[grocery-search] Cache misses detected", {
+          searchTerm: sanitizedSearchTerm,
+          standardizedIngredientId,
+          missedStores: cacheMissStores,
+          message: "These stores are missing from cache - daily scraper should have populated them"
+        })
+      }
     } else {
       console.log("[grocery-search] No standardized ID yet, running searchOrCreate workflow", {
         searchTerm: sanitizedSearchTerm,

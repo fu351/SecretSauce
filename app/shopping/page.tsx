@@ -446,6 +446,53 @@ export default function ShoppingPage() {
     }
   }, [user])
 
+  // Load comparison results from browser storage on mount (10min expiry)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const stored = localStorage.getItem("shopping_comparison_results")
+    if (!stored) return
+
+    try {
+      const { data, timestamp } = JSON.parse(stored)
+      const now = Date.now()
+      const tenMinutes = 10 * 60 * 1000
+
+      if (now - timestamp < tenMinutes) {
+        console.log("[Shopping] Restoring comparison results from browser storage", {
+          ageMinutes: ((now - timestamp) / 60000).toFixed(1),
+          storeCount: data.length,
+        })
+        setMassSearchResults(data)
+      } else {
+        console.log("[Shopping] Cached comparison results expired, clearing")
+        localStorage.removeItem("shopping_comparison_results")
+      }
+    } catch (error) {
+      console.error("[Shopping] Failed to load cached comparison results:", error)
+      localStorage.removeItem("shopping_comparison_results")
+    }
+  }, [])
+
+  // Save comparison results to browser storage (10min expiry)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (massSearchResults.length === 0) return
+
+    try {
+      const payload = {
+        data: massSearchResults,
+        timestamp: Date.now(),
+      }
+      localStorage.setItem("shopping_comparison_results", JSON.stringify(payload))
+      console.log("[Shopping] Saved comparison results to browser storage", {
+        storeCount: massSearchResults.length,
+      })
+    } catch (error) {
+      console.error("[Shopping] Failed to save comparison results:", error)
+    }
+  }, [massSearchResults])
+
   // Auto-scroll to map when comparison results are ready
   useEffect(() => {
     if (massSearchResults.length > 0 && mapContainerRef.current) {
