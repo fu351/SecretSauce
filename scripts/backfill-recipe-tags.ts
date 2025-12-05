@@ -38,16 +38,31 @@ async function main() {
   }
 
   console.log(`Updating ${updates.length} recipes...`)
-  const chunkSize = 500
-  for (let i = 0; i < updates.length; i += chunkSize) {
-    const chunk = updates.slice(i, i + chunkSize)
-    const { error: updateError } = await supabase.from("recipes").upsert(chunk)
+
+  // Update recipes one by one (safer than bulk upsert which requires all NOT NULL fields)
+  let successCount = 0
+  for (const update of updates) {
+    const { error: updateError } = await supabase
+      .from("recipes")
+      .update({
+        dietary_flags: update.dietary_flags,
+        protein_tag: update.protein_tag,
+        cuisine_guess: update.cuisine_guess,
+      })
+      .eq("id", update.id)
+
     if (updateError) {
-      console.error("Update error", updateError)
-      process.exit(1)
+      console.error(`Failed to update recipe ${update.id}:`, updateError)
+      continue
     }
-    console.log(`Updated ${i + chunk.length}/${updates.length}`)
+
+    successCount++
+    if (successCount % 10 === 0) {
+      console.log(`Updated ${successCount}/${updates.length}`)
+    }
   }
+
+  console.log(`Successfully updated ${successCount}/${updates.length} recipes`)
 
   console.log("Backfill complete")
 }

@@ -117,13 +117,18 @@ export async function searchPriceAwareRecipes(
   const filtered = recipes.filter((recipe) => withinFilters(recipe, filters)).slice(0, limit * 2)
 
   // Prefer recipes matching user's cuisine preferences
+  // Prioritize user-provided cuisine field, fall back to AI-inferred cuisineGuess
   const sortedByCuisine = filtered.sort((a, b) => {
     if (!filters.preferredCuisines?.length) return 0
+
+    const aCuisine = a.cuisine || a.cuisineGuess || ''
+    const bCuisine = b.cuisine || b.cuisineGuess || ''
+
     const aCuisineMatch = filters.preferredCuisines.some(
-      (pref) => a.cuisineGuess?.toLowerCase().includes(pref.toLowerCase())
+      (pref) => aCuisine.toLowerCase().includes(pref.toLowerCase())
     )
     const bCuisineMatch = filters.preferredCuisines.some(
-      (pref) => b.cuisineGuess?.toLowerCase().includes(pref.toLowerCase())
+      (pref) => bCuisine.toLowerCase().includes(pref.toLowerCase())
     )
     if (aCuisineMatch && !bCuisineMatch) return -1
     if (!aCuisineMatch && bCuisineMatch) return 1

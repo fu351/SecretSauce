@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import { uploadRecipeImage } from "@/lib/image-helper"
 import { performOCR } from "@/lib/ocr-service"
+import { tagRecipeFromIngredients } from "@/lib/recipe-tagging"
 import { Plus, X, Upload, LinkIcon, Link2, Image as ImageIcon, Instagram, Loader2, AlertCircle, PenLine, Download } from "lucide-react"
 import Image from "next/image"
 import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types/recipe"
@@ -463,6 +464,9 @@ export default function UploadRecipePage() {
         }
       }
 
+      // Auto-generate dietary flags, protein tag, and cuisine guess from ingredients
+      const autoTags = tagRecipeFromIngredients(validIngredients)
+
       const recipeData = {
         title: formData.title,
         description: formData.description,
@@ -482,6 +486,10 @@ export default function UploadRecipePage() {
           fat: Number.parseInt(formData.fat) || 0,
         },
         author_id: user.id,
+        // Auto-generated tags for AI planner
+        dietary_flags: autoTags.dietary_flags,
+        protein_tag: autoTags.protein_tag,
+        cuisine_guess: autoTags.cuisine_guess,
       }
 
       const { data, error } = await supabase.from("recipes").insert(recipeData).select()

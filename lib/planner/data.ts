@@ -148,6 +148,7 @@ export async function getRecipeById(recipeId: string): Promise<Recipe | null> {
     nutrition: data.nutrition,
     dietaryFlags: (data as any).dietary_flags ?? null,
     proteinTag: (data as any).protein_tag ?? null,
+    cuisine: data.cuisine ?? null,
     cuisineGuess: (data as any).cuisine_guess ?? null,
   }
 }
@@ -177,6 +178,7 @@ export async function getRecipesByIds(recipeIds: string[]): Promise<Recipe[]> {
     nutrition: row.nutrition,
     dietaryFlags: (row as any).dietary_flags ?? null,
     proteinTag: (row as any).protein_tag ?? null,
+    cuisine: row.cuisine ?? null,
     cuisineGuess: (row as any).cuisine_guess ?? null,
   }))
 }

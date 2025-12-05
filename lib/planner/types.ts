@@ -49,7 +49,8 @@ export type Recipe = {
   nutrition?: any
   dietaryFlags?: Record<string, any> | null
   proteinTag?: string | null
-  cuisineGuess?: string | null
+  cuisine?: string | null  // User-provided cuisine
+  cuisineGuess?: string | null  // AI-inferred cuisine (fallback)
 }
 
 export type StoreItem = {
