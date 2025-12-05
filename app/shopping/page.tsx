@@ -437,6 +437,15 @@ export default function ShoppingPage() {
       loadShoppingList()
       loadRecipes()
       loadPantryInventory()
+    } else {
+      // For non-authenticated users, load ZIP from localStorage
+      const savedZip = localStorage.getItem("shopping_zip_code")
+      if (savedZip) {
+        setZipCode(savedZip)
+        setZipDraft(savedZip)
+      } else {
+        setZipPromptOpen(true)
+      }
     }
   }, [user, loadPantryInventory])
 
@@ -993,7 +1002,6 @@ export default function ShoppingPage() {
   }
 
   const saveZipToProfile = async (value: string) => {
-    if (!user) return
     const sanitized = normalizeZip(value)
     if (!sanitized) {
       toast({
@@ -1004,6 +1012,26 @@ export default function ShoppingPage() {
       return
     }
 
+    // For non-authenticated users, save to localStorage
+    if (!user) {
+      try {
+        localStorage.setItem("shopping_zip_code", sanitized)
+        setZipCode(sanitized)
+        setZipDraft(sanitized)
+        setZipPromptOpen(false)
+        toast({ title: "ZIP saved", description: "We'll use this to find nearby stores." })
+      } catch (error) {
+        console.error("Error saving ZIP to localStorage:", error)
+        toast({
+          title: "Unable to save ZIP",
+          description: "Please try again.",
+          variant: "destructive",
+        })
+      }
+      return
+    }
+
+    // For authenticated users, save to database
     try {
       const { error } = await supabase
         .from("profiles")
@@ -1013,7 +1041,7 @@ export default function ShoppingPage() {
       setZipCode(sanitized)
       setZipDraft(sanitized)
       setZipPromptOpen(false)
-      toast({ title: "ZIP saved", description: "We’ll use this to find nearby stores." })
+      toast({ title: "ZIP saved", description: "We'll use this to find nearby stores." })
     } catch (error) {
       console.error("Error saving ZIP:", error)
       toast({

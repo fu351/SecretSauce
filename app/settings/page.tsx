@@ -580,12 +580,13 @@ export default function SettingsPage() {
               <Label className={`mb-3 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
                 Your Primary Goal
               </Label>
-              <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
                 {primaryGoalOptions.map((option) => (
                   <button
                     key={option.id}
                     onClick={() => setPrimaryGoal(option.id)}
-                    className={`w-full p-3 rounded-lg border text-left transition-all ${
+                    title={option.description}
+                    className={`p-3 rounded-lg border text-center transition-all group relative ${
                       primaryGoal === option.id
                         ? isDark
                           ? "border-[#e8dcc4] bg-[#e8dcc4]/5 text-[#e8dcc4]"
@@ -595,8 +596,10 @@ export default function SettingsPage() {
                           : "border-gray-200 text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    <div className="font-medium">{option.label}</div>
-                    <div className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>{option.description}</div>
+                    <div className="font-medium text-sm">{option.label}</div>
+                    <div className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`}>
+                      {option.description.split(' ').slice(0, 3).join(' ')}...
+                    </div>
                   </button>
                 ))}
               </div>
@@ -607,12 +610,13 @@ export default function SettingsPage() {
               <Label className={`mb-3 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
                 Your Cooking Level
               </Label>
-              <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
                 {cookingLevelOptions.map((option) => (
                   <button
                     key={option.id}
                     onClick={() => setCookingLevel(option.id)}
-                    className={`w-full p-3 rounded-lg border text-left transition-all ${
+                    title={option.description}
+                    className={`p-3 rounded-lg border text-center transition-all ${
                       cookingLevel === option.id
                         ? isDark
                           ? "border-[#e8dcc4] bg-[#e8dcc4]/5 text-[#e8dcc4]"
@@ -622,8 +626,10 @@ export default function SettingsPage() {
                           : "border-gray-200 text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    <div className="font-medium">{option.label}</div>
-                    <div className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>{option.description}</div>
+                    <div className="font-medium text-sm">{option.label}</div>
+                    <div className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`}>
+                      {option.description.split(' ').slice(0, 2).join(' ')}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -634,12 +640,13 @@ export default function SettingsPage() {
               <Label className={`mb-3 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
                 Your Budget Range
               </Label>
-              <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
                 {budgetRangeOptions.map((option) => (
                   <button
                     key={option.id}
                     onClick={() => setBudgetRange(option.id)}
-                    className={`w-full p-3 rounded-lg border text-left transition-all ${
+                    title={option.description}
+                    className={`p-3 rounded-lg border text-center transition-all ${
                       budgetRange === option.id
                         ? isDark
                           ? "border-[#e8dcc4] bg-[#e8dcc4]/5 text-[#e8dcc4]"
@@ -649,8 +656,10 @@ export default function SettingsPage() {
                           : "border-gray-200 text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    <div className="font-medium">{option.label}</div>
-                    <div className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>{option.description}</div>
+                    <div className="font-medium text-sm">{option.label}</div>
+                    <div className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`}>
+                      {option.description.split(' ').slice(0, 2).join(' ')}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -685,12 +694,12 @@ export default function SettingsPage() {
               <Label className={`mb-3 block ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
                 Preferred Cooking Time
               </Label>
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {cookingTimeOptions.map((option) => (
                   <button
                     key={option.id}
                     onClick={() => setCookingTimePreference(option.id)}
-                    className={`w-full p-3 rounded-lg border text-left transition-all ${
+                    className={`p-3 rounded-lg border text-center transition-all ${
                       cookingTimePreference === option.id
                         ? isDark
                           ? "border-[#e8dcc4] bg-[#e8dcc4]/5 text-[#e8dcc4]"
@@ -700,7 +709,7 @@ export default function SettingsPage() {
                           : "border-gray-200 text-gray-600 hover:border-gray-300"
                     }`}
                   >
-                    {option.label}
+                    <div className="font-medium text-sm">{option.label}</div>
                   </button>
                 ))}
               </div>

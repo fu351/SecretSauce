@@ -18,6 +18,8 @@ import {
   ChevronRightIcon,
   List,
   Menu,
+  Sparkles,
+  Loader2,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
@@ -111,6 +113,14 @@ export default function MealPlannerPage() {
     mealType: string | null
     date: string | null
   }>({ open: false, mealType: null, date: null })
+  const [aiPlannerLoading, setAiPlannerLoading] = useState(false)
+  const [aiPlanResult, setAiPlanResult] = useState<{
+    storeId: string
+    totalCost: number
+    dinners: Array<{ dayIndex: number; recipeId: string }>
+    explanation: string
+  } | null>(null)
+  const [showAiPlanDialog, setShowAiPlanDialog] = useState(false)
   const router = useRouter()
   const showSidebarOverlayLayout = isMobile && sidebarOpen
 
@@ -319,10 +329,105 @@ export default function MealPlannerPage() {
     await loadMealPlan()
   }
 
+  const generateAiWeeklyPlan = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "Please sign in to use the AI planner",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setAiPlannerLoading(true)
+    try {
+      const response = await fetch("/api/weekly-dinner-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to generate plan")
+      }
+
+      const plan = await response.json()
+      setAiPlanResult(plan)
+      setShowAiPlanDialog(true)
+    } catch (error) {
+      console.error("[AI Planner] Error:", error)
+      toast({
+        title: "AI Planner Error",
+        description: "Failed to generate weekly plan. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setAiPlannerLoading(false)
+    }
+  }
+
+  const applyAiPlanToMealPlanner = async () => {
+    if (!aiPlanResult || !user) return
+
+    try {
+      const newMeals: MealEntry[] = []
+
+      for (const dinner of aiPlanResult.dinners) {
+        const date = weekDates[dinner.dayIndex]
+        if (date) {
+          newMeals.push({
+            meal_type: "dinner",
+            date,
+            recipe_id: dinner.recipeId,
+          })
+        }
+      }
+
+      const existingMeals = mealPlan?.meals || []
+      const nonDinnerMeals = existingMeals.filter(m => m.meal_type !== "dinner" || !weekDates.includes(m.date))
+      const updatedMeals = [...nonDinnerMeals, ...newMeals]
+
+      const planData = {
+        user_id: user.id,
+        week_start: weekDates[0],
+        meals: updatedMeals,
+        shopping_list: mealPlan?.shopping_list || null,
+        total_budget: mealPlan?.total_budget || null,
+      }
+
+      if (mealPlan?.id) {
+        await supabase.from("meal_plans").update(planData).eq("id", mealPlan.id)
+      } else {
+        const { data } = await supabase.from("meal_plans").insert(planData).select().single()
+        if (data) {
+          setMealPlan(data as MealPlan)
+        }
+      }
+
+      await loadAllData()
+      setShowAiPlanDialog(false)
+
+      toast({
+        title: "Success",
+        description: `7-day dinner plan applied! Estimated cost: $${aiPlanResult.totalCost.toFixed(2)} at ${aiPlanResult.storeId}`,
+      })
+    } catch (error) {
+      console.error("[AI Planner] Error applying plan:", error)
+      toast({
+        title: "Error",
+        description: "Failed to apply AI plan. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const addToShoppingList = async () => {
     if (!mealPlan || !user) return
 
     try {
+      const normalizeName = (value?: string) => value?.trim().toLowerCase() || ""
+      const normalizeUnit = (value?: string) => value?.trim().toLowerCase() || "piece"
+
       const ingredientsByRecipe: Record<string, { recipeName: string; ingredients: any[] }> = {}
 
       mealPlan.meals.forEach((meal) => {
@@ -347,12 +452,16 @@ export default function MealPlannerPage() {
 
       if (fetchError && fetchError.code !== "PGRST116") throw fetchError
 
-      const existingItems = existingListData && existingListData.length > 0 ? existingListData[0]?.items || [] : []
-      const newItems: any[] = []
+      const existingItemsRaw =
+        existingListData && existingListData.length > 0 ? existingListData[0]?.items || [] : []
+      const existingItems = Array.isArray(existingItemsRaw) ? existingItemsRaw : []
+      const mergedItems = [...existingItems]
+      let processedIngredientCount = 0
 
       Object.entries(ingredientsByRecipe).forEach(([recipeId, { recipeName, ingredients }]) => {
         ingredients.forEach((ingredient) => {
-          newItems.push({
+          processedIngredientCount += 1
+          const incomingItem = {
             id: Date.now().toString() + Math.random(),
             name: ingredient.name,
             quantity: Number.parseFloat(ingredient.amount) || 1,
@@ -360,11 +469,29 @@ export default function MealPlannerPage() {
             checked: false,
             recipeId: recipeId,
             recipeName: recipeName,
+          }
+
+          const existingIndex = mergedItems.findIndex((item) => {
+            return (
+              normalizeName(item.name) === normalizeName(incomingItem.name) &&
+              normalizeUnit(item.unit) === normalizeUnit(incomingItem.unit)
+            )
           })
+
+          if (existingIndex >= 0) {
+            const existingItem = mergedItems[existingIndex]
+            mergedItems[existingIndex] = {
+              ...existingItem,
+              quantity: (Number(existingItem.quantity) || 0) + (Number(incomingItem.quantity) || 0),
+              checked: existingItem.checked ?? false,
+              recipeId: existingItem.recipeId || incomingItem.recipeId,
+              recipeName: existingItem.recipeName || incomingItem.recipeName,
+            }
+          } else {
+            mergedItems.push(incomingItem)
+          }
         })
       })
-
-      const mergedItems = [...existingItems, ...newItems]
 
       const { error: upsertError } = await supabase.from("shopping_lists").upsert({
         user_id: user.id,
@@ -375,7 +502,7 @@ export default function MealPlannerPage() {
 
       toast({
         title: "Added to shopping list",
-        description: `${newItems.length} ingredients added to your shopping list.`,
+        description: `Merged ${processedIngredientCount} ingredients into your shopping list.`,
       })
     } catch (error) {
       console.error("Error adding to shopping list:", error)
@@ -620,7 +747,19 @@ export default function MealPlannerPage() {
                   </Button>
                 </div>
 
-                <div className="ml-auto">
+                <div className="ml-auto flex gap-2">
+                  <Button
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-sm shrink-0"
+                    onClick={generateAiWeeklyPlan}
+                    disabled={aiPlannerLoading}
+                  >
+                    {aiPlannerLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-2" />
+                    )}
+                    {isMobile ? "AI Plan" : "AI Weekly Planner"}
+                  </Button>
                   <Button
                     className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shrink-0"
                     onClick={addToShoppingList}
@@ -1138,6 +1277,103 @@ export default function MealPlannerPage() {
               </div>
             </section>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Weekly Planner Dialog */}
+      <Dialog open={showAiPlanDialog} onOpenChange={setShowAiPlanDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              AI Weekly Dinner Plan
+            </DialogTitle>
+          </DialogHeader>
+
+          {aiPlanResult && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Store</p>
+                    <p className="font-semibold text-lg capitalize">{aiPlanResult.storeId}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Cost</p>
+                    <p className="font-semibold text-lg text-green-600 dark:text-green-400">
+                      ${aiPlanResult.totalCost.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Explanation */}
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">{aiPlanResult.explanation}</p>
+              </div>
+
+              {/* Weekly Schedule */}
+              <div>
+                <h3 className="font-semibold mb-3">7-Day Dinner Schedule</h3>
+                <div className="space-y-2">
+                  {aiPlanResult.dinners.map((dinner) => {
+                    const recipe = recipesById[dinner.recipeId]
+                    const dayName = weekdaysFull[dinner.dayIndex] || `Day ${dinner.dayIndex + 1}`
+
+                    return (
+                      <div
+                        key={dinner.dayIndex}
+                        className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="w-16 text-center">
+                          <p className="text-xs text-muted-foreground">{dayName.slice(0, 3).toUpperCase()}</p>
+                        </div>
+                        {recipe ? (
+                          <>
+                            {recipe.image_url && (
+                              <img
+                                src={recipe.image_url}
+                                alt={recipe.title}
+                                className="w-12 h-12 rounded object-cover"
+                              />
+                            )}
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{recipe.title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {recipe.prep_time ? `${recipe.prep_time + (recipe.cook_time || 0)} min` : ""}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex-1">
+                            <p className="text-sm text-muted-foreground">Loading recipe...</p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAiPlanDialog(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={applyAiPlanToMealPlanner}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                >
+                  Apply to Meal Planner
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

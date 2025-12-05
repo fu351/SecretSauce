@@ -200,6 +200,9 @@ export type Database = {
           updated_at: string
           rating_avg: number | null
           rating_count: number | null
+          dietary_flags: any | null
+          protein_tag: string | null
+          cuisine_guess: string | null
         }
         Insert: {
           title: string
@@ -229,6 +232,9 @@ export type Database = {
           ingredients?: any[] | null
           instructions?: any[] | null
           nutrition?: any | null
+          dietary_flags?: any | null
+          protein_tag?: string | null
+          cuisine_guess?: string | null
           updated_at?: string
         }
       }

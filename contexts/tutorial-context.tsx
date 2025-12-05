@@ -301,8 +301,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       wasDismissed,
     })
 
-    // If user has completed tutorial, don't show it
-    if (profile.tutorial_completed === true) {
+    // If user has completed the tutorial, avoid auto-starting but allow manual rewatch
+    if (profile.tutorial_completed === true && !isActive) {
       console.log('[Tutorial] Tutorial already completed, not auto-starting')
       setIsActive(false)
       return
