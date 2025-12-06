@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -299,6 +299,8 @@ export default function ShoppingPage() {
   const [comparisonMessageIndex, setComparisonMessageIndex] = useState(0)
 
   const [carouselIndex, setCarouselIndex] = useState(0)
+  const [shoppingListExpanded, setShoppingListExpanded] = useState(false)
+  const [storeSortMode, setStoreSortMode] = useState<"best-price" | "nearest" | "best-value">("best-price")
   const carouselRef = useRef<HTMLDivElement>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
 
@@ -501,6 +503,31 @@ export default function ShoppingPage() {
       console.error("[Shopping] Failed to save comparison results:", error)
     }
   }, [massSearchResults])
+
+  // Sort store comparisons based on selected mode
+  const sortedComparisons = useMemo(() => {
+    const sorted = [...massSearchResults]
+
+    switch (storeSortMode) {
+      case "nearest":
+        return sorted.sort((a, b) => {
+          const distA = a.distanceMiles ?? Infinity
+          const distB = b.distanceMiles ?? Infinity
+          return distA - distB
+        })
+      case "best-value":
+        return sorted.sort((a, b) => {
+          const distA = a.distanceMiles ?? 10
+          const distB = b.distanceMiles ?? 10
+          const valueA = a.total / Math.max(distA, 0.5)
+          const valueB = b.total / Math.max(distB, 0.5)
+          return valueA - valueB
+        })
+      case "best-price":
+      default:
+        return sorted.sort((a, b) => a.total - b.total)
+    }
+  }, [massSearchResults, storeSortMode])
 
   // Auto-scroll to map when comparison results are ready
   useEffect(() => {
@@ -1703,7 +1730,7 @@ const getStoreLogoPath = (store: string) => {
             </div>
           </CardContent>
           <CardFooter className="border-t border-dashed border-border/40 flex justify-end">
-            <Button size="sm" className={`h-8 px-3 ${buttonClass}`} onClick={() => addStoreItemsToPantry(comparison)} disabled={!user || comparison.items.length === 0}>
+            <Button size="sm" className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white" onClick={() => addStoreItemsToPantry(comparison)} disabled={!user || comparison.items.length === 0}>
               Add to Pantry
             </Button>
           </CardFooter>
@@ -1789,13 +1816,26 @@ const getStoreLogoPath = (store: string) => {
         <div className="space-y-6">
           {/* Shopping List Section */}
           <Card className={cardBgClass}>
-              <CardHeader>
-                <CardTitle className={`flex items-center gap-2 ${textClass}`}>
-                  <ShoppingCart className="h-5 w-5" />
-                  Shopping List
+              <CardHeader
+                className="cursor-pointer hover:bg-accent/50 transition-colors rounded-t-lg"
+                onClick={() => setShoppingListExpanded(!shoppingListExpanded)}
+              >
+                <CardTitle className={`flex items-center justify-between ${textClass}`}>
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="h-5 w-5" />
+                    Shopping List
+                    <Badge variant="secondary" className="ml-2">
+                      {shoppingList.length}
+                    </Badge>
+                  </div>
+                  {shoppingListExpanded ? (
+                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              {shoppingListExpanded && <CardContent className="space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                   <Dialog open={showRecipeDialog} onOpenChange={setShowRecipeDialog}>
                     <DialogTrigger asChild>
@@ -1971,7 +2011,7 @@ const getStoreLogoPath = (store: string) => {
                     </div>
                   ))}
                 </div>
-              </CardContent>
+              </CardContent>}
             </Card>
 
           {/* Store Comparison Section */}
@@ -2015,13 +2055,13 @@ const getStoreLogoPath = (store: string) => {
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
                         <span className={`text-sm ${mutedTextClass}`}>
-                          {carouselIndex + 1} / {massSearchResults.length}
+                          {carouselIndex + 1} / {sortedComparisons.length}
                         </span>
                         <Button
                           variant="outline"
                           size="icon"
                           onClick={nextStore}
-                          disabled={carouselIndex === massSearchResults.length - 1}
+                          disabled={carouselIndex === sortedComparisons.length - 1}
                           className={buttonOutlineClass}
                         >
                           <ChevronRight className="h-4 w-4" />
@@ -2029,9 +2069,38 @@ const getStoreLogoPath = (store: string) => {
                       </div>
                     </div>
 
+                    {/* Sorting Options */}
+                    <div className="flex gap-2 mb-4">
+                      <Button
+                        variant={storeSortMode === "best-price" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setStoreSortMode("best-price")}
+                        className={storeSortMode === "best-price" ? "bg-green-600 hover:bg-green-700 text-white" : buttonOutlineClass}
+                      >
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        Best Price
+                      </Button>
+                      <Button
+                        variant={storeSortMode === "nearest" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setStoreSortMode("nearest")}
+                        className={storeSortMode === "nearest" ? "bg-green-600 hover:bg-green-700 text-white" : buttonOutlineClass}
+                      >
+                        Nearest
+                      </Button>
+                      <Button
+                        variant={storeSortMode === "best-value" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setStoreSortMode("best-value")}
+                        className={storeSortMode === "best-value" ? "bg-green-600 hover:bg-green-700 text-white" : buttonOutlineClass}
+                      >
+                        Best Value
+                      </Button>
+                    </div>
+
                     {/* Quick Store Nav */}
                     <div className="flex flex-wrap gap-3 mb-4">
-                      {massSearchResults.map((store, index) => {
+                      {sortedComparisons.map((store, index) => {
                         const isActive = index === carouselIndex
                         const logoPath = getStoreLogoPath(store.store)
                         return (
@@ -2040,10 +2109,10 @@ const getStoreLogoPath = (store: string) => {
                             onClick={() => scrollToStore(index)}
                             className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
                               isActive
-                                ? "border-primary bg-primary/10"
+                                ? "border-green-600 bg-green-600/10"
                                 : theme === "dark"
-                                  ? "border-border/60 hover:border-primary/60"
-                                  : "border-border hover:border-primary/60"
+                                  ? "border-border/60 hover:border-green-600/60"
+                                  : "border-border hover:border-green-600/60"
                             }`}
                             title={`Jump to ${store.store}`}
                           >
@@ -2069,20 +2138,18 @@ const getStoreLogoPath = (store: string) => {
                       className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4"
                       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                     >
-                      {massSearchResults.map(renderStoreCard)}
+                      {sortedComparisons.map(renderStoreCard)}
                     </div>
 
                     {/* Carousel Dots Indicator */}
                     <div className="flex justify-center gap-2 mt-4">
-                      {massSearchResults.map((_, index) => (
+                      {sortedComparisons.map((_, index) => (
                         <button
                           key={index}
                           onClick={() => scrollToStore(index)}
                           className={`w-2 h-2 rounded-full transition-all ${
                             index === carouselIndex
-                              ? theme === "dark"
-                                ? "bg-[#e8dcc4] w-8"
-                                : "bg-orange-500 w-8"
+                              ? "bg-green-600 w-8"
                               : theme === "dark"
                                 ? "bg-[#e8dcc4]/30"
                                 : "bg-gray-300"
@@ -2100,7 +2167,7 @@ const getStoreLogoPath = (store: string) => {
                       <p className={mutedTextClass}>Click markers to sync with the carousel</p>
                     </div>
                     <StoreMap
-                      comparisons={massSearchResults}
+                      comparisons={sortedComparisons}
                       userPostalCode={zipCode}
                       selectedStoreIndex={carouselIndex}
                       onStoreSelected={(index) => scrollToStore(index)}
