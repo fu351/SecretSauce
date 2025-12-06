@@ -203,6 +203,7 @@ export type Database = {
           dietary_flags: any | null
           protein_tag: string | null
           cuisine_guess: string | null
+          meal_type_guess: string | null
         }
         Insert: {
           title: string
@@ -218,6 +219,10 @@ export type Database = {
           instructions?: any[] | null
           nutrition?: any | null
           author_id: string
+          dietary_flags?: any | null
+          protein_tag?: string | null
+          cuisine_guess?: string | null
+          meal_type_guess?: string | null
         }
         Update: {
           title?: string
@@ -235,6 +240,7 @@ export type Database = {
           dietary_flags?: any | null
           protein_tag?: string | null
           cuisine_guess?: string | null
+          meal_type_guess?: string | null
           updated_at?: string
         }
       }

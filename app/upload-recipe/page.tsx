@@ -464,8 +464,8 @@ export default function UploadRecipePage() {
         }
       }
 
-      // Auto-generate dietary flags, protein tag, and cuisine guess from ingredients
-      const autoTags = tagRecipeFromIngredients(validIngredients)
+      // Auto-generate dietary flags, protein tag, cuisine guess, and meal type from ingredients and title
+      const autoTags = tagRecipeFromIngredients(validIngredients, formData.title)
 
       const recipeData = {
         title: formData.title,
@@ -490,6 +490,7 @@ export default function UploadRecipePage() {
         dietary_flags: autoTags.dietary_flags,
         protein_tag: autoTags.protein_tag,
         cuisine_guess: autoTags.cuisine_guess,
+        meal_type_guess: autoTags.meal_type_guess,
       }
 
       const { data, error } = await supabase.from("recipes").insert(recipeData).select()

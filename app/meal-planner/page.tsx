@@ -352,6 +352,24 @@ export default function MealPlannerPage() {
       }
 
       const plan = await response.json()
+
+      // Fetch recipe details for the plan
+      if (plan.dinners && plan.dinners.length > 0) {
+        const recipeIds = plan.dinners.map((d: any) => d.recipeId)
+        const { data: recipes } = await supabase
+          .from("recipes")
+          .select("*")
+          .in("id", recipeIds)
+
+        if (recipes) {
+          const newRecipesById = { ...recipesById }
+          recipes.forEach((recipe: any) => {
+            newRecipesById[recipe.id] = recipe as Recipe
+          })
+          setRecipesById(newRecipesById)
+        }
+      }
+
       setAiPlanResult(plan)
       setShowAiPlanDialog(true)
     } catch (error) {

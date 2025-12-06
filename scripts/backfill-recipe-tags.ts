@@ -1,7 +1,7 @@
 /**
- * Backfill recipe dietary_flags and protein_tag based on ingredients.
+ * Backfill recipe dietary_flags, protein_tag, cuisine_guess, and meal_type_guess based on ingredients and title.
  * Run with:
- *   SUPABASE_SERVICE_ROLE_KEY=... NEXT_PUBLIC_SUPABASE_URL=... ts-node scripts/backfill-recipe-tags.ts
+ *   SUPABASE_SERVICE_ROLE_KEY=... NEXT_PUBLIC_SUPABASE_URL=... tsx scripts/backfill-recipe-tags.ts
  *
  * This uses the service key; do NOT run in the browser.
  */
@@ -19,7 +19,7 @@ if (!supabaseUrl || !serviceKey) {
 const supabase = createClient(supabaseUrl, serviceKey)
 
 async function main() {
-  const { data, error } = await supabase.from("recipes").select("id, ingredients, dietary_flags, protein_tag").limit(10000)
+  const { data, error } = await supabase.from("recipes").select("id, title, ingredients, dietary_flags, protein_tag, meal_type_guess").limit(10000)
   if (error) {
     console.error("Failed to load recipes", error)
     process.exit(1)
@@ -27,13 +27,18 @@ async function main() {
 
   const updates = []
   for (const row of data || []) {
-    if (row.dietary_flags && row.protein_tag) continue
-    const tags = tagRecipeFromIngredients(Array.isArray(row.ingredients) ? row.ingredients : [])
+    // Skip if all AI tags are already populated
+    if (row.dietary_flags && row.protein_tag && row.meal_type_guess) continue
+    const tags = tagRecipeFromIngredients(
+      Array.isArray(row.ingredients) ? row.ingredients : [],
+      row.title || ""
+    )
     updates.push({
       id: row.id,
       dietary_flags: tags.dietary_flags,
       protein_tag: tags.protein_tag,
       cuisine_guess: tags.cuisine_guess,
+      meal_type_guess: tags.meal_type_guess,
     })
   }
 
@@ -48,6 +53,7 @@ async function main() {
         dietary_flags: update.dietary_flags,
         protein_tag: update.protein_tag,
         cuisine_guess: update.cuisine_guess,
+        meal_type_guess: update.meal_type_guess,
       })
       .eq("id", update.id)
 

@@ -9,6 +9,7 @@ type TagResult = {
   }
   protein_tag: string
   cuisine_guess?: string | null
+  meal_type_guess?: string | null
 }
 
 const dairyTerms = [
@@ -48,11 +49,18 @@ const cuisineHints: Array<{ cuisine: string; keywords: string[] }> = [
   { cuisine: "mediterranean", keywords: ["olive", "feta", "hummus", "tahini"] },
 ]
 
+const mealTypeHints: Array<{ type: string; keywords: string[] }> = [
+  { type: "breakfast", keywords: ["pancake", "waffle", "oatmeal", "cereal", "bagel", "muffin", "scrambled", "omelet", "omelette", "breakfast", "brunch", "granola", "french toast"] },
+  { type: "lunch", keywords: ["sandwich", "salad", "wrap", "panini", "soup", "lunch"] },
+  { type: "dinner", keywords: ["steak", "roast", "casserole", "pot roast", "dinner", "supper"] },
+]
+
 const includesAny = (haystack: string, terms: string[]) => terms.some((term) => haystack.includes(term))
 
-export function tagRecipeFromIngredients(ingredients: Array<{ name?: string }> = []): TagResult {
+export function tagRecipeFromIngredients(ingredients: Array<{ name?: string }> = [], title?: string): TagResult {
   const names = ingredients.map((i) => (i.name || "").toLowerCase())
   const joined = names.join(" ")
+  const titleLower = (title || "").toLowerCase()
 
   const dietary_flags = {
     contains_dairy: includesAny(joined, dairyTerms),
@@ -79,5 +87,13 @@ export function tagRecipeFromIngredients(ingredients: Array<{ name?: string }> =
     }
   }
 
-  return { dietary_flags, protein_tag, cuisine_guess }
+  let meal_type_guess: string | null = null
+  for (const entry of mealTypeHints) {
+    if (includesAny(titleLower, entry.keywords) || includesAny(joined, entry.keywords)) {
+      meal_type_guess = entry.type
+      break
+    }
+  }
+
+  return { dietary_flags, protein_tag, cuisine_guess, meal_type_guess }
 }
