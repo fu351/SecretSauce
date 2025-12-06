@@ -1895,6 +1895,20 @@ const getStoreLogoPath = (store: string) => {
         </div>
 
         <div className="space-y-6">
+          {/* Compare Stores Button */}
+          {shoppingList.length > 0 && (
+            <div className="flex justify-center">
+              <Button
+                onClick={performMassSearch}
+                size="lg"
+                className={`${buttonClass} shadow-lg`}
+              >
+                <DollarSign className="h-5 w-5 mr-2" />
+                Compare Stores ({shoppingList.length} {shoppingList.length === 1 ? "item" : "items"})
+              </Button>
+            </div>
+          )}
+
           {/* Shopping List Section */}
           <Card className={cardBgClass}>
               <CardHeader
@@ -1969,16 +1983,6 @@ const getStoreLogoPath = (store: string) => {
                       </div>
                     </DialogContent>
                   </Dialog>
-
-                  <Button
-                    onClick={performMassSearch}
-                    disabled={shoppingList.length === 0}
-                    variant="outline"
-                    className={`${buttonOutlineClass} w-full sm:w-auto`}
-                  >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Compare Stores
-                  </Button>
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row" data-tutorial="shopping-add-item">
