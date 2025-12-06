@@ -892,6 +892,44 @@ export default function ShoppingPage() {
     setItemSearchSource(null)
   }
 
+  // Helper function to map store categories to pantry categories
+  const mapStoreCategoryToPantry = (storeCategory?: string): string => {
+    if (!storeCategory) return "Other"
+
+    const normalized = storeCategory.toLowerCase()
+
+    // Map common store categories to pantry categories
+    if (normalized.includes("produce") || normalized.includes("fruit") || normalized.includes("vegetable")) {
+      return "Produce"
+    }
+    if (normalized.includes("dairy") || normalized.includes("milk") || normalized.includes("cheese") || normalized.includes("yogurt")) {
+      return "Dairy"
+    }
+    if (normalized.includes("meat") || normalized.includes("seafood") || normalized.includes("poultry") || normalized.includes("fish")) {
+      return "Meat & Seafood"
+    }
+    if (normalized.includes("frozen")) {
+      return "Frozen"
+    }
+    if (normalized.includes("beverage") || normalized.includes("drink") || normalized.includes("juice") || normalized.includes("soda")) {
+      return "Beverages"
+    }
+    if (normalized.includes("snack") || normalized.includes("chip") || normalized.includes("cookie")) {
+      return "Snacks"
+    }
+    if (normalized.includes("condiment") || normalized.includes("sauce") || normalized.includes("dressing")) {
+      return "Condiments"
+    }
+    if (normalized.includes("baking") || normalized.includes("flour") || normalized.includes("sugar")) {
+      return "Baking"
+    }
+    if (normalized.includes("pantry") || normalized.includes("canned") || normalized.includes("dry goods") || normalized.includes("grain") || normalized.includes("pasta") || normalized.includes("rice")) {
+      return "Pantry Staples"
+    }
+
+    return "Other"
+  }
+
   const addStoreItemsToPantry = async (comparison: StoreComparison) => {
     if (!user) {
       toast({
@@ -910,6 +948,7 @@ export default function ShoppingPage() {
             name: item.title,
             quantity: listItem?.quantity ?? 1,
             unit: listItem?.unit || item.unit || "unit",
+            category: mapStoreCategoryToPantry(item.category),
           }
         })
         .filter((entry) => entry.name && entry.name.trim().length > 0)
@@ -922,7 +961,13 @@ export default function ShoppingPage() {
         return
       }
 
-      const inserts: Array<{ user_id: string; name: string; quantity: number; unit: string | undefined }> = []
+      const inserts: Array<{
+        user_id: string
+        name: string
+        quantity: number
+        unit: string | undefined
+        category: string
+      }> = []
       const updates: Array<{ id: string; quantity: number }> = []
 
       const lookup = new Map(pantryInventory)
@@ -941,6 +986,7 @@ export default function ShoppingPage() {
             name: entry.name,
             quantity: entry.quantity,
             unit: entry.unit,
+            category: entry.category,
           })
         }
       })
@@ -952,9 +998,12 @@ export default function ShoppingPage() {
         updates: updates.length,
       })
 
+      // Insert new items and get their IDs
+      let insertedItems: Array<{ id: string; name: string; quantity: number; unit: string }> = []
       if (inserts.length > 0) {
-        const { error } = await supabase.from("pantry_items").insert(inserts)
+        const { data, error } = await supabase.from("pantry_items").insert(inserts).select()
         if (error) throw error
+        insertedItems = data || []
       }
 
       for (const update of updates) {
@@ -963,6 +1012,38 @@ export default function ShoppingPage() {
           .update({ quantity: update.quantity })
           .eq("id", update.id)
         if (error) throw error
+      }
+
+      // Standardize newly inserted items
+      if (insertedItems.length > 0) {
+        for (const item of insertedItems) {
+          try {
+            const response = await fetch("/api/ingredients/standardize", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                context: "pantry",
+                pantryItemId: item.id,
+                userId: user.id,
+                ingredients: [
+                  {
+                    id: "pantry-0",
+                    name: item.name,
+                    amount: String(item.quantity),
+                    unit: item.unit,
+                  },
+                ],
+              }),
+            })
+
+            if (response.ok) {
+              console.log(`[Pantry] Standardized item: ${item.name}`)
+            }
+          } catch (error) {
+            console.warn(`[Pantry] Failed to standardize ${item.name}:`, error)
+            // Continue processing other items even if one fails
+          }
+        }
       }
 
       await loadPantryInventory()

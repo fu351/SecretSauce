@@ -794,10 +794,10 @@ export default function PantryPage() {
         )}
 
         {/* Filters */}
-        <div className="mb-8">
+        <div className="mb-8 space-y-4">
           <Card className={translucentCardClass}>
             <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-[#e8dcc4]/50" />
@@ -809,20 +809,6 @@ export default function PantryPage() {
                     />
                   </div>
                 </div>
-
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className={`w-full lg:w-48 h-12 ${inputThemeClass}`}>
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {getCategoryIcon(category)} {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
 
                 <Button
                   variant={showExpiringSoon ? "default" : "outline"}
@@ -837,6 +823,44 @@ export default function PantryPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Category Tabs */}
+          <div className="overflow-x-auto">
+            <div className="flex gap-2 pb-2">
+              <Button
+                variant={selectedCategory === "all" ? "default" : "outline"}
+                onClick={() => setSelectedCategory("all")}
+                size="sm"
+                className={`whitespace-nowrap ${
+                  selectedCategory === "all"
+                    ? accentButtonClass
+                    : isDark
+                      ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#1f1e1a]"
+                      : "hover:bg-gray-50"
+                }`}
+              >
+                All Categories
+              </Button>
+              {categories.map((category) => (
+                <Button
+                  key={category}
+                  variant={selectedCategory === category ? "default" : "outline"}
+                  onClick={() => setSelectedCategory(category)}
+                  size="sm"
+                  className={`whitespace-nowrap ${
+                    selectedCategory === category
+                      ? accentButtonClass
+                      : isDark
+                        ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#1f1e1a]"
+                        : "hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="mr-1.5">{getCategoryIcon(category)}</span>
+                  {category}
+                </Button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Pantry Items */}
