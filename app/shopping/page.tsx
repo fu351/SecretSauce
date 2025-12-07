@@ -2096,7 +2096,11 @@ const getStoreLogoPath = (store: string) => {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => removeRecipeItems(key, group.recipeName)}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              removeRecipeItems(key, group.recipeName)
+                            }}
                             className="ml-auto text-red-500 hover:text-red-600 hover:bg-red-50"
                             title="Remove all ingredients from this recipe"
                           >
