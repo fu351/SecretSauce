@@ -2,7 +2,7 @@ app = "secretsauce"
 primary_region = "ord"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "../Dockerfile.python-api"
 
 [env]
   PORT = "8080"

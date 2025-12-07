@@ -45,6 +45,8 @@ interface ShoppingListItem {
   checked: boolean
   recipeId?: string
   recipeName?: string
+  standardizedIngredientId?: string
+  standardizedName?: string
 }
 
 interface Recipe {
@@ -57,6 +59,8 @@ type PantryItemInfo = {
   id: string
   quantity: number
   unit: string | null
+  standardized_ingredient_id?: string | null
+  standardized_name?: string | null
 }
 
 const DEFAULT_GROCERY_DISTANCE_MILES = 10
@@ -328,7 +332,7 @@ export default function ShoppingPage() {
     try {
       const { data, error } = await supabase
         .from("pantry_items")
-        .select("id, name, quantity, unit")
+        .select("id, name, quantity, unit, standardized_ingredient_id, standardized_name")
         .eq("user_id", user.id)
 
       if (error) throw error
@@ -341,7 +345,20 @@ export default function ShoppingPage() {
           id: item.id,
           quantity: Number(item.quantity) || 0,
           unit: item.unit || null,
+          standardized_ingredient_id: item.standardized_ingredient_id,
+          standardized_name: item.standardized_name,
         })
+
+        // Also index by standardized_ingredient_id if available
+        if (item.standardized_ingredient_id) {
+          map.set(`std_${item.standardized_ingredient_id}`, {
+            id: item.id,
+            quantity: Number(item.quantity) || 0,
+            unit: item.unit || null,
+            standardized_ingredient_id: item.standardized_ingredient_id,
+            standardized_name: item.standardized_name,
+          })
+        }
       })
       setPantryInventory(map)
       console.log("[Pantry] Loaded pantry inventory", { count: map.size })
@@ -1160,6 +1177,19 @@ export default function ShoppingPage() {
     }
   }
 
+  // Helper function to check if a shopping item is in the pantry
+  const getPantryMatch = (item: ShoppingListItem): PantryItemInfo | null => {
+    // First try matching by standardized ingredient ID (most accurate)
+    if (item.standardizedIngredientId) {
+      const match = pantryInventory.get(`std_${item.standardizedIngredientId}`)
+      if (match) return match
+    }
+
+    // Fallback to name matching
+    const nameMatch = pantryInventory.get(item.name.trim().toLowerCase())
+    return nameMatch || null
+  }
+
   const toggleItemChecked = (id: string) => {
     const updatedList = shoppingList.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item))
     setShoppingList(updatedList)
@@ -1197,6 +1227,8 @@ export default function ShoppingPage() {
       checked: false,
       recipeId: recipe.id,
       recipeName: recipe.title,
+      standardizedIngredientId: ingredient.standardizedIngredientId || ingredient.standardized_ingredient_id,
+      standardizedName: ingredient.standardizedName || ingredient.standardized_name,
     }))
 
     const mergedList = [...shoppingList]
@@ -1895,20 +1927,6 @@ const getStoreLogoPath = (store: string) => {
         </div>
 
         <div className="space-y-6">
-          {/* Compare Stores Button */}
-          {shoppingList.length > 0 && (
-            <div className="flex justify-center">
-              <Button
-                onClick={performMassSearch}
-                size="lg"
-                className={`${buttonClass} shadow-lg`}
-              >
-                <DollarSign className="h-5 w-5 mr-2" />
-                Compare Stores ({shoppingList.length} {shoppingList.length === 1 ? "item" : "items"})
-              </Button>
-            </div>
-          )}
-
           {/* Shopping List Section */}
           <Card className={cardBgClass}>
               <CardHeader
@@ -1916,18 +1934,33 @@ const getStoreLogoPath = (store: string) => {
                 onClick={() => setShoppingListExpanded(!shoppingListExpanded)}
               >
                 <CardTitle className={`flex items-center justify-between ${textClass}`}>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1">
                     <ShoppingCart className="h-5 w-5" />
                     Shopping List
                     <Badge variant="secondary" className="ml-2">
                       {shoppingList.length}
                     </Badge>
                   </div>
-                  {shoppingListExpanded ? (
-                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                  )}
+                  <div className="flex items-center gap-3">
+                    {shoppingList.length > 0 && (
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          performMassSearch()
+                        }}
+                        size="sm"
+                        className={buttonClass}
+                      >
+                        <DollarSign className="h-4 w-4 mr-2" />
+                        Compare Stores
+                      </Button>
+                    )}
+                    {shoppingListExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
                 </CardTitle>
               </CardHeader>
               {shoppingListExpanded && <CardContent className="space-y-4">
@@ -2048,19 +2081,33 @@ const getStoreLogoPath = (store: string) => {
                               aria-label="Mark as purchased"
                             />
                             <div className="flex-1 min-w-0">
-                              <h3
-                                className={`font-medium ${item.checked ? `line-through ${mutedTextClass}` : textClass}`}
-                              >
-                                <span>{item.name}</span>
-                                {pantryInventory.has(item.name.trim().toLowerCase()) && (
-                                  <Badge className="ml-2 text-[10px]" variant="secondary">
-                                    In Pantry
-                                  </Badge>
-                                )}
-                              </h3>
-                              <p className={`text-sm ${mutedTextClass}`}>
-                                {item.quantity} {item.unit}
-                              </p>
+                              {(() => {
+                                const pantryMatch = getPantryMatch(item)
+                                const displayName = item.standardizedName || item.name
+                                return (
+                                  <>
+                                    <h3
+                                      className={`font-medium ${item.checked ? `line-through ${mutedTextClass}` : textClass}`}
+                                    >
+                                      <span>{displayName}</span>
+                                    </h3>
+                                    <p className={`text-sm ${mutedTextClass}`}>
+                                      {item.quantity} {item.unit}
+                                    </p>
+                                    {pantryMatch && (
+                                      <div className={`mt-1 text-xs flex items-center gap-1 ${
+                                        theme === "dark" ? "text-emerald-400" : "text-emerald-600"
+                                      }`}>
+                                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                                        <span>
+                                          You may have this — {pantryMatch.standardized_name || "in pantry"}
+                                          {pantryMatch.quantity ? ` (${pantryMatch.quantity} ${pantryMatch.unit || ""}`.trim() + ")" : ""}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </>
+                                )
+                              })()}
                             </div>
                             <div className="flex items-center gap-2">
                               <Button
