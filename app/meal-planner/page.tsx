@@ -512,7 +512,7 @@ export default function MealPlannerPage() {
           const incomingItem = {
             id: Date.now().toString() + Math.random(),
             name: ingredient.name,
-            quantity: Number.parseFloat(ingredient.amount) || 1,
+            quantity: 1, // Always use quantity of 1 for cost efficiency
             unit: ingredient.unit || "piece",
             checked: false,
             recipeId: recipeId,
@@ -527,10 +527,11 @@ export default function MealPlannerPage() {
           })
 
           if (existingIndex >= 0) {
+            // Item already exists, don't add - just keep quantity at 1
             const existingItem = mergedItems[existingIndex]
             mergedItems[existingIndex] = {
               ...existingItem,
-              quantity: (Number(existingItem.quantity) || 0) + (Number(incomingItem.quantity) || 0),
+              quantity: 1, // Keep at 1
               checked: existingItem.checked ?? false,
               recipeId: existingItem.recipeId || incomingItem.recipeId,
               recipeName: existingItem.recipeName || incomingItem.recipeName,
