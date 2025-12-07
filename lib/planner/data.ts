@@ -185,9 +185,11 @@ export async function getRecipesByIds(recipeIds: string[]): Promise<Recipe[]> {
 
 export async function getCheapestStoreItem(
   storeId: string,
-  ingredient: { name: string; standardizedIngredientId?: string | null }
+  ingredient: { name: string; standardizedIngredientId?: string | null },
+  options: { allowRealTimeScraping?: boolean } = {}
 ): Promise<StoreItem | null> {
   const client = createServerClient()
+  const { allowRealTimeScraping = false } = options // Default to cache-only for speed
 
   try {
     const standardizedId =
@@ -195,7 +197,7 @@ export async function getCheapestStoreItem(
       (await resolveOrCreateStandardizedId(client, ingredient.name))
 
     const cacheRow = await getOrRefreshIngredientPrice(client, standardizedId, storeId, {
-      allowRealTimeScraping: true, // Scrape if not in cache
+      allowRealTimeScraping,
     })
 
     if (!cacheRow) return null

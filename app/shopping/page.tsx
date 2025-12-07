@@ -310,7 +310,7 @@ export default function ShoppingPage() {
   const carouselRef = useRef<HTMLDivElement>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
 
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const { theme } = useTheme()
   const getDomTheme = () => {
     if (typeof document !== "undefined") {
@@ -442,6 +442,7 @@ export default function ShoppingPage() {
 
   // Expand shopping list if navigated with expandList=true query param
   useEffect(() => {
+    if (!mounted) return
     const expandList = searchParams.get("expandList")
     if (expandList === "true") {
       setShoppingListExpanded(true)
@@ -450,7 +451,7 @@ export default function ShoppingPage() {
         document.querySelector("[data-shopping-list]")?.scrollIntoView({ behavior: "smooth", block: "start" })
       }, 100)
     }
-  }, [searchParams])
+  }, [searchParams, mounted])
 
   useEffect(() => {
     if (!comparisonLoading) {
@@ -465,6 +466,9 @@ export default function ShoppingPage() {
   }, [comparisonLoading, comparisonMessages])
 
   useEffect(() => {
+    // Wait for auth to finish loading before deciding on zip prompt
+    if (authLoading) return
+
     if (user) {
       loadUserPreferences()
       loadShoppingList()
@@ -480,7 +484,7 @@ export default function ShoppingPage() {
         setZipPromptOpen(true)
       }
     }
-  }, [user, loadPantryInventory])
+  }, [user, authLoading, loadPantryInventory])
 
   useEffect(() => {
     if (!user) {
@@ -1973,7 +1977,7 @@ const getStoreLogoPath = (store: string) => {
           {/* Shopping List Section */}
           <Card className={cardBgClass} data-shopping-list>
               <CardHeader
-                className="cursor-pointer hover:bg-accent/50 transition-colors rounded-t-lg"
+                className="cursor-pointer hover:border-primary border-2 border-transparent transition-colors rounded-t-lg"
                 onClick={() => setShoppingListExpanded(!shoppingListExpanded)}
               >
                 <CardTitle className={`flex items-center justify-between ${textClass}`}>

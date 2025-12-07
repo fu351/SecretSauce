@@ -153,10 +153,21 @@ const TOOL_IMPL: Record<string, (args: any) => Promise<any>> = {
   tool_get_taste_history,
 }
 
-async function callOpenAI(messages: ChatMessage[]) {
+async function callOpenAI(messages: ChatMessage[], useTools: boolean = true) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     throw new Error("Missing OPENAI_API_KEY")
+  }
+
+  const body: any = {
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    messages,
+    temperature: 0.3, // Lower temperature for faster, more deterministic responses
+    max_tokens: 1500, // Limit response size for speed
+  }
+
+  if (useTools) {
+    body.tools = TOOL_DEFS
   }
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -165,12 +176,7 @@ async function callOpenAI(messages: ChatMessage[]) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      messages,
-      tools: TOOL_DEFS,
-      temperature: 0.4,
-    }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {
@@ -183,33 +189,96 @@ async function callOpenAI(messages: ChatMessage[]) {
 }
 
 export async function generateWeeklyDinnerPlanLLM(userId: string): Promise<WeeklyDinnerPlan | null> {
+  const startTime = Date.now()
+
+  // PRE-FETCH all data upfront to reduce tool call roundtrips
+  console.log("[llm] Pre-fetching user data...")
+  const [profile, pantry, stores, tasteHistory] = await Promise.all([
+    tool_get_user_profile({ userId }),
+    tool_get_user_pantry({ userId }),
+    tool_list_candidate_stores({ userId }),
+    tool_get_taste_history({ userId }),
+  ])
+
+  // Pre-fetch recipes with user preferences
+  const recipes = await tool_search_price_aware_recipes({
+    query: "",
+    filters: {
+      dietType: profile?.dietaryPreferences?.[0],
+      preferredCuisines: profile?.cuisinePreferences || [],
+      maxTimeMinutes: profile?.cookingTimePreference === "quick" ? 40 : undefined,
+    },
+    limit: 20,
+  })
+
+  console.log(`[llm] Pre-fetched data in ${Date.now() - startTime}ms`)
+
+  // Build context with pre-fetched data
+  const contextData = {
+    profile,
+    pantry: pantry?.slice(0, 10), // Limit pantry items
+    stores: stores?.slice(0, 3), // Limit stores
+    tasteHistory,
+    availableRecipes: recipes?.slice(0, 15), // Limit recipes shown
+  }
+
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: `Plan a 7-day dinner schedule for userId=${userId}` },
+    {
+      role: "user",
+      content: `Plan a 7-day dinner schedule for userId=${userId}.
+
+Here is the pre-fetched data (no need to call tools for this):
+${JSON.stringify(contextData, null, 2)}
+
+Based on this data, directly output your 7-day dinner plan as JSON. Pick 7 recipes from availableRecipes that match the user's preferences. Ensure protein variety.`
+    },
   ]
 
-  for (let step = 0; step < 4; step += 1) {
-    const res = await callOpenAI(messages)
-    const choice = res.choices?.[0]?.message
-    if (!choice) break
+  // Single LLM call with all context - no tool calls needed
+  const res = await callOpenAI(messages, false) // No tools needed
+  const choice = res.choices?.[0]?.message
 
-    if (choice.tool_calls && choice.tool_calls.length > 0) {
+  if (choice?.content) {
+    const plan = parsePlan(choice.content)
+    if (plan) {
+      console.log(`[llm] Generated plan in ${Date.now() - startTime}ms`)
+      return plan
+    }
+  }
+
+  // Fallback: Allow 1 more iteration with tools if direct approach failed
+  console.log("[llm] Direct approach failed, trying with tools...")
+  messages.push({ role: "assistant", content: choice?.content || "I need to search for recipes." })
+
+  for (let step = 0; step < 2; step += 1) {
+    const res2 = await callOpenAI(messages, true)
+    const choice2 = res2.choices?.[0]?.message
+    if (!choice2) break
+
+    if (choice2.tool_calls && choice2.tool_calls.length > 0) {
       messages.push({
         role: "assistant",
-        content: choice.content || null,
-        tool_calls: choice.tool_calls,
+        content: choice2.content || null,
+        tool_calls: choice2.tool_calls,
       })
 
-      for (const toolCall of choice.tool_calls) {
-        const name = toolCall.function?.name
-        const args = toolCall.function?.arguments ? JSON.parse(toolCall.function.arguments) : {}
-        const impl = name ? TOOL_IMPL[name] : null
+      // Execute tool calls in parallel for speed
+      const toolResults = await Promise.all(
+        choice2.tool_calls.map(async (toolCall: any) => {
+          const name = toolCall.function?.name
+          const args = toolCall.function?.arguments ? JSON.parse(toolCall.function.arguments) : {}
+          const impl = name ? TOOL_IMPL[name] : null
+          if (!impl) return { toolCall, result: {} }
+          const result = await impl(args)
+          return { toolCall, result }
+        })
+      )
 
-        if (!impl) continue
-        const result = await impl(args)
+      for (const { toolCall, result } of toolResults) {
         messages.push({
           role: "tool",
-          name,
+          name: toolCall.function?.name,
           tool_call_id: toolCall.id,
           content: JSON.stringify(result ?? {}),
         })
@@ -217,12 +286,15 @@ export async function generateWeeklyDinnerPlanLLM(userId: string): Promise<Weekl
       continue
     }
 
-    if (choice.content) {
-      const plan = parsePlan(choice.content)
-      if (plan) return plan
-      messages.push({ role: "assistant", content: choice.content })
+    if (choice2.content) {
+      const plan = parsePlan(choice2.content)
+      if (plan) {
+        console.log(`[llm] Generated plan (with tools) in ${Date.now() - startTime}ms`)
+        return plan
+      }
     }
   }
 
+  console.log(`[llm] Failed to generate plan after ${Date.now() - startTime}ms`)
   return null
 }
