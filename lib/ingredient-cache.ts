@@ -72,10 +72,18 @@ const STORE_CACHE_TTL_HOURS: Record<string, number> = {
 const DEFAULT_CACHE_TTL_HOURS = 24
 
 /**
+ * Normalize store name for consistent cache lookups
+ * Converts to lowercase and removes spaces: "99 Ranch" → "99ranch", "Trader Joes" → "traderjoes"
+ */
+export function normalizeStoreName(store: string): string {
+  return store.toLowerCase().replace(/\s+/g, "").replace(/[']/g, "").trim()
+}
+
+/**
  * Get cache TTL for a specific store
  */
 export function getCacheTTLForStore(store: string): number {
-  const normalizedStore = store.toLowerCase().trim()
+  const normalizedStore = normalizeStoreName(store)
   return STORE_CACHE_TTL_HOURS[normalizedStore] || DEFAULT_CACHE_TTL_HOURS
 }
 
@@ -274,7 +282,7 @@ export async function searchIngredientCache(
     }
 
     // Normalize store names for consistent matching
-    const normalizedStores = stores?.map(s => s.toLowerCase().trim())
+    const normalizedStores = stores?.map(s => normalizeStoreName(s))
 
     // Query the cache for non-expired items matching the standardized ingredients
     let query = client
@@ -283,7 +291,7 @@ export async function searchIngredientCache(
       .in("standardized_ingredient_id", ingredientIds)
       .gt("expires_at", new Date().toISOString())
 
-    // Filter by stores if provided (case-insensitive)
+    // Filter by stores if provided
     if (normalizedStores && normalizedStores.length > 0) {
       query = query.in("store", normalizedStores)
     }
@@ -319,7 +327,7 @@ export async function getCachedIngredientById(
     const client = createServerClient()
 
     // Normalize store names for consistent matching
-    const normalizedStores = stores?.map(s => s.toLowerCase().trim())
+    const normalizedStores = stores?.map(s => normalizeStoreName(s))
 
     let query = client
       .from("ingredient_cache")
@@ -370,12 +378,15 @@ export async function cacheIngredientPrice(
   try {
     const client = createServerClient()
 
+    // Normalize store name for consistent cache lookups
+    const normalizedStore = normalizeStoreName(store)
+
     // Check existing entry for this ingredient/store
     const { data: existingEntry, error: existingError } = await client
       .from("ingredient_cache")
       .select("id, price")
       .eq("standardized_ingredient_id", standardizedIngredientId)
-      .eq("store", store)
+      .eq("store", normalizedStore)
       .maybeSingle()
 
     if (existingError && existingError.code !== "PGRST116") {
@@ -387,13 +398,13 @@ export async function cacheIngredientPrice(
     const priceValue = Number.isFinite(normalizedPrice) ? normalizedPrice : 0
 
     // Use store-specific TTL
-    const ttlHours = getCacheTTLForStore(store)
+    const ttlHours = getCacheTTLForStore(normalizedStore)
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + ttlHours)
 
     const payload = {
       standardized_ingredient_id: standardizedIngredientId,
-      store,
+      store: normalizedStore,
       product_name: productName || null,
       price: priceValue,
       quantity,

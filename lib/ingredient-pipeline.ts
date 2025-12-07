@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js"
 import { createServerClient, type Database } from "./supabase"
 import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
+import { normalizeStoreName } from "./ingredient-cache"
 
 type DB = Database["public"]["Tables"]
 type IngredientCacheRow = DB["ingredient_cache"]["Row"]
@@ -295,7 +296,7 @@ async function runStoreScraper(
   canonicalName: string,
   options: StoreLookupOptions = {},
 ): Promise<ScraperResult[]> {
-  const normalizedStore = store.toLowerCase()
+  const normalizedStore = normalizeStoreName(store)
   const zip = normalizeZipInput(options.zipCode)
   try {
     console.log("[ingredient-pipeline] Running scraper", { store: normalizedStore, canonicalName, zip })
@@ -405,7 +406,7 @@ function buildCachePayload(
 
   return {
     standardized_ingredient_id: standardizedIngredientId,
-    store: store.toLowerCase().trim(), // Normalize to lowercase for consistent lookups
+    store: normalizeStoreName(store),
     product_name: product.product_name || product.title || null,
     price: Number(product.price) || 0,
     quantity: Number(product.quantity) || 1,
@@ -617,7 +618,7 @@ export async function getOrRefreshIngredientPricesForStores(
   if (!stores || stores.length === 0) return []
 
   const startTime = Date.now()
-  const normalizedStores = stores.map(s => s.toLowerCase().trim())
+  const normalizedStores = stores.map(s => normalizeStoreName(s))
 
   console.log("[ingredient-pipeline] getOrRefreshIngredientPricesForStores called", {
     standardizedIngredientId,
@@ -641,7 +642,7 @@ export async function getOrRefreshIngredientPricesForStores(
   const cachedByStore = new Map<string, IngredientCacheResult>()
   if (cachedItems) {
     for (const item of cachedItems) {
-      cachedByStore.set(item.store.toLowerCase(), item)
+      cachedByStore.set(normalizeStoreName(item.store), item)
     }
   }
 
@@ -723,8 +724,8 @@ export async function getOrRefreshIngredientPrice(
   if (!standardizedIngredientId) throw new Error("standardizedIngredientId is required")
   if (!store) throw new Error("store is required")
 
-  // Normalize store name for cache lookup (handle both "target" and "Target")
-  const normalizedStore = store.toLowerCase().trim()
+  // Normalize store name for cache lookup (handle both "target" and "Target", "99 Ranch" and "99ranch")
+  const normalizedStore = normalizeStoreName(store)
 
   const startTime = Date.now()
   console.log("[ingredient-pipeline] getOrRefreshIngredientPrice called", {
