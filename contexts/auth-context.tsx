@@ -111,7 +111,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const duration = performance.now() - startTime
       console.log(`[v0] Profile fetch completed in ${duration.toFixed(2)}ms`)
 
-      if (error && error.code !== "PGRST116") {
+      if (error && error.code === "PGRST116") {
+        // Profile doesn't exist - create one (trigger may have failed)
+        console.log("[v0] Profile not found, creating one...")
+        const { data: session } = await supabase.auth.getSession()
+        const userEmail = session?.session?.user?.email
+
+        if (userEmail) {
+          const { data: newProfile, error: createError } = await supabase
+            .from("profiles")
+            .insert({ id: userId, email: userEmail })
+            .select()
+            .single()
+
+          if (createError) {
+            console.error("[v0] Error creating profile:", createError)
+            return
+          }
+
+          if (mounted.current && newProfile) {
+            console.log("[v0] Profile created successfully")
+            setProfile(newProfile)
+          }
+        }
+        return
+      }
+
+      if (error) {
         console.error("[v0] Error fetching profile:", error)
         return
       }
