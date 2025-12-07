@@ -798,7 +798,7 @@ export default function MealPlannerPage() {
 
                 <div className="flex gap-2">
                   <Button
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-sm shrink-0"
+                    className="!bg-gradient-to-r !from-purple-600 !to-blue-600 !text-white hover:!from-purple-700 hover:!to-blue-700 shadow-sm shrink-0"
                     onClick={generateAiWeeklyPlan}
                     disabled={aiPlannerLoading}
                   >
