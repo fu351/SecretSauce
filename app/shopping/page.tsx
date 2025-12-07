@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -272,6 +273,7 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 }
 
 export default function ShoppingPage() {
+  const searchParams = useSearchParams()
   const [mounted, setMounted] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)
@@ -438,6 +440,18 @@ export default function ShoppingPage() {
     setMounted(true)
   }, [])
 
+  // Expand shopping list if navigated with expandList=true query param
+  useEffect(() => {
+    const expandList = searchParams.get("expandList")
+    if (expandList === "true") {
+      setShoppingListExpanded(true)
+      // Scroll to the shopping list section
+      setTimeout(() => {
+        document.querySelector("[data-shopping-list]")?.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 100)
+    }
+  }, [searchParams])
+
   useEffect(() => {
     if (!comparisonLoading) {
       setComparisonMessageIndex(0)
@@ -525,15 +539,39 @@ export default function ShoppingPage() {
   const sortedComparisons = useMemo(() => {
     const sorted = [...massSearchResults]
 
+    // Helper: Always prioritize stores with fewer missing items, then out of radius
+    const prioritySort = (a: StoreComparison, b: StoreComparison) => {
+      const aMissing = a.missingCount || 0
+      const bMissing = b.missingCount || 0
+
+      // Stores with missing items always go to the bottom
+      if (aMissing !== bMissing) {
+        return aMissing - bMissing
+      }
+
+      // Out of radius stores go below in-radius stores
+      if (!!a.outOfRadius !== !!b.outOfRadius) {
+        return Number(a.outOfRadius) - Number(b.outOfRadius)
+      }
+
+      return 0 // Equal priority, let secondary sort decide
+    }
+
     switch (storeSortMode) {
       case "nearest":
         return sorted.sort((a, b) => {
+          const priority = prioritySort(a, b)
+          if (priority !== 0) return priority
+
           const distA = a.distanceMiles ?? Infinity
           const distB = b.distanceMiles ?? Infinity
           return distA - distB
         })
       case "best-value":
         return sorted.sort((a, b) => {
+          const priority = prioritySort(a, b)
+          if (priority !== 0) return priority
+
           const distA = a.distanceMiles ?? 10
           const distB = b.distanceMiles ?? 10
           const valueA = a.total / Math.max(distA, 0.5)
@@ -542,7 +580,12 @@ export default function ShoppingPage() {
         })
       case "best-price":
       default:
-        return sorted.sort((a, b) => a.total - b.total)
+        return sorted.sort((a, b) => {
+          const priority = prioritySort(a, b)
+          if (priority !== 0) return priority
+
+          return a.total - b.total
+        })
     }
   }, [massSearchResults, storeSortMode])
 
@@ -1928,7 +1971,7 @@ const getStoreLogoPath = (store: string) => {
 
         <div className="space-y-6">
           {/* Shopping List Section */}
-          <Card className={cardBgClass}>
+          <Card className={cardBgClass} data-shopping-list>
               <CardHeader
                 className="cursor-pointer hover:bg-accent/50 transition-colors rounded-t-lg"
                 onClick={() => setShoppingListExpanded(!shoppingListExpanded)}

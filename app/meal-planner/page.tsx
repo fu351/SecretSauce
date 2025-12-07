@@ -114,6 +114,10 @@ export default function MealPlannerPage() {
     date: string | null
   }>({ open: false, mealType: null, date: null })
   const [aiPlannerLoading, setAiPlannerLoading] = useState(false)
+  const [aiPlannerProgress, setAiPlannerProgress] = useState<{
+    step: number
+    message: string
+  }>({ step: 0, message: "" })
   const [aiPlanResult, setAiPlanResult] = useState<{
     storeId: string
     totalCost: number
@@ -339,17 +343,42 @@ export default function MealPlannerPage() {
       return
     }
 
+    // Show dialog immediately with loading state
+    setAiPlanResult(null)
     setAiPlannerLoading(true)
+    setAiPlannerProgress({ step: 1, message: "Analyzing your preferences and pantry..." })
+    setShowAiPlanDialog(true)
+
     try {
+      // Simulate progress updates (the API doesn't stream, so we estimate timing)
+      const progressTimer = setTimeout(() => {
+        setAiPlannerProgress({ step: 2, message: "Searching recipes that match your taste..." })
+      }, 1500)
+
+      const progressTimer2 = setTimeout(() => {
+        setAiPlannerProgress({ step: 3, message: "Comparing prices across stores..." })
+      }, 4000)
+
+      const progressTimer3 = setTimeout(() => {
+        setAiPlannerProgress({ step: 4, message: "Optimizing for variety and budget..." })
+      }, 7000)
+
       const response = await fetch("/api/weekly-dinner-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id }),
       })
 
+      // Clear progress timers
+      clearTimeout(progressTimer)
+      clearTimeout(progressTimer2)
+      clearTimeout(progressTimer3)
+
       if (!response.ok) {
         throw new Error("Failed to generate plan")
       }
+
+      setAiPlannerProgress({ step: 5, message: "Finalizing your meal plan..." })
 
       const plan = await response.json()
 
@@ -371,9 +400,10 @@ export default function MealPlannerPage() {
       }
 
       setAiPlanResult(plan)
-      setShowAiPlanDialog(true)
+      setAiPlannerProgress({ step: 6, message: "Complete!" })
     } catch (error) {
       console.error("[AI Planner] Error:", error)
+      setShowAiPlanDialog(false)
       toast({
         title: "AI Planner Error",
         description: "Failed to generate weekly plan. Please try again.",
@@ -765,7 +795,7 @@ export default function MealPlannerPage() {
                   </Button>
                 </div>
 
-                <div className="ml-auto flex gap-2">
+                <div className="flex gap-2">
                   <Button
                     className="bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-sm shrink-0"
                     onClick={generateAiWeeklyPlan}
@@ -780,7 +810,11 @@ export default function MealPlannerPage() {
                   </Button>
                   <Button
                     className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shrink-0"
-                    onClick={addToShoppingList}
+                    onClick={async () => {
+                      await addToShoppingList()
+                      // Navigate to shopping page with expanded list
+                      router.push("/shopping?expandList=true")
+                    }}
                     data-tutorial="meal-plan-add"
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />
@@ -1299,7 +1333,10 @@ export default function MealPlannerPage() {
       </Dialog>
 
       {/* AI Weekly Planner Dialog */}
-      <Dialog open={showAiPlanDialog} onOpenChange={setShowAiPlanDialog}>
+      <Dialog open={showAiPlanDialog} onOpenChange={(open) => {
+        if (!open && aiPlannerLoading) return // Prevent closing while loading
+        setShowAiPlanDialog(open)
+      }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1307,6 +1344,47 @@ export default function MealPlannerPage() {
               AI Weekly Dinner Plan
             </DialogTitle>
           </DialogHeader>
+
+          {/* Loading State with Progress */}
+          {aiPlannerLoading && !aiPlanResult && (
+            <div className="py-12 space-y-8">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <Loader2 className="h-12 w-12 animate-spin text-purple-600" />
+                  <Sparkles className="h-5 w-5 text-purple-400 absolute -top-1 -right-1 animate-pulse" />
+                </div>
+                <p className="text-lg font-medium text-center">{aiPlannerProgress.message}</p>
+              </div>
+
+              {/* Progress Steps */}
+              <div className="space-y-3 max-w-sm mx-auto">
+                {[
+                  { step: 1, label: "Analyzing preferences" },
+                  { step: 2, label: "Searching recipes" },
+                  { step: 3, label: "Comparing store prices" },
+                  { step: 4, label: "Optimizing for budget" },
+                  { step: 5, label: "Finalizing plan" },
+                ].map(({ step, label }) => (
+                  <div key={step} className="flex items-center gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                      aiPlannerProgress.step > step
+                        ? "bg-green-500 text-white"
+                        : aiPlannerProgress.step === step
+                          ? "bg-purple-600 text-white animate-pulse"
+                          : "bg-muted text-muted-foreground"
+                    }`}>
+                      {aiPlannerProgress.step > step ? "✓" : step}
+                    </div>
+                    <span className={`text-sm ${
+                      aiPlannerProgress.step >= step ? "text-foreground" : "text-muted-foreground"
+                    }`}>
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {aiPlanResult && (
             <div className="space-y-4">

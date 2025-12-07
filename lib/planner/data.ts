@@ -195,7 +195,7 @@ export async function getCheapestStoreItem(
       (await resolveOrCreateStandardizedId(client, ingredient.name))
 
     const cacheRow = await getOrRefreshIngredientPrice(client, standardizedId, storeId, {
-      allowRealTimeScraping: false,
+      allowRealTimeScraping: true, // Scrape if not in cache
     })
 
     if (!cacheRow) return null

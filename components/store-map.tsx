@@ -247,7 +247,7 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
       const bgColor = isDark ? "#1f1e1a" : "#ffffff"
       const textColor = isDark ? "#f5f2e9" : "#1f2937"
       const mutedColor = isDark ? "#c8c3b5" : "#4b5563"
-      const savingsColor = comparison.savings > 0 ? (isDark ? "#4ade80" : "#15803d") : mutedColor
+      const extraCostColor = comparison.savings > 0 ? (isDark ? "#f87171" : "#dc2626") : (isDark ? "#4ade80" : "#15803d")
       const distanceSection =
         typeof comparison.distanceMiles === "number"
           ? `<div style="margin-top:6px;font-size:13px;color:${mutedColor};">Distance: ${comparison.distanceMiles.toFixed(1)} mi</div>`
@@ -302,10 +302,10 @@ export function StoreMap({ comparisons, onStoreSelected, userPostalCode, selecte
           <div style="margin-top:6px;font-size:14px;">Total: <strong>$${comparison.total.toFixed(2)}</strong></div>
           ${
             comparison.savings > 0
-              ? `<div style="font-size:13px;color:${savingsColor};margin-top:2px;">Saves $${comparison.savings.toFixed(
+              ? `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">+$${comparison.savings.toFixed(
                   2
                 )} vs best</div>`
-              : ""
+              : `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">Best price!</div>`
           }
           ${distanceSection}
           ${travelSection}
