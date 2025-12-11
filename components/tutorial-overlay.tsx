@@ -73,8 +73,7 @@ export function TutorialOverlay() {
     }
   }
 
-  const findVisibleElement = (selector: string, retryCount = 0): HTMLElement | null => {
-    const maxRetries = 3
+  const findVisibleElement = (selector: string): HTMLElement | null => {
     const allMatches = document.querySelectorAll(selector)
 
     for (const element of Array.from(allMatches)) {
@@ -84,11 +83,6 @@ export function TutorialOverlay() {
         return element as HTMLElement
       }
     }
-
-    if (retryCount < maxRetries && allMatches.length === 0) {
-      return null
-    }
-
     return null
   }
 
@@ -96,30 +90,45 @@ export function TutorialOverlay() {
   useEffect(() => {
     const highlightSelector = currentSubstep?.highlightSelector || currentStep?.highlightSelector
     if (!highlightSelector || !onCorrectPage) return
-
+    
     let highlightedElement: HTMLElement | null = null
-    let retryAttempt = 0
-
-    const attemptHighlight = () => {
-      const element = findVisibleElement(highlightSelector, retryAttempt)
+    let isCancelled = false
+    const timeouts: NodeJS.Timeout[] = []
+    const maxAttempts = 3
+    
+    const attemptHighlight = (attempt: number): void => {
+      if (isCancelled) return
+      
+      const element = findVisibleElement(highlightSelector)
+      
       if (element) {
         highlightedElement = element
-        setTimeout(() => {
-          element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" })
-        }, 100)
-        setTimeout(() => {
-          element.classList.add("tutorial-highlight")
-        }, 300)
-      } else if (retryAttempt < 3) {
-        retryAttempt++
-        const delay = Math.min(1000 * Math.pow(2, retryAttempt - 1), 3000)
-        setTimeout(attemptHighlight, delay)
+        timeouts.push(setTimeout(() => {
+          if (!isCancelled) {
+            element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" })
+          }
+        }, 100))
+        timeouts.push(setTimeout(() => {
+          if (!isCancelled) {
+            element.classList.add("tutorial-highlight")
+          }
+        }, 300))
+        return
       }
+      
+      if (attempt >= maxAttempts) {
+        return
+      }
+      
+      const delay = Math.min(1000 * Math.pow(2, attempt), 3000)
+      timeouts.push(setTimeout(() => attemptHighlight(attempt + 1), delay))
     }
-
-    attemptHighlight()
-
+    
+    attemptHighlight(0)
+    
     return () => {
+      isCancelled = true
+      timeouts.forEach(timeout => clearTimeout(timeout))
       if (highlightedElement) {
         highlightedElement.classList.remove("tutorial-highlight")
       }
