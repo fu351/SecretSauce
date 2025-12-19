@@ -5,16 +5,36 @@ export const cookingPath: TutorialPath = {
   name: "Mastering the Craft",
   description: "Learn to cook with confidence",
   steps: [
-    {
-      id: 1,
-      title: "Your dashboard",
-      description: "Your home base for recipes, planning, and shopping shortcuts.",
-      page: "/dashboard",
-      action: "highlight",
+  {
+    id: 1,
+    title: "Your dashboard",
+    description: "This is your control center — everything starts here.",
+    page: "/dashboard",
+    action: "highlight",
+    estimatedSeconds: 25,
+    substeps: [
+        {
+          id: 1,
+          instruction: "These cards are shortcuts to your core tools.",
+          highlightSelector: "[data-tutorial='dashboard-stats']",
+          action: "highlight",
+        },
+        {
+          id: 2,
+          instruction: "Use quick actions to add recipes or plan meals fast.",
+          highlightSelector: "[data-tutorial='dashboard-actions']",
+          action: "highlight",
+        },
+        {
+          id: 3,
+          instruction: "Pick up where you left off with recent recipes.",
+          highlightSelector: "[data-tutorial='dashboard-recents']",
+          action: "highlight",
+        },
+      ],
       tips: [
-        "Jump into any section from the cards",
-        "The logo always returns you here",
-        "Your saved recipes and alerts live below",
+        "You can always return here by clicking the logo",
+        "Everything else in the app connects back to this page",
       ],
     },
     {

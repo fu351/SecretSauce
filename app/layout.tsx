@@ -51,7 +51,6 @@ export default function RootLayout({
               <AuthProvider>
                 <TutorialProvider>
                   <ThemeSync />
-                  {/* Removed TutorialBlocker component */}
                   <TutorialOverlay />
                   <FeedbackWidget position="bottom-left" />
                   <Header />

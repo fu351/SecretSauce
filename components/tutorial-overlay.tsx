@@ -9,82 +9,137 @@ import { X, Minus, ChevronUp, ChevronRight, ChevronLeft } from "lucide-react"
 import clsx from "clsx"
 
 export function TutorialOverlay() {
-  const { isActive, currentPath, currentStep, currentStepIndex, nextStep, prevStep, goToStep, skipTutorial } = useTutorial()
+  const {
+    isActive,
+    currentPath,
+    currentStep,
+    currentStepIndex,
+    currentSubstep,
+    currentSubstepIndex,
+    nextStep,
+    prevStep,
+    skipTutorial,
+  } = useTutorial()
+
   const { theme } = useTheme()
   const router = useRouter()
   const pathname = usePathname()
-  
+
   const [isMinimized, setIsMinimized] = useState(false)
   const [showSkipConfirmation, setShowSkipConfirmation] = useState(false)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
   const [isOverlayObstructing, setIsOverlayObstructing] = useState(false)
-  
+
   const overlayRef = useRef<HTMLDivElement>(null)
 
   const isDark = theme === "dark"
   const onCorrectPage = currentStep ? pathname === currentStep.page : false
+
+  /* ---------------------------------------------
+   * Highlight selector (SUBSTEP FIRST)
+   * --------------------------------------------*/
+  const activeHighlightSelector =
+    currentSubstep?.highlightSelector ?? currentStep?.highlightSelector
+
+  /* ---------------------------------------------
+   * Progress calculation (SUBSTEP-BASED)
+   * --------------------------------------------*/
+  const totalUnits = currentPath
+    ? currentPath.steps.reduce((sum, step) => sum + (step.substeps?.length || 1), 0)
+    : 1
+
+  const completedUnits = currentPath
+    ? currentPath.steps
+        .slice(0, currentStepIndex)
+        .reduce((sum, step) => sum + (step.substeps?.length || 1), 0) +
+      (currentSubstepIndex + 1)
+    : 0
+
+  const progress = (completedUnits / totalUnits) * 100
+
+  /* ---------------------------------------------
+   * Substep flags
+   * --------------------------------------------*/
   const hasSubsteps = currentStep?.substeps && currentStep.substeps.length > 0
-  
-  const currentSubstepIndex = 0
-  const progress = currentPath ? ((currentStepIndex + 1) / currentPath.steps.length) * 100 : 0
+  const isLastSubstep = !hasSubsteps || currentSubstepIndex === currentStep.substeps!.length - 1
+  const isLastStep = !!currentPath && currentStepIndex === currentPath.steps.length - 1
 
-  const getTargetLabel = (target?: string | null) => {
-    switch (target) {
-      case "/recipes": return "the Recipes page"
-      case "/meal-planner": return "the Meal Planner"
-      case "/shopping": return "the Shopping page"
-      case "/dashboard": return "your Dashboard"
-      default: return target || "the next section"
-    }
-  }
-
+  /* ---------------------------------------------
+   * Highlight positioning (NO AUTOSCROLL)
+   * --------------------------------------------*/
   const updateHighlightPosition = useCallback(() => {
-    const selector = currentStep?.highlightSelector
-    
-    if (!selector || !onCorrectPage) {
+    if (!activeHighlightSelector || !onCorrectPage) {
       setTargetRect(null)
       return
     }
 
-    const element = document.querySelector(selector)
-    if (element) {
-      const rect = element.getBoundingClientRect()
-      setTargetRect(rect)
-      
-      const isBottomRight = rect.bottom > window.innerHeight - 250 && rect.right > window.innerWidth - 350
-      setIsOverlayObstructing(isBottomRight)
-      
-      element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" })
-    } else {
+    const element = document.querySelector(activeHighlightSelector)
+    if (!element) {
       setTargetRect(null)
+      return
     }
-  }, [currentStep, onCorrectPage])
+
+    const rect = element.getBoundingClientRect()
+    setTargetRect(rect)
+
+    const isBottomRight =
+      rect.bottom > window.innerHeight - 250 &&
+      rect.right > window.innerWidth - 350
+
+    setIsOverlayObstructing(isBottomRight)
+  }, [activeHighlightSelector, onCorrectPage])
 
   useEffect(() => {
     updateHighlightPosition()
+
     window.addEventListener("resize", updateHighlightPosition)
     window.addEventListener("scroll", updateHighlightPosition)
+
     return () => {
       window.removeEventListener("resize", updateHighlightPosition)
       window.removeEventListener("scroll", updateHighlightPosition)
     }
-  }, [updateHighlightPosition, currentStepIndex, isMinimized])
+  }, [updateHighlightPosition, currentStepIndex, currentSubstepIndex, isMinimized])
 
   if (!isActive || !currentPath || !currentStep) return null
 
+  /* ---------------------------------------------
+   * Styling
+   * --------------------------------------------*/
   const cardBg = isDark ? "bg-[#181813]" : "bg-white"
   const cardBorder = isDark ? "border-[#e8dcc4]/30" : "border-gray-200"
   const cardText = isDark ? "text-[#e8dcc4]" : "text-gray-900"
   const mutedText = isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
 
+  /* ---------------------------------------------
+   * Helper
+   * --------------------------------------------*/
+  const getTargetLabel = (target?: string | null) => {
+    switch (target) {
+      case "/recipes":
+        return "the Recipes page"
+      case "/meal-planner":
+        return "the Meal Planner"
+      case "/shopping":
+        return "the Shopping page"
+      case "/dashboard":
+        return "your Dashboard"
+      default:
+        return target || "the next section"
+    }
+  }
+
   return (
     <>
+      {/* ---------- BACKDROP + HIGHLIGHT ---------- */}
       {!isMinimized && (
         targetRect ? (
-          <div 
+          <div
             className="fixed inset-0 z-40 pointer-events-none transition-all duration-500 ease-in-out"
             style={{
-              boxShadow: `0 0 0 9999px ${isDark ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.5)"}`, 
+              boxShadow: `0 0 0 9999px ${
+                isDark ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.5)"
+              }`,
               top: targetRect.top - 4,
               left: targetRect.left - 4,
               width: targetRect.width + 8,
@@ -96,46 +151,49 @@ export function TutorialOverlay() {
             <div className="absolute inset-0 border-2 border-blue-500/50 rounded-lg animate-pulse" />
           </div>
         ) : (
-          <div 
+          <div
             className={clsx(
               "fixed inset-0 z-40 pointer-events-none transition-opacity duration-500",
               isDark ? "bg-black/50" : "bg-black/20"
             )}
-            aria-hidden="true"
           />
         )
       )}
 
+      {/* ---------- OVERLAY CARD ---------- */}
       <div
         ref={overlayRef}
         className={clsx(
           "fixed z-50 transition-all duration-500 ease-in-out shadow-2xl rounded-xl border overflow-hidden",
-          cardBg, cardBorder, cardText,
+          cardBg,
+          cardBorder,
+          cardText,
           isOverlayObstructing ? "bottom-6 left-6" : "bottom-6 right-6",
           isMinimized ? "w-auto" : "w-[380px]"
         )}
       >
         {!isMinimized && (
           <div className="h-1 w-full bg-gray-200 dark:bg-gray-800">
-            <div 
-              className="h-full bg-blue-500 transition-all duration-300" 
-              style={{ width: `${progress}%` }} 
+            <div
+              className="h-full bg-blue-500 transition-all duration-300"
+              style={{ width: `${progress}%` }}
             />
           </div>
         )}
 
+        {/* ---------- HEADER ---------- */}
         <div className="flex items-center justify-between p-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-              {currentStepIndex + 1}
+              {currentStepIndex + 1}.{currentSubstepIndex + 1}
             </div>
-            
+
             {isMinimized ? (
-               <span className="text-sm font-medium">Tutorial paused</span>
+              <span className="text-sm font-medium">Tutorial paused</span>
             ) : (
-               <span className={clsx("text-xs font-semibold tracking-widest uppercase", mutedText)}>
-                 {currentPath.name}
-               </span>
+              <span className={clsx("text-xs font-semibold tracking-widest uppercase", mutedText)}>
+                {currentPath.name}
+              </span>
             )}
           </div>
 
@@ -149,6 +207,7 @@ export function TutorialOverlay() {
             >
               {isMinimized ? <ChevronUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
             </Button>
+
             {!isMinimized && (
               <Button
                 variant="ghost"
@@ -163,11 +222,13 @@ export function TutorialOverlay() {
           </div>
         </div>
 
+        {/* ---------- BODY ---------- */}
         {!isMinimized && (
           <div className="px-5 pb-5 pt-1">
             <h3 className="text-lg font-bold mb-2">{currentStep.title}</h3>
+
             <p className={clsx("text-sm leading-relaxed mb-4", mutedText)}>
-              {currentStep.description}
+              {currentSubstep?.instruction ?? currentStep.description}
             </p>
 
             {!onCorrectPage ? (
@@ -183,31 +244,44 @@ export function TutorialOverlay() {
                   Go to {getTargetLabel(currentStep.page)}
                 </Button>
               </div>
-            ) : currentStep.tips && (
-              <div className={clsx("text-xs space-y-1.5 mb-5 pl-2 border-l-2", isDark ? "border-blue-500/30" : "border-blue-200")}>
+            ) : currentStep.tips && !currentSubstep && (
+              <div
+                className={clsx(
+                  "text-xs space-y-1.5 mb-5 pl-2 border-l-2",
+                  isDark ? "border-blue-500/30" : "border-blue-200"
+                )}
+              >
                 {currentStep.tips.map((tip, i) => (
-                  <p key={i} className={mutedText}>{tip}</p>
+                  <p key={i} className={mutedText}>
+                    {tip}
+                  </p>
                 ))}
               </div>
             )}
 
+            {/* ---------- FOOTER ---------- */}
             <div className="flex items-center justify-between mt-2 pt-4 border-t border-gray-100 dark:border-gray-800">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={prevStep}
-                disabled={currentStepIndex === 0}
+                disabled={currentStepIndex === 0 && currentSubstepIndex === 0}
                 className="text-xs text-gray-500"
               >
-                <ChevronLeft className="w-3 h-3 mr-1" /> Back
+                <ChevronLeft className="w-3 h-3 mr-1" />
+                Back
               </Button>
-              
+
               <Button
                 size="sm"
                 onClick={nextStep}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6"
               >
-                {currentStepIndex === currentPath.steps.length - 1 ? "Finish" : "Next"}
+                {isLastStep && isLastSubstep
+                  ? "Finish"
+                  : isLastSubstep
+                  ? "Next section"
+                  : "Next highlight"}
                 <ChevronRight className="w-3 h-3 ml-1" />
               </Button>
             </div>
@@ -215,19 +289,24 @@ export function TutorialOverlay() {
         )}
       </div>
 
+      {/* ---------- SKIP CONFIRMATION ---------- */}
       {showSkipConfirmation && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in" 
-            onClick={() => setShowSkipConfirmation(false)} 
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSkipConfirmation(false)}
           />
           <div
             className={clsx(
-              "relative rounded-xl shadow-2xl p-6 max-w-sm w-full animate-in zoom-in-95 duration-200",
-              cardBg, cardBorder, "border"
+              "relative rounded-xl shadow-2xl p-6 max-w-sm w-full",
+              cardBg,
+              cardBorder,
+              "border"
             )}
           >
-            <h2 className={clsx("text-lg font-bold mb-2", cardText)}>End tutorial?</h2>
+            <h2 className={clsx("text-lg font-bold mb-2", cardText)}>
+              End tutorial?
+            </h2>
             <p className={clsx("text-sm mb-6", mutedText)}>
               You can always restart it later from your dashboard settings.
             </p>

@@ -12,6 +12,7 @@ import { format, startOfWeek } from "date-fns"
 import { RecipeCard } from "@/components/recipe-card"
 
 // Tutorial Components
+// Removed TutorialBlocker as it is now handled by the Overlay
 import { TutorialOverlay } from "@/components/tutorial-overlay"
 import { TutorialSelectionModal } from "@/components/tutorial-selection-modal"
 import { useTutorial } from "@/contexts/tutorial-context"
@@ -139,7 +140,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* Tutorial Components */}
+      {/* Tutorial Components: Overlay now handles the "Blocker" effect */}
       <TutorialOverlay />
       <TutorialSelectionModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
 
@@ -226,7 +227,7 @@ export default function DashboardPage() {
           )}
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8"   data-tutorial="dashboard-stats">
             <Link href="/your-recipes" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-6">
@@ -241,7 +242,7 @@ export default function DashboardPage() {
             </Link>
 
             <Link href="/favorites" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card" data-tutorial="dashboard-actions">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <Heart className="h-8 w-8 text-red-500" />
@@ -254,7 +255,7 @@ export default function DashboardPage() {
             </Link>
 
             <Link href="/meal-planner" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card" data-tutorial="dashboard-recents">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <Calendar className="h-8 w-8 text-blue-500" />
