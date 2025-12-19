@@ -1,0 +1,19 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Database
+supabase==2.3.4
+
+# Recipe scraping
+recipe-scrapers==15.4.0
+httpx==0.25.2
+beautifulsoup4==4.12.3
+
+# Instagram scraping
+instaloader==4.13.1
+
+# AI/OpenAI integration
+openai==1.54.0
+
+# Image processing (for OCR fallback if needed)
+Pillow==10.4.0

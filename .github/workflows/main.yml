@@ -1,0 +1,41 @@
+name: Bump on Richard push
+
+on:
+  push:
+    branches: [ main ]  # adjust if needed
+  workflow_dispatch: {}
+
+concurrency:
+  group: bump-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bump:
+    if: github.actor == 'Richard7840'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Make a harmless change
+        run: |
+          mkdir -p .github
+          echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) bump from ${GITHUB_ACTOR}" >> .github/ci-bump.log
+
+      - name: Commit and push as fu351
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          git config user.name "fu351"
+          git config user.email "fu351@users.noreply.github.com"
+          git add .github/ci-bump.log
+          git commit -m "ci: bump after push by ${GITHUB_ACTOR}" || exit 0
+          git push "https://$GH_PAT@github.com/$REPO" "HEAD:${{ github.ref_name }}"

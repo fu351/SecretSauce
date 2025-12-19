@@ -1,0 +1,65 @@
+name: Daily Ingredient Scraper
+
+on:
+  schedule:
+    # Run at 4 AM PST every day (12 PM UTC)
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+    # Allow manual triggering from GitHub UI
+    inputs:
+      zip_code:
+        description: 'Zip code for scraping (default: 94704)'
+        required: false
+        default: '94704'
+
+jobs:
+  scrape-ingredients:
+    name: Scrape Ingredient Prices
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # Fail if takes longer than 30 minutes
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Daily Scraper
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_URL || 'https://the-secret-sauce.vercel.app' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ZIP_CODE: ${{ github.event.inputs.zip_code || '94704' }}
+        run: |
+          echo "🚀 Starting Daily Ingredient Scraper"
+          echo "Vercel URL: $VERCEL_URL"
+          echo "Zip Code: $ZIP_CODE"
+          echo "Strategy: Scraping ALL canonical ingredients"
+          echo ""
+          node scripts/daily-scraper.js
+
+      - name: Report Success
+        if: success()
+        run: |
+          echo "✅ Daily scraper completed successfully!"
+          echo "Check the logs above for detailed statistics."
+
+      - name: Report Failure
+        if: failure()
+        run: |
+          echo "❌ Daily scraper failed!"
+          echo "Check the logs above for error details."
+          exit 1
+
+      - name: Upload Logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-failure-logs
+          path: |
+            ${{ github.workspace }}/*.log
+          retention-days: 7
