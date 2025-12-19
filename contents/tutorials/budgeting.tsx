@@ -61,7 +61,7 @@ export const budgetingPath: TutorialPath = {
       title: "Plan to save",
       description: "Add recipes to your meal plan (highlighted button) to avoid impulse purchases.",
       page: "/meal-planner",
-      highlightSelector: "[data-tutorial='meal-plan-add']",
+      highlightSelector: "[data-tutorial='planner-add']",
       action: "highlight",
       tips: [
         "Choose recipes that share ingredients",

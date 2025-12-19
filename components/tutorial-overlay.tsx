@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
@@ -65,43 +65,116 @@ export function TutorialOverlay() {
   const isLastStep = !!currentPath && currentStepIndex === currentPath.steps.length - 1
 
   /* ---------------------------------------------
-   * Highlight positioning (NO AUTOSCROLL)
-   * --------------------------------------------*/
-  const updateHighlightPosition = useCallback(() => {
-    if (!activeHighlightSelector || !onCorrectPage) {
-      setTargetRect(null)
-      return
+ * Highlight positioning & Auto-scroll
+ * --------------------------------------------*/
+
+// 1. SSR-Safe Hook: Prevents "useLayoutEffect does not do anything on the server" warning
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+// 2. Ref to store the active animation frame ID so we can cancel it
+const rafRef = useRef(null);
+
+// Helper to get rect (used for resize/scroll updates)
+const getRect = useCallback(() => {
+  if (!activeHighlightSelector) return null;
+  const element = document.querySelector(activeHighlightSelector);
+  return element ? element.getBoundingClientRect() : null;
+}, [activeHighlightSelector]);
+
+// Main function: Hides highlight, scrolls, waits for stop, then shows highlight
+const scrollToAndHighlight = useCallback(() => {
+  // Cancel any existing loops to prevent conflicts
+  if (rafRef.current) {
+    cancelAnimationFrame(rafRef.current);
+  }
+
+  // Safety checks
+  if (!activeHighlightSelector || !onCorrectPage) {
+    setTargetRect(null);
+    return;
+  }
+
+  const element = document.querySelector(activeHighlightSelector);
+  if (!element) {
+    setTargetRect(null);
+    return;
+  }
+
+  // A. HIDE the highlight immediately (cleaner UX during scroll)
+  setTargetRect(null);
+
+  // B. Start Smooth Scroll to CENTER
+  element.scrollIntoView({
+    behavior: "smooth",
+    block: "center",
+    inline: "nearest"
+  });
+
+  // C. Wait for Scroll to Finish
+  let lastTop = null;
+  let stableFrames = 0;
+
+  const waitForScrollStop = () => {
+    const rect = element.getBoundingClientRect();
+
+    // Check stability
+    if (rect.top === lastTop) {
+      stableFrames++;
+    } else {
+      stableFrames = 0;
+      lastTop = rect.top;
     }
 
-    const element = document.querySelector(activeHighlightSelector)
-    if (!element) {
-      setTargetRect(null)
-      return
+    // Threshold: 5 frames (~80ms of stillness) means scroll is done
+    if (stableFrames > 5) {
+      // D. SHOW the highlight now that we are steady
+      setTargetRect(rect);
+      
+      // Update obstruction logic
+      const isBottomRight =
+        rect.bottom > window.innerHeight - 250 &&
+        rect.right > window.innerWidth - 350;
+      
+      setIsOverlayObstructing(isBottomRight);
+      
+      rafRef.current = null;
+      return;
     }
 
-    const rect = element.getBoundingClientRect()
-    setTargetRect(rect)
+    // Keep checking
+    rafRef.current = requestAnimationFrame(waitForScrollStop);
+  };
 
-    const isBottomRight =
-      rect.bottom > window.innerHeight - 250 &&
-      rect.right > window.innerWidth - 350
+  // Start the check loop
+  rafRef.current = requestAnimationFrame(waitForScrollStop);
 
-    setIsOverlayObstructing(isBottomRight)
-  }, [activeHighlightSelector, onCorrectPage])
+}, [activeHighlightSelector, onCorrectPage]);
 
-  useEffect(() => {
-    updateHighlightPosition()
 
-    window.addEventListener("resize", updateHighlightPosition)
-    window.addEventListener("scroll", updateHighlightPosition)
+// 3. Effect to trigger the logic
+useIsomorphicLayoutEffect(() => {
+  scrollToAndHighlight();
 
-    return () => {
-      window.removeEventListener("resize", updateHighlightPosition)
-      window.removeEventListener("scroll", updateHighlightPosition)
-    }
-  }, [updateHighlightPosition, currentStepIndex, currentSubstepIndex, isMinimized])
+  // Standard listener to keep box attached during manual resize/scroll
+  const handleResizeOrScroll = () => {
+    // KEY FIX: Use RAF to ensure we read the rect AFTER the browser has painted
+    requestAnimationFrame(() => {
+      const rect = getRect();
+      if (rect) setTargetRect(rect);
+    });
+  };
 
-  if (!isActive || !currentPath || !currentStep) return null
+  window.addEventListener("resize", handleResizeOrScroll);
+  window.addEventListener("scroll", handleResizeOrScroll, { capture: true, passive: true });
+
+  return () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    window.removeEventListener("resize", handleResizeOrScroll);
+    window.removeEventListener("scroll", handleResizeOrScroll);
+  };
+}, [scrollToAndHighlight, getRect, currentStepIndex, currentSubstepIndex, isMinimized]);
+
+if (!isActive || !currentPath || !currentStep) return null;
 
   /* ---------------------------------------------
    * Styling
@@ -110,24 +183,6 @@ export function TutorialOverlay() {
   const cardBorder = isDark ? "border-[#e8dcc4]/30" : "border-gray-200"
   const cardText = isDark ? "text-[#e8dcc4]" : "text-gray-900"
   const mutedText = isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
-
-  /* ---------------------------------------------
-   * Helper
-   * --------------------------------------------*/
-  const getTargetLabel = (target?: string | null) => {
-    switch (target) {
-      case "/recipes":
-        return "the Recipes page"
-      case "/meal-planner":
-        return "the Meal Planner"
-      case "/shopping":
-        return "the Shopping page"
-      case "/dashboard":
-        return "your Dashboard"
-      default:
-        return target || "the next section"
-    }
-  }
 
   return (
     <>
@@ -230,34 +285,6 @@ export function TutorialOverlay() {
             <p className={clsx("text-sm leading-relaxed mb-4", mutedText)}>
               {currentSubstep?.instruction ?? currentStep.description}
             </p>
-
-            {!onCorrectPage ? (
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/50 rounded-lg p-3 mb-4">
-                <p className="text-xs text-amber-800 dark:text-amber-200 mb-2 font-medium">
-                  This step is on another page:
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => router.push(currentStep.page)}
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white border-none"
-                >
-                  Go to {getTargetLabel(currentStep.page)}
-                </Button>
-              </div>
-            ) : currentStep.tips && !currentSubstep && (
-              <div
-                className={clsx(
-                  "text-xs space-y-1.5 mb-5 pl-2 border-l-2",
-                  isDark ? "border-blue-500/30" : "border-blue-200"
-                )}
-              >
-                {currentStep.tips.map((tip, i) => (
-                  <p key={i} className={mutedText}>
-                    {tip}
-                  </p>
-                ))}
-              </div>
-            )}
 
             {/* ---------- FOOTER ---------- */}
             <div className="flex items-center justify-between mt-2 pt-4 border-t border-gray-100 dark:border-gray-800">

@@ -14,6 +14,7 @@ export interface Recipe {
   cuisine: string
   image_url: string
   dietary_tags: string[]
+  dietary_flags: any
   ingredients: any[]
   instructions: string[]
   author_id: string

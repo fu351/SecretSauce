@@ -230,10 +230,12 @@ export default function RecipesPage() {
             </div>
           </div>
 
+          {/*Search Bar*/}
           <div className="relative flex gap-2 items-center mb-8">
             <div className="relative flex-1 max-w-2xl">
               <Search
                 className={`absolute left-4 top-1/2 transform -translate-y-1/2 ${theme === "dark" ? "text-[#e8dcc4]/40" : "text-gray-400"} h-5 w-5`}
+                data-tutorial="recipe-search"
               />
               <Input
                 placeholder="Search recipes by name, ingredient, or cuisine..."
@@ -278,6 +280,7 @@ export default function RecipesPage() {
           </div>
         </div>
 
+        {/*Search filter*/}
         <Card className={`mb-8 ${cardBgClass} backdrop-blur-sm border-0 shadow-lg`} data-tutorial="recipe-filter">
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -379,7 +382,8 @@ export default function RecipesPage() {
             Showing {filteredRecipes.length} of {recipes.length} recipes
           </p>
         </div>
-
+        
+        {/*dev*/}
         {filteredRecipes.length === 0 ? (
           <div className="space-y-6">
             {recipes.length === 0 && <DatabaseSetupNotice />}
@@ -418,6 +422,10 @@ export default function RecipesPage() {
             {filteredRecipes.map((recipe: Recipe, idx: number) => (
               <div
                 key={recipe.id}
+                // --- FIX 1: Add ID and h-full here ---
+                id={idx === 0 ? "tutorial-recipe-card" : undefined}
+                className="relative h-full"
+                // -------------------------------------
                 data-tutorial={idx === 0 ? "recipe-card" : undefined}
                 role="link"
                 tabIndex={0}
@@ -437,7 +445,6 @@ export default function RecipesPage() {
                     router.push(`/recipes/${recipe.id}`)
                   }
                 }}
-                className="relative"
               >
                 <RecipeCard
                   id={recipe.id}
@@ -464,8 +471,13 @@ export default function RecipesPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {filteredRecipes.map((recipe: Recipe) => (
-              <div key={recipe.id} className="relative">
+            {/* --- FIX 2: Add idx to params and ID to wrapper --- */}
+            {filteredRecipes.map((recipe: Recipe, idx: number) => (
+              <div 
+                key={recipe.id} 
+                className="relative"
+                id={idx === 0 ? "tutorial-recipe-card" : undefined}
+              >
                 <Link
                   href={`/recipes/${recipe.id}`}
                   onClick={(e) => {

@@ -22,7 +22,7 @@ export const healthPath: TutorialPath = {
       title: "Build balanced meal plans",
       description: "Use the highlighted button to add nutritious recipes to your weekly schedule.",
       page: "/meal-planner",
-      highlightSelector: "[data-tutorial='meal-plan-add']",
+      highlightSelector: "[data-tutorial='planner-add']",
       action: "highlight",
       tips: [
         "Include protein, vegetables, and whole grains each day",

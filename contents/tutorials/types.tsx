@@ -2,7 +2,7 @@ export interface TutorialSubstep {
   id: number
   instruction: string
   highlightSelector?: string
-  action?: "explore" | "click" | "navigate" | "highlight"
+  action?: "explore" | "click" | "navigate" | "highlight" | "search"
   actionTarget?: string
 }
 

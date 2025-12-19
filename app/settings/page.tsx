@@ -562,7 +562,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
+        <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`} data-tutorial="settings-preferences">
           <CardHeader>
             <div className="flex items-center gap-3">
               <Utensils className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
@@ -841,60 +841,64 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
-        {/* Learning & Tutorials */}
-        <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <BookOpen className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
-              <div>
-                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Learning & Tutorials</CardTitle>
-                <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                  Rewatch your onboarding tutorial anytime
-                </CardDescription>
+        {/* Learning & Tutorials - Only appears if tutorial is completed */}
+        {tutorialCompleted && (
+          <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <BookOpen className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
+                <div>
+                  <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>
+                    Learning & Tutorials
+                  </CardTitle>
+                  <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
+                    Rewatch your onboarding tutorial anytime
+                  </CardDescription>
+                </div>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {tutorialCompleted && tutorialPath && (
-                <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
-                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
-                    <span className="font-medium">Last completed:</span> {tutorialPath === "cooking" ? "Mastering the Craft" : tutorialPath === "budgeting" ? "Optimize Resources" : "Elevate Your Journey"}
-                  </p>
-                  {tutorialCompletedAt && (
-                    <p className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
-                      {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Completion Stats */}
+                {tutorialPath && (
+                  <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
+                    <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
+                      <span className="font-medium">Last completed:</span>{" "}
+                      {tutorialPath === "cooking"
+                        ? "Mastering the Craft"
+                        : tutorialPath === "budgeting"
+                        ? "Optimize Resources"
+                        : "Elevate Your Journey"}
                     </p>
-                  )}
-                </div>
-              )}
+                    {tutorialCompletedAt && (
+                      <p className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
+                        {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )}
 
-              {!tutorialCompleted && (
-                <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-blue-50 border border-blue-200"}`}>
-                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
-                    You haven't completed the tutorial yet. Start it anytime to learn how to use Secret Sauce!
-                  </p>
-                </div>
-              )}
-
-              <Button
-                onClick={handleRewatchTutorial}
-                disabled={rewatchLoading}
-                className={`w-full ${
-                  isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4] border border-[#e8dcc4]/30 hover:bg-[#e8dcc4]/20" : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
-                }`}
-                variant="outline"
-              >
-                {rewatchLoading ? "Loading..." : tutorialCompleted ? "Rewatch Tutorial" : "Start Tutorial"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
+                {/* Action Button */}
+                <Button
+                  onClick={handleRewatchTutorial}
+                  disabled={rewatchLoading}
+                  className={`w-full ${
+                    isDark
+                      ? "bg-[#e8dcc4]/10 text-[#e8dcc4] border border-[#e8dcc4]/30 hover:bg-[#e8dcc4]/20"
+                      : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                  }`}
+                  variant="outline"
+                >
+                  {rewatchLoading ? "Loading..." : "Rewatch Tutorial"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {/* Profile Settings */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
           <CardHeader>

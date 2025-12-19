@@ -801,6 +801,7 @@ export default function MealPlannerPage() {
                     className="!bg-gradient-to-r !from-purple-600 !to-blue-600 !text-white hover:!from-purple-700 hover:!to-blue-700 shadow-sm shrink-0"
                     onClick={generateAiWeeklyPlan}
                     disabled={aiPlannerLoading}
+                    data-tutorial= "planner-ai"
                   >
                     {aiPlannerLoading ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -816,7 +817,7 @@ export default function MealPlannerPage() {
                       // Navigate to shopping page with expanded list
                       router.push("/shopping?expandList=true")
                     }}
-                    data-tutorial="meal-plan-add"
+                    data-tutorial="planner-add"
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />
                     {isMobile ? "Add to Cart" : "Add to Shopping List"}

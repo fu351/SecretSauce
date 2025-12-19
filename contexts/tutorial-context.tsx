@@ -107,27 +107,68 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
     const substeps = currentStep.substeps ?? []
 
+    // 1. Advance Substep (Stay on same page)
+    // We check if we are NOT at the last substep yet.
     if (currentSubstepIndex < substeps.length - 1) {
       setCurrentSubstepIndex(prev => prev + 1)
-    } else if (currentStepIndex < currentPath.steps.length - 1) {
-      setCurrentStepIndex(prev => prev + 1)
-      setCurrentSubstepIndex(0)
+      return
+    } 
+    
+    // 2. Advance Main Step (Check for PAGE change)
+    // If we are at the end of substeps, we look for the next main Step.
+    if (currentStepIndex < currentPath.steps.length - 1) {
+      const nextIndex = currentStepIndex + 1
+      const nextStepData = currentPath.steps[nextIndex]
+
+      // AUTOLOAD: Check the 'page' property from your interface
+      // We normalize strings to ensure slight formatting differences don't break it
+      const targetPage = nextStepData.page.toLowerCase()
+      const currentPage = window.location.pathname.toLowerCase()
+
+      if (targetPage && targetPage !== currentPage) {
+        router.push(nextStepData.page)
+      }
+
+      // Update state to the new Step, starting at the first Substep
+      setCurrentStepIndex(nextIndex)
+      setCurrentSubstepIndex(0) 
     } else {
+      // 3. No more steps or substeps = Tutorial Complete
       completeTutorial()
     }
-  }, [currentStep, currentPath, currentSubstepIndex, currentStepIndex, completeTutorial])
+  }, [currentStep, currentPath, currentSubstepIndex, currentStepIndex, completeTutorial, router])
 
   const prevStep = useCallback(() => {
     if (!currentStep || !currentPath) return
 
+    // 1. Go back a Substep (Stay on same page)
     if (currentSubstepIndex > 0) {
       setCurrentSubstepIndex(prev => prev - 1)
-    } else if (currentStepIndex > 0) {
-      const prevStep = currentPath.steps[currentStepIndex - 1]
-      setCurrentStepIndex(prev => prev - 1)
-      setCurrentSubstepIndex((prevStep.substeps?.length ?? 1) - 1)
+      return
+    } 
+    
+    // 2. Go back a Main Step (Check for PAGE change)
+    if (currentStepIndex > 0) {
+      const prevIndex = currentStepIndex - 1
+      const prevStepData = currentPath.steps[prevIndex]
+
+      // AUTOLOAD: Check if the previous step requires a page change
+      const targetPage = prevStepData.page.toLowerCase()
+      const currentPage = window.location.pathname.toLowerCase()
+
+      if (targetPage && targetPage !== currentPage) {
+        router.push(prevStepData.page)
+      }
+
+      setCurrentStepIndex(prevIndex)
+      
+      // UX Detail: When going BACK to a previous Step, we usually want to 
+      // land on the LAST substep of that page, so the user feels like 
+      // they are "rewinding" linearly.
+      const lastSubstepIndex = (prevStepData.substeps?.length ?? 1) - 1
+      setCurrentSubstepIndex(lastSubstepIndex)
     }
-  }, [currentStepIndex, currentSubstepIndex, currentPath, currentStep])
+  }, [currentStepIndex, currentSubstepIndex, currentPath, currentStep, router])
 
   const goToStep = useCallback((stepIndex: number) => {
     if (currentPath && stepIndex >= 0 && stepIndex < currentPath.steps.length) {
