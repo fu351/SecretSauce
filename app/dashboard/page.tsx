@@ -11,8 +11,7 @@ import Link from "next/link"
 import { format, startOfWeek } from "date-fns"
 import { RecipeCard } from "@/components/recipe-card"
 
-// Import existing tutorial components
-import { TutorialBlocker } from "@/components/tutorial-blocker"
+// Tutorial Components
 import { TutorialOverlay } from "@/components/tutorial-overlay"
 import { TutorialSelectionModal } from "@/components/tutorial-selection-modal"
 import { useTutorial } from "@/contexts/tutorial-context"
@@ -141,7 +140,6 @@ export default function DashboardPage() {
   return (
     <>
       {/* Tutorial Components */}
-      <TutorialBlocker />
       <TutorialOverlay />
       <TutorialSelectionModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
 

@@ -13,7 +13,7 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { ThemeSync } from "@/components/theme-sync"
 import { TutorialProvider } from "@/contexts/tutorial-context"
 import { TutorialOverlay } from "@/components/tutorial-overlay"
-import { TutorialBlocker } from "@/components/tutorial-blocker"
+// Removed TutorialBlocker import
 import { FeedbackWidget } from "@/components/feedback-widget"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
@@ -51,7 +51,7 @@ export default function RootLayout({
               <AuthProvider>
                 <TutorialProvider>
                   <ThemeSync />
-                  <TutorialBlocker />
+                  {/* Removed TutorialBlocker component */}
                   <TutorialOverlay />
                   <FeedbackWidget position="bottom-left" />
                   <Header />
