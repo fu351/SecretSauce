@@ -35,6 +35,7 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  console.log("--- LAYOUT STARTING ---")
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>

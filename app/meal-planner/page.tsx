@@ -861,6 +861,7 @@ export default function MealPlannerPage() {
                 </div>
                 <div
                   id="weekly-summary-panel"
+                  data-tutorial= "planner-weekly"
                   className={`transition-[max-height,margin-top] duration-300 ease-out overflow-hidden ${
                     weeklySummaryPinnedOpen ? "max-h-40 mt-2" : "max-h-0 mt-0 pointer-events-none"
                   }`}
@@ -1138,6 +1139,7 @@ export default function MealPlannerPage() {
       >
         {!isMobile && (
           <button
+            data-tutorial= "planner-sidebar"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className={`absolute -left-8 top-4 ${
               isDark

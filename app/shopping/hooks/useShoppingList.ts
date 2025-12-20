@@ -4,55 +4,51 @@ import { useState, useEffect, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { ShoppingListItem } from "../components/store-types"
 
-export interface ShoppingListItem {
-  id: string
-  name: string
-  quantity: number
-  unit?: string
-  recipeId?: string
-  recipeName?: string
-}
-
-export interface GroceryItem {
-  id: string
-  title: string
-  brand?: string
-  price: number
-  image_url?: string
-  unit?: string
-  pricePerUnit?: string
-  shoppingItemId?: string
-}
-
-/**
- * Hook for managing shopping list state and operations
- * Handles loading, saving, and updating items in the shopping list
- */
 export function useShoppingList() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([])
+  
+  const [items, setItems] = useState<ShoppingListItem[]>([])
   const [loading, setLoading] = useState(false)
 
-  // Load shopping list from Supabase
+  // --- Helpers ---
+  const mapFromDb = (dbItem: any): ShoppingListItem => ({
+    id: dbItem.id,
+    name: dbItem.name,
+    quantity: dbItem.quantity,
+    unit: dbItem.unit || "piece",
+    checked: dbItem.checked || false,
+    recipeId: dbItem.recipe_id,
+    recipeName: dbItem.recipe_name,
+  })
+
+  // --- CRUD Operations ---
+
   const loadShoppingList = useCallback(async () => {
-    if (!user) return
+    if (!user) {
+      setItems([])
+      return
+    }
+
     setLoading(true)
     try {
       const { data, error } = await supabase
         .from("shopping_lists")
         .select("*")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
+        // Ensure you have a consistent sort order, otherwise items jump around
+        .order("created_at", { ascending: true }) 
 
       if (error) throw error
-      setShoppingList(data || [])
+      
+      setItems((data || []).map(mapFromDb))
     } catch (error) {
-      console.error("Error loading shopping list:", error)
+      console.error("Error loading list:", error)
       toast({
-        title: "Failed to load shopping list",
-        description: "Please try refreshing the page",
+        title: "Error",
+        description: "Could not load your shopping list.",
         variant: "destructive",
       })
     } finally {
@@ -60,96 +56,179 @@ export function useShoppingList() {
     }
   }, [user, toast])
 
-  // Save shopping list to Supabase
-  const saveShoppingList = useCallback(
-    async (items: ShoppingListItem[]) => {
-      if (!user) return
-      try {
-        // Delete existing items and insert new ones
-        await supabase.from("shopping_lists").delete().eq("user_id", user.id)
+// inside hooks/useShoppingList.ts
 
-        if (items.length > 0) {
-          const itemsToInsert = items.map((item) => ({
-            user_id: user.id,
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit || null,
-            recipe_id: item.recipeId || null,
-            recipe_name: item.recipeName || null,
-          }))
+  // Change the return type signature of addItem
+  const addItem = useCallback(async (name: string, quantity = 1, unit = "piece") => {
+      if (!user) return null // Return null if no user
 
-          await supabase.from("shopping_lists").insert(itemsToInsert)
-        }
-
-        setShoppingList(items)
-      } catch (error) {
-        console.error("Error saving shopping list:", error)
-        toast({
-          title: "Failed to save shopping list",
-          variant: "destructive",
-        })
-      }
-    },
-    [user, toast]
-  )
-
-  // Add item to shopping list
-  const addToShoppingList = useCallback(
-    (item: GroceryItem) => {
+      const tempId = `temp-${Date.now()}`
       const newItem: ShoppingListItem = {
-        id: `${Date.now()}-${Math.random()}`,
-        name: item.title,
-        quantity: 1,
-        unit: item.unit,
+        id: tempId,
+        name,
+        quantity,
+        unit,
+        checked: false
       }
 
-      const updatedList = [...shoppingList, newItem]
-      setShoppingList(updatedList)
-      saveShoppingList(updatedList)
+      setItems(prev => [...prev, newItem])
 
-      toast({
-        title: "Item added",
-        description: `${item.title} added to your shopping list.`,
+      try {
+        const { data, error } = await supabase
+          .from("shopping_lists")
+          .insert({
+            user_id: user.id,
+            name,
+            quantity,
+            unit,
+            checked: false
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        setItems(prev => prev.map(item => item.id === tempId ? mapFromDb(data) : item))
+        toast({ title: "Added", description: `${name} added to list.` })
+        
+        // RETURN THE DATA (or the temp item if data isn't ready yet, but usually data is ready)
+        return mapFromDb(data) 
+
+      } catch (error) {
+        setItems(prev => prev.filter(item => item.id !== tempId))
+        console.error("Add failed:", error)
+        toast({ title: "Error", description: "Failed to save item.", variant: "destructive" })
+        return null
+      }
+    }, [user, toast])
+
+  const updateQuantity = useCallback(async (id: string, delta: number) => {
+    // Check current state before modifying
+    const currentItem = items.find(i => i.id === id)
+    if (!currentItem) return
+    
+    const newQuantity = Math.max(1, currentItem.quantity + delta)
+
+    // Optimistic
+    setItems(prev => prev.map(item => 
+      item.id === id ? { ...item, quantity: newQuantity } : item
+    ))
+
+    try {
+      const { error } = await supabase
+        .from("shopping_lists")
+        .update({ quantity: newQuantity })
+        .eq("id", id)
+
+      if (error) throw error
+    } catch (error) {
+      // Revert logic (simplified)
+      setItems(prev => prev.map(item => 
+        item.id === id ? { ...item, quantity: currentItem.quantity } : item
+      ))
+      console.error("Update quantity failed:", error)
+    }
+  }, [items])
+
+  const toggleChecked = useCallback(async (id: string) => {
+    const item = items.find(i => i.id === id)
+    if (!item) return
+    
+    const newValue = !item.checked
+
+    // Optimistic
+    setItems(prev => prev.map(i => i.id === id ? { ...i, checked: newValue } : i))
+
+    try {
+      const { error } = await supabase
+        .from("shopping_lists")
+        .update({ checked: newValue })
+        .eq("id", id)
+      
+      if (error) throw error
+    } catch (error) {
+      // Revert
+      setItems(prev => prev.map(i => i.id === id ? { ...i, checked: !newValue } : i))
+      console.error("Toggle failed", error)
+    }
+  }, [items])
+
+  const removeItem = useCallback(async (id: string) => {
+    const backup = items.find(i => i.id === id)
+    setItems(prev => prev.filter(item => item.id !== id))
+
+    try {
+      const { error } = await supabase
+        .from("shopping_lists")
+        .delete()
+        .eq("id", id)
+      
+      if (error) throw error
+    } catch (error) {
+      if (backup) setItems(prev => [...prev, backup])
+      toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" })
+    }
+  }, [items, toast])
+
+  const addRecipeIngredients = useCallback(async (recipeId: string, ingredients: any[]) => {
+    if (!user) return
+
+    const rows = ingredients.map(ing => ({
+      user_id: user.id,
+      name: ing.name,
+      quantity: Number(ing.amount) || 1,
+      unit: ing.unit || "piece",
+      recipe_id: recipeId,
+    }))
+
+    // Optimistic setup
+    const tempItems = rows.map((r, i) => ({
+      id: `temp-recipe-${Date.now()}-${i}`,
+      name: r.name,
+      quantity: r.quantity,
+      unit: r.unit,
+      checked: false,
+      recipeId: r.recipe_id
+    }))
+    
+    setItems(prev => [...prev, ...tempItems])
+
+    try {
+      const { data, error } = await supabase
+        .from("shopping_lists")
+        .insert(rows)
+        .select()
+      
+      if (error) throw error
+
+      const newRealItems = (data || []).map(mapFromDb)
+      
+      // Smart merge: Remove temps, add reals
+      setItems(prev => {
+        // Filter out the specific temps we just added
+        const withoutTemps = prev.filter(p => !tempItems.some(t => t.id === p.id))
+        return [...withoutTemps, ...newRealItems]
       })
-    },
-    [shoppingList, saveShoppingList, toast]
-  )
 
-  // Remove item from shopping list
-  const removeFromShoppingList = useCallback(
-    (itemId: string) => {
-      const updatedList = shoppingList.filter((item) => item.id !== itemId)
-      setShoppingList(updatedList)
-      saveShoppingList(updatedList)
-    },
-    [shoppingList, saveShoppingList]
-  )
+      toast({ title: "Recipe Added", description: "Ingredients added to your list." })
+    } catch (error) {
+      setItems(prev => prev.filter(p => !tempItems.some(t => t.id === p.id)))
+      toast({ title: "Error", description: "Failed to add recipe.", variant: "destructive" })
+    }
+  }, [user, toast])
 
-  // Update item quantity
-  const updateItemQuantity = useCallback(
-    (itemId: string, quantity: number) => {
-      const updatedList = shoppingList.map((item) =>
-        item.id === itemId ? { ...item, quantity } : item
-      )
-      setShoppingList(updatedList)
-      saveShoppingList(updatedList)
-    },
-    [shoppingList, saveShoppingList]
-  )
-
-  // Load on mount
   useEffect(() => {
     loadShoppingList()
   }, [loadShoppingList])
 
   return {
-    shoppingList,
-    setShoppingList,
+    items,
     loading,
-    addToShoppingList,
-    removeFromShoppingList,
-    updateItemQuantity,
-    saveShoppingList,
-    loadShoppingList,
+    addItem,
+    updateQuantity,
+    toggleChecked,
+    removeItem,
+    addRecipeIngredients,
+    // Removed saveList as it contradicts row-based architecture
   }
 }

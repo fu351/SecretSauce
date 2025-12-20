@@ -1,149 +1,225 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
-import type { ShoppingListItem, GroceryItem } from "./useShoppingList"
+import type { StoreComparison, ShoppingListItem, GroceryItem } from "../components/store-types"
 
-export interface StoreComparison {
-  store: string
-  items: GroceryItem[]
-  total: number
-  savings: number
-  outOfRadius?: boolean
-  distanceMiles?: number
-}
-
-/**
- * Hook for managing store comparison carousel and search state
- * Handles multi-store price comparison and carousel navigation
- */
-export function useStoreComparison() {
+export function useStoreComparison(
+  shoppingList: ShoppingListItem[],
+  zipCode: string,
+  userLocation: { lat: number, lng: number } | null,
+) {
   const { toast } = useToast()
-  const [carouselIndex, setCarouselIndex] = useState(0)
-  const [massSearchResults, setMassSearchResults] = useState<StoreComparison[]>([])
-  const [comparisonLoading, setComparisonLoading] = useState(false)
-  const [missingItems, setMissingItems] = useState<ShoppingListItem[]>([])
+  
+  const [results, setResults] = useState<StoreComparison[]>([]) 
+  const [loading, setLoading] = useState(false)
+  const [activeStoreIndex, setActiveStoreIndex] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
+  const [sortMode, setSortMode] = useState<"best-price" | "nearest" | "best-value">("best-price")
 
-  // Perform mass search across all stores
-  const performMassSearch = useCallback(
-    async (items: ShoppingListItem[], zipCode?: string) => {
-      if (items.length === 0) return
+  // -- Actions --
+  const performMassSearch = useCallback(async () => {
+    if (!shoppingList || shoppingList.length === 0) {
+      toast({ title: "Empty List", description: "Add items first.", variant: "destructive" })
+      return
+    }
+    
+    setLoading(true)
+    setActiveStoreIndex(0)
 
-      setComparisonLoading(true)
-      try {
-        const storeMap = new Map<string, StoreComparison>()
-        const missing: ShoppingListItem[] = []
+    try {
+      const searchPromises = shoppingList.map(async (item) => {
+        const storeResults = await searchGroceryStores(item.name, zipCode)
+        return { item, storeResults }
+      })
 
-        // OPTIMIZED: Search all ingredients in parallel instead of sequentially
-        const searchPromises = items.map(async (item) => {
-          const storeResults = await searchGroceryStores(item.name, zipCode, undefined, item.recipeId)
-          return { item, storeResults }
-        })
+      const searchData = await Promise.all(searchPromises)
+      const storeMap = new Map<string, StoreComparison>()
 
-        // Wait for all searches to complete
-        const allResults = await Promise.all(searchPromises)
+      searchData.forEach(({ item, storeResults }) => {
+        const validResults = storeResults.filter(r => r.items && r.items.length > 0)
 
-        // Process all results
-        for (const { item, storeResults } of allResults) {
-          const hasResults = storeResults.length > 0
-
-          if (!hasResults) {
-            missing.push(item)
-            continue
+        validResults.forEach(storeResult => {
+          const storeName = storeResult.store.trim()
+          
+          if (!storeMap.has(storeName)) {
+            storeMap.set(storeName, {
+              store: storeName,
+              items: [],
+              total: 0,
+              savings: 0,
+              missingItems: false,
+              missingCount: 0,
+              missingIngredients: [] 
+            })
           }
 
-          storeResults.forEach((storeResult) => {
-            if (!storeMap.has(storeResult.store)) {
-              storeMap.set(storeResult.store, {
-                store: storeResult.store,
-                items: [],
-                total: 0,
-                savings: 0,
-              })
-            }
+          const entry = storeMap.get(storeName)!
 
-            const store = storeMap.get(storeResult.store)!
-            const bestItem = storeResult.items.reduce((best, current) =>
-              current.price < best.price ? current : best
-            )
+          const bestOption = storeResult.items.reduce((min, curr) => 
+            curr.price < min.price ? curr : min
+          )
 
-            if (bestItem) {
-              store.items.push({
-                ...bestItem,
-                shoppingItemId: item.id,
-              })
-              store.total += bestItem.price * item.quantity
-            }
+          const qty = item.quantity || 1
+          entry.items.push({
+            ...bestOption,
+            shoppingItemId: item.id,
+            originalName: item.name,
+            quantity: qty // <--- ADD THIS LINE to save the quantity
           })
+          entry.total += bestOption.price * qty
+        })
+      })
+
+      let comparisons = Array.from(storeMap.values())
+
+      comparisons = comparisons.map(comp => {
+        const foundItemIds = new Set(comp.items.map(i => i.shoppingItemId))
+        const missingIngredients = shoppingList.filter(item => !foundItemIds.has(item.id))
+        
+        return {
+          ...comp,
+          missingCount: missingIngredients.length,
+          missingItems: missingIngredients.length > 0,
+          missingIngredients: missingIngredients 
+        }
+      })
+      
+      if (comparisons.length > 0) {
+        const maxTotal = Math.max(...comparisons.map(c => c.total))
+        comparisons.forEach(c => {
+           c.savings = maxTotal - c.total 
+        })
+      }
+
+      setResults(comparisons)
+
+    } catch (error) {
+      console.error("Mass search error:", error)
+      toast({ title: "Search failed", variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }, [shoppingList, zipCode, toast])
+
+  // -- STATE PATCHER --
+  const replaceItemForStore = useCallback((
+    storeName: string,
+    shoppingItemId: string, 
+    newItem: GroceryItem
+  ) => {
+    setResults(prevResults => {
+      return prevResults.map(store => {
+        if (store.store !== storeName) return store
+
+        let itemUpdated = false
+        
+        // 1. Update Existing Found Item
+        const updatedItems = store.items.map(item => {
+          if (item.shoppingItemId === shoppingItemId) {
+            itemUpdated = true
+            store.total = store.total - item.price + newItem.price
+            
+            return {
+              ...item,
+              title: newItem.title,
+              image_url: newItem.image_url || item.image_url,
+              price: newItem.price,
+              shoppingItemId: shoppingItemId,
+              originalName: item.originalName // <--- PRESERVE the existing generic name
+            }
+          }
+          return item
+        })
+
+        // 2. Or: Move Missing Item -> Found Item
+        let updatedMissing = store.missingIngredients
+        
+        if (!itemUpdated && store.missingIngredients) {
+          // Find the missing ingredient object to get its generic name
+          const missingItemRef = store.missingIngredients.find(i => i.id === shoppingItemId)
+          
+          if (missingItemRef) {
+            // Remove from missing
+            updatedMissing = store.missingIngredients.filter(i => i.id !== shoppingItemId)
+            
+            // Add to found
+            updatedItems.push({
+              id: `manual-${Date.now()}`,
+              title: newItem.title,
+              price: newItem.price,
+              image_url: newItem.image_url || "",
+              store: store.store,
+              provider: 'manual', 
+              brand: 'Selected',
+              shoppingItemId: shoppingItemId,
+              // FIX: Use the missing item's name (e.g. "Milk"), NOT the new item's title
+              originalName: missingItemRef.name 
+            })
+            
+            store.total += newItem.price
+          }
         }
 
-        const comparisons = Array.from(storeMap.values())
-        const minTotal = Math.min(...comparisons.map((c) => c.total))
-
-        // Calculate savings for each store
-        comparisons.forEach((comparison) => {
-          comparison.savings = comparison.total - minTotal
-        })
-
-        comparisons.sort((a, b) => a.total - b.total)
-
-        setMassSearchResults(comparisons)
-        setMissingItems(missing)
-        setCarouselIndex(0) // Reset to first store
-      } catch (error) {
-        console.error("Error performing mass search:", error)
-        toast({
-          title: "Search error",
-          description: "Failed to perform mass search. Please try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setComparisonLoading(false)
-      }
-    },
-    [toast]
-  )
-
-  // Navigate to next store in carousel
-  const nextStore = useCallback(() => {
-    if (carouselIndex < massSearchResults.length - 1) {
-      scrollToStore(carouselIndex + 1)
-    }
-  }, [carouselIndex, massSearchResults.length])
-
-  // Navigate to previous store in carousel
-  const prevStore = useCallback(() => {
-    if (carouselIndex > 0) {
-      scrollToStore(carouselIndex - 1)
-    }
-  }, [carouselIndex])
-
-  // Scroll carousel to specific store index
-  const scrollToStore = useCallback((index: number) => {
-    if (carouselRef.current) {
-      const cardWidth = carouselRef.current.scrollWidth / massSearchResults.length
-      carouselRef.current.scrollTo({
-        left: cardWidth * index,
-        behavior: "smooth",
+        return {
+          ...store,
+          items: updatedItems,
+          missingIngredients: updatedMissing,
+          missingCount: updatedMissing ? updatedMissing.length : 0
+        }
       })
-      setCarouselIndex(index)
+    })
+  }, [])
+
+  // (Sorting and Scroll helpers remain the same...)
+  const sortedResults = useMemo(() => {
+    const sorted = [...results]
+    sorted.sort((a, b) => {
+      const aMissing = a.missingCount || 0
+      const bMissing = b.missingCount || 0
+      if (aMissing !== bMissing) return aMissing - bMissing
+      return a.total - b.total
+    })
+    return sorted
+  }, [results, sortMode])
+
+  const scrollToStore = useCallback((index: number) => {
+    if (!carouselRef.current || sortedResults.length === 0) return
+    const safeIndex = Math.max(0, Math.min(index, sortedResults.length - 1))
+    const container = carouselRef.current
+    const scrollAmount = container.scrollWidth * (safeIndex / sortedResults.length)
+    container.scrollTo({ left: scrollAmount, behavior: 'smooth' })
+    setActiveStoreIndex(safeIndex)
+  }, [sortedResults.length])
+
+  const handleScroll = useCallback(() => {
+    if (!carouselRef.current || sortedResults.length === 0) return
+    const container = carouselRef.current
+    const totalWidth = container.scrollWidth - container.clientWidth
+    const scrollRatio = container.scrollLeft / totalWidth
+    const newIndex = Math.round(scrollRatio * (sortedResults.length - 1))
+    if (newIndex !== activeStoreIndex && !isNaN(newIndex)) {
+      setActiveStoreIndex(newIndex)
     }
-  }, [massSearchResults.length])
+  }, [activeStoreIndex, sortedResults.length])
+
+  const nextStore = () => scrollToStore(activeStoreIndex + 1)
+  const prevStore = () => scrollToStore(activeStoreIndex - 1)
 
   return {
-    carouselIndex,
-    setCarouselIndex,
-    massSearchResults,
-    setMassSearchResults,
-    comparisonLoading,
-    missingItems,
-    setMissingItems,
-    carouselRef,
+    results: sortedResults,
+    loading,
     performMassSearch,
+    setResults,
+    activeStoreIndex,
+    carouselRef,
+    scrollToStore,
+    handleScroll,
     nextStore,
     prevStore,
-    scrollToStore,
+    sortMode,
+    setSortMode,
+    replaceItemForStore
   }
 }
