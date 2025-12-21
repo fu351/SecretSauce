@@ -23,6 +23,7 @@ type ProfileUpdates = Database["public"]["Tables"]["profiles"]["Update"]
 export default function SettingsPage() {
   const { user, updateProfile } = useAuth()
   const { theme, setTheme } = useTheme()
+  const { tutorialCompleted: contextTutorialCompleted, tutorialCompletedAt: contextTutorialCompletedAt } = useTutorial()
   const router = useRouter()
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
@@ -133,6 +134,16 @@ export default function SettingsPage() {
   useEffect(() => {
     setSelectedTheme(theme === "dark" ? "dark" : "light")
   }, [theme])
+
+  // Sync tutorial completion state from context
+  useEffect(() => {
+    if (contextTutorialCompleted) {
+      setTutorialCompleted(contextTutorialCompleted)
+    }
+    if (contextTutorialCompletedAt) {
+      setTutorialCompletedAt(contextTutorialCompletedAt)
+    }
+  }, [contextTutorialCompleted, contextTutorialCompletedAt])
 
   useEffect(() => {
     const payload: ProfileUpdates = {

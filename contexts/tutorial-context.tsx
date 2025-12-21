@@ -3,7 +3,6 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
 import { useAuth } from "./auth-context"
 
 import type {
@@ -26,6 +25,8 @@ interface TutorialContextType {
 
   isCompleted: boolean
   wasDismissed: boolean
+  tutorialCompleted: boolean
+  tutorialCompletedAt: string | null
 
   startTutorial: (pathId: "cooking" | "budgeting" | "health") => void
   nextStep: () => void
@@ -54,8 +55,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [isCompleted, setIsCompleted] = useState(false)
   const [redirectAfterComplete, setRedirectAfterComplete] = useState<string | null>(null)
   const [wasDismissed, setWasDismissed] = useState(false)
+  const [tutorialCompleted, setTutorialCompleted] = useState(false)
+  const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
   const router = useRouter()
-  const { user, profile } = useAuth()
+  const { user, profile, updateProfile } = useAuth()
   const DISMISS_KEY = "tutorial_dismissed_v1"
 
   const currentPath = currentPathId ? tutorialPaths[currentPathId] : null
@@ -81,14 +84,18 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const completeTutorial = useCallback(async () => {
     if (!user || !currentPathId) return
     try {
-      await supabase.from("profiles").update({
+      const completedAt = new Date().toISOString()
+
+      await updateProfile({
         tutorial_completed: true,
-        tutorial_completed_at: new Date().toISOString(),
-        tutorial_path: currentPathId,
-      }).eq("id", user.id)
+      })
+
+      console.log("Tutorial completed successfully")
 
       setIsActive(false)
       setIsCompleted(true)
+      setTutorialCompleted(true)
+      setTutorialCompletedAt(completedAt)
 
       if (redirectAfterComplete) {
         router.push(redirectAfterComplete)
@@ -96,7 +103,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error completing tutorial:", error)
     }
-  }, [user, currentPathId, redirectAfterComplete, router])
+  }, [user, currentPathId, redirectAfterComplete, router, updateProfile])
 
   // -------------------
   // Navigation Functions
@@ -241,6 +248,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     currentSubstep,
     isCompleted,
     wasDismissed,
+    tutorialCompleted,
+    tutorialCompletedAt,
     startTutorial,
     nextStep,
     prevStep,
