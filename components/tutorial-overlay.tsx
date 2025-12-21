@@ -5,8 +5,10 @@ import { usePathname, useRouter } from "next/navigation"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
-import { X, Minus, ChevronUp, ChevronRight, ChevronLeft } from "lucide-react"
+import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, Lightbulb, Loader2, MousePointer2 } from "lucide-react"
 import clsx from "clsx"
+
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export function TutorialOverlay() {
   const {
@@ -29,333 +31,244 @@ export function TutorialOverlay() {
   const [showSkipConfirmation, setShowSkipConfirmation] = useState(false)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
   const [isOverlayObstructing, setIsOverlayObstructing] = useState(false)
+  const [isChangingPage, setIsChangingPage] = useState(false)
 
-  const overlayRef = useRef<HTMLDivElement>(null)
-
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isDark = theme === "dark"
-  const onCorrectPage = currentStep ? pathname === currentStep.page : false
 
-  /* ---------------------------------------------
-   * Highlight selector (SUBSTEP FIRST)
-   * --------------------------------------------*/
-  const activeHighlightSelector =
-    currentSubstep?.highlightSelector ?? currentStep?.highlightSelector
+  /**
+   * 1. Stability-Aware Scroll Calculation
+   * Accounts for the overhead header height and prevents sub-pixel loops.
+   */
+  const scrollToTarget = useCallback((rect: DOMRect) => {
+    const HEADER_OFFSET = 110; // Matches your Secret Sauce navigation bar height
+    const offsetPosition = rect.top + window.pageYOffset - HEADER_OFFSET;
 
-  /* ---------------------------------------------
-   * Progress calculation (SUBSTEP-BASED)
-   * --------------------------------------------*/
-  const totalUnits = currentPath
-    ? currentPath.steps.reduce((sum, step) => sum + (step.substeps?.length || 1), 0)
-    : 1
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: "smooth"
+    });
+  }, []);
 
-  const completedUnits = currentPath
-    ? currentPath.steps
-        .slice(0, currentStepIndex)
-        .reduce((sum, step) => sum + (step.substeps?.length || 1), 0) +
-      (currentSubstepIndex + 1)
-    : 0
+  /**
+   * 2. Explore Mode: Global Click Handler
+   * Minimizes the tutorial card if user clicks on the application background.
+   */
+  useEffect(() => {
+    if (!isActive || isMinimized) return;
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (overlayRef.current && !overlayRef.current.contains(e.target as Node)) {
+        setIsMinimized(true);
+      }
+    };
+    window.addEventListener("click", handleGlobalClick, true);
+    return () => window.removeEventListener("click", handleGlobalClick, true);
+  }, [isActive, isMinimized]);
 
-  const progress = (completedUnits / totalUnits) * 100
+  /**
+   * 3. Navigation Guard
+   * Synchronizes the current page with the tutorial path requirement.
+   */
+  useEffect(() => {
+    if (!isActive || !currentStep) return;
 
-  /* ---------------------------------------------
-   * Substep flags
-   * --------------------------------------------*/
-  const hasSubsteps = currentStep?.substeps && currentStep.substeps.length > 0
-  const isLastSubstep = !hasSubsteps || currentSubstepIndex === currentStep.substeps!.length - 1
-  const isLastStep = !!currentPath && currentStepIndex === currentPath.steps.length - 1
-
-  /* ---------------------------------------------
- * Highlight positioning & Auto-scroll
- * --------------------------------------------*/
-
-// 1. SSR-Safe Hook: Prevents "useLayoutEffect does not do anything on the server" warning
-const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
-// 2. Ref to store the active animation frame ID so we can cancel it
-const rafRef = useRef(null);
-
-// Helper to get rect (used for resize/scroll updates)
-const getRect = useCallback(() => {
-  if (!activeHighlightSelector) return null;
-  const element = document.querySelector(activeHighlightSelector);
-  return element ? element.getBoundingClientRect() : null;
-}, [activeHighlightSelector]);
-
-// Main function: Hides highlight, scrolls, waits for stop, then shows highlight
-const scrollToAndHighlight = useCallback(() => {
-  // Cancel any existing loops to prevent conflicts
-  if (rafRef.current) {
-    cancelAnimationFrame(rafRef.current);
-  }
-
-  // Safety checks
-  if (!activeHighlightSelector || !onCorrectPage) {
-    setTargetRect(null);
-    return;
-  }
-
-  const element = document.querySelector(activeHighlightSelector);
-  if (!element) {
-    setTargetRect(null);
-    return;
-  }
-
-  // A. HIDE the highlight immediately (cleaner UX during scroll)
-  setTargetRect(null);
-
-  // B. Start Smooth Scroll to CENTER
-  element.scrollIntoView({
-    behavior: "smooth",
-    block: "center",
-    inline: "nearest"
-  });
-
-  // C. Wait for Scroll to Finish
-  let lastTop = null;
-  let stableFrames = 0;
-
-  const waitForScrollStop = () => {
-    const rect = element.getBoundingClientRect();
-
-    // Check stability
-    if (rect.top === lastTop) {
-      stableFrames++;
-    } else {
-      stableFrames = 0;
-      lastTop = rect.top;
+    if (pathname !== currentStep.page) {
+      setIsChangingPage(true);
+      setTargetRect(null); 
+      router.push(currentStep.page);
     }
+  }, [isActive, currentStep?.page, pathname, router]);
 
-    // Threshold: 5 frames (~80ms of stillness) means scroll is done
-    if (stableFrames > 5) {
-      // D. SHOW the highlight now that we are steady
-      setTargetRect(rect);
-      
-      // Update obstruction logic
-      const isBottomRight =
-        rect.bottom > window.innerHeight - 250 &&
-        rect.right > window.innerWidth - 350;
-      
-      setIsOverlayObstructing(isBottomRight);
-      
-      rafRef.current = null;
+  /**
+   * 4. Stabilized Update Highlight
+   * Protection against infinite loops by using a 1px movement threshold.
+   */
+  const updateHighlight = useCallback((shouldScroll = false) => {
+    if (!isActive || !currentStep || isMinimized) return;
+
+    const selector = currentSubstep?.highlightSelector ?? currentStep?.highlightSelector;
+    if (!selector) {
+      if (targetRect) setTargetRect(null);
+      setIsChangingPage(false);
       return;
     }
 
-    // Keep checking
-    rafRef.current = requestAnimationFrame(waitForScrollStop);
-  };
+    const element = document.querySelector(selector) as HTMLElement;
+    if (!element) {
+      if (targetRect) setTargetRect(null);
+      return;
+    }
 
-  // Start the check loop
-  rafRef.current = requestAnimationFrame(waitForScrollStop);
+    setIsChangingPage(false);
+    const newRect = element.getBoundingClientRect();
 
-}, [activeHighlightSelector, onCorrectPage]);
+    // Check if the element has actually moved significantly (prevent infinite depth error)
+    const hasMoved = !targetRect || 
+      Math.abs(newRect.top - targetRect.top) > 1 || 
+      Math.abs(newRect.left - targetRect.left) > 1 ||
+      Math.abs(newRect.width - targetRect.width) > 1;
 
+    if (hasMoved) {
+      if (shouldScroll) {
+        scrollToTarget(newRect);
+      }
 
-// 3. Effect to trigger the logic
-useIsomorphicLayoutEffect(() => {
-  scrollToAndHighlight();
+      const isBottomRight = newRect.bottom > window.innerHeight - 320 && newRect.right > window.innerWidth - 420;
+      setIsOverlayObstructing(isBottomRight);
+      setTargetRect(newRect);
+    }
+  }, [isActive, currentStep, currentSubstep, isMinimized, targetRect, scrollToTarget]);
 
-  // Standard listener to keep box attached during manual resize/scroll
-  const handleResizeOrScroll = () => {
-    // KEY FIX: Use RAF to ensure we read the rect AFTER the browser has painted
-    requestAnimationFrame(() => {
-      const rect = getRect();
-      if (rect) setTargetRect(rect);
+  /**
+   * 5. Filtered Mutation Observer
+   * Ignores internal tutorial changes to avoid recursive updates.
+   */
+  useIsomorphicLayoutEffect(() => {
+    if (!isActive || isMinimized) return;
+
+    const observer = new MutationObserver((mutations) => {
+      const isInternal = mutations.every(m => 
+        overlayRef.current?.contains(m.target) || 
+        (m.target as HTMLElement).tagName === 'svg'
+      );
+      if (isInternal) return;
+
+      if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
+      stabilityTimerRef.current = setTimeout(() => {
+        updateHighlight(pathname === currentStep?.page && !targetRect);
+      }, 150);
     });
-  };
 
-  window.addEventListener("resize", handleResizeOrScroll);
-  window.addEventListener("scroll", handleResizeOrScroll, { capture: true, passive: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 
-  return () => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    window.removeEventListener("resize", handleResizeOrScroll);
-    window.removeEventListener("scroll", handleResizeOrScroll);
-  };
-}, [scrollToAndHighlight, getRect, currentStepIndex, currentSubstepIndex, isMinimized]);
+    const handlePosUpdate = () => updateHighlight(false);
+    window.addEventListener("resize", handlePosUpdate);
+    window.addEventListener("scroll", handlePosUpdate, { capture: true, passive: true });
+    
+    updateHighlight(true);
 
-if (!isActive || !currentPath || !currentStep) return null;
+    return () => {
+      observer.disconnect();
+      if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
+      window.removeEventListener("resize", handlePosUpdate);
+      window.removeEventListener("scroll", handlePosUpdate);
+    };
+  }, [isActive, isMinimized, currentStepIndex, currentSubstepIndex, updateHighlight, pathname, currentStep?.page, targetRect]);
 
-  /* ---------------------------------------------
-   * Styling
-   * --------------------------------------------*/
-  const cardBg = isDark ? "bg-[#181813]" : "bg-white"
-  const cardBorder = isDark ? "border-[#e8dcc4]/30" : "border-gray-200"
-  const cardText = isDark ? "text-[#e8dcc4]" : "text-gray-900"
-  const mutedText = isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
+  if (!isActive || !currentPath || !currentStep) return null;
+
+  const totalUnits = currentPath.steps.reduce((sum, s) => sum + (s.substeps?.length || 1), 0);
+  const completedUnits = currentPath.steps.slice(0, currentStepIndex).reduce((sum, s) => sum + (s.substeps?.length || 1), 0) + (currentSubstepIndex + 1);
+  const progress = (completedUnits / totalUnits) * 100;
 
   return (
     <>
-      {/* ---------- BACKDROP + HIGHLIGHT ---------- */}
-      {!isMinimized && (
-        targetRect ? (
-          <div
-            className="fixed inset-0 z-40 pointer-events-none transition-all duration-500 ease-in-out"
-            style={{
-              boxShadow: `0 0 0 9999px ${
-                isDark ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.5)"
-              }`,
-              top: targetRect.top - 4,
-              left: targetRect.left - 4,
-              width: targetRect.width + 8,
-              height: targetRect.height + 8,
-              borderRadius: "8px",
-              position: "absolute",
-            }}
-          >
-            <div className="absolute inset-0 border-2 border-blue-500/50 rounded-lg animate-pulse" />
-          </div>
-        ) : (
-          <div
-            className={clsx(
-              "fixed inset-0 z-40 pointer-events-none transition-opacity duration-500",
-              isDark ? "bg-black/50" : "bg-black/20"
-            )}
+      {!isMinimized && !isChangingPage && targetRect && (
+        <svg className="fixed inset-0 z-40 pointer-events-none w-full h-full">
+          <defs>
+            <mask id="tutorial-mask">
+              <rect width="100%" height="100%" fill="white" />
+              <rect
+                x={targetRect.left - 10}
+                y={targetRect.top - 10}
+                width={targetRect.width + 20}
+                height={targetRect.height + 20}
+                rx="12"
+                fill="black"
+                className="transition-all duration-300 ease-out"
+              />
+            </mask>
+          </defs>
+          <rect
+            width="100%"
+            height="100%"
+            fill={isDark ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.4)"}
+            mask="url(#tutorial-mask)"
+            className="backdrop-blur-[1px] transition-opacity duration-500"
           />
-        )
+        </svg>
       )}
 
-      {/* ---------- OVERLAY CARD ---------- */}
       <div
         ref={overlayRef}
         className={clsx(
-          "fixed z-50 transition-all duration-500 ease-in-out shadow-2xl rounded-xl border overflow-hidden",
-          cardBg,
-          cardBorder,
-          cardText,
-          isOverlayObstructing ? "bottom-6 left-6" : "bottom-6 right-6",
-          isMinimized ? "w-auto" : "w-[380px]"
+          "fixed z-50 transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
+          isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900",
+          isOverlayObstructing ? "bottom-8 left-8" : "bottom-8 right-8",
+          isMinimized ? "w-72" : "w-[400px]"
         )}
       >
-        {!isMinimized && (
-          <div className="h-1 w-full bg-gray-200 dark:bg-gray-800">
-            <div
-              className="h-full bg-blue-500 transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        )}
+        <div className="h-1.5 w-full bg-gray-200/20">
+          <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+        </div>
 
-        {/* ---------- HEADER ---------- */}
-        <div className="flex items-center justify-between p-3">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-              {currentStepIndex + 1}.{currentSubstepIndex + 1}
+        <div className="flex items-center justify-between p-4 border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-500/10 text-blue-500 p-1.5 rounded-lg">
+              {(isChangingPage || !targetRect) && !isMinimized ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
             </div>
-
-            {isMinimized ? (
-              <span className="text-sm font-medium">Tutorial paused</span>
-            ) : (
-              <span className={clsx("text-xs font-semibold tracking-widest uppercase", mutedText)}>
-                {currentPath.name}
-              </span>
-            )}
+            <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
+              {isMinimized ? "Explore Mode" : (isChangingPage || !targetRect ? "Loading Content..." : currentPath.name)}
+            </span>
           </div>
-
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMinimized(!isMinimized)}
-              className="h-7 w-7 p-0"
-              title={isMinimized ? "Expand tutorial" : "Minimize tutorial"}
-            >
-              {isMinimized ? <ChevronUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
+          <div className="flex gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }}>
+              {isMinimized ? <ChevronUp className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
             </Button>
-
-            {!isMinimized && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowSkipConfirmation(true)}
-                className="h-7 w-7 p-0 hover:bg-red-500/10 hover:text-red-500"
-                title="Close tutorial"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/20" onClick={() => setShowSkipConfirmation(true)}>
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
-        {/* ---------- BODY ---------- */}
-        {!isMinimized && (
-          <div className="px-5 pb-5 pt-1">
-            <h3 className="text-lg font-bold mb-2">{currentStep.title}</h3>
+        {isMinimized ? (
+          <div className="px-4 py-3 flex items-center justify-between bg-blue-500/5 group cursor-pointer" onClick={() => setIsMinimized(false)}>
+            <p className="text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity">Click to resume tutorial</p>
+            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+          </div>
+        ) : (
+          <div className="p-6">
+            {(isChangingPage || !targetRect) ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+                <p className="text-sm font-medium opacity-60">Synchronizing with page...</p>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-xl font-bold mb-2 leading-tight">{currentStep.title}</h3>
+                <p className={clsx("text-sm leading-relaxed mb-6", isDark ? "text-gray-400" : "text-gray-600")}>
+                  {currentSubstep?.instruction ?? currentStep.description}
+                </p>
 
-            <p className={clsx("text-sm leading-relaxed mb-4", mutedText)}>
-              {currentSubstep?.instruction ?? currentStep.description}
-            </p>
+                {currentStep.tips && currentStep.tips.length > 0 && (
+                  <div className="mb-6 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 text-xs italic opacity-80">
+                    💡 {currentStep.tips[0]}
+                  </div>
+                )}
 
-            {/* ---------- FOOTER ---------- */}
-            <div className="flex items-center justify-between mt-2 pt-4 border-t border-gray-100 dark:border-gray-800">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={prevStep}
-                disabled={currentStepIndex === 0 && currentSubstepIndex === 0}
-                className="text-xs text-gray-500"
-              >
-                <ChevronLeft className="w-3 h-3 mr-1" />
-                Back
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={nextStep}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6"
-              >
-                {isLastStep && isLastSubstep
-                  ? "Finish"
-                  : isLastSubstep
-                  ? "Next section"
-                  : "Next highlight"}
-                <ChevronRight className="w-3 h-3 ml-1" />
-              </Button>
-            </div>
+                <div className="flex items-center justify-between">
+                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); prevStep(); }} disabled={currentStepIndex === 0 && currentSubstepIndex === 0}>
+                    <ChevronLeft className="w-4 h-4 mr-2" /> Back
+                  </Button>
+                  <Button onClick={(e) => { e.stopPropagation(); nextStep(); }} className="bg-blue-600 hover:bg-blue-500 text-white px-8">
+                    {currentStepIndex === currentPath.steps.length - 1 && (!currentStep.substeps || currentSubstepIndex === currentStep.substeps.length - 1) ? "Finish" : "Next"}
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
 
-      {/* ---------- SKIP CONFIRMATION ---------- */}
       {showSkipConfirmation && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowSkipConfirmation(false)}
-          />
-          <div
-            className={clsx(
-              "relative rounded-xl shadow-2xl p-6 max-w-sm w-full",
-              cardBg,
-              cardBorder,
-              "border"
-            )}
-          >
-            <h2 className={clsx("text-lg font-bold mb-2", cardText)}>
-              End tutorial?
-            </h2>
-            <p className={clsx("text-sm mb-6", mutedText)}>
-              You can always restart it later from your dashboard settings.
-            </p>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={() => setShowSkipConfirmation(false)}
-                variant="outline"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowSkipConfirmation(false)
-                  skipTutorial()
-                }}
-                variant="destructive"
-                className="flex-1"
-              >
-                End Tutorial
-              </Button>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <div className={clsx("w-full max-w-sm p-8 rounded-3xl border shadow-2xl", isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20" : "bg-white border-gray-200")}>
+            <h2 className="text-2xl font-bold mb-2">End Tutorial?</h2>
+            <div className="flex gap-3 mt-8">
+              <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowSkipConfirmation(false)}>Keep Going</Button>
+              <Button variant="destructive" className="flex-1 rounded-xl" onClick={skipTutorial}>Exit</Button>
             </div>
           </div>
         </div>

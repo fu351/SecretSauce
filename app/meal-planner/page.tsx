@@ -722,7 +722,9 @@ export default function MealPlannerPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-background">
+    <div className="min-h-screen flex flex-col md:flex-row bg-background"
+    data-tutorial="planner-weekly"
+    >
       <div className="flex-1 overflow-y-auto p-3 md:p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
@@ -861,7 +863,6 @@ export default function MealPlannerPage() {
                 </div>
                 <div
                   id="weekly-summary-panel"
-                  data-tutorial= "planner-weekly"
                   className={`transition-[max-height,margin-top] duration-300 ease-out overflow-hidden ${
                     weeklySummaryPinnedOpen ? "max-h-40 mt-2" : "max-h-0 mt-0 pointer-events-none"
                   }`}

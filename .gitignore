@@ -36,3 +36,5 @@ CLAUDE.md
 
 *.md
 .env*.local
+package-lock 2.json
+package-lock 3.json

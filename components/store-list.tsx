@@ -349,8 +349,10 @@ export function ShoppingListSection({
   }
 
   return (
-    <Card className={cardBgClass}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+    <Card className={cardBgClass}
+    data-tutorial="store-list">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4"
+      >
         <CardTitle className={`flex items-center gap-2 ${textClass}`}>
           <ShoppingCart className="h-5 w-5" />
           Shopping List
@@ -364,6 +366,7 @@ export function ShoppingListSection({
                 variant="outline" 
                 size="sm" 
                 className={`h-8 gap-2 ${buttonOutlineClass}`}
+                data-tutorial= "store-add"
               >
                 <Search className="h-4 w-4" />
                 <span className="hidden sm:inline">Add Items</span>
@@ -390,7 +393,9 @@ export function ShoppingListSection({
           </Dialog>
 
           {uniqueList.length > 0 && (
-            <div className={`flex items-center p-1 rounded-md border ${
+            <div 
+            data-tutorial= "store-sort"
+            className={`flex items-center p-1 rounded-md border ${
               theme === "dark" ? "border-[#e8dcc4]/20 bg-[#181813]" : "border-gray-200 bg-gray-50"
             }`}>
               <Button

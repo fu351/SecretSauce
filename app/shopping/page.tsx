@@ -217,6 +217,7 @@ export default function ShoppingPage() {
                   onClick={handleCompareClick} 
                   disabled={shoppingList.length === 0 || comparisonLoading}
                   className={styles.buttonClass}
+                  data-tutorial= "store-compare"
                 >
                   {comparisonLoading ? (
                     <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating... </>
