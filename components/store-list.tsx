@@ -30,7 +30,7 @@ import {
 } from "lucide-react"
 
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
-import { RecipeSearchModal } from "./RecipeSearchModal"
+import { RecipeSearchModal } from "@/components/store-search"
 
 // --- INTERFACES ---
 

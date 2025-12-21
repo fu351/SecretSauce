@@ -12,9 +12,9 @@ import type { GroceryItem } from "@/lib/types/store"
 import { useShoppingList } from "@/hooks/useShoppingList"
 import { useStoreComparison } from "@/hooks/useStoreComparison"
 
-import { ItemReplacementModal } from "./components/ItemReplacementModal"
-import { StoreComparisonSection } from "./components/StoreComparisonSection"
-import { ShoppingListSection } from "./components/ShoppingListSection"
+import { ItemReplacementModal } from "../../components/store-replacemnet"
+import { StoreComparisonSection } from "@/components/store-comparison"
+import { ShoppingListSection } from "@/components/store-list"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
