@@ -1,4 +1,4 @@
-import { TutorialPath } from "./types"
+import { TutorialPath } from "../../lib/types/tutorial"
 
 export const healthPath: TutorialPath = {
   id: "health",

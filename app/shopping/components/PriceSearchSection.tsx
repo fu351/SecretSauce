@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { SearchIcon, Plus, Store, ShoppingBag } from "lucide-react"
-import type { GroceryItem } from "./store-types"
+import type { GroceryItem } from "@/lib/types/store"
 
 interface PriceSearchSectionProps {
   searchTerm: string

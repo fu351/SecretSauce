@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
-import type { StoreComparison, ShoppingListItem, GroceryItem } from "../components/store-types"
+import type { StoreComparison, ShoppingListItem, GroceryItem } from "@/lib/types/store"
 
 export function useStoreComparison(
   shoppingList: ShoppingListItem[],
@@ -66,7 +66,7 @@ export function useStoreComparison(
             ...bestOption,
             shoppingItemId: item.id,
             originalName: item.name,
-            quantity: qty // <--- ADD THIS LINE to save the quantity
+            quantity: qty 
           })
           entry.total += bestOption.price * qty
         })
@@ -103,7 +103,8 @@ export function useStoreComparison(
     }
   }, [shoppingList, zipCode, toast])
 
-  // -- STATE PATCHER --
+  // -- FIX: IMMUTABLE STATE PATCHER --
+  // This ensures price changes trigger a re-render by creating new object references
   const replaceItemForStore = useCallback((
     storeName: string,
     shoppingItemId: string, 
@@ -114,20 +115,22 @@ export function useStoreComparison(
         if (store.store !== storeName) return store
 
         let itemUpdated = false
+        let newTotal = store.total
         
         // 1. Update Existing Found Item
         const updatedItems = store.items.map(item => {
           if (item.shoppingItemId === shoppingItemId) {
             itemUpdated = true
-            store.total = store.total - item.price + newItem.price
+            const qty = item.quantity || 1
+            // Subtract old total for this item and add new total based on quantity
+            newTotal = store.total - (item.price * qty) + (newItem.price * qty)
             
             return {
               ...item,
               title: newItem.title,
               image_url: newItem.image_url || item.image_url,
               price: newItem.price,
-              shoppingItemId: shoppingItemId,
-              originalName: item.originalName // <--- PRESERVE the existing generic name
+              originalName: item.originalName 
             }
           }
           return item
@@ -137,34 +140,29 @@ export function useStoreComparison(
         let updatedMissing = store.missingIngredients
         
         if (!itemUpdated && store.missingIngredients) {
-          // Find the missing ingredient object to get its generic name
           const missingItemRef = store.missingIngredients.find(i => i.id === shoppingItemId)
           
           if (missingItemRef) {
-            // Remove from missing
             updatedMissing = store.missingIngredients.filter(i => i.id !== shoppingItemId)
+            const qty = missingItemRef.quantity || 1
             
-            // Add to found
             updatedItems.push({
+              ...newItem,
               id: `manual-${Date.now()}`,
-              title: newItem.title,
-              price: newItem.price,
-              image_url: newItem.image_url || "",
-              store: store.store,
-              provider: 'manual', 
-              brand: 'Selected',
               shoppingItemId: shoppingItemId,
-              // FIX: Use the missing item's name (e.g. "Milk"), NOT the new item's title
-              originalName: missingItemRef.name 
+              originalName: missingItemRef.name,
+              quantity: qty
             })
             
-            store.total += newItem.price
+            newTotal += (newItem.price * qty)
           }
         }
 
+        // Return a NEW store object to trigger React update
         return {
           ...store,
           items: updatedItems,
+          total: newTotal,
           missingIngredients: updatedMissing,
           missingCount: updatedMissing ? updatedMissing.length : 0
         }
@@ -172,7 +170,6 @@ export function useStoreComparison(
     })
   }, [])
 
-  // (Sorting and Scroll helpers remain the same...)
   const sortedResults = useMemo(() => {
     const sorted = [...results]
     sorted.sort((a, b) => {
@@ -184,13 +181,19 @@ export function useStoreComparison(
     return sorted
   }, [results, sortMode])
 
+  // -- Updated Navigation --
   const scrollToStore = useCallback((index: number) => {
-    if (!carouselRef.current || sortedResults.length === 0) return
+    if (sortedResults.length === 0) return
     const safeIndex = Math.max(0, Math.min(index, sortedResults.length - 1))
-    const container = carouselRef.current
-    const scrollAmount = container.scrollWidth * (safeIndex / sortedResults.length)
-    container.scrollTo({ left: scrollAmount, behavior: 'smooth' })
+    
+    // Explicitly update the active index to trigger price detail rendering
     setActiveStoreIndex(safeIndex)
+
+    if (carouselRef.current) {
+        const container = carouselRef.current
+        const scrollAmount = container.scrollWidth * (safeIndex / sortedResults.length)
+        container.scrollTo({ left: scrollAmount, behavior: 'smooth' })
+    }
   }, [sortedResults.length])
 
   const handleScroll = useCallback(() => {

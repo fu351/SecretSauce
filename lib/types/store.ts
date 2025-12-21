@@ -1,4 +1,4 @@
-// components/types.tsx
+
 
 export interface GroceryItem {
   id: string
@@ -22,7 +22,7 @@ export interface ShoppingListItem {
   checked: boolean
   recipeId?: string
   recipeName?: string
-  standardizedIngredientId?: string
+  ingredientId?: string
   standardizedName?: string
 }
 
@@ -53,4 +53,19 @@ export type PantryItemInfo = {
   unit: string | null
   standardized_ingredient_id?: string | null
   standardized_name?: string | null
+}
+
+export interface ShoppingListSectionProps {
+  shoppingList: ShoppingListItem[]
+  onRemoveItem: (itemId: string) => void
+  onUpdateQuantity: (itemId: string, quantity: number) => void
+  onUpdateItemName: (itemId: string, newName: string) => void
+  onToggleItem: (itemId: string) => void
+  headerAction?: React.ReactNode
+  cardBgClass: string
+  textClass: string
+  mutedTextClass: string
+  buttonClass: string
+  buttonOutlineClass: string
+  theme: string
 }

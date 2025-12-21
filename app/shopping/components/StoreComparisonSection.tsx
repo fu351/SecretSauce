@@ -1,39 +1,30 @@
 "use client"
 
-import React, { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import React, { useMemo, useEffect, useRef } from "react"
+import { Card, CardContent, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { 
-  ChevronLeft, 
-  ChevronRight, 
   AlertCircle, 
-  RotateCcw, 
   ShoppingCart,
   ExternalLink,
   ArrowLeftRight,
-  Search
+  Store,
+  CheckCircle2
 } from "lucide-react"
 
-import type { StoreComparison } from "./store-types" 
+import type { StoreComparison } from "@/lib/types/store"
 
 interface StoreComparisonSectionProps {
   comparisonLoading: boolean
   massSearchResults: StoreComparison[]
-  carouselIndex: number
-  onCarouselNext: () => void
-  onCarouselPrev: () => void
+  carouselIndex: number 
   onStoreSelect: (index: number) => void
-  onScroll: (e: React.UIEvent<HTMLDivElement>) => void
-  carouselRef: React.RefObject<HTMLDivElement>
   onReloadItem: (params: { term: string; store: string; shoppingListId: string }) => void 
-  zipCode: string
-  bgClass: string
   cardBgClass: string
   textClass: string
   mutedTextClass: string
   buttonClass: string
-  buttonOutlineClass: string
   theme: "light" | "dark"
 }
 
@@ -41,10 +32,7 @@ export function StoreComparisonSection({
   comparisonLoading,
   massSearchResults,
   carouselIndex,
-  onCarouselNext,
-  onCarouselPrev,
-  onScroll,
-  carouselRef,
+  onStoreSelect,
   onReloadItem,
   cardBgClass,
   textClass,
@@ -52,193 +40,200 @@ export function StoreComparisonSection({
   buttonClass,
   theme,
 }: StoreComparisonSectionProps) {
-  
-  const bestValueIndex = React.useMemo(() => {
-    if (!massSearchResults || massSearchResults.length === 0) return -1
-    let bestIdx = -1
-    let minScore = Infinity
+
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  const activeStore = useMemo(() => {
+    return massSearchResults[carouselIndex] || massSearchResults[0];
+  }, [massSearchResults, carouselIndex]);
+
+  useEffect(() => {
+    if (listContainerRef.current) {
+      listContainerRef.current.scrollTop = 0;
+    }
+  }, [carouselIndex]);
+
+  const bestValueIndex = useMemo(() => {
+    if (!massSearchResults?.length) return -1;
+    let bestIdx = -1;
+    let minScore = Infinity;
 
     massSearchResults.forEach((store, idx) => {
-       const missingCount = store.missingIngredients ? store.missingIngredients.length : 0
-       const penalty = missingCount * 20 
-       const score = store.total + penalty
+       const missingCount = store.missingIngredients?.length || 0;
+       const penalty = missingCount * 20; 
+       const score = store.total + penalty;
        if (score < minScore) {
-         minScore = score
-         bestIdx = idx
+         minScore = score;
+         bestIdx = idx;
        }
-    })
-    return bestIdx
-  }, [massSearchResults])
+    });
+    return bestIdx;
+  }, [massSearchResults]);
 
-  if ((!massSearchResults || massSearchResults.length === 0) && !comparisonLoading) {
-    return <div className={`text-center py-10 ${mutedTextClass}`}>No stores found in this area.</div>
+  if ((!massSearchResults?.length) && !comparisonLoading) {
+    return (
+      <div className={`flex flex-col items-center justify-center py-16 ${mutedTextClass}`}>
+        <Store className="h-12 w-12 mb-4 opacity-10" />
+        <p className="text-sm">No stores found with these items.</p>
+      </div>
+    );
   }
 
-  return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between px-2">
-        <h3 className={`font-medium text-sm flex items-center gap-2 ${textClass}`}>
-          <Search className="h-4 w-4" />
-          Found {massSearchResults.length} Options
-        </h3>
-        <div className="hidden sm:flex gap-2">
-           <Button variant="outline" size="icon" onClick={onCarouselPrev} disabled={carouselIndex === 0} className={`h-8 w-8 ${theme === 'dark' ? "border-[#e8dcc4]/20" : ""}`}>
-             <ChevronLeft className="h-4 w-4" />
-           </Button>
-           <Button variant="outline" size="icon" onClick={onCarouselNext} disabled={carouselIndex === massSearchResults.length - 1} className={`h-8 w-8 ${theme === 'dark' ? "border-[#e8dcc4]/20" : ""}`}>
-             <ChevronRight className="h-4 w-4" />
-           </Button>
-        </div>
-      </div>
+  const missingCount = activeStore?.missingIngredients?.length || 0;
+  const percentFound = activeStore ? Math.round((activeStore.items.length / (activeStore.items.length + missingCount)) * 100) : 0;
 
-      {/* Main Carousel */}
-      <div className="relative group">
-        <div
-          ref={carouselRef}
-          onScroll={onScroll}
-          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 px-4 sm:px-1 space-x-4"
-          style={{ scrollBehavior: "smooth" }}
-        >
-          {massSearchResults.map((result, index) => {
-            const isBestValue = index === bestValueIndex
-            const missingCount = result.missingIngredients ? result.missingIngredients.length : 0
-            const foundCount = result.items.length
-            const totalCount = foundCount + missingCount
-            const percentFound = totalCount > 0 ? Math.round((foundCount / totalCount) * 100) : 0
+  return (
+    <div className="space-y-8">
+      {/* STORE SWITCHER RAIL */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between px-2">
+          <label className={`text-[11px] font-bold uppercase tracking-wider ${mutedTextClass}`}>
+            Compare Stores ({massSearchResults.length})
+          </label>
+        </div>
+        
+        <div className="flex items-center gap-6 overflow-x-auto pt-6 pb-8 scrollbar-hide snap-x px-4"> 
+          {massSearchResults.map((result, idx) => {
+            const isSelected = carouselIndex === idx;
+            const isBest = idx === bestValueIndex;
             
             return (
-              <div key={`${result.store}-${index}`} className="flex-shrink-0 w-[85vw] sm:w-[350px] md:w-[400px] snap-center">
-                <Card className={`flex flex-col h-[65vh] min-h-[500px] ${cardBgClass} border-2 transition-all ${
-                    index === carouselIndex ? "border-green-500 shadow-md shadow-green-500/5" : theme === 'dark' ? "border-[#e8dcc4]/10" : "border-gray-200"
-                  }`}>
+              <button
+                key={`${result.store}-${idx}`}
+                type="button" 
+                onClick={() => onStoreSelect(idx)}
+                className="flex-shrink-0 relative flex flex-col items-center gap-3 transition-all snap-start outline-none group"
+              >
+                <div className={`
+                  w-16 h-16 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 m-1
+                  ${isSelected 
+                    ? "border-green-500 bg-green-500/10 shadow-lg shadow-green-500/20 scale-110 z-10" 
+                    : theme === 'dark' 
+                      ? "border-[#e8dcc4]/10 bg-[#1f1e1a] hover:border-[#e8dcc4]/40" 
+                      : "border-gray-200 bg-white hover:border-gray-400 shadow-sm"}
+                `}>
+                  <span className={`text-base font-bold ${isSelected ? "text-green-500" : textClass}`}>
+                    {result.store.substring(0, 2).toUpperCase()}
+                  </span>
+                  {isBest && (
+                    <div className="absolute -top-1 -right-1 bg-green-600 rounded-full p-1 border-2 border-white dark:border-[#121212] z-20 shadow-sm">
+                      <CheckCircle2 className="h-2.5 w-2.5 text-white" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex flex-col items-center gap-1">
+                  <span className={`text-[10px] font-bold truncate w-20 text-center ${isSelected ? textClass : mutedTextClass}`}>
+                    {result.store}
+                  </span>
                   
-                  <CardHeader className="pb-3 border-b border-gray-100 dark:border-[#e8dcc4]/10 flex-shrink-0">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className={`text-lg md:text-xl ${textClass} flex items-center gap-2 truncate max-w-[180px]`}>
-                          {result.store}
-                        </CardTitle>
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                           <Badge variant="secondary" className={`text-[10px] px-1.5 ${percentFound === 100 ? 'text-green-600 bg-green-50' : 'text-amber-600 bg-amber-50'}`}>
-                             {percentFound}% Match
-                           </Badge>
-                           {isBestValue && <Badge className="text-[10px] px-1.5 bg-green-600">Best Value</Badge>}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-2xl md:text-3xl font-bold ${textClass}`}>${result.total.toFixed(2)}</div>
-                      </div>
-                    </div>
-                  </CardHeader>
+                  <Badge 
+                    variant="outline" 
+                    className={`text-[9px] px-1.5 h-4 font-mono transition-colors
+                      ${isSelected 
+                        ? "bg-green-500 text-white border-green-500" 
+                        : theme === 'dark' 
+                          ? "bg-[#181813] text-[#e8dcc4]/90 border-[#e8dcc4]/20" 
+                          : "bg-gray-100 text-gray-700 border-gray-200"
+                      }`}
+                  >
+                    ${result.total.toFixed(2)}
+                  </Badge>
+                </div>
 
-                  <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
-                    <div className="flex-1 overflow-y-auto">
-                      
-                      {/* FOUND ITEMS */}
-                      <div className="p-3 space-y-2">
-                         {result.items.map((item, i) => (
-                           <div key={`${item.id}-${i}`} className="flex items-center gap-3 group relative pr-10 py-1">
-                              <div className={`w-10 h-10 rounded border flex-shrink-0 flex items-center justify-center bg-white overflow-hidden ${theme === 'dark' ? "border-[#e8dcc4]/20" : "border-gray-100"}`}>
-                                {item.image_url ? (
-                                  <img src={item.image_url} alt={item.title} className="w-full h-full object-contain" />
-                                ) : (
-                                  <ShoppingCart className="h-4 w-4 text-gray-300" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-medium truncate ${textClass}`}>{item.title}</p>
-                                <div className="flex justify-between text-xs">
-                                   <span className={mutedTextClass}>{item.brand || 'Generic'}</span>
-                                   
-                                   {/* UPDATED: Quantity Display */}
-                                   <div className="flex items-center gap-1">
-                                      {item.quantity && item.quantity > 1 && (
-                                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-gray-300 text-gray-500">
-                                          {item.quantity}×
-                                        </Badge>
-                                      )}
-                                      <span className={`font-medium ${textClass}`}>${item.price.toFixed(2)}</span>
-                                   </div>
-                                </div>
-                              </div>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="absolute right-0 h-10 w-10 text-gray-400 active:text-blue-500 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                                title={`Swap "${item.originalName}"`}
-                                onClick={() => onReloadItem({ 
-                                  term: item.originalName, 
-                                  store: result.store,
-                                  shoppingListId: item.shoppingItemId 
-                                })}
-                              >
-                                <ArrowLeftRight className="h-5 w-5" />
-                              </Button>
-                           </div>
-                         ))}
-                      </div>
-
-                      {/* MISSING ITEMS */}
-                      {missingCount > 0 && result.missingIngredients && (
-                        <div className="bg-amber-50/50 dark:bg-amber-900/10 border-t border-dashed border-amber-200 dark:border-amber-800">
-                          <div className="px-4 py-2 bg-amber-100/50 dark:bg-amber-900/20 flex items-center gap-2">
-                             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-                             <span className="text-xs font-bold text-amber-700 dark:text-amber-500 uppercase tracking-wide">
-                                Missing ({missingCount})
-                             </span>
-                          </div>
-                          <div className="p-2 space-y-1">
-                            {result.missingIngredients.map((item, i) => (
-                              <div key={`${item.id}-${i}`} className="flex items-center justify-between p-2 rounded active:bg-amber-100/50 transition-colors">
-                                <span className={`text-sm ${textClass} opacity-70`}>
-                                  {/* Also show quantity for missing items if > 1 */}
-                                  {item.quantity > 1 ? `${item.quantity}× ` : ''}{item.name}
-                                </span>
-                                <Button 
-                                  size="sm" 
-                                  variant="ghost" 
-                                  onClick={() => onReloadItem({ 
-                                    term: item.name, 
-                                    store: result.store,
-                                    shoppingListId: item.id 
-                                  })}
-                                  className="h-8 text-xs gap-1 text-amber-600 active:bg-amber-200/50"
-                                >
-                                  <RotateCcw className="h-3 w-3" />
-                                  Find
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className={`p-4 border-t mt-auto flex-shrink-0 ${theme === "dark" ? "border-[#e8dcc4]/10 bg-[#1f1e1a]" : "border-gray-100 bg-gray-50"}`}>
-                       <Button className={`w-full h-11 text-base ${buttonClass}`}>
-                          Shop {result.store} <ExternalLink className="ml-2 h-4 w-4" />
-                       </Button>
-                       {missingCount > 0 && (
-                         <p className="text-[10px] text-center mt-2 text-amber-600 opacity-80">
-                           {missingCount} items to buy elsewhere
-                         </p>
-                       )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )
+                {isSelected && (
+                  <div className="absolute -bottom-2 h-1 w-8 bg-green-500 rounded-full transition-all duration-300" />
+                )}
+              </button>
+            );
           })}
         </div>
       </div>
-      
-      {/* Dots */}
-      <div className="flex justify-center gap-1.5 pb-4">
-        {massSearchResults.map((_, i) => (
-          <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === carouselIndex ? `w-4 ${theme === 'dark' ? 'bg-[#e8dcc4]' : 'bg-gray-800'}` : `w-1.5 ${theme === 'dark' ? 'bg-[#e8dcc4]/20' : 'bg-gray-300'}`}`} />
-        ))}
-      </div>
+
+      {/* ACTIVE STORE CARD */}
+      <Card className={`overflow-hidden border-0 shadow-2xl ${cardBgClass} transition-all duration-300`}>
+        <div className={`p-6 flex justify-between items-end border-b ${theme === 'dark' ? 'border-white/5 bg-white/5' : 'border-gray-100 bg-gray-50/50'}`}>
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <h4 className={`text-2xl font-bold ${textClass}`}>{activeStore.store}</h4>
+              {carouselIndex === bestValueIndex && (
+                <Badge className="bg-green-600 hover:bg-green-600 text-[10px] px-2 h-5">BEST VALUE</Badge>
+              )}
+            </div>
+            <p className={`text-xs font-medium ${percentFound === 100 ? 'text-green-500' : 'text-amber-500'}`}>
+              {percentFound}% Stock Match ({activeStore.items.length} items found)
+            </p>
+          </div>
+          <div className="text-right">
+            <p className={`text-[10px] font-bold uppercase tracking-tight ${mutedTextClass} mb-1`}>Checkout Total</p>
+            <p className={`text-4xl font-black ${textClass} tracking-tight`}>
+              <span className="text-xl font-normal mr-0.5 opacity-70">$</span>
+              {activeStore.total.toFixed(2)}
+            </p>
+          </div>
+        </div>
+
+        <CardContent 
+          key={activeStore.store}
+          ref={listContainerRef} 
+          className="p-0 min-h-[400px] max-h-[600px] overflow-y-auto custom-scrollbar scroll-smooth"
+        >
+          <div className="divide-y divide-gray-100 dark:divide-white/5">
+            {activeStore.items.map((item, i) => (
+              <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
+                <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === 'dark' ? 'bg-white border-white/10' : 'bg-white border-gray-100'}`}>
+                  {item.image_url ? (
+                    <img src={item.image_url} alt="" className="w-full h-full object-contain" />
+                  ) : (
+                    <ShoppingCart className="h-5 w-5 text-gray-200" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold truncate ${textClass}`}>{item.title}</p>
+                  <p className={`text-[11px] ${mutedTextClass}`}>{item.brand || 'Store Brand'}</p>
+                </div>
+                <div className="text-right mr-2">
+                  <p className={`text-sm font-bold ${textClass}`}>${item.price.toFixed(2)}</p>
+                  {item.quantity > 1 && <p className={`text-[10px] ${mutedTextClass}`}>{item.quantity} units</p>}
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  title={`Swap ${item.title}`}
+                  className="h-9 w-9 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onReloadItem({ term: item.originalName, store: activeStore.store, shoppingListId: item.shoppingItemId })}
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+
+            {/* MISSING INGREDIENTS: Retry functionality removed as requested */}
+            {missingCount > 0 && (
+              <div className="bg-amber-50/30 dark:bg-amber-900/10 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                   <AlertCircle className="h-4 w-4 text-amber-500" />
+                   <span className="text-xs font-bold uppercase tracking-widest text-amber-600">Missing from list ({missingCount})</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2.5">
+                  {activeStore.missingIngredients.map((item, i) => (
+                    <div key={`miss-${i}`} className="flex justify-between items-center bg-white/60 dark:bg-black/40 p-3 rounded-lg border border-amber-100 dark:border-amber-900/50 shadow-sm">
+                      <span className={`text-xs font-medium ${textClass}`}>{item.name}</span>
+                      {/* Retry button removed */}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+
+        <div className="p-5 bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-white/5">
+          <Button className={`w-full h-14 text-lg font-bold shadow-2xl transition-transform active:scale-[0.98] ${buttonClass}`}>
+            Checkout at {activeStore.store} <ExternalLink className="ml-2 h-5 w-5" />
+          </Button>
+        </div>
+      </Card>
     </div>
-  )
+  );
 }

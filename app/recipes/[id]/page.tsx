@@ -15,6 +15,8 @@ import { RecipePricingInfo } from "@/components/recipe-pricing-info"
 import { useToast } from "@/hooks/use-toast"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
+// Import the new hook
+import { useShoppingList } from "@/hooks/useShoppingList" // Adjust path if needed
 
 interface Ingredient {
   amount: string
@@ -52,6 +54,10 @@ export default function RecipeDetailPage() {
   const router = useRouter()
   const { user } = useAuth()
   const { toast } = useToast()
+  
+  // Use the hook for shopping list actions
+  const { addRecipeIngredients } = useShoppingList()
+
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
@@ -223,53 +229,29 @@ export default function RecipeDetailPage() {
     }
   }
 
-  const addIngredientsToShoppingList = async () => {
-    if (!user || !recipe) return
+  // --- UPDATED HANDLER: Using useShoppingList hook ---
+  const handleAddToShoppingList = async () => {
+    if (!user || !recipe) {
+      if (!user) {
+        toast({ title: "Sign in required", description: "Please sign in to manage your shopping list.", variant: "destructive" })
+      }
+      return
+    }
 
     try {
-      const { data: existingListData, error: fetchError } = await supabase
-        .from("shopping_lists")
-        .select("items")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-
-      if (fetchError && fetchError.code !== "PGRST116") throw fetchError
-
-      const currentItems = existingListData && existingListData.length > 0 ? existingListData[0]?.items || [] : []
-
-      const newItems = recipe.ingredients.map((ingredient, index) => ({
-        id: `recipe-${recipe.id}-${index}-${Date.now()}`,
-        name: ingredient.name,
-        quantity: Number.parseFloat(ingredient.amount) || 1,
-        unit: ingredient.unit,
-        checked: false,
-        recipeId: recipe.id,
-        recipeName: recipe.title,
-      }))
-
-      const updatedItems = [...currentItems, ...newItems]
-
-      const { error } = await supabase.from("shopping_lists").upsert({
-        user_id: user.id,
-        items: updatedItems,
-      })
-
-      if (error) throw error
-
-      toast({
-        title: "Ingredients added",
-        description: "Ingredients have been added to your shopping list!",
-      })
+      // Call the hook function which handles optimistic updates and DB sync
+      await addRecipeIngredients(
+        recipe.id,
+        recipe.title,
+        recipe.ingredients // Passed directly; hook maps it
+      )
+      
+      // Toast is handled inside the hook, but you can add navigation logic here if desired
     } catch (error) {
-      console.error("Error adding to shopping list:", error)
-      toast({
-        title: "Error",
-        description: "Failed to add ingredients to shopping list.",
-        variant: "destructive",
-      })
+      console.error("Failed to add ingredients", error)
     }
   }
+  // --- END UPDATED HANDLER ---
 
   const getTotalTime = () => {
     return (recipe?.prep_time || 0) + (recipe?.cook_time || 0)
@@ -460,7 +442,7 @@ export default function RecipeDetailPage() {
                   Ingredients
                 </h3>
                 {user && (
-                  <Button size="sm" onClick={addIngredientsToShoppingList} className={`${primaryButtonClass} w-full sm:w-auto`}>
+                  <Button size="sm" onClick={handleAddToShoppingList} className={`${primaryButtonClass} w-full sm:w-auto`}>
                     <ShoppingCart className="w-4 h-4 mr-2" />
                     Add to cart
                   </Button>
