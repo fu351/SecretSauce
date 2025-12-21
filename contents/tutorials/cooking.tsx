@@ -3,72 +3,97 @@ import { TutorialPath } from "../../lib/types/tutorial"
 export const cookingPath: TutorialPath = {
   id: "cooking",
   name: "Mastering the Craft",
-  description: "Learn to cook with confidence and stay organized.",
+  description: "A deep dive into recipe discovery and kitchen organization.",
   steps: [
     {
       id: 1,
-      title: "Your Command Center",
-      description: "Everything you need to manage your kitchen is right here.",
+      title: "Command Center",
+      description: "Manage your culinary workflow from one spot.",
       page: "/dashboard",
+      highlightSelector: "[data-tutorial='dashboard-overview']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Monitor your cooking frequency and nutritional milestones.",
-          highlightSelector: "[data-tutorial='dashboard-stats']",
+          instruction: "Start with the dashboard overview to check your daily schedule.",
+          highlightSelector: "[data-tutorial='dashboard-overview']",
           action: "highlight",
         },
         {
           id: 2,
-          instruction: "Quickly access recipes you've marked as favorites.",
+          instruction: "Quickly revisit that amazing dish you made yesterday in 'Recents'.",
+          highlightSelector: "[data-tutorial='dashboard-recents']",
+          action: "highlight",
+        },
+        {
+          id: 3,
+          instruction: "Access your personalized hall-of-fame via your 'Favorites'.",
           highlightSelector: "[data-tutorial='dashboard-actions']",
           action: "highlight",
         }
-      ],
-      tips: ["Click the logo anytime to return to this view."]
+      ]
     },
     {
       id: 2,
-      title: "The Recipe Library",
-      description: "Explore thousands of dishes tailored to your skill level.",
+      title: "Advanced Recipe Discovery",
+      description: "Find the perfect meal for any occasion.",
       page: "/recipes",
+      highlightSelector: "[data-tutorial='recipe-overview']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Search for specific ingredients you have on hand.",
+          instruction: "Enter the recipe library to see featured collections.",
+          highlightSelector: "[data-tutorial='recipe-overview']",
+          action: "highlight",
+        },
+        {
+          id: 2,
+          instruction: "Use the search bar to find recipes by ingredient or title.",
           highlightSelector: "[data-tutorial='recipe-search']",
           action: "highlight",
         },
         {
-          id: 2,
-          instruction: "Filter by 'Beginner' to find foolproof starting points.",
+          id: 3,
+          instruction: "Apply filters to match your current skill level or cooking time.",
           highlightSelector: "[data-tutorial='recipe-filter']",
+          action: "highlight",
+        },
+        {
+          id: 4,
+          instruction: "Interact with a Recipe Card to see detailed instructions.",
+          highlightSelector: "[data-tutorial='recipe-card']",
           action: "highlight",
         }
       ]
     },
     {
       id: 3,
-      title: "Workflow Organization",
-      description: "Use the sidebar to bridge your library and your schedule.",
+      title: "The Weekly Planner",
+      description: "Bridge the gap between recipes and your calendar.",
       page: "/meal-planner",
+      highlightSelector: "[data-tutorial='planner-overview']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Open this sidebar to see your available recipes.",
-          highlightSelector: "[data-tutorial='planner-sidebar']",
+          instruction: "View your broader weekly pannel for an overview of your meals.",
+          highlightSelector: "[data-tutorial='planner-overview']",
           action: "highlight",
         },
         {
           id: 2,
-          instruction: "Review your week's distribution of meals here.",
-          highlightSelector: "[data-tutorial='planner-weekly']",
+          instruction: "Use the sidebar to see available recipes you can drag into your week.",
+          highlightSelector: "[data-tutorial='planner-sidebar']",
+          action: "highlight",
+        },
+        {
+          id: 3,
+          instruction: "Need a snack? Use the 'Add' button to manually insert items.",
+          highlightSelector: "[data-tutorial='planner-add']",
           action: "highlight",
         }
-      ],
-      tips: ["Drag recipes from the sidebar directly onto a calendar day."]
+      ]
     }
   ]
 }

@@ -723,7 +723,7 @@ export default function MealPlannerPage() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background"
-    data-tutorial="planner-weekly"
+    data-tutorial="planner-overview"
     >
       <div className="flex-1 overflow-y-auto p-3 md:p-6">
         <div className="max-w-7xl mx-auto">
@@ -833,7 +833,8 @@ export default function MealPlannerPage() {
               <div
                 className={`rounded-2xl border border-border bg-card/60 shadow-sm p-2.5 md:p-3 transition-colors`}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2"
+                data-tutorial="planner-macros">
                   <div>
                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Weekly snapshot</p>
                     <p className={`text-sm font-semibold ${textClass}`}>

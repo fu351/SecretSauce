@@ -1,14 +1,12 @@
-import { TutorialPath } from "../lib/types/tutorial"
+// src/contents/tutorial-content.tsx
 import { cookingPath } from "./tutorials/cooking"
-import { budgetingPath } from "./tutorials/budgeting"
 import { healthPath } from "./tutorials/health"
+import { budgetingPath } from "./tutorials/budgeting"
 
-// Re-export types for use in other components
-export * from "../lib/types/tutorial"
-
-// Export the main data object
-export const tutorialPaths: Record<string, TutorialPath> = {
+export const tutorialPaths = {
   cooking: cookingPath,
-  budgeting: budgetingPath,
   health: healthPath,
+  budgeting: budgetingPath,
 }
+
+export type { TutorialPath, TutorialStep, TutorialSubstep } from "../lib/types/tutorial"

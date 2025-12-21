@@ -3,50 +3,79 @@ import { TutorialPath } from "../../lib/types/tutorial"
 export const budgetingPath: TutorialPath = {
   id: "budgeting",
   name: "Optimize Resources",
-  description: "Cut grocery costs by comparing local prices and planning ahead.",
+  description: "Advanced tools to track spending and lower your grocery bill.",
   steps: [
     {
       id: 1,
-      title: "Strategic Planning",
-      description: "Avoid impulse buys by sticking to a predefined AI plan.",
-      page: "/meal-planner",
+      title: "Financial Tracking",
+      description: "Analyze your spending habits.",
+      page: "/dashboard",
+      highlightSelector: "[data-tutorial='dashboard-overview']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Generate a plan optimized for the lowest local prices.",
-          highlightSelector: "[data-tutorial='planner-ai']",
+          instruction: "Begin with your dashboard for a high-level budget summary.",
+          highlightSelector: "[data-tutorial='dashboard-overview']",
           action: "highlight",
         },
         {
           id: 2,
-          instruction: "Export these recipes to your shopping list immediately.",
-          highlightSelector: "[data-tutorial='planner-add']",
+          instruction: "Dive into your user stats to see where your money is going.",
+          highlightSelector: "[data-tutorial='dashboard-stats']",
           action: "highlight",
         }
       ]
     },
     {
       id: 2,
-      title: "The Price War",
-      description: "See which local retailers offer the best value for your specific list.",
-      page: "/shopping",
+      title: "Smart Budget Planning",
+      description: "Automate your savings via the meal planner.",
+      page: "/meal-planner",
+      highlightSelector: "[data-tutorial='planner-overview']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Review individual item costs at different stores.",
-          highlightSelector: "[data-tutorial='store-list']",
+          instruction: "Start at the planner overview to see your current schedule.",
+          highlightSelector: "[data-tutorial='planner-overview']",
           action: "highlight",
         },
         {
           id: 2,
-          instruction: "Compare the total basket cost for each local store.",
+          instruction: "Generate a plan optimized specifically for low local prices.",
+          highlightSelector: "[data-tutorial='planner-ai']",
+          action: "highlight",
+        }
+      ]
+    },
+    {
+      id: 3,
+      title: "Retail Comparison",
+      description: "Pick the best store for your specific list.",
+      page: "/shopping",
+      highlightSelector: "[data-tutorial='store-overview']",
+      action: "highlight",
+      substeps: [
+        {
+          id: 1,
+          instruction: "Check your shopping list item overview.",
+          highlightSelector: "[data-tutorial='store-overview']",
+          action: "highlight",
+        },
+        {
+          id: 2,
+          instruction: "Open the menu to manually add extra household essentials.",
+          highlightSelector: "[data-tutorial='store-add']",
+          action: "highlight",
+        },
+        {
+          id: 3,
+          instruction: "Compare the total cost of your items across different local stores.",
           highlightSelector: "[data-tutorial='store-compare']",
           action: "highlight",
         }
-      ],
-      tips: ["Sometimes spliting your trip between two stores saves over 20%."]
+      ]
     }
   ]
 }

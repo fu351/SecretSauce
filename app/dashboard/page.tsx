@@ -139,7 +139,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <>
+    <div data-tutorial="dashboard-overview">
       {/* Tutorial Components: Overlay now handles the "Blocker" effect */}
       <TutorialOverlay />
       <TutorialSelectionModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
@@ -353,6 +353,6 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
-    </>
+    </div>
   )
 }

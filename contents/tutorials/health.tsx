@@ -3,46 +3,73 @@ import { TutorialPath } from "../../lib/types/tutorial"
 export const healthPath: TutorialPath = {
   id: "health",
   name: "Elevate Your Journey",
-  description: "Prioritize your well-being with data-driven planning.",
+  description: "Prioritize your well-wellbeing with precise data and planning.",
   steps: [
     {
       id: 1,
-      title: "Personalized Settings",
-      description: "Input your dietary needs to filter out allergens and unwanted ingredients.",
+      title: "Dietary Personalization",
+      description: "Ensure every suggestion fits your lifestyle.",
       page: "/settings",
       highlightSelector: "[data-tutorial='settings-preferences']",
-      action: "highlight",
-      tips: ["Setting preferences here updates all recipe suggestions app-wide."]
-    },
-    {
-      id: 2,
-      title: "Nutritional Snapshot",
-      description: "See exactly what you're consuming throughout the week.",
-      page: "/meal-planner",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Check your average daily calories and macro distribution.",
-          highlightSelector: "[data-tutorial='planner-weekly']",
+          instruction: "Set your global preferences for meal restrictions and allergens.",
+          highlightSelector: "[data-tutorial='settings-preferences']",
+          action: "highlight",
+        }
+      ]
+    },
+    {
+      id: 2,
+      title: "Nutritional Planning",
+      description: "Hit your targets with AI assistance and macro tracking.",
+      page: "/meal-planner",
+      highlightSelector: "[data-tutorial='planner-overview']",
+      action: "highlight",
+      substeps: [
+        {
+          id: 1,
+          instruction: "Open the planner overview to see your weekly structure.",
+          highlightSelector: "[data-tutorial='planner-overview']",
           action: "highlight",
         },
         {
           id: 2,
-          instruction: "Let AI generate a balanced plan based on your health goals.",
+          instruction: "Let the AI recommend a week of meals based on your health goals.",
           highlightSelector: "[data-tutorial='planner-ai']",
+          action: "highlight",
+        },
+        {
+          id: 3,
+          instruction: "Monitor the macros bar to see your calorie and nutrient distribution.",
+          highlightSelector: "[data-tutorial='planner-macros']",
           action: "highlight",
         }
       ]
     },
     {
       id: 3,
-      title: "Healthy Staples",
-      description: "Move your healthy plan into the real world.",
-      page: "/meal-planner",
-      highlightSelector: "[data-tutorial='planner-add']",
+      title: "Organized Nutrition",
+      description: "Keep your grocery list as healthy as your plan.",
+      page: "/shopping",
+      highlightSelector: "[data-tutorial='store-overview']",
       action: "highlight",
-      tips: ["Consolidate your ingredients to ensure you never miss a nutrient."]
+      substeps: [
+        {
+          id: 1,
+          instruction: "Review your full list to ensure all staples are present.",
+          highlightSelector: "[data-tutorial='store-overview']",
+          action: "highlight",
+        },
+        {
+          id: 2,
+          instruction: "Group your ingredients by recipe to stay organized in the aisles.",
+          highlightSelector: "[data-tutorial='store-sort']",
+          action: "highlight",
+        }
+      ]
     }
   ]
 }
