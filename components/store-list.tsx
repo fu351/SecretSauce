@@ -26,7 +26,6 @@ import {
   Trash2,
   List,
   Layers,
-  Search,
   Users
 } from "lucide-react"
 
@@ -43,6 +42,10 @@ interface ExtendedShoppingListSectionProps extends ShoppingListSectionProps {
   onAddItem: (name: string) => void;
   onAddRecipe: (id: string, title: string, servings?: number) => void;
   onUpdateItemName: (id: string, newName: string) => void;
+  newItemInput?: string;
+  onNewItemInputChange?: (value: string) => void;
+  onAddCustomItem?: () => void;
+  inputClass?: string;
 }
 
 export function ShoppingListSection({
@@ -64,23 +67,76 @@ export function ShoppingListSection({
   buttonClass,
   buttonOutlineClass,
   theme,
+  newItemInput,
+  onNewItemInputChange,
+  onAddCustomItem,
+  inputClass,
 }: ExtendedShoppingListSectionProps) {
   
   // -- View State --
   const [isGrouped, setIsGrouped] = useState(true)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
   // -- Editing State --
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")
   const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null)
   const [editingQuantityValue, setEditingQuantityValue] = useState("")
+  const [editingServingsId, setEditingServingsId] = useState<string | null>(null)
+  const [editingServingsValue, setEditingServingsValue] = useState("")
 
   // -- Accordion State --
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
 
+  // -- Calculate total price --
+  const totalPrice = useMemo(() => {
+    return shoppingList.reduce((sum, item) => {
+      if (item.price) {
+        return sum + (item.price * item.quantity)
+      }
+      return sum
+    }, 0)
+  }, [shoppingList])
+
+  // -- Get unique store names --
+  const storeNames = useMemo(() => {
+    const stores = new Set<string>()
+    shoppingList.forEach(item => {
+      if (item.storeName) stores.add(item.storeName)
+    })
+    return Array.from(stores)
+  }, [shoppingList])
+
+  const storeDisplay = storeNames.length === 0 ? null : storeNames.length === 1 ? storeNames[0] : "mixed stores"
+
+  // -- Clear shopping list handler --
+  const handleClearList = async () => {
+    // Remove all items from the list
+    const itemsToRemove = [...shoppingList]
+    const recipesToRemove = new Set<string>()
+
+    // Collect unique recipes first to avoid removing twice
+    itemsToRemove.forEach(item => {
+      if (item.recipeId) {
+        recipesToRemove.add(item.recipeId)
+      } else {
+        onRemoveItem(item.id)
+      }
+    })
+
+    // Remove recipes
+    for (const recipeId of recipesToRemove) {
+      if (onRemoveRecipe) {
+        onRemoveRecipe(recipeId)
+      }
+    }
+
+    setClearConfirmOpen(false)
+  }
+
   // =========================================================
-  // 1. DEDUPLICATE LIST 
+  // 1. DEDUPLICATE LIST
   // =========================================================
   const uniqueList = useMemo(() => {
     const seen = new Set<string>();
@@ -101,9 +157,9 @@ export function ShoppingListSection({
     uniqueList.forEach((item) => {
       if (item.recipeId) {
         if (!groups[item.recipeId]) {
-          groups[item.recipeId] = { 
+          groups[item.recipeId] = {
             name: item.recipeName || "Untitled Recipe",
-            items: [] 
+            items: []
           }
         }
         groups[item.recipeId].items.push(item)
@@ -115,7 +171,128 @@ export function ShoppingListSection({
     return { recipeGroups: groups, miscItems: misc }
   }, [uniqueList]);
 
+  // =========================================================
+  // 3. MERGE LOGIC FOR UNGROUPED VIEW
+  // =========================================================
+  const mergedUngroupedList = useMemo(() => {
+    if (isGrouped) return []
+
+    const mergeMap = new Map<string, ShoppingListItem & { itemsWithSameName: ShoppingListItem[] }>()
+
+    uniqueList.forEach((item) => {
+      // Merge all items with the same name, regardless of source
+      // This groups together recipe items and miscellaneous items if they have the same name
+      const key = item.name.toLowerCase()
+
+      if (mergeMap.has(key)) {
+        const existing = mergeMap.get(key)!
+        // Merge quantities
+        existing.quantity += item.quantity
+        // Merge checked state (only checked if all instances are checked)
+        existing.checked = existing.checked && item.checked
+        // Track all items with the same name for price and quantity handling
+        existing.itemsWithSameName.push(item)
+      } else {
+        // Store a copy to avoid mutating original
+        mergeMap.set(key, { ...item, itemsWithSameName: [item] })
+      }
+    })
+
+    return Array.from(mergeMap.values()).map(item => {
+      const { itemsWithSameName, ...rest } = item
+      // If items have different prices, use the average or most recent
+      const pricesAvailable = itemsWithSameName.filter(i => i.price !== undefined).map(i => i.price as number)
+      if (pricesAvailable.length > 0) {
+        return {
+          ...rest,
+          price: pricesAvailable[pricesAvailable.length - 1], // Use the last (most recently saved) price
+          itemsWithSameName // Keep this for quantity adjustments
+        }
+      }
+      return { ...rest, itemsWithSameName }
+    })
+  }, [uniqueList, isGrouped])
+
   // -- Handlers --
+  const handleToggleMergedItem = (mergedItem: ShoppingListItem & { itemsWithSameName?: ShoppingListItem[] }) => {
+    // In ungrouped view, toggle all items with the same name
+    if (!isGrouped && mergedItem.itemsWithSameName && mergedItem.itemsWithSameName.length > 1) {
+      mergedItem.itemsWithSameName.forEach(item => {
+        onToggleItem(item.id)
+      })
+    } else {
+      // In grouped view or for single items, just toggle the one item
+      onToggleItem(mergedItem.id)
+    }
+  }
+
+  const handleMergedQuantityUpdate = (mergedItem: ShoppingListItem & { itemsWithSameName?: ShoppingListItem[] }, newTotalQuantity: number) => {
+    // In ungrouped view with merged items, prioritize adjusting miscellaneous items first
+    if (!isGrouped && mergedItem.itemsWithSameName && mergedItem.itemsWithSameName.length > 1) {
+      const allItems = mergedItem.itemsWithSameName
+      const miscItems = allItems.filter(item => item.source === 'miscellaneous')
+      const recipeItems = allItems.filter(item => item.source !== 'miscellaneous')
+      
+      const oldTotal = allItems.reduce((sum, item) => sum + item.quantity, 0)
+      const quantityChange = newTotalQuantity - oldTotal
+      
+      if (quantityChange > 0) {
+        // INCREASING: Add to miscellaneous items first
+        if (miscItems.length > 0) {
+          // Distribute increase across miscellaneous items
+          const increasePerItem = quantityChange / miscItems.length
+          miscItems.forEach(item => {
+            const newQuantity = Math.round((item.quantity + increasePerItem) * 10) / 10
+            onUpdateQuantity(item.id, newQuantity)
+          })
+        } else {
+          // No misc items, distribute across recipe items
+          const increasePerItem = quantityChange / recipeItems.length
+          recipeItems.forEach(item => {
+            const newQuantity = Math.round((item.quantity + increasePerItem) * 10) / 10
+            onUpdateQuantity(item.id, newQuantity)
+          })
+        }
+      } else if (quantityChange < 0) {
+        // DECREASING: Remove from miscellaneous items first
+        let remainingDecrease = Math.abs(quantityChange)
+        
+        // First, decrease from miscellaneous items
+        for (const item of miscItems) {
+          if (remainingDecrease <= 0) break
+          
+          const canDecrease = item.quantity - 1 // Keep at least 1
+          const actualDecrease = Math.min(canDecrease, remainingDecrease)
+          
+          if (actualDecrease > 0) {
+            const newQuantity = Math.max(1, Math.round((item.quantity - actualDecrease) * 10) / 10)
+            onUpdateQuantity(item.id, newQuantity)
+            remainingDecrease -= actualDecrease
+          }
+        }
+        
+        // If still need to decrease, decrease from recipe items
+        if (remainingDecrease > 0) {
+          for (const item of recipeItems) {
+            if (remainingDecrease <= 0) break
+            
+            const canDecrease = item.quantity - 1
+            const actualDecrease = Math.min(canDecrease, remainingDecrease)
+            
+            if (actualDecrease > 0) {
+              const newQuantity = Math.max(1, Math.round((item.quantity - actualDecrease) * 10) / 10)
+              onUpdateQuantity(item.id, newQuantity)
+              remainingDecrease -= actualDecrease
+            }
+          }
+        }
+      }
+    } else {
+      // In grouped view or for single items, just update the one item
+      onUpdateQuantity(mergedItem.id, newTotalQuantity)
+    }
+  }
+
   const startEditing = (item: ShoppingListItem) => {
     setEditingId(item.id)
     setEditValue(item.name)
@@ -146,8 +323,11 @@ export function ShoppingListSection({
 
   const saveEditingQuantity = (itemId: string) => {
     const newQuantity = parseFloat(editingQuantityValue)
-    if (!isNaN(newQuantity) && newQuantity >= 0) {
-      onUpdateQuantity(itemId, newQuantity)
+    if (!isNaN(newQuantity) && newQuantity >= 1) {
+      const item = uniqueList.find(i => i.id === itemId)
+      if (item) {
+        handleMergedQuantityUpdate(item, newQuantity)
+      }
     }
     setEditingQuantityId(null)
     setEditingQuantityValue("")
@@ -161,6 +341,30 @@ export function ShoppingListSection({
   const handleQuantityKeyDown = (e: React.KeyboardEvent, itemId: string) => {
     if (e.key === "Enter") saveEditingQuantity(itemId)
     if (e.key === "Escape") cancelEditingQuantity()
+  }
+
+  const startEditingServings = (recipeId: string, currentServings: number) => {
+    setEditingServingsId(recipeId)
+    setEditingServingsValue(currentServings.toString())
+  }
+
+  const saveEditingServings = (recipeId: string) => {
+    const newServings = parseInt(editingServingsValue, 10)
+    if (!isNaN(newServings) && newServings >= 1) {
+      onUpdateRecipeServings?.(recipeId, newServings)
+    }
+    setEditingServingsId(null)
+    setEditingServingsValue("")
+  }
+
+  const cancelEditingServings = () => {
+    setEditingServingsId(null)
+    setEditingServingsValue("")
+  }
+
+  const handleServingsKeyDown = (e: React.KeyboardEvent, recipeId: string) => {
+    if (e.key === "Enter") saveEditingServings(recipeId)
+    if (e.key === "Escape") cancelEditingServings()
   }
 
   const isExpanded = (id: string) => {
@@ -187,11 +391,14 @@ export function ShoppingListSection({
   // -- Render Helper: Individual Row --
   const renderItemRow = (item: ShoppingListItem) => {
     const isEditing = editingId === item.id
-    
+
     // NEW: Round display quantity to 2 decimal places to handle scaled fractions
-    const displayQuantity = Number.isInteger(item.quantity) 
-      ? item.quantity 
+    const displayQuantity = Number.isInteger(item.quantity)
+      ? item.quantity
       : parseFloat(item.quantity.toFixed(2));
+
+    // Calculate total price if price exists
+    const totalPrice = item.price ? (item.price * item.quantity) : null;
 
     return (
       <div
@@ -207,7 +414,7 @@ export function ShoppingListSection({
         }`}
       >
         <button
-          onClick={() => onToggleItem(item.id)}
+          onClick={() => handleToggleMergedItem(item)}
           className={`flex-shrink-0 h-5 w-5 rounded border flex items-center justify-center transition-colors ${
             item.checked
               ? "bg-green-500 border-green-500 text-white"
@@ -248,11 +455,17 @@ export function ShoppingListSection({
                 >
                   {item.name}
                 </p>
-                {!isGrouped && item.recipeName && (
-                  <p className={`text-[10px] ${mutedTextClass} truncate`}>
-                    from {item.recipeName}
-                  </p>
-                )}
+                <div className="flex gap-2 items-center mt-0.5 flex-wrap">
+                  {item.price ? (
+                    <p className={`text-[10px] font-medium ${mutedTextClass}`}>
+                      ${item.price.toFixed(2)} ea {totalPrice && `• $${totalPrice.toFixed(2)} total`}
+                    </p>
+                  ) : (
+                    <p className={`text-[10px] font-medium text-amber-600 dark:text-amber-400`}>
+                      Not found in saved store
+                    </p>
+                  )}
+                </div>
               </div>
               <Button
                 size="icon"
@@ -272,8 +485,8 @@ export function ShoppingListSection({
               size="icon"
               variant="ghost"
               type="button"
-              onClick={() => onUpdateQuantity(item.id, Math.max(0, item.quantity - 1))}
-              disabled={item.quantity <= 0}
+              onClick={() => handleMergedQuantityUpdate(item, Math.max(1, item.quantity - 1))}
+              disabled={item.quantity <= 1}
               className={`h-7 w-7 ${textClass}`}
             >
               <Minus className="h-3 w-3" />
@@ -287,7 +500,7 @@ export function ShoppingListSection({
                 onBlur={() => saveEditingQuantity(item.id)}
                 autoFocus
                 step="0.1"
-                min="0"
+                min="1"
                 className={`w-8 text-center text-xs font-medium px-1 py-0 border rounded [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                   theme === 'dark'
                     ? 'bg-[#181813] border-[#e8dcc4]/40 text-[#e8dcc4]'
@@ -306,7 +519,7 @@ export function ShoppingListSection({
               size="icon"
               variant="ghost"
               type="button"
-              onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+              onClick={() => handleMergedQuantityUpdate(item, item.quantity + 1)}
               className={`h-7 w-7 ${textClass}`}
             >
               <Plus className="h-3 w-3" />
@@ -386,9 +599,29 @@ export function ShoppingListSection({
                 >
                   <Minus className="h-2.5 w-2.5" />
                 </Button>
-                <span className={`w-6 text-center text-xs font-medium ${textClass}`}>
-                  {currentServings}
-                </span>
+                {editingServingsId === sectionKey ? (
+                  <input
+                    type="number"
+                    value={editingServingsValue}
+                    onChange={(e) => setEditingServingsValue(e.target.value)}
+                    onKeyDown={(e) => handleServingsKeyDown(e, sectionKey)}
+                    onBlur={() => saveEditingServings(sectionKey)}
+                    autoFocus
+                    min="1"
+                    className={`w-6 text-center text-xs font-medium px-0.5 py-0 border rounded [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                      theme === 'dark'
+                        ? 'bg-[#181813] border-[#e8dcc4]/40 text-[#e8dcc4]'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  />
+                ) : (
+                  <span
+                    onClick={() => startEditingServings(sectionKey, currentServings)}
+                    className={`w-6 text-center text-xs font-medium cursor-pointer hover:opacity-70 transition-opacity ${textClass}`}
+                  >
+                    {currentServings}
+                  </span>
+                )}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -442,80 +675,157 @@ export function ShoppingListSection({
 
   return (
     <Card className={cardBgClass} data-tutorial="store-overview">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle className={`flex items-center gap-2 ${textClass}`}>
-          <ShoppingCart className="h-5 w-5" />
-          Shopping List
-        </CardTitle>
-        <div className="flex items-center gap-3">
-          {headerAction && <div>{headerAction}</div>}
-
-          <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={`h-8 gap-2 ${buttonOutlineClass}`}
-                data-tutorial= "store-add"
-              >
-                <Search className="h-4 w-4" />
-                <span className="hidden sm:inline">Add Items</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className={`max-w-2xl max-h-[80vh] overflow-y-auto ${theme === 'dark' ? 'bg-[#181813] border-[#e8dcc4]/20' : 'bg-white'}`}>
-                <DialogHeader>
-                    <DialogTitle className={textClass}>Search to Add</DialogTitle>
-                    <DialogDescription>Find grocery items or add ingredients from your recipes.</DialogDescription>
-                </DialogHeader>
-                <RecipeSearchModal 
-                  user={user} 
-                  zipCode={zipCode || ""} 
-                  onAddItem={(name) => {
-                      onAddItem(name);
-                  }} 
-                  onAddRecipe={(id, title) => {
-                    onAddRecipe(id, title); 
-                    setIsSearchOpen(false);
-                  }}
-                  styles={modalStyles}
-                />
-            </DialogContent>
-          </Dialog>
-
-          {uniqueList.length > 0 && (
-            <div 
-            data-tutorial= "store-sort"
-            className={`flex items-center p-1 rounded-md border ${
-              theme === "dark" ? "border-[#e8dcc4]/20 bg-[#181813]" : "border-gray-200 bg-gray-50"
-            }`}>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setIsGrouped(true)}
-                className={`h-7 w-7 rounded-sm transition-all ${
-                  isGrouped
-                    ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
-                    : mutedTextClass
-                }`}
-                title="Group by Recipe"
-              >
-                <Layers className="h-4 w-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setIsGrouped(false)}
-                className={`h-7 w-7 rounded-sm transition-all ${
-                  !isGrouped
-                    ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
-                    : mutedTextClass
-                }`}
-                title="Ungrouped List"
-              >
-                <List className="h-4 w-4" />
-              </Button>
+      <CardHeader className="flex flex-col space-y-0 pb-4">
+        <div className="flex items-center justify-between w-full">
+          <CardTitle className={`flex items-center gap-2 ${textClass}`}>
+            <ShoppingCart className="h-5 w-5" />
+            Shopping List
+          </CardTitle>
+          {totalPrice > 0 && storeDisplay && (
+            <div className={`text-sm font-medium flex flex-col items-end gap-1 ${mutedTextClass}`}>
+              <div className="text-lg font-bold text-green-600">
+                ${totalPrice.toFixed(2)}
+              </div>
+              <div className="text-xs">
+                from {storeDisplay}
+              </div>
             </div>
           )}
+        </div>
+        <div className="flex flex-col gap-3 mt-3">
+          {/* Top row: Add Recipe button and optional custom input field */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Custom Item Input (if provided) */}
+            {newItemInput !== undefined && onNewItemInputChange && onAddCustomItem && inputClass && (
+              <div className="flex items-center gap-2 flex-1">
+                <Input
+                  value={newItemInput}
+                  onChange={(e) => onNewItemInputChange(e.target.value)}
+                  placeholder="Add custom item..."
+                  onKeyDown={(e) => e.key === 'Enter' && onAddCustomItem()}
+                  className={`h-8 ${inputClass}`}
+                />
+                <Button
+                  onClick={onAddCustomItem}
+                  className={`h-8 w-8 flex-shrink-0 p-0 ${buttonClass}`}
+                  disabled={!newItemInput.trim()}
+                  title="Add custom item"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              {headerAction && <div>{headerAction}</div>}
+
+              <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`h-8 gap-2 ${buttonOutlineClass}`}
+                    data-tutorial= "store-add"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">Add Recipe</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className={`max-w-2xl max-h-[80vh] overflow-y-auto ${theme === 'dark' ? 'bg-[#181813] border-[#e8dcc4]/20' : 'bg-white'}`}>
+                  <DialogHeader>
+                    <DialogTitle className={textClass}>Search to Add</DialogTitle>
+                    <DialogDescription>Find grocery items or add ingredients from your recipes.</DialogDescription>
+                  </DialogHeader>
+                  <RecipeSearchModal
+                    user={user}
+                    zipCode={zipCode || ""}
+                    onAddItem={(name) => {
+                      onAddItem(name);
+                    }}
+                    onAddRecipe={(id, title) => {
+                      onAddRecipe(id, title);
+                      setIsSearchOpen(false);
+                    }}
+                    styles={modalStyles}
+                  />
+                </DialogContent>
+              </Dialog>
+
+              {uniqueList.length > 0 && (
+                <>
+                  <div
+                    data-tutorial= "store-sort"
+                    className={`flex items-center p-1 rounded-md border ${
+                      theme === "dark" ? "border-[#e8dcc4]/20 bg-[#181813]" : "border-gray-200 bg-gray-50"
+                    }`}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setIsGrouped(true)}
+                      className={`h-7 w-7 rounded-sm transition-all ${
+                        isGrouped
+                          ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
+                          : mutedTextClass
+                      }`}
+                      title="Group by Recipe"
+                    >
+                      <Layers className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setIsGrouped(false)}
+                      className={`h-7 w-7 rounded-sm transition-all ${
+                        !isGrouped
+                          ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
+                          : mutedTextClass
+                      }`}
+                      title="Ungrouped List"
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 px-2`}
+                        title="Clear entire shopping list"
+                      >
+                        <Trash2 className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Clear All</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className={`${theme === 'dark' ? 'bg-[#181813] border-[#e8dcc4]/20' : 'bg-white'}`}>
+                      <DialogHeader>
+                        <DialogTitle className={textClass}>Clear Shopping List?</DialogTitle>
+                        <DialogDescription>
+                          This will remove all {uniqueList.length} item{uniqueList.length !== 1 ? 's' : ''} from your shopping list. This action cannot be undone.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="flex gap-3 justify-end">
+                        <Button
+                          variant="outline"
+                          onClick={() => setClearConfirmOpen(false)}
+                          className={buttonOutlineClass}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleClearList}
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                          Clear List
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </CardHeader>
       
@@ -551,7 +861,7 @@ export function ShoppingListSection({
               </>
             ) : (
               <div className="space-y-2">
-                {uniqueList.map(renderItemRow)}
+                {mergedUngroupedList.map(renderItemRow)}
               </div>
             )}
           </div>

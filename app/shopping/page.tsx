@@ -54,6 +54,7 @@ export default function ShoppingPage() {
     addRecipeToCart,
     updateRecipeServings,
     saveChanges,
+    savePricesFromStore,
   } = useShoppingList()
 
   const {
@@ -196,14 +197,23 @@ export default function ShoppingPage() {
               {viewMode === "edit" ? (
                 <div className="flex items-center gap-2">
                   {hasChanges && (
-                    <div className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-                      style={{
-                        backgroundColor: isDark ? "rgba(232, 220, 196, 0.15)" : "rgba(251, 146, 60, 0.1)",
-                        color: isDark ? "#e8dcc4" : "#ea580c"
-                      }}>
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      <span>Unsaved changes</span>
-                    </div>
+                    <>
+                      <div className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
+                        style={{
+                          backgroundColor: isDark ? "rgba(232, 220, 196, 0.15)" : "rgba(251, 146, 60, 0.1)",
+                          color: isDark ? "#e8dcc4" : "#ea580c"
+                        }}>
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        <span>Unsaved changes</span>
+                      </div>
+                      <Button
+                        onClick={() => saveChanges()}
+                        className={styles.buttonClass}
+                        data-tutorial="store-save"
+                      >
+                        Save Changes
+                      </Button>
+                    </>
                   )}
                   <Button
                     onClick={handleCompareClick}
@@ -255,27 +265,12 @@ export default function ShoppingPage() {
                     buttonClass={styles.buttonClass}
                     buttonOutlineClass={styles.buttonOutlineClass}
                     theme={styles.theme}
+                    // New prop for custom item input
+                    newItemInput={newItemInput}
+                    onNewItemInputChange={setNewItemInput}
+                    onAddCustomItem={handleCustomInputSubmit}
+                    inputClass={styles.inputClass}
                   />
-                  
-                  {/* Quick Add Input */}
-                  <div className="mt-6 pt-2">
-                     <div className="flex items-center gap-2">
-                        <Input
-                          value={newItemInput}
-                          onChange={(e) => setNewItemInput(e.target.value)}
-                          placeholder="Add custom item..."
-                          onKeyDown={(e) => e.key === 'Enter' && handleCustomInputSubmit()}
-                          className={styles.inputClass}
-                        />
-                        <Button 
-                          onClick={handleCustomInputSubmit} 
-                          className={styles.buttonClass} 
-                          disabled={!newItemInput.trim()}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                  </div>
                 </div>
               ) : (
                 <div className="p-6 pt-0">
@@ -289,14 +284,15 @@ export default function ShoppingPage() {
                       comparisonLoading={comparisonLoading}
                       massSearchResults={massSearchResults}
                       carouselIndex={carouselIndex}
-                      onCarouselNext={nextStore}
-                      onCarouselPrev={prevStore}
                       onStoreSelect={scrollToStore}
-                      onScroll={handleScroll}
-                      carouselRef={carouselRef}
                       onReloadItem={handleReloadRequest}
-                      zipCode={zipCode}
-                      {...styles}
+                      onSavePrices={savePricesFromStore}
+                      postalCode={zipCode}
+                      cardBgClass={styles.cardBgClass}
+                      textClass={styles.textClass}
+                      mutedTextClass={styles.mutedTextClass}
+                      buttonClass={styles.buttonClass}
+                      theme={styles.theme}
                     />
                   )}
                 </div>

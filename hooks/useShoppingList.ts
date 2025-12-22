@@ -26,7 +26,9 @@ export function useShoppingList() {
       unit: dbItem.unit || "piece",
       checked: dbItem.checked || false,
       ingredientId: dbItem.ingredient_id,
-      source: 'miscellaneous'
+      source: 'miscellaneous',
+      price: dbItem.price ? Number(dbItem.price) : undefined,
+      storeName: dbItem.store_name || undefined
     }
   }, [])
 
@@ -40,6 +42,7 @@ export function useShoppingList() {
     const amountsPerServing = dbItem.ingredient_amounts || []
     const checkedMask = dbItem.checked_mask || []
     const currentServings = Number(dbItem.servings) || 1
+    const ingredientPrices = dbItem.ingredient_prices || []
 
     return ingredients
       .map((ing: any, index: number) => {
@@ -67,7 +70,9 @@ export function useShoppingList() {
           ingredientMask: ingredientMask,
           checkedMask: checkedMask,
           servings: currentServings,
-          amountsPerServing: amountsPerServing // Store reference for individual updates
+          amountsPerServing: amountsPerServing, // Store reference for individual updates
+          price: ingredientPrices[index] ? Number(ingredientPrices[index]) : undefined,
+          storeName: dbItem.store_name || undefined
         }
       })
       .filter((item): item is ShoppingListItem => item !== null)
@@ -172,8 +177,9 @@ export function useShoppingList() {
   }, [items, toast])
 
   const updateQuantity = useCallback((id: string, newTotalQuantity: number) => {
-    const safeQuantity = Math.max(0, newTotalQuantity)
-    // Optimistic update only - no database sync
+    const safeQuantity = Math.max(1, newTotalQuantity)
+
+    // First, update local state optimistically
     setItems(prev => prev.map(item => {
       if (item.id === id) {
         // When user manually edits quantity, recalculate the per-serving amount
@@ -196,8 +202,54 @@ export function useShoppingList() {
       }
       return item
     }))
+
+    // Then save to database immediately
+    setItems(prev => {
+      const item = prev.find(i => i.id === id)
+      if (!item) return prev
+
+      // Determine if it's a miscellaneous or recipe item and save accordingly
+      if (item.source === 'miscellaneous') {
+        supabase
+          .from("miscellaneous_shopping_items")
+          .update({ quantity: safeQuantity })
+          .eq("id", id)
+          .then(({ error }) => {
+            if (error) {
+              console.error("Error updating quantity:", error)
+              toast({ title: "Error", description: "Failed to update quantity.", variant: "destructive" })
+            }
+          })
+      } else if (item.recipeId) {
+        // For recipe items, we need to update the ingredient_amounts in the database
+        const idParts = id.split('-')
+        const ingredientIndex = parseInt(idParts[idParts.length - 1])
+        const cartId = idParts.slice(0, -1).join('-')
+        const newPerServing = item.servings ? safeQuantity / item.servings : safeQuantity
+
+        // Find the cart item to get current amounts
+        const recipeItems = prev.filter(i => i.recipeId === item.recipeId && i.source === 'recipe')
+        const amountsPerServing = recipeItems[0]?.amountsPerServing || []
+        const updatedAmounts = [...amountsPerServing]
+        updatedAmounts[ingredientIndex] = newPerServing
+
+        supabase
+          .from("recipe_shopping_items")
+          .update({ ingredient_amounts: updatedAmounts })
+          .eq("id", cartId)
+          .then(({ error }) => {
+            if (error) {
+              console.error("Error updating recipe quantity:", error)
+              toast({ title: "Error", description: "Failed to update quantity.", variant: "destructive" })
+            }
+          })
+      }
+
+      return prev
+    })
+
     setHasChanges(true) // Mark as changed
-  }, [])
+  }, [user, toast])
 
   const updateItemName = useCallback(async (id: string, newName: string) => {
     const currentItem = items.find(i => i.id === id)
@@ -420,6 +472,89 @@ export function useShoppingList() {
     }
   }, [items, user, toast, hasChanges])
 
+  // --- 6. Save Prices from Store ---
+  const savePricesFromStore = useCallback(async (
+    storeName: string,
+    priceMap: Map<string, number>
+  ) => {
+    if (!user) return
+
+    try {
+      // Separate items by source
+      const miscItems: { id: string; price: number }[] = []
+      const recipeChanges: {
+        cartId: string
+        ingredient_prices: number[]
+      }[] = []
+
+      // Group recipe items by cartId
+      const recipeGroupMap = new Map<string, { prices: number[]; indices: number[] }>()
+
+      items.forEach(item => {
+        // Only process items that have prices in the map (items that were found in the store)
+        const price = priceMap.get(item.id)
+        if (price === undefined) return // Skip items not found in store
+
+        if (item.source === 'miscellaneous') {
+          miscItems.push({ id: item.id, price })
+        } else if (item.recipeId) {
+          // Extract cartId and ingredient index from item ID (format: cartId-index)
+          const idParts = item.id.split('-')
+          const ingredientIndex = parseInt(idParts[idParts.length - 1])
+          const cartId = idParts.slice(0, -1).join('-')
+
+          if (!recipeGroupMap.has(cartId)) {
+            // Get ingredient count for this recipe
+            const ingredientCount = items.filter(i => i.recipeId === item.recipeId && i.source === 'recipe').length
+            recipeGroupMap.set(cartId, { prices: new Array(ingredientCount).fill(null), indices: [] })
+          }
+
+          const group = recipeGroupMap.get(cartId)!
+          group.prices[ingredientIndex] = price
+          if (!group.indices.includes(ingredientIndex)) {
+            group.indices.push(ingredientIndex)
+          }
+        }
+      })
+
+      // Build recipe changes with full ingredient_prices arrays
+      for (const [cartId, group] of recipeGroupMap) {
+        recipeChanges.push({
+          cartId,
+          ingredient_prices: group.prices
+        })
+      }
+
+      // Update miscellaneous items
+      for (const item of miscItems) {
+        await supabase
+          .from("miscellaneous_shopping_items")
+          .update({ price: item.price, store_name: storeName })
+          .eq("id", item.id)
+      }
+
+      // Update recipe items
+      for (const change of recipeChanges) {
+        await supabase
+          .from("recipe_shopping_items")
+          .update({ ingredient_prices: change.ingredient_prices, store_name: storeName })
+          .eq("id", change.cartId)
+      }
+
+      // Update local state to reflect saved prices
+      setItems(prev => prev.map(item => {
+        const price = priceMap.get(item.id)
+        if (price === undefined) return item
+        return { ...item, price, storeName }
+      }))
+
+      toast({ title: "Prices Saved", description: `Prices from ${storeName} have been saved.` })
+    } catch (error) {
+      console.error("Error saving prices:", error)
+      toast({ title: "Error", description: "Failed to save prices.", variant: "destructive" })
+    }
+  }, [items, user, toast])
+
   useEffect(() => {
     loadShoppingList()
   }, [loadShoppingList])
@@ -437,5 +572,6 @@ export function useShoppingList() {
     updateRecipeServings,
     removeRecipe,
     saveChanges,
+    savePricesFromStore,
   }
 }

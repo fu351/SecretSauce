@@ -34,6 +34,10 @@ export interface ShoppingListItem {
   servings?: number
   // Only for recipe items - per-serving amounts for scaling
   amountsPerServing?: number[]
+  // Price per unit for the item
+  price?: number
+  // Name of the store where the price was found
+  storeName?: string
 }
 
 export interface Recipe {
