@@ -20,19 +20,60 @@ import type { StoreComparison } from "@/lib/types/store"
 import { StoreMap } from "@/components/store-map"
 import { useClosestStore } from "@/hooks/useClosestStore" // Ensure this path is correct
 import { getUserLocation } from "@/lib/geocoding"
+import Image from "next/image"
+
+// Map store names to logo files
+function getStoreLogo(storeName: string): string | null {
+  const normalized = storeName.toLowerCase().replace(/\s+/g, '')
+  const logoMap: Record<string, string> = {
+    'walmart': '/walmart.png',
+    'target': '/Target.jpg',
+    'kroger': '/kroger.jpg',
+    'safeway': '/safeway.jpeg',
+    'aldi': '/aldi.png',
+    'traderjoes': '/trader-joes.png',
+    "trader joe's": '/trader-joes.png',
+    'meijer': '/meijers.png',
+    'meijers': '/meijers.png',
+    '99ranch': '/99ranch.png',
+    '99 ranch': '/99ranch.png',
+    '99ranchmarket': '/99ranch.png',
+  }
+
+  // Try exact match first
+  if (logoMap[normalized]) return logoMap[normalized]
+
+  // Try partial matches
+  for (const [key, logo] of Object.entries(logoMap)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return logo
+    }
+  }
+
+  return null
+}
 
 interface StoreComparisonSectionProps {
   comparisonLoading: boolean
   massSearchResults: StoreComparison[]
-  carouselIndex: number 
+  carouselIndex: number
   onStoreSelect: (index: number) => void
-  onReloadItem: (params: { term: string; store: string; shoppingListId: string }) => void 
+  onReloadItem: (params: { term: string; store: string; shoppingListId: string; shoppingListIds?: string[] }) => void
   postalCode: string
   cardBgClass: string
   textClass: string
   mutedTextClass: string
   buttonClass: string
   theme: "light" | "dark"
+}
+
+const CACHE_KEY = "store_comparison_cache";
+const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
+
+interface CachedStoreData {
+  data: StoreComparison[];
+  timestamp: number;
+  postalCode: string;
 }
 
 export function StoreComparisonSection({
@@ -51,9 +92,60 @@ export function StoreComparisonSection({
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [viewType, setViewType] = useState<"list" | "map">("list");
   const [userCoords, setUserCoords] = useState<google.maps.LatLngLiteral | null>(null);
+  const [cachedResults, setCachedResults] = useState<StoreComparison[]>([]);
+  const [usingCache, setUsingCache] = useState(false);
 
   // Initialize the new hook
   const { closestIndex, travelData, calculateClosest, isLoading: travelLoading } = useClosestStore();
+
+  // Load cached data on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const parsedCache: CachedStoreData = JSON.parse(cached);
+        const now = Date.now();
+
+        // Check if cache is valid and matches current postal code
+        if (
+          parsedCache.postalCode === postalCode &&
+          now - parsedCache.timestamp < CACHE_TTL
+        ) {
+          setCachedResults(parsedCache.data);
+          setUsingCache(true);
+          console.log("Using cached store comparison data");
+        } else {
+          // Cache expired or different postal code
+          localStorage.removeItem(CACHE_KEY);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading cached store data:", error);
+      localStorage.removeItem(CACHE_KEY);
+    }
+  }, [postalCode]);
+
+  // Cache new results when they arrive
+  useEffect(() => {
+    if (typeof window === "undefined" || !massSearchResults.length) return;
+
+    try {
+      const cacheData: CachedStoreData = {
+        data: massSearchResults,
+        timestamp: Date.now(),
+        postalCode,
+      };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+      setUsingCache(false);
+    } catch (error) {
+      console.error("Error caching store data:", error);
+    }
+  }, [massSearchResults, postalCode]);
+
+  // Use cached results if available and no new results
+  const displayResults = massSearchResults.length > 0 ? massSearchResults : cachedResults;
 
   // 1. Get User Location on Mount
   useEffect(() => {
@@ -66,14 +158,41 @@ export function StoreComparisonSection({
 
   // 2. Trigger Distance Calculations
   useEffect(() => {
-    if (userCoords && massSearchResults.length > 0) {
-      calculateClosest(userCoords, massSearchResults);
+    if (userCoords && displayResults.length > 0) {
+      calculateClosest(userCoords, displayResults);
     }
-  }, [userCoords, massSearchResults, calculateClosest]);
+  }, [userCoords, displayResults, calculateClosest]);
 
   const activeStore = useMemo(() => {
-    return massSearchResults[carouselIndex] || massSearchResults[0];
-  }, [massSearchResults, carouselIndex]);
+    return displayResults[carouselIndex] || displayResults[0];
+  }, [displayResults, carouselIndex]);
+
+  // Merge duplicate items by title and sum their quantities
+  // Also track all shopping list IDs for merged items
+  const mergedItems = useMemo(() => {
+    if (!activeStore?.items) return [];
+
+    const itemMap = new Map<string, typeof activeStore.items[0] & { shoppingItemIds: string[] }>();
+
+    activeStore.items.forEach(item => {
+      const key = item.title.toLowerCase().trim();
+      if (itemMap.has(key)) {
+        const existing = itemMap.get(key)!;
+        itemMap.set(key, {
+          ...existing,
+          quantity: (existing.quantity || 1) + (item.quantity || 1),
+          shoppingItemIds: [...existing.shoppingItemIds, item.shoppingItemId]
+        });
+      } else {
+        itemMap.set(key, {
+          ...item,
+          shoppingItemIds: [item.shoppingItemId]
+        });
+      }
+    });
+
+    return Array.from(itemMap.values());
+  }, [activeStore]);
 
   useEffect(() => {
     if (listContainerRef.current) {
@@ -89,13 +208,13 @@ export function StoreComparisonSection({
   };
 
   const bestValueIndex = useMemo(() => {
-    if (!massSearchResults?.length) return -1;
+    if (!displayResults?.length) return -1;
     let bestIdx = -1;
     let minScore = Infinity;
 
-    massSearchResults.forEach((store, idx) => {
+    displayResults.forEach((store, idx) => {
        const missingCount = store.missingIngredients?.length || 0;
-       const penalty = missingCount * 20; 
+       const penalty = missingCount * 20;
        const score = store.total + penalty;
        if (score < minScore) {
          minScore = score;
@@ -103,9 +222,9 @@ export function StoreComparisonSection({
        }
     });
     return bestIdx;
-  }, [massSearchResults]);
+  }, [displayResults]);
 
-  if ((!massSearchResults?.length) && !comparisonLoading) {
+  if ((!displayResults?.length) && !comparisonLoading && !usingCache) {
     return (
       <div className={`flex flex-col items-center justify-center py-16 ${mutedTextClass}`}>
         <Store className="h-12 w-12 mb-4 opacity-10" />
@@ -122,7 +241,7 @@ export function StoreComparisonSection({
       {/* HEADER & VIEW TOGGLE */}
       <div className="flex items-center justify-between px-2">
         <label className={`text-[11px] font-bold uppercase tracking-wider ${mutedTextClass}`}>
-          Compare Stores ({massSearchResults.length})
+          Compare Stores ({displayResults.length}) {usingCache && <span className="text-[9px] opacity-50">(cached)</span>}
         </label>
         <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-lg border border-white/10">
           <Button 
@@ -145,30 +264,45 @@ export function StoreComparisonSection({
       </div>
 
       {/* STORE SWITCHER RAIL */}
-      <div className="flex items-center gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x px-4 pt-4"> 
-        {massSearchResults.map((result, idx) => {
+      <div className="flex items-center gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x px-4 pt-4">
+        {displayResults.map((result, idx) => {
           const isSelected = carouselIndex === idx;
           const isBest = idx === bestValueIndex;
           const isClosest = idx === closestIndex; // From new hook
           const travelInfo = travelData.get(idx); // From new hook
+          const storeLogo = getStoreLogo(result.store);
 
           return (
             <button
               key={`${result.store}-${idx}`}
-              type="button" 
+              type="button"
               onClick={() => onStoreSelect(idx)}
               className="flex-shrink-0 relative flex flex-col items-center gap-3 transition-all snap-start outline-none"
             >
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 m-1
-                ${isSelected 
-                  ? "border-green-500 bg-green-500/10 shadow-lg scale-110 z-10" 
-                  : theme === 'dark' ? "border-[#e8dcc4]/10 bg-[#1f1e1a]" : "border-gray-200 bg-white shadow-sm"}
-              `}>
-                <span className={`text-base font-bold ${isSelected ? "text-green-500" : textClass}`}>
-                  {result.store.substring(0, 2).toUpperCase()}
-                </span>
-                
-                {/* Visual Indicators */}
+              <div className="relative m-1">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 overflow-hidden bg-white
+                  ${isSelected
+                    ? "border-green-500 shadow-lg scale-110"
+                    : theme === 'dark' ? "border-[#e8dcc4]/10" : "border-gray-200 shadow-sm"}
+                `}>
+                  {storeLogo ? (
+                    <div className="relative w-full h-full p-2">
+                      <Image
+                        src={storeLogo}
+                        alt={result.store}
+                        fill
+                        className="object-contain p-1"
+                        sizes="64px"
+                      />
+                    </div>
+                  ) : (
+                    <span className={`text-base font-bold ${textClass}`}>
+                      {result.store.substring(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+
+                {/* Visual Indicators - Outside the scaled container */}
                 {isBest && (
                   <div className="absolute -top-1 -right-1 bg-green-600 rounded-full p-1 border-2 border-white dark:border-[#121212] z-20 shadow-sm" title="Best Price">
                     <CheckCircle2 className="h-2.5 w-2.5 text-white" />
@@ -181,18 +315,25 @@ export function StoreComparisonSection({
                 )}
               </div>
 
-              <div className="flex flex-col items-center gap-1">
-                <span className={`text-[10px] font-bold truncate w-20 text-center ${isSelected ? textClass : mutedTextClass}`}>
+              <div className="flex flex-col items-center gap-1.5">
+                <span className={`text-[11px] font-bold truncate w-24 text-center ${isSelected ? textClass : mutedTextClass}`}>
                   {result.store}
                 </span>
-                <Badge variant="outline" className={`text-[9px] px-1.5 h-4 font-mono ${isSelected ? "bg-green-500 text-white" : "bg-gray-100 dark:bg-[#181813]"}`}>
-                  ${result.total.toFixed(2)}
-                </Badge>
-                
+                <div className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                  isSelected
+                    ? "bg-green-500 text-white shadow-md"
+                    : theme === 'dark'
+                      ? "bg-[#1f1e1a] text-[#e8dcc4] border border-[#e8dcc4]/20"
+                      : "bg-white text-gray-900 border border-gray-200 shadow-sm"
+                }`}>
+                  <span className="text-[10px] opacity-70">$</span>
+                  <span className="text-sm">{result.total.toFixed(2)}</span>
+                </div>
+
                 {/* Travel Time Display */}
                 {travelInfo && (
-                  <span className="text-[9px] font-bold text-blue-500 flex items-center gap-1">
-                    <Clock className="h-2 w-2" /> {travelInfo.duration}
+                  <span className="text-[9px] font-bold text-blue-500 flex items-center gap-1 mt-0.5">
+                    <Clock className="h-2.5 w-2.5" /> {travelInfo.duration}
                   </span>
                 )}
               </div>
@@ -204,8 +345,8 @@ export function StoreComparisonSection({
       {/* CONDITIONAL RENDERING: LIST OR MAP */}
       {viewType === "map" ? (
         <Card className={`overflow-hidden border-0 shadow-2xl ${cardBgClass} p-4`}>
-          <StoreMap 
-            comparisons={massSearchResults}
+          <StoreMap
+            comparisons={displayResults}
             onStoreSelected={onStoreSelect}
             userPostalCode={postalCode}
             selectedStoreIndex={carouselIndex}
@@ -232,13 +373,13 @@ export function StoreComparisonSection({
             </div>
           </div>
 
-          <CardContent 
+          <CardContent
             key={activeStore.store}
-            ref={listContainerRef} 
+            ref={listContainerRef}
             className="p-0 min-h-[400px] max-h-[600px] overflow-y-auto scroll-smooth"
           >
             <div className="divide-y divide-gray-100 dark:divide-white/5">
-              {activeStore.items.map((item, i) => (
+              {mergedItems.map((item, i) => (
                 <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
                   <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === 'dark' ? 'bg-white border-white/10' : 'bg-white border-gray-100'}`}>
                     {item.image_url ? (
@@ -249,23 +390,25 @@ export function StoreComparisonSection({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-semibold truncate ${textClass}`}>{item.title}</p>
-                    <p className={`text-[11px] ${mutedTextClass}`}>{item.brand || 'Store Brand'}</p>
+                    <p className={`text-[11px] ${mutedTextClass}`}>
+                      {item.originalName ? `Original: ${item.originalName}` : (item.brand || 'Store Brand')}
+                    </p>
                   </div>
                   <div className="text-right mr-2">
                     <p className={`text-sm font-bold ${textClass}`}>${item.price.toFixed(2)}</p>
-                    {item.quantity > 1 && <p className={`text-[10px] ${mutedTextClass}`}>{item.quantity} units</p>}
+                    {(item.quantity || 1) > 1 && <p className={`text-[10px] ${mutedTextClass}`}>{item.quantity || 1} units</p>}
                   </div>
                   <Button
                     size="icon"
                     variant="ghost"
                     className="h-9 w-9 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => onReloadItem({ term: item.originalName, store: activeStore.store, shoppingListId: item.shoppingItemId })}
+                    onClick={() => onReloadItem({ term: item.originalName, store: activeStore.store, shoppingListId: item.shoppingItemIds[0], shoppingListIds: item.shoppingItemIds })}
                   >
                     <ArrowLeftRight className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
-              
+
               {missingCount > 0 && (
                 <div className="bg-amber-50/30 dark:bg-amber-900/10 p-5">
                   <div className="flex items-center gap-2 mb-4">

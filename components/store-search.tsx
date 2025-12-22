@@ -10,7 +10,7 @@ interface RecipeSearchModalProps {
   user?: any
   zipCode?: string
   onAddItem: (name: string) => void
-  onAddRecipe: (id: string, title: string, ingredients: any[]) => void
+  onAddRecipe: (id: string, title: string, servings?: number) => void
   styles?: any
 }
 
@@ -103,14 +103,14 @@ export function RecipeSearchModal({
              </div>
           ) : displayItems.length > 0 ? (
             displayItems.map((recipe: any) => (
-              <div 
-                key={recipe.id} 
-                className={`group relative border rounded-lg p-3 transition-colors cursor-pointer flex flex-col justify-between h-28 
-                  ${styles?.theme === 'dark' 
-                    ? 'border-[#e8dcc4]/20 hover:bg-[#e8dcc4]/5' 
+              <div
+                key={recipe.id}
+                className={`group relative border rounded-lg p-3 transition-colors cursor-pointer flex flex-col justify-between h-28
+                  ${styles?.theme === 'dark'
+                    ? 'border-[#e8dcc4]/20 hover:bg-[#e8dcc4]/5'
                     : 'border-gray-200 hover:bg-gray-50'}`}
                 onClick={() => {
-                  onAddRecipe(recipe.id, recipe.title, recipe.ingredients || [])
+                  onAddRecipe(recipe.id, recipe.title)
                 }}
               >
                 <div>

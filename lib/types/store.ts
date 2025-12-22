@@ -24,6 +24,16 @@ export interface ShoppingListItem {
   recipeName?: string
   ingredientId?: string
   standardizedName?: string
+  // Indicates if this item comes from a recipe (recipe_shopping_items) or is user-added (miscellaneous_shopping_items)
+  source: 'recipe' | 'miscellaneous'
+  // Only for recipe items - mask array to hide specific ingredients
+  ingredientMask?: boolean[]
+  // Only for recipe items - mask array to track which ingredients are checked off
+  checkedMask?: boolean[]
+  // Only for recipe items - number of servings
+  servings?: number
+  // Only for recipe items - per-serving amounts for scaling
+  amountsPerServing?: number[]
 }
 
 export interface Recipe {

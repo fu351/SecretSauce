@@ -56,7 +56,7 @@ export default function RecipeDetailPage() {
   const { toast } = useToast()
   
   // Use the hook for shopping list actions
-  const { addRecipeIngredients } = useShoppingList()
+  const { addRecipeToCart } = useShoppingList()
 
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -229,7 +229,7 @@ export default function RecipeDetailPage() {
     }
   }
 
-  // --- UPDATED HANDLER: Using useShoppingList hook ---
+  // --- UPDATED HANDLER: Using useShoppingList hook with new API ---
   const handleAddToShoppingList = async () => {
     if (!user || !recipe) {
       if (!user) {
@@ -238,20 +238,10 @@ export default function RecipeDetailPage() {
       return
     }
 
-    try {
-      // Call the hook function which handles optimistic updates and DB sync
-      await addRecipeIngredients(
-        recipe.id,
-        recipe.title,
-        recipe.ingredients // Passed directly; hook maps it
-      )
-      
-      // Toast is handled inside the hook, but you can add navigation logic here if desired
-    } catch (error) {
-      console.error("Failed to add ingredients", error)
-    }
+    // Add recipe to cart - servings will be fetched from the recipe table
+    // Toast and error handling is managed inside the hook
+    await addRecipeToCart(recipe.id)
   }
-  // --- END UPDATED HANDLER ---
 
   const getTotalTime = () => {
     return (recipe?.prep_time || 0) + (recipe?.cook_time || 0)

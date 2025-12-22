@@ -26,7 +26,8 @@ import {
   Trash2,
   List,
   Layers,
-  Search 
+  Search,
+  Users
 } from "lucide-react"
 
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
@@ -36,10 +37,12 @@ import { RecipeSearchModal } from "@/components/store-search"
 
 interface ExtendedShoppingListSectionProps extends ShoppingListSectionProps {
   onRemoveRecipe?: (recipeId: string) => void;
+  onUpdateRecipeServings?: (recipeId: string, servings: number) => void;
   user?: any;
   zipCode?: string;
   onAddItem: (name: string) => void;
-  onAddRecipe: (id: string, title: string, ingredients: any[]) => void;
+  onAddRecipe: (id: string, title: string, servings?: number) => void;
+  onUpdateItemName: (id: string, newName: string) => void;
 }
 
 export function ShoppingListSection({
@@ -49,6 +52,7 @@ export function ShoppingListSection({
   onUpdateItemName,
   onToggleItem,
   onRemoveRecipe,
+  onUpdateRecipeServings,
   onAddItem,
   onAddRecipe,
   user,
@@ -69,6 +73,8 @@ export function ShoppingListSection({
   // -- Editing State --
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")
+  const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null)
+  const [editingQuantityValue, setEditingQuantityValue] = useState("")
 
   // -- Accordion State --
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
@@ -133,6 +139,30 @@ export function ShoppingListSection({
     if (e.key === "Escape") cancelEdit()
   }
 
+  const startEditingQuantity = (item: ShoppingListItem) => {
+    setEditingQuantityId(item.id)
+    setEditingQuantityValue(item.quantity.toString())
+  }
+
+  const saveEditingQuantity = (itemId: string) => {
+    const newQuantity = parseFloat(editingQuantityValue)
+    if (!isNaN(newQuantity) && newQuantity >= 0) {
+      onUpdateQuantity(itemId, newQuantity)
+    }
+    setEditingQuantityId(null)
+    setEditingQuantityValue("")
+  }
+
+  const cancelEditingQuantity = () => {
+    setEditingQuantityId(null)
+    setEditingQuantityValue("")
+  }
+
+  const handleQuantityKeyDown = (e: React.KeyboardEvent, itemId: string) => {
+    if (e.key === "Enter") saveEditingQuantity(itemId)
+    if (e.key === "Escape") cancelEditingQuantity()
+  }
+
   const isExpanded = (id: string) => {
     return expandedSections[id] !== false
   }
@@ -157,6 +187,11 @@ export function ShoppingListSection({
   // -- Render Helper: Individual Row --
   const renderItemRow = (item: ShoppingListItem) => {
     const isEditing = editingId === item.id
+    
+    // NEW: Round display quantity to 2 decimal places to handle scaled fractions
+    const displayQuantity = Number.isInteger(item.quantity) 
+      ? item.quantity 
+      : parseFloat(item.quantity.toFixed(2));
 
     return (
       <div
@@ -236,16 +271,37 @@ export function ShoppingListSection({
             <Button
               size="icon"
               variant="ghost"
-              type="button" 
-              onClick={() => onUpdateQuantity(item.id, Math.max(1, item.quantity - 1))}
-              disabled={item.quantity <= 1}
+              type="button"
+              onClick={() => onUpdateQuantity(item.id, Math.max(0, item.quantity - 1))}
+              disabled={item.quantity <= 0}
               className={`h-7 w-7 ${textClass}`}
             >
               <Minus className="h-3 w-3" />
             </Button>
-            <span className={`w-6 text-center text-xs font-medium ${textClass}`}>
-              {item.quantity}
-            </span>
+            {editingQuantityId === item.id ? (
+              <input
+                type="number"
+                value={editingQuantityValue}
+                onChange={(e) => setEditingQuantityValue(e.target.value)}
+                onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+                onBlur={() => saveEditingQuantity(item.id)}
+                autoFocus
+                step="0.1"
+                min="0"
+                className={`w-8 text-center text-xs font-medium px-1 py-0 border rounded [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  theme === 'dark'
+                    ? 'bg-[#181813] border-[#e8dcc4]/40 text-[#e8dcc4]'
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              />
+            ) : (
+              <span
+                onClick={() => startEditingQuantity(item)}
+                className={`w-8 text-center text-xs font-medium cursor-pointer hover:opacity-70 transition-opacity ${textClass}`}
+              >
+                {displayQuantity}
+              </span>
+            )}
             <Button
               size="icon"
               variant="ghost"
@@ -279,6 +335,10 @@ export function ShoppingListSection({
     const completedCount = items.filter(i => i.checked).length
     const totalCount = items.length
 
+    // Get servings from first item (all items in a recipe share the same servings)
+    const currentServings = items[0]?.servings || 1
+    const isRecipe = items[0]?.source === 'recipe'
+
     return (
       <div
         key={sectionKey}
@@ -286,7 +346,7 @@ export function ShoppingListSection({
           theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"
         }`}
       >
-        <div 
+        <div
           onClick={() => toggleSection(sectionKey)}
           className={`w-full flex items-center justify-between p-2 pl-3 transition-colors cursor-pointer ${
             theme === "dark"
@@ -307,9 +367,41 @@ export function ShoppingListSection({
               </h3>
             </div>
           </div>
-          
-          <div className="flex items-center">
-             <div className={`text-xs ${mutedTextClass} flex gap-2 items-center mr-3`}>
+
+          <div className="flex items-center gap-2">
+            {/* Servings control for recipe items */}
+            {isRecipe && onUpdateRecipeServings && (
+              <div
+                className={`flex items-center gap-1 rounded-md px-2 py-1 ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-100'}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Users className={`h-3 w-3 ${mutedTextClass}`} />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  type="button"
+                  onClick={() => onUpdateRecipeServings(sectionKey, Math.max(1, currentServings - 1))}
+                  disabled={currentServings <= 1}
+                  className={`h-5 w-5 ${textClass}`}
+                >
+                  <Minus className="h-2.5 w-2.5" />
+                </Button>
+                <span className={`w-6 text-center text-xs font-medium ${textClass}`}>
+                  {currentServings}
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  type="button"
+                  onClick={() => onUpdateRecipeServings(sectionKey, currentServings + 1)}
+                  className={`h-5 w-5 ${textClass}`}
+                >
+                  <Plus className="h-2.5 w-2.5" />
+                </Button>
+              </div>
+            )}
+
+            <div className={`text-xs ${mutedTextClass} flex gap-2 items-center`}>
               <span className="hidden sm:inline">{totalCount} items</span>
               {completedCount > 0 && (
                 <span className="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full text-[10px]">
@@ -319,9 +411,9 @@ export function ShoppingListSection({
             </div>
 
             {!isMisc && onRemoveRecipe && (
-              <div 
+              <div
                 className={`border-l pl-2 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}
-                onClick={(e) => e.stopPropagation()} 
+                onClick={(e) => e.stopPropagation()}
               >
                 <Button
                   size="sm"
@@ -349,10 +441,8 @@ export function ShoppingListSection({
   }
 
   return (
-    <Card className={cardBgClass}
-    data-tutorial="store-overview">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4"
-      >
+    <Card className={cardBgClass} data-tutorial="store-overview">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <CardTitle className={`flex items-center gap-2 ${textClass}`}>
           <ShoppingCart className="h-5 w-5" />
           Shopping List
@@ -383,8 +473,8 @@ export function ShoppingListSection({
                   onAddItem={(name) => {
                       onAddItem(name);
                   }} 
-                  onAddRecipe={(id, title, ing) => {
-                    onAddRecipe(id, title, ing);
+                  onAddRecipe={(id, title) => {
+                    onAddRecipe(id, title); 
                     setIsSearchOpen(false);
                   }}
                   styles={modalStyles}

@@ -19,7 +19,7 @@ import { ShoppingListSection } from "@/components/store-list"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ShoppingBag, Loader2, Plus, ArrowRight, Edit2 } from "lucide-react"
+import { ShoppingBag, Loader2, Plus, ArrowRight, Edit2, AlertCircle } from "lucide-react"
 
 const DEFAULT_SHOPPING_ZIP = ""
 
@@ -35,20 +35,25 @@ export default function ShoppingPage() {
   const [newItemInput, setNewItemInput] = useState("")
 
   const [reloadModalOpen, setReloadModalOpen] = useState(false)
-  const [reloadTarget, setReloadTarget] = useState<{ 
-    term: string; 
-    store: string; 
-    shoppingListId?: string; 
+  const [reloadTarget, setReloadTarget] = useState<{
+    term: string;
+    store: string;
+    shoppingListId?: string;
+    shoppingListIds?: string[];
   } | null>(null)
   
   const {
     items: shoppingList,
+    hasChanges,
     addItem,
     updateQuantity,
-    updateItemName, 
+    updateItemName,
     removeItem: removeFromShoppingList,
-    removeRecipe: removeRecipeItems, 
+    removeRecipe: removeRecipeItems,
     toggleChecked,
+    addRecipeToCart,
+    updateRecipeServings,
+    saveChanges,
   } = useShoppingList()
 
   const {
@@ -61,7 +66,8 @@ export default function ShoppingPage() {
     scrollToStore,
     handleScroll,
     carouselRef,
-    replaceItemForStore 
+    replaceItemForStore,
+    usingCache
   } = useStoreComparison(shoppingList, zipCode, null)
 
   useEffect(() => setMounted(true), [])
@@ -107,67 +113,42 @@ export default function ShoppingPage() {
     }
   }
 
-  // --- FIX: Robust Recipe Handling ---
-  const handleAddRecipe = (id: string, title: string, ingredients: any[]) => {
-    if (!ingredients || !Array.isArray(ingredients)) {
-        toast({ title: "Error", description: "Could not read ingredients for this recipe.", variant: "destructive" })
-        return
-    }
-
-    let count = 0
-    
-    ingredients.forEach((ing) => {
-      // Determine the ingredient name regardless of data structure
-      let name = ""
-      if (typeof ing === 'string') {
-        name = ing
-      } else if (typeof ing === 'object' && ing !== null) {
-        name = ing.name || ing.title || ing.ingredient || ""
-      }
-
-      if (name && name.trim()) {
-        // addItem(name, quantity, unit, checked, recipeId, recipeName)
-        // Ensure we pass ID and Title so grouping works in ShoppingListSection
-        addItem(name.trim(), 1, undefined, false, id, title) 
-        count++
-      }
-    })
-    
-    if (count > 0) {
-      toast({ 
-        title: "Recipe Added", 
-        description: `Added ${count} ingredients from "${title}".` 
-      })
-    } else {
-      toast({
-        title: "No Ingredients Found",
-        description: "This recipe appears to have no ingredients listed.",
-        variant: "destructive"
-      })
-    }
+  // --- UPDATED: New recipe handling with addRecipeToCart ---
+  const handleAddRecipe = async (id: string, title: string, servings?: number) => {
+    // addRecipeToCart handles its own errors and toasts
+    // Just call it and let the hook manage the UI feedback
+    await addRecipeToCart(id, servings)
   }
 
-  const handleCompareClick = () => {
+  const handleCompareClick = async () => {
     if (shoppingList.length === 0) return
+    // Save all pending changes before switching to compare view
+    await saveChanges()
     setViewMode("compare")
     performMassSearch()
   }
 
-  const handleReloadRequest = (target: { term: string; store: string; shoppingListId: string }) => {
+  const handleReloadRequest = (target: { term: string; store: string; shoppingListId: string; shoppingListIds?: string[] }) => {
     setReloadTarget(target)
     setReloadModalOpen(true)
   }
 
   const handleSwapConfirmation = (newItem: GroceryItem) => {
-    if (reloadTarget?.shoppingListId && reloadTarget.store) {
-      const oldItem = shoppingList.find(i => i.id === reloadTarget.shoppingListId)
-      
-      replaceItemForStore(
-        reloadTarget.store,        
-        reloadTarget.shoppingListId, 
-        { ...newItem, quantity: oldItem ? oldItem.quantity : 1 }              
-      )
-      toast({ title: "Item Swapped", description: `Updated for ${reloadTarget.store}` })
+    if (reloadTarget?.store) {
+      // Use first shopping list ID from merged items, or fall back to single shoppingListId
+      const primaryId = reloadTarget.shoppingListIds?.[0] || reloadTarget.shoppingListId
+      if (primaryId) {
+        const oldItem = shoppingList.find(i => i.id === primaryId)
+
+        replaceItemForStore(
+          reloadTarget.store,
+          primaryId,
+          { ...newItem, quantity: oldItem ? oldItem.quantity : 1 }
+        )
+        toast({ title: "Item Swapped", description: `Updated for ${reloadTarget.store}` })
+      } else {
+        addItem(newItem.title, 1, newItem.unit)
+      }
     } else {
       addItem(newItem.title, 1, newItem.unit)
     }
@@ -213,18 +194,30 @@ export default function ShoppingPage() {
               </CardTitle>
               
               {viewMode === "edit" ? (
-                <Button 
-                  onClick={handleCompareClick} 
-                  disabled={shoppingList.length === 0 || comparisonLoading}
-                  className={styles.buttonClass}
-                  data-tutorial= "store-compare"
-                >
-                  {comparisonLoading ? (
-                    <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating... </>
-                  ) : (
-                    <> Compare Prices <ArrowRight className="ml-2 h-4 w-4" /> </>
+                <div className="flex items-center gap-2">
+                  {hasChanges && (
+                    <div className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
+                      style={{
+                        backgroundColor: isDark ? "rgba(232, 220, 196, 0.15)" : "rgba(251, 146, 60, 0.1)",
+                        color: isDark ? "#e8dcc4" : "#ea580c"
+                      }}>
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      <span>Unsaved changes</span>
+                    </div>
                   )}
-                </Button>
+                  <Button
+                    onClick={handleCompareClick}
+                    disabled={shoppingList.length === 0 || comparisonLoading}
+                    className={styles.buttonClass}
+                    data-tutorial="store-compare"
+                  >
+                    {comparisonLoading ? (
+                      <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating... </>
+                    ) : (
+                      <> Compare Prices <ArrowRight className="ml-2 h-4 w-4" /> </>
+                    )}
+                  </Button>
+                </div>
               ) : (
                 <Button 
                   variant="outline" 
@@ -244,16 +237,17 @@ export default function ShoppingPage() {
                     shoppingList={shoppingList}
                     user={user}
                     zipCode={zipCode}
-                    
+
                     // Actions
                     onRemoveItem={removeFromShoppingList}
                     onUpdateQuantity={updateQuantity}
                     onUpdateItemName={updateItemName}
                     onToggleItem={toggleChecked}
                     onRemoveRecipe={removeRecipeItems}
+                    onUpdateRecipeServings={updateRecipeServings}
                     onAddItem={handleDirectAdd}
                     onAddRecipe={handleAddRecipe}
-                    
+
                     // Styles
                     cardBgClass="shadow-none border-0 bg-transparent"
                     textClass={styles.textClass}

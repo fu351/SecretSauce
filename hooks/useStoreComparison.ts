@@ -1,9 +1,27 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef } from "react"
+import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import type { StoreComparison, ShoppingListItem, GroceryItem } from "@/lib/types/store"
+
+const SEARCH_CACHE_KEY = "store_search_cache"
+const SEARCH_CACHE_TTL = 1000 * 60 * 30 // 30 minutes
+
+interface SearchCacheData {
+  results: StoreComparison[]
+  timestamp: number
+  itemsHash: string
+  zipCode: string
+}
+
+// Generate a hash of shopping list items to detect changes
+function generateItemsHash(items: ShoppingListItem[]): string {
+  return items
+    .map(item => `${item.id}-${item.name}-${item.quantity}`)
+    .sort()
+    .join("|")
+}
 
 export function useStoreComparison(
   shoppingList: ShoppingListItem[],
@@ -11,12 +29,44 @@ export function useStoreComparison(
   userLocation: { lat: number, lng: number } | null,
 ) {
   const { toast } = useToast()
-  
-  const [results, setResults] = useState<StoreComparison[]>([]) 
+
+  const [results, setResults] = useState<StoreComparison[]>([])
   const [loading, setLoading] = useState(false)
   const [activeStoreIndex, setActiveStoreIndex] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
   const [sortMode, setSortMode] = useState<"best-price" | "nearest" | "best-value">("best-price")
+  const [usingCache, setUsingCache] = useState(false)
+
+  // Load cached search results on mount
+  useEffect(() => {
+    if (typeof window === "undefined" || !shoppingList.length) return
+
+    try {
+      const cached = localStorage.getItem(SEARCH_CACHE_KEY)
+      if (cached) {
+        const parsedCache: SearchCacheData = JSON.parse(cached)
+        const now = Date.now()
+        const currentHash = generateItemsHash(shoppingList)
+
+        // Check if cache is valid
+        if (
+          parsedCache.zipCode === zipCode &&
+          parsedCache.itemsHash === currentHash &&
+          now - parsedCache.timestamp < SEARCH_CACHE_TTL
+        ) {
+          setResults(parsedCache.results)
+          setUsingCache(true)
+          console.log("Using cached store search results")
+        } else {
+          // Cache invalid
+          localStorage.removeItem(SEARCH_CACHE_KEY)
+        }
+      }
+    } catch (error) {
+      console.error("Error loading cached search:", error)
+      localStorage.removeItem(SEARCH_CACHE_KEY)
+    }
+  }, []) // Only run on mount
 
   // -- Actions --
   const performMassSearch = useCallback(async () => {
@@ -24,9 +74,33 @@ export function useStoreComparison(
       toast({ title: "Empty List", description: "Add items first.", variant: "destructive" })
       return
     }
-    
+
+    // Check if we can use cached results
+    const currentHash = generateItemsHash(shoppingList)
+    try {
+      const cached = localStorage.getItem(SEARCH_CACHE_KEY)
+      if (cached) {
+        const parsedCache: SearchCacheData = JSON.parse(cached)
+        const now = Date.now()
+
+        if (
+          parsedCache.zipCode === zipCode &&
+          parsedCache.itemsHash === currentHash &&
+          now - parsedCache.timestamp < SEARCH_CACHE_TTL
+        ) {
+          console.log("Using cached search results - items unchanged")
+          setResults(parsedCache.results)
+          setUsingCache(true)
+          return // Don't perform search
+        }
+      }
+    } catch (error) {
+      console.error("Error checking cache:", error)
+    }
+
     setLoading(true)
     setActiveStoreIndex(0)
+    setUsingCache(false)
 
     try {
       const searchPromises = shoppingList.map(async (item) => {
@@ -42,7 +116,7 @@ export function useStoreComparison(
 
         validResults.forEach(storeResult => {
           const storeName = storeResult.store.trim()
-          
+
           if (!storeMap.has(storeName)) {
             storeMap.set(storeName, {
               store: storeName,
@@ -51,13 +125,13 @@ export function useStoreComparison(
               savings: 0,
               missingItems: false,
               missingCount: 0,
-              missingIngredients: [] 
+              missingIngredients: []
             })
           }
 
           const entry = storeMap.get(storeName)!
 
-          const bestOption = storeResult.items.reduce((min, curr) => 
+          const bestOption = storeResult.items.reduce((min, curr) =>
             curr.price < min.price ? curr : min
           )
 
@@ -66,16 +140,51 @@ export function useStoreComparison(
             ...bestOption,
             shoppingItemId: item.id,
             originalName: item.name,
-            quantity: qty 
+            quantity: qty
           })
           entry.total += bestOption.price * qty
         })
       })
 
+      // Merge similar items within each store to optimize display
+      storeMap.forEach((store) => {
+        const itemMap = new Map<string, typeof store.items[0] & { shoppingItemIds: string[] }>()
+
+        store.items.forEach(item => {
+          const key = item.title.toLowerCase().trim()
+          if (itemMap.has(key)) {
+            const existing = itemMap.get(key)!
+            const oldTotal = existing.price * (existing.quantity || 1)
+            const newQuantity = (existing.quantity || 1) + (item.quantity || 1)
+            const newTotal = item.price * newQuantity
+
+            // Update total if price or quantity changed
+            store.total = store.total - oldTotal + newTotal
+
+            itemMap.set(key, {
+              ...existing,
+              quantity: newQuantity,
+              shoppingItemIds: [...existing.shoppingItemIds, item.shoppingItemId]
+            })
+          } else {
+            itemMap.set(key, {
+              ...item,
+              shoppingItemIds: [item.shoppingItemId]
+            })
+          }
+        })
+
+        store.items = Array.from(itemMap.values())
+      })
+
       let comparisons = Array.from(storeMap.values())
 
       comparisons = comparisons.map(comp => {
-        const foundItemIds = new Set(comp.items.map(i => i.shoppingItemId))
+        const foundItemIds = new Set<string>()
+        comp.items.forEach(i => {
+          const itemIds = (i as any).shoppingItemIds || [i.shoppingItemId]
+          itemIds.forEach((id: string) => foundItemIds.add(id))
+        })
         const missingIngredients = shoppingList.filter(item => !foundItemIds.has(item.id))
         
         return {
@@ -89,11 +198,25 @@ export function useStoreComparison(
       if (comparisons.length > 0) {
         const maxTotal = Math.max(...comparisons.map(c => c.total))
         comparisons.forEach(c => {
-           c.savings = maxTotal - c.total 
+           c.savings = maxTotal - c.total
         })
       }
 
       setResults(comparisons)
+
+      // Cache the results
+      try {
+        const cacheData: SearchCacheData = {
+          results: comparisons,
+          timestamp: Date.now(),
+          itemsHash: currentHash,
+          zipCode,
+        }
+        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify(cacheData))
+        console.log("Cached store search results")
+      } catch (error) {
+        console.error("Error caching search results:", error)
+      }
 
     } catch (error) {
       console.error("Mass search error:", error)
@@ -107,9 +230,17 @@ export function useStoreComparison(
   // This ensures price changes trigger a re-render by creating new object references
   const replaceItemForStore = useCallback((
     storeName: string,
-    shoppingItemId: string, 
+    shoppingItemId: string,
     newItem: GroceryItem
   ) => {
+    // Invalidate cache when manually replacing items
+    try {
+      localStorage.removeItem(SEARCH_CACHE_KEY)
+      console.log("Cache invalidated due to manual item replacement")
+    } catch (error) {
+      console.error("Error invalidating cache:", error)
+    }
+
     setResults(prevResults => {
       return prevResults.map(store => {
         if (store.store !== storeName) return store
@@ -119,18 +250,20 @@ export function useStoreComparison(
         
         // 1. Update Existing Found Item
         const updatedItems = store.items.map(item => {
-          if (item.shoppingItemId === shoppingItemId) {
+          // Check if this item contains the shopping item ID (handles both single and merged items)
+          const itemIds = (item as any).shoppingItemIds || [item.shoppingItemId]
+          if (itemIds.includes(shoppingItemId)) {
             itemUpdated = true
             const qty = item.quantity || 1
             // Subtract old total for this item and add new total based on quantity
             newTotal = store.total - (item.price * qty) + (newItem.price * qty)
-            
+
             return {
               ...item,
               title: newItem.title,
               image_url: newItem.image_url || item.image_url,
               price: newItem.price,
-              originalName: item.originalName 
+              originalName: item.originalName
             }
           }
           return item
@@ -223,6 +356,7 @@ export function useStoreComparison(
     prevStore,
     sortMode,
     setSortMode,
-    replaceItemForStore
+    replaceItemForStore,
+    usingCache
   }
 }
