@@ -98,8 +98,8 @@ export function ShoppingListSection({
 
     // Separate recipes and miscellaneous items
     shoppingList.forEach(item => {
-      if (item.recipeId) {
-        recipesToRemove.add(item.recipeId)
+      if (item.recipe_id) {
+        recipesToRemove.add(item.recipe_id)
       } else {
         onRemoveItem(item.id)
       }
@@ -130,14 +130,14 @@ export function ShoppingListSection({
     const misc: ShoppingListItem[] = []
 
     uniqueList.forEach((item) => {
-      if (item.recipeId) {
-        if (!groups[item.recipeId]) {
-          groups[item.recipeId] = {
-            name: item.recipeName || "Untitled Recipe",
+      if (item.recipe_id) {
+        if (!groups[item.recipe_id]) {
+          groups[item.recipe_id] = {
+            name: item.name || "Untitled Recipe",
             items: []
           }
         }
-        groups[item.recipeId].items.push(item)
+        groups[item.recipe_id].items.push(item)
       } else {
         misc.push(item)
       }
@@ -366,7 +366,7 @@ export function ShoppingListSection({
 
     // Get servings from first item (all items in a recipe share the same servings)
     const currentServings = items[0]?.servings || 1
-    const isRecipe = items[0]?.source === 'recipe'
+    const isRecipe = items[0]?.source_type === 'recipe'
 
     return (
       <div

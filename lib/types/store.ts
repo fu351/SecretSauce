@@ -16,28 +16,31 @@ export interface GroceryItem {
 
 export interface ShoppingListItem {
   id: string
+  user_id: string
   name: string
   quantity: number
-  unit: string
+  unit?: string | null
   checked: boolean
-  recipeId?: string
-  recipeName?: string
-  ingredientId?: string
+
+  // Source tracking
+  source_type: 'recipe' | 'manual'
+
+  // Recipe-specific fields
+  recipe_id?: string | null
+  recipe_ingredient_index?: number | null
+  servings?: number | null
+
+  // Ingredient and standardization
+  ingredient_id?: string | null
   standardizedName?: string
-  // Indicates if this item comes from a recipe (recipe_shopping_items) or is user-added (miscellaneous_shopping_items)
-  source: 'recipe' | 'miscellaneous'
-  // Only for recipe items - mask array to hide specific ingredients
-  ingredientMask?: boolean[]
-  // Only for recipe items - mask array to track which ingredients are checked off
-  checkedMask?: boolean[]
-  // Only for recipe items - number of servings
-  servings?: number
-  // Only for recipe items - per-serving amounts for scaling
-  amountsPerServing?: number[]
-  // Price per unit for the item
-  price?: number
-  // Name of the store where the price was found
-  storeName?: string
+
+  // Pricing and shopping metadata
+  price?: number | null
+  store_name?: string | null
+
+  // Timestamps
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Recipe {

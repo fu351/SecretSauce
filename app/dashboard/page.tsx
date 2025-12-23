@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { format, startOfWeek } from "date-fns"
 import { RecipeCard } from "@/components/recipe-card"
+import { useShoppingListDB } from "@/hooks/useShoppingListDB"
 
 // Tutorial Components
 // TutorialOverlay is rendered globally in layout.tsx
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const { theme } = useTheme()
   const { isActive } = useTutorial()
   const isDark = theme === "dark"
+  const db = useShoppingListDB()
 
   useEffect(() => {
     if (user) {
@@ -84,15 +86,8 @@ export default function DashboardPage() {
         plannedMealsCount = Array.isArray(mealPlanData.meals) ? mealPlanData.meals.length : 0
       }
 
-      const { data: shoppingListData } = await supabase
-        .from("shopping_lists")
-        .select("items")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-
-      const shoppingItemsCount =
-        shoppingListData && shoppingListData.length > 0 ? shoppingListData[0]?.items?.length || 0 : 0
+      const shoppingItems = await db.fetchUserItems(user.id)
+      const shoppingItemsCount = shoppingItems.length
 
       setStats({
         totalRecipes: recipesCount || 0,

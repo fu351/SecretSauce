@@ -1,81 +1,27 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { useShoppingListDB } from "./useShoppingListDB"
+import { useRecipeCart } from "./useRecipeCart"
 import type { ShoppingListItem } from "@/lib/types/store"
 
+/**
+ * Main shopping list hook
+ * Composes DB operations and recipe cart utilities for a complete shopping list experience
+ */
 export function useShoppingList() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const db = useShoppingListDB()
+  const recipeCart = useRecipeCart()
 
   const [items, setItems] = useState<ShoppingListItem[]>([])
   const [loading, setLoading] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  const [lastSavedState, setLastSavedState] = useState<ShoppingListItem[]>([])
 
-  // --- 1. Mappers ---
-  const mapMiscellaneousItem = useCallback((dbItem: any): ShoppingListItem => {
-    const resolvedName = dbItem.standardized_ingredients?.canonical_name || dbItem.name || "Unknown Item"
-
-    return {
-      id: dbItem.id,
-      name: resolvedName,
-      quantity: Number(dbItem.quantity),
-      unit: dbItem.unit || "piece",
-      checked: dbItem.checked || false,
-      ingredientId: dbItem.ingredient_id,
-      source: 'miscellaneous',
-      price: dbItem.price ? Number(dbItem.price) : undefined,
-      storeName: dbItem.store_name || undefined
-    }
-  }, [])
-
-  const mapRecipeItem = useCallback((dbItem: any): ShoppingListItem[] => {
-    const recipe = dbItem.recipes
-    if (!recipe || !recipe.ingredients) return []
-
-    const ingredients = recipe.ingredients
-    const ingredientMask = dbItem.ingredient_mask || []
-    // ingredient_amounts represents the amount for ONE serving (normalized when recipe was added)
-    const amountsPerServing = dbItem.ingredient_amounts || []
-    const checkedMask = dbItem.checked_mask || []
-    const currentServings = Number(dbItem.servings) || 1
-
-    return ingredients
-      .map((ing: any, index: number) => {
-        if (ingredientMask[index] === false) return null
-
-        const resolvedName = ing.standardized_ingredients?.canonical_name || ing.name || ing.title || "Unknown Ingredient"
-
-        // Scale per-serving amount by current servings multiplier
-        const perServing = amountsPerServing[index] !== undefined
-          ? Number(amountsPerServing[index])
-          : 0
-
-        const totalQuantity = perServing * currentServings
-
-        return {
-          id: `${dbItem.id}-${index}`,
-          name: resolvedName,
-          quantity: totalQuantity,
-          unit: ing.unit || "piece",
-          checked: checkedMask[index] || false,
-          recipeId: dbItem.recipe_id,
-          recipeName: recipe.title,
-          ingredientId: ing.ingredient_id || ing.id,
-          source: 'recipe',
-          ingredientMask: ingredientMask,
-          checkedMask: checkedMask,
-          servings: currentServings,
-          amountsPerServing: amountsPerServing // Store reference for individual updates
-        }
-      })
-      .filter((item): item is ShoppingListItem => item !== null)
-  }, [])
-
-  // --- 2. Load List ---
+  // --- Load List ---
   const loadShoppingList = useCallback(async () => {
     if (!user) {
       setItems([])
@@ -84,30 +30,8 @@ export function useShoppingList() {
 
     setLoading(true)
     try {
-      const [miscResult, recipeResult] = await Promise.all([
-        supabase
-          .from("miscellaneous_shopping_items")
-          .select(`*, standardized_ingredients (canonical_name)`)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: true }),
-
-        supabase
-          .from("recipe_shopping_items")
-          .select(`*, recipes (id, title, servings, ingredients)`)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: true })
-      ])
-
-      if (miscResult.error) throw miscResult.error
-      if (recipeResult.error) throw recipeResult.error
-
-      const loadedItems = [
-        ...(miscResult.data || []).map(mapMiscellaneousItem),
-        ...(recipeResult.data || []).flatMap(mapRecipeItem)
-      ]
+      const loadedItems = await db.fetchUserItems(user.id)
       setItems(loadedItems)
-      // Mark state as clean after loading
-      setLastSavedState(loadedItems)
       setHasChanges(false)
     } catch (error) {
       console.error("Error loading list:", error)
@@ -115,25 +39,40 @@ export function useShoppingList() {
     } finally {
       setLoading(false)
     }
-  }, [user, toast, mapMiscellaneousItem, mapRecipeItem])
+  }, [user, toast, db])
 
-  // --- 3. Single Item Actions ---
+  // --- Single Item Actions ---
 
-  const addItem = useCallback(async (name: string, quantity = 1, unit = "piece", checked = false, ingredientId?: string) => {
+  /**
+   * Add a new manual item to the shopping list
+   */
+  const addItem = useCallback(
+    async (name: string, quantity = 1, unit = "piece", checked = false, ingredientId?: string) => {
       if (!user) return null
+
       const tempId = `temp-${crypto.randomUUID()}`
-      const newItem: ShoppingListItem = { id: tempId, name, quantity, unit, checked, ingredientId, source: 'miscellaneous' }
+      const newItem: ShoppingListItem = {
+        id: tempId,
+        user_id: user.id,
+        name,
+        quantity,
+        unit,
+        checked,
+        source_type: 'manual',
+        ingredient_id: ingredientId
+      }
       setItems(prev => [...prev, newItem])
 
       try {
-        const { data, error } = await supabase
-          .from("miscellaneous_shopping_items")
-          .insert({ user_id: user.id, name, quantity, unit, checked, ingredient_id: ingredientId })
-          .select(`*, standardized_ingredients (canonical_name)` )
-          .single()
-
-        if (error) throw error
-        const realItem = mapMiscellaneousItem(data)
+        const realItem = await db.insertItem({
+          user_id: user.id,
+          name,
+          quantity,
+          unit,
+          checked,
+          source_type: 'manual',
+          ingredient_id: ingredientId
+        })
         setItems(prev => prev.map(item => item.id === tempId ? realItem : item))
         return realItem
       } catch (error) {
@@ -141,352 +80,248 @@ export function useShoppingList() {
         toast({ title: "Error", description: "Failed to save item.", variant: "destructive" })
         return null
       }
-    }, [user, toast, mapMiscellaneousItem])
+    },
+    [user, toast, db]
+  )
 
-  const removeItem = useCallback(async (id: string) => {
-    const backup = items.find(i => i.id === id)
-    if (!backup) return
+  /**
+   * Remove an item from the shopping list
+   */
+  const removeItem = useCallback(
+    async (id: string) => {
+      const backup = items.find(i => i.id === id)
+      if (!backup) return
 
-    setItems(prev => prev.filter(item => item.id !== id))
+      setItems(prev => prev.filter(item => item.id !== id))
 
-    try {
-      if (backup.source === 'miscellaneous') {
-        await supabase.from("miscellaneous_shopping_items").delete().eq("id", id)
-      } else {
-        const idParts = id.split('-')
-        const ingredientIndex = parseInt(idParts[idParts.length - 1])
-        const cartId = idParts.slice(0, -1).join('-')
-
-        const newMask = [...(backup.ingredientMask || [])]
-        newMask[ingredientIndex] = false
-
-        const { error } = await supabase
-          .from("recipe_shopping_items")
-          .update({ ingredient_mask: newMask })
-          .eq("id", cartId)
-
-        if (error) throw error
+      try {
+        await db.deleteItem(id)
+      } catch (error) {
+        setItems(prev => [...prev, backup])
+        toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" })
       }
-    } catch (error) {
-      setItems(prev => [...prev, backup])
-      toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" })
-    }
-  }, [items, toast])
+    },
+    [items, toast, db]
+  )
 
-  const updateQuantity = useCallback((id: string, newTotalQuantity: number) => {
-    const safeQuantity = Math.max(1, newTotalQuantity)
+  /**
+   * Update quantity for a single item
+   */
+  const updateQuantity = useCallback(
+    (id: string, newTotalQuantity: number) => {
+      const safeQuantity = Math.max(1, newTotalQuantity)
 
-    // First, update local state optimistically
-    setItems(prev => prev.map(item => {
-      if (item.id === id) {
-        // When user manually edits quantity, recalculate the per-serving amount
-        // This allows future serving adjustments to scale from the new base
-        if (item.source === 'recipe' && item.amountsPerServing && item.servings) {
-          const idParts = item.id.split('-')
-          const ingredientIndex = parseInt(idParts[idParts.length - 1])
-          const newPerServing = safeQuantity / item.servings
+      setItems(prev => prev.map(item =>
+        item.id === id ? { ...item, quantity: safeQuantity } : item
+      ))
 
-          const updatedAmountsPerServing = [...item.amountsPerServing]
-          updatedAmountsPerServing[ingredientIndex] = newPerServing
+      db.updateItem(id, { quantity: safeQuantity })
+        .catch(() => {
+          toast({ title: "Error", description: "Failed to update quantity.", variant: "destructive" })
+        })
 
-          return {
-            ...item,
-            quantity: safeQuantity,
-            amountsPerServing: updatedAmountsPerServing
-          }
-        }
-        return { ...item, quantity: safeQuantity }
-      }
-      return item
-    }))
+      setHasChanges(true)
+    },
+    [toast, db]
+  )
 
-    // Then save to database immediately
-    setItems(prev => {
-      const item = prev.find(i => i.id === id)
-      if (!item) return prev
+  /**
+   * Update item name (manual items only)
+   */
+  const updateItemName = useCallback(
+    async (id: string, newName: string) => {
+      const currentItem = items.find(i => i.id === id)
+      if (!currentItem || currentItem.name === newName) return
 
-      // Determine if it's a miscellaneous or recipe item and save accordingly
-      if (item.source === 'miscellaneous') {
-        supabase
-          .from("miscellaneous_shopping_items")
-          .update({ quantity: safeQuantity })
-          .eq("id", id)
-          .then(({ error }) => {
-            if (error) {
-              console.error("Error updating quantity:", error)
-              toast({ title: "Error", description: "Failed to update quantity.", variant: "destructive" })
-            }
-          })
-      } else if (item.recipeId) {
-        // For recipe items, we need to update the ingredient_amounts in the database
-        const idParts = id.split('-')
-        const ingredientIndex = parseInt(idParts[idParts.length - 1])
-        const cartId = idParts.slice(0, -1).join('-')
-        const newPerServing = item.servings ? safeQuantity / item.servings : safeQuantity
-
-        // Find the cart item to get current amounts
-        const recipeItems = prev.filter(i => i.recipeId === item.recipeId && i.source === 'recipe')
-        const amountsPerServing = recipeItems[0]?.amountsPerServing || []
-        const updatedAmounts = [...amountsPerServing]
-        updatedAmounts[ingredientIndex] = newPerServing
-
-        supabase
-          .from("recipe_shopping_items")
-          .update({ ingredient_amounts: updatedAmounts })
-          .eq("id", cartId)
-          .then(({ error }) => {
-            if (error) {
-              console.error("Error updating recipe quantity:", error)
-              toast({ title: "Error", description: "Failed to update quantity.", variant: "destructive" })
-            }
-          })
-      }
-
-      return prev
-    })
-
-    setHasChanges(true) // Mark as changed
-  }, [user, toast])
-
-  const updateItemName = useCallback(async (id: string, newName: string) => {
-    const currentItem = items.find(i => i.id === id)
-    if (!currentItem || currentItem.name === newName) return
-
-    setItems(prev => prev.map(item => item.id === id ? { ...item, name: newName } : item))
-
-    try {
-      if (currentItem.source === 'miscellaneous') {
-        await supabase.from("miscellaneous_shopping_items").update({ name: newName }).eq("id", id)
-      } else {
+      if (currentItem.source_type === 'recipe') {
         toast({ title: "Cannot Update", description: "Recipe ingredient names are fixed.", variant: "destructive" })
-        setItems(prev => prev.map(item => item.id === id ? { ...item, name: currentItem.name } : item))
+        return
       }
-    } catch (error) {
-      loadShoppingList()
-    }
-  }, [items, toast, loadShoppingList])
 
-  const toggleChecked = useCallback((id: string) => {
-    const item = items.find(i => i.id === id)
-    if (!item) return
+      setItems(prev => prev.map(item => item.id === id ? { ...item, name: newName } : item))
 
-    const newValue = !item.checked
-    // Optimistic update only - no database sync
-    setItems(prev => prev.map(i => i.id === id ? { ...i, checked: newValue } : i))
-    setHasChanges(true) // Mark as changed
-  }, [items])
+      try {
+        await db.updateItem(id, { name: newName })
+      } catch (error) {
+        setItems(prev => prev.map(item => item.id === id ? { ...item, name: currentItem.name } : item))
+        toast({ title: "Error", description: "Failed to update item name.", variant: "destructive" })
+      }
+    },
+    [items, toast, db]
+  )
 
-  // --- 4. Recipe Actions (Groups) ---
+  /**
+   * Toggle checked state for an item
+   */
+  const toggleChecked = useCallback(
+    (id: string) => {
+      const item = items.find(i => i.id === id)
+      if (!item) return
 
-  const addRecipeToCart = useCallback(async (recipeId: string, servings?: number) => {
+      const newValue = !item.checked
+      setItems(prev => prev.map(i => i.id === id ? { ...i, checked: newValue } : i))
+
+      db.updateItem(id, { checked: newValue })
+        .catch(() => {
+          toast({ title: "Error", description: "Failed to update item.", variant: "destructive" })
+        })
+
+      setHasChanges(true)
+    },
+    [items, toast, db]
+  )
+
+  // --- Recipe Actions ---
+
+  /**
+   * Add a recipe and all its ingredients to the shopping list
+   */
+  const addRecipeToCart = useCallback(
+    async (recipeId: string, servings?: number) => {
       if (!user) return
 
       try {
-        const { data: recipe, error: recipeError } = await supabase
-          .from("recipes")
-          .select("servings, ingredients")
-          .eq("id", recipeId)
-          .single()
+        const recipe = await recipeCart.fetchRecipeDetails(recipeId)
+        const validation = recipeCart.validateRecipe(recipe)
 
-        if (recipeError) throw recipeError
-        if (!recipe || !recipe.ingredients) {
-          throw new Error("Recipe not found or has no ingredients")
+        if (!validation.valid) {
+          throw new Error(validation.error || "Invalid recipe")
         }
 
         const baseServings = recipe.servings || 1
         const finalServings = servings || baseServings
 
-        // Normalize amounts to 1 serving for storage
-        const amountsPerServing = (recipe.ingredients as any[]).map(ing => {
-          const baseAmount = Number(ing.amount) || 0
-          return baseAmount / baseServings
-        })
+        const itemsToInsert = recipeCart.createRecipeItems(user.id, recipeId, recipe, finalServings)
+        const mappedItems = await db.upsertItems(itemsToInsert)
 
-        const { data, error } = await supabase
-          .from("recipe_shopping_items")
-          .upsert({
-            user_id: user.id,
-            recipe_id: recipeId,
-            servings: finalServings,
-            ingredient_amounts: amountsPerServing,
-            ingredient_mask: new Array(amountsPerServing.length).fill(true),
-            checked_mask: new Array(amountsPerServing.length).fill(false)
-          }, { onConflict: 'user_id,recipe_id' })
-          .select(`*, recipes (id, title, servings, ingredients)`)
-          .single()
-
-        if (error) throw error
-        if (!data) throw new Error("Failed to create shopping item")
-
-        const mappedItems = mapRecipeItem(data)
-        if (mappedItems.length === 0) {
-          throw new Error("Recipe has no valid ingredients to add")
-        }
-
-        // Remove any existing items for this recipe and add the new ones
+        // Remove old recipe items if they exist, then add new ones
         setItems(prev => {
-          const filtered = prev.filter(item => item.recipeId !== recipeId)
+          const filtered = prev.filter(item => item.recipe_id !== recipeId)
           return [...filtered, ...mappedItems]
         })
-        toast({ title: "Recipe Added", description: `Added ${data.recipes?.title} to list.` })
+
+        toast({ title: "Recipe Added", description: `Added ${recipe.title} to list.` })
       } catch (error) {
         console.error("Error adding recipe to cart:", error)
         const errorMessage = error instanceof Error ? error.message : "Failed to add recipe"
         toast({ title: "Error", description: errorMessage, variant: "destructive" })
       }
-  }, [user, toast, mapRecipeItem])
+    },
+    [user, toast, db, recipeCart]
+  )
 
-  const updateRecipeServings = useCallback((recipeId: string, newServings: number) => {
-    const safeServings = Math.max(1, newServings)
+  /**
+   * Update servings for all items in a recipe
+   */
+  const updateRecipeServings = useCallback(
+    (recipeId: string, newServings: number) => {
+      const safeServings = Math.max(1, newServings)
 
-    // Optimistically scale quantities in the UI - no database sync
-    setItems(prev => prev.map(item => {
-      if (item.recipeId === recipeId && item.source === 'recipe') {
-        // Extract the ingredient index from the item ID (format: cartId-ingredientIndex)
-        const idParts = item.id.split('-')
-        const ingredientIndex = parseInt(idParts[idParts.length - 1])
-
-        // Use the stored amountsPerServing to scale the quantity
-        const perServing = item.amountsPerServing?.[ingredientIndex] || 0
-        return {
-          ...item,
-          servings: safeServings,
-          quantity: perServing * safeServings
-        }
-      }
-      return item
-    }))
-    setHasChanges(true) // Mark as changed
-  }, [])
-
-  const removeRecipe = useCallback(async (recipeId: string) => {
-    setItems(prev => prev.filter(item => item.recipeId !== recipeId))
-    try {
-      const { error } = await supabase
-        .from("recipe_shopping_items")
-        .delete()
-        .eq("recipe_id", recipeId)
-        .eq("user_id", user?.id)
-      if (error) throw error
-    } catch (error) {
-      loadShoppingList()
-    }
-  }, [user, loadShoppingList])
-
-  // --- 5. Batch Save ---
-  const saveChanges = useCallback(async () => {
-    if (!user || !hasChanges) return // Skip if no changes
-
-    try {
-      // Collect all changes by type
-      const miscChanges: { id: string; quantity: number; checked: boolean; name: string }[] = []
-      const recipeChanges: {
-        cartId: string
-        servings: number
-        ingredientAmounts: number[]
-        checkedMask: boolean[]
-      }[] = []
-
-      // Group items by their source
-      const groupedByRecipe = new Map<string, ShoppingListItem[]>()
-      const miscItems: ShoppingListItem[] = []
-
-      items.forEach(item => {
-        if (item.source === 'miscellaneous') {
-          miscItems.push(item)
-        } else if (item.recipeId) {
-          if (!groupedByRecipe.has(item.recipeId)) {
-            groupedByRecipe.set(item.recipeId, [])
+      // Update local state
+      setItems(prev => prev.map(item => {
+        if (item.recipe_id === recipeId && item.source_type === 'recipe') {
+          const originalPerServing = item.quantity / (item.servings || 1)
+          return {
+            ...item,
+            servings: safeServings,
+            quantity: originalPerServing * safeServings
           }
-          groupedByRecipe.get(item.recipeId)!.push(item)
         }
-      })
+        return item
+      }))
 
-      // Build miscellaneous changes
-      for (const item of miscItems) {
-        miscChanges.push({
-          id: item.id,
-          quantity: item.quantity,
-          checked: item.checked,
-          name: item.name
-        })
-      }
-
-      // Build recipe changes
-      for (const [, recipeItems] of groupedByRecipe) {
-        if (recipeItems.length === 0) continue
-
-        const firstItem = recipeItems[0]
-        const idParts = firstItem.id.split('-')
-        const cartId = idParts.slice(0, -1).join('-') // Extract cart ID (all segments except ingredient index)
-
-        // Reconstruct arrays from individual items
-        const ingredientAmounts = new Array(recipeItems.length).fill(0)
-        const checkedMask = new Array(recipeItems.length).fill(false)
-
-        recipeItems.forEach(item => {
-          const index = parseInt(item.id.split('-').pop() || '0')
-          if (item.amountsPerServing && item.amountsPerServing[index] !== undefined) {
-            ingredientAmounts[index] = item.amountsPerServing[index]
+      // Batch update database
+      const itemsToUpdate = items
+        .filter(item => item.recipe_id === recipeId && item.source_type === 'recipe')
+        .map(item => {
+          const newQuantity = recipeCart.calculateServingMultiplier(
+            item.quantity,
+            item.servings || 1,
+            safeServings
+          )
+          return {
+            id: item.id,
+            changes: { servings: safeServings, quantity: newQuantity }
           }
-          checkedMask[index] = item.checked
         })
 
-        recipeChanges.push({
-          cartId,
-          servings: firstItem.servings || 1,
-          ingredientAmounts,
-          checkedMask
-        })
-      }
-
-      // Batch update miscellaneous items
-      for (const change of miscChanges) {
-        await supabase
-          .from("miscellaneous_shopping_items")
-          .update({ quantity: change.quantity, checked: change.checked, name: change.name })
-          .eq("id", change.id)
-      }
-
-      // Batch update recipe items
-      for (const change of recipeChanges) {
-        await supabase
-          .from("recipe_shopping_items")
-          .update({
-            servings: change.servings,
-            ingredient_amounts: change.ingredientAmounts,
-            checked_mask: change.checkedMask
+      if (itemsToUpdate.length > 0) {
+        db.batchUpdateItems(itemsToUpdate)
+          .catch(() => {
+            toast({ title: "Error", description: "Failed to update servings.", variant: "destructive" })
           })
-          .eq("id", change.cartId)
       }
 
+      setHasChanges(true)
+    },
+    [items, toast, db, recipeCart]
+  )
+
+  /**
+   * Remove all items for a recipe from the shopping list
+   */
+  const removeRecipe = useCallback(
+    async (recipeId: string) => {
+      setItems(prev => prev.filter(item => item.recipe_id !== recipeId))
+
+      try {
+        if (user) {
+          await db.deleteRecipeItems(user.id, recipeId)
+        }
+      } catch (error) {
+        console.error("Error removing recipe:", error)
+        toast({ title: "Error", description: "Failed to remove recipe.", variant: "destructive" })
+        // Reload to restore state on error
+        loadShoppingList()
+      }
+    },
+    [user, toast, db, loadShoppingList]
+  )
+
+  // --- Batch Save ---
+
+  /**
+   * Save all pending changes
+   * Note: With normalized structure, changes are saved immediately per operation
+   * This is primarily for sync confirmation
+   */
+  const saveChanges = useCallback(async () => {
+    if (!user || !hasChanges) return
+
+    try {
       toast({ title: "Changes saved", description: "Your shopping list has been updated." })
-      // Mark changes as saved
-      setLastSavedState(items)
       setHasChanges(false)
     } catch (error) {
       console.error("Error saving changes:", error)
       toast({ title: "Error", description: "Failed to save changes.", variant: "destructive" })
     }
-  }, [items, user, toast, hasChanges])
+  }, [user, toast, hasChanges])
 
-
+  // Load on user change
   useEffect(() => {
     loadShoppingList()
   }, [loadShoppingList])
 
   return {
+    // State
     items,
     loading,
     hasChanges,
+
+    // Item actions
     addItem,
+    removeItem,
     updateQuantity,
     updateItemName,
     toggleChecked,
-    removeItem,
+
+    // Recipe actions
     addRecipeToCart,
     updateRecipeServings,
     removeRecipe,
+
+    // Utility
     saveChanges,
+    loadShoppingList
   }
 }

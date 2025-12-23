@@ -27,6 +27,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { useShoppingList } from "@/hooks/useShoppingList"
 
 interface Recipe {
   id: string
@@ -96,6 +97,7 @@ export default function MealPlannerPage() {
   const { theme } = useTheme()
   const isMobile = useIsMobile()
   const { toast } = useToast()
+  const shoppingList = useShoppingList()
   const [favoriteRecipes, setFavoriteRecipes] = useState<Recipe[]>([])
   const [suggestedRecipes, setSuggestedRecipes] = useState<Recipe[]>([])
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null)
@@ -473,85 +475,21 @@ export default function MealPlannerPage() {
     if (!mealPlan || !user) return
 
     try {
-      const normalizeName = (value?: string) => value?.trim().toLowerCase() || ""
-      const normalizeUnit = (value?: string) => value?.trim().toLowerCase() || "piece"
+      let addedCount = 0
+      const recipesProcessed = new Set<string>()
 
-      const ingredientsByRecipe: Record<string, { recipeName: string; ingredients: any[] }> = {}
+      // Add each unique recipe from the meal plan to the shopping list
+      for (const meal of mealPlan.meals) {
+        if (recipesProcessed.has(meal.recipe_id)) continue
+        recipesProcessed.add(meal.recipe_id)
 
-      mealPlan.meals.forEach((meal) => {
-        const recipe = recipesById[meal.recipe_id]
-        if (recipe && recipe.ingredients) {
-          if (!ingredientsByRecipe[recipe.id]) {
-            ingredientsByRecipe[recipe.id] = {
-              recipeName: recipe.title,
-              ingredients: [],
-            }
-          }
-          ingredientsByRecipe[recipe.id].ingredients.push(...recipe.ingredients)
-        }
-      })
-
-      const { data: existingListData, error: fetchError } = await supabase
-        .from("shopping_lists")
-        .select("items")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-
-      if (fetchError && fetchError.code !== "PGRST116") throw fetchError
-
-      const existingItemsRaw =
-        existingListData && existingListData.length > 0 ? existingListData[0]?.items || [] : []
-      const existingItems = Array.isArray(existingItemsRaw) ? existingItemsRaw : []
-      const mergedItems = [...existingItems]
-      let processedIngredientCount = 0
-
-      Object.entries(ingredientsByRecipe).forEach(([recipeId, { recipeName, ingredients }]) => {
-        ingredients.forEach((ingredient) => {
-          processedIngredientCount += 1
-          const incomingItem = {
-            id: Date.now().toString() + Math.random(),
-            name: ingredient.name,
-            quantity: 1, // Always use quantity of 1 for cost efficiency
-            unit: ingredient.unit || "piece",
-            checked: false,
-            recipeId: recipeId,
-            recipeName: recipeName,
-          }
-
-          const existingIndex = mergedItems.findIndex((item) => {
-            return (
-              normalizeName(item.name) === normalizeName(incomingItem.name) &&
-              normalizeUnit(item.unit) === normalizeUnit(incomingItem.unit)
-            )
-          })
-
-          if (existingIndex >= 0) {
-            // Item already exists, don't add - just keep quantity at 1
-            const existingItem = mergedItems[existingIndex]
-            mergedItems[existingIndex] = {
-              ...existingItem,
-              quantity: 1, // Keep at 1
-              checked: existingItem.checked ?? false,
-              recipeId: existingItem.recipeId || incomingItem.recipeId,
-              recipeName: existingItem.recipeName || incomingItem.recipeName,
-            }
-          } else {
-            mergedItems.push(incomingItem)
-          }
-        })
-      })
-
-      const { error: upsertError } = await supabase.from("shopping_lists").upsert({
-        user_id: user.id,
-        items: mergedItems,
-      })
-
-      if (upsertError) throw upsertError
+        await shoppingList.addRecipeToCart(meal.recipe_id)
+        addedCount += 1
+      }
 
       toast({
         title: "Added to shopping list",
-        description: `Merged ${processedIngredientCount} ingredients into your shopping list.`,
+        description: `Added ${addedCount} recipe${addedCount !== 1 ? "s" : ""} to your shopping list.`,
       })
     } catch (error) {
       console.error("Error adding to shopping list:", error)

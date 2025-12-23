@@ -33,6 +33,7 @@ AGENTS.md
 CLAUDE.md
 
 .claude/*
+.vscode/*
 
 *.md
 .env*.local
