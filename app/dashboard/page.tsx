@@ -12,8 +12,7 @@ import { format, startOfWeek } from "date-fns"
 import { RecipeCard } from "@/components/recipe-card"
 
 // Tutorial Components
-// Removed TutorialBlocker as it is now handled by the Overlay
-import { TutorialOverlay } from "@/components/tutorial-overlay"
+// TutorialOverlay is rendered globally in layout.tsx
 import { TutorialSelectionModal } from "@/components/tutorial-selection-modal"
 import { useTutorial } from "@/contexts/tutorial-context"
 
@@ -140,8 +139,7 @@ export default function DashboardPage() {
 
   return (
     <div data-tutorial="dashboard-overview">
-      {/* Tutorial Components: Overlay now handles the "Blocker" effect */}
-      <TutorialOverlay />
+      {/* Tutorial Components: Overlay is rendered globally in layout.tsx */}
       <TutorialSelectionModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
 
       <div className="min-h-screen bg-background">
