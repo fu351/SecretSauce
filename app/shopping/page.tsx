@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 
 import { useAuth } from "@/contexts/auth-context"
@@ -54,7 +54,6 @@ export default function ShoppingPage() {
     addRecipeToCart,
     updateRecipeServings,
     saveChanges,
-    savePricesFromStore,
   } = useShoppingList()
 
   const {
@@ -62,13 +61,8 @@ export default function ShoppingPage() {
     results: massSearchResults,
     loading: comparisonLoading,
     performMassSearch,
-    nextStore,
-    prevStore,
     scrollToStore,
-    handleScroll,
-    carouselRef,
     replaceItemForStore,
-    usingCache
   } = useStoreComparison(shoppingList, zipCode, null)
 
   useEffect(() => setMounted(true), [])
@@ -114,12 +108,7 @@ export default function ShoppingPage() {
     }
   }
 
-  // --- UPDATED: New recipe handling with addRecipeToCart ---
-  const handleAddRecipe = async (id: string, title: string, servings?: number) => {
-    // addRecipeToCart handles its own errors and toasts
-    // Just call it and let the hook manage the UI feedback
-    await addRecipeToCart(id, servings)
-  }
+  const handleAddRecipe = (id: string, title: string, servings?: number) => addRecipeToCart(id, servings)
 
   const handleCompareClick = async () => {
     if (shoppingList.length === 0) return
@@ -135,21 +124,16 @@ export default function ShoppingPage() {
   }
 
   const handleSwapConfirmation = (newItem: GroceryItem) => {
-    if (reloadTarget?.store) {
-      // Use first shopping list ID from merged items, or fall back to single shoppingListId
-      const primaryId = reloadTarget.shoppingListIds?.[0] || reloadTarget.shoppingListId
-      if (primaryId) {
-        const oldItem = shoppingList.find(i => i.id === primaryId)
+    const primaryId = reloadTarget?.shoppingListIds?.[0] || reloadTarget?.shoppingListId
 
-        replaceItemForStore(
-          reloadTarget.store,
-          primaryId,
-          { ...newItem, quantity: oldItem ? oldItem.quantity : 1 }
-        )
-        toast({ title: "Item Swapped", description: `Updated for ${reloadTarget.store}` })
-      } else {
-        addItem(newItem.title, 1, newItem.unit)
-      }
+    if (reloadTarget?.store && primaryId) {
+      const oldItem = shoppingList.find(i => i.id === primaryId)
+      replaceItemForStore(
+        reloadTarget.store,
+        primaryId,
+        { ...newItem, quantity: oldItem?.quantity ?? 1 }
+      )
+      toast({ title: "Item Swapped", description: `Updated for ${reloadTarget.store}` })
     } else {
       addItem(newItem.title, 1, newItem.unit)
     }
@@ -158,25 +142,25 @@ export default function ShoppingPage() {
 
   // --- Styles ---
   const isDark = (mounted ? theme : "light") === "dark"
-  
-  const styles = {
+
+  const styles = useMemo(() => ({
     bgClass: isDark ? "bg-[#181813]" : "bg-gray-50/50",
-    cardBgClass: isDark 
-      ? "bg-[#1f1e1a] shadow-none" 
+    cardBgClass: isDark
+      ? "bg-[#1f1e1a] shadow-none"
       : "bg-white shadow-sm border-0",
     textClass: isDark ? "text-[#e8dcc4]" : "text-gray-900",
     mutedTextClass: isDark ? "text-[#e8dcc4]/70" : "text-gray-500",
-    buttonClass: isDark 
-      ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] shadow-none" 
+    buttonClass: isDark
+      ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0] shadow-none"
       : "bg-orange-500 hover:bg-orange-600 text-white shadow-sm",
-    buttonOutlineClass: isDark 
-      ? "border-0 bg-[#e8dcc4]/10 text-[#e8dcc4] hover:bg-[#e8dcc4]/20" 
+    buttonOutlineClass: isDark
+      ? "border-0 bg-[#e8dcc4]/10 text-[#e8dcc4] hover:bg-[#e8dcc4]/20"
       : "border border-gray-200 bg-white hover:bg-gray-50",
-    inputClass: isDark 
-      ? "bg-[#181813] border-0 focus-visible:ring-1 focus-visible:ring-[#e8dcc4]/50 text-[#e8dcc4]" 
+    inputClass: isDark
+      ? "bg-[#181813] border-0 focus-visible:ring-1 focus-visible:ring-[#e8dcc4]/50 text-[#e8dcc4]"
       : "bg-gray-50 border-0 focus-visible:ring-1 focus-visible:ring-gray-300 text-gray-900",
     theme: isDark ? "dark" : "light" as "light" | "dark"
-  }
+  }), [isDark])
 
   if (!mounted) return <div className={`min-h-screen ${styles.bgClass}`} />
 
@@ -286,7 +270,6 @@ export default function ShoppingPage() {
                       carouselIndex={carouselIndex}
                       onStoreSelect={scrollToStore}
                       onReloadItem={handleReloadRequest}
-                      onSavePrices={savePricesFromStore}
                       postalCode={zipCode}
                       cardBgClass={styles.cardBgClass}
                       textClass={styles.textClass}

@@ -13,8 +13,7 @@ import {
   CheckCircle2,
   Map as MapIcon,
   List,
-  Clock,
-  Loader2
+  Clock
 } from "lucide-react"
 
 import type { StoreComparison } from "@/lib/types/store"
@@ -60,7 +59,6 @@ interface StoreComparisonSectionProps {
   carouselIndex: number
   onStoreSelect: (index: number) => void
   onReloadItem: (params: { term: string; store: string; shoppingListId: string; shoppingListIds?: string[] }) => void
-  onSavePrices?: (storeName: string, priceMap: Map<string, number>) => Promise<void>
   postalCode: string
   cardBgClass: string
   textClass: string
@@ -84,7 +82,6 @@ export function StoreComparisonSection({
   carouselIndex,
   onStoreSelect,
   onReloadItem,
-  onSavePrices,
   postalCode,
   cardBgClass,
   textClass,
@@ -97,7 +94,6 @@ export function StoreComparisonSection({
   const [userCoords, setUserCoords] = useState<google.maps.LatLngLiteral | null>(null);
   const [cachedResults, setCachedResults] = useState<StoreComparison[]>([]);
   const [usingCache, setUsingCache] = useState(false);
-  const [savingPrices, setSavingPrices] = useState(false);
 
   // Initialize the new hook
   const { closestIndex, travelData, calculateClosest, isLoading: travelLoading } = useClosestStore();
@@ -211,37 +207,6 @@ export function StoreComparisonSection({
     window.open(mapsUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleSavePrices = async () => {
-    if (!activeStore || !onSavePrices) return;
-
-    setSavingPrices(true);
-    try {
-      // Build price map from active store items ONLY (exclude missing items)
-      const priceMap = new Map<string, number>();
-      const missingCount = activeStore.missingIngredients?.length || 0;
-
-      activeStore.items.forEach(item => {
-        // Handle both single and merged items
-        const itemIds = (item as any).shoppingItemIds || [item.shoppingItemId];
-        itemIds.forEach((id: string) => {
-          priceMap.set(id, item.price);
-        });
-      });
-
-      // If there are missing items, show a warning
-      if (missingCount > 0) {
-        const missingNames = activeStore.missingIngredients
-          ?.map(item => item.name)
-          .join(", ");
-
-        console.warn(`Items not found at ${activeStore.store}: ${missingNames}`);
-      }
-
-      await onSavePrices(activeStore.store, priceMap);
-    } finally {
-      setSavingPrices(false);
-    }
-  };
 
   const bestValueIndex = useMemo(() => {
     if (!displayResults?.length) return -1;
@@ -464,19 +429,6 @@ export function StoreComparisonSection({
           </CardContent>
 
           <div className="p-5 bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-white/5 flex gap-3">
-            {onSavePrices && (
-              <Button
-                onClick={handleSavePrices}
-                disabled={savingPrices}
-                className={`flex-1 h-14 text-lg font-bold shadow-2xl transition-transform active:scale-[0.98] ${buttonClass}`}
-              >
-                {savingPrices ? (
-                  <> <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Saving... </>
-                ) : (
-                  "Save Prices"
-                )}
-              </Button>
-            )}
             <Button
               onClick={handleFindClosest}
               className={`flex-1 h-14 text-lg font-bold shadow-2xl transition-transform active:scale-[0.98] ${buttonClass}`}
