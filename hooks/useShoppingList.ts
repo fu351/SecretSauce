@@ -48,7 +48,11 @@ export function useShoppingList() {
    */
   const addItem = useCallback(
     async (name: string, quantity = 1, unit = "piece", checked = false, ingredientId?: string) => {
-      if (!user) return null
+      console.log("[Shopping List] addItem called with:", { name, quantity, unit, checked, ingredientId, userExists: !!user })
+      if (!user) {
+        console.warn("[Shopping List] addItem called but user is not authenticated")
+        return null
+      }
 
       const tempId = `temp-${crypto.randomUUID()}`
       const newItem: ShoppingListItem = {
@@ -74,14 +78,16 @@ export function useShoppingList() {
           ingredient_id: ingredientId
         })
         setItems(prev => prev.map(item => item.id === tempId ? realItem : item))
+        console.log("[Shopping List] Item added successfully:", realItem)
         return realItem
       } catch (error) {
         setItems(prev => prev.filter(item => item.id !== tempId))
+        console.error("[Shopping List] Error saving item:", error)
         toast({ title: "Error", description: "Failed to save item.", variant: "destructive" })
         return null
       }
     },
-    [user, toast, db]
+    [user, toast, db] // db should stay stable since useShoppingListDB doesn't change
   )
 
   /**
@@ -101,7 +107,7 @@ export function useShoppingList() {
         toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" })
       }
     },
-    [items, toast, db]
+    [items, toast, db] // db should stay stable since useShoppingListDB doesn't change
   )
 
   /**
@@ -178,12 +184,17 @@ export function useShoppingList() {
    */
   const addRecipeToCart = useCallback(
     async (recipeId: string, servings?: number) => {
-      if (!user) return
+      if (!user) {
+        console.warn("[Shopping List] addRecipeToCart called but user is not authenticated")
+        return
+      }
 
       try {
+        console.log("[Shopping List] Fetching recipe details for:", recipeId)
         const recipe = await recipeCart.fetchRecipeDetails(recipeId)
-        const validation = recipeCart.validateRecipe(recipe)
+        console.log("[Shopping List] Recipe fetched:", recipe)
 
+        const validation = recipeCart.validateRecipe(recipe)
         if (!validation.valid) {
           throw new Error(validation.error || "Invalid recipe")
         }
@@ -191,8 +202,12 @@ export function useShoppingList() {
         const baseServings = recipe.servings || 1
         const finalServings = servings || baseServings
 
+        console.log("[Shopping List] Creating items for recipe with servings:", finalServings)
         const itemsToInsert = recipeCart.createRecipeItems(user.id, recipeId, recipe, finalServings)
+        console.log("[Shopping List] Items to insert:", itemsToInsert)
+
         const mappedItems = await db.upsertItems(itemsToInsert)
+        console.log("[Shopping List] Items upserted successfully:", mappedItems)
 
         // Remove old recipe items if they exist, then add new ones
         setItems(prev => {
@@ -202,7 +217,7 @@ export function useShoppingList() {
 
         toast({ title: "Recipe Added", description: `Added ${recipe.title} to list.` })
       } catch (error) {
-        console.error("Error adding recipe to cart:", error)
+        console.error("[Shopping List] Error adding recipe to cart:", error)
         const errorMessage = error instanceof Error ? error.message : "Failed to add recipe"
         toast({ title: "Error", description: errorMessage, variant: "destructive" })
       }

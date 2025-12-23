@@ -103,23 +103,27 @@ export default function ShoppingPage() {
 
   // --- Handlers ---
 
-  const handleCustomInputSubmit = () => {
+  const handleCustomInputSubmit = async () => {
+    console.log("[Shopping Page] handleCustomInputSubmit called with:", newItemInput)
     if (newItemInput.trim()) {
-      addItem(newItemInput)
+      await addItem(newItemInput)
       setNewItemInput("")
     }
   }
 
-  const handleDirectAdd = (name: string) => {
+  const handleDirectAdd = async (name: string) => {
+    console.log("[Shopping Page] handleDirectAdd called with:", name)
     if (name.trim()) {
-      addItem(name)
-      toast({ description: `Added "${name}" to list` })
-      setShowComparison(false)
+      const result = await addItem(name)
+      if (result) {
+        toast({ description: `Added "${name}" to list` })
+        setShowComparison(false)
+      }
     }
   }
 
-  const handleAddRecipe = (id: string, title: string, servings?: number) => {
-    addRecipeToCart(id, servings)
+  const handleAddRecipe = async (id: string, title: string, servings?: number) => {
+    await addRecipeToCart(id, servings)
     setShowComparison(false)
   }
 

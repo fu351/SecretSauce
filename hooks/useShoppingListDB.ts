@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
 import type { ShoppingListItem } from "@/lib/types/store"
 
@@ -58,13 +58,18 @@ export function useShoppingListDB() {
    * Insert a new item
    */
   const insertItem = useCallback(async (item: Partial<ShoppingListItem>) => {
+    console.log("[Shopping List DB] Attempting to insert item:", item)
     const { data, error } = await supabase
       .from("shopping_list_items")
       .insert(item)
       .select(`*, standardized_ingredients (canonical_name)`)
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error("[Shopping List DB] Insert error:", error)
+      throw error
+    }
+    console.log("[Shopping List DB] Insert successful, returned data:", data)
     return mapShoppingItem(data)
   }, [mapShoppingItem])
 
@@ -85,17 +90,26 @@ export function useShoppingListDB() {
 
   /**
    * Bulk upsert items (for recipes with multiple ingredients)
+   * Note: Since recipe items are typically added after removing old ones,
+   * we use insert which is simpler and avoids constraint issues.
    */
   const upsertItems = useCallback(async (items: Partial<ShoppingListItem>[]) => {
+    if (!items || items.length === 0) {
+      console.warn("[Shopping List DB] upsertItems called with empty items array")
+      return []
+    }
+
+    console.log("[Shopping List DB] Inserting items:", items)
     const { data, error } = await supabase
       .from("shopping_list_items")
-      .upsert(items, {
-        onConflict: 'user_id,recipe_id,recipe_ingredient_index',
-        ignoreDuplicates: false
-      })
+      .insert(items)
       .select(`*, standardized_ingredients (canonical_name)`)
 
-    if (error) throw error
+    if (error) {
+      console.error("[Shopping List DB] Insert error:", error)
+      throw error
+    }
+    console.log("[Shopping List DB] Insert successful, returned data:", data)
     return (data || []).map(mapShoppingItem)
   }, [mapShoppingItem])
 
@@ -134,7 +148,7 @@ export function useShoppingListDB() {
     return results
   }, [updateItem])
 
-  return {
+  return useMemo(() => ({
     mapShoppingItem,
     fetchUserItems,
     insertItem,
@@ -143,5 +157,5 @@ export function useShoppingListDB() {
     deleteItem,
     deleteRecipeItems,
     batchUpdateItems
-  }
+  }), [mapShoppingItem, fetchUserItems, insertItem, updateItem, upsertItems, deleteItem, deleteRecipeItems, batchUpdateItems])
 }

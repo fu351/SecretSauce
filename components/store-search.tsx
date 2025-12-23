@@ -42,10 +42,12 @@ export function RecipeSearchModal({
   }, [query, allRecipes])
 
   const handleManualAdd = (e?: React.FormEvent) => {
+    console.log("[RecipeSearchModal] handleManualAdd called with:", manualItem)
     e?.preventDefault()
     if (!manualItem.trim()) return
+    console.log("[RecipeSearchModal] About to call onAddItem with:", manualItem.trim())
     onAddItem(manualItem.trim())
-    setManualItem("") 
+    setManualItem("")
   }
 
   return (
@@ -110,6 +112,7 @@ export function RecipeSearchModal({
                     ? 'border-[#e8dcc4]/20 hover:bg-[#e8dcc4]/5'
                     : 'border-gray-200 hover:bg-gray-50'}`}
                 onClick={() => {
+                  console.log("[RecipeSearchModal] Recipe card clicked:", { id: recipe.id, title: recipe.title })
                   onAddRecipe(recipe.id, recipe.title)
                 }}
               >
