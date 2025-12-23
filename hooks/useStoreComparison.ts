@@ -343,6 +343,45 @@ export function useStoreComparison(
   const nextStore = () => scrollToStore(activeStoreIndex + 1)
   const prevStore = () => scrollToStore(activeStoreIndex - 1)
 
+  // Recalculate totals based on current shopping list quantities without re-fetching
+  const recalculateTotals = useCallback(() => {
+    setResults(prevResults => {
+      return prevResults.map(store => {
+        let newTotal = 0
+
+        const updatedItems = store.items.map(item => {
+          // Find the current quantity from the shopping list
+          const shoppingItemIds = (item as any).shoppingItemIds || [item.shoppingItemId]
+          let totalQty = 0
+
+          shoppingItemIds.forEach((id: string) => {
+            const shoppingItem = shoppingList.find(i => i.id === id)
+            if (shoppingItem) {
+              totalQty += shoppingItem.quantity || 1
+            }
+          })
+
+          if (totalQty > 0) {
+            const itemCost = item.price * totalQty
+            newTotal += itemCost
+            return {
+              ...item,
+              quantity: totalQty
+            }
+          }
+
+          return item
+        })
+
+        return {
+          ...store,
+          items: updatedItems,
+          total: newTotal
+        }
+      })
+    })
+  }, [shoppingList])
+
   return {
     results: sortedResults,
     loading,
@@ -357,6 +396,7 @@ export function useStoreComparison(
     sortMode,
     setSortMode,
     replaceItemForStore,
-    usingCache
+    usingCache,
+    recalculateTotals
   }
 }

@@ -90,7 +90,6 @@ export function StoreComparisonSection({
   theme,
 }: StoreComparisonSectionProps) {
   const listContainerRef = useRef<HTMLDivElement>(null);
-  const [viewType, setViewType] = useState<"list" | "map">("list");
   const [userCoords, setUserCoords] = useState<google.maps.LatLngLiteral | null>(null);
   const [cachedResults, setCachedResults] = useState<StoreComparison[]>([]);
   const [usingCache, setUsingCache] = useState(false);
@@ -239,29 +238,11 @@ export function StoreComparisonSection({
 
   return (
     <div className="space-y-8">
-      {/* HEADER & VIEW TOGGLE */}
+      {/* HEADER */}
       <div className="flex items-center justify-between px-2">
         <label className={`text-[11px] font-bold uppercase tracking-wider ${mutedTextClass}`}>
           Compare Stores ({displayResults.length}) {usingCache && <span className="text-[9px] opacity-50">(cached)</span>}
         </label>
-        <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-lg border border-white/10">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setViewType("list")}
-            className={`h-7 px-3 gap-2 ${viewType === 'list' ? buttonClass : mutedTextClass}`}
-          >
-            <List className="h-3.5 w-3.5" /> List
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setViewType("map")}
-            className={`h-7 px-3 gap-2 ${viewType === 'map' ? buttonClass : mutedTextClass}`}
-          >
-            <MapIcon className="h-3.5 w-3.5" /> Map
-          </Button>
-        </div>
       </div>
 
       {/* STORE SWITCHER RAIL */}
@@ -343,18 +324,11 @@ export function StoreComparisonSection({
         })}
       </div>
 
-      {/* CONDITIONAL RENDERING: LIST OR MAP */}
-      {viewType === "map" ? (
-        <Card className={`overflow-hidden border-0 shadow-2xl ${cardBgClass} p-4`}>
-          <StoreMap
-            comparisons={displayResults}
-            onStoreSelected={onStoreSelect}
-            userPostalCode={postalCode}
-            selectedStoreIndex={carouselIndex}
-          />
-        </Card>
-      ) : (
-        <Card className={`overflow-hidden border-0 shadow-2xl ${cardBgClass} transition-all duration-300`}>
+      {/* LIST AND MAP SIDE BY SIDE */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* LEFT SIDE: LIST */}
+        <div className="lg:col-span-2">
+          <Card className={`overflow-hidden border-0 shadow-2xl ${cardBgClass} transition-all duration-300 h-full flex flex-col`}>
           <div className={`p-6 flex justify-between items-end border-b ${theme === 'dark' ? 'border-white/5 bg-white/5' : 'border-gray-100 bg-gray-50/50'}`}>
             <div>
               <div className="flex items-center gap-2 mb-1.5">
@@ -436,8 +410,21 @@ export function StoreComparisonSection({
               Find Closest {activeStore.store} <MapPin className="ml-2 h-5 w-5" />
             </Button>
           </div>
-        </Card>
-      )}
+          </Card>
+        </div>
+
+        {/* RIGHT SIDE: MAP */}
+        <div className="lg:col-span-1">
+          <Card className={`overflow-hidden border-0 shadow-2xl ${cardBgClass} p-4 h-full`}>
+            <StoreMap
+              comparisons={displayResults}
+              onStoreSelected={onStoreSelect}
+              userPostalCode={postalCode}
+              selectedStoreIndex={carouselIndex}
+            />
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
