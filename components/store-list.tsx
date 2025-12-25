@@ -30,7 +30,6 @@ import {
 } from "lucide-react"
 
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
-import { RecipeSearchModal } from "@/components/store-search"
 import { QuantityControl } from "@/components/quantity-control"
 import { useMergedItems, distributeQuantityChange } from "@/hooks/useMergedItems"
 
@@ -77,7 +76,6 @@ export function ShoppingListSection({
   
   // -- View State --
   const [isGrouped, setIsGrouped] = useState(true)
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
   // -- Editing State --
@@ -244,16 +242,6 @@ export function ShoppingListSection({
       [id]: !isExpanded(id)
     }))
   }
-
-  // -- Styles for Modal --
-  const modalStyles = {
-    textClass,
-    mutedTextClass,
-    buttonClass,
-    buttonOutlineClass,
-    theme,
-    inputClass: theme === 'dark' ? 'bg-[#181813] border-[#e8dcc4]/20' : ''
-  } as const
 
   // -- Render Helper: Individual Row --
   const renderItemRow = (item: ShoppingListItem) => {
@@ -522,38 +510,6 @@ export function ShoppingListSection({
 
             <div className="flex items-center gap-2">
               {headerAction && <div>{headerAction}</div>}
-
-              <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={`h-8 gap-2 ${buttonOutlineClass}`}
-                    data-tutorial= "store-add"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden sm:inline">Add Recipe</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className={`max-w-2xl max-h-[80vh] overflow-y-auto ${theme === 'dark' ? 'bg-[#181813] border-[#e8dcc4]/20' : 'bg-white'}`}>
-                  <DialogHeader>
-                    <DialogTitle className={textClass}>Search to Add</DialogTitle>
-                    <DialogDescription>Find grocery items or add ingredients from your recipes.</DialogDescription>
-                  </DialogHeader>
-                  <RecipeSearchModal
-                    user={user}
-                    zipCode={zipCode || ""}
-                    onAddItem={(name) => {
-                      onAddItem(name);
-                    }}
-                    onAddRecipe={(id, title) => {
-                      onAddRecipe(id, title);
-                      setIsSearchOpen(false);
-                    }}
-                    styles={modalStyles}
-                  />
-                </DialogContent>
-              </Dialog>
 
               {uniqueList.length > 0 && (
                 <>

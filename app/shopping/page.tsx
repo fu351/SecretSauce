@@ -15,11 +15,12 @@ import { useStoreComparison } from "@/hooks/useStoreComparison"
 import { ItemReplacementModal } from "../../components/store-replacemnet"
 import { StoreComparisonSection } from "@/components/store-comparison"
 import { ShoppingListSection } from "@/components/store-list"
+import { RecipeRecommendationSidebar } from "@/components/recipe-recommendation-sidebar"
 
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ShoppingBag, Loader2, Plus, ArrowRight, AlertCircle } from "lucide-react"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { ShoppingBag, Loader2, ArrowRight, AlertCircle, ChefHat } from "lucide-react"
 
 const DEFAULT_SHOPPING_ZIP = ""
 
@@ -33,6 +34,8 @@ export default function ShoppingPage() {
   const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)
   const [showComparison, setShowComparison] = useState(false)
   const [newItemInput, setNewItemInput] = useState("")
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
 
   const [reloadModalOpen, setReloadModalOpen] = useState(false)
   const [reloadTarget, setReloadTarget] = useState<{
@@ -127,6 +130,16 @@ export default function ShoppingPage() {
     setShowComparison(false)
   }
 
+  const handleOpenRecipeSidebar = () => {
+    // On desktop, toggle sidebar visibility
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setDesktopSidebarOpen(!desktopSidebarOpen)
+    } else {
+      // On mobile, open modal
+      setMobileSidebarOpen(true)
+    }
+  }
+
   const handleCompareClick = async () => {
     if (shoppingList.length === 0) return
     // Save all pending changes before showing comparison
@@ -188,125 +201,175 @@ export default function ShoppingPage() {
   return (
     <div className={`min-h-screen ${styles.bgClass} p-6`}>
       <div className="max-w-7xl mx-auto">
-        
-        <div data-shopping-list>
-          <Card className={`${styles.cardBgClass} overflow-hidden`}>
-            
-            {/* Header */}
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <CardTitle className={`flex items-center gap-2 ${styles.textClass}`}>
-                <ShoppingBag className="h-5 w-5 opacity-70" />
-                Shopping List
-              </CardTitle>
+        {/* Top row: Shopping list + Recipe sidebar side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
 
-              <div className="flex items-center gap-2">
-                {hasChanges && (
-                  <>
-                    <div className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-                      style={{
-                        backgroundColor: isDark ? "rgba(232, 220, 196, 0.15)" : "rgba(251, 146, 60, 0.1)",
-                        color: isDark ? "#e8dcc4" : "#ea580c"
-                      }}>
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      <span>Unsaved changes</span>
-                    </div>
+          {/* Left column: Shopping list - expands to full width when sidebar is hidden */}
+          <div data-shopping-list className={desktopSidebarOpen ? "" : "lg:col-span-2"}>
+            <Card className={`${styles.cardBgClass} overflow-hidden`}>
+
+              {/* Header */}
+              <CardHeader className="flex flex-row items-center justify-between pb-4">
+                <CardTitle className={`flex items-center gap-2 ${styles.textClass}`}>
+                  <ShoppingBag className="h-5 w-5 opacity-70" />
+                  Shopping List
+                </CardTitle>
+
+                <div className="flex items-center gap-2">
+                  {hasChanges && (
+                    <>
+                      <div className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
+                        style={{
+                          backgroundColor: isDark ? "rgba(232, 220, 196, 0.15)" : "rgba(251, 146, 60, 0.1)",
+                          color: isDark ? "#e8dcc4" : "#ea580c"
+                        }}>
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        <span>Unsaved changes</span>
+                      </div>
+                      <Button
+                        onClick={() => saveChanges()}
+                        className={styles.buttonClass}
+                        data-tutorial="store-save"
+                      >
+                        Save Changes
+                      </Button>
+                    </>
+                  )}
+                  {!(showComparison && !hasChanges) && (
                     <Button
-                      onClick={() => saveChanges()}
+                      onClick={handleCompareClick}
+                      disabled={shoppingList.length === 0 || comparisonLoading}
                       className={styles.buttonClass}
-                      data-tutorial="store-save"
+                      data-tutorial="store-compare"
                     >
-                      Save Changes
+                      {comparisonLoading ? (
+                        <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating... </>
+                      ) : (
+                        <> Compare Prices <ArrowRight className="ml-2 h-4 w-4" /> </>
+                      )}
                     </Button>
-                  </>
-                )}
-                {!(showComparison && !hasChanges) && (
-                  <Button
-                    onClick={handleCompareClick}
-                    disabled={shoppingList.length === 0 || comparisonLoading}
-                    className={styles.buttonClass}
-                    data-tutorial="store-compare"
-                  >
-                    {comparisonLoading ? (
-                      <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating... </>
-                    ) : (
-                      <> Compare Prices <ArrowRight className="ml-2 h-4 w-4" /> </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            
-            <CardContent className="p-0">
-              <div className="p-6 pt-0">
-                <ShoppingListSection
-                  // Data
-                  shoppingList={shoppingList}
-                  user={user}
-                  zipCode={zipCode}
+                  )}
+                </div>
+              </CardHeader>
 
-                  // Actions
-                  onRemoveItem={removeFromShoppingList}
-                  onUpdateQuantity={updateQuantity}
-                  onUpdateItemName={updateItemName}
-                  onToggleItem={toggleChecked}
-                  onRemoveRecipe={removeRecipeItems}
-                  onUpdateRecipeServings={updateRecipeServings}
-                  onAddItem={handleDirectAdd}
+              <CardContent className="p-0">
+                <div className="p-6 pt-0">
+                  <ShoppingListSection
+                    // Data
+                    shoppingList={shoppingList}
+                    user={user}
+                    zipCode={zipCode}
+
+                    // Actions
+                    onRemoveItem={removeFromShoppingList}
+                    onUpdateQuantity={updateQuantity}
+                    onUpdateItemName={updateItemName}
+                    onToggleItem={toggleChecked}
+                    onRemoveRecipe={removeRecipeItems}
+                    onUpdateRecipeServings={updateRecipeServings}
+                    onAddItem={handleDirectAdd}
+                    onAddRecipe={handleAddRecipe}
+
+                    // Styles
+                    cardBgClass="shadow-none border-0 bg-transparent"
+                    textClass={styles.textClass}
+                    mutedTextClass={styles.mutedTextClass}
+                    buttonClass={styles.buttonClass}
+                    buttonOutlineClass={styles.buttonOutlineClass}
+                    theme={styles.theme}
+                    // New prop for custom item input
+                    newItemInput={newItemInput}
+                    onNewItemInputChange={setNewItemInput}
+                    onAddCustomItem={handleCustomInputSubmit}
+                    inputClass={styles.inputClass}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right column: Recipe sidebar (Desktop only) */}
+          {desktopSidebarOpen && (
+            <div data-recipe-sidebar>
+              <Card className={`${styles.cardBgClass} overflow-hidden h-full flex flex-col hidden lg:flex`}>
+                <RecipeRecommendationSidebar
+                  shoppingItems={shoppingList}
                   onAddRecipe={handleAddRecipe}
-
-                  // Styles
-                  cardBgClass="shadow-none border-0 bg-transparent"
+                  theme={styles.theme}
+                  cardBgClass={styles.cardBgClass}
                   textClass={styles.textClass}
                   mutedTextClass={styles.mutedTextClass}
                   buttonClass={styles.buttonClass}
                   buttonOutlineClass={styles.buttonOutlineClass}
-                  theme={styles.theme}
-                  // New prop for custom item input
-                  newItemInput={newItemInput}
-                  onNewItemInputChange={setNewItemInput}
-                  onAddCustomItem={handleCustomInputSubmit}
-                  inputClass={styles.inputClass}
                 />
-              </div>
-            </CardContent>
-          </Card>
-
-          {showComparison && (
-            <div className="mt-8" data-comparison>
-              <Card className={`${styles.cardBgClass} overflow-hidden`}>
-                <CardHeader className="pb-4">
-                  <CardTitle className={`flex items-center gap-2 ${styles.textClass}`}>
-                    Price Comparison
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {comparisonLoading ? (
-                    <div className="text-center py-20">
-                      <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-orange-500" />
-                      <h3 className={`text-xl font-medium ${styles.textClass}`}>Scanning local stores...</h3>
-                    </div>
-                  ) : (
-                    <div className="p-6 pt-0">
-                      <StoreComparisonSection
-                        comparisonLoading={comparisonLoading}
-                        massSearchResults={massSearchResults}
-                        carouselIndex={carouselIndex}
-                        onStoreSelect={scrollToStore}
-                        onReloadItem={handleReloadRequest}
-                        postalCode={zipCode}
-                        cardBgClass={styles.cardBgClass}
-                        textClass={styles.textClass}
-                        mutedTextClass={styles.mutedTextClass}
-                        buttonClass={styles.buttonClass}
-                        theme={styles.theme}
-                      />
-                    </div>
-                  )}
-                </CardContent>
               </Card>
             </div>
           )}
         </div>
+
+        {/* Fixed floating chef hat button - always visible */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <Button
+            onClick={handleOpenRecipeSidebar}
+            className={`${styles.buttonClass} rounded-full w-14 h-14 p-0 flex items-center justify-center shadow-lg`}
+            title={desktopSidebarOpen ? "Hide recipes" : "Show recipes"}
+          >
+            <ChefHat className="h-6 w-6" />
+          </Button>
+        </div>
+
+        {/* Mobile modal */}
+        <Dialog open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+          <DialogContent className="h-[80vh] max-h-[80vh] p-0 border-0 flex flex-col rounded-t-2xl rounded-b-none">
+            <RecipeRecommendationSidebar
+              shoppingItems={shoppingList}
+              onAddRecipe={handleAddRecipe}
+              theme={styles.theme}
+              cardBgClass={styles.cardBgClass}
+              textClass={styles.textClass}
+              mutedTextClass={styles.mutedTextClass}
+              buttonClass={styles.buttonClass}
+              buttonOutlineClass={styles.buttonOutlineClass}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Bottom: Price comparison (full width) */}
+        {showComparison && (
+          <div className="mt-8" data-comparison>
+            <Card className={`${styles.cardBgClass} overflow-hidden`}>
+              <CardHeader className="pb-4">
+                <CardTitle className={`flex items-center gap-2 ${styles.textClass}`}>
+                  Price Comparison
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {comparisonLoading ? (
+                  <div className="text-center py-20">
+                    <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-orange-500" />
+                    <h3 className={`text-xl font-medium ${styles.textClass}`}>Scanning local stores...</h3>
+                  </div>
+                ) : (
+                  <div className="p-6 pt-0">
+                    <StoreComparisonSection
+                      comparisonLoading={comparisonLoading}
+                      massSearchResults={massSearchResults}
+                      carouselIndex={carouselIndex}
+                      onStoreSelect={scrollToStore}
+                      onReloadItem={handleReloadRequest}
+                      postalCode={zipCode}
+                      cardBgClass={styles.cardBgClass}
+                      textClass={styles.textClass}
+                      mutedTextClass={styles.mutedTextClass}
+                      buttonClass={styles.buttonClass}
+                      theme={styles.theme}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       <ItemReplacementModal

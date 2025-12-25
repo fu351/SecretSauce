@@ -14,12 +14,10 @@ export function useShoppingListDB() {
    * Map raw database item to typed ShoppingListItem
    */
   const mapShoppingItem = useCallback((dbItem: any): ShoppingListItem => {
-    const resolvedName = dbItem.standardized_ingredients?.canonical_name || dbItem.name || "Unknown Item"
-
     return {
       id: dbItem.id,
       user_id: dbItem.user_id,
-      name: resolvedName,
+      name: dbItem.name,
       quantity: Number(dbItem.quantity),
       unit: dbItem.unit || "piece",
       checked: dbItem.checked || false,
@@ -28,9 +26,6 @@ export function useShoppingListDB() {
       recipe_ingredient_index: dbItem.recipe_ingredient_index,
       servings: dbItem.servings ? Number(dbItem.servings) : undefined,
       ingredient_id: dbItem.ingredient_id,
-      standardizedName: dbItem.standardized_ingredients?.canonical_name,
-      price: dbItem.price ? Number(dbItem.price) : undefined,
-      store_name: dbItem.store_name,
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at
     }
@@ -42,11 +37,7 @@ export function useShoppingListDB() {
   const fetchUserItems = useCallback(async (userId: string): Promise<ShoppingListItem[]> => {
     const { data, error } = await supabase
       .from("shopping_list_items")
-      .select(`
-        *,
-        standardized_ingredients (canonical_name),
-        recipes (id, title)
-      `)
+      .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: true })
 
@@ -62,7 +53,7 @@ export function useShoppingListDB() {
     const { data, error } = await supabase
       .from("shopping_list_items")
       .insert(item)
-      .select(`*, standardized_ingredients (canonical_name)`)
+      .select("*")
       .single()
 
     if (error) {
@@ -81,7 +72,7 @@ export function useShoppingListDB() {
       .from("shopping_list_items")
       .update(updates)
       .eq("id", id)
-      .select(`*, standardized_ingredients (canonical_name)`)
+      .select("*")
       .single()
 
     if (error) throw error
@@ -103,7 +94,7 @@ export function useShoppingListDB() {
     const { data, error } = await supabase
       .from("shopping_list_items")
       .insert(items)
-      .select(`*, standardized_ingredients (canonical_name)`)
+      .select("*")
 
     if (error) {
       console.error("[Shopping List DB] Insert error:", error)

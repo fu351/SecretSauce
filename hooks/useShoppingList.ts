@@ -48,11 +48,7 @@ export function useShoppingList() {
    */
   const addItem = useCallback(
     async (name: string, quantity = 1, unit = "piece", checked = false, ingredientId?: string) => {
-      console.log("[Shopping List] addItem called with:", { name, quantity, unit, checked, ingredientId, userExists: !!user })
-      if (!user) {
-        console.warn("[Shopping List] addItem called but user is not authenticated")
-        return null
-      }
+      if (!user) return null
 
       const tempId = `temp-${crypto.randomUUID()}`
       const newItem: ShoppingListItem = {
@@ -65,6 +61,7 @@ export function useShoppingList() {
         source_type: 'manual',
         ingredient_id: ingredientId
       }
+      
       setItems(prev => [...prev, newItem])
 
       try {
@@ -78,16 +75,14 @@ export function useShoppingList() {
           ingredient_id: ingredientId
         })
         setItems(prev => prev.map(item => item.id === tempId ? realItem : item))
-        console.log("[Shopping List] Item added successfully:", realItem)
         return realItem
       } catch (error) {
         setItems(prev => prev.filter(item => item.id !== tempId))
-        console.error("[Shopping List] Error saving item:", error)
         toast({ title: "Error", description: "Failed to save item.", variant: "destructive" })
         return null
       }
     },
-    [user, toast, db] // db should stay stable since useShoppingListDB doesn't change
+    [user, toast, db]
   )
 
   /**
@@ -107,7 +102,7 @@ export function useShoppingList() {
         toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" })
       }
     },
-    [items, toast, db] // db should stay stable since useShoppingListDB doesn't change
+    [items, toast, db]
   )
 
   /**
@@ -184,32 +179,18 @@ export function useShoppingList() {
    */
   const addRecipeToCart = useCallback(
     async (recipeId: string, servings?: number) => {
-      if (!user) {
-        console.warn("[Shopping List] addRecipeToCart called but user is not authenticated")
-        return
-      }
+      if (!user) return
 
       try {
-        console.log("[Shopping List] Fetching recipe details for:", recipeId)
         const recipe = await recipeCart.fetchRecipeDetails(recipeId)
-        console.log("[Shopping List] Recipe fetched:", recipe)
-
         const validation = recipeCart.validateRecipe(recipe)
-        if (!validation.valid) {
-          throw new Error(validation.error || "Invalid recipe")
-        }
+        
+        if (!validation.valid) throw new Error(validation.error || "Invalid recipe")
 
-        const baseServings = recipe.servings || 1
-        const finalServings = servings || baseServings
-
-        console.log("[Shopping List] Creating items for recipe with servings:", finalServings)
+        const finalServings = servings || recipe.servings || 1
         const itemsToInsert = recipeCart.createRecipeItems(user.id, recipeId, recipe, finalServings)
-        console.log("[Shopping List] Items to insert:", itemsToInsert)
-
         const mappedItems = await db.upsertItems(itemsToInsert)
-        console.log("[Shopping List] Items upserted successfully:", mappedItems)
 
-        // Remove old recipe items if they exist, then add new ones
         setItems(prev => {
           const filtered = prev.filter(item => item.recipe_id !== recipeId)
           return [...filtered, ...mappedItems]
@@ -217,7 +198,6 @@ export function useShoppingList() {
 
         toast({ title: "Recipe Added", description: `Added ${recipe.title} to list.` })
       } catch (error) {
-        console.error("[Shopping List] Error adding recipe to cart:", error)
         const errorMessage = error instanceof Error ? error.message : "Failed to add recipe"
         toast({ title: "Error", description: errorMessage, variant: "destructive" })
       }
@@ -226,116 +206,102 @@ export function useShoppingList() {
   )
 
   /**
-   * Update servings for all items in a recipe
+   * Update servings for all items in a recipe with scale logic
    */
   const updateRecipeServings = useCallback(
-    (recipeId: string, newServings: number) => {
+    async (recipeId: string, newServings: number) => {
       const safeServings = Math.max(1, newServings)
+      const updates: { id: string; changes: any }[] = []
 
-      // Update local state
+      // Optimistic update
       setItems(prev => prev.map(item => {
         if (item.recipe_id === recipeId && item.source_type === 'recipe') {
-          const originalPerServing = item.quantity / (item.servings || 1)
-          return {
-            ...item,
-            servings: safeServings,
-            quantity: originalPerServing * safeServings
-          }
-        }
-        return item
-      }))
-
-      // Batch update database
-      const itemsToUpdate = items
-        .filter(item => item.recipe_id === recipeId && item.source_type === 'recipe')
-        .map(item => {
           const newQuantity = recipeCart.calculateServingMultiplier(
             item.quantity,
             item.servings || 1,
             safeServings
           )
-          return {
-            id: item.id,
-            changes: { servings: safeServings, quantity: newQuantity }
-          }
-        })
+          const changes = { servings: safeServings, quantity: newQuantity }
+          updates.push({ id: item.id, changes })
+          return { ...item, ...changes }
+        }
+        return item
+      }))
 
-      if (itemsToUpdate.length > 0) {
-        db.batchUpdateItems(itemsToUpdate)
-          .catch(() => {
-            toast({ title: "Error", description: "Failed to update servings.", variant: "destructive" })
-          })
+      if (updates.length > 0) {
+        try {
+          await db.batchUpdateItems(updates)
+          setHasChanges(true)
+        } catch (error) {
+          toast({ title: "Error", description: "Sync failed. Reverting...", variant: "destructive" })
+          loadShoppingList()
+        }
       }
-
-      setHasChanges(true)
     },
-    [items, toast, db, recipeCart]
+    [db, recipeCart, toast, loadShoppingList]
   )
 
   /**
-   * Remove all items for a recipe from the shopping list
+   * Remove all items for a recipe
    */
   const removeRecipe = useCallback(
     async (recipeId: string) => {
+      const backup = [...items]
       setItems(prev => prev.filter(item => item.recipe_id !== recipeId))
 
       try {
-        if (user) {
-          await db.deleteRecipeItems(user.id, recipeId)
-        }
+        if (user) await db.deleteRecipeItems(user.id, recipeId)
       } catch (error) {
-        console.error("Error removing recipe:", error)
+        setItems(backup)
         toast({ title: "Error", description: "Failed to remove recipe.", variant: "destructive" })
-        // Reload to restore state on error
-        loadShoppingList()
       }
     },
-    [user, toast, db, loadShoppingList]
+    [user, items, db, toast]
   )
 
-  // --- Batch Save ---
-
   /**
-   * Save all pending changes
-   * Note: With normalized structure, changes are saved immediately per operation
-   * This is primarily for sync confirmation
+   * Clear all checked items
    */
-  const saveChanges = useCallback(async () => {
-    if (!user || !hasChanges) return
+  const clearCheckedItems = useCallback(async () => {
+    const checkedIds = items.filter(i => i.checked).map(i => i.id)
+    if (checkedIds.length === 0) return
+
+    setItems(prev => prev.filter(i => !i.checked))
 
     try {
-      toast({ title: "Changes saved", description: "Your shopping list has been updated." })
-      setHasChanges(false)
+      await db.deleteBatch(checkedIds)
+      toast({ title: "List cleared", description: "Checked items removed." })
     } catch (error) {
-      console.error("Error saving changes:", error)
-      toast({ title: "Error", description: "Failed to save changes.", variant: "destructive" })
+      loadShoppingList()
+      toast({ title: "Error", description: "Failed to clear items.", variant: "destructive" })
     }
-  }, [user, toast, hasChanges])
+  }, [items, db, toast, loadShoppingList])
 
-  // Load on user change
+  // --- Batch Save Sync ---
+  const saveChanges = useCallback(async () => {
+    if (!user || !hasChanges) return
+    setHasChanges(false)
+    toast({ title: "Success", description: "List synchronized." })
+  }, [user, hasChanges, toast])
+
+  // Initial load
   useEffect(() => {
     loadShoppingList()
   }, [loadShoppingList])
 
   return {
-    // State
     items,
     loading,
     hasChanges,
-
-    // Item actions
     addItem,
     removeItem,
     updateQuantity,
     updateItemName,
     toggleChecked,
-
-    // Recipe actions
     addRecipeToCart,
     updateRecipeServings,
     removeRecipe,
-
-    // Utility
+    clearCheckedItems,
     saveChanges,
     loadShoppingList
   }
