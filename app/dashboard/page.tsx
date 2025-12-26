@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { format, startOfWeek } from "date-fns"
 import { RecipeCard } from "@/components/recipe-card"
-import { useShoppingListDB } from "@/hooks/useShoppingListDB"
+import { useShoppingListDB } from "@/lib/database/ShoppingListDB"
 
 // Tutorial Components
 // TutorialOverlay is rendered globally in layout.tsx

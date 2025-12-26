@@ -1,5 +1,5 @@
 import { createWorker, Worker } from 'tesseract.js'
-import type { OCRResult } from '@/lib/types/recipe'
+import type { OCRResult } from '@/lib/types/recipe-imports'
 
 let worker: Worker | null = null
 

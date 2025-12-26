@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
-import type { Recipe } from "@/hooks/use-recipes"
+import {Recipe} from "@/lib/types/recipe-base"
 
 /**
  * Universal database operations for recipes
@@ -30,8 +30,7 @@ export function useRecipeDB() {
       author_id: dbItem.author_id,
       rating_avg: dbItem.rating_avg || 0,
       rating_count: dbItem.rating_count || 0,
-      dietary_tags: dbItem.tags || [],
-      dietary_flags: {},
+      tags: dbItem.tags || [],
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at
     }
