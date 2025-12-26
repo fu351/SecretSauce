@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useRecipeDB } from "./useRecipeDB"
+import { supabase } from "@/lib/supabase"
 
 export interface Recipe {
   id: string
@@ -56,27 +56,81 @@ export function useRecipesFiltered(
   filters?: RecipeFilters
 ) {
   const { difficulty, cuisine, diet, search, limit = 50 } = filters || {}
-  const { fetchRecipes, searchRecipes } = useRecipeDB()
 
   return useQuery({
     queryKey: ["recipes", sortBy, difficulty, cuisine, diet, search],
     queryFn: async () => {
-      // If search is provided, use search function
-      if (search && search.trim()) {
-        return searchRecipes(search, { limit })
+      let query = supabase
+        .from("recipes")
+        .select(
+          "id, title, description, prep_time, cook_time, servings, difficulty, cuisine, image_url, dietary_tags, ingredients, nutrition, rating_avg, rating_count, created_at, author_id"
+        )
+
+      // Apply categorical filters (uses B-tree indexes)
+      if (difficulty && difficulty !== "all") {
+        query = query.eq("difficulty", difficulty)
       }
 
-      // Otherwise use filtered fetch with categorical filters
-      const cuisineId = cuisine && cuisine !== "all" ? parseInt(cuisine) : undefined
-      const tags = diet && diet !== "all" ? [diet] : undefined
+      if (cuisine && cuisine !== "all") {
+        query = query.eq("cuisine", cuisine)
+      }
 
-      return fetchRecipes({
-        sortBy,
-        difficulty: difficulty && difficulty !== "all" ? difficulty : undefined,
-        cuisineId,
-        tags,
-        limit
-      })
+      // Apply dietary filter (uses GIN index on dietary_tags array)
+      if (diet && diet !== "all") {
+        query = query.contains("dietary_tags", [diet])
+      }
+
+      // Apply ingredient search (uses GIN index on ingredients JSONB)
+      // This searches the entire ingredients JSONB structure for the term
+      if (search && search.trim()) {
+        const searchLower = search.toLowerCase()
+        // Note: Supabase doesn't directly support JSONB @> with flexible search
+        // You may need a PostgreSQL function for fuzzy ingredient search
+        // For now, we filter in-memory for partial matches
+        // TODO: Add PostgreSQL function for fuzzy JSONB search
+      }
+
+      // Apply sorting (uses B-tree indexes)
+      const ascending = sortBy === "title"
+      const descending = sortBy === "created_at" || sortBy === "rating_avg"
+
+      if (sortBy === "created_at") {
+        query = query.order("created_at", { ascending: false })
+      } else if (sortBy === "rating_avg") {
+        query = query.order("rating_avg", { ascending: false })
+      } else if (sortBy === "prep_time") {
+        query = query.order("prep_time", { ascending: true })
+      } else if (sortBy === "title") {
+        query = query.order("title", { ascending: true })
+      }
+
+      // Paginate results (critical for performance)
+      query = query.limit(limit)
+
+      const { data, error } = await query
+
+      if (error) {
+        console.warn("Error fetching recipes:", error.message)
+        return []
+      }
+
+      // If search term was provided and not handled by DB, filter in-memory
+      if (search && search.trim()) {
+        const searchLower = search.toLowerCase()
+        return (data || []).filter((recipe) => {
+          if (recipe.title?.toLowerCase().includes(searchLower)) return true
+          if (recipe.description?.toLowerCase().includes(searchLower)) return true
+          if (recipe.cuisine?.toLowerCase().includes(searchLower)) return true
+          if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+            return recipe.ingredients.some((ingredient: any) =>
+              ingredient.name?.toLowerCase().includes(searchLower)
+            )
+          }
+          return false
+        })
+      }
+
+      return (data || []) as Recipe[]
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
@@ -88,12 +142,22 @@ export function useRecipesFiltered(
  * Uses database indexes for efficient ordering
  */
 export function useRecipes(sortBy: SortBy = "created_at") {
-  const { fetchRecipes } = useRecipeDB()
-
   return useQuery({
     queryKey: ["recipes", sortBy],
     queryFn: async () => {
-      return fetchRecipes({ sortBy })
+      const { data, error } = await supabase
+        .from("recipes")
+        .select(
+          "id, title, description, prep_time, cook_time, servings, difficulty, cuisine, image_url, dietary_tags, ingredients, nutrition, rating_avg, rating_count, created_at, author_id"
+        )
+        .order(sortBy, { ascending: sortBy === "title" })
+
+      if (error) {
+        console.warn("Error fetching recipes:", error.message)
+        return []
+      }
+
+      return (data || []) as Recipe[]
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
@@ -105,13 +169,25 @@ export function useRecipes(sortBy: SortBy = "created_at") {
  * Uses idx_recipes_author_created composite index for performance
  */
 export function useUserRecipes(userId: string | null) {
-  const { fetchRecipesByAuthor } = useRecipeDB()
-
   return useQuery({
     queryKey: ["recipes", "user", userId],
     queryFn: async () => {
       if (!userId) return []
-      return fetchRecipesByAuthor(userId, { sortBy: "created_at" })
+
+      const { data, error } = await supabase
+        .from("recipes")
+        .select(
+          "id, title, description, image_url, difficulty, prep_time, cook_time, rating_avg, rating_count, dietary_tags, nutrition"
+        )
+        .eq("author_id", userId)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error fetching user recipes:", error)
+        return []
+      }
+
+      return (data || []) as Recipe[]
     },
     enabled: !!userId,
     staleTime: 3 * 60 * 1000, // 3 minutes
@@ -123,13 +199,23 @@ export function useUserRecipes(userId: string | null) {
  * Fetch a single recipe by ID
  */
 export function useRecipe(recipeId: string | null) {
-  const { fetchRecipeById } = useRecipeDB()
-
   return useQuery({
     queryKey: ["recipe", recipeId],
     queryFn: async () => {
       if (!recipeId) return null
-      return fetchRecipeById(recipeId)
+
+      const { data, error } = await supabase
+        .from("recipes")
+        .select("*")
+        .eq("id", recipeId)
+        .single()
+
+      if (error) {
+        console.error("Error fetching recipe:", error)
+        return null
+      }
+
+      return data as Recipe
     },
     enabled: !!recipeId,
     staleTime: 10 * 60 * 1000, // 10 minutes
@@ -146,7 +232,6 @@ export function useFavorites(userId: string | null) {
     queryFn: async () => {
       if (!userId) return new Set<string>()
 
-      const { supabase } = await import("@/lib/supabase")
       const { data, error } = await supabase
         .from("recipe_favorites")
         .select("recipe_id")
@@ -157,7 +242,7 @@ export function useFavorites(userId: string | null) {
         return new Set<string>()
       }
 
-      return new Set(data?.map((item: any) => item.recipe_id) || [])
+      return new Set(data?.map((item) => item.recipe_id) || [])
     },
     enabled: !!userId,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -181,8 +266,6 @@ export function useToggleFavorite() {
       userId: string
       isFavorited: boolean
     }) => {
-      const { supabase } = await import("@/lib/supabase")
-
       if (isFavorited) {
         const { error } = await supabase
           .from("recipe_favorites")
