@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getRecipeImageUrl } from "@/lib/image-helper"
-import {Recipe} from "@/lib/types/recipe-base"
+import type { Recipe } from "@/hooks/use-recipes"
 
 interface CompactRecipeCardProps {
   recipe: Recipe
