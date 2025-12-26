@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
-import type { GroceryItem } from "@/lib/types/store-list"
+import type { GroceryItem } from "@/lib/types/store"
 
 import { useShoppingList } from "@/hooks/useShoppingList"
 import { useStoreComparison } from "@/hooks/useStoreComparison"

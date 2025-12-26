@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input"
 import { ChefHat, Search, X } from "lucide-react"
 import { CompactRecipeCard } from "./compact-recipe-card"
 import { QuickRecipePreviewModal } from "./quick-recipe-preview-modal"
-import { useRecipes, type Recipe, useFavorites } from "@/hooks/use-recipes"
+import { useRecipes, useFavorites } from "@/hooks/use-recipe"
+import { Recipe } from "@/lib/types/recipe-base"
 import { useAuth } from "@/contexts/auth-context"
-import type { ShoppingListItem } from "@/lib/types/store"
+import type { ShoppingListItem } from "@/lib/types/store-list"
 
 interface RecipeRecommendationSidebarProps {
   shoppingItems: ShoppingListItem[]

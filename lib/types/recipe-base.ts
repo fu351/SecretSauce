@@ -27,12 +27,12 @@ export interface Recipe {
   description: string
   prep_time: number
   cook_time: number
-  servings: number | 1
+  servings: number
   difficulty: DifficultyLevel
   cuisine: CuisineType
   image_url?: string
   tags: DietaryTag
-  ingredients: any[]
+  ingredients: Ingredient[]
   instructions: string[]
   author_id: string
   created_at: string

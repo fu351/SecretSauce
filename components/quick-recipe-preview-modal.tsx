@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Users, Flame, Star } from "lucide-react"
 import { getRecipeImageUrl } from "@/lib/image-helper"
-import { useRecipe, type Recipe } from "@/hooks/use-recipes"
+import { useRecipe } from "@/hooks/use-recipe"
+import { type Recipe } from "@/lib/types/recipe-base"
 import { QuantityControl } from "@/components/quantity-control"
 
 interface QuickRecipePreviewModalProps {

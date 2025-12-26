@@ -10,22 +10,17 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { getRecipeImageUrl } from "@/lib/image-helper"
+import { useRecipeDB } from "@/lib/database/recipe-db"
+import { Recipe } from "@/lib/types/recipe-base"
 
-interface RecipeCardProps {
+interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
   id: string
   title: string
-  image: string
-  rating: number
+  image_url: string
+  rating_avg: number
   difficulty: "beginner" | "intermediate" | "advanced"
   comments: number
-  tags: string[]
-  issues?: number
-  nutrition?: {
-    calories?: number
-    protein?: number
-    carbs?: number
-    fat?: number
-  }
+  tags?: string[]
   initialIsFavorited?: boolean
   skipFavoriteCheck?: boolean
   onFavoriteChange?: (id: string, isFavorited: boolean) => void
@@ -35,18 +30,18 @@ interface RecipeCardProps {
 function RecipeCardComponent({
   id,
   title,
-  image,
-  rating,
+  image_url,
+  rating_avg,
   difficulty,
   comments,
   tags,
-  issues,
   nutrition,
   initialIsFavorited,
   skipFavoriteCheck,
   onFavoriteChange,
   showFavorite = true,
 }: RecipeCardProps) {
+  const { updateRecipeRating } = useRecipeDB()
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
@@ -137,6 +132,20 @@ function RecipeCardComponent({
     }
   }
 
+  const updateRating = async (newRating: number) => {
+    try {
+      const newCount = (rating_avg ? 1 : 0)
+      await updateRecipeRating(id, newRating, newCount)
+    } catch (error) {
+      console.error("Error updating recipe rating:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update recipe rating.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const getDifficultyColor = (level: string) => {
     switch (level) {
       case "beginner":
@@ -154,7 +163,7 @@ function RecipeCardComponent({
     <div className="relative group cursor-pointer">
       <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">
         <Image
-          src={getRecipeImageUrl(image) || "/placeholder.svg"}
+          src={getRecipeImageUrl(image_url) || "/placeholder.svg"}
           alt={title}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -206,7 +215,7 @@ function RecipeCardComponent({
               <div className="flex items-center gap-2 md:gap-4">
                 <div className="flex items-center gap-1">
                   <Star className="h-3 w-3 md:h-4 md:w-4 fill-yellow-400 text-yellow-400" />
-                  <span className="font-semibold">{rating.toFixed(1)}</span>
+                  <span className="font-semibold">{rating_avg.toFixed(1)}</span>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -243,13 +252,7 @@ function RecipeCardComponent({
           </div>
         </div>
 
-        {issues && (
-          <div className="absolute bottom-4 left-4">
-            <Badge variant="destructive" className="bg-red-500">
-              {issues} Issues ✕
-            </Badge>
-          </div>
-        )}
+        {/* issues field optional from Recipe extension */}
       </div>
     </div>
   )

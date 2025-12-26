@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import type { ShoppingListItem } from "@/lib/types/store"
+import type { ShoppingListItem } from "@/lib/types/store-list"
 
 /**
  * Hook to manage merging of shopping list items by name

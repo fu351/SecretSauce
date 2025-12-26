@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useMapsLibrary } from "@vis.gl/react-google-maps"
-import type { StoreComparison } from "@/lib/types/store"
+import type { StoreComparison } from "@/lib/types/store-comparison"
 import { canonicalizeStoreName } from "@/lib/geocoding" // Reuse your existing logic
 
 interface ClosestStoreResult {

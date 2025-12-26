@@ -391,7 +391,7 @@ export function StoreComparisonSection({
                      <span className="text-xs font-bold uppercase tracking-widest text-amber-600">Missing ({missingCount})</span>
                   </div>
                   <div className="grid grid-cols-1 gap-2.5">
-                    {activeStore.missingIngredients.map((item, i) => (
+                    {activeStore.missingIngredients?.map((item, i) => (
                       <div key={`miss-${i}`} className="flex justify-between items-center bg-white/60 dark:bg-black/40 p-3 rounded-lg border border-amber-100 dark:border-amber-900/50">
                         <span className={`text-xs font-medium ${textClass}`}>{item.name}</span>
                       </div>

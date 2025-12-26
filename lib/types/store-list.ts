@@ -1,19 +1,5 @@
 import { Ingredient  } from "./recipe-base"
 
-export interface GroceryItem {
-  id: string
-  title: string
-  brand: string
-  price: number
-  pricePerUnit?: string
-  unit?: string
-  image_url: string
-  provider: string
-  location?: string
-  category?: string
-  quantity?: number;
-}
-
 export interface ShoppingListItem extends Ingredient {
   id: string
   user_id: string
@@ -41,20 +27,6 @@ export interface ShoppingListItem extends Ingredient {
   updated_at?: string
 }
 
-export interface StoreComparison {
-  store: string
-  items: (GroceryItem & { shoppingItemId: string; originalName: string })[]
-  total: number
-  savings: number
-  outOfRadius?: boolean
-  distanceMiles?: number
-  locationHint?: string
-  missingItems?: boolean
-  missingCount?: number
-  providerAliases?: string[]
-  canonicalKey?: string
-  missingIngredients?: ShoppingListItem[]
-}
 
 export type PantryItemInfo = {
   id: string
@@ -64,21 +36,6 @@ export type PantryItemInfo = {
   standardized_name?: string | null
 }
 
-export interface ShoppingListSectionProps {
-  shoppingList: ShoppingListItem[]
-  onRemoveItem: (itemId: string) => void
-  onUpdateQuantity: (itemId: string, quantity: number) => void
-  onUpdateItemName: (itemId: string, newName: string) => void
-  onToggleItem: (itemId: string) => void
-  headerAction?: React.ReactNode
-  cardBgClass: string
-  textClass: string
-  mutedTextClass: string
-  buttonClass: string
-  buttonOutlineClass: string
-  theme: string
-}
-
-// contants
+// constants
 
 export type ShoppingSourceType = 'recipe' | 'manual'
