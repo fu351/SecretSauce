@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
-import { useShoppingListDB } from "./useShoppingListDB"
+import { useShoppingListDB } from "../lib/database/store-list-db"
 import { useRecipeCart } from "./useRecipeCart"
-import type { ShoppingListItem } from "@/lib/types/store"
+import type { ShoppingListItem } from "@/lib/types/store-list"
 
 /**
  * Main shopping list hook
