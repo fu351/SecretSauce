@@ -1,8 +1,33 @@
 "use client"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useRecipeDB } from "../lib/database/recipe-db.ts"
-import {Recipe} from "@/lib/types/recipe-base"
+import { useRecipeDB } from "./useRecipeDB"
+
+export interface Recipe {
+  id: string
+  title: string
+  description: string
+  prep_time: number
+  cook_time: number
+  servings: number
+  difficulty: string
+  cuisine: string
+  image_url: string
+  dietary_tags: string[]
+  dietary_flags: any
+  ingredients: any[]
+  instructions: string[]
+  author_id: string
+  created_at: string
+  rating_avg: number
+  rating_count: number
+  nutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+  }
+}
 
 export type SortBy = "created_at" | "rating_avg" | "prep_time" | "title"
 

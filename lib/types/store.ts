@@ -1,4 +1,4 @@
-import { Ingredient  } from "./recipe-base"
+
 
 export interface GroceryItem {
   id: string
@@ -14,23 +14,25 @@ export interface GroceryItem {
   quantity?: number;
 }
 
-export interface ShoppingListItem extends Ingredient {
+export interface ShoppingListItem {
   id: string
   user_id: string
+  name: string
   quantity: number
+  unit?: string | null
   checked: boolean
-  servings?: number | null
 
   // Source tracking
-  source_type: ShoppingSourceType
+  source_type: 'recipe' | 'manual'
 
   // Recipe-specific fields
+  recipe_id?: string | null
   recipe_ingredient_index?: number | null
+  servings?: number | null
 
   // Ingredient and standardization
   ingredient_id?: string | null
   standardizedName?: string
-  recipe_id?: string
 
   // Pricing and shopping metadata
   price?: number | null
@@ -39,6 +41,12 @@ export interface ShoppingListItem extends Ingredient {
   // Timestamps
   created_at?: string
   updated_at?: string
+}
+
+export interface Recipe {
+  id: string
+  title: string
+  ingredients: any[]
 }
 
 export interface StoreComparison {
@@ -78,7 +86,3 @@ export interface ShoppingListSectionProps {
   buttonOutlineClass: string
   theme: string
 }
-
-// contants
-
-export type ShoppingSourceType = 'recipe' | 'manual'

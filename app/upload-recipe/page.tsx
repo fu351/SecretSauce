@@ -20,7 +20,7 @@ import { performOCR } from "@/lib/ocr-service"
 import { tagRecipeFromIngredients } from "@/lib/recipe-tagging"
 import { Plus, X, Upload, LinkIcon, Link2, Image as ImageIcon, Instagram, Loader2, AlertCircle, PenLine, Download } from "lucide-react"
 import Image from "next/image"
-import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types/recipe-imports"
+import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types/recipe"
 
 const DIETARY_TAGS = ["vegetarian", "vegan", "gluten-free", "dairy-free", "keto", "paleo", "low-carb"]
 const CUISINE_TYPES = [
