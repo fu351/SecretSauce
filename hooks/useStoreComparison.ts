@@ -49,17 +49,25 @@ export function useStoreComparison(
         const now = Date.now()
         const currentHash = generateItemsHash(shoppingList)
 
-        // Check if cache is valid
+        // Check if cache is valid AND has results
         if (
           parsedCache.zipCode === zipCode &&
           parsedCache.itemsHash === currentHash &&
-          now - parsedCache.timestamp < SEARCH_CACHE_TTL
+          now - parsedCache.timestamp < SEARCH_CACHE_TTL &&
+          parsedCache.results.length > 0
         ) {
           setResults(parsedCache.results)
           setUsingCache(true)
           console.log("Using cached store search results")
         } else {
-          // Cache invalid
+          // Cache invalid or empty - clear it
+          console.log("Cache invalid or empty, clearing...", {
+            hasCache: !!cached,
+            zipMatch: parsedCache?.zipCode === zipCode,
+            hashMatch: parsedCache?.itemsHash === currentHash,
+            notExpired: (now - parsedCache?.timestamp) < SEARCH_CACHE_TTL,
+            hasResults: parsedCache?.results.length > 0
+          })
           localStorage.removeItem(SEARCH_CACHE_KEY)
         }
       }
@@ -87,12 +95,19 @@ export function useStoreComparison(
         if (
           parsedCache.zipCode === zipCode &&
           parsedCache.itemsHash === currentHash &&
-          now - parsedCache.timestamp < SEARCH_CACHE_TTL
+          now - parsedCache.timestamp < SEARCH_CACHE_TTL &&
+          parsedCache.results.length > 0
         ) {
-          console.log("Using cached search results - items unchanged")
+          console.log("Using cached search results - items unchanged", {
+            resultCount: parsedCache.results.length,
+            storeCount: parsedCache.results.length
+          })
           setResults(parsedCache.results)
           setUsingCache(true)
           return // Don't perform search
+        } else if (cached) {
+          console.log("Cache exists but is empty or invalid, removing and doing fresh search")
+          localStorage.removeItem(SEARCH_CACHE_KEY)
         }
       }
     } catch (error) {

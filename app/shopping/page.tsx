@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 
 import { useAuth } from "@/contexts/auth-context"
@@ -8,18 +8,18 @@ import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import type { GroceryItem } from "@/lib/types/store"
+import type { Recipe } from "@/lib/types/recipe"
 
 import { useShoppingList } from "@/hooks/useShoppingList"
 import { useStoreComparison } from "@/hooks/useStoreComparison"
 
-import { ItemReplacementModal } from "@/components/store-replacemnet"
+import { ItemReplacementModal } from "@/components/store-replacement"
 import { StoreComparisonSection } from "@/components/store-comparison"
 import { ShoppingListSection } from "@/components/store-list"
-import { RecipeRecommendationSidebar } from "@/components/recipe-recommendation-sidebar"
+import { RecipeSearchModal } from "@/components/recipe-recommendation-modal"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { ShoppingBag, Loader2, ArrowRight, AlertCircle, ChefHat } from "lucide-react"
 
 const DEFAULT_SHOPPING_ZIP = ""
@@ -34,8 +34,9 @@ export default function ShoppingPage() {
   const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)
   const [showComparison, setShowComparison] = useState(false)
   const [newItemInput, setNewItemInput] = useState("")
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
+  const [showRecipeModal, setShowRecipeModal] = useState(false)
+
+  const shoppingListRef = useRef<HTMLDivElement>(null)
 
   const [reloadModalOpen, setReloadModalOpen] = useState(false)
   const [reloadTarget, setReloadTarget] = useState<{
@@ -104,6 +105,7 @@ export default function ShoppingPage() {
     }
   }, [searchParams, mounted])
 
+
   // --- Handlers ---
 
   const handleCustomInputSubmit = async () => {
@@ -128,16 +130,6 @@ export default function ShoppingPage() {
   const handleAddRecipe = async (id: string, title: string, servings?: number) => {
     await addRecipeToCart(id, servings)
     setShowComparison(false)
-  }
-
-  const handleOpenRecipeSidebar = () => {
-    // On desktop, toggle sidebar visibility
-    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
-      setDesktopSidebarOpen(!desktopSidebarOpen)
-    } else {
-      // On mobile, open modal
-      setMobileSidebarOpen(true)
-    }
   }
 
   const handleCompareClick = async () => {
@@ -201,15 +193,15 @@ export default function ShoppingPage() {
   return (
     <div className={`min-h-screen ${styles.bgClass} p-6`}>
       <div className="max-w-7xl mx-auto">
-        {/* Top row: Shopping list + Recipe sidebar side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Shopping list - full width */}
+        <div className="mb-8">
 
-          {/* Left column: Shopping list - expands to full width when sidebar is hidden */}
-          <div data-shopping-list className={desktopSidebarOpen ? "" : "lg:col-span-2"}>
-            <Card className={`${styles.cardBgClass} overflow-hidden`}>
+          {/* Shopping list card */}
+          <div ref={shoppingListRef} data-shopping-list>
+            <Card className={`${styles.cardBgClass} overflow-hidden flex flex-col h-full`} style={{ minHeight: shoppingList.length === 0 ? '70vh' : 'auto' }}>
 
               {/* Header */}
-              <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <CardHeader className="flex flex-row items-center justify-between pb-4 flex-shrink-0">
                 <CardTitle className={`flex items-center gap-2 ${styles.textClass}`}>
                   <ShoppingBag className="h-5 w-5 opacity-70" />
                   Shopping List
@@ -252,7 +244,7 @@ export default function ShoppingPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="p-0">
+              <CardContent className="p-0 flex-1 overflow-y-auto min-h-0">
                 <div className="p-6 pt-0">
                   <ShoppingListSection
                     // Data
@@ -287,39 +279,21 @@ export default function ShoppingPage() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Right column: Recipe sidebar (Desktop only) */}
-          {desktopSidebarOpen && (
-            <div data-recipe-sidebar>
-              <Card className={`${styles.cardBgClass} overflow-hidden h-full flex flex-col hidden lg:flex`}>
-                <RecipeRecommendationSidebar
-                  shoppingItems={shoppingList}
-                  onAddRecipe={handleAddRecipe}
-                  theme={styles.theme}
-                  cardBgClass={styles.cardBgClass}
-                  textClass={styles.textClass}
-                  mutedTextClass={styles.mutedTextClass}
-                  buttonClass={styles.buttonClass}
-                  buttonOutlineClass={styles.buttonOutlineClass}
-                />
-              </Card>
-            </div>
-          )}
         </div>
 
-        {/* Fixed floating chef hat button - always visible */}
+        {/* Fixed floating chef hat button - Opens recipe recommendation modal */}
         <div className="fixed bottom-6 right-6 z-50">
           <Button
-            onClick={handleOpenRecipeSidebar}
+            onClick={() => setShowRecipeModal(true)}
             className={`${styles.buttonClass} rounded-full w-14 h-14 p-0 flex items-center justify-center shadow-lg`}
-            title={desktopSidebarOpen ? "Hide recipes" : "Show recipes"}
+            title="Search recipes"
           >
             <ChefHat className="h-6 w-6" />
           </Button>
         </div>
 
-        {/* Mobile modal */}
-        <Dialog open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        {/* Mobile modal - DISABLED */}
+        {/* <Dialog open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
           <DialogContent className="h-[80vh] max-h-[80vh] p-0 border-0 flex flex-col rounded-t-2xl rounded-b-none">
             <RecipeRecommendationSidebar
               shoppingItems={shoppingList}
@@ -332,7 +306,7 @@ export default function ShoppingPage() {
               buttonOutlineClass={styles.buttonOutlineClass}
             />
           </DialogContent>
-        </Dialog>
+        </Dialog> */}
 
         {/* Bottom: Price comparison (full width) */}
         {showComparison && (
@@ -371,6 +345,20 @@ export default function ShoppingPage() {
           </div>
         )}
       </div>
+
+      {/* Recipe Search Modal - triggered by chef hat button */}
+      {showRecipeModal && (
+        <RecipeSearchModal
+          shoppingItems={shoppingList}
+          onAddRecipe={handleAddRecipe}
+          theme={styles.theme}
+          cardBgClass={styles.cardBgClass}
+          textClass={styles.textClass}
+          mutedTextClass={styles.mutedTextClass}
+          isOpen={showRecipeModal}
+          onClose={() => setShowRecipeModal(false)}
+        />
+      )}
 
       <ItemReplacementModal
         isOpen={reloadModalOpen}

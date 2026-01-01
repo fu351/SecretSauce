@@ -11,7 +11,7 @@ export interface GroceryItem {
   provider: string
   location?: string
   category?: string
-  quantity?: number;
+  quantity?: number
 }
 
 export interface StoreComparison {

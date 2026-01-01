@@ -32,6 +32,7 @@ import {
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
 import { QuantityControl } from "@/components/quantity-control"
 import { useMergedItems, distributeQuantityChange } from "@/hooks/useMergedItems"
+import { useRecipeTitles } from "@/hooks/useRecipeTitles"
 
 // --- INTERFACES ---
 
@@ -89,6 +90,13 @@ export function ShoppingListSection({
   // -- Accordion State --
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
 
+  // -- Recipe Titles --
+  const recipeIds = useMemo(() =>
+    shoppingList
+      .filter(item => item.recipe_id)
+      .map(item => item.recipe_id!)
+  , [shoppingList])
+  const { titles: recipeTitles } = useRecipeTitles(recipeIds)
 
   // -- Clear shopping list handler --
   const handleClearList = async () => {
@@ -131,7 +139,7 @@ export function ShoppingListSection({
       if (item.recipe_id) {
         if (!groups[item.recipe_id]) {
           groups[item.recipe_id] = {
-            name: item.name || "Untitled Recipe",
+            name: recipeTitles[item.recipe_id] || item.name || "Untitled Recipe",
             items: []
           }
         }
@@ -142,7 +150,7 @@ export function ShoppingListSection({
     })
 
     return { recipeGroups: groups, miscItems: misc }
-  }, [uniqueList]);
+  }, [uniqueList, recipeTitles]);
 
   // =========================================================
   // 3. MERGE LOGIC FOR UNGROUPED VIEW
@@ -295,7 +303,7 @@ export function ShoppingListSection({
             <div className="group flex items-center gap-2 overflow-hidden">
               <div className="min-w-0 flex-1">
                 <p
-                  className={`font-medium truncate transition-all cursor-pointer ${
+                  className={`font-medium break-words transition-all cursor-pointer ${
                     item.checked ? "line-through opacity-50" : ""
                   } ${textClass}`}
                   onClick={() => startEditing(item)}
@@ -591,12 +599,12 @@ export function ShoppingListSection({
       
       <CardContent>
         {uniqueList.length === 0 ? (
-          <div className={`flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg ${
+          <div className={`flex flex-col items-center justify-center py-20 text-center border-2 border-dashed rounded-lg ${
             theme === "dark" ? "border-[#e8dcc4]/10" : "border-gray-200"
           }`}>
-            <ShoppingBasket className={`h-12 w-12 mb-4 ${mutedTextClass}`} opacity={0.5} />
-            <p className={`text-lg font-medium ${textClass}`}>Your list is empty</p>
-            <p className={`text-sm ${mutedTextClass}`}>Add items or recipes to get started.</p>
+            <ShoppingBasket className={`h-16 w-16 mb-6 ${mutedTextClass}`} opacity={0.5} />
+            <p className={`text-xl font-semibold ${textClass}`}>Your list is empty</p>
+            <p className={`text-base ${mutedTextClass}`}>Add items or recipes to get started.</p>
           </div>
         ) : (
           <div className="space-y-4">

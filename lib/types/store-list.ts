@@ -1,4 +1,4 @@
-import { Ingredient  } from "./recipe-base"
+import { Ingredient  } from "./recipe"
 
 export interface ShoppingListItem extends Ingredient {
   id: string
@@ -12,6 +12,7 @@ export interface ShoppingListItem extends Ingredient {
 
   // Recipe-specific fields
   recipe_ingredient_index?: number | null
+  recipe_title?: string
 
   // Ingredient and standardization
   ingredient_id?: string | null

@@ -1,5 +1,5 @@
 import { Recipe } from "../planner/types"
-import { Ingredient, Instruction, NutritionInfo } from "./recipe-base"
+import { Ingredient, Instruction, NutritionInfo } from "./recipe"
 
 // Source types for imported recipes
 export type RecipeImportSource = 'url' | 'instagram' | 'image' | 'manual'

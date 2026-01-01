@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
-import {Recipe} from "@/lib/types/recipe-base"
+import {Recipe} from "@/lib/types/recipe"
 
 /**
  * Universal database operations for recipes
