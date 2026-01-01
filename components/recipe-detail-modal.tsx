@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Clock, Users, Star } from "lucide-react"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useRecipe } from "@/hooks/use-recipe"
+import { useResponsiveImage } from "@/hooks/useResponsiveImage"
 import { type Recipe } from "@/lib/types/recipe"
 import { QuantityControl } from "@/components/quantity-control"
 
@@ -41,8 +42,20 @@ export function RecipeDetailModal({
   const [servings, setServings] = useState(1)
   const [isAdding, setIsAdding] = useState(false)
   const { data: recipe, isLoading } = useRecipe(recipeId)
+  const imageConfig = useResponsiveImage({
+    mobile: { width: 400, height: 192 },
+    tablet: { width: 600, height: 400 },
+    desktop: { width: 384, height: 576 },
+  })
 
   const isOpen = !!recipeId
+
+  // Update servings when recipe loads to use the recipe's default servings
+  useEffect(() => {
+    if (recipe?.servings) {
+      setServings(parseInt(recipe.servings.toString()) || 1)
+    }
+  }, [recipe?.servings])
 
   const handleAddToCart = async () => {
     if (!recipe) return
@@ -66,45 +79,48 @@ export function RecipeDetailModal({
 
   const totalTime = recipe ? (recipe.prep_time || 0) + (recipe.cook_time || 0) : 0
 
-  if (!recipe && !isLoading) return null
+  if (!isOpen || (!recipe && !isLoading)) return null
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`max-w-2xl max-h-[80vh] p-0 flex flex-col border-0 ${bgClass}`}>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-          </div>
-        ) : (
-          <>
-            {/* Hero Image */}
-            {recipe.image_url && (
-              <div className="relative h-48 w-full flex-shrink-0 overflow-hidden">
-                <Image
-                  src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
-                  alt={recipe.title}
-                  fill
-                  className="object-cover"
-                  priority
-                />
-              </div>
-            )}
+      <DialogContent className={`max-w-4xl max-h-[90vh] p-0 border-0 ${bgClass}`}>
+        <div className="flex flex-col md:flex-row h-full">
+          {isLoading || !recipe ? (
+            <div className="flex items-center justify-center py-12 w-full">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+            </div>
+          ) : (
+            <>
+              {/* Hero Image - Left side on desktop */}
+              {recipe.image_url && (
+                <div className="relative w-full h-48 md:w-96 md:h-full flex-shrink-0 overflow-hidden">
+                  <Image
+                    src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
+                    alt={recipe.title}
+                    fill
+                    className="object-cover"
+                    priority
+                    sizes={imageConfig.sizes}
+                    quality={85}
+                  />
+                </div>
+              )}
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="space-y-6 p-6">
+              {/* Content - Right side on desktop */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="space-y-4 p-6 md:p-4">
                 {/* Header */}
-                <div className="space-y-2">
-                  <DialogTitle className={`text-2xl font-bold ${textClass}`}>
+                <div>
+                  <DialogTitle className={`text-xl font-bold ${textClass}`}>
                     {recipe.title}
                   </DialogTitle>
                   {recipe.description && (
-                    <p className={`text-sm ${mutedTextClass}`}>{recipe.description}</p>
+                    <p className={`text-xs mt-1 ${mutedTextClass}`}>{recipe.description}</p>
                   )}
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   {totalTime > 0 && (
                     <StatCard
                       icon={<Clock className="h-4 w-4 text-orange-500" />}
@@ -147,8 +163,8 @@ export function RecipeDetailModal({
 
                 {/* Nutrition */}
                 {recipe.nutrition && Object.keys(recipe.nutrition).length > 0 && (
-                  <div className={`space-y-3 border-t pt-6 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
-                    <h3 className={`font-semibold ${textClass}`}>Nutrition per serving</h3>
+                  <div className={`space-y-2 border-t pt-4 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
+                    <h3 className={`text-sm font-semibold ${textClass}`}>Nutrition</h3>
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                       {recipe.nutrition.calories && (
                         <NutritionCard
@@ -192,12 +208,12 @@ export function RecipeDetailModal({
 
                 {/* Ingredients */}
                 {recipe.ingredients && recipe.ingredients.length > 0 && (
-                  <div className={`space-y-3 border-t pt-6 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
-                    <h3 className={`font-semibold ${textClass}`}>Ingredients</h3>
-                    <ul className="space-y-2">
+                  <div className={`space-y-2 border-t pt-4 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
+                    <h3 className={`text-sm font-semibold ${textClass}`}>Ingredients</h3>
+                    <ul className="space-y-1">
                       {recipe.ingredients.slice(0, 10).map((ingredient: any, idx: number) => (
-                        <li key={idx} className={`flex gap-3 text-sm ${textClass}`}>
-                          <span className="text-orange-500">•</span>
+                        <li key={idx} className={`flex gap-2 text-xs ${textClass}`}>
+                          <span className="flex-shrink-0 text-orange-500">•</span>
                           <span>
                             {ingredient.amount} {ingredient.unit} {ingredient.name}
                           </span>
@@ -213,9 +229,9 @@ export function RecipeDetailModal({
                 )}
 
                 {/* Actions */}
-                <div className={`flex items-center gap-4 border-t pt-6 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
+                <div className={`flex items-center gap-3 border-t pt-4 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm ${mutedTextClass}`}>Servings:</span>
+                    <span className={`text-xs ${mutedTextClass}`}>Servings:</span>
                     <QuantityControl
                       quantity={servings}
                       editingId={null}
@@ -245,9 +261,10 @@ export function RecipeDetailModal({
                   </Link>
                 </div>
               </div>
-            </div>
-          </>
-        )}
+              </div>
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

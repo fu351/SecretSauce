@@ -4,13 +4,13 @@ import React, { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogTrigger, 
-  DialogTitle, 
-  DialogDescription, 
-  DialogHeader 
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+  DialogTitle,
+  DialogDescription,
+  DialogHeader
 } from "@/components/ui/dialog"
 import {
   ShoppingCart,
@@ -34,6 +34,41 @@ import { QuantityControl } from "@/components/quantity-control"
 import { useMergedItems, distributeQuantityChange } from "@/hooks/useMergedItems"
 import { useRecipeTitles } from "@/hooks/useRecipeTitles"
 
+/**
+ * Convert string to title case
+ * "chicken breast" -> "Chicken Breast"
+ */
+function toTitleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+/**
+ * Calculate the width needed for quantity controls based on items
+ * Accounts for quantity display and optional unit, ensures even button distribution
+ */
+function calculateQuantityControlWidth(items: ShoppingListItem[]): string {
+  if (items.length === 0) return "auto"
+
+  let maxContentWidth = 0
+  items.forEach(item => {
+    // Estimate: quantity text (varies) + unit text (varies)
+    const quantityStr = item.quantity.toString()
+    const unitStr = item.unit ? ` ${item.unit}` : ""
+    const totalLength = quantityStr.length + unitStr.length
+    // Each character is roughly 7px for xs font
+    const contentWidth = totalLength * 7
+    maxContentWidth = Math.max(maxContentWidth, contentWidth)
+  })
+
+  // Total: left button (28px) + content + padding (8px) + right button (28px)
+  const totalWidth = 28 + Math.max(maxContentWidth, 24) + 8 + 28
+  return `${totalWidth}px`
+}
+
 // --- INTERFACES ---
 
 interface ExtendedShoppingListSectionProps extends ShoppingListSectionProps {
@@ -55,7 +90,6 @@ export function ShoppingListSection({
   onRemoveItem,
   onUpdateQuantity,
   onUpdateItemName,
-  onToggleItem,
   onRemoveRecipe,
   onUpdateRecipeServings,
   onAddItem,
@@ -157,19 +191,14 @@ export function ShoppingListSection({
   // =========================================================
   const mergedUngroupedList = useMergedItems(uniqueList, isGrouped)
 
-  // -- Handlers --
-  const handleToggleMergedItem = (mergedItem: ShoppingListItem & { itemsWithSameName?: ShoppingListItem[] }) => {
-    // In ungrouped view, toggle all items with the same name
-    if (!isGrouped && mergedItem.itemsWithSameName && mergedItem.itemsWithSameName.length > 1) {
-      mergedItem.itemsWithSameName.forEach(item => {
-        onToggleItem(item.id)
-      })
-    } else {
-      // In grouped view or for single items, just toggle the one item
-      onToggleItem(mergedItem.id)
-    }
-  }
+  // =========================================================
+  // 4. QUANTITY CONTROL WIDTH NORMALIZATION
+  // =========================================================
+  const quantityControlWidth = useMemo(() => {
+    return calculateQuantityControlWidth(uniqueList)
+  }, [uniqueList])
 
+  // -- Handlers --
   const handleMergedQuantityUpdate = (mergedItem: ShoppingListItem & { itemsWithSameName?: ShoppingListItem[] }, newTotalQuantity: number) => {
     distributeQuantityChange(mergedItem, newTotalQuantity, onUpdateQuantity)
   }
@@ -260,27 +289,10 @@ export function ShoppingListSection({
         key={item.id}
         className={`flex items-center gap-3 p-3 rounded-lg border transition-colors mb-2 last:mb-0 ${
           theme === "dark"
-            ? item.checked
-              ? "bg-[#181813]/50 border-[#e8dcc4]/10"
-              : "bg-[#181813] border-[#e8dcc4]/20"
-            : item.checked
-            ? "bg-gray-50 border-gray-100"
+            ? "bg-[#181813] border-[#e8dcc4]/20"
             : "bg-white border-gray-200"
         }`}
       >
-        <button
-          onClick={() => handleToggleMergedItem(item)}
-          className={`flex-shrink-0 h-5 w-5 rounded border flex items-center justify-center transition-colors ${
-            item.checked
-              ? "bg-green-500 border-green-500 text-white"
-              : theme === "dark"
-              ? "border-[#e8dcc4]/40 hover:border-[#e8dcc4]"
-              : "border-gray-300 hover:border-gray-400"
-          }`}
-          aria-label={item.checked ? "Mark as unchecked" : "Mark as checked"}
-        >
-          {item.checked && <Check className="h-3 w-3" />}
-        </button>
 
         <div className="flex-1 min-w-0">
           {isEditing ? (
@@ -303,12 +315,10 @@ export function ShoppingListSection({
             <div className="group flex items-center gap-2 overflow-hidden">
               <div className="min-w-0 flex-1">
                 <p
-                  className={`font-medium break-words transition-all cursor-pointer ${
-                    item.checked ? "line-through opacity-50" : ""
-                  } ${textClass}`}
+                  className={`font-medium break-words transition-all cursor-pointer ${textClass}`}
                   onClick={() => startEditing(item)}
                 >
-                  {item.name}
+                  {toTitleCase(item.name)}
                 </p>
               </div>
               <Button
@@ -336,6 +346,8 @@ export function ShoppingListSection({
             theme={theme as "light" | "dark"}
             textClass={textClass}
             disableDecrement={item.quantity <= 1}
+            unit={item.unit}
+            minWidth={quantityControlWidth}
           />
 
           <div className={`h-4 w-px mx-1 ${theme === "dark" ? "bg-[#e8dcc4]/20" : "bg-gray-200"}`} />
@@ -357,7 +369,6 @@ export function ShoppingListSection({
   // -- Render Helper: Section Container --
   const renderSection = (sectionKey: string, title: string, items: ShoppingListItem[], icon: React.ReactNode, isMisc = false) => {
     const isOpen = isExpanded(sectionKey)
-    const completedCount = items.filter(i => i.checked).length
     const totalCount = items.length
 
     // Get servings from first item (all items in a recipe share the same servings)
@@ -446,13 +457,8 @@ export function ShoppingListSection({
               </div>
             )}
 
-            <div className={`text-xs ${mutedTextClass} flex gap-2 items-center`}>
-              <span className="hidden sm:inline">{totalCount} items</span>
-              {completedCount > 0 && (
-                <span className="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full text-[10px]">
-                  {completedCount}/{totalCount}
-                </span>
-              )}
+            <div className={`text-xs ${mutedTextClass}`}>
+              <span>{totalCount} item{totalCount !== 1 ? 's' : ''}</span>
             </div>
 
             {!isMisc && onRemoveRecipe && (
@@ -488,11 +494,7 @@ export function ShoppingListSection({
   return (
     <Card className={cardBgClass} data-tutorial="store-overview">
       <CardHeader className="flex flex-col space-y-0 pb-4">
-        <CardTitle className={`flex items-center gap-2 ${textClass}`}>
-          <ShoppingCart className="h-5 w-5" />
-          Your Items
-        </CardTitle>
-        <div className="flex flex-col gap-3 mt-3">
+        <div className="flex flex-col gap-3">
           {/* Top row: Add Recipe button and optional custom input field */}
           <div className="flex items-center justify-between gap-3">
             {/* Custom Item Input (if provided) */}

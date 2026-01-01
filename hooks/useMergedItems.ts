@@ -2,30 +2,123 @@ import { useMemo } from "react"
 import type { ShoppingListItem } from "@/lib/types/store-list"
 
 /**
- * Hook to manage merging of shopping list items by name
- * Used in ungrouped view to combine items with the same name from different sources
+ * Calculate Levenshtein distance between two strings
+ * Used for fuzzy matching of item names
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const aLen = a.length
+  const bLen = b.length
+
+  if (aLen === 0) return bLen
+  if (bLen === 0) return aLen
+
+  const matrix: number[][] = Array(aLen + 1)
+    .fill(null)
+    .map(() => Array(bLen + 1).fill(0))
+
+  for (let i = 0; i <= aLen; i++) matrix[i][0] = i
+  for (let j = 0; j <= bLen; j++) matrix[0][j] = j
+
+  for (let i = 1; i <= aLen; i++) {
+    for (let j = 1; j <= bLen; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      )
+    }
+  }
+
+  return matrix[aLen][bLen]
+}
+
+/**
+ * Calculate fuzzy match similarity (0-1, where 1 is exact match)
+ * Considers both Levenshtein distance and string length
+ */
+function getFuzzyMatchScore(a: string, b: string): number {
+  const distance = levenshteinDistance(a, b)
+  const maxLength = Math.max(a.length, b.length)
+  return 1 - distance / maxLength
+}
+
+/**
+ * Hook to manage merging of shopping list items by name using fuzzy matching
+ * Used in ungrouped view to combine similar items from different sources
  */
 export function useMergedItems(uniqueList: ShoppingListItem[], isGrouped: boolean) {
   return useMemo(() => {
     if (isGrouped) return []
 
+    const FUZZY_THRESHOLD = 0.85 // 85% similarity threshold
     const mergeMap = new Map<string, ShoppingListItem & { itemsWithSameName: ShoppingListItem[] }>()
+    const processedIndices = new Set<number>()
 
-    uniqueList.forEach((item) => {
-      // Merge all items with the same name, regardless of source
-      const key = item.name.toLowerCase()
+    uniqueList.forEach((item, index) => {
+      if (processedIndices.has(index)) return
 
-      if (mergeMap.has(key)) {
-        const existing = mergeMap.get(key)!
-        // Merge quantities
+      const itemName = item.name.toLowerCase().trim()
+      let mergeKey: string | null = null
+      let bestMatch: string | null = null
+      let bestScore = FUZZY_THRESHOLD
+
+      // Look for existing fuzzy matches
+      for (const [existingKey, mergedItem] of mergeMap.entries()) {
+        const score = getFuzzyMatchScore(itemName, mergedItem.name.toLowerCase().trim())
+        if (score > bestScore) {
+          bestScore = score
+          bestMatch = existingKey
+        }
+      }
+
+      // Also check if this item fuzzy matches any unprocessed items
+      if (!bestMatch) {
+        for (let j = index + 1; j < uniqueList.length; j++) {
+          if (processedIndices.has(j)) continue
+
+          const otherName = uniqueList[j].name.toLowerCase().trim()
+          const score = getFuzzyMatchScore(itemName, otherName)
+          if (score > bestScore) {
+            bestScore = score
+            mergeKey = otherName
+          }
+        }
+      }
+
+      if (bestMatch) {
+        // Add to existing fuzzy match group
+        const existing = mergeMap.get(bestMatch)!
         existing.quantity += item.quantity
-        // Merge checked state (only checked if all instances are checked)
-        existing.checked = existing.checked && item.checked
-        // Track all items with the same name for price and quantity handling
         existing.itemsWithSameName.push(item)
+        processedIndices.add(index)
+      } else if (mergeKey) {
+        // Create new group with fuzzy matched items
+        const groupItems: ShoppingListItem[] = [item]
+        processedIndices.add(index)
+
+        // Find all items that match this one fuzzily
+        for (let j = index + 1; j < uniqueList.length; j++) {
+          if (processedIndices.has(j)) continue
+
+          const otherName = uniqueList[j].name.toLowerCase().trim()
+          const score = getFuzzyMatchScore(itemName, otherName)
+          if (score > FUZZY_THRESHOLD) {
+            groupItems.push(uniqueList[j])
+            processedIndices.add(j)
+          }
+        }
+
+        const merged = {
+          ...item,
+          quantity: groupItems.reduce((sum, i) => sum + i.quantity, 0),
+          itemsWithSameName: groupItems,
+        }
+        mergeMap.set(mergeKey, merged)
       } else {
-        // Store a copy to avoid mutating original
-        mergeMap.set(key, { ...item, itemsWithSameName: [item] })
+        // No fuzzy match found, create single item group
+        mergeMap.set(itemName, { ...item, itemsWithSameName: [item] })
+        processedIndices.add(index)
       }
     })
 
