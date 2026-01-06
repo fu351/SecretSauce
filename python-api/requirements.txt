@@ -1,5 +1,6 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
+python-dotenv==1.0.1
 
 # Database
 supabase==2.3.4
@@ -17,3 +18,6 @@ openai==1.54.0
 
 # Image processing (for OCR fallback if needed)
 Pillow==10.4.0
+
+# Testing
+pytest==8.3.3

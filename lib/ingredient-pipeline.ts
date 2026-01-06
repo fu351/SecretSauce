@@ -1,7 +1,8 @@
 import { SupabaseClient } from "@supabase/supabase-js"
 import { createServerClient, type Database } from "./supabase"
-import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
+import { standardizeIngredientsWithAI, findSemanticMatch } from "./ingredient-standardizer"
 import { normalizeStoreName } from "./ingredient-cache"
+import { normalizeCanonicalName } from "./ingredient-utils"
 
 type DB = Database["public"]["Tables"]
 type IngredientCacheRow = DB["ingredient_cache"]["Row"]
@@ -128,7 +129,8 @@ async function findStandardizedIngredient(
   normalizedName: string,
   fallbackName?: string
 ): Promise<StandardizedIngredientRow | null> {
-  const searchValue = normalizedName || fallbackName?.toLowerCase().trim() || ""
+  // Normalize the search value to match our storage format (handles hyphens, spaces, case)
+  const searchValue = normalizeCanonicalName(normalizedName || fallbackName || "")
   if (!searchValue) return null
 
   const exact = await client
@@ -195,7 +197,8 @@ async function createStandardizedIngredient(
   canonicalName: string,
   category?: string | null
 ): Promise<string> {
-  const safeName = canonicalName.trim().toLowerCase()
+  // Use normalizeCanonicalName to ensure consistent storage (handles hyphens, spaces, case)
+  const safeName = normalizeCanonicalName(canonicalName)
   const { data, error } = await client
     .from("standardized_ingredients")
     .upsert(
@@ -566,6 +569,7 @@ export async function resolveStandardizedIngredientForRecipe(
   const trimmed = rawIngredientName?.trim()
   if (!trimmed) throw new Error("rawIngredientName is required")
 
+  // Check existing mapping for this recipe + ingredient combo
   const { data: existingMapping, error: mappingError } = await supabaseClient
     .from("ingredient_mappings")
     .select("standardized_ingredient_id")
@@ -581,24 +585,48 @@ export async function resolveStandardizedIngredientForRecipe(
     return existingMapping.standardized_ingredient_id
   }
 
-  const normalized = normalizeIngredientName(trimmed)
-  const maybeExisting = await findStandardizedIngredient(supabaseClient, normalized, trimmed)
+  // Quick exact match using normalized name (fast path)
+  const normalized = normalizeCanonicalName(trimmed)
+  const quickExact = await supabaseClient
+    .from("standardized_ingredients")
+    .select("id")
+    .eq("canonical_name", normalized)
+    .maybeSingle()
 
-  let canonicalName = normalized || trimmed
-  if (!maybeExisting) {
-    try {
-      const aiStandardized = await standardizeIngredientsWithAI([{ id: "0", name: trimmed }], "recipe")
-      const aiTop = aiStandardized?.[0]
-      canonicalName = aiTop?.canonicalName?.trim() || canonicalName
-    } catch (error) {
-      console.warn("[ingredient-pipeline] AI standardization failed, falling back to heuristic", error)
-    }
+  if (quickExact.data?.id) {
+    await ensureIngredientMapping(supabaseClient, recipeId, trimmed, quickExact.data.id)
+    return quickExact.data.id
   }
 
-  const standardizedId =
-    maybeExisting?.id ||
-    (await findStandardizedIngredient(supabaseClient, canonicalName, trimmed))?.id ||
-    (await createStandardizedIngredient(supabaseClient, canonicalName))
+  // Use AI-powered semantic matching for smarter ingredient resolution
+  let standardizedId: string
+  try {
+    const semanticResult = await findSemanticMatch(trimmed, "recipe")
+
+    console.log("[ingredient-pipeline] Recipe ingredient semantic match", {
+      recipeId,
+      ingredient: trimmed,
+      matchedId: semanticResult.matchedId,
+      canonicalName: semanticResult.canonicalName,
+      isNewIngredient: semanticResult.isNewIngredient,
+    })
+
+    if (semanticResult.matchedId && !semanticResult.isNewIngredient) {
+      standardizedId = semanticResult.matchedId
+    } else {
+      // Create new standardized ingredient with AI-suggested canonical name
+      standardizedId = await createStandardizedIngredient(
+        supabaseClient,
+        semanticResult.canonicalName,
+        semanticResult.category
+      )
+    }
+  } catch (error) {
+    console.warn("[ingredient-pipeline] Semantic matching failed for recipe ingredient", error)
+    // Fallback: try basic fuzzy match then create
+    const fallbackExisting = await findStandardizedIngredient(supabaseClient, normalized, trimmed)
+    standardizedId = fallbackExisting?.id || await createStandardizedIngredient(supabaseClient, normalized || trimmed)
+  }
 
   await ensureIngredientMapping(supabaseClient, recipeId, trimmed, standardizedId)
   return standardizedId
@@ -852,33 +880,56 @@ export async function resolveOrCreateStandardizedId(
     return mappedId
   }
 
-  // STEP 2: Normalize and look for exact/fuzzy match in standardized_ingredients
-  const normalized = normalizeIngredientName(trimmedQuery)
-  const existing = await findStandardizedIngredient(supabaseClient, normalized, trimmedQuery)
-  if (existing?.id) {
-    console.log("[ingredient-pipeline] Found via normalized lookup", { query: trimmedQuery, normalized, id: existing.id })
-    return existing.id
+  // STEP 2: Quick exact match using normalized name (fast path, no AI)
+  const normalized = normalizeCanonicalName(trimmedQuery)
+  const quickExact = await supabaseClient
+    .from("standardized_ingredients")
+    .select("id, canonical_name")
+    .eq("canonical_name", normalized)
+    .maybeSingle()
+
+  if (quickExact.data?.id) {
+    console.log("[ingredient-pipeline] Found via quick exact match", { query: trimmedQuery, id: quickExact.data.id })
+    return quickExact.data.id
   }
 
-  // STEP 3: Use AI to get better canonical name
-  let canonicalName = normalized || trimmedQuery
+  // STEP 3: Use AI-powered semantic matching
+  // This finds relevant candidates via full-text search, then uses AI to pick the best match
+  console.log("[ingredient-pipeline] No quick match, using semantic matching", { query: trimmedQuery })
+
   try {
-    const aiStandardized = await standardizeIngredientsWithAI([{ id: "0", name: trimmedQuery }], "recipe")
-    const aiTop = aiStandardized?.[0]
-    canonicalName = aiTop?.canonicalName?.trim() || canonicalName
-    console.log("[ingredient-pipeline] AI suggested canonical", { query: trimmedQuery, canonical: canonicalName })
+    const semanticResult = await findSemanticMatch(trimmedQuery, "recipe")
+
+    console.log("[ingredient-pipeline] Semantic match result", {
+      query: trimmedQuery,
+      matchedId: semanticResult.matchedId,
+      canonicalName: semanticResult.canonicalName,
+      confidence: semanticResult.confidence,
+      isNewIngredient: semanticResult.isNewIngredient,
+    })
+
+    // If AI found a good existing match, use it
+    if (semanticResult.matchedId && !semanticResult.isNewIngredient) {
+      return semanticResult.matchedId
+    }
+
+    // AI says this is a new ingredient - create it
+    return createStandardizedIngredient(
+      supabaseClient,
+      semanticResult.canonicalName,
+      semanticResult.category
+    )
   } catch (error) {
-    console.warn("[ingredient-pipeline] AI standardization failed for freeform query, falling back", error)
-  }
+    console.warn("[ingredient-pipeline] Semantic matching failed, falling back to basic lookup", error)
 
-  // STEP 4: Try lookup with AI-suggested canonical name
-  const aiExisting = await findStandardizedIngredient(supabaseClient, canonicalName, trimmedQuery)
-  if (aiExisting?.id) {
-    console.log("[ingredient-pipeline] Found via AI canonical lookup", { query: trimmedQuery, canonical: canonicalName, id: aiExisting.id })
-    return aiExisting.id
-  }
+    // Fallback: try basic fuzzy match then create
+    const fallbackExisting = await findStandardizedIngredient(supabaseClient, normalized, trimmedQuery)
+    if (fallbackExisting?.id) {
+      return fallbackExisting.id
+    }
 
-  return createStandardizedIngredient(supabaseClient, canonicalName)
+    return createStandardizedIngredient(supabaseClient, normalized || trimmedQuery)
+  }
 }
 
 export async function searchOrCreateIngredientAndPrices(

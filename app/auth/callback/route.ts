@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
       if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error('Missing Supabase environment variables')
@@ -37,6 +38,10 @@ export async function GET(request: NextRequest) {
           flowType: 'pkce',
         },
       })
+
+      const adminSupabase = supabaseServiceKey
+        ? createClient(supabaseUrl, supabaseServiceKey)
+        : supabase
 
       // Exchange the code for a session
       const { data, error } = await supabase.auth.exchangeCodeForSession(code)
@@ -57,6 +62,20 @@ export async function GET(request: NextRequest) {
         userId: data.user?.id,
         email: data.user?.email,
       })
+
+      if (data.user?.id) {
+        const { error: updateError } = await adminSupabase
+          .from('profiles')
+          .update({
+            email_verified: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', data.user.id)
+
+        if (updateError) {
+          console.error('[Auth Callback] Failed to update profile verification status:', updateError)
+        }
+      }
 
       // Check if user has completed onboarding by checking for primary_goal
       const { data: profile, error: profileError } = await supabase

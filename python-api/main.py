@@ -16,6 +16,7 @@ from openai import OpenAI
 import instaloader
 from supabase import create_client, Client
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
@@ -25,6 +26,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Grocery & Recipe Scraper API")
+
+# Load environment variables from common local files if present
+ENV_CANDIDATES = [
+    Path(__file__).parent / ".env",
+    Path(__file__).parent.parent / ".env",
+    Path(__file__).parent.parent / ".env.local",
+]
+for env_path in ENV_CANDIDATES:
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path, override=False)
 
 # Initialize OpenAI client (will use OPENAI_API_KEY env var)
 openai_client = None
@@ -81,6 +92,45 @@ class InstagramImportRequest(BaseModel):
 class TextParseRequest(BaseModel):
     text: str
     source_type: str = "text"
+
+INSTAGRAM_URL_RE = re.compile(r'instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)')
+
+def extract_instagram_shortcode(url: str) -> Optional[str]:
+    match = INSTAGRAM_URL_RE.search(url)
+    if not match:
+        return None
+    return match.group(1)
+
+def setup_instagram_session(loader: instaloader.Instaloader) -> bool:
+    username = os.getenv("INSTAGRAM_USERNAME")
+    password = os.getenv("INSTAGRAM_PASSWORD")
+    session_path = Path(os.getenv("INSTAGRAM_SESSION_FILE") or (Path(__file__).parent / "instagram_session"))
+
+    session_loaded = False
+    if session_path.exists() and username:
+        try:
+            loader.load_session_from_file(username, str(session_path))
+            logger.info("Loaded Instagram session")
+            session_loaded = True
+        except Exception as e:
+            logger.warning(f"Could not load Instagram session: {e}")
+    elif session_path.exists() and not username:
+        logger.warning("Instagram session file exists but INSTAGRAM_USERNAME is not set.")
+
+    if not session_loaded and username and password:
+        try:
+            loader.login(username, password)
+            loader.save_session_to_file(str(session_path))
+            logger.info("Logged into Instagram and saved session")
+            session_loaded = True
+        except instaloader.exceptions.TwoFactorAuthRequiredException:
+            logger.error("Instagram login requires 2FA; provide a session file instead.")
+        except instaloader.exceptions.BadCredentialsException:
+            logger.error("Instagram login failed: invalid credentials.")
+        except Exception as e:
+            logger.error(f"Instagram login failed: {e}")
+
+    return session_loaded
 
 # Add CORS middleware
 app.add_middleware(
@@ -640,14 +690,13 @@ async def import_recipe_from_instagram(request: InstagramImportRequest):
     try:
         # Extract shortcode from Instagram URL
         # URLs can be like: https://www.instagram.com/p/ABC123/ or /reel/ABC123/
-        match = re.search(r'instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)', url)
-        if not match:
+        shortcode = extract_instagram_shortcode(url)
+        if not shortcode:
             return RecipeImportResponse(
                 success=False,
                 error="Invalid Instagram URL. Please provide a link to a post, reel, or video."
             )
 
-        shortcode = match.group(1)
         logger.info(f"Extracted shortcode: {shortcode}")
 
         # Initialize Instaloader
@@ -660,14 +709,7 @@ async def import_recipe_from_instagram(request: InstagramImportRequest):
             save_metadata=False
         )
 
-        # Try to load session if available
-        session_file = Path(__file__).parent / "instagram_session"
-        if session_file.exists():
-            try:
-                L.load_session_from_file("", str(session_file))
-                logger.info("Loaded Instagram session")
-            except Exception as e:
-                logger.warning(f"Could not load Instagram session: {e}")
+        setup_instagram_session(L)
 
         # Fetch the post
         post = instaloader.Post.from_shortcode(L.context, shortcode)

@@ -109,7 +109,7 @@ export default function HomePage() {
   if (loading) {
     const domDark =
       typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : null
-    const useDark = domDark ?? theme === "dark"
+    const useDark = theme === "dark" || domDark === true
     return (
       <div className={`min-h-screen flex items-center justify-center bg-background`}>
         <div className="animate-pulse">

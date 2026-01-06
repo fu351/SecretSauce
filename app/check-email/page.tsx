@@ -138,6 +138,20 @@ export default function CheckEmailPage() {
       if (error) throw error
 
       if (data.session) {
+        if (data.user?.id) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .update({
+              email_verified: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", data.user.id)
+
+          if (profileError) {
+            console.error("[Check Email] Failed to update profile verification status:", profileError)
+          }
+        }
+
         // Clear stored email after successful verification
         if (typeof window !== "undefined") {
           localStorage.removeItem("pending_verification_email")

@@ -2,6 +2,48 @@ import { createWorker, Worker } from 'tesseract.js'
 import type { OCRResult } from '@/lib/types/recipe'
 
 let worker: Worker | null = null
+const LOCAL_TESSERACT_ASSETS = {
+  workerPath: '/tesseract/worker.min.js',
+  corePath: '/tesseract/tesseract-core.wasm.js',
+  langPath: '/tesseract/lang-data',
+}
+
+const buildLogger = (onProgress?: (progress: number) => void) => (message: { status: string; progress: number }) => {
+  if (message.status === 'recognizing text' && onProgress) {
+    onProgress(Math.round(message.progress * 100))
+  }
+}
+
+const hasLocalLangData = async (): Promise<boolean> => {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    const response = await fetch(`${LOCAL_TESSERACT_ASSETS.langPath}/eng.traineddata.gz`, { method: 'HEAD' })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+const createWorkerWithFallback = async (onProgress?: (progress: number) => void): Promise<Worker> => {
+  const logger = buildLogger(onProgress)
+  const useLocalLang = await hasLocalLangData()
+
+  try {
+    return await createWorker('eng', 1, {
+      logger,
+      workerPath: LOCAL_TESSERACT_ASSETS.workerPath,
+      corePath: LOCAL_TESSERACT_ASSETS.corePath,
+      langPath: useLocalLang ? LOCAL_TESSERACT_ASSETS.langPath : undefined,
+      gzip: useLocalLang,
+    })
+  } catch (error) {
+    console.warn('Local Tesseract assets failed, falling back to CDN.', error)
+    return createWorker('eng', 1, { logger })
+  }
+}
 
 /**
  * Initialize Tesseract.js worker
@@ -9,14 +51,7 @@ let worker: Worker | null = null
  */
 async function getWorker(): Promise<Worker> {
   if (!worker) {
-    worker = await createWorker('eng', 1, {
-      logger: (m) => {
-        if (m.status === 'recognizing text') {
-          // Progress updates can be used to show loading state
-          console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`)
-        }
-      },
-    })
+    worker = await createWorkerWithFallback()
   }
   return worker
 }
@@ -33,13 +68,7 @@ export async function performOCR(
 ): Promise<OCRResult> {
   try {
     // Create a worker with progress tracking
-    const ocrWorker = await createWorker('eng', 1, {
-      logger: (m) => {
-        if (m.status === 'recognizing text' && onProgress) {
-          onProgress(Math.round(m.progress * 100))
-        }
-      },
-    })
+    const ocrWorker = await createWorkerWithFallback(onProgress)
 
     // Convert file to image URL
     const imageUrl = URL.createObjectURL(imageFile)
@@ -89,13 +118,7 @@ export async function performOCRFromUrl(
   onProgress?: (progress: number) => void
 ): Promise<OCRResult> {
   try {
-    const ocrWorker = await createWorker('eng', 1, {
-      logger: (m) => {
-        if (m.status === 'recognizing text' && onProgress) {
-          onProgress(Math.round(m.progress * 100))
-        }
-      },
-    })
+    const ocrWorker = await createWorkerWithFallback(onProgress)
 
     const { data } = await ocrWorker.recognize(imageUrl)
 
