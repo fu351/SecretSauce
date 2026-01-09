@@ -8,7 +8,6 @@ import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase"
 import type { GroceryItem } from "@/lib/types/store"
-import type { Recipe } from "@/lib/types/recipe"
 
 import { useShoppingList } from "@/hooks/useShoppingList"
 import { useStoreComparison } from "@/hooks/useStoreComparison"

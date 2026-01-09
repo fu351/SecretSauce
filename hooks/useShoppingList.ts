@@ -45,11 +45,42 @@ export function useShoppingList() {
 
   /**
    * Add a new manual item to the shopping list
+   * If an item with the same name, unit, and recipe_id already exists, merge quantities instead
    */
   const addItem = useCallback(
     async (name: string, quantity = 1, unit = "piece", checked = false, ingredientId?: string) => {
       if (!user) return null
 
+      // Check if an item with the same name, unit, and recipe_id already exists
+      const existingItem = items.find(
+        item => item.source_type === 'manual' &&
+                 item.name.toLowerCase() === name.toLowerCase() &&
+                 item.unit === unit &&
+                 !item.recipe_id
+      )
+
+      if (existingItem) {
+        // Merge quantities instead of creating a duplicate
+        const newQuantity = existingItem.quantity + quantity
+        setItems(prev => prev.map(item =>
+          item.id === existingItem.id ? { ...item, quantity: newQuantity } : item
+        ))
+
+        try {
+          const updatedItem = await db.updateItem(existingItem.id, { quantity: newQuantity })
+          setItems(prev => prev.map(item => item.id === existingItem.id ? updatedItem : item))
+          return updatedItem
+        } catch (error) {
+          // Revert on error
+          setItems(prev => prev.map(item =>
+            item.id === existingItem.id ? { ...item, quantity: existingItem.quantity } : item
+          ))
+          toast({ title: "Error", description: "Failed to update item.", variant: "destructive" })
+          return null
+        }
+      }
+
+      // Create new item if no duplicate exists
       const tempId = `temp-${crypto.randomUUID()}`
       const newItem: ShoppingListItem = {
         id: tempId,
@@ -61,7 +92,7 @@ export function useShoppingList() {
         source_type: 'manual',
         ingredient_id: ingredientId
       }
-      
+
       setItems(prev => [...prev, newItem])
 
       try {
@@ -82,7 +113,7 @@ export function useShoppingList() {
         return null
       }
     },
-    [user, toast, db]
+    [user, toast, db, items]
   )
 
   /**
