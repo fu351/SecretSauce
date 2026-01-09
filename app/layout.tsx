@@ -6,15 +6,15 @@ import "./globals.css"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/contexts/theme-context"
 import { QueryProvider } from "@/contexts/query-provider"
-import { Header } from "@/components/header"
+import { Header } from "@/components/layout/header"
 import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
-import { ErrorBoundary } from "@/components/error-boundary"
-import { ThemeSync } from "@/components/theme-sync"
+import { ErrorBoundary } from "@/components/shared/error-boundary"
+import { ThemeSync } from "@/components/providers/theme-sync"
 import { TutorialProvider } from "@/contexts/tutorial-context"
-import { TutorialOverlay } from "@/components/tutorial-overlay"
+import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay"
 // Removed TutorialBlocker import
-import { FeedbackWidget } from "@/components/feedback-widget"
+import { FeedbackWidget } from "@/components/tutorial/feedback-widget"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" })

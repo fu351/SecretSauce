@@ -10,7 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import { ArrowRight, Search, Clock, Users } from "lucide-react"
-import { RecipeCard } from "@/components/recipe-card"
+import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 
 interface Recipe {
   id: string

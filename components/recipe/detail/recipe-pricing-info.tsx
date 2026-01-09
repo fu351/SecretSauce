@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { DollarSign, TrendingDown, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTheme } from "@/contexts/theme-context"
-import { RecipePricingSkeleton } from "@/components/recipe-skeleton"
+import { RecipePricingSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import clsx from "clsx"
 import Image from "next/image"
 

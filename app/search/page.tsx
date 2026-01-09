@@ -2,7 +2,7 @@
 
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { SearchFilters } from "@/components/search-filters"
+import { SearchFilters } from "@/components/shared/search-filters"
 
 export default function SearchPage() {
   return (

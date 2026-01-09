@@ -8,7 +8,7 @@ import { Star } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { RecipeReviewsSkeleton } from "@/components/recipe-skeleton"
+import { RecipeReviewsSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 
 interface Review {
   id: string

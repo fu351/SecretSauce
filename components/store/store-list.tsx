@@ -30,7 +30,7 @@ import {
 } from "lucide-react"
 
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
-import { QuantityControl } from "@/components/quantity-control"
+import { QuantityControl } from "@/components/shared/quantity-control"
 import { useMergedItems, distributeQuantityChange } from "@/hooks/useMergedItems"
 import { useRecipeTitles } from "@/hooks/useRecipeTitles"
 import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory, getCategoryIcon } from "@/lib/constants/categories"

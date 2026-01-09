@@ -7,7 +7,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Pencil, Plus } from "lucide-react"
-import { RecipeCard } from "@/components/recipe-card"
+import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useUserRecipes } from "@/hooks/use-recipe"
 

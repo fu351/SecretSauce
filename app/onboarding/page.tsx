@@ -11,7 +11,7 @@ import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight } from
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/contexts/theme-context"
-import { AddressAutocomplete } from "@/components/address-autocomplete"
+import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 
 const goals = [
   {

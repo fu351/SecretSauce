@@ -9,12 +9,12 @@ import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { format, startOfWeek } from "date-fns"
-import { RecipeCard } from "@/components/recipe-card"
+import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 import { useShoppingListDB } from "@/lib/database/store-list-db"
 
 // Tutorial Components
 // TutorialOverlay is rendered globally in layout.tsx
-import { TutorialSelectionModal } from "@/components/tutorial-selection-modal"
+import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
 import { useTutorial } from "@/contexts/tutorial-context"
 
 interface DashboardStats {

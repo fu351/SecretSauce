@@ -8,8 +8,8 @@ import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
-import { RecipeCard } from "@/components/recipe-card"
-import { DatabaseSetupNotice } from "@/components/database-setup-notice"
+import { RecipeCard } from "@/components/recipe/cards/recipe-card"
+import { DatabaseSetupNotice } from "@/components/shared/database-setup-notice"
 
 interface FavoriteRecipe {
   id: string

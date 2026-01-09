@@ -16,7 +16,7 @@ import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useRecipe } from "@/hooks/use-recipe"
 import { useResponsiveImage } from "@/hooks/useResponsiveImage"
 import { type Recipe } from "@/lib/types/recipe"
-import { QuantityControl } from "@/components/quantity-control"
+import { QuantityControl } from "@/components/shared/quantity-control"
 
 interface RecipeDetailModalProps {
   recipeId: string | null
