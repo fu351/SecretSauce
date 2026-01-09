@@ -159,7 +159,6 @@ export function RecipeSearchModal({
               key={recipe.id}
               recipe={recipe}
               onAdd={handleAddRecipe}
-              onPreview={setSelectedRecipeId}
               textClass={textClass}
               mutedTextClass={mutedTextClass}
               cardBgClass={theme === "dark" ? "bg-[#2a2924]" : "bg-gray-50"}
@@ -253,7 +252,6 @@ export function RecipeSearchModal({
                 key={recipe.id}
                 recipe={recipe}
                 onAdd={handleAddRecipe}
-                onPreview={setSelectedRecipeId}
                 textClass={textClass}
                 mutedTextClass={mutedTextClass}
                 cardBgClass={theme === "dark" ? "bg-[#2a2924]" : "bg-gray-50"}
