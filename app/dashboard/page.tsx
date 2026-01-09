@@ -323,8 +323,8 @@ export default function DashboardPage() {
                       <RecipeCard
                         id={recipe.id}
                         title={recipe.title}
-                        image={recipe.image_url || "/placeholder.svg"}
-                        rating={recipe.rating_avg || 0}
+                        image_url={recipe.image_url || "/placeholder.svg"}
+                        rating_avg={recipe.rating_avg || 0}
                         difficulty={(recipe.difficulty as "beginner" | "intermediate" | "advanced") || "beginner"}
                         comments={recipe.rating_count || 0}
                         tags={recipe.dietary_tags || []}

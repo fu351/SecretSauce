@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { DollarSign, TrendingDown, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTheme } from "@/contexts/theme-context"
+import { RecipePricingSkeleton } from "@/components/recipe-skeleton"
 import clsx from "clsx"
 import Image from "next/image"
 
@@ -82,24 +83,7 @@ export function RecipePricingInfo({ recipeId }: RecipePricingProps) {
   }, [recipeId])
 
   if (loading) {
-    return (
-      <Card
-        className={clsx(
-          "shadow-lg border rounded-2xl",
-          isDark ? "bg-card border-border" : "bg-white/90 backdrop-blur-sm border-0"
-        )}
-      >
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="w-5 h-5" />
-            Recipe Cost
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-muted-foreground">Loading pricing information...</div>
-        </CardContent>
-      </Card>
-    )
+    return <RecipePricingSkeleton />
   }
 
   if (error || !pricingData || !pricingData.cheapest || !pricingData.isComplete) {

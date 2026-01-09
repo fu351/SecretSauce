@@ -8,6 +8,7 @@ import { Star } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { RecipeReviewsSkeleton } from "@/components/recipe-skeleton"
 
 interface Review {
   id: string
@@ -257,10 +258,7 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
 
         <div className="space-y-4">
           {loadingReviews ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
-              <p className="text-gray-500">Loading reviews...</p>
-            </div>
+            <RecipeReviewsSkeleton />
           ) : reviews.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Star className="h-12 w-12 mx-auto mb-4 text-gray-300" />

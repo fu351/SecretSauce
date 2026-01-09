@@ -61,7 +61,7 @@ export default function RecipesPage() {
 
   useEffect(() => {
     filterRecipes()
-  }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet, sortBy])
+  }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet])
 
   const updateURL = useCallback(
     (updates: Record<string, string>) => {
