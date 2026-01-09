@@ -1,22 +1,35 @@
 "use client"
 
-import { Heart, Clock, Utensils, Users, Leaf, Zap, Sun, RotateCcw, Lightbulb } from "lucide-react"
+import { Heart, Leaf, Flame, TreePine, Zap, Apple, Droplet } from "lucide-react"
+import { DIETARY_TAGS } from "@/lib/types/recipe"
+import type { DietaryTag } from "@/lib/types/recipe"
+import { formatDietaryTag } from "@/lib/tag-formatter"
+
+// Map dietary tags to icons
+const tagIconMap: Record<DietaryTag, React.ComponentType<any>> = {
+  vegetarian: Leaf,
+  vegan: TreePine,
+  "gluten-free": Flame,
+  "dairy-free": Droplet,
+  keto: Zap,
+  paleo: Apple,
+  "low-carb": Flame,
+  other: Leaf,
+}
 
 const filters = [
-  { icon: Heart, label: "Favorites", active: true },
-  { icon: Clock, label: "Quick" },
-  { icon: Utensils, label: "Easy" },
-  { icon: Users, label: "Family" },
-  { icon: Leaf, label: "Healthy" },
-  { icon: Zap, label: "Energy" },
-  { icon: Sun, label: "Fresh" },
-  { icon: RotateCcw, label: "Comfort" },
-  { icon: Lightbulb, label: "Creative" },
+  { tag: "favorites" as const, icon: Heart, label: "Favorites", active: true },
+  ...DIETARY_TAGS.map(tag => ({
+    tag,
+    icon: tagIconMap[tag] || Leaf,
+    label: formatDietaryTag(tag),
+    active: false,
+  })),
 ]
 
 export function SearchFilters() {
   return (
-    <div className="flex justify-center gap-4 py-8">
+    <div className="flex flex-wrap justify-center gap-4 py-8">
       {filters.map((filter, index) => {
         const Icon = filter.icon
         return (

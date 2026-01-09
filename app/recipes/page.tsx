@@ -19,7 +19,9 @@ import { RecipeSkeleton } from "@/components/recipe-skeleton"
 import { DatabaseSetupNotice } from "@/components/database-setup-notice"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import Image from "next/image"
-import { useRecipes, useFavorites, useToggleFavorite, type Recipe, type SortBy } from "@/hooks/use-recipes"
+import { useRecipes, useFavorites, useToggleFavorite, type SortBy } from "@/hooks/use-recipe"
+import type { Recipe } from "@/lib/types/recipe"
+import { formatDietaryTag } from "@/lib/tag-formatter"
 
 export default function RecipesPage() {
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([])
@@ -144,14 +146,14 @@ export default function RecipesPage() {
     }
 
     if (selectedDiet !== "all") {
-      filtered = filtered.filter((recipe) => recipe.dietary_tags && recipe.dietary_tags.includes(selectedDiet))
+      filtered = filtered.filter((recipe) => recipe.tags && recipe.tags.includes(selectedDiet as any))
     }
 
     setFilteredRecipes(filtered)
   }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet])
 
   const cuisineTypes = useMemo(() => [...new Set(recipes.map((recipe) => recipe.cuisine).filter(Boolean))], [recipes])
-  const dietaryTags = useMemo(() => [...new Set(recipes.flatMap((recipe) => recipe.dietary_tags || []))], [recipes])
+  const dietaryTags = useMemo(() => [...new Set(recipes.flatMap((recipe) => recipe.tags || []))], [recipes])
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
@@ -337,7 +339,7 @@ export default function RecipesPage() {
                   <SelectItem value="all">All Diets</SelectItem>
                   {dietaryTags.map((diet) => (
                     <SelectItem key={diet} value={diet}>
-                      {diet}
+                      {formatDietaryTag(diet)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -450,22 +452,15 @@ export default function RecipesPage() {
                 <RecipeCard
                   id={recipe.id}
                   title={recipe.title}
-                  image={recipe.image_url || "/placeholder.svg?height=300&width=400"}
-                  rating={recipe.rating_avg || 0}
+                  image_url={recipe.image_url || "/placeholder.svg?height=300&width=400"}
+                  rating_avg={recipe.rating_avg || 0}
                   difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                   comments={recipe.rating_count || 0}
-                  tags={recipe.dietary_tags || []}
+                  tags={recipe.tags || []}
                   nutrition={recipe.nutrition}
                   initialIsFavorited={favorites.has(recipe.id)}
                   skipFavoriteCheck
-                  onFavoriteChange={(id, isFav) => {
-                    setFavorites((prev) => {
-                      const next = new Set(prev)
-                      if (isFav) next.add(id)
-                      else next.delete(id)
-                      return next
-                    })
-                  }}
+                  onFavoriteChange={(id, isFav) => toggleFavorite(id, new MouseEvent('click'))}
                 />
               </div>
             ))}
@@ -571,9 +566,9 @@ export default function RecipesPage() {
                             </div>
                           </div>
 
-                          {recipe.dietary_tags && recipe.dietary_tags.length > 0 && (
+                          {recipe.tags && recipe.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2">
-                              {recipe.dietary_tags.map((tag, index) => (
+                              {recipe.tags.map((tag, index) => (
                                 <Badge
                                   key={index}
                                   variant="secondary"
@@ -581,7 +576,7 @@ export default function RecipesPage() {
                                     theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-gray-100 text-gray-700"
                                   }
                                 >
-                                  {tag}
+                                  {formatDietaryTag(tag)}
                                 </Badge>
                               ))}
                             </div>

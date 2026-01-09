@@ -17,6 +17,8 @@ import type { Database } from "@/lib/supabase"
 import { AddressAutocomplete } from "@/components/address-autocomplete"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
+import { DIETARY_TAGS } from "@/lib/types/recipe"
+import { formatDietaryTag } from "@/lib/tag-formatter"
 
 type ProfileUpdates = Database["public"]["Tables"]["profiles"]["Update"]
 
@@ -90,18 +92,7 @@ export default function SettingsPage() {
     { id: "any", label: "No Preference" },
   ]
 
-  const dietaryOptions = [
-    "Vegetarian",
-    "Vegan",
-    "Gluten-Free",
-    "Dairy-Free",
-    "Keto",
-    "Paleo",
-    "Low-Carb",
-    "High-Protein",
-    "Nut-Free",
-    "Soy-Free",
-  ]
+  const dietaryOptions = DIETARY_TAGS.map(formatDietaryTag)
 
   const primaryGoalOptions = [
     { id: "cooking", label: "Master the Craft", description: "Elevate your culinary skills" },

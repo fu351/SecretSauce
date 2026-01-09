@@ -9,7 +9,7 @@ import Link from "next/link"
 import { Pencil, Plus } from "lucide-react"
 import { RecipeCard } from "@/components/recipe-card"
 import { getRecipeImageUrl } from "@/lib/image-helper"
-import { useUserRecipes } from "@/hooks/use-recipes"
+import { useUserRecipes } from "@/hooks/use-recipe"
 
 export default function YourRecipesPage() {
   const { user } = useAuth()

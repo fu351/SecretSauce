@@ -23,7 +23,7 @@ export function useRecipeDB() {
       cook_time: dbItem.cook_time || 0,
       servings: dbItem.servings,
       difficulty: dbItem.difficulty,
-      cuisine: dbItem.cuisine_id ? dbItem.cuisines?.name : undefined,
+      cuisine: dbItem.cuisine,
       ingredients: dbItem.ingredients || [],
       instructions: dbItem.instructions || [],
       nutrition: dbItem.nutrition || {},
@@ -60,7 +60,7 @@ export function useRecipeDB() {
 
     let query = supabase
       .from("recipes")
-      .select("*, cuisines(name)")
+      .select("*")
 
     // Apply filters
     if (difficulty) {
@@ -113,7 +113,7 @@ export function useRecipeDB() {
   const fetchRecipeById = useCallback(async (id: string): Promise<Recipe | null> => {
     const { data, error } = await supabase
       .from("recipes")
-      .select("*, cuisines(name)")
+      .select("*")
       .eq("id", id)
       .single()
 
@@ -202,7 +202,7 @@ export function useRecipeDB() {
     const { data, error } = await supabase
       .from("recipes")
       .insert(recipe)
-      .select("*, cuisines(name)")
+      .select("*")
       .single()
 
     if (error) {
@@ -227,7 +227,7 @@ export function useRecipeDB() {
       .from("recipes")
       .update(updates)
       .eq("id", id)
-      .select("*, cuisines(name)")
+      .select("*")
       .single()
 
     if (error) {
@@ -302,7 +302,7 @@ export function useRecipeDB() {
     // (Supabase doesn't support full-text search without custom functions)
     const { data, error } = await supabase
       .from("recipes")
-      .select("*, cuisines(name)")
+      .select("*")
       .range(offset, offset + limit - 1)
 
     if (error) {

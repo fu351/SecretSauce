@@ -29,9 +29,9 @@ export interface Recipe {
   cook_time: number
   servings: number
   difficulty: DifficultyLevel
-  cuisine: CuisineType
+  cuisine?: CuisineType
   image_url?: string
-  tags: DietaryTag
+  tags: DietaryTag[]
   ingredients: Ingredient[]
   instructions: string[]
   author_id: string
@@ -57,6 +57,7 @@ export const DIETARY_TAGS = [
   'keto',
   'paleo',
   'low-carb',
+  'other',
 ] as const
 
 export const CUISINE_TYPES = [
