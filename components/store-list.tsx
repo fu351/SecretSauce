@@ -59,13 +59,13 @@ function calculateQuantityControlWidth(items: ShoppingListItem[]): string {
     const quantityStr = item.quantity.toString()
     const unitStr = item.unit ? ` ${item.unit}` : ""
     const totalLength = quantityStr.length + unitStr.length
-    // Each character is roughly 7px for xs font
-    const contentWidth = totalLength * 7
+    // Each character is roughly 8px for xs font, with extra padding for safety
+    const contentWidth = totalLength * 8
     maxContentWidth = Math.max(maxContentWidth, contentWidth)
   })
 
-  // Total: left button (28px) + content + padding (8px) + right button (28px)
-  const totalWidth = 28 + Math.max(maxContentWidth, 24) + 8 + 28
+  // Total: left button (28px) + content + padding (16px for extra space) + right button (28px)
+  const totalWidth = 28 + Math.max(maxContentWidth, 24) + 16 + 28
   return `${totalWidth}px`
 }
 
@@ -111,6 +111,7 @@ export function ShoppingListSection({
   
   // -- View State --
   const [isGrouped, setIsGrouped] = useState(true)
+  const [showUnits, setShowUnits] = useState(true)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
   // -- Editing State --
@@ -195,8 +196,9 @@ export function ShoppingListSection({
   // 4. QUANTITY CONTROL WIDTH NORMALIZATION
   // =========================================================
   const quantityControlWidth = useMemo(() => {
+    if (!showUnits) return "auto"
     return calculateQuantityControlWidth(uniqueList)
-  }, [uniqueList])
+  }, [uniqueList, showUnits])
 
   // -- Handlers --
   const handleMergedQuantityUpdate = (mergedItem: ShoppingListItem & { itemsWithSameName?: ShoppingListItem[] }, newTotalQuantity: number) => {
@@ -346,7 +348,7 @@ export function ShoppingListSection({
             theme={theme as "light" | "dark"}
             textClass={textClass}
             disableDecrement={item.quantity <= 1}
-            unit={item.unit}
+            unit={showUnits ? item.unit : undefined}
             minWidth={quantityControlWidth}
           />
 
@@ -555,6 +557,20 @@ export function ShoppingListSection({
                       <List className="h-4 w-4" />
                     </Button>
                   </div>
+
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setShowUnits(!showUnits)}
+                    className={`h-7 w-7 rounded-sm transition-all ${
+                      showUnits
+                        ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
+                        : theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"
+                    }`}
+                    title={showUnits ? "Hide units" : "Show units"}
+                  >
+                    <span className="text-xs font-semibold">U</span>
+                  </Button>
 
                   <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
                     <DialogTrigger asChild>
