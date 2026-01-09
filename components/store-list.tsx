@@ -13,7 +13,6 @@ import {
   DialogHeader
 } from "@/components/ui/dialog"
 import {
-  ShoppingCart,
   Plus,
   Minus,
   X,
@@ -26,13 +25,15 @@ import {
   Trash2,
   List,
   Layers,
-  Users
+  Users,
+  Grid
 } from "lucide-react"
 
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
 import { QuantityControl } from "@/components/quantity-control"
 import { useMergedItems, distributeQuantityChange } from "@/hooks/useMergedItems"
 import { useRecipeTitles } from "@/hooks/useRecipeTitles"
+import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory, getCategoryIcon } from "@/lib/constants/categories"
 
 /**
  * Convert string to title case
@@ -110,7 +111,8 @@ export function ShoppingListSection({
 }: ExtendedShoppingListSectionProps) {
   
   // -- View State --
-  const [isGrouped, setIsGrouped] = useState(true)
+  type ViewMode = 'recipe' | 'category' | 'ungrouped'
+  const [viewMode, setViewMode] = useState<ViewMode>('recipe')
   const [showUnits, setShowUnits] = useState(true)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
@@ -188,9 +190,26 @@ export function ShoppingListSection({
   }, [uniqueList, recipeTitles]);
 
   // =========================================================
+  // 2B. CATEGORY GROUPING LOGIC
+  // =========================================================
+  const categoryGroups = useMemo(() => {
+    const groups: Record<string, ShoppingListItem[]> = {}
+
+    uniqueList.forEach((item) => {
+      const category = normalizeCategory(item.category)
+      if (!groups[category]) {
+        groups[category] = []
+      }
+      groups[category].push(item)
+    })
+
+    return groups
+  }, [uniqueList])
+
+  // =========================================================
   // 3. MERGE LOGIC FOR UNGROUPED VIEW
   // =========================================================
-  const mergedUngroupedList = useMergedItems(uniqueList, isGrouped)
+  const mergedUngroupedList = useMergedItems(uniqueList, viewMode !== 'ungrouped')
 
   // =========================================================
   // 4. QUANTITY CONTROL WIDTH NORMALIZATION
@@ -369,13 +388,13 @@ export function ShoppingListSection({
   }
 
   // -- Render Helper: Section Container --
-  const renderSection = (sectionKey: string, title: string, items: ShoppingListItem[], icon: React.ReactNode, isMisc = false) => {
+  const renderSection = (sectionKey: string, title: string, items: ShoppingListItem[], icon: React.ReactNode, isMisc = false, hideServings = false) => {
     const isOpen = isExpanded(sectionKey)
     const totalCount = items.length
 
     // Get servings from first item (all items in a recipe share the same servings)
     const currentServings = items[0]?.servings || 1
-    const isRecipe = items[0]?.source_type === 'recipe'
+    const isRecipe = items[0]?.source_type === 'recipe' && !hideServings
 
     return (
       <div
@@ -533,9 +552,9 @@ export function ShoppingListSection({
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => setIsGrouped(true)}
+                      onClick={() => setViewMode('recipe')}
                       className={`h-7 w-7 rounded-sm transition-all ${
-                        isGrouped
+                        viewMode === 'recipe'
                           ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
                           : mutedTextClass
                       }`}
@@ -546,9 +565,22 @@ export function ShoppingListSection({
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => setIsGrouped(false)}
+                      onClick={() => setViewMode('category')}
                       className={`h-7 w-7 rounded-sm transition-all ${
-                        !isGrouped
+                        viewMode === 'category'
+                          ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
+                          : mutedTextClass
+                      }`}
+                      title="Group by Category"
+                    >
+                      <Grid className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setViewMode('ungrouped')}
+                      className={`h-7 w-7 rounded-sm transition-all ${
+                        viewMode === 'ungrouped'
                           ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
                           : mutedTextClass
                       }`}
@@ -626,9 +658,9 @@ export function ShoppingListSection({
           </div>
         ) : (
           <div className="space-y-4">
-            {isGrouped ? (
+            {viewMode === 'recipe' ? (
               <>
-                {Object.entries(recipeGroups).map(([recipeId, group]) => 
+                {Object.entries(recipeGroups).map(([recipeId, group]) =>
                   renderSection(
                     recipeId,
                     group.name,
@@ -636,7 +668,7 @@ export function ShoppingListSection({
                     <ChefHat className="h-4 w-4 text-orange-500" />
                   )
                 )}
-                
+
                 {miscItems.length > 0 && renderSection(
                   "misc",
                   "Miscellaneous Items",
@@ -644,6 +676,33 @@ export function ShoppingListSection({
                   <ShoppingBasket className="h-4 w-4 text-blue-500" />,
                   true
                 )}
+              </>
+            ) : viewMode === 'category' ? (
+              <>
+                {FOOD_CATEGORIES.map(category => {
+                  const items = categoryGroups[category]
+                  if (!items || items.length === 0) return null
+
+                  return renderSection(
+                    category,
+                    category,
+                    items,
+                    <span className="text-lg">{getCategoryIcon(category)}</span>,
+                    false,
+                    true
+                  )
+                })}
+
+                {categoryGroups[DEFAULT_CATEGORY]?.length > 0 &&
+                  renderSection(
+                    DEFAULT_CATEGORY,
+                    DEFAULT_CATEGORY,
+                    categoryGroups[DEFAULT_CATEGORY],
+                    <span className="text-lg">{getCategoryIcon(DEFAULT_CATEGORY)}</span>,
+                    true,
+                    true
+                  )
+                }
               </>
             ) : (
               <div className="space-y-2">

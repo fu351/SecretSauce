@@ -16,6 +16,7 @@ export interface ShoppingListItem extends Ingredient {
 
   // Ingredient and standardization
   ingredient_id?: string | null
+  category?: string | null
   standardizedName?: string
   recipe_id?: string
 

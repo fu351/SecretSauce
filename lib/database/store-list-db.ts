@@ -26,6 +26,7 @@ export function useShoppingListDB() {
       recipe_ingredient_index: dbItem.recipe_ingredient_index,
       servings: dbItem.servings ? Number(dbItem.servings) : undefined,
       ingredient_id: dbItem.ingredient_id,
+      category: dbItem.category || null,
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at
     }
@@ -130,14 +131,38 @@ export function useShoppingListDB() {
   }, [])
 
   /**
-   * Batch update multiple items
+   * Batch update multiple items using a single bulk operation
+   * Groups updates by common fields to minimize API calls
    */
   const batchUpdateItems = useCallback(async (updates: Array<{ id: string; changes: Partial<ShoppingListItem> }>) => {
+    if (!updates || updates.length === 0) {
+      return []
+    }
+
+    // If all updates have identical changes, do a single bulk update
+    const firstChanges = updates[0].changes
+    const allIdentical = updates.every(u =>
+      JSON.stringify(u.changes) === JSON.stringify(firstChanges)
+    )
+
+    if (allIdentical && updates.length > 1) {
+      const ids = updates.map(u => u.id)
+      const { data, error } = await supabase
+        .from("shopping_list_items")
+        .update(firstChanges)
+        .in("id", ids)
+        .select("*")
+
+      if (error) throw error
+      return (data || []).map(mapShoppingItem)
+    }
+
+    // Otherwise, execute updates in parallel
     const results = await Promise.all(
       updates.map(({ id, changes }) => updateItem(id, changes))
     )
     return results
-  }, [updateItem])
+  }, [updateItem, mapShoppingItem])
 
   return useMemo(() => ({
     mapShoppingItem,

@@ -39,6 +39,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory as normalizeCategoryUtil, getCategoryIcon } from "@/lib/constants/categories"
 
 interface PantryItem {
   id: string
@@ -73,27 +74,12 @@ interface RecipeIngredient {
   standardized_ingredient_id?: string
 }
 
-const categories = [
-  "Produce",
-  "Dairy",
-  "Meat & Seafood",
-  "Pantry Staples",
-  "Frozen",
-  "Beverages",
-  "Snacks",
-  "Condiments",
-  "Baking",
-  "Other",
-]
+const categories = [...FOOD_CATEGORIES, DEFAULT_CATEGORY]
 
 const units = ["each", "lbs", "oz", "cups", "tbsp", "tsp", "gallons", "quarts", "pints", "cans", "boxes", "bags"]
 
-const normalizeCategory = (value?: string | null) => {
-  if (value && value.trim().length > 0) {
-    return value
-  }
-  return "Other"
-}
+// Use the shared normalizeCategory function from constants
+const normalizeCategory = normalizeCategoryUtil
 
 export default function PantryPage() {
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
@@ -502,31 +488,6 @@ export default function PantryPage() {
       )
     }
     return null
-  }
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "Produce":
-        return "🥬"
-      case "Dairy":
-        return "🥛"
-      case "Meat & Seafood":
-        return "🥩"
-      case "Pantry Staples":
-        return "🥫"
-      case "Frozen":
-        return "❄️"
-      case "Beverages":
-        return "🥤"
-      case "Snacks":
-        return "🍪"
-      case "Condiments":
-        return "🧂"
-      case "Baking":
-        return "🍞"
-      default:
-        return "📦"
-    }
   }
 
   if (loading) {
