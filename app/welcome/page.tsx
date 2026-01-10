@@ -11,7 +11,7 @@ import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react"
 
 export default function WelcomePage() {
   const { user, profile, loading } = useAuth()
-  const { startTutorial, isActive } = useTutorial()
+  const { startTutorial, skipTutorial, isActive } = useTutorial()
   const { theme } = useTheme()
   const router = useRouter()
   const [isStarting, setIsStarting] = useState(false)
@@ -65,6 +65,8 @@ export default function WelcomePage() {
   }
 
   const handleSkipTutorial = () => {
+    // Call skipTutorial to set localStorage flag and prevent auto-start
+    skipTutorial()
     router.push("/dashboard")
   }
 

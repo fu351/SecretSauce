@@ -11,7 +11,10 @@ import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight } from
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/contexts/theme-context"
+import { useTutorial } from "@/contexts/tutorial-context"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
+import type { TutorialPath } from "@/lib/types/tutorial"
+import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS, type DietaryTag, type CuisineType, type DifficultyLevel } from "@/lib/types/recipe"
 
 const goals = [
   {
@@ -35,9 +38,9 @@ const goals = [
 ]
 
 const cookingLevels = [
-  { id: "beginner", label: "Apprentice", description: "Beginning your culinary journey" },
-  { id: "intermediate", label: "Practitioner", description: "Developing your technique" },
-  { id: "advanced", label: "Master", description: "Refining your artistry" },
+  { id: "beginner" as DifficultyLevel, label: "Apprentice", description: "Beginning your culinary journey" },
+  { id: "intermediate" as DifficultyLevel, label: "Practitioner", description: "Developing your technique" },
+  { id: "advanced" as DifficultyLevel, label: "Master", description: "Refining your artistry" },
 ]
 
 const budgetRanges = [
@@ -46,18 +49,10 @@ const budgetRanges = [
   { id: "high", label: "Premium", description: "Uncompromising excellence" },
 ]
 
-const dietaryOptions = [
-  "Vegetarian",
-  "Vegan",
-  "Gluten-Free",
-  "Dairy-Free",
-  "Keto",
-  "Paleo",
-  "Low-Carb",
-  "High-Protein",
-  "Nut-Free",
-  "Soy-Free",
-]
+const dietaryOptions = DIETARY_TAGS.map(tag => {
+  // Capitalize first letter of each word for UI display
+  return tag.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('-')
+}).filter(tag => tag !== 'Other') // Remove 'other' option
 
 const cookingTimeOptions = [
   { id: "quick", label: "Quick Meals", description: "Under 30 minutes", icon: "⚡" },
@@ -66,20 +61,21 @@ const cookingTimeOptions = [
   { id: "any", label: "No Preference", description: "Any duration", icon: "✨" },
 ]
 
-const cuisineOptions = [
-  "Italian",
-  "Mexican",
-  "Asian",
-  "Mediterranean",
-  "American",
-  "French",
-  "Indian",
-  "Thai",
-  "Japanese",
-  "Chinese",
-  "Greek",
-  "Spanish",
-]
+const cuisineOptions = CUISINE_TYPES.map(type => {
+  // Capitalize and format for UI display
+  return type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+}).filter(type => type !== 'Other') // Remove 'other' option
+
+// Helper functions to convert UI display values back to database format
+const convertDietaryToDb = (displayValue: string): string => {
+  // Convert "Gluten-Free" -> "gluten-free", "Vegetarian" -> "vegetarian"
+  return displayValue.toLowerCase().replace(/\s+/g, '-')
+}
+
+const convertCuisineToDb = (displayValue: string): string => {
+  // Convert "Middle Eastern" -> "middle-eastern", "Italian" -> "italian"
+  return displayValue.toLowerCase().replace(/\s+/g, '-')
+}
 
 const questionOrder = [
   {
@@ -143,6 +139,7 @@ const questionOrder = [
 type QuestionId = (typeof questionOrder)[number]["id"]
 
 export default function OnboardingPage() {
+  // selectedGoal maps to TutorialPath: "cooking" | "budgeting" | "both" (→ "health")
   const [selectedGoal, setSelectedGoal] = useState("")
   const [cookingLevel, setCookingLevel] = useState("")
   const [budgetRange, setBudgetRange] = useState("")
@@ -169,6 +166,7 @@ export default function OnboardingPage() {
   const router = useRouter()
   const { updateProfile } = useAuth()
   const { toast } = useToast()
+  const { startTutorial } = useTutorial()
 
   // Memoize address change handler to prevent autocomplete recreation
   const handleAddressChange = useCallback((addr: any) => {
@@ -611,12 +609,16 @@ export default function OnboardingPage() {
     if (!allRequiredAnswered) return
     setLoading(true)
     try {
+      // Convert UI display values back to database format
+      const dbDietaryPreferences = dietaryPreferences.map(convertDietaryToDb)
+      const dbCuisinePreferences = cuisinePreferences.map(convertCuisineToDb)
+
       const onboardingData = {
         primary_goal: selectedGoal,
         cooking_level: cookingLevel,
         budget_range: budgetRange,
-        dietary_preferences: dietaryPreferences,
-        cuisine_preferences: cuisinePreferences,
+        dietary_preferences: dbDietaryPreferences,
+        cuisine_preferences: dbCuisinePreferences,
         cooking_time_preference: cookingTimePreference,
         postal_code: postalCode || null,
         grocery_distance_miles: Number.parseInt(groceryDistance) || 10,
@@ -646,8 +648,7 @@ export default function OnboardingPage() {
 
       // Save onboarding data BEFORE email verification
       // This creates/updates the profile with the unverified email
-      const { createBrowserClient } = await import("@/lib/supabase")
-      const supabase = createBrowserClient()
+      const { supabase } = await import("@/lib/supabase")
 
       const { error } = await supabase.from("profiles").upsert({
         email: pendingEmail,
@@ -672,8 +673,10 @@ export default function OnboardingPage() {
 
       setTheme(selectedTheme)
 
-      // Redirect to check-email page to verify email
-      router.push("/check-email")
+      // Flow: User verifies email → /auth/callback → /welcome → tutorial auto-starts
+      // The tutorial-context maps primary_goal to TutorialPath:
+      //   "cooking" → "cooking", "budgeting" → "budgeting", "both" → "health"
+      router.push("/auth/check-email")
     } catch (error) {
       console.error('[Onboarding] Error saving preferences:', error)
       toast({
