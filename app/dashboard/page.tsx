@@ -17,6 +17,11 @@ import { useShoppingListDB } from "@/lib/database/store-list-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
 import { useTutorial } from "@/contexts/tutorial-context"
 
+// iOS Web App Components
+import IOSWebAppPromptBanner from "@/components/shared/ios-webapp-prompt-banner"
+import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
+import { shouldShowIOSPrompt } from "@/lib/utils"
+
 interface DashboardStats {
   totalRecipes: number
   favoriteRecipes: number
@@ -35,6 +40,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [showTutorialPrompt, setShowTutorialPrompt] = useState(false)
   const [showTutorialModal, setShowTutorialModal] = useState(false)
+  const [showIOSPrompt, setShowIOSPrompt] = useState(false)
+  const [showIOSInstallModal, setShowIOSInstallModal] = useState(false)
   const { user, profile } = useAuth()
   const { theme } = useTheme()
   const { isActive } = useTutorial()
@@ -56,6 +63,31 @@ export default function DashboardPage() {
       setShowTutorialPrompt(false)
     }
   }, [profile, isActive])
+
+  // Check if user should see iOS web app prompt
+  useEffect(() => {
+    // Only check on client side
+    if (typeof window === 'undefined') return
+
+    // Check if iOS/Safari and not installed
+    if (!shouldShowIOSPrompt()) return
+
+    // Don't show if permanently dismissed
+    const dismissed = localStorage.getItem('ios_webapp_prompt_dismissed')
+    if (dismissed === 'true') return
+
+    // Tutorial takes priority - don't show iOS prompt if tutorial should show
+    if (profile && profile.tutorial_completed === false) {
+      setShowIOSPrompt(false)
+      return
+    }
+
+    // Random 20-30% chance
+    const randomThreshold = 0.20 + (Math.random() * 0.10)
+    if (Math.random() < randomThreshold) {
+      setShowIOSPrompt(true)
+    }
+  }, [profile])
 
   const loadDashboardData = async () => {
     if (!user) return
@@ -124,6 +156,13 @@ export default function DashboardPage() {
     setShowTutorialModal(true)
   }
 
+  const handleDismissIOSPrompt = () => {
+    setShowIOSPrompt(false)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ios_webapp_prompt_dismissed', 'true')
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -137,6 +176,12 @@ export default function DashboardPage() {
       {/* Tutorial Components: Overlay is rendered globally in layout.tsx */}
       <TutorialSelectionModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
 
+      {/* iOS Web App Components */}
+      <IOSWebAppInstallModal
+        isOpen={showIOSInstallModal}
+        onClose={() => setShowIOSInstallModal(false)}
+      />
+
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto p-4 md:p-6">
           <div className="mb-8">
@@ -147,24 +192,24 @@ export default function DashboardPage() {
           </div>
 
           {/* Prominent Tutorial Prompt - Only shows if tutorial not completed */}
-          {showTutorialPrompt && !sessionStorage.getItem("tutorial_prompt_dismissed") && (
+          {showTutorialPrompt && !sessionStorage.getItem("tutorial_prompt_dismissed") ? (
             <Card className={`mb-6 relative overflow-hidden ${
-              isDark 
-                ? "bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-blue-500/30" 
+              isDark
+                ? "bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-blue-500/30"
                 : "bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200"
             }`}>
               <button
                 onClick={handleDismissTutorialPrompt}
                 className={`absolute top-4 right-4 p-1 rounded-full transition-colors ${
-                  isDark 
-                    ? "hover:bg-white/10 text-white/60 hover:text-white" 
+                  isDark
+                    ? "hover:bg-white/10 text-white/60 hover:text-white"
                     : "hover:bg-gray-200 text-gray-400 hover:text-gray-600"
                 }`}
                 aria-label="Dismiss"
               >
                 <X className="w-4 h-4" />
               </button>
-              
+
               <CardContent className="p-6 pr-12">
                 <div className="flex items-start gap-4">
                   <div className={`p-3 rounded-full ${
@@ -174,7 +219,7 @@ export default function DashboardPage() {
                       isDark ? "text-blue-400" : "text-blue-600"
                     }`} />
                   </div>
-                  
+
                   <div className="flex-1">
                     <h3 className={`text-xl font-serif font-light mb-2 ${
                       isDark ? "text-white" : "text-gray-900"
@@ -184,29 +229,29 @@ export default function DashboardPage() {
                     <p className={`text-sm mb-4 ${
                       isDark ? "text-white/70" : "text-gray-600"
                     }`}>
-                      Learn how to make the most of Secret Sauce with our interactive tutorial. 
+                      Learn how to make the most of Secret Sauce with our interactive tutorial.
                       It only takes 2-3 minutes and will show you all the key features.
                     </p>
-                    
+
                     <div className="flex flex-wrap gap-3">
                       <Button
                         onClick={handleStartTutorial}
                         className={
-                          isDark 
-                            ? "bg-blue-600 text-white hover:bg-blue-700" 
+                          isDark
+                            ? "bg-blue-600 text-white hover:bg-blue-700"
                             : "bg-blue-600 text-white hover:bg-blue-700"
                         }
                       >
                         <PlayCircle className="w-4 h-4 mr-2" />
                         Start Tutorial
                       </Button>
-                      
+
                       <Button
                         onClick={handleDismissTutorialPrompt}
                         variant="ghost"
                         className={
-                          isDark 
-                            ? "text-white/70 hover:text-white hover:bg-white/10" 
+                          isDark
+                            ? "text-white/70 hover:text-white hover:bg-white/10"
                             : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                         }
                       >
@@ -217,7 +262,12 @@ export default function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          )}
+          ) : showIOSPrompt && !localStorage.getItem("ios_webapp_prompt_dismissed") ? (
+            <IOSWebAppPromptBanner
+              onDismiss={handleDismissIOSPrompt}
+              onShowInstructions={() => setShowIOSInstallModal(true)}
+            />
+          ) : null}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8"   data-tutorial="dashboard-stats">
