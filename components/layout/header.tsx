@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsMobile } from "@/hooks"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 

@@ -131,6 +131,22 @@ export function useShoppingListDB() {
   }, [])
 
   /**
+   * Delete multiple items by their IDs (batch operation)
+   */
+  const deleteBatch = useCallback(async (ids: string[]) => {
+    if (!ids || ids.length === 0) {
+      return
+    }
+
+    const { error } = await supabase
+      .from("shopping_list_items")
+      .delete()
+      .in("id", ids)
+
+    if (error) throw error
+  }, [])
+
+  /**
    * Batch update multiple items using a single bulk operation
    * Groups updates by common fields to minimize API calls
    */
@@ -172,6 +188,7 @@ export function useShoppingListDB() {
     upsertItems,
     deleteItem,
     deleteRecipeItems,
+    deleteBatch,
     batchUpdateItems
-  }), [mapShoppingItem, fetchUserItems, insertItem, updateItem, upsertItems, deleteItem, deleteRecipeItems, batchUpdateItems])
+  }), [mapShoppingItem, fetchUserItems, insertItem, updateItem, upsertItems, deleteItem, deleteRecipeItems, deleteBatch, batchUpdateItems])
 }

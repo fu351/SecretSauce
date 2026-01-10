@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Upload, X, Loader2 } from "lucide-react"
 import Image from "next/image"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks"
 import { performOCR } from "@/lib/ocr-service"
 import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types/recipe-imports"
 

@@ -18,7 +18,7 @@ import {
 
 import type { StoreComparison } from "@/lib/types/store"
 import { StoreMap } from "@/components/store/store-map"
-import { useClosestStore } from "@/hooks/useClosestStore" // Ensure this path is correct
+import { useClosestStore } from "@/hooks" // Ensure this path is correct
 import { getUserLocation } from "@/lib/geocoding"
 import Image from "next/image"
 

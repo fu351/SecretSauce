@@ -1,0 +1,30 @@
+/**
+ * Hooks Barrel Export
+ * Provides centralized exports for all hooks organized by domain
+ * Enables backwards-compatible imports from @/hooks
+ */
+
+// UI Hooks
+export { useIsMobile } from "./ui/use-mobile"
+export { useToast, toast } from "./ui/use-toast"
+export { useResponsiveImage } from "./ui/use-responsive-image"
+
+// Recipe Hooks
+export {
+  useRecipesFiltered,
+  useRecipes,
+  useUserRecipes,
+  useRecipe,
+  useFavorites,
+  useToggleFavorite,
+  useStandardizeRecipeIngredients,
+  type SortBy
+} from "./recipe/use-recipe"
+export { useRecipeCart } from "./recipe/use-recipe-cart"
+export { useRecipeTitles } from "./recipe/use-recipe-titles"
+
+// Shopping Hooks
+export { useShoppingList } from "./shopping/use-shopping-list"
+export { useMergedItems, distributeQuantityChange } from "./shopping/use-merged-items"
+export { useStoreComparison } from "./shopping/use-store-comparison"
+export { useClosestStore } from "./shopping/use-closest-store"

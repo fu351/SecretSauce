@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ChefHat, Search, X } from "lucide-react"
 import { CompactRecipeCard } from "../cards/compact-recipe-card"
 import { RecipeDetailModal } from "./recipe-detail-modal"
-import { useRecipes, useFavorites } from "@/hooks/use-recipe"
+import { useRecipes, useFavorites } from "@/hooks"
 import { Recipe } from "@/lib/types/recipe"
 import { useAuth } from "@/contexts/auth-context"
 import type { ShoppingListItem } from "@/lib/types/store-list"

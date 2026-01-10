@@ -31,8 +31,8 @@ import {
 
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
 import { QuantityControl } from "@/components/shared/quantity-control"
-import { useMergedItems, distributeQuantityChange } from "@/hooks/useMergedItems"
-import { useRecipeTitles } from "@/hooks/useRecipeTitles"
+import { useMergedItems, distributeQuantityChange } from "@/hooks"
+import { useRecipeTitles } from "@/hooks"
 import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory, getCategoryIcon } from "@/lib/constants/categories"
 
 /**

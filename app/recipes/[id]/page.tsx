@@ -12,11 +12,11 @@ import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
 import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-info"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
 // Import the new hook
-import { useShoppingList } from "@/hooks/useShoppingList" // Adjust path if needed
+import { useShoppingList } from "@/hooks" // Adjust path if needed
 
 interface Ingredient {
   amount: string

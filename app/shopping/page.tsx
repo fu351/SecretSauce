@@ -5,12 +5,12 @@ import { useSearchParams } from "next/navigation"
 
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks"
 import { useProfileDB } from "@/lib/database/profile-db"
 import type { GroceryItem } from "@/lib/types/store"
 
-import { useShoppingList } from "@/hooks/useShoppingList"
-import { useStoreComparison } from "@/hooks/useStoreComparison"
+import { useShoppingList } from "@/hooks"
+import { useStoreComparison } from "@/hooks"
 
 import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { StoreComparisonSection } from "@/components/store/store-comparison"

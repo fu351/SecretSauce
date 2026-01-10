@@ -24,10 +24,10 @@ import {
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsMobile } from "@/hooks"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { useShoppingList } from "@/hooks/useShoppingList"
+import { useToast } from "@/hooks"
+import { useShoppingList } from "@/hooks"
 
 interface Recipe {
   id: string

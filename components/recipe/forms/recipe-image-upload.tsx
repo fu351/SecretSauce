@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LinkIcon, Upload, X } from "lucide-react"
 import Image from "next/image"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 
 interface RecipeImageUploadProps {

@@ -37,7 +37,7 @@ import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks"
 import Link from "next/link"
 import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory as normalizeCategoryUtil, getCategoryIcon } from "@/lib/constants/categories"
 

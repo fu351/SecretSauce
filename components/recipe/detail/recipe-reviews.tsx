@@ -8,7 +8,7 @@ import { Star } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useProfileDB } from "@/lib/database/profile-db"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks"
 import { RecipeReviewsSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 
 interface Review {

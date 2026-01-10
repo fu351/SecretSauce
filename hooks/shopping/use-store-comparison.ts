@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "../ui/use-toast"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import type { StoreComparison, GroceryItem } from "@/lib/types/store-comparison"
 import type { ShoppingListItem } from "@/lib/types/store-list"
