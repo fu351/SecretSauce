@@ -201,3 +201,46 @@ export function useToggleFavorite() {
     },
   })
 }
+
+/**
+ * Standardize recipe ingredients by mapping them to canonical grocery items
+ * Used after uploading or editing a recipe to ensure consistent ingredient mapping
+ */
+export function useStandardizeRecipeIngredients() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      recipeId,
+      ingredients,
+    }: {
+      recipeId: string
+      ingredients: any[]
+    }) => {
+      const response = await fetch("/api/ingredients/standardize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: "recipe",
+          recipeId,
+          ingredients: ingredients.map((ingredient, index) => ({
+            ...ingredient,
+            id: index,
+          })),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to standardize ingredients")
+      }
+
+      const payload = await response.json()
+      return payload
+    },
+    onSuccess: (data, { recipeId }) => {
+      // Invalidate recipe cache to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ["recipe", recipeId] })
+      queryClient.invalidateQueries({ queryKey: ["recipes"] })
+    },
+  })
+}

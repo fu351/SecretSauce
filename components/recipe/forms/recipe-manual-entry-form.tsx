@@ -5,6 +5,18 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Trash2 } from "lucide-react"
 import { RecipeBasicInfoPanel } from "./recipe-basic-info-panel"
 import { RecipeImageUpload } from "./recipe-image-upload"
 import { RecipeIngredientsForm } from "./recipe-ingredients-form"
@@ -17,12 +29,20 @@ interface RecipeManualEntryFormProps {
   onSubmit: (data: RecipeSubmissionData) => Promise<void>
   loading: boolean
   initialData?: ImportedRecipe
+  mode?: "create" | "edit"
+  recipeId?: string
+  onDelete?: () => Promise<void>
+  deleting?: boolean
 }
 
 export function RecipeManualEntryForm({
   onSubmit,
   loading,
   initialData,
+  mode = "create",
+  recipeId,
+  onDelete,
+  deleting = false,
 }: RecipeManualEntryFormProps) {
   const router = useRouter()
   const { toast } = useToast()
@@ -216,11 +236,35 @@ export function RecipeManualEntryForm({
 
         {/* Submit Buttons */}
         <div className="flex gap-4">
+          {mode === "edit" && onDelete ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={deleting}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete your recipe.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground">
+                    {deleting ? "Deleting..." : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : null}
           <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
             Cancel
           </Button>
           <Button type="submit" disabled={loading} className="flex-1">
-            {loading ? "Uploading..." : "Save Recipe"}
+            {loading ? (mode === "edit" ? "Saving..." : "Uploading...") : (mode === "edit" ? "Save Changes" : "Save Recipe")}
           </Button>
         </div>
       </div>

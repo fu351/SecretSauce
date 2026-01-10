@@ -2,11 +2,13 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import clsx from "clsx"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/contexts/theme-context"
+import { useStandardizeRecipeIngredients } from "@/hooks/use-recipe"
 import { supabase } from "@/lib/supabase"
 import { uploadRecipeImage } from "@/lib/image-helper"
 import { PenLine, Download } from "lucide-react"
@@ -20,7 +22,11 @@ export default function UploadRecipePage() {
   const { user } = useAuth()
   const { toast } = useToast()
   const { theme } = useTheme()
+  const queryClient = useQueryClient()
   const isDark = theme === "dark"
+
+  // Use standardize ingredients mutation
+  const standardizeMutation = useStandardizeRecipeIngredients()
 
   const [mainTab, setMainTab] = useState<"manual" | "import">("manual")
   const [loading, setLoading] = useState(false)
@@ -47,37 +53,6 @@ export default function UploadRecipePage() {
 
     setFormData(data)
     setMainTab("manual")
-  }
-
-  const standardizeRecipeIngredients = async (recipeId: string, ingredients: any[]) => {
-    try {
-      const response = await fetch("/api/ingredients/standardize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          context: "recipe",
-          recipeId,
-          ingredients: ingredients.map((ingredient, index) => ({
-            ...ingredient,
-            id: index,
-          })),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to standardize ingredients")
-      }
-
-      const payload = await response.json()
-      if (payload?.standardized?.length) {
-        toast({
-          title: "Ingredients standardized",
-          description: "Recipe ingredients were mapped to canonical grocery items.",
-        })
-      }
-    } catch (error) {
-      console.error("Ingredient standardization failed:", error)
-    }
   }
 
   const handleSubmit = async (submissionData: RecipeSubmissionData) => {
@@ -167,7 +142,8 @@ export default function UploadRecipePage() {
 
       console.log("Recipe inserted successfully:", data[0])
 
-      await standardizeRecipeIngredients(data[0].id, recipeData.ingredients)
+      // Standardize ingredients asynchronously (don't wait for it)
+      standardizeMutation.mutate({ recipeId: data[0].id, ingredients: recipeData.ingredients })
 
       toast({
         title: "Recipe uploaded!",
