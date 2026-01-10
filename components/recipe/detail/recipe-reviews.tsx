@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Star } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
+import { useProfileDB } from "@/lib/database/profile-db"
 import { useToast } from "@/hooks/use-toast"
 import { RecipeReviewsSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 
@@ -34,6 +35,7 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
   const [loadingReviews, setLoadingReviews] = useState(true)
   const { user } = useAuth()
   const { toast } = useToast()
+  const profileDB = useProfileDB()
   const mounted = useRef(true)
   const loadingRef = useRef(false)
 
@@ -76,12 +78,9 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
       if (reviewsData && reviewsData.length > 0) {
         const userIds = [...new Set(reviewsData.map((r) => r.user_id))]
 
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, email, full_name")
-          .in("id", userIds)
+        const profilesData = await profileDB.fetchProfilesBatch(userIds, ["id", "email", "full_name"])
 
-        if (!profilesError && profilesData && mounted.current) {
+        if (profilesData && mounted.current) {
           const profilesMap = new Map(profilesData.map((p) => [p.id, p]))
 
           const enrichedReviews = reviewsData.map((review) => ({

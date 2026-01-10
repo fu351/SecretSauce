@@ -12,6 +12,7 @@ import { useTutorial } from "@/contexts/tutorial-context"
 import { useRouter } from "next/navigation"
 import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen, Camera, Mail, Lock, UserCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { useProfileDB } from "@/lib/database/profile-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
 import type { Database } from "@/lib/supabase"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
@@ -28,6 +29,7 @@ export default function SettingsPage() {
   const { tutorialCompleted: contextTutorialCompleted, tutorialCompletedAt: contextTutorialCompletedAt } = useTutorial()
   const router = useRouter()
   const { toast } = useToast()
+  const profileDB = useProfileDB()
   const [mounted, setMounted] = useState(false)
 
   // Profile state
@@ -222,43 +224,31 @@ export default function SettingsPage() {
     if (!user) return
 
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single()
+      const profile = await profileDB.fetchProfileById(user.id)
 
-      if (error) throw error
+      if (!profile) {
+        throw new Error("Failed to fetch user preferences")
+      }
 
-      if (data) {
-        setPrimaryGoal(data.primary_goal || "")
-        setCookingLevel(data.cooking_level || "")
-        setBudgetRange(data.budget_range || "")
-        setCuisinePreferences(data.cuisine_preferences || [])
-        setCookingTimePreference(data.cooking_time_preference || "any")
-        setPostalCode(data.postal_code || "")
-        setFormattedAddress(data.formatted_address || "")
-        setAddressLine1(data.address_line1 || "")
-        setAddressLine2(data.address_line2 || "")
-        setCity(data.city || "")
-        setStateRegion(data.state || "")
-        setCountry(data.country || "")
-        setLat(data.latitude ?? null)
-        setLng(data.longitude ?? null)
-        setGroceryDistance(String(data.grocery_distance_miles || 10))
-        setDietaryPreferences(data.dietary_preferences || [])
-        setTutorialCompleted(data.tutorial_completed || false)
-        setTutorialPath(data.tutorial_path || null)
-        setTutorialCompletedAt(data.tutorial_completed_at || null)
-        setFullName(data.full_name || "")
-        setAvatarUrl(data.avatar_url || null)
-        setNewEmail(data.email || "")
+      setPrimaryGoal(profile.primary_goal || "")
+      setCookingLevel(profile.cooking_level || "")
+      setBudgetRange(profile.budget_range || "")
+      setCuisinePreferences(profile.cuisine_preferences || [])
+      setPostalCode(profile.postal_code || "")
+      setFormattedAddress(profile.formatted_address || "")
+      setLat(profile.latitude ?? null)
+      setLng(profile.longitude ?? null)
+      setGroceryDistance(String(profile.grocery_distance_miles || 10))
+      setDietaryPreferences(profile.dietary_preferences || [])
+      setTutorialCompleted(profile.tutorial_completed || false)
+      setFullName(profile.full_name || "")
+      setAvatarUrl(profile.avatar_url || null)
+      setNewEmail(profile.email || "")
 
-        // Initialize theme from database preference if available
-        if (data.theme_preference) {
-          setSelectedTheme(data.theme_preference === "dark" ? "dark" : "light")
-          setTheme(data.theme_preference === "dark" ? "dark" : "light")
-        }
+      // Initialize theme from database preference if available
+      if (profile.theme_preference) {
+        setSelectedTheme(profile.theme_preference === "dark" ? "dark" : "light")
+        setTheme(profile.theme_preference === "dark" ? "dark" : "light")
       }
     } catch (error) {
       console.error("Error fetching preferences:", error)

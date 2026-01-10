@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 import { performanceMonitor } from "@/lib/performance-monitor"
+import { useProfileDB } from "@/lib/database/profile-db"
 
 interface AuthContextType {
   user: User | null
@@ -19,6 +20,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const profileDB = useProfileDB()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
@@ -106,30 +108,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log(`[v0] Fetching profile for user: ${userId}`)
 
     try {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
+      const profile = await profileDB.fetchProfileById(userId)
 
       const duration = performance.now() - startTime
       console.log(`[v0] Profile fetch completed in ${duration.toFixed(2)}ms`)
 
-      if (error && error.code === "PGRST116") {
-        // Profile doesn't exist - create one (trigger may have failed)
+      // Profile doesn't exist - create one (trigger may have failed)
+      if (!profile) {
         console.log("[v0] Profile not found, creating one...")
         const { data: session } = await supabase.auth.getSession()
         const userEmail = session?.session?.user?.email
 
         if (userEmail) {
-          const { data: newProfile, error: createError } = await supabase
-            .from("profiles")
-            .insert({ id: userId, email: userEmail })
-            .select()
-            .single()
+          const newProfile = await profileDB.createProfile({
+            id: userId,
+            email: userEmail
+          })
 
-          if (createError) {
-            console.error("[v0] Error creating profile:", createError)
+          if (!newProfile) {
+            console.error("[v0] Error creating profile")
             return
           }
 
-          if (mounted.current && newProfile) {
+          if (mounted.current) {
             console.log("[v0] Profile created successfully")
             setProfile(newProfile)
           }
@@ -137,13 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      if (error) {
-        console.error("[v0] Error fetching profile:", error)
-        return
-      }
-
-      if (mounted.current && data) {
-        setProfile(data)
+      if (mounted.current) {
+        setProfile(profile)
       }
     } catch (error) {
       const duration = performance.now() - startTime
@@ -269,19 +265,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log("[v0] Updating profile...")
 
     try {
-      const { error } = await supabase.from("profiles").upsert({
+      const updatedProfile = await profileDB.upsertProfile({
         id: user.id,
         email: user.email!,
-        ...updates,
-        updated_at: new Date().toISOString(),
+        ...updates
       })
 
       const duration = performance.now() - startTime
       console.log(`[v0] Profile update completed in ${duration.toFixed(2)}ms`)
 
-      if (error) {
-        console.error("[v0] Profile update error:", error)
-        throw error
+      if (!updatedProfile) {
+        throw new Error("Failed to update profile")
       }
 
       if (mounted.current) {

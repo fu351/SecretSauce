@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks/use-toast"
-import { supabase } from "@/lib/supabase"
+import { useProfileDB } from "@/lib/database/profile-db"
 import type { GroceryItem } from "@/lib/types/store"
 
 import { useShoppingList } from "@/hooks/useShoppingList"
@@ -28,6 +28,7 @@ export default function ShoppingPage() {
   const { theme } = useTheme()
   const { toast } = useToast()
   const searchParams = useSearchParams()
+  const profileDB = useProfileDB()
 
   const [mounted, setMounted] = useState(false)
   const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)
@@ -75,20 +76,16 @@ export default function ShoppingPage() {
     if (authLoading) return
     const loadPrefs = async () => {
       if (user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("postal_code")
-          .eq("id", user.id)
-          .single()
+        const profileData = await profileDB.fetchProfileFields(user.id, ["postal_code"])
 
-        if (data?.postal_code) setZipCode(data.postal_code)
+        if (profileData?.postal_code) setZipCode(profileData.postal_code)
       } else {
         const saved = localStorage.getItem("shopping_zip_code")
         if (saved) setZipCode(saved)
       }
     }
     loadPrefs()
-  }, [user, authLoading])
+  }, [user, authLoading, profileDB])
 
   // Update comparison when items change while showing comparison (by scaling prices)
   useEffect(() => {

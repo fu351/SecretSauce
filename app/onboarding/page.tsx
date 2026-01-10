@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/contexts/theme-context"
 import { useTutorial } from "@/contexts/tutorial-context"
+import { useProfileDB } from "@/lib/database/profile-db"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import type { TutorialPath } from "@/lib/types/tutorial"
 import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS, type DietaryTag, type CuisineType, type DifficultyLevel } from "@/lib/types/recipe"
@@ -162,6 +163,7 @@ export default function OnboardingPage() {
   const [activeIndex, setActiveIndex] = useState(0)
   const lastStepIndex = questionOrder.length - 1
   const atLastStep = activeIndex === lastStepIndex
+  const profileDB = useProfileDB()
 
   const router = useRouter()
   const { updateProfile } = useAuth()
@@ -648,18 +650,15 @@ export default function OnboardingPage() {
 
       // Save onboarding data BEFORE email verification
       // This creates/updates the profile with the unverified email
-      const { supabase } = await import("@/lib/supabase")
-
-      const { error } = await supabase.from("profiles").upsert({
+      const profile = await profileDB.upsertProfile({
         email: pendingEmail,
         ...onboardingData,
-        email_verified: false,
-        onboarding_completed_at: new Date().toISOString(),
-      }, {
+      } as any, {
         onConflict: 'email'
       })
 
-      if (error) {
+      if (!profile) {
+        const error = new Error('Failed to save onboarding data')
         console.error('[Onboarding] Error saving to profiles:', error)
         throw error
       }
