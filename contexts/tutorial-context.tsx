@@ -60,10 +60,39 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { user, profile, updateProfile } = useAuth()
   const DISMISS_KEY = "tutorial_dismissed_v1"
+  const TUTORIAL_STATE_KEY = "tutorial_state_v1"
 
   const currentPath = currentPathId ? tutorialPaths[currentPathId] : null
   const currentStep = currentPath ? currentPath.steps[currentStepIndex] : null
   const currentSubstep = currentStep?.substeps?.[currentSubstepIndex] ?? null
+
+  // Save tutorial state to localStorage
+  const saveTutorialState = useCallback(() => {
+    if (typeof window !== "undefined" && currentPathId) {
+      window.localStorage.setItem(TUTORIAL_STATE_KEY, JSON.stringify({
+        pathId: currentPathId,
+        stepIndex: currentStepIndex,
+        substepIndex: currentSubstepIndex,
+      }))
+    }
+  }, [currentPathId, currentStepIndex, currentSubstepIndex])
+
+  // Restore tutorial state from localStorage
+  const restoreTutorialState = useCallback(() => {
+    if (typeof window === "undefined") return
+    const stored = window.localStorage.getItem(TUTORIAL_STATE_KEY)
+    if (stored) {
+      try {
+        const state = JSON.parse(stored)
+        setCurrentPathId(state.pathId)
+        setCurrentStepIndex(state.stepIndex)
+        setCurrentSubstepIndex(state.substepIndex)
+        setIsActive(true)
+      } catch (e) {
+        console.error("Failed to restore tutorial state:", e)
+      }
+    }
+  }, [])
 
   // -------------------
   // Core Functions
@@ -213,12 +242,18 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   // Effects
   // -------------------
 
-  // Load dismissed state from localStorage
+  // Load dismissed state and restore tutorial state from localStorage
   useEffect(() => {
     if (typeof window === "undefined") return
     const stored = window.localStorage.getItem(DISMISS_KEY)
     setWasDismissed(stored === "1")
-  }, [])
+    restoreTutorialState()
+  }, [restoreTutorialState])
+
+  // Save tutorial state whenever it changes
+  useEffect(() => {
+    saveTutorialState()
+  }, [currentPathId, currentStepIndex, currentSubstepIndex, saveTutorialState])
 
   // Auto-start tutorial if appropriate
   useEffect(() => {

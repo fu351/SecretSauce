@@ -420,7 +420,7 @@ export function TutorialOverlay() {
               <h4 className="font-bold text-lg mb-1">Element Not Found</h4>
               <p className="text-xs opacity-60 mb-6">We couldn't locate the UI element for this step.</p>
               <div className="flex gap-3 w-full">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); updateHighlight(true); }}>
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => { window.location.reload(); }}>
                   Retry
                 </Button>
                 <Button size="sm" className="flex-1 bg-blue-600" onClick={nextStep}>
