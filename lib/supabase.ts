@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import type { RecipeIngredient, Instruction, NutritionInfo, RecipeTags } from "./types"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -192,15 +193,15 @@ export type Database = {
           difficulty: "beginner" | "intermediate" | "advanced"
           cuisine: string | null
           dietary_tags: string[] | null
-          ingredients: any[] | null
-          instructions: any[] | null
-          nutrition: any | null
+          ingredients: RecipeIngredient[] | null
+          instructions: Instruction[] | null
+          nutrition: NutritionInfo | null
           author_id: string
           created_at: string
           updated_at: string
           rating_avg: number | null
           rating_count: number | null
-          dietary_flags: any | null
+          dietary_flags: RecipeTags | null
           protein_tag: string | null
           cuisine_guess: string | null
           meal_type_guess: string | null
@@ -215,11 +216,11 @@ export type Database = {
           difficulty: "beginner" | "intermediate" | "advanced"
           cuisine?: string | null
           dietary_tags?: string[] | null
-          ingredients?: any[] | null
-          instructions?: any[] | null
-          nutrition?: any | null
+          ingredients?: RecipeIngredient[] | null
+          instructions?: Instruction[] | null
+          nutrition?: NutritionInfo | null
           author_id: string
-          dietary_flags?: any | null
+          dietary_flags?: RecipeTags | null
           protein_tag?: string | null
           cuisine_guess?: string | null
           meal_type_guess?: string | null
@@ -234,10 +235,10 @@ export type Database = {
           difficulty?: "beginner" | "intermediate" | "advanced"
           cuisine?: string | null
           dietary_tags?: string[] | null
-          ingredients?: any[] | null
-          instructions?: any[] | null
-          nutrition?: any | null
-          dietary_flags?: any | null
+          ingredients?: RecipeIngredient[] | null
+          instructions?: Instruction[] | null
+          nutrition?: NutritionInfo | null
+          dietary_flags?: RecipeTags | null
           protein_tag?: string | null
           cuisine_guess?: string | null
           meal_type_guess?: string | null
