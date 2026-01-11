@@ -14,6 +14,15 @@ export function useRecipeDB() {
    * Map raw database recipe to typed Recipe
    */
   const mapRecipe = useCallback((dbItem: any): Recipe => {
+    // Parse tags JSONB or provide defaults
+    const tags = dbItem.tags || {
+      dietary: [],
+      allergens: undefined,
+      protein: undefined,
+      meal_type: undefined,
+      cuisine_guess: undefined
+    }
+
     return {
       id: dbItem.id,
       title: dbItem.title,
@@ -30,7 +39,10 @@ export function useRecipeDB() {
       author_id: dbItem.author_id,
       rating_avg: dbItem.rating_avg || 0,
       rating_count: dbItem.rating_count || 0,
-      tags: dbItem.tags || [],
+
+      // UNIFIED TAG SYSTEM - Single JSONB field
+      tags: tags,
+
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at
     }
@@ -75,9 +87,10 @@ export function useRecipeDB() {
       query = query.eq("author_id", authorId)
     }
 
-    // Apply tag filter (uses GIN index on tags array)
+    // Apply tag filter (uses GIN index on JSONB tags)
     if (tags && tags.length > 0) {
-      query = query.contains("tags", tags)
+      // Filter by dietary tags using JSONB containment
+      query = query.contains("tags", { dietary: tags })
     }
 
     // Apply sorting (uses B-tree indexes)

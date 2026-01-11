@@ -1,20 +1,27 @@
-import { Recipe } from "../planner/types"
+import { RecipeTags, DietaryTag } from "./recipe"
 import { Ingredient, Instruction, NutritionInfo } from "./recipe"
 
 // Source types for imported recipes
 export type RecipeImportSource = 'url' | 'instagram' | 'image' | 'manual'
 
 // Imported recipe data structure (from scrapers/OCR)
-export interface ImportedRecipe extends Recipe {
+// This is a partial Recipe used during import - fields can be incomplete
+export interface ImportedRecipe {
+  title?: string
   description?: string
   image_url?: string
   prep_time?: number
   cook_time?: number
   total_time?: number
-  servings: number | 1
+  servings?: number
   cuisine?: string
   difficulty?: 'beginner' | 'intermediate' | 'advanced'
-  dietary_tags?: string[]
+  ingredients?: Ingredient[]
+  instructions?: Instruction[] | string[]
+  // Use the new unified tags structure
+  tags?: RecipeTags
+  // Legacy field for backward compatibility - maps to tags.dietary
+  dietary_tags?: DietaryTag[]
   nutrition?: NutritionInfo
   source_url?: string
   source_type: RecipeImportSource

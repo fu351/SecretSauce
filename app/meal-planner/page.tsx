@@ -28,28 +28,7 @@ import { useIsMobile } from "@/hooks"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
 import { useShoppingList } from "@/hooks"
-
-interface Recipe {
-  id: string
-  title: string
-  description: string
-  prep_time: number
-  cook_time: number
-  servings: number
-  difficulty: string
-  cuisine: string
-  image_url: string
-  dietary_tags: string[]
-  ingredients: any[]
-  instructions: any[]
-  author_id: string
-  nutrition: {
-    calories?: number
-    protein?: number
-    carbs?: number
-    fat?: number
-  } | null
-}
+import { Recipe } from "@/lib/types/recipe"
 
 interface MealEntry {
   meal_type: "breakfast" | "lunch" | "dinner"

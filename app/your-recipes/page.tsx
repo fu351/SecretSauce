@@ -64,11 +64,11 @@ export default function YourRecipesPage() {
                   <RecipeCard
                     id={recipe.id}
                     title={recipe.title}
-                    image={getRecipeImageUrl(recipe.image_url)}
-                    rating={recipe.rating_avg || 0}
+                    image_url={getRecipeImageUrl(recipe.image_url)}
+                    rating_avg={recipe.rating_avg || 0}
                     difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                     comments={recipe.rating_count || 0}
-                    tags={recipe.dietary_tags || []}
+                    tags={recipe.tags}
                     nutrition={recipe.nutrition}
                     skipFavoriteCheck={true}
                     showFavorite={false}

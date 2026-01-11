@@ -11,26 +11,11 @@ import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import { ArrowRight, Search, Clock, Users } from "lucide-react"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
+import { Recipe, RecipeTags } from "@/lib/types/recipe"
 
-interface Recipe {
-  id: string
-  title: string
-  description: string
-  prep_time: number
-  cook_time: number
-  servings: number
-  difficulty: string
-  cuisine: string
-  image_url: string
-  dietary_tags: string[]
-  rating_avg: number
-  rating_count: number
-  nutrition?: {
-    calories?: number
-    protein?: number
-    carbs?: number
-    fat?: number
-  }
+// Type for home page recipe cards (subset of full Recipe type)
+type HomePageRecipe = Pick<Recipe, 'id' | 'title' | 'image_url' | 'difficulty' | 'rating_avg' | 'rating_count' | 'nutrition'> & {
+  tags: RecipeTags
 }
 
 export default function HomePage() {
@@ -40,7 +25,7 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false)
   const [visitStatus, setVisitStatus] = useState<true | false | null>(null)
   const [visitChecked, setVisitChecked] = useState(false)
-  const [popularRecipes, setPopularRecipes] = useState<Recipe[]>([])
+  const [popularRecipes, setPopularRecipes] = useState<HomePageRecipe[]>([])
   const [loadingRecipes, setLoadingRecipes] = useState(true)
 
   const fetchingRecipes = useRef(false)
@@ -88,7 +73,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from("recipes")
         .select(
-          "id, title, description, prep_time, cook_time, servings, difficulty, cuisine, image_url, dietary_tags, rating_avg, rating_count, nutrition",
+          "id, title, image_url, difficulty, rating_avg, rating_count, nutrition, tags",
         )
         .order("rating_avg", { ascending: false })
         .limit(6)
@@ -274,11 +259,11 @@ export default function HomePage() {
                   <RecipeCard
                     id={recipe.id}
                     title={recipe.title}
-                    image={recipe.image_url || "/placeholder.svg?height=300&width=400"}
-                    rating={recipe.rating_avg || 0}
+                    image_url={recipe.image_url || "/placeholder.svg?height=300&width=400"}
+                    rating_avg={recipe.rating_avg || 0}
                     difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                     comments={recipe.rating_count || 0}
-                    tags={recipe.dietary_tags || []}
+                    tags={recipe.tags}
                     nutrition={recipe.nutrition}
                     initialIsFavorited={false}
                     skipFavoriteCheck={!user}

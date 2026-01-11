@@ -1,5 +1,6 @@
 /**
- * Backfill recipe dietary_flags, protein_tag, cuisine_guess, and meal_type_guess based on ingredients and title.
+ * Backfill auto-generated tags (allergens, protein, meal_type, cuisine_guess) in JSONB tags structure
+ * based on ingredients and title.
  * Run with:
  *   SUPABASE_SERVICE_ROLE_KEY=... NEXT_PUBLIC_SUPABASE_URL=... tsx scripts/backfill-recipe-tags.ts
  *
@@ -7,6 +8,7 @@
  */
 import { createClient } from "@supabase/supabase-js"
 import { tagRecipeFromIngredients } from "@/lib/recipe-tagging"
+import { RecipeTags } from "@/lib/types/recipe"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
@@ -19,42 +21,60 @@ if (!supabaseUrl || !serviceKey) {
 const supabase = createClient(supabaseUrl, serviceKey)
 
 async function main() {
-  const { data, error } = await supabase.from("recipes").select("id, title, ingredients, dietary_flags, protein_tag, meal_type_guess").limit(10000)
+  const { data, error } = await supabase
+    .from("recipes")
+    .select("id, title, ingredients, tags")
+    .limit(10000)
+
   if (error) {
     console.error("Failed to load recipes", error)
     process.exit(1)
   }
 
-  const updates = []
+  const updates: Array<{ id: string; tags: RecipeTags }> = []
+
   for (const row of data || []) {
-    // Skip if all AI tags are already populated
-    if (row.dietary_flags && row.protein_tag && row.meal_type_guess) continue
-    const tags = tagRecipeFromIngredients(
+    // Parse existing tags or create empty structure
+    const existingTags: RecipeTags = row.tags || { dietary: [] }
+
+    // Skip if all auto-generated tags are already populated
+    if (
+      existingTags.allergens &&
+      existingTags.protein &&
+      existingTags.meal_type
+    ) {
+      continue
+    }
+
+    // Generate auto-tags from ingredients
+    const autoTags = tagRecipeFromIngredients(
       Array.isArray(row.ingredients) ? row.ingredients : [],
       row.title || ""
     )
+
+    // Merge with existing dietary tags (user-editable, don't overwrite)
+    const updatedTags: RecipeTags = {
+      dietary: existingTags.dietary || [],
+      allergens: autoTags.dietary_flags,
+      protein: autoTags.protein_tag,
+      meal_type: autoTags.meal_type_guess || undefined,
+      cuisine_guess: autoTags.cuisine_guess || undefined,
+    }
+
     updates.push({
       id: row.id,
-      dietary_flags: tags.dietary_flags,
-      protein_tag: tags.protein_tag,
-      cuisine_guess: tags.cuisine_guess,
-      meal_type_guess: tags.meal_type_guess,
+      tags: updatedTags,
     })
   }
 
-  console.log(`Updating ${updates.length} recipes...`)
+  console.log(`Updating ${updates.length} recipes with auto-generated tags...`)
 
-  // Update recipes one by one (safer than bulk upsert which requires all NOT NULL fields)
+  // Update recipes one by one for safety
   let successCount = 0
   for (const update of updates) {
     const { error: updateError } = await supabase
       .from("recipes")
-      .update({
-        dietary_flags: update.dietary_flags,
-        protein_tag: update.protein_tag,
-        cuisine_guess: update.cuisine_guess,
-        meal_type_guess: update.meal_type_guess,
-      })
+      .update({ tags: update.tags })
       .eq("id", update.id)
 
     if (updateError) {
@@ -71,6 +91,5 @@ async function main() {
   console.log(`Successfully updated ${successCount}/${updates.length} recipes`)
 
   console.log("Backfill complete")
-}
 
 main()

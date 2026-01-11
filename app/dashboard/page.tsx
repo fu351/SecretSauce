@@ -377,7 +377,7 @@ export default function DashboardPage() {
                         rating_avg={recipe.rating_avg || 0}
                         difficulty={(recipe.difficulty as "beginner" | "intermediate" | "advanced") || "beginner"}
                         comments={recipe.rating_count || 0}
-                        tags={recipe.dietary_tags || []}
+                        tags={recipe.tags}
                         nutrition={recipe.nutrition}
                       />
                     </Link>

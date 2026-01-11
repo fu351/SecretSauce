@@ -146,14 +146,14 @@ export default function RecipesPage() {
     }
 
     if (selectedDiet !== "all") {
-      filtered = filtered.filter((recipe) => recipe.tags && recipe.tags.includes(selectedDiet as any))
+      filtered = filtered.filter((recipe) => recipe.tags?.dietary && recipe.tags.dietary.includes(selectedDiet as any))
     }
 
     setFilteredRecipes(filtered)
   }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet])
 
   const cuisineTypes = useMemo(() => [...new Set(recipes.map((recipe) => recipe.cuisine).filter(Boolean))], [recipes])
-  const dietaryTags = useMemo(() => [...new Set(recipes.flatMap((recipe) => recipe.tags || []))], [recipes])
+  const dietaryTags = useMemo(() => [...new Set(recipes.flatMap((recipe) => recipe.tags?.dietary || []))], [recipes])
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
@@ -456,7 +456,7 @@ export default function RecipesPage() {
                   rating_avg={recipe.rating_avg || 0}
                   difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                   comments={recipe.rating_count || 0}
-                  tags={recipe.tags || []}
+                  tags={recipe.tags}
                   nutrition={recipe.nutrition}
                   initialIsFavorited={favorites.has(recipe.id)}
                   skipFavoriteCheck
@@ -566,9 +566,9 @@ export default function RecipesPage() {
                             </div>
                           </div>
 
-                          {recipe.tags && recipe.tags.length > 0 && (
+                          {recipe.tags?.dietary && recipe.tags.dietary.length > 0 && (
                             <div className="flex flex-wrap gap-2">
-                              {recipe.tags.map((tag, index) => (
+                              {recipe.tags.dietary.map((tag, index) => (
                                 <Badge
                                   key={index}
                                   variant="secondary"

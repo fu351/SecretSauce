@@ -11,7 +11,8 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useRecipeDB } from "@/lib/database/recipe-db"
-import { Recipe } from "@/lib/types/recipe"
+import { Recipe, RecipeTags } from "@/lib/types/recipe"
+import { formatDietaryTag } from "@/lib/tag-formatter"
 
 interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
   id: string
@@ -20,7 +21,7 @@ interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
   rating_avg: number
   difficulty: "beginner" | "intermediate" | "advanced"
   comments: number
-  tags?: string[]
+  tags?: RecipeTags
   initialIsFavorited?: boolean
   skipFavoriteCheck?: boolean
   onFavoriteChange?: (id: string, isFavorited: boolean) => void
@@ -193,15 +194,15 @@ function RecipeCardComponent({
 
         <div className="absolute inset-0 p-3 md:p-6 flex flex-col justify-between pointer-events-none">
           <div className="flex flex-wrap gap-1 md:gap-2 justify-end mr-10 md:mr-12">
-            {tags &&
-              Array.isArray(tags) &&
-              tags.slice(0, 2).map((tag, index) => (
+            {tags?.dietary &&
+              Array.isArray(tags.dietary) &&
+              tags.dietary.slice(0, 2).map((tag, index) => (
                 <Badge
                   key={index}
                   variant="secondary"
                   className="bg-white/90 text-gray-800 hover:bg-white text-xs md:text-sm px-1.5 md:px-2 py-0.5 md:py-1"
                 >
-                  {tag}
+                  {formatDietaryTag(tag)}
                 </Badge>
               ))}
           </div>

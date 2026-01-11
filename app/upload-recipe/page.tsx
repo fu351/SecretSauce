@@ -45,7 +45,7 @@ export default function UploadRecipePage() {
       servings: recipe.servings || 1,
       difficulty: recipe.difficulty || "beginner",
       cuisine: recipe.cuisine || null,
-      dietary_tags: recipe.dietary_tags || [],
+      dietary_tags: recipe.tags?.dietary || recipe.dietary_tags || [],
       ingredients: (recipe.ingredients as any) || [],
       instructions: (recipe as any).instructions || [],
       nutrition: recipe.nutrition || {},
@@ -120,7 +120,13 @@ export default function UploadRecipePage() {
         servings: submissionData.servings || null,
         difficulty: submissionData.difficulty,
         cuisine_id: cuisineId,
-        tags: submissionData.dietary_tags && submissionData.dietary_tags.length > 0 ? submissionData.dietary_tags : null,
+        tags: {
+          dietary: submissionData.dietary_tags || [],
+          allergens: undefined,
+          protein: undefined,
+          meal_type: undefined,
+          cuisine_guess: undefined
+        },
         ingredients: submissionData.ingredients,
         instructions: submissionData.instructions,
         nutrition: submissionData.nutrition && Object.values(submissionData.nutrition).some(v => v !== undefined) ? submissionData.nutrition : null,

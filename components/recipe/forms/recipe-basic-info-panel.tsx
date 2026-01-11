@@ -6,10 +6,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { Clock, Users, BarChart3 } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
-import { CUISINE_TYPES, DIETARY_TAGS, DIFFICULTY_LEVELS } from "@/lib/types/recipe"
+import { CUISINE_TYPES, DIFFICULTY_LEVELS, DietaryTag } from "@/lib/types/recipe"
+import { DietaryTagSelector } from "@/components/recipe/tags/dietary-tag-selector"
 
 interface RecipeBasicInfoPanelProps {
   title: string
@@ -27,7 +27,7 @@ interface RecipeBasicInfoPanelProps {
   onServingsChange: (value: string) => void
   onDifficultyChange: (value: string) => void
   onCuisineChange: (value: string) => void
-  onDietaryTagToggle: (tag: string) => void
+  onDietaryTagToggle: (tags: DietaryTag[]) => void
 }
 
 export function RecipeBasicInfoPanel({
@@ -180,22 +180,12 @@ export function RecipeBasicInfoPanel({
           </Select>
         </div>
 
-        {/* Dietary Tags */}
-        <div>
-          <Label className="text-sm">Dietary Tags</Label>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {DIETARY_TAGS.map((tag) => (
-              <Badge
-                key={tag}
-                variant={dietary_tags.includes(tag) ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => onDietaryTagToggle(tag)}
-              >
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        </div>
+        {/* Dietary Tags - Using new DietaryTagSelector component */}
+        <DietaryTagSelector
+          selectedTags={dietary_tags as DietaryTag[]}
+          onChange={onDietaryTagToggle}
+          mode="edit"
+        />
       </CardContent>
     </Card>
   )

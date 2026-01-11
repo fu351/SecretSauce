@@ -15,6 +15,7 @@ import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-inf
 import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
+import { TagSelector } from "@/components/recipe/tags/tag-selector"
 // Import the new hook
 import { useShoppingList } from "@/hooks" // Adjust path if needed
 
@@ -396,24 +397,18 @@ export default function RecipeDetailPage() {
                   </div>
                 )}
 
-                {(recipe.dietary_tags.length > 0 || recipe.cuisine) && (
-                  <div className="flex flex-wrap gap-2">
-                    {recipe.cuisine && (
-                      <Badge variant="secondary" className={clsx("px-3 py-1 text-xs font-medium", badgeCuisineClass)}>
-                        {recipe.cuisine}
-                      </Badge>
-                    )}
-                    {recipe.dietary_tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className={clsx("px-3 py-1 text-xs font-medium", badgeDietClass)}
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
+                {/* Tag Display System */}
+                <TagSelector
+                  tags={recipe.tags}
+                  mode="view"
+                  sections={{
+                    dietary: true,
+                    allergens: true,
+                    protein: true,
+                    mealType: true,
+                    cuisine: recipe.cuisine ? false : true,
+                  }}
+                />
               </CardContent>
             </Card>
           </div>

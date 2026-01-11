@@ -10,23 +10,10 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 import { DatabaseSetupNotice } from "@/components/shared/database-setup-notice"
+import { Recipe } from "@/lib/types/recipe"
 
-interface FavoriteRecipe {
-  id: string
-  title: string
-  image_url: string
-  rating_avg: number
-  difficulty: string
-  rating_count: number
-  dietary_tags: string[]
-  nutrition?: {
-    calories?: number
-    protein?: number
-    carbs?: number
-    fat?: number
-  }
-  created_at: string
-}
+// Use Recipe type from @/lib/types/recipe which has the proper tags structure
+type FavoriteRecipe = Pick<Recipe, 'id' | 'title' | 'image_url' | 'rating_avg' | 'difficulty' | 'rating_count' | 'nutrition' | 'created_at' | 'tags'>
 
 export default function FavoritesPage() {
   const [favorites, setFavorites] = useState<FavoriteRecipe[]>([])
@@ -169,11 +156,11 @@ export default function FavoritesPage() {
                   <RecipeCard
                     id={recipe.id}
                     title={recipe.title}
-                    image={recipe.image_url || "/placeholder.svg?height=300&width=400"}
-                    rating={recipe.rating_avg || 0}
+                    image_url={recipe.image_url || "/placeholder.svg?height=300&width=400"}
+                    rating_avg={recipe.rating_avg || 0}
                     difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                     comments={recipe.rating_count || 0}
-                    tags={recipe.dietary_tags || []}
+                    tags={recipe.tags}
                     nutrition={recipe.nutrition}
                   />
                 </Link>
