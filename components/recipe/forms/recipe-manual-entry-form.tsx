@@ -22,8 +22,7 @@ import { RecipeImageUpload } from "./recipe-image-upload"
 import { RecipeIngredientsForm } from "./recipe-ingredients-form"
 import { RecipeInstructionsForm } from "./recipe-instructions-form"
 import { RecipeNutritionForm } from "./recipe-nutrition-form"
-import type { IngredientFormInput, NutritionFormInput, RecipeSubmissionData } from "@/lib/types/recipe-form"
-import type { Instruction, ImportedRecipe } from "@/lib/types/recipe"
+import type { IngredientFormInput, NutritionFormInput, RecipeSubmissionData, Instruction, ImportedRecipe } from "@/lib/types"
 
 interface RecipeManualEntryFormProps {
   onSubmit: (data: RecipeSubmissionData) => Promise<void>

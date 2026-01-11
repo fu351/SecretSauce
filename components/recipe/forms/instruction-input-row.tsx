@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
-import type { Instruction } from "@/lib/types/recipe"
+import type { Instruction } from "@/lib/types"
 
 interface InstructionInputRowProps {
   instruction: Instruction

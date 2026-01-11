@@ -4,7 +4,14 @@ import { createServerClient } from "./supabase"
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
-interface IngredientInput {
+/**
+ * Standardizer Ingredient Input Type
+ *
+ * Ingredient input specific to the standardizer service.
+ * Private interface kept separate from general ingredient types
+ * to avoid conflicts with form-level IngredientFormInput.
+ */
+interface StandardizerIngredientInput {
   id: string
   name: string
   amount?: string
@@ -46,7 +53,7 @@ async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
   }
 }
 
-function buildPrompt(inputs: IngredientInput[], canonicalNames: string[], context: "recipe" | "pantry") {
+function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: string[], context: "recipe" | "pantry") {
   const canonicalList =
     canonicalNames.length > 0 ? canonicalNames.slice(0, 150).join(", ") : "No canonical list provided"
 

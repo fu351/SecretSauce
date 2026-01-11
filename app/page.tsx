@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase"
 import Image from "next/image"
 import { ArrowRight, Search, Clock, Users } from "lucide-react"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
-import { Recipe, RecipeTags } from "@/lib/types/recipe"
+import { Recipe, RecipeTags } from "@/lib/types"
 
 // Type for home page recipe cards (subset of full Recipe type)
 type HomePageRecipe = Pick<Recipe, 'id' | 'title' | 'image_url' | 'difficulty' | 'rating_avg' | 'rating_count' | 'nutrition'> & {

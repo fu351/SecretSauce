@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
-import { ProteinTag } from "@/lib/types/recipe"
+import { ProteinTag } from "@/lib/types"
 import {
   Bird,
   Beef,

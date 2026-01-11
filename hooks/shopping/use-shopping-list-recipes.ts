@@ -4,7 +4,7 @@ import { useCallback } from "react"
 import { useToast } from "../ui/use-toast"
 import { useShoppingListDB } from "@/lib/database/store-list-db"
 import { useRecipeCart } from "../recipe/use-recipe-cart"
-import type { ShoppingListItem } from "@/lib/types/store-list"
+import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
  * Composable hook for recipe-related shopping list operations

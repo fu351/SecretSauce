@@ -3,8 +3,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { useToast } from "../ui/use-toast"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
-import type { StoreComparison, GroceryItem } from "@/lib/types/store-comparison"
-import type { ShoppingListItem } from "@/lib/types/store-list"
+import type { StoreComparison, GroceryItem, ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 
 const SEARCH_CACHE_KEY = "store_search_cache"
 const SEARCH_CACHE_TTL = 1000 * 60 * 30 // 30 minutes

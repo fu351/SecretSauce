@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
-import { AllergenTags } from "@/lib/types/recipe"
+import { AllergenTags } from "@/lib/types"
 import {
   Droplet,
   Wheat,

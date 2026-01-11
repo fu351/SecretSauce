@@ -6,7 +6,7 @@ import { useToast } from "../ui/use-toast"
 import { useShoppingListDB } from "@/lib/database/store-list-db"
 import { useShoppingListItems } from "./use-shopping-list-items"
 import { useShoppingListRecipes } from "./use-shopping-list-recipes"
-import type { ShoppingListItem } from "@/lib/types/store-list"
+import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
  * Main shopping list hook

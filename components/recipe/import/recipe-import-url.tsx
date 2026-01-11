@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks"
-import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types/recipe-imports"
+import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types"
 
 interface RecipeImportUrlProps {
   onImportSuccess: (recipe: ImportedRecipe) => void

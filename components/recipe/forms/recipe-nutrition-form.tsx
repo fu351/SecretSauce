@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Utensils } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
-import type { NutritionFormInput } from "@/lib/types/recipe-form"
+import type { NutritionFormInput } from "@/lib/types/forms"
 
 interface RecipeNutritionFormProps {
   nutrition: NutritionFormInput

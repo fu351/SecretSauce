@@ -3,7 +3,7 @@
 import { useCallback } from "react"
 import { useToast } from "../ui/use-toast"
 import { useShoppingListDB } from "@/lib/database/store-list-db"
-import type { ShoppingListItem } from "@/lib/types/store-list"
+import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
  * Composable hook for shopping list item operations

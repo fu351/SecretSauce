@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { QuantityControl } from "@/components/shared/quantity-control"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { formatDietaryTag } from "@/lib/tag-formatter"
-import { Recipe } from "@/lib/types/recipe"
+import { Recipe } from "@/lib/types"
 
 interface CompactRecipeCardProps {
   recipe: Recipe

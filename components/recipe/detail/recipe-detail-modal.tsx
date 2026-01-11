@@ -15,7 +15,7 @@ import { Clock, Users, Star } from "lucide-react"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useRecipe } from "@/hooks"
 import { useResponsiveImage } from "@/hooks"
-import { type Recipe } from "@/lib/types/recipe"
+import { type Recipe } from "@/lib/types"
 import { QuantityControl } from "@/components/shared/quantity-control"
 
 interface RecipeDetailModalProps {

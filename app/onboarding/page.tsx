@@ -15,7 +15,7 @@ import { useTutorial } from "@/contexts/tutorial-context"
 import { useProfileDB } from "@/lib/database/profile-db"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import type { TutorialPath } from "@/lib/types/tutorial"
-import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS, type DietaryTag, type CuisineType, type DifficultyLevel } from "@/lib/types/recipe"
+import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS, type DietaryTag, type CuisineType, type DifficultyLevel } from "@/lib/types"
 
 const goals = [
   {

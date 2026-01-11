@@ -7,9 +7,9 @@ import { ChefHat, Search, X } from "lucide-react"
 import { CompactRecipeCard } from "../cards/compact-recipe-card"
 import { RecipeDetailModal } from "./recipe-detail-modal"
 import { useRecipes, useFavorites } from "@/hooks"
-import { Recipe } from "@/lib/types/recipe"
+import { Recipe } from "@/lib/types"
 import { useAuth } from "@/contexts/auth-context"
-import type { ShoppingListItem } from "@/lib/types/store-list"
+import type { ShoppingListItem } from "@/lib/types/store"
 
 interface RecipeSearchModalProps {
   shoppingItems: ShoppingListItem[]

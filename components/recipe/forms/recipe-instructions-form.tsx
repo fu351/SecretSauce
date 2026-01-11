@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Plus, ChefHat } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
 import { InstructionInputRow } from "./instruction-input-row"
-import type { Instruction } from "@/lib/types/recipe"
+import type { Instruction } from "@/lib/types"
 
 interface RecipeInstructionsFormProps {
   instructions: Instruction[]

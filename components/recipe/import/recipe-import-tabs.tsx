@@ -7,7 +7,7 @@ import { AlertCircle, Link2, ImageIcon, Instagram } from "lucide-react"
 import { RecipeImportUrl } from "./recipe-import-url"
 import { RecipeImportImage } from "./recipe-import-image"
 import { RecipeImportInstagram } from "./recipe-import-instagram"
-import type { ImportedRecipe } from "@/lib/types/recipe-imports"
+import type { ImportedRecipe } from "@/lib/types"
 
 interface RecipeImportTabsProps {
   onImportSuccess: (recipe: ImportedRecipe) => void

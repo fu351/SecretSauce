@@ -9,7 +9,7 @@ import { Upload, X, Loader2 } from "lucide-react"
 import Image from "next/image"
 import { useToast } from "@/hooks"
 import { performOCR } from "@/lib/ocr-service"
-import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types/recipe-imports"
+import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types"
 
 interface RecipeImportImageProps {
   onImportSuccess: (recipe: ImportedRecipe) => void

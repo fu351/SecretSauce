@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
-import { MealTypeTag } from "@/lib/types/recipe"
+import { MealTypeTag } from "@/lib/types"
 import {
   Sunrise,
   Sun,

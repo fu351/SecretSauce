@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import type { ShoppingListItem } from "@/lib/types/store-list"
+import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
  * Calculate Levenshtein distance between two strings

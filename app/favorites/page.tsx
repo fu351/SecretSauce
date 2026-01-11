@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 import { DatabaseSetupNotice } from "@/components/shared/database-setup-notice"
-import { Recipe } from "@/lib/types/recipe"
+import { Recipe } from "@/lib/types"
 
 // Use Recipe type from @/lib/types/recipe which has the proper tags structure
 type FavoriteRecipe = Pick<Recipe, 'id' | 'title' | 'image_url' | 'rating_avg' | 'difficulty' | 'rating_count' | 'nutrition' | 'created_at' | 'tags'>

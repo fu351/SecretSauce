@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { formatDietaryTag } from "@/lib/tag-formatter"
-import { DIETARY_TAGS, DietaryTag } from "@/lib/types/recipe"
+import { DIETARY_TAGS, DietaryTag } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 interface DietaryTagSelectorProps {

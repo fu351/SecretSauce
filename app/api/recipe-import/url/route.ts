@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { RecipeImportResponse } from '@/lib/types/recipe-imports'
+import type { RecipeImportResponse } from '@/lib/types'
 
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || process.env.NEXT_PUBLIC_PYTHON_SERVICE_URL
 

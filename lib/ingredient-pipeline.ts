@@ -900,7 +900,16 @@ export async function searchOrCreateIngredientAndPrices(
   return storeResults.filter((row): row is IngredientCacheResult => row !== null)
 }
 
-export interface IngredientInput {
+/**
+ * Pipeline Ingredient Input Type
+ *
+ * Ingredient input specific to the ingredient pricing pipeline.
+ * Pipeline-specific type kept separate from general ingredient types
+ * to avoid conflicts with form-level IngredientFormInput.
+ *
+ * @see IngredientFormInput in lib/types/forms/ingredient.ts - Form input type
+ */
+export interface PipelineIngredientInput {
   name: string
   quantity?: number
   unit?: string
@@ -908,20 +917,26 @@ export interface IngredientInput {
   standardizedIngredientId?: string | null
 }
 
+/**
+ * @deprecated Use PipelineIngredientInput instead
+ * This alias is maintained for backward compatibility during migration.
+ */
+export type IngredientInput = PipelineIngredientInput
+
 export interface CostEstimate {
   total: number
   priced: PricedIngredient[]
-  missing: IngredientInput[]
+  missing: PipelineIngredientInput[]
 }
 
 export async function estimateIngredientCostsForStore(
   supabaseClient: SupabaseLike = createServerClient(),
-  items: IngredientInput[],
+  items: PipelineIngredientInput[],
   store: string,
   options: StoreLookupOptions = {}
 ): Promise<CostEstimate> {
   const priced: PricedIngredient[] = []
-  const missing: IngredientInput[] = []
+  const missing: PipelineIngredientInput[] = []
   let total = 0
 
   // Filter valid items first

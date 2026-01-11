@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { RecipeImageUpload } from "./recipe-image-upload"
-import { CUISINE_TYPES, DIETARY_TAGS, DIFFICULTY_LEVELS } from "@/lib/types/recipe"
+import { CUISINE_TYPES, DIETARY_TAGS, DIFFICULTY_LEVELS } from "@/lib/types"
 
 interface RecipeBasicInfoFormProps {
   title: string

@@ -9,8 +9,7 @@ import { useRecipe, useStandardizeRecipeIngredients } from "@/hooks"
 import { useRecipeDB } from "@/lib/database/recipe-db"
 import { uploadRecipeImage } from "@/lib/image-helper"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
-import type { RecipeSubmissionData } from "@/lib/types/recipe-form"
-import type { ImportedRecipe } from "@/lib/types/recipe-imports"
+import type { RecipeSubmissionData, ImportedRecipe } from "@/lib/types"
 
 export default function EditRecipePage() {
   const router = useRouter()

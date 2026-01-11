@@ -14,8 +14,7 @@ import { uploadRecipeImage } from "@/lib/image-helper"
 import { PenLine, Download } from "lucide-react"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
 import { RecipeImportTabs } from "@/components/recipe/import/recipe-import-tabs"
-import type { ImportedRecipe } from "@/lib/types/recipe-imports"
-import type { RecipeSubmissionData } from "@/lib/types/recipe-form"
+import type { ImportedRecipe, RecipeSubmissionData } from "@/lib/types"
 
 export default function UploadRecipePage() {
   const router = useRouter()

@@ -5,7 +5,7 @@ import { AllergenTagDisplay } from "./allergen-tag-display"
 import { ProteinTagDisplay } from "./protein-tag-display"
 import { MealTypeTagDisplay } from "./meal-type-tag-display"
 import { CuisineTagDisplay } from "./cuisine-tag-display"
-import { RecipeTags, DietaryTag } from "@/lib/types/recipe"
+import { RecipeTags, DietaryTag } from "@/lib/types"
 
 interface TagSelectorProps {
   // Current tag values

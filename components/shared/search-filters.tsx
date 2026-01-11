@@ -1,8 +1,8 @@
 "use client"
 
 import { Heart, Leaf, Flame, TreePine, Zap, Apple, Droplet, Globe } from "lucide-react"
-import { DIETARY_TAGS, CUISINE_TYPES } from "@/lib/types/recipe"
-import type { DietaryTag, CuisineType } from "@/lib/types/recipe"
+import { DIETARY_TAGS, CUISINE_TYPES } from "@/lib/types"
+import type { DietaryTag, CuisineType } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 
 // Format cuisine type for display (capitalize and handle hyphens)

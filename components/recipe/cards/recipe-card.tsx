@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useRecipeDB } from "@/lib/database/recipe-db"
-import { Recipe, RecipeTags } from "@/lib/types/recipe"
+import { Recipe, RecipeTags } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 
 interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {

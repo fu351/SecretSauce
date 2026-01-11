@@ -20,7 +20,7 @@ import { DatabaseSetupNotice } from "@/components/shared/database-setup-notice"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import Image from "next/image"
 import { useRecipesFiltered, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
-import type { Recipe } from "@/lib/types/recipe"
+import type { Recipe } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import { supabase } from "@/lib/supabase"
 

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
-import type { IngredientFormInput } from "@/lib/types/recipe-form"
+import type { IngredientFormInput } from "@/lib/types/forms"
 
 interface IngredientInputRowProps {
   ingredient: IngredientFormInput

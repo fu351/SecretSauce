@@ -18,7 +18,7 @@ import type { Database } from "@/lib/supabase"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import { useToast } from "@/hooks"
 import Image from "next/image"
-import { DIETARY_TAGS } from "@/lib/types/recipe"
+import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 
 type ProfileUpdates = Database["public"]["Tables"]["profiles"]["Update"]

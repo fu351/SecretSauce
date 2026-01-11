@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Clock, Users, BarChart3 } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
-import { CUISINE_TYPES, DIFFICULTY_LEVELS, DietaryTag } from "@/lib/types/recipe"
+import { CUISINE_TYPES, DIFFICULTY_LEVELS, DietaryTag } from "@/lib/types"
 import { DietaryTagSelector } from "@/components/recipe/tags/dietary-tag-selector"
 
 interface RecipeBasicInfoPanelProps {

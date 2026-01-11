@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
-import {Recipe} from "@/lib/types/recipe"
+import { Recipe, parseInstructionsFromDB } from "@/lib/types"
 
 /**
  * Universal database operations for recipes
@@ -35,7 +35,7 @@ export function useRecipeDB() {
       cuisine_id: dbItem.cuisine_id,
       cuisine_name: undefined, // Resolved by page layer using cuisine ID mapping
       ingredients: dbItem.ingredients || [],
-      instructions: dbItem.instructions || [],
+      instructions: parseInstructionsFromDB(dbItem.instructions),
       nutrition: dbItem.nutrition || {},
       author_id: dbItem.author_id,
       rating_avg: dbItem.rating_avg || 0,

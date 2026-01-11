@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Plus, ShoppingCart } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
 import { IngredientInputRow } from "./ingredient-input-row"
-import type { IngredientFormInput } from "@/lib/types/recipe-form"
+import type { IngredientFormInput } from "@/lib/types/forms"
 
 interface RecipeIngredientsFormProps {
   ingredients: IngredientFormInput[]

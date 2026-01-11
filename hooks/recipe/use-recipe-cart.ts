@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 import { supabase } from "@/lib/supabase"
-import type { ShoppingListItem } from "@/lib/types/store-list"
+import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
  * Specialized hook for recipe-to-cart operations

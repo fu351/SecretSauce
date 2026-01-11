@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
-import type { ShoppingListItem } from "@/lib/types/store-list"
+import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
  * Universal database operations for shopping list items

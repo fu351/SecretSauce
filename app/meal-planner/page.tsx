@@ -28,7 +28,7 @@ import { useIsMobile } from "@/hooks"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
 import { useShoppingList } from "@/hooks"
-import { Recipe } from "@/lib/types/recipe"
+import { Recipe } from "@/lib/types"
 
 interface MealEntry {
   meal_type: "breakfast" | "lunch" | "dinner"
