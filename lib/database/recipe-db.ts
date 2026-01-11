@@ -32,7 +32,8 @@ export function useRecipeDB() {
       cook_time: dbItem.cook_time || 0,
       servings: dbItem.servings,
       difficulty: dbItem.difficulty,
-      cuisine: dbItem.cuisine,
+      cuisine_id: dbItem.cuisine_id,
+      cuisine_name: undefined, // Resolved by page layer using cuisine ID mapping
       ingredients: dbItem.ingredients || [],
       instructions: dbItem.instructions || [],
       nutrition: dbItem.nutrition || {},
@@ -126,7 +127,7 @@ export function useRecipeDB() {
   const fetchRecipeById = useCallback(async (id: string): Promise<Recipe | null> => {
     const { data, error } = await supabase
       .from("recipes")
-      .select("*")
+      .select("*, cuisines(id, name)")
       .eq("id", id)
       .single()
 
@@ -315,7 +316,7 @@ export function useRecipeDB() {
     // (Supabase doesn't support full-text search without custom functions)
     const { data, error } = await supabase
       .from("recipes")
-      .select("*")
+      .select("*, cuisines(id, name)")
       .range(offset, offset + limit - 1)
 
     if (error) {

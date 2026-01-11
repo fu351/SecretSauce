@@ -1,10 +1,61 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { SearchFilters } from "@/components/shared/search-filters"
+import { supabase } from "@/lib/supabase"
 
 export default function SearchPage() {
+  const [cuisines, setCuisines] = useState<string[]>([])
+  const [loadingCuisines, setLoadingCuisines] = useState(true)
+
+  useEffect(() => {
+    const fetchCuisines = async () => {
+      try {
+        const { data: recipesData, error: recipesError } = await supabase
+          .from("recipes")
+          .select("cuisine_id")
+          .not("cuisine_id", "is", null)
+
+        if (recipesError) {
+          console.error("Error fetching recipe cuisines:", recipesError)
+          setLoadingCuisines(false)
+          return
+        }
+
+        // Now fetch cuisines table to get names
+        const cuisineIds = recipesData?.map((r: any) => r.cuisine_id).filter(Boolean) || []
+        if (cuisineIds.length === 0) {
+          setLoadingCuisines(false)
+          return
+        }
+
+        const { data: cuisinesData, error: cuisinesError } = await supabase
+          .from("cuisines")
+          .select("id, name")
+          .in("id", cuisineIds)
+
+        if (cuisinesError) {
+          console.error("Error fetching cuisines:", cuisinesError)
+          setLoadingCuisines(false)
+          return
+        }
+
+        // Extract unique cuisine names from cuisines table
+        const uniqueCuisines = cuisinesData?.map((c: any) => c.name).sort() || []
+
+        setCuisines(uniqueCuisines)
+      } catch (error) {
+        console.error("Error fetching cuisines:", error)
+      } finally {
+        setLoadingCuisines(false)
+      }
+    }
+
+    fetchCuisines()
+  }, [])
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-orange-50 to-white">
       <div className="max-w-4xl mx-auto px-6 py-16">
@@ -19,7 +70,7 @@ export default function SearchPage() {
             />
           </div>
 
-          <SearchFilters />
+          {!loadingCuisines && <SearchFilters availableCuisines={cuisines} />}
         </div>
 
         <div className="text-center py-16">

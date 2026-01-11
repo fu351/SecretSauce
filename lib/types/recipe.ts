@@ -48,7 +48,8 @@ export interface Recipe {
   cook_time: number
   servings: number
   difficulty: DifficultyLevel
-  cuisine?: CuisineType
+  cuisine_id?: number
+  cuisine_name?: string
   image_url?: string
 
   // UNIFIED TAG SYSTEM

@@ -19,12 +19,13 @@ import { RecipeSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { DatabaseSetupNotice } from "@/components/shared/database-setup-notice"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import Image from "next/image"
-import { useRecipes, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
+import { useRecipesFiltered, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
 import type { Recipe } from "@/lib/types/recipe"
 import { formatDietaryTag } from "@/lib/tag-formatter"
+import { supabase } from "@/lib/supabase"
 
 export default function RecipesPage() {
-  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([])
+  // UI state
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDifficulty, setSelectedDifficulty] = useState("all")
   const [selectedCuisine, setSelectedCuisine] = useState("all")
@@ -33,6 +34,12 @@ export default function RecipesPage() {
   const [viewMode, setViewMode] = useState<"tile" | "details">("tile")
   const [searchInput, setSearchInput] = useState("")
 
+  // Cuisine and dietary tag lookups
+  const [cuisineNameToId, setCuisineNameToId] = useState<Record<string, number>>({})
+  const [loadingCuisines, setLoadingCuisines] = useState(true)
+  const [allDietaryTags, setAllDietaryTags] = useState<string[]>([])
+  const [loadingTags, setLoadingTags] = useState(true)
+
   const { user } = useAuth()
   const { theme } = useTheme()
   const { toast } = useToast()
@@ -40,8 +47,72 @@ export default function RecipesPage() {
   const searchParams = useSearchParams()
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
 
+  // Fetch cuisine ID mapping
+  useEffect(() => {
+    const fetchCuisineMapping = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("cuisines")
+          .select("id, name")
+
+        if (error) {
+          console.error("Error fetching cuisines:", error)
+        } else {
+          const mapping: Record<string, number> = {}
+          data?.forEach((c: any) => {
+            mapping[c.name] = c.id
+          })
+          setCuisineNameToId(mapping)
+        }
+      } catch (error) {
+        console.error("Error fetching cuisines:", error)
+      } finally {
+        setLoadingCuisines(false)
+      }
+    }
+
+    fetchCuisineMapping()
+  }, [])
+
+  // Fetch all unique dietary tags
+  useEffect(() => {
+    const fetchDietaryTags = async () => {
+      try {
+        const { data } = await supabase
+          .from("recipes")
+          .select("tags")
+          .not("tags", "is", null)
+
+        const tags = new Set<string>()
+        data?.forEach((recipe: any) => {
+          recipe.tags?.dietary?.forEach((tag: string) => {
+            tags.add(tag)
+          })
+        })
+        setAllDietaryTags(Array.from(tags).sort())
+      } catch (error) {
+        console.error("Error fetching dietary tags:", error)
+      } finally {
+        setLoadingTags(false)
+      }
+    }
+
+    fetchDietaryTags()
+  }, [])
+
+  // Create filters object for database-level filtering
+  const filters = useMemo(() => ({
+    difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined,
+    cuisine: selectedCuisine !== "all" && cuisineNameToId[selectedCuisine]
+      ? String(cuisineNameToId[selectedCuisine])
+      : undefined,
+    diet: selectedDiet !== "all" ? selectedDiet : undefined,
+    search: searchTerm || undefined,
+    limit: 50,
+  }), [selectedDifficulty, selectedCuisine, selectedDiet, searchTerm, cuisineNameToId])
+
   // Use React Query hooks for data fetching with caching
-  const { data: recipes = [], isLoading: loading } = useRecipes(sortBy)
+  const { data: recipes = [], isLoading: loading } = useRecipesFiltered(sortBy, filters)
   const { data: favorites = new Set<string>() } = useFavorites(user?.id || null)
   const toggleFavoriteMutation = useToggleFavorite()
 
@@ -58,10 +129,6 @@ export default function RecipesPage() {
     setSelectedDiet(currentDiet)
     setSortBy(currentSort)
   }, [searchParams])
-
-  useEffect(() => {
-    filterRecipes()
-  }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet])
 
   const updateURL = useCallback(
     (updates: Record<string, string>) => {
@@ -121,39 +188,23 @@ export default function RecipesPage() {
     [user, favorites, toast, toggleFavoriteMutation],
   )
 
-  const filterRecipes = useCallback(() => {
-    let filtered = recipes
+  // Get all available cuisines from mapping (not from filtered results)
+  const cuisineTypes = useMemo(() =>
+    Object.keys(cuisineNameToId).sort(),
+    [cuisineNameToId]
+  )
 
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase()
-      filtered = filtered.filter((recipe) => {
-        if (recipe.title.toLowerCase().includes(searchLower)) return true
-        if (recipe.description?.toLowerCase().includes(searchLower)) return true
-        if (recipe.cuisine?.toLowerCase().includes(searchLower)) return true
-        if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
-          return recipe.ingredients.some((ingredient: any) => ingredient.name?.toLowerCase().includes(searchLower))
-        }
-        return false
-      })
-    }
+  // Use all dietary tags (not from filtered results)
+  const dietaryTags = allDietaryTags
 
-    if (selectedDifficulty !== "all") {
-      filtered = filtered.filter((recipe) => recipe.difficulty === selectedDifficulty)
-    }
-
-    if (selectedCuisine !== "all") {
-      filtered = filtered.filter((recipe) => recipe.cuisine === selectedCuisine)
-    }
-
-    if (selectedDiet !== "all") {
-      filtered = filtered.filter((recipe) => recipe.tags?.dietary && recipe.tags.dietary.includes(selectedDiet as any))
-    }
-
-    setFilteredRecipes(filtered)
-  }, [recipes, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet])
-
-  const cuisineTypes = useMemo(() => [...new Set(recipes.map((recipe) => recipe.cuisine).filter(Boolean))], [recipes])
-  const dietaryTags = useMemo(() => [...new Set(recipes.flatMap((recipe) => recipe.tags?.dietary || []))], [recipes])
+  // Create reverse mapping from ID to cuisine name
+  const idToCuisineName = useMemo(() => {
+    const mapping: Record<number, string> = {}
+    Object.entries(cuisineNameToId).forEach(([name, id]) => {
+      mapping[id] = name
+    })
+    return mapping
+  }, [cuisineNameToId])
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
@@ -366,10 +417,12 @@ export default function RecipesPage() {
               <Button
                 variant="outline"
                 onClick={() => {
+                  setSearchInput("")
                   setSearchTerm("")
                   setSelectedDifficulty("all")
                   setSelectedCuisine("all")
                   setSelectedDiet("all")
+                  router.replace("/recipes")
                 }}
                 className={selectClass}
               >
@@ -382,12 +435,14 @@ export default function RecipesPage() {
         <div className="mb-6">
           <p className={mutedTextClass}>
             {searchTerm && `Search results for "${searchTerm}" - `}
-            Showing {filteredRecipes.length} of {recipes.length} recipes
+            Showing {recipes.length} recipe{recipes.length !== 1 ? 's' : ''}
+            {(selectedDifficulty !== "all" || selectedCuisine !== "all" || selectedDiet !== "all") &&
+              " (filtered)"}
           </p>
         </div>
-        
+
         {/*dev*/}
-        {filteredRecipes.length === 0 ? (
+        {recipes.length === 0 ? (
           <div className="space-y-6">
             {recipes.length === 0 && <DatabaseSetupNotice />}
             <Card
@@ -422,7 +477,7 @@ export default function RecipesPage() {
           </div>
         ) : viewMode === "tile" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRecipes.map((recipe: Recipe, idx: number) => (
+            {recipes.map((recipe: Recipe, idx: number) => (
               <div
                 key={recipe.id}
                 // --- FIX 1: Add ID and h-full here ---
@@ -468,7 +523,7 @@ export default function RecipesPage() {
         ) : (
           <div className="space-y-6">
             {/* --- FIX 2: Add idx to params and ID to wrapper --- */}
-            {filteredRecipes.map((recipe: Recipe, idx: number) => (
+            {recipes.map((recipe: Recipe, idx: number) => (
               <div 
                 key={recipe.id} 
                 className="relative"
