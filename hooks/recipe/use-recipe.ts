@@ -41,13 +41,13 @@ export function useRecipesFiltered(
       }
 
       // Otherwise use filtered fetch with categorical filters
-      const cuisineId = cuisine && cuisine !== "all" ? parseInt(cuisine) : undefined
+      const cuisineValue = cuisine && cuisine !== "all" ? cuisine : undefined
       const tags = diet && diet !== "all" ? [diet] : undefined
 
       return fetchRecipes({
         sortBy,
         difficulty: difficulty && difficulty !== "all" ? difficulty : undefined,
-        cuisineId,
+        cuisine: cuisineValue,
         tags,
         limit
       })

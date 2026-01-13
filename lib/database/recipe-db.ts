@@ -14,35 +14,46 @@ export function useRecipeDB() {
    * Map raw database recipe to typed Recipe
    */
   const mapRecipe = useCallback((dbItem: any): Recipe => {
-    // Parse tags JSONB or provide defaults
-    const tags = dbItem.tags || {
-      dietary: [],
-      allergens: undefined,
-      protein: undefined,
-      meal_type: undefined,
-      cuisine_guess: undefined
-    }
+    // Extract content JSONB
+    const content = dbItem.content || {}
+
+    // Convert allergens text array to AllergenTags object
+    const allergensArray: string[] = dbItem.allergens || []
+    const allergenTags = allergensArray.length > 0 ? {
+      contains_dairy: allergensArray.includes('dairy'),
+      contains_gluten: allergensArray.includes('gluten'),
+      contains_nuts: allergensArray.includes('nuts'),
+      contains_shellfish: allergensArray.includes('shellfish'),
+      contains_egg: allergensArray.includes('egg'),
+      contains_soy: allergensArray.includes('soy')
+    } : undefined
 
     return {
       id: dbItem.id,
       title: dbItem.title,
-      description: dbItem.description,
-      image_url: dbItem.image_url,
+      description: content.description || '',
+      image_url: content.image_url,
       prep_time: dbItem.prep_time || 0,
       cook_time: dbItem.cook_time || 0,
       servings: dbItem.servings,
       difficulty: dbItem.difficulty,
-      cuisine_id: dbItem.cuisine_id,
-      cuisine_name: undefined, // Resolved by page layer using cuisine ID mapping
+      cuisine_id: undefined, // Removed - no longer exists in DB
+      cuisine_name: dbItem.cuisine || undefined, // Map enum directly to string
       ingredients: dbItem.ingredients || [],
-      instructions: parseInstructionsFromDB(dbItem.instructions),
+      instructions: parseInstructionsFromDB(content.instructions),
       nutrition: dbItem.nutrition || {},
-      author_id: dbItem.author_id,
+      author_id: dbItem.author_id || '',
       rating_avg: dbItem.rating_avg || 0,
       rating_count: dbItem.rating_count || 0,
 
-      // UNIFIED TAG SYSTEM - Single JSONB field
-      tags: tags,
+      // UNIFIED TAG SYSTEM - Map from separate DB columns
+      tags: {
+        dietary: dbItem.dietary || [],
+        allergens: allergenTags,
+        protein: dbItem.protein || undefined,
+        meal_type: dbItem.meal_type || undefined,
+        cuisine_guess: undefined // Removed - replaced by is_cuisine_ai_generated flag
+      },
 
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at
@@ -55,18 +66,24 @@ export function useRecipeDB() {
   const fetchRecipes = useCallback(async (options?: {
     sortBy?: "created_at" | "rating_avg" | "prep_time" | "title"
     difficulty?: string
-    cuisineId?: number
+    cuisine?: string
     authorId?: string
     tags?: string[]
+    allergens?: string[]
+    protein?: string
+    mealType?: string
     limit?: number
     offset?: number
   }): Promise<Recipe[]> => {
     const {
       sortBy = "created_at",
       difficulty,
-      cuisineId,
+      cuisine,
       authorId,
       tags,
+      allergens,
+      protein,
+      mealType,
       limit = 50,
       offset = 0
     } = options || {}
@@ -74,30 +91,42 @@ export function useRecipeDB() {
     let query = supabase
       .from("recipes")
       .select("*")
+      .is("deleted_at", null) // Filter soft-deleted recipes
 
     // Apply filters
     if (difficulty) {
       query = query.eq("difficulty", difficulty)
     }
 
-    if (cuisineId) {
-      query = query.eq("cuisine_id", cuisineId)
+    if (cuisine) {
+      query = query.eq("cuisine", cuisine)
     }
 
     if (authorId) {
       query = query.eq("author_id", authorId)
     }
 
-    // Apply tag filter (uses GIN index on JSONB tags)
+    // Apply dietary tag filter (uses GIN index on dietary_tag_enum[] array)
     if (tags && tags.length > 0) {
-      // Filter by dietary tags using JSONB containment
-      query = query.contains("tags", { dietary: tags })
+      query = query.contains("dietary", tags)
+    }
+
+    // Apply allergen filter (uses GIN index on allergens text[] array)
+    if (allergens && allergens.length > 0) {
+      query = query.contains("allergens", allergens)
+    }
+
+    // Apply protein filter (uses B-tree index on enum)
+    if (protein) {
+      query = query.eq("protein", protein)
+    }
+
+    // Apply meal_type filter (uses B-tree index on enum)
+    if (mealType) {
+      query = query.eq("meal_type", mealType)
     }
 
     // Apply sorting (uses B-tree indexes)
-    const ascending = sortBy === "title" || sortBy === "prep_time"
-    const descending = sortBy === "created_at" || sortBy === "rating_avg"
-
     if (sortBy === "created_at") {
       query = query.order("created_at", { ascending: false })
     } else if (sortBy === "rating_avg") {
@@ -127,8 +156,9 @@ export function useRecipeDB() {
   const fetchRecipeById = useCallback(async (id: string): Promise<Recipe | null> => {
     const { data, error } = await supabase
       .from("recipes")
-      .select("*, cuisines(id, name)")
+      .select("*")
       .eq("id", id)
+      .is("deleted_at", null)
       .single()
 
     if (error) {
@@ -160,7 +190,7 @@ export function useRecipeDB() {
    * Fetch recipes by cuisine
    */
   const fetchRecipesByCuisine = useCallback(async (
-    cuisineId: number,
+    cuisine: string,
     options?: {
       sortBy?: "created_at" | "rating_avg" | "prep_time" | "title"
       limit?: number
@@ -169,7 +199,7 @@ export function useRecipeDB() {
   ): Promise<Recipe[]> => {
     return fetchRecipes({
       ...options,
-      cuisineId
+      cuisine
     })
   }, [fetchRecipes])
 
@@ -213,9 +243,53 @@ export function useRecipeDB() {
   const insertRecipe = useCallback(async (recipe: Partial<Recipe>): Promise<Recipe | null> => {
     console.log("[Recipe DB] Attempting to insert recipe:", recipe)
 
+    // Transform Recipe type to DB schema
+    const dbRecipe = {
+      // Direct mappings
+      title: recipe.title,
+      prep_time: recipe.prep_time,
+      cook_time: recipe.cook_time,
+      servings: recipe.servings,
+      difficulty: recipe.difficulty,
+      ingredients: recipe.ingredients,
+      nutrition: recipe.nutrition,
+      author_id: recipe.author_id,
+      rating_avg: recipe.rating_avg,
+      rating_count: recipe.rating_count,
+
+      // Build content JSONB
+      content: {
+        description: recipe.description || '',
+        image_url: recipe.image_url || null,
+        instructions: recipe.instructions || []
+      },
+
+      // Map tags to separate DB columns
+      dietary: recipe.tags?.dietary || [],
+
+      // Convert allergens object to array
+      allergens: recipe.tags?.allergens
+        ? Object.entries(recipe.tags.allergens)
+          .filter(([_, value]) => value === true)
+          .map(([key, _]) => key.replace('contains_', ''))
+        : [],
+
+      // Map enum fields
+      protein: recipe.tags?.protein || null,
+      meal_type: recipe.tags?.meal_type || null,
+      cuisine: recipe.cuisine_name || 'other',
+
+      // Set AI generation flags
+      is_ai_generated: false,
+      is_cuisine_ai_generated: false,
+
+      // Soft delete defaults
+      deleted_at: null
+    }
+
     const { data, error } = await supabase
       .from("recipes")
-      .insert(recipe)
+      .insert(dbRecipe)
       .select("*")
       .single()
 
@@ -237,10 +311,77 @@ export function useRecipeDB() {
   ): Promise<Recipe | null> => {
     console.log("[Recipe DB] Attempting to update recipe:", id, updates)
 
+    // Transform Recipe type to DB schema (only for provided fields)
+    const dbUpdates: any = {}
+
+    // Direct mappings
+    if (updates.title !== undefined) dbUpdates.title = updates.title
+    if (updates.prep_time !== undefined) dbUpdates.prep_time = updates.prep_time
+    if (updates.cook_time !== undefined) dbUpdates.cook_time = updates.cook_time
+    if (updates.servings !== undefined) dbUpdates.servings = updates.servings
+    if (updates.difficulty !== undefined) dbUpdates.difficulty = updates.difficulty
+    if (updates.ingredients !== undefined) dbUpdates.ingredients = updates.ingredients
+    if (updates.nutrition !== undefined) dbUpdates.nutrition = updates.nutrition
+    if (updates.rating_avg !== undefined) dbUpdates.rating_avg = updates.rating_avg
+    if (updates.rating_count !== undefined) dbUpdates.rating_count = updates.rating_count
+
+    // Build content JSONB if any content fields are updated
+    if (
+      updates.description !== undefined ||
+      updates.image_url !== undefined ||
+      updates.instructions !== undefined
+    ) {
+      // Fetch current content first if partial update
+      const { data: currentRecipe } = await supabase
+        .from("recipes")
+        .select("content")
+        .eq("id", id)
+        .single()
+
+      const currentContent = currentRecipe?.content || {}
+
+      dbUpdates.content = {
+        description:
+          updates.description !== undefined ? updates.description : currentContent.description,
+        image_url: updates.image_url !== undefined ? updates.image_url : currentContent.image_url,
+        instructions:
+          updates.instructions !== undefined ? updates.instructions : currentContent.instructions
+      }
+    }
+
+    // Map tags if provided
+    if (updates.tags) {
+      if (updates.tags.dietary !== undefined) {
+        dbUpdates.dietary = updates.tags.dietary
+      }
+
+      if (updates.tags.allergens !== undefined) {
+        dbUpdates.allergens = updates.tags.allergens
+          ? Object.entries(updates.tags.allergens)
+            .filter(([_, value]) => value === true)
+            .map(([key, _]) => key.replace('contains_', ''))
+          : []
+      }
+
+      if (updates.tags.protein !== undefined) {
+        dbUpdates.protein = updates.tags.protein
+      }
+
+      if (updates.tags.meal_type !== undefined) {
+        dbUpdates.meal_type = updates.tags.meal_type
+      }
+    }
+
+    // Map cuisine_name if provided
+    if (updates.cuisine_name !== undefined) {
+      dbUpdates.cuisine = updates.cuisine_name || 'other'
+    }
+
     const { data, error } = await supabase
       .from("recipes")
-      .update(updates)
+      .update(dbUpdates)
       .eq("id", id)
+      .is("deleted_at", null)
       .select("*")
       .single()
 
@@ -254,20 +395,21 @@ export function useRecipeDB() {
   }, [mapRecipe])
 
   /**
-   * Delete a recipe
+   * Delete a recipe (soft delete)
    */
   const deleteRecipe = useCallback(async (id: string): Promise<boolean> => {
     const { error } = await supabase
       .from("recipes")
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq("id", id)
+      .is("deleted_at", null)
 
     if (error) {
       console.error("[Recipe DB] Delete error:", error)
       return false
     }
 
-    console.log("[Recipe DB] Delete successful for recipe:", id)
+    console.log("[Recipe DB] Soft delete successful for recipe:", id)
     return true
   }, [])
 
@@ -316,7 +458,8 @@ export function useRecipeDB() {
     // (Supabase doesn't support full-text search without custom functions)
     const { data, error } = await supabase
       .from("recipes")
-      .select("*, cuisines(id, name)")
+      .select("*")
+      .is("deleted_at", null)
       .range(offset, offset + limit - 1)
 
     if (error) {
@@ -327,7 +470,11 @@ export function useRecipeDB() {
     return (data || [])
       .filter((recipe: any) => {
         const title = recipe.title?.toLowerCase() || ""
-        const description = recipe.description?.toLowerCase() || ""
+
+        // Search in content.description instead of direct description column
+        const content = recipe.content || {}
+        const description = content.description?.toLowerCase() || ""
+
         const matchesTitle = title.includes(searchQuery)
         const matchesDescription = description.includes(searchQuery)
 

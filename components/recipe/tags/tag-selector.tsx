@@ -4,12 +4,11 @@ import { DietaryTagSelector } from "./dietary-tag-selector"
 import { AllergenTagDisplay } from "./allergen-tag-display"
 import { ProteinTagDisplay } from "./protein-tag-display"
 import { MealTypeTagDisplay } from "./meal-type-tag-display"
-import { CuisineTagDisplay } from "./cuisine-tag-display"
 import { RecipeTags, DietaryTag } from "@/lib/types"
 
 interface TagSelectorProps {
-  // Current tag values
-  tags: RecipeTags
+  // Current tag values (optional, will use empty defaults if not provided)
+  tags?: RecipeTags
 
   // Callback for dietary tag changes (only editable type)
   onDietaryTagsChange?: (tags: DietaryTag[]) => void
@@ -43,35 +42,33 @@ export function TagSelector({
     cuisine: true,
   },
 }: TagSelectorProps) {
+  // Provide default empty tags if not provided
+  const safeTags = tags || { dietary: [] }
+
   return (
     <div className="space-y-4">
       {/* Dietary Tags - User Editable */}
       {sections.dietary && (
         <DietaryTagSelector
-          selectedTags={tags.dietary}
+          selectedTags={safeTags.dietary}
           onChange={onDietaryTagsChange}
           mode={mode}
         />
       )}
 
       {/* Allergen Tags - Read-only, Auto-generated */}
-      {sections.allergens && tags.allergens && (
-        <AllergenTagDisplay allergens={tags.allergens} />
+      {sections.allergens && safeTags.allergens && (
+        <AllergenTagDisplay allergens={safeTags.allergens} />
       )}
 
       {/* Protein Tag - Read-only, Auto-generated */}
-      {sections.protein && tags.protein && (
-        <ProteinTagDisplay protein={tags.protein} />
+      {sections.protein && safeTags.protein && (
+        <ProteinTagDisplay protein={safeTags.protein} />
       )}
 
       {/* Meal Type Tag - Read-only, Auto-generated */}
-      {sections.mealType && tags.meal_type && (
-        <MealTypeTagDisplay mealType={tags.meal_type} />
-      )}
-
-      {/* Cuisine Guess - Read-only, Auto-generated */}
-      {sections.cuisine && tags.cuisine_guess && (
-        <CuisineTagDisplay cuisine={tags.cuisine_guess} />
+      {sections.mealType && safeTags.meal_type && (
+        <MealTypeTagDisplay mealType={safeTags.meal_type} />
       )}
     </div>
   )
