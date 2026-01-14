@@ -28,3 +28,9 @@ export { useShoppingList } from "./shopping/use-shopping-list"
 export { useMergedItems, distributeQuantityChange } from "./shopping/use-merged-items"
 export { useStoreComparison } from "./shopping/use-store-comparison"
 export { useClosestStore } from "./shopping/use-closest-store"
+
+// Meal Planner Hooks
+export { useMealPlanner } from "./meal-planner/use-meal-planner"
+export { useMealPlannerRecipes } from "./meal-planner/use-meal-planner-recipes"
+export { useMealPlannerNutrition } from "./meal-planner/use-meal-planner-nutrition"
+export { useMealPlannerAi } from "./meal-planner/use-meal-planner-ai"
