@@ -10,19 +10,19 @@ import {
   useMealPlannerRecipes,
   useMealPlannerNutrition,
   useMealPlannerAi,
+  useMealPlannerDragDrop,
 } from "@/hooks"
+import { DndContext, DragOverlay } from "@dnd-kit/core"
 import { SignInNotification } from "@/components/shared/signin-notification"
 import { WeekNavigator } from "@/components/meal-planner/controls/week-navigator"
-import { ViewModeToggle } from "@/components/meal-planner/controls/view-mode-toggle"
 import { PlannerActions } from "@/components/meal-planner/controls/planner-actions"
 import { NutritionSummaryCard } from "@/components/meal-planner/cards/nutrition-summary-card"
 import { ByDayView } from "@/components/meal-planner/views/by-day-view"
-import { ByMealView } from "@/components/meal-planner/views/by-meal-view"
-import { RecipeSidebar } from "@/components/meal-planner/sidebar/recipe-sidebar"
 import { RecipeSelectionModal } from "@/components/meal-planner/modals/recipe-selection-modal"
 import { AiPlannerModal } from "@/components/meal-planner/modals/ai-planner-modal"
-import { Menu } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { RecipeSearchPanel } from "@/components/meal-planner/panels/recipe-search-panel"
+import { CompactRecipeCard } from "@/components/recipe/cards/compact-recipe-card"
+import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
 
 type Recipe = any
 
@@ -46,15 +46,12 @@ export default function MealPlannerPage() {
   // State
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date())
   const [weekDates, setWeekDates] = useState<string[]>([])
-  const [draggedRecipe, setDraggedRecipe] = useState<Recipe | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
-  const [viewMode, setViewMode] = useState<"by-day" | "by-meal">("by-day")
-  const [recipeSelectionModal, setRecipeSelectionModal] = useState<{
-    open: boolean
-    mealType: string | null
-    date: string | null
-  }>({ open: false, mealType: null, date: null })
+  const [focusMode, setFocusMode] = useState<{
+    date: string
+    mealType: string
+  } | null>(null)
   const [hasAutoScrolledIntoGrid, setHasAutoScrolledIntoGrid] = useState(false)
+  const [showRecipeSidebar, setShowRecipeSidebar] = useState(false)
 
   // Custom hooks
   const mealPlanner = useMealPlanner(user?.id, weekDates)
@@ -103,39 +100,41 @@ export default function MealPlannerPage() {
     setHasAutoScrolledIntoGrid(true)
   }, [hasAutoScrolledIntoGrid, isMobile, mealPlanner.loading])
 
-  // Drag handlers
-  const handleDragStart = (recipe: Recipe) => {
-    setDraggedRecipe(recipe)
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }
-
-  const handleDrop = async (e: React.DragEvent, mealType: string, date: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (draggedRecipe) {
-      await mealPlanner.addToMealPlan(draggedRecipe, mealType, date)
-      setDraggedRecipe(null)
+  // Show sidebar when + button is clicked
+  useEffect(() => {
+    if (focusMode) {
+      setShowRecipeSidebar(true)
     }
-  }
+  }, [focusMode])
 
-  // Modal handlers
+  // Drag and drop hook
+  const dnd = useMealPlannerDragDrop({ mealPlanner })
+
+  // Focus mode handlers
   const openRecipeSelector = (mealType: string, date: string) => {
-    setRecipeSelectionModal({ open: true, mealType, date })
+    setFocusMode({ mealType, date })
   }
 
-  const closeRecipeSelector = () => {
-    setRecipeSelectionModal({ open: false, mealType: null, date: null })
+  const closeFocusMode = () => {
+    setFocusMode(null)
   }
 
   const handleRecipeSelection = async (recipe: Recipe) => {
-    if (recipeSelectionModal.mealType && recipeSelectionModal.date) {
-      await mealPlanner.addToMealPlan(recipe, recipeSelectionModal.mealType, recipeSelectionModal.date)
-      closeRecipeSelector()
+    if (focusMode) {
+      await mealPlanner.addToMealPlan(recipe, focusMode.mealType, focusMode.date)
+      // Keep focus mode open for adding more recipes
+    }
+  }
+
+  const handleFocusModeDateChange = (newDate: string) => {
+    if (focusMode) {
+      setFocusMode({ ...focusMode, date: newDate })
+    }
+  }
+
+  const handleFocusModeSlotChange = (newMealType: string) => {
+    if (focusMode) {
+      setFocusMode({ ...focusMode, mealType: newMealType })
     }
   }
 
@@ -186,8 +185,6 @@ export default function MealPlannerPage() {
     }
   }
 
-  const showSidebarOverlay = isMobile && sidebarOpen
-
   if (!user) {
     return (
       <div className={`h-screen flex items-center justify-center bg-background`}>
@@ -197,9 +194,16 @@ export default function MealPlannerPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-background" data-tutorial="planner-overview">
-      <div className="flex-1 overflow-y-auto p-3 md:p-6">
-        <div className="max-w-7xl mx-auto">
+    <DndContext
+      sensors={dnd.sensors}
+      onDragStart={dnd.handleDragStart}
+      onDragOver={dnd.handleDragOver}
+      onDragEnd={dnd.handleDragEnd}
+      onDragCancel={dnd.handleDragCancel}
+    >
+      <div className="min-h-screen flex flex-col md:flex-row bg-background" data-tutorial="planner-overview">
+        <div className="flex-1 overflow-y-auto p-3 md:p-6">
+          <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex flex-col gap-4 mb-3">
             <div>
@@ -208,23 +212,7 @@ export default function MealPlannerPage() {
             </div>
 
             <div className="flex flex-col md:flex-row md:items-center gap-3">
-              <div className="flex items-center gap-3">
-                {isMobile && (
-                  <Button
-                    size="sm"
-                    onClick={() => setSidebarOpen(!sidebarOpen)}
-                    className={
-                      isDark
-                        ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                        : "bg-primary text-primary-foreground hover:bg-primary/90"
-                    }
-                  >
-                    <Menu className="h-4 w-4 mr-2" />
-                    Recipes
-                  </Button>
-                )}
-              </div>
-
+  
               <div className="flex flex-wrap items-center gap-2 w-full">
                 <WeekNavigator
                   weekStart={weekDates[0] || ""}
@@ -240,12 +228,6 @@ export default function MealPlannerPage() {
                   }}
                 />
 
-                <ViewModeToggle
-                  viewMode={viewMode}
-                  onChange={setViewMode}
-                  sidebarOpen={sidebarOpen}
-                />
-
                 <PlannerActions
                   onAiPlan={handleGenerateAiPlan}
                   onAddToCart={handleAddToShoppingList}
@@ -255,30 +237,41 @@ export default function MealPlannerPage() {
             </div>
           </div>
 
-          {/* Main View */}
-          {viewMode === "by-day" ? (
+          <div className="mb-6">
             <ByDayView
               weekDates={weekDates}
               weekdays={weekdays}
               mealTypes={mealTypes}
               getMealForSlot={getMealForSlot}
-              showSidebarOverlay={showSidebarOverlay}
               onRemove={mealPlanner.removeFromMealPlan}
               onAdd={openRecipeSelector}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
+              getDraggableProps={dnd.getDraggableProps}
+              getDroppableProps={dnd.getDroppableProps}
+              activeDragData={dnd.activeDragData}
+              activeDropTarget={dnd.activeDropTarget}
             />
-          ) : (
-            <ByMealView
-              weekDates={weekDates}
-              weekdaysFull={weekdaysFull}
-              mealTypes={mealTypes}
-              getMealForSlot={getMealForSlot}
-              onRemove={mealPlanner.removeFromMealPlan}
-              onAdd={openRecipeSelector}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            />
+          </div>
+
+          {showRecipeSidebar && (
+            <div className="mb-6 max-w-full overflow-hidden">
+              <div className="overflow-x-auto scrollbar-hide">
+                <RecipeSearchPanel
+                  mealType={null}
+                  mealTypes={mealTypes}
+                  favoriteRecipes={recipes.favoriteRecipes}
+                  suggestedRecipes={recipes.suggestedRecipes}
+                  onSelect={(recipe) => {
+                    handleRecipeSelection(recipe)
+                    setShowRecipeSidebar(false)
+                  }}
+                  onMealTypeChange={() => {}}
+                  getDraggableProps={dnd.getDraggableProps}
+                  activeDragData={dnd.activeDragData}
+                  isCollapsed={false}
+                  onToggleCollapse={() => setShowRecipeSidebar(false)}
+                />
+              </div>
+            </div>
           )}
 
           {/* Nutrition Summary */}
@@ -293,58 +286,43 @@ export default function MealPlannerPage() {
         </div>
       </div>
 
-      {/* Sidebar */}
-      <RecipeSidebar
-        open={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        favoriteRecipes={recipes.favoriteRecipes}
-        suggestedRecipes={recipes.suggestedRecipes}
-        onDragStart={handleDragStart}
-        onRecipeClick={(recipe) => {
-          if (isMobile) {
-            mealPlanner.addToMealPlan(recipe, "breakfast", weekDates[0])
-          }
-        }}
-        isMobile={isMobile}
-      />
+        {/* Modal for Recipe Selection - Mobile Only */}
+        {isMobile && (
+          <RecipeSelectionModal
+            open={focusMode !== null}
+            onClose={closeFocusMode}
+            mealType={focusMode?.mealType || null}
+            date={focusMode?.date || null}
+            favoriteRecipes={recipes.favoriteRecipes}
+            suggestedRecipes={recipes.suggestedRecipes}
+            mealTypes={mealTypes}
+            weekdays={weekdays}
+            getMealForSlot={getMealForSlot}
+            onSelect={handleRecipeSelection}
+            getDraggableProps={dnd.getDraggableProps}
+          />
+        )}
 
-      {/* Mobile floating toggle */}
-      {isMobile && !sidebarOpen && (
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className={`fixed right-3 top-1/2 -translate-y-1/2 z-40 rounded-full p-3 shadow-lg ${
-            isDark
-              ? "bg-accent text-accent-foreground hover:bg-accent/90"
-              : "bg-primary text-primary-foreground hover:bg-primary/90"
-          } border border-border`}
-          aria-label="Show recipes sidebar"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-      )}
+        <AiPlannerModal
+          open={aiPlanner.showAiPlanDialog}
+          onClose={() => aiPlanner.setShowAiPlanDialog(false)}
+          loading={aiPlanner.aiPlannerLoading}
+          progress={aiPlanner.aiPlannerProgress}
+          result={aiPlanner.aiPlanResult}
+          recipesById={mealPlanner.recipesById}
+          weekdaysFull={weekdaysFull}
+          onApply={handleApplyAiPlan}
+        />
+      </div>
 
-      {/* Modals */}
-      <RecipeSelectionModal
-        open={recipeSelectionModal.open}
-        onClose={closeRecipeSelector}
-        mealType={recipeSelectionModal.mealType}
-        date={recipeSelectionModal.date}
-        favoriteRecipes={recipes.favoriteRecipes}
-        suggestedRecipes={recipes.suggestedRecipes}
-        mealTypes={mealTypes}
-        onSelect={handleRecipeSelection}
-      />
-
-      <AiPlannerModal
-        open={aiPlanner.showAiPlanDialog}
-        onClose={() => aiPlanner.setShowAiPlanDialog(false)}
-        loading={aiPlanner.aiPlannerLoading}
-        progress={aiPlanner.aiPlannerProgress}
-        result={aiPlanner.aiPlanResult}
-        recipesById={mealPlanner.recipesById}
-        weekdaysFull={weekdaysFull}
-        onApply={handleApplyAiPlan}
-      />
-    </div>
+      {/* Drag Overlay */}
+      <DragOverlay>
+        {dnd.activeDragData ? (
+          <DragPreviewCard
+            recipe={dnd.activeDragData.recipe}
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   )
 }

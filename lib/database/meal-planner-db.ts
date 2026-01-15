@@ -168,33 +168,54 @@ export function useMealPlannerDB() {
   )
 
   /**
-   * Fetch user's favorite recipes
+   * Fetch user's favorite recipes using batch query with relationship join
    */
   const fetchFavoriteRecipes = useCallback(async (userId: string): Promise<Recipe[]> => {
     console.log("[Meal Planner DB] Fetching favorite recipes for user:", userId)
 
-    const { data: favoritesData, error: favoritesError } = await supabase
+    // Single batch query using relationship join - more efficient than two separate queries
+    const { data, error } = await supabase
       .from("recipe_favorites")
-      .select("recipe_id")
+      .select(`
+        recipes (
+          id,
+          title,
+          description,
+          image_url,
+          prep_time,
+          cook_time,
+          servings,
+          difficulty,
+          rating_avg,
+          rating_count,
+          tags,
+          dietary_tags,
+          nutrition,
+          ingredients,
+          instructions,
+          created_at,
+          updated_at
+        )
+      `)
       .eq("user_id", userId)
 
-    if (favoritesError) {
+    if (error) {
       // Table might not exist in test environment
-      if (favoritesError.code === "PGRST116" || favoritesError.message?.includes("relation")) {
+      if (error.code === "PGRST116" || error.message?.includes("relation")) {
         console.log("[Meal Planner DB] Favorites table not available")
         return []
       }
-      console.error("[Meal Planner DB] Error fetching favorites:", favoritesError)
+      console.error("[Meal Planner DB] Error fetching favorites:", error)
       return []
     }
 
-    if (!favoritesData || favoritesData.length === 0) {
+    if (!data || data.length === 0) {
       return []
     }
 
-    const recipeIds = favoritesData.map((fav) => fav.recipe_id)
-    return fetchRecipesByIds(recipeIds)
-  }, [fetchRecipesByIds])
+    // Extract recipes from the joined result
+    return data.map((item: any) => item.recipes).filter(Boolean)
+  }, [])
 
   /**
    * Fetch suggested recipes

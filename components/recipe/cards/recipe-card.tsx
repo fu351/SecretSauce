@@ -13,6 +13,14 @@ import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useRecipeDB } from "@/lib/database/recipe-db"
 import { Recipe, RecipeTags } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
+import { useDraggable } from "@dnd-kit/core"
+
+interface DragData {
+  recipe: Recipe
+  source: 'modal' | 'slot'
+  sourceMealType?: string
+  sourceDate?: string
+}
 
 interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
   id: string
@@ -26,6 +34,8 @@ interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
   skipFavoriteCheck?: boolean
   onFavoriteChange?: (id: string, isFavorited: boolean) => void
   showFavorite?: boolean
+  isDragging?: boolean
+  getDraggableProps?: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
 }
 
 function RecipeCardComponent({
@@ -41,12 +51,23 @@ function RecipeCardComponent({
   skipFavoriteCheck,
   onFavoriteChange,
   showFavorite = true,
+  isDragging = false,
+  getDraggableProps,
 }: RecipeCardProps) {
   const { updateRecipeRating } = useRecipeDB()
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
   const { toast } = useToast()
+
+  // Setup draggable if getDraggableProps is provided
+  const recipe = { id, title, image_url, rating_avg, difficulty, comments, tags, nutrition } as Recipe
+  const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: draggableProps?.draggableId || '',
+    data: draggableProps?.data,
+    disabled: !getDraggableProps,
+  })
 
   useEffect(() => {
     if (user && !skipFavoriteCheck) {
@@ -161,7 +182,11 @@ function RecipeCardComponent({
   }
 
   return (
-    <div className="relative group cursor-pointer">
+    <div
+      ref={setNodeRef}
+      className={`relative group transition-opacity ${getDraggableProps ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragging ? 'opacity-50' : ''}`}
+      {...(getDraggableProps ? { ...attributes, ...listeners } : {})}
+    >
       <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">
         <Image
           src={getRecipeImageUrl(image_url) || "/placeholder.svg"}

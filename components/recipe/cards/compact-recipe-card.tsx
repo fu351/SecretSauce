@@ -11,6 +11,14 @@ import { QuantityControl } from "@/components/shared/quantity-control"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import { Recipe } from "@/lib/types"
+import { useDraggable } from "@dnd-kit/core"
+
+interface DragData {
+  recipe: Recipe
+  source: 'modal' | 'slot'
+  sourceMealType?: string
+  sourceDate?: string
+}
 
 interface CompactRecipeCardProps {
   recipe: Recipe
@@ -19,6 +27,10 @@ interface CompactRecipeCardProps {
   mutedTextClass?: string
   cardBgClass?: string
   theme?: "light" | "dark"
+  getDraggableProps?: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
+  onClick?: (recipe: Recipe) => void
+  simplified?: boolean
+  isDragging?: boolean
 }
 
 export function CompactRecipeCard({
@@ -28,11 +40,23 @@ export function CompactRecipeCard({
   mutedTextClass = "text-gray-600",
   cardBgClass = "bg-white/80",
   theme = "light",
+  getDraggableProps,
+  onClick,
+  simplified = false,
+  isDragging = false,
 }: CompactRecipeCardProps) {
   const [servings, setServings] = useState(recipe.servings || 1)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState("")
   const [addingToCart, setAddingToCart] = useState(false)
+
+  // Setup draggable if getDraggableProps is provided
+  const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: draggableProps?.draggableId || '',
+    data: draggableProps?.data,
+    disabled: !getDraggableProps,
+  })
 
   const handleServingsChange = (value: string) => {
     setEditingValue(value)
@@ -84,9 +108,16 @@ export function CompactRecipeCard({
     }
   }
 
+  const handleCardClick = () => {
+    onClick?.(recipe)
+  }
+
   return (
     <Card
-      className={`group cursor-pointer hover:shadow-xl transition-all duration-300 backdrop-blur-sm border-0 shadow-lg overflow-hidden ${cardBgClass}`}
+      ref={setNodeRef}
+      onClick={handleCardClick}
+      className={`group w-full ${getDraggableProps ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} hover:shadow-xl transition-all duration-300 backdrop-blur-sm border-0 shadow-lg overflow-hidden ${cardBgClass} ${isDragging ? "opacity-50" : ""}`}
+      {...(getDraggableProps ? { ...attributes, ...listeners } : {})}
     >
       <CardContent className="p-0">
         <div className="flex flex-col lg:flex-row">
@@ -183,7 +214,7 @@ export function CompactRecipeCard({
               </div>
 
               {/* Tags */}
-              {recipe.tags.dietary && recipe.tags.dietary.length > 0 && (
+              {recipe.tags?.dietary && recipe.tags.dietary.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   {recipe.tags.dietary.map((tag, index) => (
                     <Badge
@@ -203,44 +234,46 @@ export function CompactRecipeCard({
             </div>
 
             {/* Action buttons */}
-            <div className="flex gap-2 items-stretch">
-              <QuantityControl
-                quantity={servings}
-                editingId={editingId}
-                itemId={recipe.id}
-                editingValue={editingValue}
-                onQuantityChange={handleServingsChange}
-                onQuantityKeyDown={handleServingsKeyDown}
-                onDecrement={handleDecrement}
-                onIncrement={handleIncrement}
-                theme={theme}
-                textClass={textClass}
-              />
-              <Button
-                onClick={handleAdd}
-                disabled={addingToCart}
-                className={`${
-                  theme === "dark"
-                    ? "bg-[#e8dcc4] hover:bg-[#d4c8b0] text-[#181813]"
-                    : "bg-orange-500 hover:bg-orange-600 text-white"
-                } flex-1`}
-              >
-                Add
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className={`${
-                  theme === "dark"
-                    ? "border border-[#e8dcc4]/20 bg-[#281f1a] hover:bg-[#2a2924] text-[#e8dcc4]"
-                    : "border border-gray-200 bg-white hover:bg-gray-50 text-gray-900"
-                }`}
-              >
-                <Link href={`/recipes/${recipe.id}`}>
-                  View Recipe
-                </Link>
-              </Button>
-            </div>
+            {!simplified && (
+              <div className="flex gap-2 items-stretch">
+                <QuantityControl
+                  quantity={servings}
+                  editingId={editingId}
+                  itemId={recipe.id}
+                  editingValue={editingValue}
+                  onQuantityChange={handleServingsChange}
+                  onQuantityKeyDown={handleServingsKeyDown}
+                  onDecrement={handleDecrement}
+                  onIncrement={handleIncrement}
+                  theme={theme}
+                  textClass={textClass}
+                />
+                <Button
+                  onClick={handleAdd}
+                  disabled={addingToCart}
+                  className={`${
+                    theme === "dark"
+                      ? "bg-[#e8dcc4] hover:bg-[#d4c8b0] text-[#181813]"
+                      : "bg-orange-500 hover:bg-orange-600 text-white"
+                  } flex-1`}
+                >
+                  Add
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className={`${
+                    theme === "dark"
+                      ? "border border-[#e8dcc4]/20 bg-[#281f1a] hover:bg-[#2a2924] text-[#e8dcc4]"
+                      : "border border-gray-200 bg-white hover:bg-gray-50 text-gray-900"
+                  }`}
+                >
+                  <Link href={`/recipes/${recipe.id}`}>
+                    View Recipe
+                  </Link>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
