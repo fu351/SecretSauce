@@ -175,10 +175,10 @@ export function RecipeSearchPanel({
         </div>
       )}
 
-      {/* Recipe Grid - 2x4 (2 rows, 4 columns) */}
+      {/* Recipe Grid - responsive columns: 2 on mobile, 3 on desktop */}
       {filteredRecipes.length > 0 ? (
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-4 gap-3 auto-rows-max">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 auto-rows-max">
             {filteredRecipes.map((recipe) => {
               const isBeingDragged = activeDragData?.source === 'modal' && activeDragData?.recipe.id === recipe.id
               return (

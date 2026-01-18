@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
@@ -11,17 +11,18 @@ import {
   useMealPlannerNutrition,
   useMealPlannerAi,
   useMealPlannerDragDrop,
+  useDatePagination,
 } from "@/hooks"
 import { DndContext, DragOverlay } from "@dnd-kit/core"
 import { SignInNotification } from "@/components/shared/signin-notification"
-import { WeekNavigator } from "@/components/meal-planner/controls/week-navigator"
 import { PlannerActions } from "@/components/meal-planner/controls/planner-actions"
 import { NutritionSummaryCard } from "@/components/meal-planner/cards/nutrition-summary-card"
 import { ByDayView } from "@/components/meal-planner/views/by-day-view"
-import { RecipeSelectionModal } from "@/components/meal-planner/modals/recipe-selection-modal"
 import { AiPlannerModal } from "@/components/meal-planner/modals/ai-planner-modal"
 import { RecipeSearchPanel } from "@/components/meal-planner/panels/recipe-search-panel"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
 
 const mealTypes = [
@@ -42,47 +43,36 @@ export default function MealPlannerPage() {
   const router = useRouter()
 
   // State
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date())
-  const [weekDates, setWeekDates] = useState<string[]>([])
   const [focusMode, setFocusMode] = useState<{
     date: string
     mealType: string
   } | null>(null)
   const [hasAutoScrolledIntoGrid, setHasAutoScrolledIntoGrid] = useState(false)
   const [showRecipeSidebar, setShowRecipeSidebar] = useState(false)
+  const scrollToTodayRef = useRef<(() => void) | null>(null)
+
+  // Date pagination hook - starts with 14 days centered around today
+  const { dates, loadMoreFuture, loadMorePast, todayIndex } = useDatePagination(14)
+
+  const handleGoToToday = useCallback(() => {
+    scrollToTodayRef.current?.()
+  }, [])
 
   // Custom hooks
-  const mealPlanner = useMealPlanner(user?.id, weekDates)
+  const mealPlanner = useMealPlanner(user?.id, dates)
   const recipes = useMealPlannerRecipes(user?.id)
-  const nutrition = useMealPlannerNutrition(mealPlanner.meals, weekDates, mealPlanner.recipesById)
-  const aiPlanner = useMealPlannerAi(user?.id, weekDates, mealPlanner.meals)
+  const nutrition = useMealPlannerNutrition(mealPlanner.meals, dates, mealPlanner.recipesById)
+  const aiPlanner = useMealPlannerAi(user?.id, dates, mealPlanner.meals)
 
   const isDark = theme === "dark"
 
-  // Week calculation
+  // Load data when user or dates change
   useEffect(() => {
-    const date = new Date(currentWeekStart)
-    const day = date.getDay()
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1)
-    const monday = new Date(date.setDate(diff))
-
-    const weekDays: string[] = []
-    for (let i = 0; i < 7; i++) {
-      const nextDay = new Date(monday)
-      nextDay.setDate(monday.getDate() + i)
-      weekDays.push(nextDay.toISOString().split("T")[0])
-    }
-
-    setWeekDates(weekDays)
-  }, [currentWeekStart])
-
-  // Load data when user or weekDates change
-  useEffect(() => {
-    if (user && weekDates.length > 0) {
+    if (user && dates.length > 0) {
       mealPlanner.loadAllData()
       recipes.loadAllRecipes()
     }
-  }, [user?.id, weekDates])
+  }, [user?.id, dates])
 
   // Auto-scroll to planner
   useEffect(() => {
@@ -204,8 +194,13 @@ export default function MealPlannerPage() {
       onDragEnd={dnd.handleDragEnd}
       onDragCancel={dnd.handleDragCancel}
     >
-      <div className="min-h-screen flex flex-col md:flex-row bg-background" data-tutorial="planner-overview">
-        <div className="flex-1 overflow-y-auto p-3 md:p-6">
+      <div className="min-h-screen flex flex-col bg-background" data-tutorial="planner-overview">
+        <div
+          className={cn(
+            "flex-1 overflow-y-auto p-3 md:p-6 transition-all duration-300",
+            showRecipeSidebar && "md:mr-[600px]"
+          )}
+        >
           <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex flex-col gap-4 mb-3">
@@ -217,23 +212,10 @@ export default function MealPlannerPage() {
             <div className="flex flex-col md:flex-row md:items-center gap-3">
   
               <div className="flex flex-wrap items-center gap-2 w-full">
-                <WeekNavigator
-                  weekStart={weekDates[0] || ""}
-                  onPrevious={() => {
-                    const newDate = new Date(currentWeekStart)
-                    newDate.setDate(newDate.getDate() - 7)
-                    setCurrentWeekStart(newDate)
-                  }}
-                  onNext={() => {
-                    const newDate = new Date(currentWeekStart)
-                    newDate.setDate(newDate.getDate() + 7)
-                    setCurrentWeekStart(newDate)
-                  }}
-                />
-
                 <PlannerActions
                   onAiPlan={handleGenerateAiPlan}
                   onAddToCart={handleAddToShoppingList}
+                  onGoToToday={handleGoToToday}
                   aiLoading={aiPlanner.aiPlannerLoading}
                 />
               </div>
@@ -242,7 +224,7 @@ export default function MealPlannerPage() {
 
           <div className="mb-6">
             <ByDayView
-              weekDates={weekDates}
+              dates={dates}
               weekdays={weekdays}
               mealTypes={mealTypes}
               getMealForSlot={getMealForSlot}
@@ -252,33 +234,15 @@ export default function MealPlannerPage() {
               getDroppableProps={dnd.getDroppableProps}
               activeDragData={dnd.activeDragData}
               activeDropTarget={dnd.activeDropTarget}
+              onLoadMore={loadMoreFuture}
+              onLoadEarlier={loadMorePast}
+              todayIndex={todayIndex}
+              onScrollToTodayReady={(fn) => { scrollToTodayRef.current = fn }}
             />
           </div>
 
-          {showRecipeSidebar && (
-            <div className="mb-6 max-w-full overflow-hidden">
-              <div className="overflow-x-auto scrollbar-hide">
-                <RecipeSearchPanel
-                  mealType={null}
-                  mealTypes={mealTypes}
-                  favoriteRecipes={recipes.favoriteRecipes}
-                  suggestedRecipes={recipes.suggestedRecipes}
-                  onSelect={(recipe) => {
-                    handleRecipeSelection(recipe)
-                    setShowRecipeSidebar(false)
-                  }}
-                  onMealTypeChange={() => {}}
-                  getDraggableProps={dnd.getDraggableProps}
-                  activeDragData={dnd.activeDragData}
-                  isCollapsed={false}
-                  onToggleCollapse={() => setShowRecipeSidebar(false)}
-                />
-              </div>
-            </div>
-          )}
-
           {/* Nutrition Summary */}
-          {weekDates.length > 0 && (
+          {dates.length > 0 && (
             <div className="mt-4 pt-2">
               <NutritionSummaryCard
                 weeklyTotals={nutrition.weeklyNutritionSummary.totals}
@@ -287,26 +251,30 @@ export default function MealPlannerPage() {
             </div>
           )}
         </div>
+
+        {/* Sidebar for Recipe Selection */}
+        <Sheet open={showRecipeSidebar} onOpenChange={setShowRecipeSidebar}>
+          <SheetContent side="right" className="w-full md:w-[600px] p-0 flex flex-col">
+            <RecipeSearchPanel
+              mealType={null}
+              mealTypes={mealTypes}
+              favoriteRecipes={recipes.favoriteRecipes}
+              suggestedRecipes={recipes.suggestedRecipes}
+              onSelect={(recipe) => {
+                handleRecipeSelection(recipe)
+                setShowRecipeSidebar(false)
+              }}
+              onMealTypeChange={() => {}}
+              getDraggableProps={dnd.getDraggableProps}
+              activeDragData={dnd.activeDragData}
+              isCollapsed={false}
+              onToggleCollapse={() => setShowRecipeSidebar(false)}
+            />
+          </SheetContent>
+        </Sheet>
       </div>
 
-        {/* Modal for Recipe Selection - Mobile Only */}
-        {isMobile && (
-          <RecipeSelectionModal
-            open={focusMode !== null}
-            onClose={closeFocusMode}
-            mealType={focusMode?.mealType || null}
-            date={focusMode?.date || null}
-            favoriteRecipes={recipes.favoriteRecipes}
-            suggestedRecipes={recipes.suggestedRecipes}
-            mealTypes={mealTypes}
-            weekdays={weekdays}
-            getMealForSlot={getMealForSlot}
-            onSelect={handleRecipeSelection}
-            getDraggableProps={dnd.getDraggableProps}
-          />
-        )}
-
-        <AiPlannerModal
+      <AiPlannerModal
           open={aiPlanner.showAiPlanDialog}
           onClose={() => aiPlanner.setShowAiPlanDialog(false)}
           loading={aiPlanner.aiPlannerLoading}

@@ -1,15 +1,15 @@
 "use client"
 
+import { useEffect } from "react"
 import { PlannerDayCard } from "../cards/planner-day-card"
 import type { Recipe } from "@/lib/types"
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  CarouselPrevious,
-  CarouselNext,
+  useCarousel,
 } from "@/components/ui/carousel"
-import { useMediaQuery } from "@/hooks/use-media-query"
+import { CarouselArrow } from "@/components/ui/carousel-arrow"
 
 interface MealType {
   key: string
@@ -24,7 +24,7 @@ interface DragData {
 }
 
 interface ByDayViewProps {
-  weekDates: string[]
+  dates: string[]
   weekdays: string[]
   mealTypes: MealType[]
   getMealForSlot: (date: string, mealType: string) => Recipe | null
@@ -34,10 +34,26 @@ interface ByDayViewProps {
   getDroppableProps: (mealType: string, date: string) => { droppableId: string; data: { mealType: string; date: string } }
   activeDragData: DragData | null
   activeDropTarget: { mealType: string; date: string } | null
+  onLoadMore: () => void
+  onLoadEarlier: () => void
+  todayIndex: number
+  onScrollToTodayReady?: (scrollFn: () => void) => void
+}
+
+function ScrollToTodayHandler({ todayIndex, onReady }: { todayIndex: number; onReady?: (scrollFn: () => void) => void }) {
+  const { scrollToIndex } = useCarousel()
+
+  useEffect(() => {
+    if (onReady) {
+      onReady(() => scrollToIndex(todayIndex))
+    }
+  }, [scrollToIndex, todayIndex, onReady])
+
+  return null
 }
 
 export function ByDayView({
-  weekDates,
+  dates,
   weekdays,
   mealTypes,
   getMealForSlot,
@@ -47,40 +63,11 @@ export function ByDayView({
   getDroppableProps,
   activeDragData,
   activeDropTarget,
+  onLoadMore,
+  onLoadEarlier,
+  todayIndex,
+  onScrollToTodayReady,
 }: ByDayViewProps) {
-  const isXL = useMediaQuery("(min-width: 1280px)")
-  const dayCardFlexStyle = { minWidth: 160, maxWidth: 240 } as React.CSSProperties
-
-  // On large screens (1280px+), show all 7 days with flex layout
-  if (isXL) {
-    return (
-      <div className="flex flex-wrap gap-3 xl:flex-nowrap">
-        {weekDates.slice(0, 7).map((date, dayIndex) => (
-          <div
-            key={date}
-            style={{ flex: "1 1 calc(14.285% - 12px)", ...dayCardFlexStyle }}
-            className="w-full"
-          >
-            <PlannerDayCard
-              date={date}
-              dayIndex={dayIndex}
-              mealTypes={mealTypes}
-              weekdays={weekdays}
-              getMealForSlot={getMealForSlot}
-              onRemove={onRemove}
-              onAdd={onAdd}
-              getDraggableProps={getDraggableProps}
-              getDroppableProps={getDroppableProps}
-              activeDragData={activeDragData}
-              activeDropTarget={activeDropTarget}
-            />
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  // On smaller screens, use carousel
   return (
     <Carousel
       opts={{
@@ -88,39 +75,51 @@ export function ByDayView({
         skipSnaps: false,
         dragFree: false,
         containScroll: "trimSnaps",
+        slidesToScroll: 1,
         watchDrag: (_emblaApi, evt) => {
-          // Prevent carousel drag on recipe/meal slots
+          // Prevent carousel drag when interacting with recipes/meals
           const target = evt.target as HTMLElement
-          return !target.closest("[data-draggable]")
+          return !target.closest("[data-draggable]") && !target.closest("[data-droppable]")
         },
       }}
       className="w-full"
+      onReachEnd={onLoadMore}
+      onReachStart={onLoadEarlier}
+      renderLayout={(content) => (
+        <>
+          <ScrollToTodayHandler todayIndex={todayIndex} onReady={onScrollToTodayReady} />
+          <div className="flex items-stretch gap-2">
+            <CarouselArrow direction="prev" />
+            {content}
+            <CarouselArrow direction="next" />
+          </div>
+        </>
+      )}
     >
       <CarouselContent className="gap-3">
-        {weekDates.slice(0, 7).map((date, dayIndex) => (
-          <CarouselItem
-            key={date}
-            className="basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5"
-            style={dayCardFlexStyle}
-          >
-            <PlannerDayCard
-              date={date}
-              dayIndex={dayIndex}
-              mealTypes={mealTypes}
-              weekdays={weekdays}
-              getMealForSlot={getMealForSlot}
-              onRemove={onRemove}
-              onAdd={onAdd}
-              getDraggableProps={getDraggableProps}
-              getDroppableProps={getDroppableProps}
-              activeDragData={activeDragData}
-              activeDropTarget={activeDropTarget}
-            />
-          </CarouselItem>
-        ))}
+        {dates.map((date) => {
+          const dayOfWeek = new Date(date).getDay()
+          // Convert Sunday (0) to index 6, Monday (1) to index 0, etc.
+          const weekdayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+          return (
+            <CarouselItem key={date} itemsPerView={7}>
+              <PlannerDayCard
+                date={date}
+                dayIndex={weekdayIndex}
+                mealTypes={mealTypes}
+                weekdays={weekdays}
+                getMealForSlot={getMealForSlot}
+                onRemove={onRemove}
+                onAdd={onAdd}
+                getDraggableProps={getDraggableProps}
+                getDroppableProps={getDroppableProps}
+                activeDragData={activeDragData}
+                activeDropTarget={activeDropTarget}
+              />
+            </CarouselItem>
+          )
+        })}
       </CarouselContent>
-      <CarouselPrevious />
-      <CarouselNext />
     </Carousel>
   )
 }

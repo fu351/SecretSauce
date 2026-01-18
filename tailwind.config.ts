@@ -12,6 +12,12 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		spacing: {
+  			'arrow': '48px'
+  		},
+  		flexBasis: {
+  			'1/7': '14.2857143%'
+  		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',

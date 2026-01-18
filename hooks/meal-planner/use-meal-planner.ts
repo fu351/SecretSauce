@@ -4,60 +4,93 @@ import { useState, useCallback, useRef } from "react"
 import { useMealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
 
-export function useMealPlanner(userId: string | undefined, weekDates: string[]) {
+export function useMealPlanner(userId: string | undefined, dates: string[]) {
   const db = useMealPlannerDB()
   const [meals, setMeals] = useState<MealScheduleRow[]>([])
   const [recipesById, setRecipesById] = useState<Record<string, Recipe>>({})
   const [loading, setLoading] = useState(false)
-  const lastRequestRef = useRef<{ userId: string; startDate: string; endDate: string } | null>(null)
+  const loadedRangeRef = useRef<{ start: string; end: string } | null>(null)
   const loadingRef = useRef(false)
 
   const loadMealPlan = useCallback(async () => {
-    if (!userId || weekDates.length === 0) return
+    if (!userId || dates.length === 0) return
 
-    const startDate = weekDates[0]
-    const endDate = weekDates[weekDates.length - 1]
+    const newStart = dates[0]
+    const newEnd = dates[dates.length - 1]
+    const loadedRange = loadedRangeRef.current
 
     // Skip if already loading
     if (loadingRef.current) return
+
+    // Determine what ranges need to be fetched
+    let rangesToFetch: { start: string; end: string }[] = []
+
+    if (!loadedRange) {
+      // First load - fetch entire range
+      rangesToFetch = [{ start: newStart, end: newEnd }]
+    } else {
+      // Incremental load - only fetch new ranges
+      if (newStart < loadedRange.start) {
+        // Need to fetch earlier dates
+        const dayBefore = new Date(loadedRange.start)
+        dayBefore.setDate(dayBefore.getDate() - 1)
+        rangesToFetch.push({ start: newStart, end: dayBefore.toISOString().split("T")[0] })
+      }
+      if (newEnd > loadedRange.end) {
+        // Need to fetch later dates
+        const dayAfter = new Date(loadedRange.end)
+        dayAfter.setDate(dayAfter.getDate() + 1)
+        rangesToFetch.push({ start: dayAfter.toISOString().split("T")[0], end: newEnd })
+      }
+    }
+
+    if (rangesToFetch.length === 0) return
 
     loadingRef.current = true
     setLoading(true)
 
     try {
-      lastRequestRef.current = { userId, startDate, endDate }
-      const mealSchedule = await db.fetchMealScheduleByDateRange(userId, startDate, endDate)
-
-      if (!mealSchedule || mealSchedule.length === 0) {
-        setMeals([])
-        setRecipesById({})
-        return
+      // Fetch all new ranges
+      const newMeals: MealScheduleRow[] = []
+      for (const range of rangesToFetch) {
+        const mealSchedule = await db.fetchMealScheduleByDateRange(userId, range.start, range.end)
+        if (mealSchedule) {
+          newMeals.push(...mealSchedule)
+        }
       }
 
-      setMeals(mealSchedule)
-
-      const recipeIds = Array.from(new Set(mealSchedule.map((m) => m.recipe_id)))
-
-      if (recipeIds.length === 0) {
-        setRecipesById({})
-        return
+      // Update loaded range
+      loadedRangeRef.current = {
+        start: loadedRange ? (newStart < loadedRange.start ? newStart : loadedRange.start) : newStart,
+        end: loadedRange ? (newEnd > loadedRange.end ? newEnd : loadedRange.end) : newEnd,
       }
 
-      const recipes = await db.fetchRecipesByIds(recipeIds)
-      const recipesMap: Record<string, Recipe> = {}
-      recipes.forEach((r) => {
-        recipesMap[r.id] = r
+      // Merge new meals with existing
+      setMeals((prev) => {
+        const existingIds = new Set(prev.map((m) => m.id))
+        const uniqueNewMeals = newMeals.filter((m) => !existingIds.has(m.id))
+        return [...prev, ...uniqueNewMeals]
       })
-      setRecipesById(recipesMap)
+
+      // Fetch recipes for new meals
+      const newRecipeIds = Array.from(new Set(newMeals.map((m) => m.recipe_id)))
+      if (newRecipeIds.length > 0) {
+        const recipes = await db.fetchRecipesByIds(newRecipeIds)
+        setRecipesById((prev) => {
+          const updated = { ...prev }
+          recipes.forEach((r) => {
+            updated[r.id] = r
+          })
+          return updated
+        })
+      }
     } catch (error) {
       console.error("[Meal Planner Hook] Error loading meal plan:", error)
-      setMeals([])
-      setRecipesById({})
     } finally {
       loadingRef.current = false
       setLoading(false)
     }
-  }, [userId, weekDates])
+  }, [userId, dates])
 
   const addToMealPlan = useCallback(
     async (recipe: Recipe, mealType: string, date: string) => {
