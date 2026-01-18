@@ -10,8 +10,8 @@ import {
   PointerSensor,
   KeyboardSensor,
 } from '@dnd-kit/core'
-
-type Recipe = any
+import { useToast } from '@/hooks'
+import type { Recipe } from '@/lib/types'
 
 interface UseMealPlannerDragDropParams {
   mealPlanner: any // ReturnType<typeof useMealPlanner>
@@ -67,6 +67,7 @@ export function useMealPlannerDragDrop({
     mealType: string
     date: string
   } | null>(null)
+  const { toast } = useToast()
 
   // Configure sensors for drag detection
   const sensors = useSensors(
@@ -145,13 +146,54 @@ export function useMealPlannerDragDrop({
             return
           }
 
-          // Remove from source, then add to target
-          await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!)
-          await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
+          // Move operation: remove from source, then add to target
+          // With rollback if add fails
+          try {
+            await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!)
+          } catch (removeError) {
+            console.error('Failed to remove meal from source:', removeError)
+            toast({
+              title: 'Error',
+              description: 'Failed to move meal. Could not remove from source.',
+              variant: 'destructive',
+            })
+            throw removeError
+          }
+
+          try {
+            await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
+          } catch (addError) {
+            // Rollback: restore the meal to the source
+            console.error('Failed to add meal to target, rolling back:', addError)
+            try {
+              await mealPlanner.addToMealPlan(recipe, sourceMealType!, sourceDate!)
+            } catch (rollbackError) {
+              console.error('Rollback failed - data may be inconsistent:', rollbackError)
+              toast({
+                title: 'Critical Error',
+                description: 'Failed to move meal and rollback failed. Please refresh the page.',
+                variant: 'destructive',
+              })
+              throw rollbackError
+            }
+
+            toast({
+              title: 'Error',
+              description: 'Failed to move meal to target. Meal restored to original slot.',
+              variant: 'destructive',
+            })
+            throw addError
+          }
         }
       } catch (error) {
         console.error('Failed to handle drop:', error)
-        // TODO: Show error toast to user
+        if (!(error instanceof Error) || !error.message.includes('already'))  {
+          toast({
+            title: 'Error',
+            description: 'Failed to move meal. Please try again.',
+            variant: 'destructive',
+          })
+        }
       } finally {
         setActiveDragData(null)
       }

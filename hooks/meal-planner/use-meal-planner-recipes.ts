@@ -27,7 +27,7 @@ export function useMealPlannerRecipes(userId: string | undefined) {
       loadingRef.current.favorites = false
       setLoading(false)
     }
-  }, [userId, db])
+  }, [userId])
 
   const loadSuggestedRecipes = useCallback(async () => {
     if (loadingRef.current.suggested) return
@@ -44,7 +44,7 @@ export function useMealPlannerRecipes(userId: string | undefined) {
       loadingRef.current.suggested = false
       setLoading(false)
     }
-  }, [db])
+  }, [])
 
   const loadAllRecipes = useCallback(async () => {
     await Promise.all([loadFavoriteRecipes(), loadSuggestedRecipes()])

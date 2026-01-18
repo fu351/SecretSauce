@@ -18,13 +18,8 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
     const startDate = weekDates[0]
     const endDate = weekDates[weekDates.length - 1]
 
-    // Skip if already loading or if request is identical to last one
+    // Skip if already loading
     if (loadingRef.current) return
-
-    const lastRequest = lastRequestRef.current
-    if (lastRequest && lastRequest.userId === userId && lastRequest.startDate === startDate && lastRequest.endDate === endDate) {
-      return
-    }
 
     loadingRef.current = true
     setLoading(true)
@@ -62,26 +57,26 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
       loadingRef.current = false
       setLoading(false)
     }
-  }, [userId, weekDates, db])
+  }, [userId, weekDates])
 
   const addToMealPlan = useCallback(
     async (recipe: Recipe, mealType: string, date: string) => {
       if (!userId) return
 
       try {
-        await db.addMealToSchedule(userId, recipe.id, date, mealType as "breakfast" | "lunch" | "dinner")
+        const result = await db.addMealToSchedule(userId, recipe.id, date, mealType as "breakfast" | "lunch" | "dinner")
 
-        // Update local state
-        setRecipesById((prev) => ({ ...prev, [recipe.id]: recipe }))
-
-        // Reload to ensure sync
-        await loadMealPlan()
+        if (result) {
+          // Update local state optimistically
+          setRecipesById((prev) => ({ ...prev, [recipe.id]: recipe }))
+          setMeals((prev) => [...prev, result])
+        }
       } catch (error) {
         console.error("[Meal Planner Hook] Error adding meal:", error)
         throw error
       }
     },
-    [userId, db, loadMealPlan]
+    [userId]
   )
 
   const removeFromMealPlan = useCallback(
@@ -89,16 +84,18 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
       if (!userId) return
 
       try {
-        await db.removeMealSlot(userId, date, mealType as "breakfast" | "lunch" | "dinner")
+        const success = await db.removeMealSlot(userId, date, mealType as "breakfast" | "lunch" | "dinner")
 
-        // Reload to ensure sync
-        await loadMealPlan()
+        if (success) {
+          // Update local state optimistically
+          setMeals((prev) => prev.filter((m) => !(m.date === date && m.meal_type === mealType)))
+        }
       } catch (error) {
         console.error("[Meal Planner Hook] Error removing meal:", error)
         throw error
       }
     },
-    [userId, db, loadMealPlan]
+    [userId]
   )
 
   const loadAllData = useCallback(async () => {

@@ -5,7 +5,7 @@ import { ChevronDown, Calendar, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { RecipeSearchPanel } from "../panels/recipe-search-panel"
 import { useIsMobile } from "@/hooks"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { Recipe } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -70,9 +70,11 @@ export function RecipeSelectionModal({
   const [displayDate, setDisplayDate] = useState<string | null>(null)
 
   // Update display date when the modal opens with a new date
-  if (open && date && displayDate !== date) {
-    setDisplayDate(date)
-  }
+  useEffect(() => {
+    if (open && date && displayDate !== date) {
+      setDisplayDate(date)
+    }
+  }, [open, date, displayDate])
 
   const handlePreviousDay = () => {
     if (displayDate) {

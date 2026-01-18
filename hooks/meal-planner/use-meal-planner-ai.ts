@@ -100,7 +100,7 @@ export function useMealPlannerAi(userId: string | undefined, weekDates: string[]
     } finally {
       setAiPlannerLoading(false)
     }
-  }, [userId, toast, db])
+  }, [userId, toast, db, weekDates, meals])
 
   const applyAiPlanToMealPlanner = useCallback(
     async () => {

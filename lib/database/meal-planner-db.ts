@@ -162,6 +162,12 @@ export function useMealPlannerDB() {
         return null
       }
 
+      // Invalidate meal schedule cache after updating
+      if (data) {
+        const cache = getMealPlannerCache()
+        cache.invalidateMealScheduleCache(data.user_id)
+      }
+
       return data
     },
     []
@@ -174,11 +180,24 @@ export function useMealPlannerDB() {
     async (mealId: string): Promise<boolean> => {
       console.log("[Meal Planner DB] Removing meal from schedule:", { mealId })
 
+      // Fetch the meal first to get userId for cache invalidation
+      const { data: mealData } = await supabase
+        .from("meal_schedule")
+        .select("user_id")
+        .eq("id", mealId)
+        .single()
+
       const { error } = await supabase.from("meal_schedule").delete().eq("id", mealId)
 
       if (error) {
         console.error("[Meal Planner DB] Error removing meal from schedule:", error)
         return false
+      }
+
+      // Invalidate meal schedule cache after removing
+      if (mealData) {
+        const cache = getMealPlannerCache()
+        cache.invalidateMealScheduleCache(mealData.user_id)
       }
 
       return true

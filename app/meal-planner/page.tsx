@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
@@ -21,10 +21,8 @@ import { ByDayView } from "@/components/meal-planner/views/by-day-view"
 import { RecipeSelectionModal } from "@/components/meal-planner/modals/recipe-selection-modal"
 import { AiPlannerModal } from "@/components/meal-planner/modals/ai-planner-modal"
 import { RecipeSearchPanel } from "@/components/meal-planner/panels/recipe-search-panel"
-import { CompactRecipeCard } from "@/components/recipe/cards/compact-recipe-card"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
-
-type Recipe = any
+import type { Recipe } from "@/lib/types"
 
 const mealTypes = [
   { key: "breakfast", label: "BREAKFAST" },
@@ -84,7 +82,7 @@ export default function MealPlannerPage() {
       mealPlanner.loadAllData()
       recipes.loadAllRecipes()
     }
-  }, [user, weekDates, mealPlanner, recipes])
+  }, [user?.id, weekDates])
 
   // Auto-scroll to planner
   useEffect(() => {
@@ -111,39 +109,45 @@ export default function MealPlannerPage() {
   const dnd = useMealPlannerDragDrop({ mealPlanner })
 
   // Focus mode handlers
-  const openRecipeSelector = (mealType: string, date: string) => {
+  const openRecipeSelector = useCallback((mealType: string, date: string) => {
     setFocusMode({ mealType, date })
-  }
+  }, [])
 
-  const closeFocusMode = () => {
+  const closeFocusMode = useCallback(() => {
     setFocusMode(null)
-  }
+  }, [])
 
-  const handleRecipeSelection = async (recipe: Recipe) => {
-    if (focusMode) {
-      await mealPlanner.addToMealPlan(recipe, focusMode.mealType, focusMode.date)
-      // Keep focus mode open for adding more recipes
-    }
-  }
+  const handleRecipeSelection = useCallback(
+    async (recipe: Recipe) => {
+      if (focusMode) {
+        await mealPlanner.addToMealPlan(recipe, focusMode.mealType, focusMode.date)
+        // Keep focus mode open for adding more recipes
+      }
+    },
+    [focusMode, mealPlanner.addToMealPlan]
+  )
 
-  const handleFocusModeDateChange = (newDate: string) => {
+  const handleFocusModeDateChange = useCallback((newDate: string) => {
     if (focusMode) {
       setFocusMode({ ...focusMode, date: newDate })
     }
-  }
+  }, [focusMode])
 
-  const handleFocusModeSlotChange = (newMealType: string) => {
+  const handleFocusModeSlotChange = useCallback((newMealType: string) => {
     if (focusMode) {
       setFocusMode({ ...focusMode, mealType: newMealType })
     }
-  }
+  }, [focusMode])
 
-  const getMealForSlot = (date: string, mealType: string) => {
-    const meal = mealPlanner.meals.find((m) => m.date === date && m.meal_type === mealType)
-    return meal ? mealPlanner.recipesById[meal.recipe_id] : null
-  }
+  const getMealForSlot = useCallback(
+    (date: string, mealType: string) => {
+      const meal = mealPlanner.meals.find((m) => m.date === date && m.meal_type === mealType)
+      return meal ? mealPlanner.recipesById[meal.recipe_id] : null
+    },
+    [mealPlanner.meals, mealPlanner.recipesById]
+  )
 
-  const handleAddToShoppingList = async () => {
+  const handleAddToShoppingList = useCallback(async () => {
     if (!user || mealPlanner.meals.length === 0) return
 
     try {
@@ -171,18 +175,18 @@ export default function MealPlannerPage() {
         variant: "destructive",
       })
     }
-  }
+  }, [user, mealPlanner.meals, shoppingList, toast, router])
 
-  const handleGenerateAiPlan = async () => {
+  const handleGenerateAiPlan = useCallback(async () => {
     await aiPlanner.generateAiWeeklyPlan(mealPlanner.recipesById)
-  }
+  }, [aiPlanner.generateAiWeeklyPlan, mealPlanner.recipesById])
 
-  const handleApplyAiPlan = async () => {
+  const handleApplyAiPlan = useCallback(async () => {
     const success = await aiPlanner.applyAiPlanToMealPlanner()
     if (success) {
       await mealPlanner.loadAllData()
     }
-  }
+  }, [aiPlanner.applyAiPlanToMealPlanner, mealPlanner.loadAllData])
 
   if (!user) {
     return (
