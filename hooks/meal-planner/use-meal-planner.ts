@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useMealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
 
@@ -9,14 +9,28 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
   const [meals, setMeals] = useState<MealScheduleRow[]>([])
   const [recipesById, setRecipesById] = useState<Record<string, Recipe>>({})
   const [loading, setLoading] = useState(false)
+  const lastRequestRef = useRef<{ userId: string; startDate: string; endDate: string } | null>(null)
+  const loadingRef = useRef(false)
 
   const loadMealPlan = useCallback(async () => {
     if (!userId || weekDates.length === 0) return
 
+    const startDate = weekDates[0]
+    const endDate = weekDates[weekDates.length - 1]
+
+    // Skip if already loading or if request is identical to last one
+    if (loadingRef.current) return
+
+    const lastRequest = lastRequestRef.current
+    if (lastRequest && lastRequest.userId === userId && lastRequest.startDate === startDate && lastRequest.endDate === endDate) {
+      return
+    }
+
+    loadingRef.current = true
     setLoading(true)
+
     try {
-      const startDate = weekDates[0]
-      const endDate = weekDates[weekDates.length - 1]
+      lastRequestRef.current = { userId, startDate, endDate }
       const mealSchedule = await db.fetchMealScheduleByDateRange(userId, startDate, endDate)
 
       if (!mealSchedule || mealSchedule.length === 0) {
@@ -45,6 +59,7 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
       setMeals([])
       setRecipesById({})
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
   }, [userId, weekDates, db])

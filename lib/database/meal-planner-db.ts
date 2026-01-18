@@ -4,6 +4,7 @@ import { useCallback } from "react"
 import { supabase } from "@/lib/supabase"
 import type { Database } from "@/lib/supabase"
 import { Recipe } from "@/lib/types"
+import { getMealPlannerCache } from "./meal-planner-cache"
 
 export type MealScheduleRow = Database["public"]["Tables"]["meal_schedule"]["Row"]
 export type MealScheduleInsert = Database["public"]["Tables"]["meal_schedule"]["Insert"]
@@ -25,6 +26,13 @@ export function useMealPlannerDB() {
    */
   const fetchMealScheduleByDateRange = useCallback(
     async (userId: string, startDate: string, endDate: string): Promise<MealScheduleRow[]> => {
+      const cache = getMealPlannerCache()
+      const cached = cache.getMealScheduleCache(userId, startDate, endDate)
+
+      if (cached) {
+        return cached
+      }
+
       console.log("[Meal Planner DB] Fetching meal schedule:", { userId, startDate, endDate })
 
       const { data, error } = await supabase
@@ -40,7 +48,9 @@ export function useMealPlannerDB() {
         return []
       }
 
-      return data || []
+      const result = data || []
+      cache.setMealScheduleCache(userId, startDate, endDate, result)
+      return result
     },
     []
   )
@@ -77,6 +87,13 @@ export function useMealPlannerDB() {
       return []
     }
 
+    const cache = getMealPlannerCache()
+    const cached = cache.getRecipesCache(recipeIds)
+
+    if (cached) {
+      return cached
+    }
+
     console.log("[Meal Planner DB] Fetching recipes:", { count: recipeIds.length })
 
     const { data, error } = await supabase.from("recipes").select("*").in("id", recipeIds)
@@ -86,7 +103,9 @@ export function useMealPlannerDB() {
       return []
     }
 
-    return data || []
+    const result = data || []
+    cache.setRecipesCache(recipeIds, result)
+    return result
   }, [])
 
   /**
@@ -111,6 +130,10 @@ export function useMealPlannerDB() {
         console.error("[Meal Planner DB] Error adding meal to schedule:", error)
         return null
       }
+
+      // Invalidate meal schedule cache after adding
+      const cache = getMealPlannerCache()
+      cache.invalidateMealScheduleCache(userId)
 
       return data
     },
@@ -182,6 +205,10 @@ export function useMealPlannerDB() {
         return false
       }
 
+      // Invalidate meal schedule cache after removing
+      const cache = getMealPlannerCache()
+      cache.invalidateMealScheduleCache(userId)
+
       return true
     },
     []
@@ -191,6 +218,13 @@ export function useMealPlannerDB() {
    * Fetch user's favorite recipes using batch query with relationship join
    */
   const fetchFavoriteRecipes = useCallback(async (userId: string): Promise<Recipe[]> => {
+    const cache = getMealPlannerCache()
+    const cached = cache.getFavoriteRecipesCache(userId)
+
+    if (cached) {
+      return cached
+    }
+
     console.log("[Meal Planner DB] Fetching favorite recipes for user:", userId)
 
     // Single batch query using relationship join - more efficient than two separate queries
@@ -234,13 +268,22 @@ export function useMealPlannerDB() {
     }
 
     // Extract recipes from the joined result
-    return data.map((item: any) => item.recipes).filter(Boolean)
+    const result = data.map((item: any) => item.recipes).filter(Boolean)
+    cache.setFavoriteRecipesCache(userId, result)
+    return result
   }, [])
 
   /**
    * Fetch suggested recipes
    */
   const fetchSuggestedRecipes = useCallback(async (limit: number = 20): Promise<Recipe[]> => {
+    const cache = getMealPlannerCache()
+    const cached = cache.getSuggestedRecipesCache()
+
+    if (cached) {
+      return cached
+    }
+
     console.log("[Meal Planner DB] Fetching suggested recipes:", { limit })
 
     const { data, error } = await supabase
@@ -254,7 +297,9 @@ export function useMealPlannerDB() {
       return []
     }
 
-    return data || []
+    const result = data || []
+    cache.setSuggestedRecipesCache(result)
+    return result
   }, [])
 
   return {
