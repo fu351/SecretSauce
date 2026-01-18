@@ -17,17 +17,6 @@ export function useRecipeDB() {
     // Extract content JSONB
     const content = dbItem.content || {}
 
-    // Convert allergens text array to AllergenTags object
-    const allergensArray: string[] = dbItem.allergens || []
-    const allergenTags = allergensArray.length > 0 ? {
-      contains_dairy: allergensArray.includes('dairy'),
-      contains_gluten: allergensArray.includes('gluten'),
-      contains_nuts: allergensArray.includes('nuts'),
-      contains_shellfish: allergensArray.includes('shellfish'),
-      contains_egg: allergensArray.includes('egg'),
-      contains_soy: allergensArray.includes('soy')
-    } : undefined
-
     return {
       id: dbItem.id,
       title: dbItem.title,
@@ -37,7 +26,6 @@ export function useRecipeDB() {
       cook_time: dbItem.cook_time || 0,
       servings: dbItem.servings,
       difficulty: dbItem.difficulty,
-      cuisine_id: undefined, // Removed - no longer exists in DB
       cuisine_name: dbItem.cuisine || undefined, // Map enum directly to string
       ingredients: dbItem.ingredients || [],
       instructions: parseInstructionsFromDB(content.instructions),
@@ -49,7 +37,6 @@ export function useRecipeDB() {
       // UNIFIED TAG SYSTEM - Map from separate DB columns
       tags: {
         dietary: dbItem.dietary || [],
-        allergens: allergenTags,
         protein: dbItem.protein || undefined,
         meal_type: dbItem.meal_type || undefined,
         cuisine_guess: undefined // Removed - replaced by is_cuisine_ai_generated flag
@@ -69,7 +56,6 @@ export function useRecipeDB() {
     cuisine?: string
     authorId?: string
     tags?: string[]
-    allergens?: string[]
     protein?: string
     mealType?: string
     limit?: number
@@ -81,7 +67,6 @@ export function useRecipeDB() {
       cuisine,
       authorId,
       tags,
-      allergens,
       protein,
       mealType,
       limit = 50,
@@ -109,11 +94,6 @@ export function useRecipeDB() {
     // Apply dietary tag filter (uses GIN index on dietary_tag_enum[] array)
     if (tags && tags.length > 0) {
       query = query.contains("dietary", tags)
-    }
-
-    // Apply allergen filter (uses GIN index on allergens text[] array)
-    if (allergens && allergens.length > 0) {
-      query = query.contains("allergens", allergens)
     }
 
     // Apply protein filter (uses B-tree index on enum)
@@ -264,15 +244,8 @@ export function useRecipeDB() {
         instructions: recipe.instructions || []
       },
 
-      // Map tags to separate DB columns
+      // Map tags to separate DB columns (allergens are now part of dietary tags)
       dietary: recipe.tags?.dietary || [],
-
-      // Convert allergens object to array
-      allergens: recipe.tags?.allergens
-        ? Object.entries(recipe.tags.allergens)
-          .filter(([_, value]) => value === true)
-          .map(([key, _]) => key.replace('contains_', ''))
-        : [],
 
       // Map enum fields
       protein: recipe.tags?.protein || null,
@@ -349,18 +322,10 @@ export function useRecipeDB() {
       }
     }
 
-    // Map tags if provided
+    // Map tags if provided (allergens are now part of dietary tags)
     if (updates.tags) {
       if (updates.tags.dietary !== undefined) {
         dbUpdates.dietary = updates.tags.dietary
-      }
-
-      if (updates.tags.allergens !== undefined) {
-        dbUpdates.allergens = updates.tags.allergens
-          ? Object.entries(updates.tags.allergens)
-            .filter(([_, value]) => value === true)
-            .map(([key, _]) => key.replace('contains_', ''))
-          : []
       }
 
       if (updates.tags.protein !== undefined) {

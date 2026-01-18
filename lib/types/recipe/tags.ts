@@ -1,19 +1,4 @@
 /**
- * Allergen Tags Type
- *
- * Indicates what allergens are present in the recipe.
- * These are typically auto-generated from ingredient analysis.
- */
-export interface AllergenTags {
-  contains_dairy: boolean
-  contains_gluten: boolean
-  contains_nuts: boolean
-  contains_shellfish: boolean
-  contains_egg: boolean
-  contains_soy: boolean
-}
-
-/**
  * Unified Recipe Tags Type
  *
  * Consolidates all recipe categorization into a single JSONB structure.
@@ -31,10 +16,9 @@ export interface AllergenTags {
  */
 export interface RecipeTags {
   dietary: DietaryTag[] // User-editable dietary restrictions
-  allergens?: AllergenTags // Auto-generated: what recipe contains
   protein?: ProteinTag // Auto-generated: main protein type
   meal_type?: MealTypeTag // Auto-generated: meal classification
-  cuisine_guess?: string // Auto-generated: AI-detected cuisine hint
+  cuisine_guess?: CuisineType // Auto-generated: AI-detected cuisine hint
 }
 
 /**
@@ -44,6 +28,7 @@ export interface RecipeTags {
  * User-editable and explicitly set by recipe author or importer.
  */
 export type DietaryTag =
+  // --- Lifestyle & Diets ---
   | 'vegetarian'
   | 'vegan'
   | 'gluten-free'
@@ -51,6 +36,12 @@ export type DietaryTag =
   | 'keto'
   | 'paleo'
   | 'low-carb'
+  | 'contains-dairy'
+  | 'contains-gluten'
+  | 'contains-nuts'
+  | 'contains-shellfish'
+  | 'contains-egg'
+  | 'contains-soy'
   | 'other'
 
 /**
