@@ -1,28 +1,12 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { useMealPlannerDB } from "@/lib/database/meal-planner-db"
+import { useMealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
-
-interface MealEntry {
-  meal_type: "breakfast" | "lunch" | "dinner"
-  date: string
-  recipe_id: string
-}
-
-interface MealPlan {
-  id: string
-  week_start: string
-  meals: MealEntry[]
-  shopping_list: any
-  total_budget: number
-  created_at: string
-  updated_at: string
-}
 
 export function useMealPlanner(userId: string | undefined, weekDates: string[]) {
   const db = useMealPlannerDB()
-  const [mealPlan, setMealPlan] = useState<MealPlan | null>(null)
+  const [meals, setMeals] = useState<MealScheduleRow[]>([])
   const [recipesById, setRecipesById] = useState<Record<string, Recipe>>({})
   const [loading, setLoading] = useState(false)
 
@@ -31,19 +15,19 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
 
     setLoading(true)
     try {
-      const weekStart = weekDates[0]
-      const plan = await db.fetchMealPlanByWeek(userId, weekStart)
+      const startDate = weekDates[0]
+      const endDate = weekDates[weekDates.length - 1]
+      const mealSchedule = await db.fetchMealScheduleByDateRange(userId, startDate, endDate)
 
-      if (!plan) {
-        setMealPlan(null)
+      if (!mealSchedule || mealSchedule.length === 0) {
+        setMeals([])
         setRecipesById({})
         return
       }
 
-      setMealPlan(plan)
+      setMeals(mealSchedule)
 
-      const meals: MealEntry[] = plan.meals || []
-      const recipeIds = Array.from(new Set(meals.map((m) => m.recipe_id)))
+      const recipeIds = Array.from(new Set(mealSchedule.map((m) => m.recipe_id)))
 
       if (recipeIds.length === 0) {
         setRecipesById({})
@@ -58,7 +42,7 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
       setRecipesById(recipesMap)
     } catch (error) {
       console.error("[Meal Planner Hook] Error loading meal plan:", error)
-      setMealPlan(null)
+      setMeals([])
       setRecipesById({})
     } finally {
       setLoading(false)
@@ -67,17 +51,10 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
 
   const addToMealPlan = useCallback(
     async (recipe: Recipe, mealType: string, date: string) => {
-      if (!userId || weekDates.length === 0) return
+      if (!userId) return
 
       try {
-        const weekStart = weekDates[0]
-        const mealEntry: MealEntry = {
-          meal_type: mealType as MealEntry["meal_type"],
-          date,
-          recipe_id: recipe.id,
-        }
-
-        const updatedPlan = await db.addMealToWeek(userId, weekStart, mealEntry)
+        await db.addMealToSchedule(userId, recipe.id, date, mealType as "breakfast" | "lunch" | "dinner")
 
         // Update local state
         setRecipesById((prev) => ({ ...prev, [recipe.id]: recipe }))
@@ -89,16 +66,15 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
         throw error
       }
     },
-    [userId, weekDates, db, loadMealPlan]
+    [userId, db, loadMealPlan]
   )
 
   const removeFromMealPlan = useCallback(
     async (mealType: string, date: string) => {
-      if (!userId || weekDates.length === 0) return
+      if (!userId) return
 
       try {
-        const weekStart = weekDates[0]
-        await db.removeMealFromWeek(userId, weekStart, mealType, date)
+        await db.removeMealSlot(userId, date, mealType as "breakfast" | "lunch" | "dinner")
 
         // Reload to ensure sync
         await loadMealPlan()
@@ -107,7 +83,7 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
         throw error
       }
     },
-    [userId, weekDates, db, loadMealPlan]
+    [userId, db, loadMealPlan]
   )
 
   const loadAllData = useCallback(async () => {
@@ -115,7 +91,7 @@ export function useMealPlanner(userId: string | undefined, weekDates: string[]) 
   }, [loadMealPlan])
 
   return {
-    mealPlan,
+    meals,
     recipesById,
     loading,
     loadMealPlan,

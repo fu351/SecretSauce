@@ -351,6 +351,28 @@ export type Database = {
           updated_at?: string
         }
       }
+      meal_schedule: {
+        Row: {
+          id: string
+          user_id: string
+          recipe_id: string
+          date: string
+          meal_type: "breakfast" | "lunch" | "dinner"
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          recipe_id: string
+          date: string
+          meal_type: "breakfast" | "lunch" | "dinner"
+        }
+        Update: {
+          recipe_id?: string
+          meal_type?: "breakfast" | "lunch" | "dinner"
+          updated_at?: string
+        }
+      }
       shopping_lists: {
         Row: {
           id: string

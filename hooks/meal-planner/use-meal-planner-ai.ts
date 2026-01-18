@@ -1,25 +1,9 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { useMealPlannerDB } from "@/lib/database/meal-planner-db"
+import { useMealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
 import { useToast } from "@/hooks/ui/use-toast"
-
-interface MealEntry {
-  meal_type: "breakfast" | "lunch" | "dinner"
-  date: string
-  recipe_id: string
-}
-
-interface MealPlan {
-  id: string
-  week_start: string
-  meals: MealEntry[]
-  shopping_list: any
-  total_budget: number
-  created_at: string
-  updated_at: string
-}
 
 interface AiPlanResult {
   storeId: string
@@ -33,7 +17,7 @@ interface AiProgress {
   message: string
 }
 
-export function useMealPlannerAi(userId: string | undefined, weekDates: string[], mealPlan: MealPlan | null) {
+export function useMealPlannerAi(userId: string | undefined, weekDates: string[], meals: MealScheduleRow[]) {
   const db = useMealPlannerDB()
   const { toast } = useToast()
   const [aiPlannerLoading, setAiPlannerLoading] = useState(false)
@@ -119,39 +103,21 @@ export function useMealPlannerAi(userId: string | undefined, weekDates: string[]
   }, [userId, toast, db])
 
   const applyAiPlanToMealPlanner = useCallback(
-    async (recipesById: Record<string, Recipe>) => {
+    async () => {
       if (!aiPlanResult || !userId) return
 
       try {
-        const newMeals: MealEntry[] = []
+        // Remove existing dinners for this week
+        for (const date of weekDates) {
+          await db.removeMealSlot(userId, date, "dinner")
+        }
 
+        // Add new dinners from AI plan
         for (const dinner of aiPlanResult.dinners) {
           const date = weekDates[dinner.dayIndex]
           if (date) {
-            newMeals.push({
-              meal_type: "dinner",
-              date,
-              recipe_id: dinner.recipeId,
-            })
+            await db.addMealToSchedule(userId, dinner.recipeId, date, "dinner")
           }
-        }
-
-        const existingMeals = mealPlan?.meals || []
-        const nonDinnerMeals = existingMeals.filter((m) => m.meal_type !== "dinner" || !weekDates.includes(m.date))
-        const updatedMeals = [...nonDinnerMeals, ...newMeals]
-
-        const planData = {
-          user_id: userId,
-          week_start: weekDates[0],
-          meals: updatedMeals,
-          shopping_list: mealPlan?.shopping_list || null,
-          total_budget: mealPlan?.total_budget || null,
-        }
-
-        if (mealPlan?.id) {
-          await db.updateMealPlan(mealPlan.id, updatedMeals)
-        } else {
-          await db.createMealPlan(userId, weekDates[0], updatedMeals)
         }
 
         setShowAiPlanDialog(false)
@@ -172,7 +138,7 @@ export function useMealPlannerAi(userId: string | undefined, weekDates: string[]
         return false
       }
     },
-    [aiPlanResult, userId, weekDates, mealPlan, db, toast]
+    [aiPlanResult, userId, weekDates, db, toast]
   )
 
   return {

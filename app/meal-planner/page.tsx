@@ -56,8 +56,8 @@ export default function MealPlannerPage() {
   // Custom hooks
   const mealPlanner = useMealPlanner(user?.id, weekDates)
   const recipes = useMealPlannerRecipes(user?.id)
-  const nutrition = useMealPlannerNutrition(mealPlanner.mealPlan, weekDates, mealPlanner.recipesById)
-  const aiPlanner = useMealPlannerAi(user?.id, weekDates, mealPlanner.mealPlan)
+  const nutrition = useMealPlannerNutrition(mealPlanner.meals, weekDates, mealPlanner.recipesById)
+  const aiPlanner = useMealPlannerAi(user?.id, weekDates, mealPlanner.meals)
 
   const isDark = theme === "dark"
 
@@ -84,7 +84,7 @@ export default function MealPlannerPage() {
       mealPlanner.loadAllData()
       recipes.loadAllRecipes()
     }
-  }, [user, weekDates])
+  }, [user, weekDates, mealPlanner, recipes])
 
   // Auto-scroll to planner
   useEffect(() => {
@@ -139,19 +139,18 @@ export default function MealPlannerPage() {
   }
 
   const getMealForSlot = (date: string, mealType: string) => {
-    if (!mealPlanner.mealPlan) return null
-    const meal = (mealPlanner.mealPlan.meals || []).find((m: any) => m.date === date && m.meal_type === mealType)
+    const meal = mealPlanner.meals.find((m) => m.date === date && m.meal_type === mealType)
     return meal ? mealPlanner.recipesById[meal.recipe_id] : null
   }
 
   const handleAddToShoppingList = async () => {
-    if (!mealPlanner.mealPlan || !user) return
+    if (!user || mealPlanner.meals.length === 0) return
 
     try {
       let addedCount = 0
       const recipesProcessed = new Set<string>()
 
-      for (const meal of mealPlanner.mealPlan.meals) {
+      for (const meal of mealPlanner.meals) {
         if (recipesProcessed.has(meal.recipe_id)) continue
         recipesProcessed.add(meal.recipe_id)
 
@@ -179,7 +178,7 @@ export default function MealPlannerPage() {
   }
 
   const handleApplyAiPlan = async () => {
-    const success = await aiPlanner.applyAiPlanToMealPlanner(mealPlanner.recipesById)
+    const success = await aiPlanner.applyAiPlanToMealPlanner()
     if (success) {
       await mealPlanner.loadAllData()
     }

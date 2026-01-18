@@ -1,23 +1,8 @@
 "use client"
 
 import { useMemo } from "react"
+import { type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
-
-interface MealEntry {
-  meal_type: "breakfast" | "lunch" | "dinner"
-  date: string
-  recipe_id: string
-}
-
-interface MealPlan {
-  id: string
-  week_start: string
-  meals: MealEntry[]
-  shopping_list: any
-  total_budget: number
-  created_at: string
-  updated_at: string
-}
 
 type NutritionTotals = {
   calories: number
@@ -38,7 +23,7 @@ const createEmptyNutritionTotals = (): NutritionTotals => ({
 })
 
 export function useMealPlannerNutrition(
-  mealPlan: MealPlan | null,
+  meals: MealScheduleRow[],
   weekDates: string[],
   recipesById: Record<string, Recipe>
 ) {
@@ -50,7 +35,6 @@ export function useMealPlannerNutrition(
     })
 
     const weekSet = new Set(weekDates)
-    const meals = mealPlan?.meals || []
     meals.forEach((meal) => {
       if (!weekSet.has(meal.date)) return
       const recipe = recipesById[meal.recipe_id]
@@ -64,7 +48,7 @@ export function useMealPlannerNutrition(
     })
 
     return totals
-  }, [mealPlan?.meals, weekDates, recipesById])
+  }, [meals, weekDates, recipesById])
 
   const weeklyNutritionSummary = useMemo<{
     totals: Record<MacroKey, number>

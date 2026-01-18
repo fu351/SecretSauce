@@ -5,50 +5,66 @@ import { supabase } from "@/lib/supabase"
 import type { Database } from "@/lib/supabase"
 import { Recipe } from "@/lib/types"
 
-export type MealPlannerDB = Database["public"]["Tables"]["meal_plans"]["Row"]
+export type MealScheduleRow = Database["public"]["Tables"]["meal_schedule"]["Row"]
+export type MealScheduleInsert = Database["public"]["Tables"]["meal_schedule"]["Insert"]
+export type MealScheduleUpdate = Database["public"]["Tables"]["meal_schedule"]["Update"]
 
-interface MealEntry {
-  meal_type: "breakfast" | "lunch" | "dinner"
-  date: string
-  recipe_id: string
-}
-
-interface MealPlan {
+interface MealScheduleEntry {
   id: string
-  week_start: string
-  meals: MealEntry[]
-  shopping_list: any
-  total_budget: number
+  user_id: string
+  recipe_id: string
+  date: string
+  meal_type: "breakfast" | "lunch" | "dinner"
   created_at: string
   updated_at: string
 }
 
 export function useMealPlannerDB() {
   /**
-   * Fetch meal plan for a specific week
+   * Fetch meal schedule entries for a specific date range
    */
-  const fetchMealPlanByWeek = useCallback(
-    async (userId: string, weekStart: string): Promise<MealPlan | null> => {
-      console.log("[Meal Planner DB] Fetching meal plan for week:", { userId, weekStart })
+  const fetchMealScheduleByDateRange = useCallback(
+    async (userId: string, startDate: string, endDate: string): Promise<MealScheduleRow[]> => {
+      console.log("[Meal Planner DB] Fetching meal schedule:", { userId, startDate, endDate })
 
       const { data, error } = await supabase
-        .from("meal_plans")
+        .from("meal_schedule")
         .select("*")
         .eq("user_id", userId)
-        .eq("week_start", weekStart)
-        .maybeSingle()
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .order("date", { ascending: true })
 
-      if (error && error.code !== "PGRST116") {
-        console.error("[Meal Planner DB] Error fetching meal plan:", error)
-        return null
+      if (error) {
+        console.error("[Meal Planner DB] Error fetching meal schedule:", error)
+        return []
       }
 
-      if (!data) {
-        console.log("[Meal Planner DB] No meal plan found for week:", weekStart)
-        return null
+      return data || []
+    },
+    []
+  )
+
+  /**
+   * Fetch meal schedule for a specific date
+   */
+  const fetchMealScheduleByDate = useCallback(
+    async (userId: string, date: string): Promise<MealScheduleRow[]> => {
+      console.log("[Meal Planner DB] Fetching meals for date:", { userId, date })
+
+      const { data, error } = await supabase
+        .from("meal_schedule")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("date", date)
+        .order("meal_type", { ascending: true })
+
+      if (error) {
+        console.error("[Meal Planner DB] Error fetching meals for date:", error)
+        return []
       }
 
-      return data
+      return data || []
     },
     []
   )
@@ -74,24 +90,25 @@ export function useMealPlannerDB() {
   }, [])
 
   /**
-   * Create a new meal plan
+   * Add a meal to the schedule
    */
-  const createMealPlan = useCallback(
-    async (userId: string, weekStart: string, meals: MealEntry[]): Promise<MealPlan | null> => {
-      console.log("[Meal Planner DB] Creating meal plan:", { userId, weekStart, mealCount: meals.length })
+  const addMealToSchedule = useCallback(
+    async (userId: string, recipeId: string, date: string, mealType: "breakfast" | "lunch" | "dinner"): Promise<MealScheduleRow | null> => {
+      console.log("[Meal Planner DB] Adding meal to schedule:", { userId, recipeId, date, mealType })
 
       const { data, error } = await supabase
-        .from("meal_plans")
+        .from("meal_schedule")
         .insert({
           user_id: userId,
-          week_start: weekStart,
-          meals,
+          recipe_id: recipeId,
+          date,
+          meal_type: mealType,
         })
         .select()
         .single()
 
       if (error) {
-        console.error("[Meal Planner DB] Error creating meal plan:", error)
+        console.error("[Meal Planner DB] Error adding meal to schedule:", error)
         return null
       }
 
@@ -101,16 +118,24 @@ export function useMealPlannerDB() {
   )
 
   /**
-   * Update existing meal plan
+   * Update a meal in the schedule
    */
-  const updateMealPlan = useCallback(
-    async (planId: string, meals: MealEntry[]): Promise<MealPlan | null> => {
-      console.log("[Meal Planner DB] Updating meal plan:", { planId, mealCount: meals.length })
+  const updateMealInSchedule = useCallback(
+    async (mealId: string, recipeId: string, mealType: "breakfast" | "lunch" | "dinner"): Promise<MealScheduleRow | null> => {
+      console.log("[Meal Planner DB] Updating meal in schedule:", { mealId, recipeId, mealType })
 
-      const { data, error } = await supabase.from("meal_plans").update({ meals }).eq("id", planId).select().single()
+      const { data, error } = await supabase
+        .from("meal_schedule")
+        .update({
+          recipe_id: recipeId,
+          meal_type: mealType,
+        })
+        .eq("id", mealId)
+        .select()
+        .single()
 
       if (error) {
-        console.error("[Meal Planner DB] Error updating meal plan:", error)
+        console.error("[Meal Planner DB] Error updating meal in schedule:", error)
         return null
       }
 
@@ -120,51 +145,46 @@ export function useMealPlannerDB() {
   )
 
   /**
-   * Add a single meal to the plan
+   * Remove a meal from the schedule
    */
-  const addMealToWeek = useCallback(
-    async (userId: string, weekStart: string, meal: MealEntry): Promise<MealPlan | null> => {
-      console.log("[Meal Planner DB] Adding meal to week:", { userId, weekStart, mealType: meal.meal_type, date: meal.date })
+  const removeMealFromSchedule = useCallback(
+    async (mealId: string): Promise<boolean> => {
+      console.log("[Meal Planner DB] Removing meal from schedule:", { mealId })
 
-      // Fetch current plan
-      const currentPlan = await fetchMealPlanByWeek(userId, weekStart)
-      let meals: MealEntry[] = currentPlan?.meals || []
+      const { error } = await supabase.from("meal_schedule").delete().eq("id", mealId)
 
-      // Remove existing meal for this slot
-      meals = meals.filter((m) => !(m.date === meal.date && m.meal_type === meal.meal_type))
-
-      // Add new meal
-      meals.push(meal)
-
-      // Update or create
-      if (currentPlan?.id) {
-        return updateMealPlan(currentPlan.id, meals)
-      } else {
-        return createMealPlan(userId, weekStart, meals)
+      if (error) {
+        console.error("[Meal Planner DB] Error removing meal from schedule:", error)
+        return false
       }
+
+      return true
     },
-    [fetchMealPlanByWeek, updateMealPlan, createMealPlan]
+    []
   )
 
   /**
-   * Remove a meal from the plan
+   * Remove all meals for a specific date and meal type
    */
-  const removeMealFromWeek = useCallback(
-    async (userId: string, weekStart: string, mealType: string, date: string): Promise<MealPlan | null> => {
-      console.log("[Meal Planner DB] Removing meal from week:", { userId, weekStart, mealType, date })
+  const removeMealSlot = useCallback(
+    async (userId: string, date: string, mealType: "breakfast" | "lunch" | "dinner"): Promise<boolean> => {
+      console.log("[Meal Planner DB] Removing meal slot:", { userId, date, mealType })
 
-      const currentPlan = await fetchMealPlanByWeek(userId, weekStart)
-      if (!currentPlan?.id) {
-        console.warn("[Meal Planner DB] No meal plan found to remove meal from")
-        return null
+      const { error } = await supabase
+        .from("meal_schedule")
+        .delete()
+        .eq("user_id", userId)
+        .eq("date", date)
+        .eq("meal_type", mealType)
+
+      if (error) {
+        console.error("[Meal Planner DB] Error removing meal slot:", error)
+        return false
       }
 
-      let meals: MealEntry[] = currentPlan.meals || []
-      meals = meals.filter((m) => !(m.date === date && m.meal_type === mealType))
-
-      return updateMealPlan(currentPlan.id, meals)
+      return true
     },
-    [fetchMealPlanByWeek, updateMealPlan]
+    []
   )
 
   /**
@@ -238,12 +258,13 @@ export function useMealPlannerDB() {
   }, [])
 
   return {
-    fetchMealPlanByWeek,
+    fetchMealScheduleByDateRange,
+    fetchMealScheduleByDate,
     fetchRecipesByIds,
-    createMealPlan,
-    updateMealPlan,
-    addMealToWeek,
-    removeMealFromWeek,
+    addMealToSchedule,
+    updateMealInSchedule,
+    removeMealFromSchedule,
+    removeMealSlot,
     fetchFavoriteRecipes,
     fetchSuggestedRecipes,
   }
