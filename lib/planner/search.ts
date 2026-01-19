@@ -104,8 +104,9 @@ export async function searchPriceAwareRecipes(
   // Fetch candidates with a light text filter
   const { data, error } = await client
     .from("recipes")
-    .select("id, title, prep_time, cook_time, dietary_tags, dietary_flags, protein_tag, ingredients, servings, nutrition")
+    .select("id, title, prep_time, cook_time, tags, protein, ingredients, servings, nutrition")
     .ilike("title", `%${query}%`)
+    .is("deleted_at", null)
     .limit(Math.max(limit * 2, 20))
 
   if (error) {
@@ -117,12 +118,11 @@ export async function searchPriceAwareRecipes(
   const filtered = recipes.filter((recipe) => withinFilters(recipe, filters)).slice(0, limit * 2)
 
   // Prefer recipes matching user's cuisine preferences
-  // Prioritize user-provided cuisine field, fall back to AI-inferred cuisineGuess
   const sortedByCuisine = filtered.sort((a, b) => {
     if (!filters.preferredCuisines?.length) return 0
 
-    const aCuisine = a.cuisine || a.cuisineGuess || ''
-    const bCuisine = b.cuisine || b.cuisineGuess || ''
+    const aCuisine = a.cuisine || ''
+    const bCuisine = b.cuisine || ''
 
     const aCuisineMatch = filters.preferredCuisines.some(
       (pref) => aCuisine.toLowerCase().includes(pref.toLowerCase())

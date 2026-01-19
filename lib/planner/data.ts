@@ -122,8 +122,9 @@ export async function getRecipeById(recipeId: string): Promise<Recipe | null> {
   const client = createServerClient()
   const { data, error } = await client
     .from("recipes")
-    .select("*, dietary_flags, protein_tag, cuisine_guess")
+    .select("*")
     .eq("id", recipeId)
+    .is("deleted_at", null)
     .maybeSingle()
 
   if (error) {
@@ -135,21 +136,22 @@ export async function getRecipeById(recipeId: string): Promise<Recipe | null> {
 
   const servings = data.servings ?? 1
   const ingredients = Array.isArray(data.ingredients) ? data.ingredients.map(normalizeIngredient) : []
+  const content = data.content || {}
 
   return {
     id: data.id,
     title: data.title,
-    description: data.description,
+    description: content.description,
     servings: servings > 0 ? servings : 1,
     prepTimeMinutes: data.prep_time,
     cookTimeMinutes: data.cook_time,
-    dietaryTags: data.dietary_tags,
+    dietaryTags: data.tags,
     ingredients,
     nutrition: data.nutrition,
-    dietaryFlags: (data as any).dietary_flags ?? null,
-    proteinTag: (data as any).protein_tag ?? null,
+    dietaryFlags: null, // Removed from schema
+    proteinTag: data.protein,
     cuisine: data.cuisine ?? null,
-    cuisineGuess: (data as any).cuisine_guess ?? null,
+    cuisineGuess: null, // Removed from schema
   }
 }
 
@@ -158,29 +160,33 @@ export async function getRecipesByIds(recipeIds: string[]): Promise<Recipe[]> {
   const client = createServerClient()
   const { data, error } = await client
     .from("recipes")
-    .select("*, dietary_flags, protein_tag, cuisine_guess")
+    .select("*")
     .in("id", recipeIds)
+    .is("deleted_at", null)
 
   if (error) {
     console.error("[planner] Failed to load recipes batch", error)
     return []
   }
 
-  return (data || []).map((row) => ({
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    servings: row.servings ?? 1,
-    prepTimeMinutes: row.prep_time,
-    cookTimeMinutes: row.cook_time,
-    dietaryTags: row.dietary_tags,
-    ingredients: Array.isArray(row.ingredients) ? row.ingredients.map(normalizeIngredient) : [],
-    nutrition: row.nutrition,
-    dietaryFlags: (row as any).dietary_flags ?? null,
-    proteinTag: (row as any).protein_tag ?? null,
-    cuisine: row.cuisine ?? null,
-    cuisineGuess: (row as any).cuisine_guess ?? null,
-  }))
+  return (data || []).map((row) => {
+    const content = row.content || {}
+    return {
+      id: row.id,
+      title: row.title,
+      description: content.description,
+      servings: row.servings ?? 1,
+      prepTimeMinutes: row.prep_time,
+      cookTimeMinutes: row.cook_time,
+      dietaryTags: row.tags,
+      ingredients: Array.isArray(row.ingredients) ? row.ingredients.map(normalizeIngredient) : [],
+      nutrition: row.nutrition,
+      dietaryFlags: null, // Removed from schema
+      proteinTag: row.protein,
+      cuisine: row.cuisine ?? null,
+      cuisineGuess: null, // Removed from schema
+    }
+  })
 }
 
 export async function getCheapestStoreItem(

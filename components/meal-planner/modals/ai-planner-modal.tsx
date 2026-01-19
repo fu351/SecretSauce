@@ -13,7 +13,7 @@ interface AiProgress {
 interface AiPlanResult {
   storeId: string
   totalCost: number
-  dinners: Array<{ dayIndex: number; recipeId: string }>
+  meals: Array<{ dayIndex: number; mealType: 'breakfast' | 'lunch' | 'dinner'; recipeId: string }>
   explanation: string
 }
 
@@ -47,7 +47,7 @@ export function AiPlannerModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-purple-600" />
-            AI Weekly Dinner Plan
+            AI Weekly Meal Plan
           </DialogTitle>
         </DialogHeader>
 
@@ -119,38 +119,55 @@ export function AiPlannerModal({
 
             {/* Weekly Schedule */}
             <div>
-              <h3 className="font-semibold mb-3">7-Day Dinner Schedule</h3>
-              <div className="space-y-2">
-                {result.dinners.map((dinner) => {
-                  const recipe = recipesById[dinner.recipeId]
-                  const dayName = weekdaysFull[dinner.dayIndex] || `Day ${dinner.dayIndex + 1}`
+              <h3 className="font-semibold mb-3">Weekly Meal Plan ({result.meals.length} meals)</h3>
+              <div className="space-y-3">
+                {Object.entries(
+                  result.meals.reduce((acc, meal) => {
+                    if (!acc[meal.dayIndex]) acc[meal.dayIndex] = []
+                    acc[meal.dayIndex].push(meal)
+                    return acc
+                  }, {} as Record<number, typeof result.meals>)
+                ).map(([dayIndex, dayMeals]) => {
+                  const dayName = weekdaysFull[Number(dayIndex)] || `Day ${Number(dayIndex) + 1}`
 
                   return (
-                    <div key={dinner.dayIndex} className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-accent/50 transition-colors">
-                      <div className="w-16 text-center">
-                        <p className="text-xs text-muted-foreground">{dayName.slice(0, 3).toUpperCase()}</p>
+                    <div key={dayIndex} className="border border-border rounded-lg p-3">
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">{dayName}</p>
+                      <div className="space-y-2">
+                        {dayMeals.map((meal) => {
+                          const recipe = recipesById[meal.recipeId]
+                          const mealTypeLabel = meal.mealType.charAt(0).toUpperCase() + meal.mealType.slice(1)
+
+                          return (
+                            <div key={`${dayIndex}-${meal.mealType}`} className="flex items-center gap-3 p-2 bg-accent/30 rounded-lg">
+                              <div className="w-16 text-center">
+                                <p className="text-xs font-medium text-muted-foreground">{mealTypeLabel}</p>
+                              </div>
+                              {recipe ? (
+                                <>
+                                  {recipe.content?.image_url && (
+                                    <img
+                                      src={recipe.content.image_url}
+                                      alt={recipe.title}
+                                      className="w-10 h-10 rounded object-cover"
+                                    />
+                                  )}
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{recipe.title}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {recipe.prep_time ? `${recipe.prep_time + (recipe.cook_time || 0)} min` : ""}
+                                    </p>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="flex-1">
+                                  <p className="text-sm text-muted-foreground">Loading recipe...</p>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
-                      {recipe ? (
-                        <>
-                          {recipe.image_url && (
-                            <img
-                              src={recipe.image_url}
-                              alt={recipe.title}
-                              className="w-12 h-12 rounded object-cover"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{recipe.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {recipe.prep_time ? `${recipe.prep_time + (recipe.cook_time || 0)} min` : ""}
-                            </p>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex-1">
-                          <p className="text-sm text-muted-foreground">Loading recipe...</p>
-                        </div>
-                      )}
                     </div>
                   )
                 })}

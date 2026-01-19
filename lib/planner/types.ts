@@ -102,9 +102,12 @@ export type BasketCostResult = {
   dailyProtein?: number[]
 }
 
-export type WeeklyDinnerPlan = {
+export type WeeklyMealPlan = {
   storeId: string
   totalCost: number
-  dinners: Array<{ dayIndex: number; recipeId: string }>
+  meals: Array<{ dayIndex: number; mealType: 'breakfast' | 'lunch' | 'dinner'; recipeId: string }>
   explanation: string
 }
+
+// Legacy type for backwards compatibility
+export type WeeklyDinnerPlan = WeeklyMealPlan

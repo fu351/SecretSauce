@@ -1,11 +1,13 @@
-import type { WeeklyDinnerPlan, Recipe } from "./types"
+import type { WeeklyDinnerPlan, WeeklyMealPlan, Recipe } from "./types"
 import { listCandidateStores, getUserProfile } from "./data"
 import { searchPriceAwareRecipes } from "./search"
 import { estimateWeekBasketCost } from "./basket"
 import { generateWeeklyDinnerPlanLLM } from "./llm"
 import { createServerClient } from "@/lib/supabase"
+import { getDatesForWeek } from "@/lib/date-utils"
 
 const DAYS_IN_WEEK = 7
+const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'] as const
 
 const shuffle = <T>(arr: T[]) => {
   const copy = [...arr]
@@ -63,9 +65,9 @@ const buildExplanation = (storeId: string, cost: number, proteinSummary: Record<
   )}. Protein mix: ${proteins || "mixed"}.`
 }
 
-export async function generateWeeklyDinnerPlan(userId: string): Promise<WeeklyDinnerPlan> {
+export async function generateWeeklyDinnerPlan(userId: string, weekIndex?: number): Promise<WeeklyMealPlan> {
   const startTime = Date.now()
-  console.log("[planner] Starting weekly dinner plan generation")
+  console.log("[planner] Starting weekly meal plan generation")
 
   // Try LLM planner first (optimized for speed)
   const hasOpenAI = !!process.env.OPENAI_API_KEY
@@ -87,9 +89,29 @@ export async function generateWeeklyDinnerPlan(userId: string): Promise<WeeklyDi
   const stores = await listCandidateStores(userId)
   const client = createServerClient()
 
+  // Fetch existing meals for the week to avoid overwriting
+  const weekDates = weekIndex ? getDatesForWeek(weekIndex).map(d => d.toISOString().split('T')[0]) : []
+  const existingMeals = new Set<string>()
+
+  if (weekIndex) {
+    const { data: scheduledMeals } = await client
+      .from("meal_schedule")
+      .select("date, meal_type")
+      .eq("user_id", userId)
+      .eq("week_index", weekIndex)
+
+    scheduledMeals?.forEach((meal: any) => {
+      const dayIndex = weekDates.indexOf(meal.date)
+      if (dayIndex !== -1) {
+        existingMeals.add(`${dayIndex}-${meal.meal_type}`)
+      }
+    })
+  }
+
   let query = client
     .from("recipes")
-    .select("id, title, protein_tag, cuisine, cuisine_guess, prep_time, cook_time, dietary_tags")
+    .select("id, title, protein, cuisine, prep_time, cook_time, tags")
+    .is("deleted_at", null)
     .limit(50)
 
   if (profile?.cookingTimePreference === "quick") {
@@ -102,7 +124,7 @@ export async function generateWeeklyDinnerPlan(userId: string): Promise<WeeklyDi
     return {
       storeId: "walmart",
       totalCost: 0,
-      dinners: [],
+      meals: [],
       explanation: "No suitable recipes found.",
     }
   }
@@ -110,7 +132,7 @@ export async function generateWeeklyDinnerPlan(userId: string): Promise<WeeklyDi
   // Score recipes by user preferences
   const scoredRecipes = recipes.map(recipe => {
     let score = 0
-    const cuisine = recipe.cuisine || recipe.cuisine_guess || ""
+    const cuisine = recipe.cuisine || ""
     if (profile?.cuisinePreferences?.length) {
       const cuisineMatch = profile.cuisinePreferences.some(
         (pref: string) => cuisine.toLowerCase().includes(pref.toLowerCase())
@@ -120,45 +142,61 @@ export async function generateWeeklyDinnerPlan(userId: string): Promise<WeeklyDi
     return { ...recipe, score }
   }).sort((a, b) => b.score - a.score)
 
-  // Pick 7 recipes with protein variety
-  const selectedRecipes: string[] = []
-  const usedProteins = new Set<string>()
+  // Build meal plan for all meal types across the week
+  const plannedMeals: Array<{ dayIndex: number; mealType: 'breakfast' | 'lunch' | 'dinner'; recipeId: string }> = []
+  const usedRecipes = new Set<string>()
+  let recipePool = [...scoredRecipes]
 
-  for (const recipe of scoredRecipes) {
-    if (selectedRecipes.length >= DAYS_IN_WEEK) break
-    const protein = recipe.protein_tag || "other"
-    if (!usedProteins.has(protein) || usedProteins.size >= 4) {
-      selectedRecipes.push(recipe.id)
-      usedProteins.add(protein)
+  for (let dayIndex = 0; dayIndex < DAYS_IN_WEEK; dayIndex++) {
+    for (const mealType of MEAL_TYPES) {
+      const slotKey = `${dayIndex}-${mealType}`
+
+      // Skip if this slot already has a meal
+      if (existingMeals.has(slotKey)) {
+        continue
+      }
+
+      // Find a recipe we haven't used yet
+      let selectedRecipe = recipePool.find(r => !usedRecipes.has(r.id))
+
+      // If we've used all recipes, shuffle and reuse
+      if (!selectedRecipe) {
+        recipePool = shuffle(scoredRecipes)
+        usedRecipes.clear()
+        selectedRecipe = recipePool[0]
+      }
+
+      if (selectedRecipe) {
+        plannedMeals.push({
+          dayIndex,
+          mealType,
+          recipeId: selectedRecipe.id
+        })
+        usedRecipes.add(selectedRecipe.id)
+      }
     }
   }
 
-  const shuffledRecipes = shuffle(scoredRecipes)
-  while (selectedRecipes.length < DAYS_IN_WEEK && shuffledRecipes.length > 0) {
-    selectedRecipes.push(shuffledRecipes.shift()!.id)
-  }
-
-  while (selectedRecipes.length < DAYS_IN_WEEK && selectedRecipes.length > 0) {
-    selectedRecipes.push(selectedRecipes[selectedRecipes.length % selectedRecipes.length])
-  }
+  // Get all unique recipes for cost estimation
+  const allRecipeIds = [...new Set(plannedMeals.map(m => m.recipeId))]
 
   // Estimate costs (cache-only)
   const candidateStores = stores.length > 0 ? stores : [{ id: "walmart", name: "Walmart" }]
-  let bestPlan: WeeklyDinnerPlan | null = null
+  let bestPlan: WeeklyMealPlan | null = null
 
   for (const store of candidateStores.slice(0, 2)) {
     try {
       const basket = await estimateWeekBasketCost({
         userId,
         storeId: store.id,
-        recipeIds: selectedRecipes.slice(0, DAYS_IN_WEEK),
+        recipeIds: allRecipeIds,
         servingsPerRecipe: 1,
       })
 
-      const plan: WeeklyDinnerPlan = {
+      const plan: WeeklyMealPlan = {
         storeId: store.id,
         totalCost: basket.totalCost,
-        dinners: selectedRecipes.slice(0, DAYS_IN_WEEK).map((recipeId, idx) => ({ dayIndex: idx, recipeId })),
+        meals: plannedMeals,
         explanation: buildExplanation(store.id, basket.totalCost, basket.mainProteinCounts),
       }
 
@@ -170,14 +208,14 @@ export async function generateWeeklyDinnerPlan(userId: string): Promise<WeeklyDi
     }
   }
 
-  console.log(`[planner] Completed in ${Date.now() - startTime}ms`)
+  console.log(`[planner] Completed in ${Date.now() - startTime}ms - ${plannedMeals.length} meals planned`)
 
   if (!bestPlan) {
     return {
       storeId: candidateStores[0]?.id || "walmart",
       totalCost: 0,
-      dinners: selectedRecipes.slice(0, DAYS_IN_WEEK).map((recipeId, idx) => ({ dayIndex: idx, recipeId })),
-      explanation: `Plan generated based on your preferences.`,
+      meals: plannedMeals,
+      explanation: `Plan generated with ${plannedMeals.length} meals based on your preferences.`,
     }
   }
 
