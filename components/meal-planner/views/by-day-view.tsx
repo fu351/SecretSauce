@@ -1,15 +1,14 @@
-"use client"
-
-import { useEffect } from "react"
+import React, { useEffect, useState, useMemo } from "react"
 import { PlannerDayCard } from "../cards/planner-day-card"
-import type { Recipe } from "@/lib/types"
+import type { Recipe, MealWithRecipe } from "@/lib/types"
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
-  useCarousel,
 } from "@/components/ui/carousel"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { CarouselArrow } from "@/components/ui/carousel-arrow"
+
 
 interface MealType {
   key: string
@@ -18,45 +17,44 @@ interface MealType {
 
 interface DragData {
   recipe: Recipe
-  source: 'modal' | 'slot'
+  source: "modal" | "slot"
   sourceMealType?: string
   sourceDate?: string
 }
+
+type DayMeals = { [mealType: string]: MealWithRecipe }
 
 interface ByDayViewProps {
   dates: string[]
   weekdays: string[]
   mealTypes: MealType[]
-  getMealForSlot: (date: string, mealType: string) => Recipe | null
+  mealsByDate: { [date: string]: DayMeals }
   onRemove: (mealType: string, date: string) => void
   onAdd: (mealType: string, date: string) => void
-  getDraggableProps: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
-  getDroppableProps: (mealType: string, date: string) => { droppableId: string; data: { mealType: string; date: string } }
+  getDraggableProps: (
+    recipe: Recipe,
+    source: "modal" | "slot",
+    mealType?: string,
+    date?: string
+  ) => { draggableId: string; data: DragData }
+  getDroppableProps: (
+    mealType: string,
+    date: string
+  ) => { droppableId: string; data: { mealType: string; date: string } }
   activeDragData: DragData | null
   activeDropTarget: { mealType: string; date: string } | null
   onLoadMore: () => void
   onLoadEarlier: () => void
   todayIndex: number
-  onScrollToTodayReady?: (scrollFn: () => void) => void
 }
 
-function ScrollToTodayHandler({ todayIndex, onReady }: { todayIndex: number; onReady?: (scrollFn: () => void) => void }) {
-  const { scrollToIndex } = useCarousel()
-
-  useEffect(() => {
-    if (onReady) {
-      onReady(() => scrollToIndex(todayIndex))
-    }
-  }, [scrollToIndex, todayIndex, onReady])
-
-  return null
-}
+/* ----------------------------- Main View ----------------------------- */
 
 export function ByDayView({
   dates,
   weekdays,
   mealTypes,
-  getMealForSlot,
+  mealsByDate,
   onRemove,
   onAdd,
   getDraggableProps,
@@ -66,8 +64,29 @@ export function ByDayView({
   onLoadMore,
   onLoadEarlier,
   todayIndex,
-  onScrollToTodayReady,
 }: ByDayViewProps) {
+  // 1. Setup responsive breakpoints
+  const isDesktop = useMediaQuery("(min-width: 1400px)")
+  const isTablet = useMediaQuery("(min-width: 768px)")
+
+  const itemsPerView = isDesktop ? 7 : isTablet ? 3 : 1
+  const slidesToScroll = itemsPerView
+
+  // 2. Refresh "Today" reference to handle midnight rollovers
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // 3. Compute current date string (YYYY-MM-DD) for card highlighting
+  const todayISO = useMemo(() => {
+    const offset = currentTime.getTimezoneOffset()
+    const localDate = new Date(currentTime.getTime() - offset * 60 * 1000)
+    return localDate.toISOString().split("T")[0]
+  }, [currentTime])
+
   return (
     <Carousel
       opts={{
@@ -75,19 +94,14 @@ export function ByDayView({
         skipSnaps: false,
         dragFree: false,
         containScroll: "trimSnaps",
-        slidesToScroll: 1,
-        watchDrag: (_emblaApi, evt) => {
-          // Prevent carousel drag when interacting with recipes/meals
-          const target = evt.target as HTMLElement
-          return !target.closest("[data-draggable]") && !target.closest("[data-droppable]")
-        },
+        slidesToScroll,
+        startIndex: todayIndex,
       }}
       className="w-full"
       onReachEnd={onLoadMore}
       onReachStart={onLoadEarlier}
       renderLayout={(content) => (
         <>
-          <ScrollToTodayHandler todayIndex={todayIndex} onReady={onScrollToTodayReady} />
           <div className="flex items-stretch gap-2">
             <CarouselArrow direction="prev" />
             {content}
@@ -98,17 +112,22 @@ export function ByDayView({
     >
       <CarouselContent className="gap-3">
         {dates.map((date) => {
-          const dayOfWeek = new Date(date).getDay()
-          // Convert Sunday (0) to index 6, Monday (1) to index 0, etc.
+          // Use noon to avoid timezone offsets shifting the day (e.g. UTC midnight -> previous day local)
+          const dateObj = new Date(`${date}T12:00:00`)
+          const dayOfWeek = dateObj.getDay()
           const weekdayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+          const isToday = date === todayISO
+          const dayMeals = mealsByDate[date]
+
           return (
-            <CarouselItem key={date} itemsPerView={7}>
+            <CarouselItem key={date} itemsPerView={itemsPerView}>
               <PlannerDayCard
                 date={date}
                 dayIndex={weekdayIndex}
+                isToday={isToday}
                 mealTypes={mealTypes}
                 weekdays={weekdays}
-                getMealForSlot={getMealForSlot}
+                meals={dayMeals}
                 onRemove={onRemove}
                 onAdd={onAdd}
                 getDraggableProps={getDraggableProps}

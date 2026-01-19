@@ -1,11 +1,12 @@
 "use client"
 
-import React, { useContext } from "react"
+import React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useCarousel } from "./carousel"
+import { useCarouselContext } from "@/contexts/carousel-context"
 
-interface CarouselArrowProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface CarouselArrowProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   direction: "prev" | "next"
 }
 
@@ -17,7 +18,8 @@ interface CarouselArrowProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const CarouselArrow = React.forwardRef<HTMLButtonElement, CarouselArrowProps>(
   ({ direction, className, ...props }, ref) => {
     // Use the hook we created in the main carousel file
-    const { scrollPrev, scrollNext, canScrollPrev, canScrollNext } = useCarousel()
+    const { scrollPrev, scrollNext, canScrollPrev, canScrollNext } =
+      useCarouselContext()
 
     const isPrev = direction === "prev"
     const handleClick = isPrev ? scrollPrev : scrollNext

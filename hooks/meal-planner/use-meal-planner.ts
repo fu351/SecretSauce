@@ -59,12 +59,6 @@ export function useMealPlanner(userId: string | undefined, dates: string[]) {
         }
       }
 
-      // Update loaded range
-      loadedRangeRef.current = {
-        start: loadedRange ? (newStart < loadedRange.start ? newStart : loadedRange.start) : newStart,
-        end: loadedRange ? (newEnd > loadedRange.end ? newEnd : loadedRange.end) : newEnd,
-      }
-
       // Merge new meals with existing
       setMeals((prev) => {
         const existingIds = new Set(prev.map((m) => m.id))
@@ -83,6 +77,12 @@ export function useMealPlanner(userId: string | undefined, dates: string[]) {
           })
           return updated
         })
+      }
+
+      // Update loaded range AFTER successful fetch
+      loadedRangeRef.current = {
+        start: loadedRange ? (newStart < loadedRange.start ? newStart : loadedRange.start) : newStart,
+        end: loadedRange ? (newEnd > loadedRange.end ? newEnd : loadedRange.end) : newEnd,
       }
     } catch (error) {
       console.error("[Meal Planner Hook] Error loading meal plan:", error)
@@ -135,6 +135,10 @@ export function useMealPlanner(userId: string | undefined, dates: string[]) {
     await loadMealPlan()
   }, [loadMealPlan])
 
+  const resetLoadedRange = useCallback(() => {
+    loadedRangeRef.current = null
+  }, [])
+
   return {
     meals,
     recipesById,
@@ -143,5 +147,6 @@ export function useMealPlanner(userId: string | undefined, dates: string[]) {
     loadAllData,
     addToMealPlan,
     removeFromMealPlan,
+    resetLoadedRange,
   }
 }

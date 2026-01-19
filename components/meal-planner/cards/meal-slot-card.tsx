@@ -63,12 +63,12 @@ function MealSlotCardComponent({
       ref={setDropRef}
       id={droppableProps.droppableId}
       data-droppable-id={droppableProps.droppableId}
-      className={`relative rounded-lg group w-full h-[120px] transition-all ${isDropTarget ? "ring-2 ring-primary" : ""}`}
+      className={`relative rounded-lg group w-full h-[120px] ${isDropTarget ? "ring-2 ring-primary" : ""}`}
     >
       {recipe ? (
         // Filled state
         <div
-          className={`relative h-full w-full overflow-hidden rounded-lg shadow-sm hover:shadow-md transition-all ${isDragging ? "opacity-0 pointer-events-none" : ""} ${isDropTarget ? "brightness-75" : ""}`}
+          className={`relative h-full w-full overflow-hidden rounded-lg shadow-sm hover:shadow-md ${isDragging ? "opacity-0 pointer-events-none" : ""} ${isDropTarget ? "brightness-75" : ""}`}
           id={draggableProps?.draggableId}
           data-draggable="true"
           data-draggable-id={draggableProps?.draggableId}

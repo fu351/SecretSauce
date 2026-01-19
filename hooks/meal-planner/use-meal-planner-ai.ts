@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react"
 import { useMealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
+import { getDatesForWeek } from "@/lib/date-utils"
 import { useToast } from "@/hooks/ui/use-toast"
 
 interface AiPlanResult {
@@ -17,13 +18,14 @@ interface AiProgress {
   message: string
 }
 
-export function useMealPlannerAi(userId: string | undefined, weekDates: string[], meals: MealScheduleRow[]) {
+export function useMealPlannerAi(userId: string | undefined, weekIndex: number) {
   const db = useMealPlannerDB()
   const { toast } = useToast()
   const [aiPlannerLoading, setAiPlannerLoading] = useState(false)
   const [aiPlannerProgress, setAiPlannerProgress] = useState<AiProgress>({ step: 0, message: "" })
   const [aiPlanResult, setAiPlanResult] = useState<AiPlanResult | null>(null)
   const [showAiPlanDialog, setShowAiPlanDialog] = useState(false)
+  const [aiRecipesById, setAiRecipesById] = useState<Record<string, Recipe>>({})
 
   const generateAiWeeklyPlan = useCallback(async (recipesById: Record<string, Recipe>) => {
     if (!userId) {
@@ -80,10 +82,11 @@ export function useMealPlannerAi(userId: string | undefined, weekDates: string[]
         const recipes = await db.fetchRecipesByIds(recipeIds)
 
         if (recipes) {
-          const newRecipesById = { ...recipesById }
+          const newRecipes: Record<string, Recipe> = {}
           recipes.forEach((recipe: Recipe) => {
-            newRecipesById[recipe.id] = recipe
+            newRecipes[recipe.id] = recipe
           })
+          setAiRecipesById(newRecipes)
         }
       }
 
@@ -100,11 +103,12 @@ export function useMealPlannerAi(userId: string | undefined, weekDates: string[]
     } finally {
       setAiPlannerLoading(false)
     }
-  }, [userId, toast, db, weekDates, meals])
+  }, [userId, toast, db])
 
   const applyAiPlanToMealPlanner = useCallback(
     async () => {
       if (!aiPlanResult || !userId) return
+      const weekDates = getDatesForWeek(weekIndex).map(d => d.toISOString().split("T")[0])
 
       try {
         // Remove existing dinners for this week
@@ -138,7 +142,7 @@ export function useMealPlannerAi(userId: string | undefined, weekDates: string[]
         return false
       }
     },
-    [aiPlanResult, userId, weekDates, db, toast]
+    [aiPlanResult, userId, weekIndex, db, toast]
   )
 
   return {
@@ -149,5 +153,7 @@ export function useMealPlannerAi(userId: string | undefined, weekDates: string[]
     setShowAiPlanDialog,
     generateAiWeeklyPlan,
     applyAiPlanToMealPlanner,
+    aiRecipesById,
   }
 }
+

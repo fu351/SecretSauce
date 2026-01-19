@@ -1,10 +1,11 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
 import type { Database } from "@/lib/supabase"
 import { Recipe } from "@/lib/types"
 import { getMealPlannerCache } from "./meal-planner-cache"
+import { getWeek, getYear, eachDayOfInterval, parseISO } from "date-fns"
 
 export type MealScheduleRow = Database["public"]["Tables"]["meal_schedule"]["Row"]
 export type MealScheduleInsert = Database["public"]["Tables"]["meal_schedule"]["Insert"]
@@ -18,6 +19,21 @@ interface MealScheduleEntry {
   meal_type: "breakfast" | "lunch" | "dinner"
   created_at: string
   updated_at: string
+  week_index: number
+}
+
+function getWeekIndex(date: Date): number {
+  const year = getYear(date)
+  const week = getWeek(date, { weekStartsOn: 1 })
+  return year * 100 + week
+}
+
+function getWeekIndicesForRange(startDate: string, endDate: string): number[] {
+  const start = parseISO(startDate)
+  const end = parseISO(endDate)
+  const allDates = eachDayOfInterval({ start, end })
+  const weekIndices = allDates.map(getWeekIndex)
+  return Array.from(new Set(weekIndices))
 }
 
 export function useMealPlannerDB() {
@@ -35,10 +51,13 @@ export function useMealPlannerDB() {
 
       console.log("[Meal Planner DB] Fetching meal schedule:", { userId, startDate, endDate })
 
+      const weekIndices = getWeekIndicesForRange(startDate, endDate)
+
       const { data, error } = await supabase
         .from("meal_schedule")
         .select("*")
         .eq("user_id", userId)
+        .in("week_index", weekIndices)
         .gte("date", startDate)
         .lte("date", endDate)
         .order("date", { ascending: true })
@@ -51,6 +70,30 @@ export function useMealPlannerDB() {
       const result = data || []
       cache.setMealScheduleCache(userId, startDate, endDate, result)
       return result
+    },
+    []
+  )
+
+  const fetchMealScheduleByWeekIndex = useCallback(
+    async (userId: string, weekIndex: number): Promise<MealScheduleRow[]> => {
+      // For caching, we can just use the weekIndex as a key.
+      // However, the existing cache is by date range. We'll skip caching for now
+      // and let the parent hook handle it if needed.
+      console.log("[Meal Planner DB] Fetching meal schedule by week:", { userId, weekIndex })
+
+      const { data, error } = await supabase
+        .from("meal_schedule")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("week_index", weekIndex)
+        .order("date", { ascending: true })
+
+      if (error) {
+        console.error("[Meal Planner DB] Error fetching meal schedule by week:", error)
+        return []
+      }
+
+      return data || []
     },
     []
   )
@@ -235,6 +278,7 @@ export function useMealPlannerDB() {
 
   /**
    * Fetch user's favorite recipes using batch query with relationship join
+   * @deprecated Use useRecipeFavoritesDB().fetchFavoriteRecipes() instead
    */
   const fetchFavoriteRecipes = useCallback(async (userId: string): Promise<Recipe[]> => {
     const cache = getMealPlannerCache()
@@ -250,22 +294,24 @@ export function useMealPlannerDB() {
     const { data, error } = await supabase
       .from("recipe_favorites")
       .select(`
+        recipe_id,
         recipes (
           id,
           title,
-          description,
-          image_url,
+          content,
           prep_time,
           cook_time,
           servings,
           difficulty,
           rating_avg,
           rating_count,
+          author_id,
           tags,
-          dietary_tags,
+          protein,
+          meal_type,
+          cuisine,
           nutrition,
           ingredients,
-          instructions,
           created_at,
           updated_at
         )
@@ -273,9 +319,9 @@ export function useMealPlannerDB() {
       .eq("user_id", userId)
 
     if (error) {
-      // Table might not exist in test environment
-      if (error.code === "PGRST116" || error.message?.includes("relation")) {
-        console.log("[Meal Planner DB] Favorites table not available")
+      // Table might not exist in test environment or foreign key relationship not configured
+      if (error.code === "PGRST116" || error.code === "PGRST200" || error.message?.includes("relation")) {
+        console.log("[Meal Planner DB] Favorites table not available or relationship not configured:", error.message)
         return []
       }
       console.error("[Meal Planner DB] Error fetching favorites:", error)
@@ -286,8 +332,36 @@ export function useMealPlannerDB() {
       return []
     }
 
-    // Extract recipes from the joined result
-    const result = data.map((item: any) => item.recipes).filter(Boolean)
+    // Extract and map recipes from the joined result
+    const result = data
+      .map((item: any) => item.recipes)
+      .filter(Boolean)
+      .map((recipe: any) => ({
+        id: recipe.id,
+        title: recipe.title,
+        description: recipe.content?.description || "",
+        image_url: recipe.content?.image_url,
+        prep_time: recipe.prep_time || 0,
+        cook_time: recipe.cook_time || 0,
+        servings: recipe.servings,
+        difficulty: recipe.difficulty,
+        cuisine_name: recipe.cuisine || undefined,
+        ingredients: recipe.ingredients || [],
+        instructions: recipe.content?.instructions || [],
+        nutrition: recipe.nutrition || {},
+        author_id: recipe.author_id || "",
+        rating_avg: recipe.rating_avg || 0,
+        rating_count: recipe.rating_count || 0,
+        tags: {
+          dietary: recipe.tags || [],
+          protein: recipe.protein || undefined,
+          meal_type: recipe.meal_type || undefined,
+          cuisine_guess: undefined,
+        },
+        created_at: recipe.created_at,
+        updated_at: recipe.updated_at,
+      }))
+
     cache.setFavoriteRecipesCache(userId, result)
     return result
   }, [])
@@ -321,15 +395,31 @@ export function useMealPlannerDB() {
     return result
   }, [])
 
-  return {
-    fetchMealScheduleByDateRange,
-    fetchMealScheduleByDate,
-    fetchRecipesByIds,
-    addMealToSchedule,
-    updateMealInSchedule,
-    removeMealFromSchedule,
-    removeMealSlot,
-    fetchFavoriteRecipes,
-    fetchSuggestedRecipes,
-  }
+  return useMemo(
+    () => ({
+      fetchMealScheduleByDateRange,
+      fetchMealScheduleByDate,
+      fetchRecipesByIds,
+      addMealToSchedule,
+      updateMealInSchedule,
+      removeMealFromSchedule,
+      removeMealSlot,
+      fetchFavoriteRecipes,
+      fetchSuggestedRecipes,
+      fetchMealScheduleByWeekIndex,
+    }),
+    [
+      fetchMealScheduleByDateRange,
+      fetchMealScheduleByDate,
+      fetchRecipesByIds,
+      addMealToSchedule,
+      updateMealInSchedule,
+      removeMealFromSchedule,
+      removeMealSlot,
+      fetchFavoriteRecipes,
+      fetchSuggestedRecipes,
+      fetchMealScheduleByWeekIndex,
+    ]
+  )
 }
+

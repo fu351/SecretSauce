@@ -36,3 +36,4 @@ export { useMealPlannerNutrition } from "./meal-planner/use-meal-planner-nutriti
 export { useMealPlannerAi } from "./meal-planner/use-meal-planner-ai"
 export { useMealPlannerDragDrop } from "./meal-planner/use-meal-planner-drag-drop"
 export { useDatePagination } from "./meal-planner/use-date-pagination"
+export { useWeeklyMealPlan } from "./meal-planner/use-weekly-meal-plan"
