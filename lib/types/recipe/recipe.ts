@@ -40,14 +40,18 @@ import type { RecipeTags, DifficultyLevel } from './tags'
 export interface Recipe {
   id: string
   title: string
-  description: string
   prep_time: number
   cook_time: number
   servings: number
   difficulty: DifficultyLevel
   cuisine_id?: number
   cuisine_name?: string
-  image_url?: string
+
+  content?: {
+    image_url?: string
+    description?: string
+    instructions?: Instruction[]
+  }
 
   // UNIFIED TAG SYSTEM
   // All recipe categorization uses single "tags" field with JSONB structure
@@ -55,7 +59,6 @@ export interface Recipe {
 
   // Recipe components
   ingredients: RecipeIngredient[]
-  instructions: Instruction[]
 
   // Metadata
   author_id: string

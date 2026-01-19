@@ -12,13 +12,8 @@ import {
   useMealPlannerDragDrop,
   useWeeklyMealPlan,
 } from "@/hooks"
-import { getWeek, getYear, addWeeks, subWeeks } from "date-fns"
 import { getCurrentWeekIndex, getDatesForWeek } from "@/lib/date-utils"
 import {
-  useSensors,
-  useSensor,
-  PointerSensor,
-  KeyboardSensor,
   DndContext,
   DragOverlay,
 } from "@dnd-kit/core"
@@ -30,6 +25,7 @@ import { AiPlannerModal } from "@/components/meal-planner/modals/ai-planner-moda
 import { RecipeSearchPanel } from "@/components/meal-planner/panels/recipe-search-panel"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+
 import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
 
@@ -39,7 +35,6 @@ const mealTypes = [
   { key: "dinner", label: "DINNER" },
 ]
 
-const weekdays = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 const weekdaysFull = [
   "Monday",
   "Tuesday",
@@ -213,69 +208,67 @@ export default function MealPlannerPage() {
         className="min-h-screen flex flex-col bg-background"
         data-tutorial="planner-overview"
       >
-        <div
-          className={cn(
-            "flex-1 overflow-y-auto p-3 md:p-6 transition-all duration-300",
-            showRecipeSidebar && "md:mr-[600px]"
-          )}
-        >
-          <div className="max-w-7xl mx-auto">
-            {/* Header */}
-            <div className="flex flex-col gap-4 mb-3">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-text">
-                  Meal Planner
-                </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Plan your weekly meals and track nutrition
-                </p>
-              </div>
+        <div className="flex-1 flex flex-row overflow-y-auto">
+          <main className="flex-1 overflow-y-auto p-3 md:p-6">
+            <div className="max-w-7xl mx-auto">
+              {/* Header */}
+              <div className="flex flex-col gap-4 mb-3">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-text">
+                    Meal Planner
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Plan your weekly meals and track nutrition
+                  </p>
+                </div>
 
-              <div className="flex flex-col md:flex-row md:items-center gap-3">
-                <div className="flex flex-wrap items-center gap-2 w-full">
-                  <PlannerActions
-                    onAiPlan={handleGenerateAiPlan}
-                    onAddToCart={handleAddToShoppingList}
-                    onGoToToday={handleGoToToday}
-                    onPreviousWeek={handlePreviousWeek}
-                    onNextWeek={handleNextWeek}
-                    aiLoading={aiPlanner.aiPlannerLoading}
-                  />
+                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 w-full">
+                    <PlannerActions
+                      onAiPlan={handleGenerateAiPlan}
+                      onAddToCart={handleAddToShoppingList}
+                      onGoToToday={handleGoToToday}
+                      onPreviousWeek={handlePreviousWeek}
+                      onNextWeek={handleNextWeek}
+                      aiLoading={aiPlanner.aiPlannerLoading}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mb-6">
-              <WeeklyView
-                weekIndex={weekIndex}
-                meals={meals}
-                recipesById={recipesById}
-                onAdd={openRecipeSelector}
-                onRemove={removeFromMealPlan}
-                getDraggableProps={dnd.getDraggableProps}
-                getDroppableProps={dnd.getDroppableProps}
-                activeDragData={dnd.activeDragData}
-                activeDropTarget={dnd.activeDropTarget}
-              />
-            </div>
-
-            {/* Nutrition Summary */}
-            {weekDates.length > 0 && (
-              <div className="mt-4 pt-2">
-                <NutritionSummaryCard
-                  weeklyTotals={nutrition.weeklyNutritionSummary.totals}
-                  weeklyAverages={nutrition.weeklyNutritionSummary.averages}
+              <div className="mb-6">
+                <WeeklyView
+                  weekIndex={weekIndex}
+                  meals={meals}
+                  recipesById={recipesById}
+                  onAdd={openRecipeSelector}
+                  onRemove={removeFromMealPlan}
+                  getDraggableProps={dnd.getDraggableProps}
+                  getDroppableProps={dnd.getDroppableProps}
+                  activeDragData={dnd.activeDragData}
+                  activeDropTarget={dnd.activeDropTarget}
                 />
               </div>
-            )}
-          </div>
 
-          {/* Sidebar for Recipe Selection */}
-          <Sheet open={showRecipeSidebar} onOpenChange={setShowRecipeSidebar}>
-            <SheetContent
-              side="right"
-              className="w-full md:w-[600px] p-0 flex flex-col"
-            >
+              {/* Nutrition Summary */}
+              {weekDates.length > 0 && (
+                <div className="mt-4 pt-2">
+                  <NutritionSummaryCard
+                    weeklyTotals={nutrition.weeklyNutritionSummary.totals}
+                    weeklyAverages={nutrition.weeklyNutritionSummary.averages}
+                  />
+                </div>
+              )}
+            </div>
+          </main>
+          {/* Desktop Sidebar */}
+          <aside
+            className={cn(
+              "hidden md:block bg-background transition-all duration-300 ease-in-out overflow-hidden",
+              showRecipeSidebar ? "w-[350px]" : "w-0"
+            )}
+          >
+            <div className="h-full border-l border-border">
               <RecipeSearchPanel
                 mealType={null}
                 mealTypes={mealTypes}
@@ -283,7 +276,7 @@ export default function MealPlannerPage() {
                 suggestedRecipes={recipes.suggestedRecipes}
                 onSelect={(recipe) => {
                   handleRecipeSelection(recipe)
-                  setShowRecipeSidebar(false)
+                  // Keep sidebar open on desktop
                 }}
                 onMealTypeChange={() => {}}
                 getDraggableProps={dnd.getDraggableProps}
@@ -291,9 +284,33 @@ export default function MealPlannerPage() {
                 isCollapsed={false}
                 onToggleCollapse={() => setShowRecipeSidebar(false)}
               />
-            </SheetContent>
-          </Sheet>
+            </div>
+          </aside>
         </div>
+
+        {/* Mobile Sidebar */}
+        <Sheet open={showRecipeSidebar && isMobile} onOpenChange={setShowRecipeSidebar}>
+          <SheetContent
+            side="right"
+            className="w-full p-0 flex flex-col"
+          >
+            <RecipeSearchPanel
+              mealType={null}
+              mealTypes={mealTypes}
+              favoriteRecipes={recipes.favoriteRecipes}
+              suggestedRecipes={recipes.suggestedRecipes}
+              onSelect={(recipe) => {
+                handleRecipeSelection(recipe)
+                setShowRecipeSidebar(false)
+              }}
+              onMealTypeChange={() => {}}
+              getDraggableProps={dnd.getDraggableProps}
+              activeDragData={dnd.activeDragData}
+              isCollapsed={false}
+              onToggleCollapse={() => setShowRecipeSidebar(false)}
+            />
+          </SheetContent>
+        </Sheet>
 
         <AiPlannerModal
           open={aiPlanner.showAiPlanDialog}

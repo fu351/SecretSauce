@@ -1,10 +1,12 @@
 "use client"
 
 import { memo } from "react"
+import Image from "next/image"
 import { X, Plus } from "lucide-react"
 import type { Recipe } from "@/lib/types"
 import { useTheme } from "@/contexts/theme-context"
 import { useDroppable } from "@dnd-kit/core"
+import { getRecipeImageUrl } from "@/lib/image-helper"
 
 interface DragData {
   recipe: Recipe
@@ -74,9 +76,11 @@ function MealSlotCardComponent({
           data-draggable-id={draggableProps?.draggableId}
           data-drag-data={draggableProps ? JSON.stringify(draggableProps.data) : ""}
         >
-          <img
-            src={recipe.image_url || "/placeholder.svg?height=160&width=260"}
+          <Image
+            src={getRecipeImageUrl(recipe.content?.image_url)}
             alt={recipe.title}
+            fill
+            sizes="260px"
             className="w-full h-full object-cover cursor-grab active:cursor-grabbing transition-transform duration-200 group-hover:scale-110"
           />
           <button
@@ -86,19 +90,22 @@ function MealSlotCardComponent({
           >
             <X className="h-3 w-3" />
           </button>
+          
+          {/* Static Title Overlay (always visible) */}
           {!isDropTarget && (
-            <div className={`absolute inset-0 rounded-lg flex items-end ${isDark ? "bg-gradient-to-t from-black/80 to-transparent" : "bg-gradient-to-t from-black/75 to-transparent"} opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}>
-              <h4 className={`font-semibold text-sm line-clamp-2 text-white w-full p-2.5`}>{recipe.title}</h4>
+            <div className={`absolute inset-x-0 bottom-0 flex items-end p-2.5 z-10 ${isDark ? "bg-gradient-to-t from-black/80 to-transparent" : "bg-gradient-to-t from-black/75 to-transparent"}`}>
+              <h4 className={`font-semibold text-sm line-clamp-2 text-white w-full`}>{recipe.title}</h4>
             </div>
           )}
+
+          {/* Nutrition Info - Slides up on hover, above the title */}
           {recipe.nutrition && !isDropTarget && (
             <div
-              className={`absolute inset-0 rounded-lg ${
-                isDark ? "bg-gradient-to-b from-black/80 to-black/70" : "bg-gradient-to-b from-black/75 to-black/65"
-              } text-white opacity-0 group-hover:opacity-100 transition-opacity text-[10px] flex flex-col justify-center p-3 pointer-events-none z-10`}
+              className={`absolute inset-x-0 rounded-b-lg text-white text-[10px] p-3 pointer-events-none z-20 transition-transform duration-300 transform translate-y-full group-hover:-translate-y-[40px] ${isDark ? "bg-black/60" : "bg-black/50"} backdrop-blur-sm`}
+              style={{ bottom: 0 }}
             >
-              <p className="uppercase tracking-wider text-[9px] mb-2.5 text-white/80 font-medium">Nutrition</p>
-              <div className="grid grid-cols-4 gap-2.5 text-center">
+              <p className="uppercase tracking-wider text-[9px] mb-1 text-white/80 font-medium">Nutrition</p>
+              <div className="grid grid-cols-4 gap-2 text-center">
                 <div>
                   <div className="text-white/70 text-[8px] font-medium">CAL</div>
                   <div className="font-bold text-xs">{recipe.nutrition.calories || "-"}</div>

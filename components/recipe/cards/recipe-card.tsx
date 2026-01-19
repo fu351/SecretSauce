@@ -25,7 +25,6 @@ interface DragData {
 interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
   id: string
   title: string
-  image_url: string
   rating_avg: number
   difficulty: "beginner" | "intermediate" | "advanced"
   comments: number
@@ -41,7 +40,7 @@ interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
 function RecipeCardComponent({
   id,
   title,
-  image_url,
+  content,
   rating_avg,
   difficulty,
   comments,
@@ -53,6 +52,7 @@ function RecipeCardComponent({
   showFavorite = true,
   isDragging = false,
   getDraggableProps,
+  ...rest
 }: RecipeCardProps) {
   const { updateRecipeRating } = useRecipeDB()
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
@@ -61,7 +61,7 @@ function RecipeCardComponent({
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided
-  const recipe = { id, title, image_url, rating_avg, difficulty, comments, tags, nutrition } as Recipe
+  const recipe = { id, title, content, rating_avg, difficulty, comments, tags, nutrition, ...rest } as Recipe
   const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
   const { attributes, listeners, setNodeRef } = useDraggable({
     id: draggableProps?.draggableId || '',
@@ -189,7 +189,7 @@ function RecipeCardComponent({
     >
       <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">
         <Image
-          src={getRecipeImageUrl(image_url) || "/placeholder.svg"}
+          src={getRecipeImageUrl(content?.image_url) || "/placeholder.svg"}
           alt={title}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

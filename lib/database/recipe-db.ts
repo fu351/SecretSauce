@@ -20,19 +20,22 @@ export function useRecipeDB() {
     return {
       id: dbItem.id,
       title: dbItem.title,
-      description: content.description || '',
-      image_url: content.image_url,
       prep_time: dbItem.prep_time || 0,
       cook_time: dbItem.cook_time || 0,
       servings: dbItem.servings,
       difficulty: dbItem.difficulty,
       cuisine_name: dbItem.cuisine || undefined, // Map enum directly to string
       ingredients: dbItem.ingredients || [],
-      instructions: parseInstructionsFromDB(content.instructions),
       nutrition: dbItem.nutrition || {},
       author_id: dbItem.author_id || '',
       rating_avg: dbItem.rating_avg || 0,
       rating_count: dbItem.rating_count || 0,
+
+      content: {
+        description: content.description || '',
+        image_url: content.image_url,
+        instructions: parseInstructionsFromDB(content.instructions),
+      },
 
       // UNIFIED TAG SYSTEM - Map from separate DB columns
       tags: {
@@ -239,9 +242,9 @@ export function useRecipeDB() {
 
       // Build content JSONB
       content: {
-        description: recipe.description || '',
-        image_url: recipe.image_url || null,
-        instructions: recipe.instructions || []
+        description: recipe.content?.description || '',
+        image_url: recipe.content?.image_url || null,
+        instructions: recipe.content?.instructions || []
       },
 
       // Map tags to separate DB columns (allergens are now part of dietary tags)
@@ -299,11 +302,7 @@ export function useRecipeDB() {
     if (updates.rating_count !== undefined) dbUpdates.rating_count = updates.rating_count
 
     // Build content JSONB if any content fields are updated
-    if (
-      updates.description !== undefined ||
-      updates.image_url !== undefined ||
-      updates.instructions !== undefined
-    ) {
+    if (updates.content) {
       // Fetch current content first if partial update
       const { data: currentRecipe } = await supabase
         .from("recipes")
@@ -315,10 +314,10 @@ export function useRecipeDB() {
 
       dbUpdates.content = {
         description:
-          updates.description !== undefined ? updates.description : currentContent.description,
-        image_url: updates.image_url !== undefined ? updates.image_url : currentContent.image_url,
+          updates.content.description !== undefined ? updates.content.description : currentContent.description,
+        image_url: updates.content.image_url !== undefined ? updates.content.image_url : currentContent.image_url,
         instructions:
-          updates.instructions !== undefined ? updates.instructions : currentContent.instructions
+          updates.content.instructions !== undefined ? updates.content.instructions : currentContent.instructions
       }
     }
 

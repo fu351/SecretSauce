@@ -78,13 +78,13 @@ export function RecipeSearchPanel({
   const filteredRecipes = useMemo(() => {
     return allRecipes.filter((recipe) => {
       const matchesSearch = recipe.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (recipe.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
+        (recipe.content?.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
 
       const matchesDifficulty = !difficultyFilter || recipe.difficulty === difficultyFilter
 
       const matchesDietary = selectedDietaryTags.size === 0 ||
         (recipe.tags?.dietary && Array.isArray(recipe.tags.dietary) &&
-         Array.from(selectedDietaryTags).some(tag => recipe.tags?.dietary?.includes(tag)))
+         Array.from(selectedDietaryTags).every(tag => recipe.tags?.dietary?.includes(tag)))
 
       return matchesSearch && matchesDifficulty && matchesDietary
     })
@@ -137,48 +137,52 @@ export function RecipeSearchPanel({
             Filters
           </Button>
         </div>
-
-        <Select value={difficultyFilter || "all"} onValueChange={(value) => setDifficultyFilter(value === "all" ? null : value)}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="All difficulties" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All difficulties</SelectItem>
-            <SelectItem value="beginner">Beginner</SelectItem>
-            <SelectItem value="intermediate">Intermediate</SelectItem>
-            <SelectItem value="advanced">Advanced</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
-      {/* Dietary Filters */}
-      {showFilters && availableTags.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-border/30 bg-card/50 flex-shrink-0">
-          {availableTags.map((tag) => {
-            const Icon = tagIconMap[tag] || Leaf
-            const isSelected = selectedDietaryTags.has(tag)
-            return (
-              <button
-                key={tag}
-                onClick={() => toggleDietaryTag(tag)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border transition-colors ${
-                  isSelected
-                    ? "bg-orange-100 border-orange-300 text-orange-700"
-                    : "bg-white border-gray-200 text-gray-600 hover:border-orange-300"
-                }`}
-              >
-                <Icon className="h-3 w-3" />
-                <span>{formatDietaryTag(tag)}</span>
-              </button>
-            )
-          })}
+      {/* Filters */}
+      {showFilters && (
+        <div className="flex flex-col gap-3 px-4 py-3 border-b border-border/30 bg-card/50 flex-shrink-0">
+          <Select value={difficultyFilter || "all"} onValueChange={(value) => setDifficultyFilter(value === "all" ? null : value)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All difficulties" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All difficulties</SelectItem>
+              <SelectItem value="beginner">Beginner</SelectItem>
+              <SelectItem value="intermediate">Intermediate</SelectItem>
+              <SelectItem value="advanced">Advanced</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {availableTags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {availableTags.map((tag) => {
+                const Icon = tagIconMap[tag] || Leaf
+                const isSelected = selectedDietaryTags.has(tag)
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => toggleDietaryTag(tag)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                      isSelected
+                        ? "bg-orange-100 border-orange-300 text-orange-700"
+                        : "bg-white border-gray-200 text-gray-600 hover:border-orange-300"
+                    }`}
+                  >
+                    <Icon className="h-3 w-3" />
+                    <span>{formatDietaryTag(tag)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Recipe Grid - responsive columns: 2 on mobile, 3 on desktop */}
+      {/* Recipe Grid */}
       {filteredRecipes.length > 0 ? (
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 auto-rows-max">
+          <div className="grid grid-cols-2 gap-3 auto-rows-max">
             {filteredRecipes.map((recipe) => {
               const isBeingDragged = activeDragData?.source === 'modal' && activeDragData?.recipe.id === recipe.id
               return (
@@ -189,7 +193,7 @@ export function RecipeSearchPanel({
                   <RecipeCard
                     id={recipe.id}
                     title={recipe.title}
-                    image_url={recipe.image_url || ""}
+                    content={recipe.content}
                     rating_avg={recipe.rating_avg}
                     difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                     comments={recipe.rating_count}
