@@ -124,7 +124,7 @@ export function CompactRecipeCard({
           {/* Image */}
           <div className="w-full lg:w-1/3 relative min-h-[250px] lg:min-h-[300px]">
             <Image
-              src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
+              src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
               alt={recipe.title}
               fill
               sizes="(max-width: 768px) 100vw, 33vw"

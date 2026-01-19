@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { Recipe } from "@/lib/types"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 
@@ -11,11 +12,15 @@ export function DragPreviewCard({ recipe }: DragPreviewCardProps) {
   return (
     <div className="w-64 rounded-lg overflow-hidden bg-card border border-border/20">
       {/* Image */}
-      <div className="w-full h-40 bg-muted overflow-hidden">
-        <img
-          src={getRecipeImageUrl(recipe.image_url)}
+      <div className="relative w-full h-40 bg-muted overflow-hidden">
+        <Image
+          src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
           alt={recipe.title}
-          className="w-full h-full object-cover"
+          fill
+          sizes="256px"
+          className="object-cover"
+          priority={false}
+          loading="lazy"
         />
       </div>
 

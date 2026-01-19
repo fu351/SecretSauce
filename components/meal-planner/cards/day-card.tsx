@@ -57,9 +57,7 @@ function DayCardComponent({
     <div
       className={`bg-card rounded-2xl p-4 flex flex-col gap-3 w-full border-2 ${
         isToday
-          ? isDark
-            ? "border-accent bg-accent/5"
-            : "border-orange-400 bg-orange-50/50"
+          ? "border-accent bg-accent/5"
           : "border-transparent"
       }`}
     >
@@ -67,12 +65,8 @@ function DayCardComponent({
         <div
           className={`rounded-full w-9 h-9 flex items-center justify-center font-semibold text-sm ring-offset-background ${
             isToday
-              ? isDark
-                ? "bg-accent text-accent-foreground ring-2 ring-accent ring-offset-1"
-                : "bg-orange-400 text-white ring-2 ring-orange-400 ring-offset-1"
-              : isDark
-              ? "bg-muted text-muted-foreground"
-              : "bg-gray-100 text-gray-600"
+              ? "bg-accent text-accent-foreground ring-2 ring-accent ring-offset-1"
+              : "bg-muted text-muted-foreground"
           }`}
         >
           {dayNumber}
@@ -83,11 +77,7 @@ function DayCardComponent({
           </h2>
           {isToday && (
             <span
-              className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${
-                isDark
-                  ? "bg-accent/20 text-accent"
-                  : "bg-orange-100 text-orange-700"
-              }`}
+              className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-accent/20 text-accent"
             >
               Today
             </span>

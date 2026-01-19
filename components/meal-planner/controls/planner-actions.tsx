@@ -62,7 +62,7 @@ export function PlannerActions({
         </Button>
       </div>
       <Button
-        className="!bg-gradient-to-r !from-purple-600 !to-blue-600 !text-white hover:!from-purple-700 hover:!to-blue-700 shadow-sm shrink-0"
+        className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm shrink-0"
         onClick={onAiPlan}
         disabled={aiLoading}
         data-tutorial="planner-ai"
@@ -75,7 +75,7 @@ export function PlannerActions({
         {isMobile ? "AI Plan" : "AI Weekly Planner"}
       </Button>
       <Button
-        className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shrink-0"
+        className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm shrink-0"
         onClick={onAddToCart}
         data-tutorial="planner-add"
       >
