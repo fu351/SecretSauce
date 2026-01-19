@@ -1,9 +1,40 @@
 "use client"
 
-import { Heart, Leaf, Flame, TreePine, Zap, Apple, Droplet, Globe } from "lucide-react"
+import { Heart, Leaf, Flame, TreePine, Zap, Apple, Droplet, Globe, Pizza, UtensilsCrossed, Fish, Croissant, Soup, Sun } from "lucide-react"
 import { DIETARY_TAGS, CUISINE_TYPES } from "@/lib/types"
 import type { DietaryTag, CuisineType } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
+
+// Icon map for dietary tags
+const tagIconMap: Record<string, React.ComponentType<any>> = {
+  vegetarian: Leaf,
+  vegan: TreePine,
+  'gluten-free': Zap,
+  'dairy-free': Droplet,
+  keto: Flame,
+  paleo: Apple,
+  'low-carb': Flame,
+  other: Leaf,
+}
+
+// Icon map for cuisine types
+const cuisineIconMap: Record<string, React.ComponentType<any>> = {
+  italian: Pizza,
+  mexican: Sun,
+  chinese: UtensilsCrossed,
+  indian: Flame,
+  american: UtensilsCrossed,
+  french: Croissant,
+  japanese: Fish,
+  thai: Soup,
+  mediterranean: Leaf,
+  korean: Soup,
+  greek: Leaf,
+  spanish: Sun,
+  vietnamese: Soup,
+  'middle-eastern': Sun,
+  other: Globe,
+}
 
 // Format cuisine type for display (capitalize and handle hyphens)
 const formatCuisineType = (cuisine: string): string => {
