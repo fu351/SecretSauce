@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/ui/use-toast"
 interface AiPlanResult {
   storeId: string
   totalCost: number
-  dinners: Array<{ dayIndex: number; recipeId: string }>
+  meals: Array<{ dayIndex: number; mealType: 'breakfast' | 'lunch' | 'dinner'; recipeId: string }>
   explanation: string
 }
 
@@ -60,7 +60,7 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
       const response = await fetch("/api/weekly-dinner-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, weekIndex }),
       })
 
       // Clear progress timers
@@ -77,8 +77,8 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
       const plan = await response.json()
 
       // Fetch recipe details for the plan
-      if (plan.dinners && plan.dinners.length > 0) {
-        const recipeIds = plan.dinners.map((d: any) => d.recipeId)
+      if (plan.meals && plan.meals.length > 0) {
+        const recipeIds = [...new Set(plan.meals.map((m: any) => m.recipeId))]
         const recipes = await db.fetchRecipesByIds(recipeIds)
 
         if (recipes) {
@@ -111,24 +111,20 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
       const weekDates = getDatesForWeek(weekIndex).map(d => d.toISOString().split("T")[0])
 
       try {
-        // Remove existing dinners for this week
-        for (const date of weekDates) {
-          await db.removeMealSlot(userId, date, "dinner")
-        }
-
-        // Add new dinners from AI plan
-        for (const dinner of aiPlanResult.dinners) {
-          const date = weekDates[dinner.dayIndex]
+        // Add all meals from AI plan (the plan already skipped existing slots)
+        for (const meal of aiPlanResult.meals) {
+          const date = weekDates[meal.dayIndex]
           if (date) {
-            await db.addMealToSchedule(userId, dinner.recipeId, date, "dinner")
+            await db.addMealToSchedule(userId, meal.recipeId, date, meal.mealType)
           }
         }
 
         setShowAiPlanDialog(false)
 
+        const mealCount = aiPlanResult.meals.length
         toast({
           title: "Success",
-          description: `7-day dinner plan applied! Estimated cost: $${aiPlanResult.totalCost.toFixed(2)} at ${aiPlanResult.storeId}`,
+          description: `${mealCount} meal${mealCount !== 1 ? 's' : ''} added! Estimated cost: $${aiPlanResult.totalCost.toFixed(2)} at ${aiPlanResult.storeId}`,
         })
 
         return true

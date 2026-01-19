@@ -6,51 +6,39 @@ import Link from "next/link"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Clock, Users, Star } from "lucide-react"
+import { Clock, Users, Star, ChevronRight, Zap } from "lucide-react"
 import { getRecipeImageUrl } from "@/lib/image-helper"
-import { useRecipe } from "@/hooks"
-import { useResponsiveImage } from "@/hooks"
+import { useRecipe, useResponsiveImage } from "@/hooks"
 import { type Recipe } from "@/lib/types"
-import { QuantityControl } from "@/components/shared/quantity-control"
 
 interface RecipeDetailModalProps {
   recipeId: string | null
   onClose: () => void
   onAddToCart: (recipe: Recipe, servings: number) => Promise<void>
-  textClass?: string
-  mutedTextClass?: string
-  buttonClass?: string
-  theme?: "light" | "dark"
-  bgClass?: string
 }
 
 export function RecipeDetailModal({
   recipeId,
   onClose,
   onAddToCart,
-  textClass = "text-gray-900",
-  mutedTextClass = "text-gray-500",
-  buttonClass = "bg-orange-500 hover:bg-orange-600 text-white",
-  theme = "light",
-  bgClass = "bg-white",
 }: RecipeDetailModalProps) {
   const [servings, setServings] = useState(1)
   const [isAdding, setIsAdding] = useState(false)
   const { data: recipe, isLoading } = useRecipe(recipeId)
+  
   const imageConfig = useResponsiveImage({
-    mobile: { width: 400, height: 192 },
+    mobile: { width: 400, height: 250 },
     tablet: { width: 600, height: 400 },
-    desktop: { width: 384, height: 576 },
+    desktop: { width: 400, height: 600 },
   })
 
   const isOpen = !!recipeId
 
-  // Update servings when recipe loads to use the recipe's default servings
+  // Fixed servings: Always sync with the recipe's default
   useEffect(() => {
     if (recipe?.servings) {
       setServings(parseInt(recipe.servings.toString()) || 1)
@@ -68,13 +56,10 @@ export function RecipeDetailModal({
     }
   }
 
-  const getDifficultyColor = (level?: string) => {
-    const colors: Record<string, string> = {
-      beginner: "bg-green-100 text-green-800",
-      intermediate: "bg-yellow-100 text-yellow-800",
-      advanced: "bg-red-100 text-red-800",
-    }
-    return colors[level?.toLowerCase() || ""] || "bg-gray-100 text-gray-800"
+  const difficultyStyles: Record<string, string> = {
+    beginner: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+    intermediate: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+    advanced: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
   }
 
   const totalTime = recipe ? (recipe.prep_time || 0) + (recipe.cook_time || 0) : 0
@@ -83,184 +68,115 @@ export function RecipeDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`max-w-4xl max-h-[90vh] p-0 border-0 ${bgClass}`}>
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden border-none bg-white dark:bg-neutral-950">
         <div className="flex flex-col md:flex-row h-full">
           {isLoading || !recipe ? (
-            <div className="flex items-center justify-center py-12 w-full">
+            <div className="flex items-center justify-center py-24 w-full bg-white dark:bg-neutral-950">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
             </div>
           ) : (
             <>
-              {/* Hero Image - Left side on desktop */}
-              {recipe.image_url && (
-                <div className="relative w-full h-48 md:w-96 md:h-full flex-shrink-0 overflow-hidden">
-                  <Image
-                    src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
-                    alt={recipe.title}
-                    fill
-                    className="object-cover"
-                    priority
-                    sizes={imageConfig.sizes}
-                    quality={85}
-                  />
-                </div>
-              )}
+              {/* Hero Image Section */}
+              <div className="relative w-full h-56 md:w-80 md:h-auto flex-shrink-0">
+                <Image
+                  src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
+                  alt={recipe.title}
+                  fill
+                  className="object-cover"
+                  priority
+                  sizes="(max-width: 768px) 100vw, 320px"
+                />
+              </div>
 
-              {/* Content - Right side on desktop */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="space-y-4 p-6 md:p-4">
-                {/* Header */}
-                <div>
-                  <DialogTitle className={`text-xl font-bold ${textClass}`}>
-                    {recipe.title}
-                  </DialogTitle>
-                  {recipe.description && (
-                    <p className={`text-xs mt-1 ${mutedTextClass}`}>{recipe.description}</p>
-                  )}
-                </div>
+              {/* Content Area */}
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
+                  {/* Title & Description */}
+                  <header className="space-y-3">
+                    <DialogTitle className="text-2xl md:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-50">
+                      {recipe.title}
+                    </DialogTitle>
+                    {recipe.description && (
+                      <p className="text-sm leading-relaxed text-neutral-500 dark:text-neutral-400">
+                        {recipe.description}
+                      </p>
+                    )}
+                  </header>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  {totalTime > 0 && (
-                    <StatCard
-                      icon={<Clock className="h-4 w-4 text-orange-500" />}
-                      label="Time"
-                      value={`${totalTime}m`}
-                      textClass={textClass}
-                      mutedTextClass={mutedTextClass}
+                  {/* Primary Stats */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-5 border-y border-neutral-100 dark:border-neutral-800">
+                    <StatCard 
+                        icon={<Clock className="h-4 w-4 text-orange-500" />} 
+                        label="Time" 
+                        value={`${totalTime}m`} 
                     />
-                  )}
-
-                  {recipe.servings && (
-                    <StatCard
-                      icon={<Users className="h-4 w-4 text-orange-500" />}
-                      label="Servings"
-                      value={recipe.servings}
-                      textClass={textClass}
-                      mutedTextClass={mutedTextClass}
+                    <StatCard 
+                        icon={<Users className="h-4 w-4 text-orange-500" />} 
+                        label="Servings" 
+                        value={servings} 
                     />
-                  )}
-
-                  {recipe.difficulty && (
                     <div className="flex flex-col gap-1">
-                      <p className={`text-xs ${mutedTextClass}`}>Difficulty</p>
-                      <Badge className={getDifficultyColor(recipe.difficulty)}>
-                        {recipe.difficulty}
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400">Difficulty</span>
+                      <Badge variant="secondary" className={`w-fit px-2 py-0 text-[10px] font-bold uppercase ${difficultyStyles[recipe.difficulty?.toLowerCase() || ""] || ""}`}>
+                        {recipe.difficulty || "Easy"}
                       </Badge>
                     </div>
-                  )}
-
-                  {recipe.rating_avg && recipe.rating_avg > 0 && (
-                    <StatCard
-                      icon={<Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />}
-                      label="Rating"
-                      value={recipe.rating_avg.toFixed(1)}
-                      textClass={textClass}
-                      mutedTextClass={mutedTextClass}
-                    />
-                  )}
-                </div>
-
-                {/* Nutrition */}
-                {recipe.nutrition && Object.keys(recipe.nutrition).length > 0 && (
-                  <div className={`space-y-2 border-t pt-4 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
-                    <h3 className={`text-sm font-semibold ${textClass}`}>Nutrition</h3>
-                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                      {recipe.nutrition.calories && (
-                        <NutritionCard
-                          label="Calories"
-                          value={recipe.nutrition.calories}
-                          mutedTextClass={mutedTextClass}
-                          theme={theme}
-                          textClass={textClass}
-                        />
-                      )}
-                      {recipe.nutrition.protein && (
-                        <NutritionCard
-                          label="Protein"
-                          value={`${recipe.nutrition.protein}g`}
-                          mutedTextClass={mutedTextClass}
-                          theme={theme}
-                          textClass={textClass}
-                        />
-                      )}
-                      {recipe.nutrition.carbs && (
-                        <NutritionCard
-                          label="Carbs"
-                          value={`${recipe.nutrition.carbs}g`}
-                          mutedTextClass={mutedTextClass}
-                          theme={theme}
-                          textClass={textClass}
-                        />
-                      )}
-                      {recipe.nutrition.fat && (
-                        <NutritionCard
-                          label="Fat"
-                          value={`${recipe.nutrition.fat}g`}
-                          mutedTextClass={mutedTextClass}
-                          theme={theme}
-                          textClass={textClass}
-                        />
-                      )}
-                    </div>
+                    {recipe.rating_avg > 0 && (
+                      <StatCard 
+                        icon={<Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />} 
+                        label="Rating" 
+                        value={recipe.rating_avg.toFixed(1)} 
+                      />
+                    )}
                   </div>
-                )}
 
-                {/* Ingredients */}
-                {recipe.ingredients && recipe.ingredients.length > 0 && (
-                  <div className={`space-y-2 border-t pt-4 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
-                    <h3 className={`text-sm font-semibold ${textClass}`}>Ingredients</h3>
-                    <ul className="space-y-1">
-                      {recipe.ingredients.slice(0, 10).map((ingredient: any, idx: number) => (
-                        <li key={idx} className={`flex gap-2 text-xs ${textClass}`}>
-                          <span className="flex-shrink-0 text-orange-500">•</span>
-                          <span>
-                            {ingredient.amount} {ingredient.unit} {ingredient.name}
-                          </span>
+                  {/* Nutrition Grid */}
+                  {recipe.nutrition && (
+                    <section className="space-y-4">
+                      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-neutral-900 dark:text-neutral-100">
+                        <Zap className="h-3 w-3 text-orange-500" />
+                        Nutrition <span className="text-[10px] font-normal lowercase text-neutral-400 tracking-normal">(per serving)</span>
+                      </h3>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <NutritionCard label="Calories" value={recipe.nutrition.calories} unit="" />
+                        <NutritionCard label="Protein" value={recipe.nutrition.protein} unit="g" />
+                        <NutritionCard label="Carbs" value={recipe.nutrition.carbs} unit="g" />
+                        <NutritionCard label="Fat" value={recipe.nutrition.fat} unit="g" />
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Ingredients Preview */}
+                  <section className="space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-900 dark:text-neutral-100">Ingredients Preview</h3>
+                    <ul className="grid grid-cols-1 gap-3">
+                      {recipe.ingredients?.slice(0, 6).map((ing: any, idx: number) => (
+                        <li key={idx} className="flex items-start gap-3 text-sm text-neutral-600 dark:text-neutral-300">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500/60" />
+                          <span><span className="font-semibold text-neutral-900 dark:text-neutral-100">{ing.amount} {ing.unit}</span> {ing.name}</span>
                         </li>
                       ))}
-                      {recipe.ingredients.length > 10 && (
-                        <li className={`text-sm ${mutedTextClass}`}>
-                          +{recipe.ingredients.length - 10} more ingredients
-                        </li>
-                      )}
                     </ul>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className={`flex items-center gap-3 border-t pt-4 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs ${mutedTextClass}`}>Servings:</span>
-                    <QuantityControl
-                      quantity={servings}
-                      editingId={null}
-                      itemId="servings"
-                      editingValue={servings.toString()}
-                      onQuantityChange={(val) => setServings(parseFloat(val))}
-                      onQuantityKeyDown={() => {}}
-                      onDecrement={() => setServings(Math.max(1, servings - 1))}
-                      onIncrement={() => setServings(servings + 1)}
-                      theme={theme}
-                      textClass={textClass}
-                    />
-                  </div>
-                  <div className="flex-1" />
-                  <Button onClick={handleAddToCart} disabled={isAdding} className={buttonClass}>
-                    {isAdding ? "Adding..." : "Add to List"}
-                  </Button>
+                  </section>
                 </div>
 
-                {/* Footer Link */}
-                <div className="flex justify-center">
+                {/* Footer Actions */}
+                <footer className="p-6 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 flex items-center justify-between mt-auto">
                   <Link
                     href={`/recipes/${recipe.id}`}
-                    className="text-sm text-orange-500 hover:underline"
+                    className="group text-sm font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1 hover:underline"
                   >
-                    View full recipe
+                    View Directions
+                    <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </Link>
-                </div>
-              </div>
+                  <Button 
+                    onClick={handleAddToCart} 
+                    disabled={isAdding} 
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-8 rounded-full font-bold transition-all active:scale-95"
+                  >
+                    {isAdding ? "Adding..." : "Add to List"}
+                  </Button>
+                </footer>
               </div>
             </>
           )}
@@ -270,39 +186,26 @@ export function RecipeDetailModal({
   )
 }
 
-interface StatCardProps {
-  icon: React.ReactNode
-  label: string
-  value: string | number
-  textClass: string
-  mutedTextClass: string
-}
-
-function StatCard({ icon, label, value, textClass, mutedTextClass }: StatCardProps) {
+function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         {icon}
-        <span className={`text-xs ${mutedTextClass}`}>{label}</span>
+        <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400">{label}</span>
       </div>
-      <span className={`font-semibold text-sm ${textClass}`}>{value}</span>
+      <span className="text-sm font-bold text-neutral-800 dark:text-neutral-200">{value}</span>
     </div>
   )
 }
 
-interface NutritionCardProps {
-  label: string
-  value: string | number
-  mutedTextClass: string
-  theme?: "light" | "dark"
-  textClass?: string
-}
-
-function NutritionCard({ label, value, mutedTextClass, theme = "light", textClass = "text-gray-900" }: NutritionCardProps) {
+function NutritionCard({ label, value, unit }: { label: string; value: number | string; unit: string }) {
   return (
-    <div className={`rounded p-2 text-center ${theme === "dark" ? "bg-[#281f1a]" : "bg-gray-100"}`}>
-      <div className={`text-xs opacity-75 ${mutedTextClass}`}>{label}</div>
-      <div className={`font-semibold ${textClass}`}>{value}</div>
+    <div className="flex flex-col items-center justify-center p-3 rounded-xl border border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm">
+      <span className="text-[9px] uppercase font-bold text-neutral-400 mb-0.5">{label}</span>
+      <div className="flex items-baseline gap-0.5">
+        <span className="text-base font-extrabold text-neutral-900 dark:text-neutral-50">{value}</span>
+        <span className="text-[10px] font-medium text-neutral-500">{unit}</span>
+      </div>
     </div>
   )
 }

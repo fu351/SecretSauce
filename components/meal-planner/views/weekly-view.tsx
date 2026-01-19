@@ -12,6 +12,7 @@ interface WeeklyViewProps {
   recipesById: Record<string, Recipe>
   onRemove: (mealType: string, date: string) => void
   onAdd: (mealType: string, date: string) => void
+  onRecipeClick?: (recipeId: string) => void
   getDraggableProps: (
     recipe: Recipe,
     source: "modal" | "slot",
@@ -20,7 +21,8 @@ interface WeeklyViewProps {
   ) => { draggableId: string; data: any }
   getDroppableProps: (
     mealType: string,
-    date: string
+    date: string,
+    recipe?: Recipe | null
   ) => { droppableId: string; data: any }
   activeDragData: any | null
   activeDropTarget: { mealType: string; date: string } | null
@@ -32,6 +34,7 @@ export function WeeklyView({
   recipesById,
   onRemove,
   onAdd,
+  onRecipeClick,
   getDraggableProps,
   getDroppableProps,
   activeDragData,
@@ -69,6 +72,7 @@ export function WeeklyView({
             meals={dayMeals}
             onRemove={onRemove}
             onAdd={onAdd}
+            onRecipeClick={onRecipeClick}
             getDraggableProps={getDraggableProps}
             getDroppableProps={getDroppableProps}
             activeDragData={activeDragData}

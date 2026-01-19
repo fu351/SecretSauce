@@ -16,8 +16,8 @@ import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
 import { TagSelector } from "@/components/recipe/tags/tag-selector"
-// Import the new hook
-import { useShoppingList } from "@/hooks" // Adjust path if needed
+import { useShoppingList } from "@/hooks"
+import { useRecipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 
 interface Ingredient {
   amount: string
@@ -28,20 +28,24 @@ interface Ingredient {
 interface Recipe {
   id: string
   title: string
-  description: string
   prep_time: number
   cook_time: number
   servings: number
   difficulty: string
-  cuisine: string
-  image_url: string
-  dietary_tags: string[]
+  cuisine: string | null
+  protein: string | null
+  meal_type: string | null
+  tags: string[]
   ingredients: Ingredient[]
-  instructions: any[]
   author_id: string
   created_at: string
   rating_avg?: number
   rating_count?: number
+  content: {
+    description?: string
+    image_url?: string
+    instructions?: any[]
+  }
   nutrition?: {
     calories?: number
     protein?: number
@@ -55,9 +59,9 @@ export default function RecipeDetailPage() {
   const router = useRouter()
   const { user } = useAuth()
   const { toast } = useToast()
-  
-  // Use the hook for shopping list actions
+
   const { addRecipeToCart } = useShoppingList()
+  const recipeFavoritesDB = useRecipeFavoritesDB()
 
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -135,16 +139,32 @@ export default function RecipeDetailPage() {
     }
 
     try {
-      const { data, error } = await supabase.from("recipes").select("*").eq("id", params.id).single()
+      const { data, error } = await supabase
+        .from("recipes")
+        .select("*")
+        .eq("id", params.id)
+        .single()
 
       if (error) throw error
 
-      const processedRecipe = {
-        ...data,
+      const processedRecipe: Recipe = {
+        id: data.id,
+        title: data.title,
+        prep_time: data.prep_time || 0,
+        cook_time: data.cook_time || 0,
+        servings: data.servings || 1,
+        difficulty: data.difficulty || "",
+        cuisine: data.cuisine || null,
+        protein: data.protein || null,
+        meal_type: data.meal_type || null,
+        tags: data.tags || [],
         ingredients: data.ingredients || [],
-        instructions: data.instructions || [],
-        dietary_tags: data.dietary_tags || [],
-        cuisine: data.cuisine || "",
+        author_id: data.author_id || "",
+        created_at: data.created_at,
+        rating_avg: data.rating_avg || 0,
+        rating_count: data.rating_count || 0,
+        content: data.content || {},
+        nutrition: data.nutrition || {},
       }
 
       setRecipe(processedRecipe)
@@ -160,20 +180,8 @@ export default function RecipeDetailPage() {
     if (!user || !params.id) return
 
     try {
-      const { data, error } = await supabase
-        .from("recipe_favorites")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("recipe_id", params.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-
-      if (error && error.code !== "PGRST116") {
-        console.error("Error checking favorite:", error)
-        return
-      }
-
-      setIsFavorite(data && data.length > 0)
+      const favorited = await recipeFavoritesDB.isFavorite(user.id, params.id as string)
+      setIsFavorite(favorited)
     } catch (error) {
       console.error("Error checking if favorited:", error)
       setIsFavorite(false)
@@ -190,34 +198,19 @@ export default function RecipeDetailPage() {
       return
     }
 
+    if (!params.id) return
+
     setIsTogglingFavorite(true)
     try {
-      if (isFavorite) {
-        const { error } = await supabase
-          .from("recipe_favorites")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("recipe_id", params.id)
+      const newFavoriteStatus = await recipeFavoritesDB.toggleFavorite(user.id, params.id as string)
+      setIsFavorite(newFavoriteStatus)
 
-        if (error) throw error
-        setIsFavorite(false)
-        toast({
-          title: "Removed from favorites",
-          description: "Recipe has been removed from your favorites.",
-        })
-      } else {
-        const { error } = await supabase.from("recipe_favorites").insert({
-          user_id: user.id,
-          recipe_id: params.id,
-        })
-
-        if (error) throw error
-        setIsFavorite(true)
-        toast({
-          title: "Added to favorites",
-          description: "Recipe has been added to your favorites.",
-        })
-      }
+      toast({
+        title: newFavoriteStatus ? "Added to favorites" : "Removed from favorites",
+        description: newFavoriteStatus
+          ? "Recipe has been added to your favorites."
+          : "Recipe has been removed from your favorites.",
+      })
     } catch (error) {
       console.error("Error toggling favorite:", error)
       toast({
@@ -302,7 +295,7 @@ export default function RecipeDetailPage() {
               )}
             >
               <img
-                src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
+                src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
                 alt={recipe.title}
                 className="w-full h-[360px] sm:h-[420px] md:h-[500px] object-cover"
               />
@@ -339,7 +332,9 @@ export default function RecipeDetailPage() {
                   </h1>
                 </div>
 
-                <p className={clsx("leading-relaxed text-base sm:text-lg", descriptionTextClass)}>{recipe.description}</p>
+                <p className={clsx("leading-relaxed text-base sm:text-lg", descriptionTextClass)}>
+                  {recipe.content?.description || "No description available."}
+                </p>
 
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div className={statCardClass}>
@@ -399,11 +394,15 @@ export default function RecipeDetailPage() {
 
                 {/* Tag Display System */}
                 <TagSelector
-                  tags={recipe.tags}
+                  tags={{
+                    dietary: recipe.tags as any || [],
+                    protein: recipe.protein as any || undefined,
+                    meal_type: recipe.meal_type as any || undefined,
+                    cuisine_guess: undefined,
+                  }}
                   mode="view"
                   sections={{
-                    dietary: true,
-                    allergens: true,
+                    tags: true,
                     protein: true,
                     mealType: true,
                     cuisine: recipe.cuisine ? false : true,
@@ -458,7 +457,7 @@ export default function RecipeDetailPage() {
                 Instructions
               </h3>
               <div className="space-y-3 sm:space-y-4">
-                {recipe.instructions.map((instruction, index) => (
+                {(recipe.content?.instructions || []).map((instruction: any, index: number) => (
                   <div key={index} className={instructionCardClass}>
                     <div className={instructionStepBadgeClass}>{index + 1}</div>
                     <div className="flex-1">

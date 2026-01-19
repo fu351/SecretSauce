@@ -24,6 +24,7 @@ import { WeeklyView } from "@/components/meal-planner/views/weekly-view"
 import { AiPlannerModal } from "@/components/meal-planner/modals/ai-planner-modal"
 import { RecipeSearchPanel } from "@/components/meal-planner/panels/recipe-search-panel"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
+import { RecipeDetailModal } from "@/components/recipe/detail/recipe-detail-modal"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 
 import { cn } from "@/lib/utils"
@@ -60,6 +61,7 @@ export default function MealPlannerPage() {
   } | null>(null)
   const [showRecipeSidebar, setShowRecipeSidebar] = useState(false)
   const [weekIndex, setWeekIndex] = useState(getCurrentWeekIndex())
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
 
   // Custom hooks
   const {
@@ -188,6 +190,32 @@ export default function MealPlannerPage() {
     },
     [focusMode, addToMealPlan]
   )
+
+  const handleRecipeClick = useCallback((recipeId: string) => {
+    setSelectedRecipeId(recipeId)
+  }, [])
+
+  const handleAddToCart = useCallback(
+    async (recipe: Recipe, servings: number) => {
+      if (!user) return
+      try {
+        await shoppingList.addRecipeToCart(recipe.id, servings)
+        toast({
+          title: "Added to shopping list",
+          description: `Added ${recipe.title} to your shopping list.`,
+        })
+      } catch (error) {
+        console.error("Error adding to shopping list:", error)
+        toast({
+          title: "Error",
+          description: "Failed to add recipe to shopping list.",
+          variant: "destructive",
+        })
+      }
+    },
+    [user, shoppingList, toast]
+  )
+
   if (!user) {
     return (
       <div className={`h-screen flex items-center justify-center bg-background`}>
@@ -243,6 +271,7 @@ export default function MealPlannerPage() {
                   recipesById={recipesById}
                   onAdd={openRecipeSelector}
                   onRemove={removeFromMealPlan}
+                  onRecipeClick={handleRecipeClick}
                   getDraggableProps={dnd.getDraggableProps}
                   getDroppableProps={dnd.getDroppableProps}
                   activeDragData={dnd.activeDragData}
@@ -321,6 +350,13 @@ export default function MealPlannerPage() {
           recipesById={allRecipesById}
           weekdaysFull={weekdaysFull}
           onApply={handleApplyAiPlan}
+        />
+
+        <RecipeDetailModal
+          recipeId={selectedRecipeId}
+          onClose={() => setSelectedRecipeId(null)}
+          onAddToCart={handleAddToCart}
+          theme={theme}
         />
       </div>
 

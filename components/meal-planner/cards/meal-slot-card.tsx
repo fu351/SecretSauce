@@ -5,7 +5,7 @@ import Image from "next/image"
 import { X, Plus } from "lucide-react"
 import type { Recipe } from "@/lib/types"
 import { useTheme } from "@/contexts/theme-context"
-import { useDroppable } from "@dnd-kit/core"
+import { useDroppable, useDraggable } from "@dnd-kit/core"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 
 interface DragData {
@@ -21,8 +21,9 @@ interface MealSlotCardProps {
   date: string
   onRemove: (mealType: string, date: string) => void
   onAdd?: (mealType: string, date: string) => void
+  onRecipeClick?: (recipeId: string) => void
   getDraggableProps: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
-  getDroppableProps: (mealType: string, date: string) => { droppableId: string; data: { mealType: string; date: string } }
+  getDroppableProps: (mealType: string, date: string, recipe?: Recipe | null) => { droppableId: string; data: { mealType: string; date: string; hasRecipe?: boolean; existingRecipe?: Recipe } }
   activeDragData: DragData | null
   activeDropTarget: { mealType: string; date: string } | null
 }
@@ -33,6 +34,7 @@ function MealSlotCardComponent({
   date,
   onRemove,
   onAdd,
+  onRecipeClick,
   getDraggableProps,
   getDroppableProps,
   activeDragData,
@@ -42,14 +44,19 @@ function MealSlotCardComponent({
   const isDark = theme === "dark"
 
   // Make slot droppable
-  const droppableProps = getDroppableProps(mealType, date)
+  const droppableProps = getDroppableProps(mealType, date, recipe)
   const { setNodeRef: setDropRef } = useDroppable({
     id: droppableProps.droppableId,
     data: droppableProps.data,
   })
 
-  // Get draggable props for display
+  // Make recipe draggable (when slot has a recipe)
   const draggableProps = recipe ? getDraggableProps(recipe, 'slot', mealType, date) : null
+  const { attributes, listeners, setNodeRef: setDragRef } = useDraggable({
+    id: draggableProps?.draggableId || '',
+    data: draggableProps?.data,
+    disabled: !recipe,
+  })
 
   // Check if this is being dragged
   const isDragging = activeDragData?.source === 'slot' &&
@@ -70,65 +77,48 @@ function MealSlotCardComponent({
       {recipe ? (
         // Filled state
         <div
-          className={`relative h-full w-full overflow-hidden rounded-lg shadow-sm hover:shadow-md ${isDragging ? "opacity-0 pointer-events-none" : ""} ${isDropTarget ? "brightness-75" : ""}`}
-          id={draggableProps?.draggableId}
-          data-draggable="true"
-          data-draggable-id={draggableProps?.draggableId}
-          data-drag-data={draggableProps ? JSON.stringify(draggableProps.data) : ""}
+          ref={setDragRef}
+          className={`relative h-full w-full overflow-hidden rounded-lg shadow-sm hover:shadow-md transition-opacity ${isDragging ? "opacity-0 pointer-events-none" : ""} ${isDropTarget ? "brightness-75" : ""}`}
         >
-          <Image
-            src={getRecipeImageUrl(recipe.content?.image_url)}
-            alt={recipe.title}
-            fill
-            sizes="260px"
-            className="w-full h-full object-cover cursor-grab active:cursor-grabbing transition-transform duration-200 group-hover:scale-110"
-          />
-          <button
-            onClick={() => onRemove(mealType, date)}
-            className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 z-20 shadow-md hover:shadow-lg transition-shadow"
-            aria-label={`Remove ${recipe.title}`}
+          {/* Draggable area - image */}
+          <div
+            {...attributes}
+            {...listeners}
+            onClick={() => onRecipeClick?.(recipe.id)}
+            className="cursor-grab active:cursor-grabbing w-full h-full"
           >
-            <X className="h-3 w-3" />
-          </button>
-          
-          {/* Static Title Overlay (always visible) */}
-          {!isDropTarget && (
-            <div className={`absolute inset-x-0 bottom-0 flex items-end p-2.5 z-10 ${isDark ? "bg-gradient-to-t from-black/80 to-transparent" : "bg-gradient-to-t from-black/75 to-transparent"}`}>
-              <h4 className={`font-semibold text-sm line-clamp-2 text-white w-full`}>{recipe.title}</h4>
-            </div>
-          )}
+            <Image
+              src={getRecipeImageUrl(recipe.content?.image_url)}
+              alt={recipe.title}
+              fill
+              sizes="260px"
+              className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110 pointer-events-none"
+            />
+          </div>
 
-          {/* Nutrition Info - Slides up on hover, above the title */}
-          {recipe.nutrition && !isDropTarget && (
-            <div
-              className={`absolute inset-x-0 rounded-b-lg text-white text-[10px] p-3 pointer-events-none z-20 transition-transform duration-300 transform translate-y-full group-hover:-translate-y-[40px] ${isDark ? "bg-black/60" : "bg-black/50"} backdrop-blur-sm`}
-              style={{ bottom: 0 }}
+          {/* Remove button - not draggable */}
+          <div className="absolute top-2 right-2 flex gap-1 z-20">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemove(mealType, date)
+              }}
+              className="bg-destructive text-destructive-foreground rounded-full p-1 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              aria-label={`Remove ${recipe.title}`}
             >
-              <p className="uppercase tracking-wider text-[9px] mb-1 text-white/80 font-medium">Nutrition</p>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div>
-                  <div className="text-white/70 text-[8px] font-medium">CAL</div>
-                  <div className="font-bold text-xs">{recipe.nutrition.calories || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-white/70 text-[8px] font-medium">FAT</div>
-                  <div className="font-bold text-xs">
-                    {recipe.nutrition.fat ? `${recipe.nutrition.fat}g` : "-"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-white/70 text-[8px] font-medium">PRO</div>
-                  <div className="font-bold text-xs">
-                    {recipe.nutrition.protein ? `${recipe.nutrition.protein}g` : "-"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-white/70 text-[8px] font-medium">CARB</div>
-                  <div className="font-bold text-xs">
-                    {recipe.nutrition.carbs ? `${recipe.nutrition.carbs}g` : "-"}
-                  </div>
-                </div>
-              </div>
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Static Title Overlay (always visible) - also draggable */}
+          {!isDropTarget && (
+            <div
+              {...attributes}
+              {...listeners}
+              onClick={() => onRecipeClick?.(recipe.id)}
+              className={`absolute inset-x-0 bottom-0 flex items-end p-2.5 z-10 cursor-grab active:cursor-grabbing ${isDark ? "bg-gradient-to-t from-black/80 to-transparent" : "bg-gradient-to-t from-black/75 to-transparent"}`}
+            >
+              <h4 className={`font-semibold text-sm line-clamp-2 text-white w-full pointer-events-none`}>{recipe.title}</h4>
             </div>
           )}
         </div>

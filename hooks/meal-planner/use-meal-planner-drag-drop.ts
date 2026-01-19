@@ -40,9 +40,9 @@ interface UseMealPlannerDragDropReturn {
   }
 
   // For drop zones
-  getDroppableProps: (mealType: string, date: string) => {
+  getDroppableProps: (mealType: string, date: string, recipe?: Recipe | null) => {
     droppableId: string
-    data: { mealType: string; date: string }
+    data: { mealType: string; date: string; hasRecipe?: boolean; existingRecipe?: Recipe }
   }
 
   // Current drop target for visual feedback
@@ -124,7 +124,7 @@ export function useMealPlannerDragDrop({
       }
 
       const dragData = active.data.current as DragData
-      const dropData = over.data.current as { mealType: string; date: string }
+      const dropData = over.data.current as { mealType: string; date: string; hasRecipe?: boolean; existingRecipe?: Recipe }
 
       if (!dragData || !dropData) {
         setActiveDragData(null)
@@ -132,57 +132,84 @@ export function useMealPlannerDragDrop({
       }
 
       const { recipe, source, sourceMealType, sourceDate } = dragData
-      const { mealType: targetMealType, date: targetDate } = dropData
+      const { mealType: targetMealType, date: targetDate, hasRecipe, existingRecipe } = dropData
 
       try {
         if (source === 'modal') {
           // Add from modal to slot
           await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
         } else if (source === 'slot') {
-          // Move between slots
+          // Move or swap between slots
           if (sourceMealType === targetMealType && sourceDate === targetDate) {
             // Same slot - do nothing
             setActiveDragData(null)
             return
           }
 
-          // Move operation: remove from source, then add to target
-          // With rollback if add fails
-          try {
-            await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!)
-          } catch (removeError) {
-            console.error('Failed to remove meal from source:', removeError)
-            toast({
-              title: 'Error',
-              description: 'Failed to move meal. Could not remove from source.',
-              variant: 'destructive',
-            })
-            throw removeError
-          }
-
-          try {
-            await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
-          } catch (addError) {
-            // Rollback: restore the meal to the source
-            console.error('Failed to add meal to target, rolling back:', addError)
+          // Check if target slot has a recipe (swap scenario)
+          if (hasRecipe && existingRecipe) {
+            // Swap operation: exchange recipes between slots
             try {
-              await mealPlanner.addToMealPlan(recipe, sourceMealType!, sourceDate!)
-            } catch (rollbackError) {
-              console.error('Rollback failed - data may be inconsistent:', rollbackError)
+              // Remove both recipes
+              await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!)
+              await mealPlanner.removeFromMealPlan(targetMealType, targetDate)
+
+              // Add recipes to swapped positions
+              await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
+              await mealPlanner.addToMealPlan(existingRecipe, sourceMealType!, sourceDate!)
+
               toast({
-                title: 'Critical Error',
-                description: 'Failed to move meal and rollback failed. Please refresh the page.',
+                title: 'Recipes swapped',
+                description: 'The recipes have been swapped successfully.',
+              })
+            } catch (swapError) {
+              console.error('Failed to swap recipes:', swapError)
+              toast({
+                title: 'Error',
+                description: 'Failed to swap recipes. Please try again.',
                 variant: 'destructive',
               })
-              throw rollbackError
+              throw swapError
+            }
+          } else {
+            // Move operation: remove from source, then add to target
+            // With rollback if add fails
+            try {
+              await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!)
+            } catch (removeError) {
+              console.error('Failed to remove meal from source:', removeError)
+              toast({
+                title: 'Error',
+                description: 'Failed to move meal. Could not remove from source.',
+                variant: 'destructive',
+              })
+              throw removeError
             }
 
-            toast({
-              title: 'Error',
-              description: 'Failed to move meal to target. Meal restored to original slot.',
-              variant: 'destructive',
-            })
-            throw addError
+            try {
+              await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
+            } catch (addError) {
+              // Rollback: restore the meal to the source
+              console.error('Failed to add meal to target, rolling back:', addError)
+              try {
+                await mealPlanner.addToMealPlan(recipe, sourceMealType!, sourceDate!)
+              } catch (rollbackError) {
+                console.error('Rollback failed - data may be inconsistent:', rollbackError)
+                toast({
+                  title: 'Critical Error',
+                  description: 'Failed to move meal and rollback failed. Please refresh the page.',
+                  variant: 'destructive',
+                })
+                throw rollbackError
+              }
+
+              toast({
+                title: 'Error',
+                description: 'Failed to move meal to target. Meal restored to original slot.',
+                variant: 'destructive',
+              })
+              throw addError
+            }
           }
         }
       } catch (error) {
@@ -198,7 +225,7 @@ export function useMealPlannerDragDrop({
         setActiveDragData(null)
       }
     },
-    [mealPlanner]
+    [mealPlanner, toast]
   )
 
   // Generate draggable properties
@@ -216,11 +243,13 @@ export function useMealPlannerDragDrop({
   )
 
   // Generate droppable properties
-  const getDroppableProps = useCallback((mealType: string, date: string) => ({
+  const getDroppableProps = useCallback((mealType: string, date: string, recipe?: Recipe | null) => ({
     droppableId: `slot-${mealType}-${date}`,
     data: {
       mealType,
       date,
+      hasRecipe: !!recipe,
+      existingRecipe: recipe || undefined,
     },
   }), [])
 

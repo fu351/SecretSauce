@@ -18,6 +18,7 @@ interface DayCardProps {
   meals: { [mealType: string]: MealWithRecipe }
   onRemove: (mealType: string, date: string) => void
   onAdd: (mealType: string, date: string) => void
+  onRecipeClick?: (recipeId: string) => void
   getDraggableProps: (
     recipe: Recipe,
     source: "modal" | "slot",
@@ -26,7 +27,8 @@ interface DayCardProps {
   ) => { draggableId: string; data: any }
   getDroppableProps: (
     mealType: string,
-    date: string
+    date: string,
+    recipe?: Recipe | null
   ) => { droppableId: string; data: any }
   activeDragData: any | null
   activeDropTarget: { mealType: string; date: string } | null
@@ -37,6 +39,7 @@ function DayCardComponent({
   meals,
   onRemove,
   onAdd,
+  onRecipeClick,
   getDraggableProps,
   getDroppableProps,
   activeDragData,
@@ -104,6 +107,7 @@ function DayCardComponent({
                 date={date.toISOString().split("T")[0]}
                 onRemove={onRemove}
                 onAdd={onAdd}
+                onRecipeClick={onRecipeClick}
                 getDraggableProps={getDraggableProps}
                 getDroppableProps={getDroppableProps}
                 activeDragData={activeDragData}

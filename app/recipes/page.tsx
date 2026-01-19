@@ -35,7 +35,7 @@ export default function RecipesPage() {
   const [searchInput, setSearchInput] = useState("")
 
   // Cuisine and dietary tag lookups
-  const [cuisineNameToId, setCuisineNameToId] = useState<Record<string, number>>({})
+  const [allCuisines, setAllCuisines] = useState<string[]>([])
   const [loadingCuisines, setLoadingCuisines] = useState(true)
   const [allDietaryTags, setAllDietaryTags] = useState<string[]>([])
   const [loadingTags, setLoadingTags] = useState(true)
@@ -47,22 +47,26 @@ export default function RecipesPage() {
   const searchParams = useSearchParams()
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
 
-  // Fetch cuisine ID mapping
+  // Fetch unique cuisine values from recipes
   useEffect(() => {
-    const fetchCuisineMapping = async () => {
+    const fetchCuisines = async () => {
       try {
         const { data, error } = await supabase
-          .from("cuisines")
-          .select("id, name")
+          .from("recipes")
+          .select("cuisine")
+          .not("cuisine", "is", null)
 
         if (error) {
           console.error("Error fetching cuisines:", error)
         } else {
-          const mapping: Record<string, number> = {}
-          data?.forEach((c: any) => {
-            mapping[c.name] = c.id
+          // Extract unique cuisine values
+          const cuisines = new Set<string>()
+          data?.forEach((recipe: any) => {
+            if (recipe.cuisine) {
+              cuisines.add(recipe.cuisine)
+            }
           })
-          setCuisineNameToId(mapping)
+          setAllCuisines(Array.from(cuisines).sort())
         }
       } catch (error) {
         console.error("Error fetching cuisines:", error)
@@ -71,10 +75,10 @@ export default function RecipesPage() {
       }
     }
 
-    fetchCuisineMapping()
+    fetchCuisines()
   }, [])
 
-  // Fetch all unique dietary tags
+  // Fetch all unique dietary tags from recipes
   useEffect(() => {
     const fetchDietaryTags = async () => {
       try {
@@ -85,9 +89,12 @@ export default function RecipesPage() {
 
         const tags = new Set<string>()
         data?.forEach((recipe: any) => {
-          recipe.tags?.dietary?.forEach((tag: string) => {
-            tags.add(tag)
-          })
+          // tags is an enum array, not a JSONB object
+          if (Array.isArray(recipe.tags)) {
+            recipe.tags.forEach((tag: string) => {
+              tags.add(tag)
+            })
+          }
         })
         setAllDietaryTags(Array.from(tags).sort())
       } catch (error) {
@@ -103,13 +110,11 @@ export default function RecipesPage() {
   // Create filters object for database-level filtering
   const filters = useMemo(() => ({
     difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined,
-    cuisine: selectedCuisine !== "all" && cuisineNameToId[selectedCuisine]
-      ? String(cuisineNameToId[selectedCuisine])
-      : undefined,
+    cuisine: selectedCuisine !== "all" ? selectedCuisine : undefined,
     diet: selectedDiet !== "all" ? selectedDiet : undefined,
     search: searchTerm || undefined,
     limit: 50,
-  }), [selectedDifficulty, selectedCuisine, selectedDiet, searchTerm, cuisineNameToId])
+  }), [selectedDifficulty, selectedCuisine, selectedDiet, searchTerm])
 
   // Use React Query hooks for data fetching with caching
   const { data: recipes = [], isLoading: loading } = useRecipesFiltered(sortBy, filters)
@@ -188,23 +193,8 @@ export default function RecipesPage() {
     [user, favorites, toast, toggleFavoriteMutation],
   )
 
-  // Get all available cuisines from mapping (not from filtered results)
-  const cuisineTypes = useMemo(() =>
-    Object.keys(cuisineNameToId).sort(),
-    [cuisineNameToId]
-  )
-
   // Use all dietary tags (not from filtered results)
   const dietaryTags = allDietaryTags
-
-  // Create reverse mapping from ID to cuisine name
-  const idToCuisineName = useMemo(() => {
-    const mapping: Record<number, string> = {}
-    Object.entries(cuisineNameToId).forEach(([name, id]) => {
-      mapping[id] = name
-    })
-    return mapping
-  }, [cuisineNameToId])
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
@@ -368,7 +358,7 @@ export default function RecipesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Cuisines</SelectItem>
-                  {cuisineTypes.map((cuisine) => (
+                  {allCuisines.map((cuisine) => (
                     <SelectItem key={cuisine} value={cuisine}>
                       {cuisine}
                     </SelectItem>
