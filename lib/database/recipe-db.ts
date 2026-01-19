@@ -37,12 +37,12 @@ export function useRecipeDB() {
         instructions: parseInstructionsFromDB(content.instructions),
       },
 
-      // UNIFIED TAG SYSTEM - Map from separate DB columns
+      // UNIFIED TAG SYSTEM - tags array contains both dietary and allergen tags
       tags: {
-        dietary: dbItem.dietary || [],
+        dietary: dbItem.tags || [],
         protein: dbItem.protein || undefined,
         meal_type: dbItem.meal_type || undefined,
-        cuisine_guess: undefined // Removed - replaced by is_cuisine_ai_generated flag
+        cuisine_guess: undefined
       },
 
       created_at: dbItem.created_at,
@@ -94,9 +94,9 @@ export function useRecipeDB() {
       query = query.eq("author_id", authorId)
     }
 
-    // Apply dietary tag filter (uses GIN index on dietary_tag_enum[] array)
+    // Apply tags filter (uses GIN index on tags_enum[] array)
     if (tags && tags.length > 0) {
-      query = query.contains("dietary", tags)
+      query = query.contains("tags", tags)
     }
 
     // Apply protein filter (uses B-tree index on enum)
@@ -247,17 +247,13 @@ export function useRecipeDB() {
         instructions: recipe.content?.instructions || []
       },
 
-      // Map tags to separate DB columns (allergens are now part of dietary tags)
-      dietary: recipe.tags?.dietary || [],
+      // Map tags array (dietary and allergen tags consolidated)
+      tags: recipe.tags?.dietary || [],
 
       // Map enum fields
       protein: recipe.tags?.protein || null,
       meal_type: recipe.tags?.meal_type || null,
       cuisine: recipe.cuisine_name || 'other',
-
-      // Set AI generation flags
-      is_ai_generated: false,
-      is_cuisine_ai_generated: false,
 
       // Soft delete defaults
       deleted_at: null
@@ -321,10 +317,10 @@ export function useRecipeDB() {
       }
     }
 
-    // Map tags if provided (allergens are now part of dietary tags)
+    // Map tags if provided (dietary and allergen tags consolidated into tags array)
     if (updates.tags) {
       if (updates.tags.dietary !== undefined) {
-        dbUpdates.dietary = updates.tags.dietary
+        dbUpdates.tags = updates.tags.dietary
       }
 
       if (updates.tags.protein !== undefined) {

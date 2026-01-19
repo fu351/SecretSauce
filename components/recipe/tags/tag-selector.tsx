@@ -1,7 +1,6 @@
 "use client"
 
 import { DietaryTagSelector } from "./dietary-tag-selector"
-import { AllergenTagDisplay } from "./allergen-tag-display"
 import { ProteinTagDisplay } from "./protein-tag-display"
 import { MealTypeTagDisplay } from "./meal-type-tag-display"
 import { RecipeTags, DietaryTag } from "@/lib/types"
@@ -18,8 +17,7 @@ interface TagSelectorProps {
 
   // Optional: show/hide specific tag sections
   sections?: {
-    dietary?: boolean
-    allergens?: boolean
+    tags?: boolean
     protein?: boolean
     mealType?: boolean
     cuisine?: boolean
@@ -35,8 +33,7 @@ export function TagSelector({
   onDietaryTagsChange,
   mode = "view",
   sections = {
-    dietary: true,
-    allergens: true,
+    tags: true,
     protein: true,
     mealType: true,
     cuisine: true,
@@ -48,17 +45,12 @@ export function TagSelector({
   return (
     <div className="space-y-4">
       {/* Dietary Tags - User Editable */}
-      {sections.dietary && (
+      {sections.tags && (
         <DietaryTagSelector
           selectedTags={safeTags.dietary}
           onChange={onDietaryTagsChange}
           mode={mode}
         />
-      )}
-
-      {/* Allergen Tags - Read-only, Auto-generated */}
-      {sections.allergens && safeTags.allergens && (
-        <AllergenTagDisplay allergens={safeTags.allergens} />
       )}
 
       {/* Protein Tag - Read-only, Auto-generated */}
