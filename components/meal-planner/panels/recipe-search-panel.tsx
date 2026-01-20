@@ -107,12 +107,12 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
     if (user?.id && showFavoritesOnly) {
       let isMounted = true
       setLoadingFavorites(true)
-      favoritesDB.fetchFavoriteRecipes(user.id)
+      recipeFavoritesDB.fetchFavoriteRecipes(user.id)
         .then(recipes => { if (isMounted) setFavoriteRecipes(recipes) })
         .finally(() => { if (isMounted) setLoadingFavorites(false) })
       return () => { isMounted = false }
     }
-  }, [user?.id, showFavoritesOnly, favoritesDB])
+  }, [user?.id, showFavoritesOnly])
 
   // Count active filters for badge
   const activeFilterCount = useMemo(() => {
