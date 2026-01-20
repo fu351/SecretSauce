@@ -31,7 +31,7 @@ import {
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
 import { QuantityControl } from "@/components/shared/quantity-control"
 import { recipeDB } from "@/lib/database/recipe-db"
-import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory, getCategoryIcon } from "@/lib/constants/categories"
+import { DEFAULT_CATEGORY, normalizeCategory, getCategoryIcon } from "@/lib/constants/categories"
 
 /**
  * Convert string to title case
@@ -113,6 +113,8 @@ export function ShoppingListSection({
   const [viewMode, setViewMode] = useState<ViewMode>('recipe')
   const [showUnits, setShowUnits] = useState(true)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
+
+  console.log('[ShoppingList] Current viewMode:', viewMode)
 
   // -- Editing State --
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -216,19 +218,26 @@ export function ShoppingListSection({
   // =========================================================
   // 2B. CATEGORY GROUPING LOGIC
   // =========================================================
+  // 1. Group by the normalized Title Case string
   const categoryGroups = useMemo(() => {
     const groups: Record<string, ShoppingListItem[]> = {}
-
     uniqueList.forEach((item) => {
-      const category = normalizeCategory(item.category)
-      if (!groups[category]) {
-        groups[category] = []
-      }
-      groups[category].push(item)
+      // This now converts "produce" (DB) to "Produce" (UI)
+      const cat = normalizeCategory(item.category)
+      if (!groups[cat]) groups[cat] = []
+      groups[cat].push(item)
     })
-
     return groups
   }, [uniqueList])
+
+  // 2. Sort the categories
+  const activeCategories = useMemo(() => {
+    return Object.keys(categoryGroups).sort((a, b) => {
+      if (a === DEFAULT_CATEGORY) return 1
+      if (b === DEFAULT_CATEGORY) return -1
+      return a.localeCompare(b)
+    })
+  }, [categoryGroups])
 
   // =========================================================
   // 3. QUANTITY CONTROL WIDTH NORMALIZATION
@@ -685,30 +694,16 @@ export function ShoppingListSection({
               </>
             ) : (
               <>
-                {FOOD_CATEGORIES.map(category => {
-                  const items = categoryGroups[category]
-                  if (!items || items.length === 0) return null
-
-                  return renderSection(
-                    category,
-                    category,
-                    items,
-                    <span className="text-lg">{getCategoryIcon(category)}</span>,
-                    false,
-                    true
-                  )
-                })}
-
-                {categoryGroups[DEFAULT_CATEGORY]?.length > 0 &&
+                {activeCategories.map(category => (
                   renderSection(
-                    DEFAULT_CATEGORY,
-                    DEFAULT_CATEGORY,
-                    categoryGroups[DEFAULT_CATEGORY],
-                    <span className="text-lg">{getCategoryIcon(DEFAULT_CATEGORY)}</span>,
-                    true,
+                    `cat-${category}`,
+                    category, // Already "Produce", "Meat & Seafood", etc.
+                    categoryGroups[category],
+                    <span className="text-lg">{getCategoryIcon(category)}</span>,
+                    category === DEFAULT_CATEGORY,
                     true
                   )
-                }
+                ))}              
               </>
             )}
           </div>
