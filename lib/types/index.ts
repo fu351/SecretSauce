@@ -25,8 +25,7 @@ export {
   MEAL_TYPE_TAGS,
   CUISINE_TYPES,
   DIFFICULTY_LEVELS,
-  hasTag,
-  getAllergens,
+  hasTag
 } from './recipe/constants'
 
 // ============================================================================

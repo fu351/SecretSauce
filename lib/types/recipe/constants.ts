@@ -106,9 +106,3 @@ export function hasTag(recipe: Recipe, tag: DietaryTag): boolean {
  * const allergens = getAllergens(recipe)
  * // Returns: ['dairy', 'nuts'] if recipe contains these allergens
  */
-export function getAllergens(recipe: Recipe): string[] {
-  if (!recipe.tags.allergens) return []
-  return Object.entries(recipe.tags.allergens)
-    .filter(([_, value]) => value)
-    .map(([key, _]) => key.replace('contains_', ''))
-}
