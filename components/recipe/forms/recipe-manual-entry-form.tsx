@@ -54,7 +54,7 @@ export function RecipeManualEntryForm({
   const [servings, setServings] = useState((initialData?.servings || "").toString())
   const [difficulty, setDifficulty] = useState(initialData?.difficulty || "beginner")
   const [cuisine, setCuisine] = useState(initialData?.cuisine || "")
-  const [dietary_tags, setDietary_tags] = useState<string[]>(initialData?.dietary_tags || [])
+  const [tags, setTags] = useState<string[]>(initialData?.tags || [])
 
   // Image state
   const [imageMode, setImageMode] = useState<"url" | "file">(
@@ -96,10 +96,8 @@ export function RecipeManualEntryForm({
     setNutrition((prev) => ({ ...prev, [field]: value }))
   }
 
-  const toggleDietaryTag = (tag: string) => {
-    setDietary_tags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    )
+  const handleTagsChange = (newTags: string[]) => {
+    setTags(newTags)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -159,7 +157,7 @@ export function RecipeManualEntryForm({
       servings: parseServings !== null ? parseServings : 1,
       difficulty,
       cuisine: cuisine || null,
-      dietary_tags,
+      tags,
       ingredients: validIngredients.map((ing) => ({
         name: ing.name,
         quantity: ing.amount ? parseFloat(ing.amount) : undefined,
@@ -211,7 +209,7 @@ export function RecipeManualEntryForm({
               servings={servings}
               difficulty={difficulty}
               cuisine={cuisine}
-              dietary_tags={dietary_tags}
+              dietary_tags={tags}
               onTitleChange={setTitle}
               onDescriptionChange={setDescription}
               onPrepTimeChange={setPrep_time}
@@ -219,7 +217,7 @@ export function RecipeManualEntryForm({
               onServingsChange={setServings}
               onDifficultyChange={setDifficulty}
               onCuisineChange={setCuisine}
-              onDietaryTagToggle={toggleDietaryTag}
+              onDietaryTagToggle={handleTagsChange}
             />
           </div>
         </div>

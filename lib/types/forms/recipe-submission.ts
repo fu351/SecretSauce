@@ -27,7 +27,7 @@ import type { NutritionInfo } from '../recipe/nutrition'
  *   servings: 24,
  *   difficulty: "beginner",
  *   cuisine: "american",
- *   dietary_tags: ["vegetarian"],
+ *   tags: ["vegetarian"],
  *   ingredients: [{name: "flour", quantity: 2, unit: "cups"}],
  *   instructions: [{step: 1, description: "Mix ingredients"}],
  *   nutrition: {calories: 150, protein: 3, carbs: 20, fat: 7}
@@ -43,7 +43,7 @@ export interface RecipeSubmissionData {
   servings: number
   difficulty: string
   cuisine: string | null
-  dietary_tags: string[]
+  tags: string[]
   ingredients: RecipeIngredient[]
   instructions: Instruction[]
   nutrition: NutritionInfo
