@@ -116,17 +116,11 @@ export default function MealPlannerPage() {
   const handleAddToShoppingList = useCallback(async () => {
     if (!user || meals.length === 0) return
     try {
-      let addedCount = 0
-      const recipesProcessed = new Set<string>()
-      for (const meal of meals) {
-        if (recipesProcessed.has(meal.recipe_id)) continue
-        recipesProcessed.add(meal.recipe_id)
-        await shoppingList.addRecipeToCart(meal.recipe_id)
-        addedCount += 1
-      }
+      const recipeIds = meals.map(meal => meal.recipe_id)
+      const addedCount = await shoppingList.addRecipesToCart(recipeIds)
       toast({
         title: "Added to shopping list",
-        description: `Added ${addedCount} recipes.`,
+        description: `Added ${addedCount} recipes (${meals.length} meals) to cart.`,
       })
       router.push("/shopping?expandList=true")
     } catch (error) {

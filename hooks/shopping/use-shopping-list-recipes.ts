@@ -154,8 +154,79 @@ export function useShoppingListRecipes(
     }
   }, [items, toast, loadShoppingList])
 
+  /**
+   * Add multiple recipes to cart in a single bulk operation
+   */
+  const addRecipesToCart = useCallback(
+    async (recipeIds: string[]) => {
+      if (!userId || recipeIds.length === 0) return
+
+      try {
+        // Fetch all recipes in parallel
+        const recipes = await Promise.all(
+          recipeIds.map(id => recipeDB.fetchRecipeById(id))
+        )
+
+        // Build all items to insert
+        const allItemsToInsert: any[] = []
+        let totalRecipesAdded = 0
+
+        for (let i = 0; i < recipes.length; i++) {
+          const recipe = recipes[i]
+          const recipeId = recipeIds[i]
+
+          if (!recipe || !recipe.ingredients || recipe.ingredients.length === 0) {
+            continue
+          }
+
+          const finalServings = recipe.servings || 1
+          const baseServings = recipe.servings || 1
+
+          const recipeItems = recipe.ingredients.map((ing, idx) => {
+            const baseAmount = Number(ing.quantity) || 1
+            const perServingAmount = baseAmount / baseServings
+            const finalQuantity = perServingAmount * finalServings
+
+            return {
+              user_id: userId,
+              source_type: 'recipe' as const,
+              recipe_id: recipeId,
+              recipe_ingredient_index: idx,
+              name: ing.name,
+              quantity: finalQuantity,
+              unit: ing.unit || "piece",
+              ingredient_id: ing.standardizedIngredientId,
+              checked: false,
+              servings: finalServings
+            }
+          })
+
+          allItemsToInsert.push(...recipeItems)
+          totalRecipesAdded++
+        }
+
+        if (allItemsToInsert.length === 0) {
+          throw new Error("No valid recipes to add")
+        }
+
+        // Single bulk insert
+        const mappedItems = await shoppingListDB.upsertItems(allItemsToInsert)
+
+        // Update local state
+        setItems(prev => [...prev, ...mappedItems])
+
+        return totalRecipesAdded
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to add recipes"
+        throw new Error(errorMessage)
+      }
+    },
+    [userId]
+  )
+
   return {
     addRecipeToCart,
+    addRecipesToCart,
     updateRecipeServings,
     removeRecipe,
     clearCheckedItems
