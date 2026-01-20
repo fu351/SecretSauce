@@ -150,13 +150,38 @@ export function useMealPlannerDragDrop({
           if (hasRecipe && existingRecipe) {
             // Swap operation: exchange recipes between slots
             try {
-              // Remove both recipes
-              await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!)
-              await mealPlanner.removeFromMealPlan(targetMealType, targetDate)
+              // 1. Remove source recipe
+              await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!, { reload: false })
 
-              // Add recipes to swapped positions
-              await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
-              await mealPlanner.addToMealPlan(existingRecipe, sourceMealType!, sourceDate!)
+              try {
+                // 2. Remove target recipe
+                await mealPlanner.removeFromMealPlan(targetMealType, targetDate, { reload: false })
+              } catch (e) {
+                // Rollback 1
+                await mealPlanner.addToMealPlan(recipe, sourceMealType!, sourceDate!, { reload: false })
+                throw e
+              }
+
+              try {
+                // 3. Add source recipe to target slot
+                await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate, { reload: false })
+              } catch (e) {
+                // Rollback 1 and 2
+                await mealPlanner.addToMealPlan(recipe, sourceMealType!, sourceDate!, { reload: false })
+                await mealPlanner.addToMealPlan(existingRecipe, targetMealType, targetDate, { reload: false })
+                throw e
+              }
+              
+              try {
+                // 4. Add target recipe to source slot
+                await mealPlanner.addToMealPlan(existingRecipe, sourceMealType!, sourceDate!, { reload: false })
+              } catch (e) {
+                // Rollback 1, 2, and 3
+                await mealPlanner.removeFromMealPlan(targetMealType, targetDate, { reload: false })
+                await mealPlanner.addToMealPlan(recipe, sourceMealType!, sourceDate!, { reload: false })
+                await mealPlanner.addToMealPlan(existingRecipe, targetMealType, targetDate, { reload: false })
+                throw e
+              }
 
               toast({
                 title: 'Recipes swapped',
@@ -166,49 +191,35 @@ export function useMealPlannerDragDrop({
               console.error('Failed to swap recipes:', swapError)
               toast({
                 title: 'Error',
-                description: 'Failed to swap recipes. Please try again.',
+                description: 'Failed to swap recipes. Restoring original state.',
                 variant: 'destructive',
               })
-              throw swapError
+            } finally {
+              // Always reload to sync with the database state
+              await mealPlanner.reload()
             }
           } else {
             // Move operation: remove from source, then add to target
-            // With rollback if add fails
             try {
-              await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!)
-            } catch (removeError) {
-              console.error('Failed to remove meal from source:', removeError)
-              toast({
-                title: 'Error',
-                description: 'Failed to move meal. Could not remove from source.',
-                variant: 'destructive',
-              })
-              throw removeError
-            }
-
-            try {
-              await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
-            } catch (addError) {
-              // Rollback: restore the meal to the source
-              console.error('Failed to add meal to target, rolling back:', addError)
+              await mealPlanner.removeFromMealPlan(sourceMealType!, sourceDate!, { reload: false })
               try {
-                await mealPlanner.addToMealPlan(recipe, sourceMealType!, sourceDate!)
-              } catch (rollbackError) {
-                console.error('Rollback failed - data may be inconsistent:', rollbackError)
-                toast({
-                  title: 'Critical Error',
-                  description: 'Failed to move meal and rollback failed. Please refresh the page.',
-                  variant: 'destructive',
-                })
-                throw rollbackError
+                await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate, { reload: false })
+              } catch (addError) {
+                // Rollback: restore the meal to the source
+                console.error('Failed to add meal to target, rolling back:', addError)
+                await mealPlanner.addToMealPlan(recipe, sourceMealType!, sourceDate!, { reload: false })
+                throw addError
               }
-
+            } catch (moveError) {
+              console.error('Failed to move meal:', moveError)
               toast({
                 title: 'Error',
-                description: 'Failed to move meal to target. Meal restored to original slot.',
+                description: 'Failed to move meal. Please try again.',
                 variant: 'destructive',
               })
-              throw addError
+            } finally {
+              // Always reload to sync with the database state
+              await mealPlanner.reload()
             }
           }
         }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo, memo } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
@@ -13,10 +13,7 @@ import {
   useWeeklyMealPlan,
 } from "@/hooks"
 import { getCurrentWeekIndex, getDatesForWeek } from "@/lib/date-utils"
-import {
-  DndContext,
-  DragOverlay,
-} from "@dnd-kit/core"
+import { DndContext, DragOverlay } from "@dnd-kit/core"
 import { SignInNotification } from "@/components/shared/signin-notification"
 import { PlannerActions } from "@/components/meal-planner/controls/planner-actions"
 import { NutritionSummaryCard } from "@/components/meal-planner/cards/nutrition-summary-card"
@@ -30,20 +27,20 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
 
-const mealTypes = [
+// --- MEMOIZED SUB-COMPONENTS ---
+// This ensures that scrolling or dragging doesn't force a re-render of heavy UI
+const MemoizedWeeklyView = memo(WeeklyView)
+const MemoizedNutritionSummary = memo(NutritionSummaryCard)
+const MemoizedRecipeSearchPanel = memo(RecipeSearchPanel)
+
+const MEAL_TYPES = [
   { key: "breakfast", label: "BREAKFAST" },
   { key: "lunch", label: "LUNCH" },
   { key: "dinner", label: "DINNER" },
 ]
 
-const weekdaysFull = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
+const WEEKDAYS_FULL = [
+  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
 ]
 
 export default function MealPlannerPage() {
@@ -55,10 +52,7 @@ export default function MealPlannerPage() {
   const router = useRouter()
 
   // State
-  const [focusMode, setFocusMode] = useState<{
-    date: string
-    mealType: string
-  } | null>(null)
+  const [focusMode, setFocusMode] = useState<{ date: string; mealType: string } | null>(null)
   const [showRecipeSidebar, setShowRecipeSidebar] = useState(false)
   const [weekIndex, setWeekIndex] = useState(getCurrentWeekIndex())
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
@@ -67,158 +61,120 @@ export default function MealPlannerPage() {
   const {
     meals,
     recipesById,
-    loading: weeklyPlanLoading,
     reload: reloadWeeklyPlan,
     addToMealPlan,
     removeFromMealPlan,
   } = useWeeklyMealPlan(user?.id, weekIndex)
+
   const recipes = useMealPlannerRecipes(user?.id)
+
+  // 1. MEMOIZE DRAG HANDLERS
+  // This prevents the dnd hook from changing references and causing unnecessary updates
+  const mealPlannerHandlers = useMemo(() => ({
+    addToMealPlan,
+    removeFromMealPlan,
+    reload: reloadWeeklyPlan,
+  }), [addToMealPlan, removeFromMealPlan, reloadWeeklyPlan])
+
   const dnd = useMealPlannerDragDrop({
-    mealPlanner: { addToMealPlan, removeFromMealPlan },
+    mealPlanner: mealPlannerHandlers,
   })
 
+  // 2. MEMOIZE DATA CALCULATIONS
   const weekDates = useMemo(() => getDatesForWeek(weekIndex), [weekIndex])
-  const weekDateStrings = useMemo(
-    () => weekDates.map((d) => d.toISOString().split("T")[0]),
-    [weekDates]
-  )
+  const weekDateStrings = useMemo(() => 
+    weekDates.map((d) => d.toISOString().split("T")[0]), 
+  [weekDates])
 
-  const nutrition = useMealPlannerNutrition(
-    meals,
-    weekDateStrings,
-    recipesById
-  )
+  const nutrition = useMealPlannerNutrition(meals, weekDateStrings, recipesById)
   const aiPlanner = useMealPlannerAi(user?.id, weekIndex)
 
-  const allRecipesById = useMemo(
-    () => ({ ...recipesById, ...aiPlanner.aiRecipesById }),
-    [recipesById, aiPlanner.aiRecipesById]
-  )
+  const allRecipesById = useMemo(() => ({ 
+    ...recipesById, 
+    ...aiPlanner.aiRecipesById 
+  }), [recipesById, aiPlanner.aiRecipesById])
 
-  const isDark = theme === "dark"
-
-  // Load data when user changes
-  useEffect(() => {
-    if (user) {
-      recipes.loadAllRecipes()
-    }
-  }, [user?.id])
-
-  // Show sidebar when + button is clicked
-  useEffect(() => {
-    if (focusMode) {
-      setShowRecipeSidebar(true)
-    }
-  }, [focusMode])
-
-  const handleGoToToday = useCallback(() => {
-    setWeekIndex(getCurrentWeekIndex())
-  }, [])
+  // 3. MEMOIZED CALLBACKS
+  const handleGoToToday = useCallback(() => setWeekIndex(getCurrentWeekIndex()), [])
 
   const handlePreviousWeek = useCallback(() => {
-    const year = Math.floor(weekIndex / 100)
-    const week = weekIndex % 100
-    // This is a simplification. A proper implementation would use date-fns to handle week boundaries.
-    if (week > 1) {
-      setWeekIndex(weekIndex - 1)
-    } else {
-      setWeekIndex((year - 1) * 100 + 52)
-    }
-  }, [weekIndex])
+    setWeekIndex(prev => {
+      const year = Math.floor(prev / 100)
+      const week = prev % 100
+      return week > 1 ? prev - 1 : (year - 1) * 100 + 52
+    })
+  }, [])
 
   const handleNextWeek = useCallback(() => {
-    const year = Math.floor(weekIndex / 100)
-    const week = weekIndex % 100
-    // This is a simplification. A proper implementation would use date-fns to handle week boundaries.
-    if (week < 52) {
-      setWeekIndex(weekIndex + 1)
-    } else {
-      setWeekIndex((year + 1) * 100 + 1)
-    }
-  }, [weekIndex])
+    setWeekIndex(prev => {
+      const year = Math.floor(prev / 100)
+      const week = prev % 100
+      return week < 52 ? prev + 1 : (year + 1) * 100 + 1
+    })
+  }, [])
 
   const handleAddToShoppingList = useCallback(async () => {
     if (!user || meals.length === 0) return
-
     try {
       let addedCount = 0
       const recipesProcessed = new Set<string>()
-
       for (const meal of meals) {
         if (recipesProcessed.has(meal.recipe_id)) continue
         recipesProcessed.add(meal.recipe_id)
-
         await shoppingList.addRecipeToCart(meal.recipe_id)
         addedCount += 1
       }
-
       toast({
         title: "Added to shopping list",
-        description: `Added ${addedCount} recipe${
-          addedCount !== 1 ? "s" : ""
-        } to your shopping list.`,
+        description: `Added ${addedCount} recipes.`,
       })
       router.push("/shopping?expandList=true")
     } catch (error) {
-      console.error("Error adding to shopping list:", error)
-      toast({
-        title: "Error",
-        description: "Failed to add ingredients to shopping list.",
-        variant: "destructive",
-      })
+      toast({ title: "Error", variant: "destructive" })
     }
   }, [user, meals, shoppingList, toast, router])
-  const handleGenerateAiPlan = useCallback(async () => {
-    await aiPlanner.generateAiWeeklyPlan(recipesById)
-  }, [aiPlanner, recipesById])
 
   const handleApplyAiPlan = useCallback(async () => {
     const success = await aiPlanner.applyAiPlanToMealPlanner()
-    if (success) {
-      reloadWeeklyPlan()
-    }
+    if (success) reloadWeeklyPlan()
   }, [aiPlanner, reloadWeeklyPlan])
+
   const openRecipeSelector = useCallback((mealType: string, date: string) => {
     setFocusMode({ mealType, date })
   }, [])
-  const handleRecipeSelection = useCallback(
-    async (recipe: Recipe) => {
-      if (focusMode) {
-        await addToMealPlan(recipe, focusMode.mealType, focusMode.date)
-        // Keep focus mode open for adding more recipes
-      }
-    },
-    [focusMode, addToMealPlan]
-  )
 
-  const handleRecipeClick = useCallback((recipeId: string) => {
-    setSelectedRecipeId(recipeId)
-  }, [])
+  const handleRecipeSelection = useCallback(async (recipe: Recipe) => {
+    if (focusMode) {
+      await addToMealPlan(recipe, focusMode.mealType, focusMode.date)
+      if (isMobile) setShowRecipeSidebar(false)
+    }
+  }, [focusMode, addToMealPlan, isMobile])
 
-  const handleAddToCart = useCallback(
-    async (recipe: Recipe, servings: number) => {
-      if (!user) return
-      try {
-        await shoppingList.addRecipeToCart(recipe.id, servings)
-        toast({
-          title: "Added to shopping list",
-          description: `Added ${recipe.title} to your shopping list.`,
-        })
-      } catch (error) {
-        console.error("Error adding to shopping list:", error)
-        toast({
-          title: "Error",
-          description: "Failed to add recipe to shopping list.",
-          variant: "destructive",
-        })
-      }
-    },
-    [user, shoppingList, toast]
-  )
+  const handleRecipeClick = useCallback((id: string) => setSelectedRecipeId(id), [])
+  const handleCloseRecipeModal = useCallback(() => setSelectedRecipeId(null), [])
+
+  const handleAddToCart = useCallback(async (recipe: Recipe, servings: number) => {
+    if (!user) return
+    try {
+      await shoppingList.addRecipeToCart(recipe.id, servings)
+      toast({ title: "Success", description: "Added to shopping list" })
+    } catch (e) {
+      toast({ title: "Error", variant: "destructive" })
+    }
+  }, [user, shoppingList, toast])
+
+  // Effects
+  useEffect(() => {
+    if (user?.id) recipes.loadAllRecipes()
+  }, [user?.id])
+
+  useEffect(() => {
+    if (focusMode) setShowRecipeSidebar(true)
+  }, [focusMode])
 
   if (!user) {
     return (
-      <div className={`h-screen flex items-center justify-center bg-background`}>
+      <div className="h-screen flex items-center justify-center bg-background">
         <SignInNotification featureName="Meal Planner" />
       </div>
     )
@@ -232,17 +188,23 @@ export default function MealPlannerPage() {
       onDragEnd={dnd.handleDragEnd}
       onDragCancel={dnd.handleDragCancel}
     >
-      <div
-        className="min-h-screen flex flex-col bg-background"
-        data-tutorial="planner-overview"
-      >
-        <div className="flex-1 flex flex-row overflow-y-auto">
-          <main className="flex-1 overflow-y-auto p-3 md:p-6">
-            <div className="max-w-7xl mx-auto">
+      {/* Container Optimization: 
+        1. h-[100dvh] fixes mobile browser UI jitter.
+        2. overscroll-none prevents the "bounce" effect from locking the main thread.
+      */}
+      <div className="h-[100dvh] flex flex-col bg-background overflow-hidden overscroll-none selection:bg-primary/10">
+        <div className="flex-1 flex flex-row overflow-hidden">
+
+          {/* Main Scroll Area:
+            1. transform-gpu forces layer compositing.
+            2. backface-hidden reduces paint flashing.
+          */}
+          <main className="flex-1 overflow-y-auto p-3 md:p-6 transform-gpu backface-hidden scroll-smooth">
+            <div className="max-w-7xl mx-auto will-change-transform">
               {/* Header */}
-              <div className="flex flex-col gap-4 mb-3">
+              <div className="flex flex-col gap-4 mb-6">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-text">
+                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-text">
                     Meal Planner
                   </h1>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -251,21 +213,20 @@ export default function MealPlannerPage() {
                 </div>
 
                 <div className="flex flex-col md:flex-row md:items-center gap-3">
-                  <div className="flex flex-wrap items-center gap-2 w-full">
-                    <PlannerActions
-                      onAiPlan={handleGenerateAiPlan}
-                      onAddToCart={handleAddToShoppingList}
-                      onGoToToday={handleGoToToday}
-                      onPreviousWeek={handlePreviousWeek}
-                      onNextWeek={handleNextWeek}
-                      aiLoading={aiPlanner.aiPlannerLoading}
-                    />
-                  </div>
+                  <PlannerActions
+                    onAiPlan={() => aiPlanner.generateAiWeeklyPlan(recipesById)}
+                    onAddToCart={handleAddToShoppingList}
+                    onGoToToday={handleGoToToday}
+                    onPreviousWeek={handlePreviousWeek}
+                    onNextWeek={handleNextWeek}
+                    aiLoading={aiPlanner.aiPlannerLoading}
+                  />
                 </div>
               </div>
 
-              <div className="mb-6">
-                <WeeklyView
+              {/* Weekly Grid with Content Visibility Optimization */}
+              <div className="mb-6 [content-visibility:auto] contain-intrinsic-size-[1000px]">
+                <MemoizedWeeklyView
                   weekIndex={weekIndex}
                   meals={meals}
                   recipesById={recipesById}
@@ -281,8 +242,8 @@ export default function MealPlannerPage() {
 
               {/* Nutrition Summary */}
               {weekDates.length > 0 && (
-                <div className="mt-4 pt-2">
-                  <NutritionSummaryCard
+                <div className="pb-20">
+                  <MemoizedNutritionSummary
                     weeklyTotals={nutrition.weeklyNutritionSummary.totals}
                     weeklyAverages={nutrition.weeklyNutritionSummary.averages}
                   />
@@ -290,42 +251,40 @@ export default function MealPlannerPage() {
               )}
             </div>
           </main>
-          {/* Desktop Sidebar */}
+
+          {/* Desktop Sidebar: Strict layout containment for smooth width transitions */}
           <aside
             className={cn(
-              "hidden md:block bg-background transition-all duration-300 ease-in-out overflow-hidden",
-              showRecipeSidebar ? "w-[350px]" : "w-0"
+              "hidden md:flex flex-col bg-background border-l border-border transition-[width] duration-300 ease-in-out overflow-hidden h-full",
+              showRecipeSidebar ? "w-[380px]" : "w-0"
             )}
+            style={{ contain: 'layout paint size' }}
           >
-            <div className="h-full border-l border-border">
-              <RecipeSearchPanel
-                mealType={null}
-                mealTypes={mealTypes}
-                favoriteRecipes={recipes.favoriteRecipes}
-                suggestedRecipes={recipes.suggestedRecipes}
-                onSelect={(recipe) => {
-                  handleRecipeSelection(recipe)
-                  // Keep sidebar open on desktop
-                }}
-                onMealTypeChange={() => {}}
-                getDraggableProps={dnd.getDraggableProps}
-                activeDragData={dnd.activeDragData}
-                isCollapsed={false}
-                onToggleCollapse={() => setShowRecipeSidebar(false)}
-              />
-            </div>
+            {showRecipeSidebar && (
+              <div className="w-[380px] h-full overflow-hidden">
+                <MemoizedRecipeSearchPanel
+                  mealType={null}
+                  mealTypes={MEAL_TYPES}
+                  favoriteRecipes={recipes.favoriteRecipes}
+                  suggestedRecipes={recipes.suggestedRecipes}
+                  onSelect={handleRecipeSelection}
+                  onMealTypeChange={() => {}}
+                  getDraggableProps={dnd.getDraggableProps}
+                  activeDragData={dnd.activeDragData}
+                  isCollapsed={false}
+                  onToggleCollapse={() => setShowRecipeSidebar(false)}
+                />
+              </div>
+            )}
           </aside>
         </div>
 
         {/* Mobile Sidebar */}
         <Sheet open={showRecipeSidebar && isMobile} onOpenChange={setShowRecipeSidebar}>
-          <SheetContent
-            side="right"
-            className="w-full p-0 flex flex-col"
-          >
-            <RecipeSearchPanel
+          <SheetContent side="right" className="w-full p-0">
+            <MemoizedRecipeSearchPanel
               mealType={null}
-              mealTypes={mealTypes}
+              mealTypes={MEAL_TYPES}
               favoriteRecipes={recipes.favoriteRecipes}
               suggestedRecipes={recipes.suggestedRecipes}
               onSelect={(recipe) => {
@@ -341,6 +300,7 @@ export default function MealPlannerPage() {
           </SheetContent>
         </Sheet>
 
+        {/* Modals */}
         <AiPlannerModal
           open={aiPlanner.showAiPlanDialog}
           onClose={() => aiPlanner.setShowAiPlanDialog(false)}
@@ -348,22 +308,23 @@ export default function MealPlannerPage() {
           progress={aiPlanner.aiPlannerProgress}
           result={aiPlanner.aiPlanResult}
           recipesById={allRecipesById}
-          weekdaysFull={weekdaysFull}
+          weekdaysFull={WEEKDAYS_FULL}
           onApply={handleApplyAiPlan}
         />
 
         <RecipeDetailModal
           recipeId={selectedRecipeId}
-          onClose={() => setSelectedRecipeId(null)}
+          onClose={handleCloseRecipeModal}
           onAddToCart={handleAddToCart}
           theme={theme}
         />
       </div>
 
-      {/* Drag Overlay */}
-      <DragOverlay>
+      <DragOverlay dropAnimation={null}>
         {dnd.activeDragData ? (
-          <DragPreviewCard recipe={dnd.activeDragData.recipe} />
+          <div className="opacity-80 scale-105 transition-transform pointer-events-none">
+             <DragPreviewCard recipe={dnd.activeDragData.recipe} />
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>

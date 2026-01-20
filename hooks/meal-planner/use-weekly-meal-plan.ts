@@ -41,7 +41,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
   }, [userId, weekIndex, db])
 
   const addToMealPlan = useCallback(
-    async (recipe: Recipe, mealType: string, date: string) => {
+    async (recipe: Recipe, mealType: string, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
       try {
@@ -52,9 +52,9 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
           mealType as "breakfast" | "lunch" | "dinner"
         )
 
-        if (result) {
+        if (result && options.reload) {
           // Reload data to reflect changes
-          loadWeeklyMealPlan()
+          await loadWeeklyMealPlan()
         }
       } catch (error) {
         console.error("[useWeeklyMealPlan] Error adding meal:", error)
@@ -65,7 +65,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
   )
 
   const removeFromMealPlan = useCallback(
-    async (mealType: string, date: string) => {
+    async (mealType: string, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
       try {
@@ -75,9 +75,9 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
           mealType as "breakfast" | "lunch" | "dinner"
         )
 
-        if (success) {
+        if (success && options.reload) {
           // Reload data to reflect changes
-          loadWeeklyMealPlan()
+          await loadWeeklyMealPlan()
         }
       } catch (error) {
         console.error("[useWeeklyMealPlan] Error removing meal:", error)
