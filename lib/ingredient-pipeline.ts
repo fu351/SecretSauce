@@ -1,18 +1,16 @@
-import { SupabaseClient } from "@supabase/supabase-js"
 import { createServerClient, type Database } from "./supabase"
 import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
 import { normalizeStoreName } from "./ingredient-cache"
+import { ingredientMappingsDB } from "./database/ingredient-mappings-db"
+import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
+import { ingredientCacheDB } from "./database/ingredient-cache-db"
 
 type DB = Database["public"]["Tables"]
 type IngredientCacheRow = DB["ingredient_cache"]["Row"]
 type IngredientMappingRow = DB["ingredient_mappings"]["Row"]
 type StandardizedIngredientRow = DB["standardized_ingredients"]["Row"]
 
-type SupabaseLike = SupabaseClient<Database>
-
-export type IngredientCacheResult = Omit<IngredientCacheRow, "created_at"> & {
-  created_at?: string
-}
+export type IngredientCacheResult = IngredientCacheRow
 
 export interface PricedIngredient {
   standardizedIngredientId: string
@@ -83,8 +81,6 @@ const STOP_WORDS = new Set([
   "divided",
 ])
 
-const CACHE_TTL_HOURS = 24
-
 function normalizeIngredientName(raw: string): string {
   const lower = raw.toLowerCase().trim()
   if (!lower) return ""
@@ -104,163 +100,92 @@ function normalizeIngredientName(raw: string): string {
 }
 
 async function findStandardizedIngredientViaMapping(
-  client: SupabaseLike,
   originalName: string
 ): Promise<string | null> {
-  // Check if this exact string was previously mapped (from any recipe)
-  // This leverages historical mappings to improve cache hits
-  const { data, error } = await client
-    .from("ingredient_mappings")
-    .select("standardized_ingredient_id")
-    .eq("original_name", originalName.trim())
-    .limit(1)
-    .maybeSingle()
+  const cleanName = originalName.trim();
 
-  if (error && error.code !== "PGRST116") {
-    console.warn("[ingredient-pipeline] Mapping lookup failed", error)
-  }
+  // 1. Try an exact match first
+  const exactMatch = await standardizedIngredientsDB.findByCanonicalName(cleanName);
+  if (exactMatch) return exactMatch.id;
 
-  return data?.standardized_ingredient_id || null
+  // 2. Fallback to Full-Text Search (using the new method you wrote)
+  const searchResults = await standardizedIngredientsDB.searchByText(cleanName, {
+    limit: 1
+  });
+
+  return searchResults.length > 0 ? searchResults[0].id : null;
 }
 
 async function findStandardizedIngredient(
-  client: SupabaseLike,
   normalizedName: string,
   fallbackName?: string
 ): Promise<StandardizedIngredientRow | null> {
   const searchValue = normalizedName || fallbackName?.toLowerCase().trim() || ""
   if (!searchValue) return null
 
-  const exact = await client
-    .from("standardized_ingredients")
-    .select("id, canonical_name, category")
-    .eq("canonical_name", searchValue)
-    .maybeSingle()
+  // 1. Exact Match (Clean and fast)
+  const exact = await standardizedIngredientsDB.findByCanonicalName(searchValue)
+  if (exact) return exact
 
-  if (exact.data) return exact.data
-  if (exact.error && exact.error.code !== "PGRST116") {
-    console.warn("[ingredient-pipeline] Exact canonical lookup failed", exact.error)
-  }
-
-  // Improved fuzzy match: get multiple matches and rank by relevance
-  const { data: fuzzyResults, error: fuzzyError } = await client
-    .from("standardized_ingredients")
-    .select("id, canonical_name, category")
-    .ilike("canonical_name", `%${searchValue}%`)
-    .limit(10)
-
-  if (fuzzyError && fuzzyError.code !== "PGRST116") {
-    console.warn("[ingredient-pipeline] Fuzzy canonical lookup failed", fuzzyError)
-    return null
-  }
-
-  if (!fuzzyResults || fuzzyResults.length === 0) {
-    return null
-  }
-
-  // Rank by relevance: prefer shorter names (more specific) and exact substring matches
-  const ranked = fuzzyResults
-    .map(result => {
-      const canonical = result.canonical_name.toLowerCase()
-      const search = searchValue.toLowerCase()
-
-      // Score: lower is better
-      let score = canonical.length // Prefer shorter (more specific)
-
-      // Boost exact matches
-      if (canonical === search) score -= 1000
-
-      // Boost starts-with matches
-      if (canonical.startsWith(search)) score -= 100
-
-      // Boost word boundary matches
-      if (new RegExp(`\\b${search}\\b`).test(canonical)) score -= 50
-
-      return { ...result, score }
-    })
-    .sort((a, b) => a.score - b.score)
-
-  console.log("[ingredient-pipeline] Fuzzy match ranked results", {
-    searchValue,
-    topMatch: ranked[0]?.canonical_name,
-    score: ranked[0]?.score,
-    totalMatches: ranked.length
+  // 2. Full-Text Search (Replaces your manual scoring logic)
+  // Your new class uses Postgres 'textSearch' which naturally ranks by relevance
+  const fuzzyResults = await standardizedIngredientsDB.searchByText(searchValue, {
+    limit: 1
   })
 
-  return ranked[0] || null
+  // Return the top ranked result from the vector search
+  return fuzzyResults[0] || null
 }
 
 async function createStandardizedIngredient(
-  client: SupabaseLike,
   canonicalName: string,
   category?: string | null
 ): Promise<string> {
-  const safeName = canonicalName.trim().toLowerCase()
-  const { data, error } = await client
-    .from("standardized_ingredients")
-    .upsert(
-      { canonical_name: safeName, category: category ?? null },
-      { onConflict: "canonical_name" }
-    )
-    .select("id")
-    .maybeSingle()
+  // Use the new class method which handles the check-and-insert logic
+  const ingredient = await standardizedIngredientsDB.getOrCreate(
+    canonicalName.trim().toLowerCase(), 
+    category
+  )
 
-  if (error || !data?.id) {
-    throw new Error(`Unable to create standardized ingredient: ${error?.message || "unknown error"}`)
+  if (!ingredient) {
+    throw new Error(`Unable to create or find standardized ingredient: ${canonicalName}`)
   }
 
-  return data.id
+  return ingredient.id
 }
 
 async function ensureIngredientMapping(
-  client: SupabaseLike,
   recipeId: string,
   originalName: string,
   standardizedIngredientId: string
 ): Promise<void> {
-  try {
-    const { data: existing, error: existingError } = await client
-      .from("ingredient_mappings")
-      .select("id")
-      .eq("recipe_id", recipeId)
-      .eq("original_name", originalName)
-      .maybeSingle()
+  // The new class method handles the logic in a single 'upsert' query
+  // which is faster and safer against race conditions.
+  const result = await ingredientMappingsDB.upsertMapping(
+    recipeId,
+    originalName,
+    standardizedIngredientId
+  )
 
-    if (existingError && existingError.code !== "PGRST116") {
-      console.warn("[ingredient-pipeline] Failed to check existing mapping", existingError)
-    }
-
-    if (!existing?.id) {
-      const { error } = await client.from("ingredient_mappings").insert({
-        recipe_id: recipeId,
-        original_name: originalName,
-        standardized_ingredient_id: standardizedIngredientId,
-      } satisfies DB["ingredient_mappings"]["Insert"])
-      if (error) {
-        console.warn("[ingredient-pipeline] Failed to insert mapping", error)
-      }
-    }
-  } catch (error) {
-    console.warn("[ingredient-pipeline] ensureIngredientMapping error", error)
+  if (!result) {
+    console.warn(`[ingredient-pipeline] Failed to ensure mapping for ${originalName}`)
   }
 }
 
 async function loadCanonicalName(
-  client: SupabaseLike,
   standardizedIngredientId: string
 ): Promise<string | null> {
-  const { data, error } = await client
-    .from("standardized_ingredients")
-    .select("canonical_name")
-    .eq("id", standardizedIngredientId)
-    .maybeSingle()
-
-  if (error) {
-    console.error("[ingredient-pipeline] Failed to load canonical name", error)
-    return null
+  // Use fetchByIds (which returns an array) or add a fetchById to your class
+  const ingredients = await standardizedIngredientsDB.fetchByIds([standardizedIngredientId]);
+  
+  const ingredient = ingredients[0];
+  
+  if (!ingredient) {
+    console.warn(`[ingredient-pipeline] No ingredient found for ID: ${standardizedIngredientId}`);
+    return null;
   }
 
-  return data?.canonical_name?.toLowerCase() || null
+  return ingredient.canonical_name.toLowerCase();
 }
 
 type ScraperResult = {
@@ -396,169 +321,41 @@ function pickBestScrapedProduct(items: ScraperResult[]): ScraperResult | null {
   return sorted[0] || null
 }
 
-function buildCachePayload(
+/**
+ * Modernized cache entry handler.
+ * Now leverages IngredientCacheTable for automatic TTL and normalization.
+ */
+async function upsertCacheEntry(
   standardizedIngredientId: string,
   store: string,
-  product: ScraperResult
-): DB["ingredient_cache"]["Insert"] {
-  const now = new Date()
-  const expires = new Date(now.getTime() + CACHE_TTL_HOURS * 60 * 60 * 1000)
-
-  return {
-    standardized_ingredient_id: standardizedIngredientId,
-    store: normalizeStoreName(store),
-    product_name: product.product_name || product.title || null,
-    price: Number(product.price) || 0,
-    quantity: Number(product.quantity) || 1,
-    unit: product.unit || "unit",
-    unit_price: product.unit_price ?? null,
-    image_url: product.image_url || null,
-    product_id: product.product_id || null,
-    location: product.location || null,
-    expires_at: expires.toISOString(),
-  }
-}
-
-async function upsertCacheEntry(
-  client: SupabaseLike,
-  payload: DB["ingredient_cache"]["Insert"]
-): Promise<IngredientCacheResult | null> {
-  console.log("[ingredient-pipeline] upsertCacheEntry called", {
-    standardized_ingredient_id: payload.standardized_ingredient_id,
-    store: payload.store,
-    product_id: payload.product_id,
-    product_name: payload.product_name,
-    price: payload.price,
-  })
-
-  // Try onConflict first using the actual DB constraint (2 columns, not 3)
-  // The DB has constraint "ingredient_cache_unique_per_store" on (standardized_ingredient_id, store)
-  const upsertAttempt = await client
-    .from("ingredient_cache")
-    .upsert(payload, { onConflict: "standardized_ingredient_id,store" })
-    .select("*")
-    .maybeSingle()
-
-  if (upsertAttempt.data) {
-    console.log("[ingredient-pipeline] Upsert SUCCESS", {
-      id: upsertAttempt.data.id,
-      store: upsertAttempt.data.store,
-      product_name: upsertAttempt.data.product_name,
-    })
-    return upsertAttempt.data
-  }
-
-  if (upsertAttempt.error) {
-    console.warn("[ingredient-pipeline] Upsert FAILED", {
-      error: upsertAttempt.error.message,
-      code: upsertAttempt.error.code,
-      details: upsertAttempt.error.details,
-      hint: upsertAttempt.error.hint,
-    })
-
-    if (!upsertAttempt.error.message.includes("duplicate key value")) {
-      console.log("[ingredient-pipeline] Attempting manual fallback path...")
+  product: ScraperResult // Assuming the input comes from your scraper
+): Promise<IngredientCacheRow | null> {
+  
+  // 1. We let the class handle the logic. 
+  // Notice we don't pass 'client' anymore; the singleton handles it.
+  const result = await ingredientCacheDB.cachePrice(
+    standardizedIngredientId,
+    store,
+    Number(product.price) || 0,
+    Number(product.quantity) || 1,
+    product.unit || "unit",
+    {
+      unitPrice: product.unit_price ?? null,
+      imageUrl: product.image_url ?? null,
+      productName: product.product_name ?? product.title ?? null,
+      productId: product.product_id ? String(product.product_id) : null,
+      location: product.location ?? null
     }
+  );
+
+  if (!result) {
+    console.error(`[ingredient-pipeline] Failed to cache entry for ${store}`);
   }
 
-  // Manual fallback: check if entry exists (case-insensitive store match)
-  console.log("[ingredient-pipeline] Checking for existing entry...")
-  const { data: existing, error: existingError } = await client
-    .from("ingredient_cache")
-    .select("id")
-    .eq("standardized_ingredient_id", payload.standardized_ingredient_id)
-    .ilike("store", payload.store)
-    .eq("product_id", payload.product_id)
-    .maybeSingle()
-
-  if (existingError) {
-    console.warn("[ingredient-pipeline] Error checking existing entry", existingError)
-  }
-
-  if (existing?.id) {
-    console.log("[ingredient-pipeline] Found existing entry, updating...", { existingId: existing.id })
-    const { data, error } = await client
-      .from("ingredient_cache")
-      .update({ ...payload, updated_at: new Date().toISOString() })
-      .eq("id", existing.id)
-      .select("*")
-      .maybeSingle()
-    if (error) {
-      console.error("[ingredient-pipeline] UPDATE FAILED", {
-        error: error.message,
-        code: error.code,
-        details: error.details,
-      })
-      return null
-    }
-    console.log("[ingredient-pipeline] UPDATE SUCCESS", { id: data?.id })
-    return data
-  }
-
-  console.log("[ingredient-pipeline] No existing entry, inserting new...")
-  const { data, error } = await client
-    .from("ingredient_cache")
-    .insert(payload)
-    .select("*")
-    .maybeSingle()
-
-  if (error) {
-    console.error("[ingredient-pipeline] INSERT FAILED", {
-      error: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
-    })
-
-    // If INSERT failed due to duplicate key, try to fetch and update the existing entry
-    if (error.code === '23505') {
-      console.log("[ingredient-pipeline] Duplicate key - fetching existing entry to update...")
-      const { data: existingData, error: fetchError } = await client
-        .from("ingredient_cache")
-        .select("*")
-        .eq("standardized_ingredient_id", payload.standardized_ingredient_id)
-        .ilike("store", payload.store)
-        .maybeSingle()
-
-      if (fetchError) {
-        console.error("[ingredient-pipeline] Failed to fetch existing entry", fetchError)
-        return null
-      }
-
-      if (existingData) {
-        // Update the existing entry with new data
-        const { data: updated, error: updateError } = await client
-          .from("ingredient_cache")
-          .update({
-            ...payload,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", existingData.id)
-          .select("*")
-          .maybeSingle()
-
-        if (updateError) {
-          console.error("[ingredient-pipeline] Failed to update existing entry", updateError)
-          return existingData // Return old data as fallback
-        }
-
-        console.log("[ingredient-pipeline] Updated existing entry after duplicate key error", {
-          id: updated?.id,
-          store: updated?.store
-        })
-        return updated || existingData
-      }
-    }
-
-    return null
-  }
-
-  console.log("[ingredient-pipeline] INSERT SUCCESS", { id: data?.id, store: data?.store })
-  return data
+  return result;
 }
 
 export async function resolveStandardizedIngredientForRecipe(
-  supabaseClient: SupabaseLike = createServerClient(),
   recipeId: string,
   rawIngredientName: string
 ): Promise<string> {
@@ -566,50 +363,57 @@ export async function resolveStandardizedIngredientForRecipe(
   const trimmed = rawIngredientName?.trim()
   if (!trimmed) throw new Error("rawIngredientName is required")
 
-  const { data: existingMapping, error: mappingError } = await supabaseClient
-    .from("ingredient_mappings")
-    .select("standardized_ingredient_id")
-    .eq("recipe_id", recipeId)
-    .eq("original_name", trimmed)
-    .maybeSingle()
-
-  if (mappingError && mappingError.code !== "PGRST116") {
-    console.warn("[ingredient-pipeline] Failed to read ingredient mapping", mappingError)
-  }
-
+  // 1. Check for existing mapping (Specific to this recipe)
+  const existingMapping = await ingredientMappingsDB.findByRecipeAndName(recipeId, trimmed)
   if (existingMapping?.standardized_ingredient_id) {
     return existingMapping.standardized_ingredient_id
   }
 
+  // 2. Try to find a match in the Master Ingredient list
   const normalized = normalizeIngredientName(trimmed)
-  const maybeExisting = await findStandardizedIngredient(supabaseClient, normalized, trimmed)
+  let matchingIngredient = await standardizedIngredientsDB.findByCanonicalName(normalized)
 
+  // 3. AI Fallback: If no match found, use AI to determine the canonical name
   let canonicalName = normalized || trimmed
-  if (!maybeExisting) {
+  if (!matchingIngredient) {
     try {
       const aiStandardized = await standardizeIngredientsWithAI([{ id: "0", name: trimmed }], "recipe")
       const aiTop = aiStandardized?.[0]
-      canonicalName = aiTop?.canonicalName?.trim() || canonicalName
+      if (aiTop?.canonicalName) {
+        canonicalName = aiTop.canonicalName.trim()
+        // Check if the AI's suggested name already exists in our DB
+        matchingIngredient = await standardizedIngredientsDB.findByCanonicalName(canonicalName)
+      }
     } catch (error) {
-      console.warn("[ingredient-pipeline] AI standardization failed, falling back to heuristic", error)
+      console.warn("[ingredient-pipeline] AI standardization failed", error)
     }
   }
 
-  const standardizedId =
-    maybeExisting?.id ||
-    (await findStandardizedIngredient(supabaseClient, canonicalName, trimmed))?.id ||
-    (await createStandardizedIngredient(supabaseClient, canonicalName))
+  // 4. Resolve the ID: Get existing, or create a new standardized entry
+  let standardizedId: string | null = null
+  
+  if (matchingIngredient) {
+    standardizedId = matchingIngredient.id
+  } else {
+    // getOrCreate handles the search-then-insert logic safely
+    const newIngredient = await standardizedIngredientsDB.getOrCreate(canonicalName)
+    standardizedId = newIngredient?.id || null
+  }
 
-  await ensureIngredientMapping(supabaseClient, recipeId, trimmed, standardizedId)
+  if (!standardizedId) {
+    throw new Error(`Critical failure: Could not resolve or create ID for ${canonicalName}`)
+  }
+
+  // 5. Link this specific recipe name to the standardized ID for next time
+  await ingredientMappingsDB.upsertMapping(recipeId, trimmed, standardizedId)
+
   return standardizedId
 }
-
 /**
- * Batch get or refresh ingredient prices for multiple stores at once
- * OPTIMIZED: Single cache lookup for all stores instead of one per store
+ * Batch get or refresh ingredient prices for multiple stores at once.
+ * Leverages the Singleton DB classes for caching and batching logic.
  */
 export async function getOrRefreshIngredientPricesForStores(
-  supabaseClient: SupabaseLike = createServerClient(),
   standardizedIngredientId: string,
   stores: string[],
   options: StoreLookupOptions = {}
@@ -618,105 +422,84 @@ export async function getOrRefreshIngredientPricesForStores(
   if (!stores || stores.length === 0) return []
 
   const startTime = Date.now()
-  const normalizedStores = stores.map(s => normalizeStoreName(s))
 
-  console.log("[ingredient-pipeline] getOrRefreshIngredientPricesForStores called", {
-    standardizedIngredientId,
-    stores: normalizedStores,
-    zipCode: options.zipCode,
-  })
+  // 1. Single batched query for all stores using the new class method
+  // This automatically filters out expired entries based on your store-specific TTLs
+  const cachedItems = await ingredientCacheDB.findByStandardizedId(
+    standardizedIngredientId, 
+    stores
+  )
 
-  // OPTIMIZED: Single batched query for all stores
-  const { data: cachedItems, error: cacheError } = await supabaseClient
-    .from("ingredient_cache")
-    .select("*")
-    .eq("standardized_ingredient_id", standardizedIngredientId)
-    .in("store", normalizedStores)
-    .gt("expires_at", new Date().toISOString())
+  // Map cached items for quick lookup
+  const cachedByStore = new Map(cachedItems.map(item => [item.store, item]))
+  
+  // Identify missing stores (Note: findByStandardizedId handles normalization of the 'stores' input)
+  const normalizedRequestedStores = stores.map(s => s.toLowerCase().replace(/\s+/g, ''))
+  const storesToScrape = normalizedRequestedStores.filter(store => !cachedByStore.has(store))
+  
+  const results: IngredientCacheResult[] = [...cachedItems]
 
-  if (cacheError && cacheError.code !== "PGRST116") {
-    console.warn("[ingredient-pipeline] Batch cache lookup failed", cacheError)
-  }
-
-  // Build map of cached stores
-  const cachedByStore = new Map<string, IngredientCacheResult>()
-  if (cachedItems) {
-    for (const item of cachedItems) {
-      cachedByStore.set(normalizeStoreName(item.store), item)
-    }
-  }
-
-  // Identify stores that need scraping
-  const storesToScrape = normalizedStores.filter(store => !cachedByStore.has(store))
-  const results: IngredientCacheResult[] = Array.from(cachedByStore.values())
-
-  console.log("[ingredient-pipeline] Batch cache check complete", {
-    cachedCount: cachedByStore.size,
-    storesToScrape,
-    timeMs: Date.now() - startTime,
-  })
-
-  if (storesToScrape.length === 0) {
+  // 2. Early exit if no scraping is needed or allowed
+  if (storesToScrape.length === 0 || options.allowRealTimeScraping === false) {
     return results
   }
 
-  // If real-time scraping is disabled, return only cached results
-  if (options.allowRealTimeScraping === false) {
-    console.log("[ingredient-pipeline] Real-time scraping disabled, returning cached results only", {
-      cachedStores: Array.from(cachedByStore.keys()),
-      missedStores: storesToScrape,
-    })
-    return results
-  }
+  // 3. Load canonical name using the standardizedIngredientsDB instance
+  const ingredients = await standardizedIngredientsDB.fetchByIds([standardizedIngredientId])
+  const canonicalName = ingredients[0]?.canonical_name
 
-  // Load canonical name once for all scrapers
-  const canonicalName = await loadCanonicalName(supabaseClient, standardizedIngredientId)
   if (!canonicalName) {
-    console.warn("[ingredient-pipeline] Missing canonical name for standardized ingredient", { standardizedIngredientId })
+    console.warn("[ingredient-pipeline] Missing canonical name", { standardizedIngredientId })
     return results
   }
 
-  // Scrape missing stores in parallel
+  // 4. Scrape missing stores in parallel
   const scrapePromises = storesToScrape.map(async (store) => {
     const scraped = await runStoreScraper(store, canonicalName, options)
     const bestProduct = pickBestScrapedProduct(scraped)
+    
     if (!bestProduct) return null
 
-    const payload = buildCachePayload(standardizedIngredientId, store, bestProduct)
-    return payload
+    // Return the specific payload format your batchCachePrices expects
+    return {
+      standardizedIngredientId,
+      store,
+      price: Number(bestProduct.price) || 0,
+      quantity: Number(bestProduct.quantity) || 1,
+      unit: bestProduct.unit || "unit",
+      unitPrice: bestProduct.unit_price,
+      imageUrl: bestProduct.image_url,
+      productName: bestProduct.product_name || bestProduct.title,
+      productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
+      location: bestProduct.location
+    }
   })
 
-  const scrapeResults = await Promise.all(scrapePromises)
-  const validPayloads = scrapeResults.filter((p): p is DB["ingredient_cache"]["Insert"] => p !== null)
+  const validPayloads = (await Promise.all(scrapePromises)).filter((p): p is any => p !== null)
 
-  // Batch upsert all scraped results
+  // 5. Batch upsert using the new DB method
   if (validPayloads.length > 0) {
-    const { data: upsertedData, error: upsertError } = await supabaseClient
-      .from("ingredient_cache")
-      .upsert(validPayloads, { onConflict: "standardized_ingredient_id,store" })
-      .select("*")
-
-    if (upsertError) {
-      console.error("[ingredient-pipeline] Batch upsert failed", upsertError)
-    } else if (upsertedData) {
-      results.push(...upsertedData)
-      console.log("[ingredient-pipeline] Batch upserted scraped results", {
-        count: upsertedData.length,
-        stores: upsertedData.map(d => d.store),
-      })
+    const count = await ingredientCacheDB.batchCachePrices(validPayloads)
+    
+    if (count > 0) {
+      // Refresh results from DB to ensure we have the full rows (with calculated expires_at)
+      const freshScrapedData = await ingredientCacheDB.findByStandardizedId(
+        standardizedIngredientId,
+        validPayloads.map(p => p.store)
+      )
+      results.push(...freshScrapedData)
     }
   }
 
-  console.log("[ingredient-pipeline] getOrRefreshIngredientPricesForStores completed", {
+  console.log("[ingredient-pipeline] completed", {
     totalResults: results.length,
-    totalTimeMs: Date.now() - startTime,
+    totalTimeMs: Date.now() - startTime
   })
 
   return results
 }
 
 export async function getOrRefreshIngredientPrice(
-  supabaseClient: SupabaseLike = createServerClient(),
   standardizedIngredientId: string,
   store: string,
   options: StoreLookupOptions = {}
@@ -735,41 +518,23 @@ export async function getOrRefreshIngredientPrice(
     zipCode: options.zipCode,
   })
 
-  // Single query to check for cached result - case-insensitive store match
-  const { data: cached, error: cacheError } = await supabaseClient
-    .from("ingredient_cache")
-    .select("*")
-    .eq("standardized_ingredient_id", standardizedIngredientId)
-    .ilike("store", normalizedStore)
-    .order("expires_at", { ascending: false })
-    .order("unit_price", { ascending: true, nullsLast: true })
-    .order("price", { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (cacheError && cacheError.code !== "PGRST116") {
-    console.warn("[ingredient-pipeline] Cache lookup failed", cacheError)
-  }
+  // Use the new class method to check for cached result
+  const cachedItems = await ingredientCacheDB.findByStandardizedId(
+    standardizedIngredientId,
+    [normalizedStore]
+  )
+  const cached = cachedItems[0] || null
 
   // Check if cache exists and is still valid
   if (cached) {
-    const isExpired = new Date(cached.expires_at) < new Date()
-    if (!isExpired) {
-      console.log("[ingredient-pipeline] Cache HIT (valid)", {
-        store: normalizedStore,
-        product_name: cached.product_name,
-        price: cached.price,
-        expires_at: cached.expires_at,
-        timeMs: Date.now() - startTime,
-      })
-      return cached
-    }
-    console.log("[ingredient-pipeline] Cache EXPIRED, will scrape", {
+    console.log("[ingredient-pipeline] Cache HIT (valid)", {
       store: normalizedStore,
       product_name: cached.product_name,
+      price: cached.price,
       expires_at: cached.expires_at,
       timeMs: Date.now() - startTime,
     })
+    return cached
   } else {
     console.log("[ingredient-pipeline] Cache MISS (not found), will scrape", {
       store: normalizedStore,
@@ -787,7 +552,7 @@ export async function getOrRefreshIngredientPrice(
     return null
   }
 
-  const canonicalName = await loadCanonicalName(supabaseClient, standardizedIngredientId)
+  const canonicalName = await loadCanonicalName(standardizedIngredientId)
   if (!canonicalName) {
     console.warn("[ingredient-pipeline] Missing canonical name for standardized ingredient", { standardizedIngredientId })
     return null
@@ -821,9 +586,8 @@ export async function getOrRefreshIngredientPrice(
     price: bestProduct.price
   })
 
-  const payload = buildCachePayload(standardizedIngredientId, store, bestProduct)
   const upsertStart = Date.now()
-  const result = await upsertCacheEntry(supabaseClient, payload)
+  const result = await upsertCacheEntry(standardizedIngredientId, store, bestProduct)
   const totalTime = Date.now() - startTime
 
   console.log("[ingredient-pipeline] getOrRefreshIngredientPrice completed", {
@@ -837,7 +601,6 @@ export async function getOrRefreshIngredientPrice(
 }
 
 export async function resolveOrCreateStandardizedId(
-  supabaseClient: SupabaseLike,
   query: string
 ): Promise<string> {
   const trimmedQuery = query.trim()
@@ -846,7 +609,7 @@ export async function resolveOrCreateStandardizedId(
 
   // STEP 1: Check if this exact string was previously mapped (from ANY recipe)
   // This leverages historical mappings to improve cache hits
-  const mappedId = await findStandardizedIngredientViaMapping(supabaseClient, trimmedQuery)
+  const mappedId = await findStandardizedIngredientViaMapping(trimmedQuery)
   if (mappedId) {
     console.log("[ingredient-pipeline] Found via historical mapping", { query: trimmedQuery, mappedId })
     return mappedId
@@ -854,7 +617,7 @@ export async function resolveOrCreateStandardizedId(
 
   // STEP 2: Normalize and look for exact/fuzzy match in standardized_ingredients
   const normalized = normalizeIngredientName(trimmedQuery)
-  const existing = await findStandardizedIngredient(supabaseClient, normalized, trimmedQuery)
+  const existing = await findStandardizedIngredient(normalized, trimmedQuery)
   if (existing?.id) {
     console.log("[ingredient-pipeline] Found via normalized lookup", { query: trimmedQuery, normalized, id: existing.id })
     return existing.id
@@ -872,27 +635,26 @@ export async function resolveOrCreateStandardizedId(
   }
 
   // STEP 4: Try lookup with AI-suggested canonical name
-  const aiExisting = await findStandardizedIngredient(supabaseClient, canonicalName, trimmedQuery)
+  const aiExisting = await findStandardizedIngredient(canonicalName, trimmedQuery)
   if (aiExisting?.id) {
     console.log("[ingredient-pipeline] Found via AI canonical lookup", { query: trimmedQuery, canonical: canonicalName, id: aiExisting.id })
     return aiExisting.id
   }
 
-  return createStandardizedIngredient(supabaseClient, canonicalName)
+  return createStandardizedIngredient(canonicalName)
 }
 
 export async function searchOrCreateIngredientAndPrices(
-  supabaseClient: SupabaseLike = createServerClient(),
   query: string,
   stores: string[],
   options: StoreLookupOptions = {}
 ): Promise<IngredientCacheResult[]> {
   if (!query) throw new Error("query is required")
-  const standardizedId = await resolveOrCreateStandardizedId(supabaseClient, query)
+  const standardizedId = await resolveOrCreateStandardizedId(query)
 
   // Fetch from all stores in parallel for faster response
   const storePromises = stores.map(async (store) => {
-    return getOrRefreshIngredientPrice(supabaseClient, standardizedId, store, options)
+    return getOrRefreshIngredientPrice(standardizedId, store, options)
   })
 
   const storeResults = await Promise.all(storePromises)
@@ -930,7 +692,6 @@ export interface CostEstimate {
 }
 
 export async function estimateIngredientCostsForStore(
-  supabaseClient: SupabaseLike = createServerClient(),
   items: PipelineIngredientInput[],
   store: string,
   options: StoreLookupOptions = {}
@@ -952,14 +713,13 @@ export async function estimateIngredientCostsForStore(
     try {
       if (!standardizedId && item.recipeId) {
         standardizedId = await resolveStandardizedIngredientForRecipe(
-          supabaseClient,
           item.recipeId,
           displayName
         )
       }
 
       if (!standardizedId) {
-        standardizedId = await resolveOrCreateStandardizedId(supabaseClient, displayName)
+        standardizedId = await resolveOrCreateStandardizedId(displayName)
       }
     } catch (error) {
       console.warn("[ingredient-pipeline] Failed to resolve standardized ingredient", {
@@ -969,7 +729,7 @@ export async function estimateIngredientCostsForStore(
       return { item, success: false, cacheRow: null, standardizedId: null }
     }
 
-    const cacheRow = await getOrRefreshIngredientPrice(supabaseClient, standardizedId, store, options)
+    const cacheRow = await getOrRefreshIngredientPrice(standardizedId, store, options)
     return { item, success: !!cacheRow, cacheRow, standardizedId, displayName }
   })
 
@@ -997,12 +757,22 @@ export async function estimateIngredientCostsForStore(
   }
 }
 
+/**
+ * @deprecated 
+ * This function is legacy logic and may fail or return inaccurate data.
+ * DB CHANGE: Shopping list items have been moved from a JSONB column in 'shopping_lists'
+ * to the relational 'shopping_list_items' table.
+ * * TODO: Migration required to query the 'shopping_list_items' table with a join 
+ * or foreign key filter instead of selecting the 'items' column.
+ */
 export async function updateShoppingListEstimate(
-  supabaseClient: SupabaseLike = createServerClient(),
   shoppingListId: string,
   store: string,
   options: StoreLookupOptions = {}
 ): Promise<CostEstimate | null> {
+  const supabaseClient = createServerClient()
+  
+  // WARNING: 'items' column is deprecated and may be null or empty in newer records
   const { data: shoppingList, error } = await supabaseClient
     .from("shopping_lists")
     .select("items")
@@ -1010,10 +780,11 @@ export async function updateShoppingListEstimate(
     .maybeSingle()
 
   if (error || !shoppingList) {
-    console.error("[ingredient-pipeline] Failed to load shopping list", error)
+    console.error("[ingredient-pipeline] [DEPRECATED] Failed to load shopping list", error)
     return null
   }
 
+  // Fallback mapping for legacy JSONB data
   const items: IngredientInput[] = Array.isArray(shoppingList.items)
     ? shoppingList.items.map((item: any) => ({
         name: item.name || item.ingredient || "",
@@ -1024,7 +795,7 @@ export async function updateShoppingListEstimate(
       }))
     : []
 
-  const estimate = await estimateIngredientCostsForStore(supabaseClient, items, store, options)
+  const estimate = await estimateIngredientCostsForStore(items, store, options)
 
   const { error: updateError } = await supabaseClient
     .from("shopping_lists")
@@ -1032,18 +803,26 @@ export async function updateShoppingListEstimate(
     .eq("id", shoppingListId)
 
   if (updateError) {
-    console.warn("[ingredient-pipeline] Failed to update shopping list total", updateError)
+    console.warn("[ingredient-pipeline] [DEPRECATED] Failed to update total", updateError)
   }
 
   return estimate
 }
 
+/**
+ * @deprecated
+ * Reason: Meal plan items are now managed via the 'meal_plan_items' join table.
+ * Accessing 'shopping_list' as a JSON field on 'meal_plans' will return stale or 
+ * incomplete data for any plans created after the schema migration.
+ */
 export async function updateMealPlanBudget(
-  supabaseClient: SupabaseLike = createServerClient(),
   mealPlanId: string,
   store: string,
   options: StoreLookupOptions = {}
 ): Promise<CostEstimate | null> {
+  const supabaseClient = createServerClient()
+  
+  // WARNING: 'shopping_list' column is slated for removal.
   const { data: mealPlan, error } = await supabaseClient
     .from("meal_plans")
     .select("shopping_list")
@@ -1051,7 +830,7 @@ export async function updateMealPlanBudget(
     .maybeSingle()
 
   if (error || !mealPlan) {
-    console.error("[ingredient-pipeline] Failed to load meal plan", error)
+    console.error("[ingredient-pipeline] [DEPRECATED] Failed to load meal plan", error)
     return null
   }
 
@@ -1065,7 +844,7 @@ export async function updateMealPlanBudget(
       }))
     : []
 
-  const estimate = await estimateIngredientCostsForStore(supabaseClient, items, store, options)
+  const estimate = await estimateIngredientCostsForStore(items, store, options)
 
   const { error: updateError } = await supabaseClient
     .from("meal_plans")
@@ -1073,7 +852,7 @@ export async function updateMealPlanBudget(
     .eq("id", mealPlanId)
 
   if (updateError) {
-    console.warn("[ingredient-pipeline] Failed to update meal plan budget", updateError)
+    console.warn("[ingredient-pipeline] [DEPRECATED] Failed to update budget", updateError)
   }
 
   return estimate

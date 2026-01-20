@@ -240,6 +240,30 @@ class StandardizedIngredientsTable extends BaseTable<
       return []
     }
   }
+  /**
+   * Fetches a sample of canonical names for system context or AI training.
+   * Centralizes the logic used by the AI standardizer.
+   */
+  async getCanonicalNameSample(sampleSize = 200): Promise<string[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from(this.tableName)
+        .select('canonical_name')
+        .limit(sampleSize)
+
+      if (error) {
+        this.handleError(error, 'getCanonicalNameSample')
+        return []
+      }
+
+      return data
+        .map((row) => row.canonical_name)
+        .filter((name): name is string => !!name && name.trim().length > 0)
+    } catch (error) {
+      this.handleError(error, 'getCanonicalNameSample')
+      return []
+    }
+  }
 }
 
 export const standardizedIngredientsDB = StandardizedIngredientsTable.getInstance()

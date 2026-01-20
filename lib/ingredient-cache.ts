@@ -1,5 +1,7 @@
-import { createServerClient } from "./supabase"
 import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
+import { ingredientCacheDB } from "./database/ingredient-cache-db"
+import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
+import { ingredientMappingsDB } from "./database/ingredient-mappings-db"
 
 export interface CachedIngredient {
   id: string
@@ -11,12 +13,14 @@ export interface CachedIngredient {
   unit: string
   unit_price: number | null
   image_url: string | null
-  product_url: string | null
+  product_url?: string | null
   product_id: string | null
+  location?: string | null
   expires_at: string
+  created_at?: string | null
+  updated_at?: string | null
 }
 
-type SupabaseClientType = ReturnType<typeof createServerClient>
 type StandardizedIngredientRow = { id: string; canonical_name: string; category?: string | null }
 
 const INGREDIENT_STOP_WORDS = new Set([
@@ -138,14 +142,14 @@ function buildSearchVariants(value: string): string[] {
   return Array.from(variants).filter(Boolean)
 }
 
-async function loadStandardizedIngredientCache(client: SupabaseClientType): Promise<StandardizedIngredientRow[]> {
+async function loadStandardizedIngredientCache(): Promise<StandardizedIngredientRow[]> {
   if (standardizedIngredientCache && Date.now() < standardizedIngredientCacheExpiresAt) {
     return standardizedIngredientCache
   }
 
-  const { data, error } = await client.from("standardized_ingredients").select("id, canonical_name, category")
-  if (error || !data) {
-    console.error("Error loading standardized ingredients for lookup:", error)
+  const data = await standardizedIngredientsDB.findAll()
+  if (!data || data.length === 0) {
+    console.error("Error loading standardized ingredients for lookup")
     return []
   }
 
@@ -171,14 +175,9 @@ export async function getStandardizedIngredientMetadata(
   }
 
   try {
-    const client = createServerClient()
-    const { data, error } = await client
-      .from("standardized_ingredients")
-      .select("id, canonical_name, category")
-      .eq("id", standardizedIngredientId)
-      .maybeSingle()
+    const data = await standardizedIngredientsDB.findById(standardizedIngredientId)
 
-    if (error || !data) {
+    if (!data) {
       return null
     }
 
@@ -205,7 +204,6 @@ export async function searchIngredientCache(
   stores?: string[]
 ): Promise<CachedIngredient[]> {
   try {
-    const client = createServerClient()
     const normalizedSearch = searchTerm.trim().toLowerCase()
 
     if (!normalizedSearch) {
@@ -216,30 +214,17 @@ export async function searchIngredientCache(
 
     let ingredientIds: string[] = []
 
-    // Try using the advanced PostgreSQL search function (if migration was run)
-    try {
-      const { data: advancedResults, error: rpcError } = await client.rpc(
-        'search_standardized_ingredients',
-        {
-          search_query: normalizedSearch,
-          similarity_threshold: 0.3,
-          max_results: 20
-        }
-      )
+    // Try using text search on standardized ingredients
+    const searchResults = await standardizedIngredientsDB.searchByText(normalizedSearch, { limit: 20 })
 
-      if (!rpcError && advancedResults && advancedResults.length > 0) {
-        ingredientIds = advancedResults.map((r: any) => r.id)
-        console.log("[Cache] Found matches via advanced search", {
-          count: ingredientIds.length,
-          matchTypes: advancedResults.map((r: any) => r.match_type)
-        })
-      }
-    } catch (rpcError) {
-      // Function doesn't exist yet (migration not run), fall back to variant search
-      console.log("[Cache] Advanced search unavailable, using variant search")
+    if (searchResults && searchResults.length > 0) {
+      ingredientIds = searchResults.map(r => r.id)
+      console.log("[Cache] Found matches via text search", {
+        count: ingredientIds.length
+      })
     }
 
-    // Fallback to variant-based search if advanced search didn't work
+    // Fallback to variant-based search if text search didn't work
     if (ingredientIds.length === 0) {
       const searchVariants = buildSearchVariants(normalizedSearch)
       if (searchVariants.length === 0) {
@@ -248,32 +233,11 @@ export async function searchIngredientCache(
 
       console.log("[Cache] Searching with variants", { variants: searchVariants })
 
-      // Try exact match first (fastest)
-      const exactMatch = await client
-        .from("standardized_ingredients")
-        .select("id")
-        .in("canonical_name", searchVariants)
+      const variantResults = await standardizedIngredientsDB.searchByVariants(searchVariants)
 
-      if (exactMatch.data && exactMatch.data.length > 0) {
-        ingredientIds = exactMatch.data.map(ing => ing.id)
-        console.log("[Cache] Found exact matches", { count: ingredientIds.length })
-      } else {
-        // Fallback to ILIKE fuzzy search
-        const orConditions = searchVariants.map(v => `canonical_name.ilike.%${v}%`).join(',')
-        const fuzzyMatch = await client
-          .from("standardized_ingredients")
-          .select("id")
-          .or(orConditions)
-
-        if (fuzzyMatch.error) {
-          console.error("Error fuzzy searching standardized ingredients:", fuzzyMatch.error)
-          return []
-        }
-
-        if (fuzzyMatch.data && fuzzyMatch.data.length > 0) {
-          ingredientIds = fuzzyMatch.data.map(ing => ing.id)
-          console.log("[Cache] Found fuzzy matches", { count: ingredientIds.length })
-        }
+      if (variantResults && variantResults.length > 0) {
+        ingredientIds = variantResults.map(ing => ing.id)
+        console.log("[Cache] Found variant matches", { count: ingredientIds.length })
       }
     }
 
@@ -281,27 +245,8 @@ export async function searchIngredientCache(
       return []
     }
 
-    // Normalize store names for consistent matching
-    const normalizedStores = stores?.map(s => normalizeStoreName(s))
-
     // Query the cache for non-expired items matching the standardized ingredients
-    let query = client
-      .from("ingredient_cache")
-      .select("*")
-      .in("standardized_ingredient_id", ingredientIds)
-      .gt("expires_at", new Date().toISOString())
-
-    // Filter by stores if provided
-    if (normalizedStores && normalizedStores.length > 0) {
-      query = query.in("store", normalizedStores)
-    }
-
-    const { data: cachedItems, error: cacheError } = await query
-
-    if (cacheError) {
-      console.error("Error searching ingredient cache:", cacheError)
-      return []
-    }
+    const cachedItems = await ingredientCacheDB.findByStandardizedIds(ingredientIds, stores)
 
     console.log("[Cache] Found cached items", {
       count: cachedItems?.length || 0,
@@ -324,27 +269,7 @@ export async function getCachedIngredientById(
   stores?: string[]
 ): Promise<CachedIngredient[]> {
   try {
-    const client = createServerClient()
-
-    // Normalize store names for consistent matching
-    const normalizedStores = stores?.map(s => normalizeStoreName(s))
-
-    let query = client
-      .from("ingredient_cache")
-      .select("*")
-      .eq("standardized_ingredient_id", standardizedIngredientId)
-      .gt("expires_at", new Date().toISOString())
-
-    if (normalizedStores && normalizedStores.length > 0) {
-      query = query.in("store", normalizedStores)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      console.error("Error getting cached ingredient:", error)
-      return []
-    }
+    const data = await ingredientCacheDB.findByStandardizedId(standardizedIngredientId, stores)
 
     console.log("[Cache] getCachedIngredientById results", {
       standardizedIngredientId,
@@ -376,75 +301,35 @@ export async function cacheIngredientPrice(
   productId: string | null = null
 ): Promise<boolean> {
   try {
-    const client = createServerClient()
-
-    // Normalize store name for consistent cache lookups
-    const normalizedStore = normalizeStoreName(store)
-
-    // Check existing entry for this ingredient/store
-    const { data: existingEntry, error: existingError } = await client
-      .from("ingredient_cache")
-      .select("id, price")
-      .eq("standardized_ingredient_id", standardizedIngredientId)
-      .eq("store", normalizedStore)
-      .maybeSingle()
-
-    if (existingError && existingError.code !== "PGRST116") {
-      console.error("Error checking existing ingredient cache entry:", existingError)
-      return false
-    }
-
     const normalizedPrice = Number(price)
     const priceValue = Number.isFinite(normalizedPrice) ? normalizedPrice : 0
 
-    // Use store-specific TTL
-    const ttlHours = getCacheTTLForStore(normalizedStore)
-    const expiresAt = new Date()
-    expiresAt.setHours(expiresAt.getHours() + ttlHours)
-
-    const payload = {
-      standardized_ingredient_id: standardizedIngredientId,
-      store: normalizedStore,
-      product_name: productName || null,
-      price: priceValue,
+    const result = await ingredientCacheDB.cachePrice(
+      standardizedIngredientId,
+      store,
+      priceValue,
       quantity,
       unit,
-      unit_price: unitPrice,
-      image_url: imageUrl,
-      product_url: productUrl,
-      product_id: productId,
-      expires_at: expiresAt.toISOString(),
-      updated_at: new Date().toISOString(),
+      {
+        unitPrice,
+        imageUrl,
+        productName,
+        productId,
+        location: null
+      }
+    )
+
+    if (result) {
+      console.log("[Cache] Cached ingredient price", {
+        store,
+        standardizedIngredientId,
+        productName,
+        price: priceValue,
+      })
+      return true
     }
 
-    if (existingEntry) {
-      const { error } = await client.from("ingredient_cache").update(payload).eq("id", existingEntry.id)
-      if (error) {
-        console.error("Error updating ingredient cache:", error)
-        return false
-      }
-      console.log("[Cache] Updated ingredient price", {
-        store,
-        standardizedIngredientId,
-        productName,
-        price: priceValue,
-        mode: "replace_existing",
-      })
-    } else {
-      const { error } = await client.from("ingredient_cache").insert(payload)
-      if (error) {
-        console.error("Error inserting ingredient cache:", error)
-        return false
-      }
-      console.log("[Cache] Inserted ingredient price", {
-        store,
-        standardizedIngredientId,
-        productName,
-        price: priceValue,
-        mode: "insert",
-      })
-    }
-    return true
+    return false
   } catch (error) {
     console.error("Error in cacheIngredientPrice:", error)
     return false
@@ -462,36 +347,24 @@ export async function batchGetOrCreateStandardizedIngredients(
   if (!items || items.length === 0) return resultMap
 
   try {
-    const client = createServerClient()
-
     // Normalize all names
-    const payloads = items.map(item => ({
-      canonical_name: item.canonicalName.trim().toLowerCase(),
+    const normalizedItems = items.map(item => ({
+      canonicalName: item.canonicalName.trim().toLowerCase(),
       category: item.category,
     }))
 
-    // Single batch upsert
-    const { data, error } = await client
-      .from("standardized_ingredients")
-      .upsert(payloads, { onConflict: "canonical_name" })
-      .select("id, canonical_name, category")
-
-    if (error) {
-      console.error("Error batch creating standardized ingredients:", error)
-      return resultMap
-    }
+    // Single batch upsert using the DB class
+    const idMap = await standardizedIngredientsDB.batchGetOrCreate(normalizedItems)
 
     // Build result map and update cache
-    if (data) {
-      for (const row of data) {
-        const normalized: StandardizedIngredientRow = {
-          id: row.id,
-          canonical_name: row.canonical_name.toLowerCase(),
-          category: row.category ?? null,
-        }
-        standardizedIngredientIndex.set(row.id, normalized)
-        resultMap.set(row.canonical_name.toLowerCase(), row.id)
+    for (const [canonicalName, id] of idMap.entries()) {
+      const normalized: StandardizedIngredientRow = {
+        id,
+        canonical_name: canonicalName.toLowerCase(),
+        category: items.find(i => i.canonicalName.toLowerCase() === canonicalName)?.category ?? null,
       }
+      standardizedIngredientIndex.set(id, normalized)
+      resultMap.set(canonicalName.toLowerCase(), id)
     }
 
     return resultMap
@@ -512,25 +385,7 @@ export async function batchMapIngredientsToStandardized(
   if (!mappings || mappings.length === 0) return true
 
   try {
-    const client = createServerClient()
-
-    const payloads = mappings.map(m => ({
-      recipe_id: recipeId,
-      original_name: m.originalName,
-      standardized_ingredient_id: m.standardizedIngredientId,
-    }))
-
-    // Use upsert to handle duplicates gracefully
-    const { error } = await client
-      .from("ingredient_mappings")
-      .upsert(payloads, { onConflict: "recipe_id,original_name" })
-
-    if (error) {
-      console.error("Error batch creating ingredient mappings:", error)
-      return false
-    }
-
-    return true
+    return await ingredientMappingsDB.batchUpsertMappings(recipeId, mappings)
   } catch (error) {
     console.error("Error in batchMapIngredientsToStandardized:", error)
     return false
@@ -545,58 +400,18 @@ export async function getOrCreateStandardizedIngredient(
   category: string | null = null
 ): Promise<string | null> {
   try {
-    const client = createServerClient()
     const normalizedCanonical = canonicalName.trim().toLowerCase()
 
-    // Check if it exists
-    const { data: existing, error: searchError } = await client
-      .from("standardized_ingredients")
-      .select("id")
-      .eq("canonical_name", normalizedCanonical)
-      .single()
+    const result = await standardizedIngredientsDB.getOrCreate(normalizedCanonical, category)
 
-    if (existing?.id) {
+    if (result?.id) {
       const normalized: StandardizedIngredientRow = {
-        id: existing.id,
-        canonical_name: normalizedCanonical,
-        category,
-      }
-      standardizedIngredientIndex.set(existing.id, normalized)
-      return existing.id
-    }
-
-    if (searchError && searchError.code !== "PGRST116") {
-      // PGRST116 = not found, which is expected
-      console.error("Error searching for standardized ingredient:", searchError)
-      return null
-    }
-
-    // Create new standardized ingredient
-    const { data: newIngredient, error: createError } = await client
-      .from("standardized_ingredients")
-      .upsert(
-        {
-          canonical_name: normalizedCanonical,
-          category,
-        },
-        { onConflict: "canonical_name" }
-      )
-      .select("id, canonical_name, category")
-      .single()
-
-    if (createError) {
-      console.error("Error creating standardized ingredient:", createError)
-      return null
-    }
-
-    if (newIngredient?.id) {
-      const normalized: StandardizedIngredientRow = {
-        id: newIngredient.id,
-        canonical_name: newIngredient.canonical_name?.toLowerCase() || normalizedCanonical,
-        category: newIngredient.category ?? category ?? null,
+        id: result.id,
+        canonical_name: result.canonical_name?.toLowerCase() || normalizedCanonical,
+        category: result.category ?? category ?? null,
       }
       standardizedIngredientIndex.set(normalized.id, normalized)
-      return newIngredient.id
+      return result.id
     }
 
     return null
@@ -627,44 +442,23 @@ export async function batchCacheIngredientPrices(
   if (!items || items.length === 0) return 0
 
   try {
-    const client = createServerClient()
-    const updatedAt = new Date().toISOString()
+    const batchItems = items.map(item => ({
+      standardizedIngredientId: item.standardizedIngredientId,
+      store: item.store,
+      price: Number.isFinite(item.price) ? item.price : 0,
+      quantity: item.quantity,
+      unit: item.unit,
+      unitPrice: item.unitPrice,
+      imageUrl: item.imageUrl,
+      productName: item.productName,
+      productId: item.productId,
+      location: null
+    }))
 
-    // Build batch payload with store-specific TTL
-    const payloads = items.map(item => {
-      const ttlHours = getCacheTTLForStore(item.store)
-      const expiresAt = new Date()
-      expiresAt.setHours(expiresAt.getHours() + ttlHours)
+    const count = await ingredientCacheDB.batchCachePrices(batchItems)
 
-      return {
-        standardized_ingredient_id: item.standardizedIngredientId,
-        store: item.store.toLowerCase(),
-        product_name: item.productName || null,
-        price: Number.isFinite(item.price) ? item.price : 0,
-        quantity: item.quantity,
-        unit: item.unit,
-        unit_price: item.unitPrice,
-        image_url: item.imageUrl,
-        product_url: item.productUrl,
-        product_id: item.productId,
-        expires_at: expiresAt.toISOString(),
-        updated_at: updatedAt,
-      }
-    })
-
-    // Single batch upsert
-    const { data, error } = await client
-      .from("ingredient_cache")
-      .upsert(payloads, { onConflict: "standardized_ingredient_id,store" })
-      .select("id")
-
-    if (error) {
-      console.error("[Cache] Batch upsert failed:", error)
-      return 0
-    }
-
-    console.log(`[Cache] Batch upserted ${data?.length || 0} items`)
-    return data?.length || 0
+    console.log(`[Cache] Batch upserted ${count} items`)
+    return count
   } catch (error) {
     console.error("[Cache] Error in batchCacheIngredientPrices:", error)
     return 0
@@ -676,20 +470,10 @@ export async function batchCacheIngredientPrices(
  */
 export async function cleanupExpiredCache(): Promise<number> {
   try {
-    const client = createServerClient()
-
-    const { count, error } = await client
-      .from("ingredient_cache")
-      .delete()
-      .lt("expires_at", new Date().toISOString())
-
-    if (error) {
-      console.error("Error cleaning up expired cache:", error)
-      return 0
-    }
+    const count = await ingredientCacheDB.cleanupExpired()
 
     console.log(`Cleaned up ${count} expired cache entries`)
-    return count || 0
+    return count
   } catch (error) {
     console.error("Error in cleanupExpiredCache:", error)
     return 0
@@ -706,21 +490,8 @@ export async function mapIngredientToStandardized(
   standardizedIngredientId: string
 ): Promise<boolean> {
   try {
-    const client = createServerClient()
-
-    const { error } = await client.from("ingredient_mappings").insert({
-      recipe_id: recipeId,
-      original_name: originalName,
-      standardized_ingredient_id: standardizedIngredientId,
-    })
-
-    if (error && error.code !== "23505") {
-      // 23505 = unique constraint violation, which is fine (mapping already exists)
-      console.error("Error creating ingredient mapping:", error)
-      return false
-    }
-
-    return true
+    const result = await ingredientMappingsDB.upsertMapping(recipeId, originalName, standardizedIngredientId)
+    return result !== null
   } catch (error) {
     console.error("Error in mapIngredientToStandardized:", error)
     return false
@@ -735,21 +506,7 @@ export async function getMappedIngredient(
   originalName: string
 ): Promise<string | null> {
   try {
-    const client = createServerClient()
-
-    const { data, error } = await client
-      .from("ingredient_mappings")
-      .select("standardized_ingredient_id")
-      .eq("recipe_id", recipeId)
-      .eq("original_name", originalName)
-      .single()
-
-    if (error && error.code !== "PGRST116") {
-      // PGRST116 = not found
-      console.error("Error getting ingredient mapping:", error)
-      return null
-    }
-
+    const data = await ingredientMappingsDB.findByRecipeAndName(recipeId, originalName)
     return data?.standardized_ingredient_id || null
   } catch (error) {
     console.error("Error in getMappedIngredient:", error)
@@ -768,19 +525,9 @@ async function upsertFreeformMapping(
 ): Promise<void> {
   if (!recipeId || !originalName || !standardizedIngredientId) return
   try {
-    const client = createServerClient()
-    const { error } = await client
-      .from("ingredient_mappings")
-      .upsert(
-        {
-          recipe_id: recipeId,
-          original_name: originalName,
-          standardized_ingredient_id: standardizedIngredientId,
-        },
-        { onConflict: "recipe_id,original_name" }
-      )
-    if (error) {
-      console.warn("[Cache] Failed to upsert freeform mapping", { originalName, error })
+    const result = await ingredientMappingsDB.upsertMapping(recipeId, originalName, standardizedIngredientId)
+    if (!result) {
+      console.warn("[Cache] Failed to upsert freeform mapping", { originalName })
     }
   } catch (error) {
     console.warn("[Cache] Error in upsertFreeformMapping", error)
@@ -795,7 +542,6 @@ async function findStandardizedIngredientIdByName(
   ingredientName: string
 ): Promise<string | null> {
   try {
-    const client = createServerClient()
     const variants = buildSearchVariants(ingredientName.toLowerCase())
 
     if (variants.length === 0) {
@@ -803,7 +549,7 @@ async function findStandardizedIngredientIdByName(
     }
 
     // First check in-memory cache (no DB queries needed)
-    const canonicalList = await loadStandardizedIngredientCache(client)
+    const canonicalList = await loadStandardizedIngredientCache()
 
     // Direct match check - O(n) in memory, no DB call
     for (const variant of variants) {
@@ -826,24 +572,14 @@ async function findStandardizedIngredientIdByName(
       }
     }
 
-    // OPTIMIZED: Single DB query for all variants instead of one per variant
-    // Filter to valid variants (length >= 2) to avoid overly broad matches
+    // Try to find via ingredient mappings
     const validVariants = variants.filter(v => v.length >= 2)
     if (validVariants.length > 0) {
-      // Build OR conditions for PostgREST query
-      const orConditions = validVariants.map(v => `original_name.ilike.%${v}%`).join(',')
-      const { data: mappingMatches, error: mappingError } = await client
-        .from("ingredient_mappings")
-        .select("standardized_ingredient_id")
-        .or(orConditions)
-        .limit(1)
+      // Try searching with the first variant
+      const variantResults = await standardizedIngredientsDB.searchByVariants([validVariants[0]])
 
-      if (mappingError && mappingError.code !== "PGRST116") {
-        console.error("Error searching ingredient mappings:", mappingError)
-      }
-
-      if (mappingMatches && mappingMatches.length > 0) {
-        return mappingMatches[0].standardized_ingredient_id
+      if (variantResults && variantResults.length > 0) {
+        return variantResults[0].id
       }
     }
 

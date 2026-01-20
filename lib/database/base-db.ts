@@ -150,4 +150,9 @@ export abstract class BaseTable<
     }
     return true;
   }
+
+  // This allows the instance to access the query builder
+  static from<K extends TableName>(tableName: K) {
+    return supabase.from(tableName);
+  }
 }

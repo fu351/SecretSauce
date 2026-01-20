@@ -1,5 +1,5 @@
 import axios from "axios"
-import { createServerClient } from "./supabase"
+import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
@@ -32,25 +32,14 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
 }
 
 async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
-  try {
-    const client = createServerClient()
-    const { data, error } = await client
-      .from("standardized_ingredients")
-      .select("canonical_name")
-      .limit(sampleSize)
-
-    if (error || !data) {
-      console.warn("[IngredientStandardizer] Unable to load canonical list:", error)
-      return []
-    }
-
-    return data
-      .map((row) => row.canonical_name)
-      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-  } catch (error) {
-    console.warn("[IngredientStandardizer] Error loading canonical list:", error)
-    return []
+  // Directly call the singleton instance
+  const names = await standardizedIngredientsDB.getCanonicalNameSample(sampleSize)
+  
+  if (names.length === 0) {
+    console.warn("[IngredientStandardizer] Found no canonical ingredients for sample")
   }
+  
+  return names
 }
 
 function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: string[], context: "recipe" | "pantry") {
