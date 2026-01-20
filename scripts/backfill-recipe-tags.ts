@@ -23,7 +23,7 @@ const supabase = createClient(supabaseUrl, serviceKey)
 async function main() {
   const { data, error } = await supabase
     .from("recipes")
-    .select("id, title, ingredients, tags")
+    .select("id, title, ingredients, tags, protein, meal_type")
     .limit(10000)
 
   if (error) {
@@ -31,18 +31,11 @@ async function main() {
     process.exit(1)
   }
 
-  const updates: Array<{ id: string; tags: RecipeTags }> = []
+  const updates: Array<{ id: string; tags: RecipeTags; protein: string; meal_type: string | null }> = []
 
   for (const row of data || []) {
-    // Parse existing tags or create empty structure
-    const existingTags: RecipeTags = row.tags || { dietary: [] }
-
-    // Skip if all auto-generated tags are already populated
-    if (
-      existingTags.allergens &&
-      existingTags.protein &&
-      existingTags.meal_type
-    ) {
+    // Skip if protein and meal_type are already populated
+    if (row.protein && row.meal_type) {
       continue
     }
 
@@ -52,18 +45,24 @@ async function main() {
       row.title || ""
     )
 
-    // Merge with existing dietary tags (user-editable, don't overwrite)
-    const updatedTags: RecipeTags = {
-      dietary: existingTags.dietary || [],
-      allergens: autoTags.dietary_flags,
-      protein: autoTags.protein_tag,
-      meal_type: autoTags.meal_type_guess || undefined,
-      cuisine_guess: autoTags.cuisine_guess || undefined,
-    }
+    // Convert dietary_flags object to DietaryTag array
+    const allergenTags: string[] = []
+    if (autoTags.dietary_flags.contains_dairy) allergenTags.push('contains-dairy')
+    if (autoTags.dietary_flags.contains_gluten) allergenTags.push('contains-gluten')
+    if (autoTags.dietary_flags.contains_nuts) allergenTags.push('contains-nuts')
+    if (autoTags.dietary_flags.contains_shellfish) allergenTags.push('contains-shellfish')
+    if (autoTags.dietary_flags.contains_egg) allergenTags.push('contains-egg')
+    if (autoTags.dietary_flags.contains_soy) allergenTags.push('contains-soy')
+
+    // Merge with existing dietary tags (user-editable, don't overwrite existing user tags)
+    const existingTags = (row.tags || []) as string[]
+    const mergedTags = [...new Set([...existingTags, ...allergenTags])]
 
     updates.push({
       id: row.id,
-      tags: updatedTags,
+      tags: mergedTags as RecipeTags,
+      protein: autoTags.protein_tag,
+      meal_type: autoTags.meal_type_guess || null,
     })
   }
 
@@ -74,7 +73,11 @@ async function main() {
   for (const update of updates) {
     const { error: updateError } = await supabase
       .from("recipes")
-      .update({ tags: update.tags })
+      .update({
+        tags: update.tags,
+        protein: update.protein,
+        meal_type: update.meal_type,
+      })
       .eq("id", update.id)
 
     if (updateError) {
@@ -91,5 +94,6 @@ async function main() {
   console.log(`Successfully updated ${successCount}/${updates.length} recipes`)
 
   console.log("Backfill complete")
+}
 
 main()

@@ -4,7 +4,6 @@ export type { Instruction } from './instruction'
 export { normalizeInstructions, parseInstructionsFromDB } from './instruction'
 export type { NutritionInfo } from './nutrition'
 export type {
-  AllergenTags,
   RecipeTags,
   DietaryTag,
   ProteinTag,
@@ -19,5 +18,4 @@ export {
   CUISINE_TYPES,
   DIFFICULTY_LEVELS,
   hasTag,
-  getAllergens,
 } from './constants'

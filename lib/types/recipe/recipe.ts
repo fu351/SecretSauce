@@ -1,7 +1,7 @@
 import type { RecipeIngredient } from './ingredient'
 import type { Instruction } from './instruction'
 import type { NutritionInfo } from './nutrition'
-import type { RecipeTags, DifficultyLevel } from './tags'
+import type { RecipeTags, DifficultyLevel, ProteinTag, MealTypeTag, CuisineType } from './tags'
 
 /**
  * UI Recipe Type
@@ -54,8 +54,12 @@ export interface Recipe {
   }
 
   // UNIFIED TAG SYSTEM
-  // All recipe categorization uses single "tags" field with JSONB structure
+  // tags array contains dietary preferences and allergen flags
+  // protein and meal_type are stored as separate enum fields in the database
   tags: RecipeTags
+  protein?: ProteinTag
+  meal_type?: MealTypeTag
+  cuisine_guess?: CuisineType
 
   // Recipe components
   ingredients: RecipeIngredient[]

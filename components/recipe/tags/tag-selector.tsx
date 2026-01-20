@@ -3,11 +3,13 @@
 import { DietaryTagSelector } from "./dietary-tag-selector"
 import { ProteinTagDisplay } from "./protein-tag-display"
 import { MealTypeTagDisplay } from "./meal-type-tag-display"
-import { RecipeTags, DietaryTag } from "@/lib/types"
+import { RecipeTags, DietaryTag, ProteinTag, MealTypeTag } from "@/lib/types"
 
 interface TagSelectorProps {
   // Current tag values (optional, will use empty defaults if not provided)
   tags?: RecipeTags
+  protein?: ProteinTag
+  mealType?: MealTypeTag
 
   // Callback for dietary tag changes (only editable type)
   onDietaryTagsChange?: (tags: DietaryTag[]) => void
@@ -30,6 +32,8 @@ interface TagSelectorProps {
  */
 export function TagSelector({
   tags,
+  protein,
+  mealType,
   onDietaryTagsChange,
   mode = "view",
   sections = {
@@ -40,27 +44,27 @@ export function TagSelector({
   },
 }: TagSelectorProps) {
   // Provide default empty tags if not provided
-  const safeTags = tags || { dietary: [] }
+  const safeTags = tags || []
 
   return (
     <div className="space-y-4">
       {/* Dietary Tags - User Editable */}
       {sections.tags && (
         <DietaryTagSelector
-          selectedTags={safeTags.dietary}
+          selectedTags={safeTags}
           onChange={onDietaryTagsChange}
           mode={mode}
         />
       )}
 
       {/* Protein Tag - Read-only, Auto-generated */}
-      {sections.protein && safeTags.protein && (
-        <ProteinTagDisplay protein={safeTags.protein} />
+      {sections.protein && protein && (
+        <ProteinTagDisplay protein={protein} />
       )}
 
       {/* Meal Type Tag - Read-only, Auto-generated */}
-      {sections.mealType && safeTags.meal_type && (
-        <MealTypeTagDisplay mealType={safeTags.meal_type} />
+      {sections.mealType && mealType && (
+        <MealTypeTagDisplay mealType={mealType} />
       )}
     </div>
   )

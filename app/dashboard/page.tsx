@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button"
 import { ChefHat, Heart, Calendar, ShoppingCart, Plus, PlayCircle, X } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { supabase } from "@/lib/supabase"
-import Link from "next/link"
-import { format, startOfWeek } from "date-fns"
-import { RecipeCard } from "@/components/recipe/cards/recipe-card"
+import { recipeDB } from "@/lib/database/recipe-db"
+import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
+import { mealPlannerDB } from "@/lib/database/meal-planner-db"
 import { shoppingListDB } from "@/lib/database/store-list-db"
+import Link from "next/link"
+import { format, startOfWeek, endOfWeek } from "date-fns"
+import { RecipeCard } from "@/components/recipe/cards/recipe-card"
+import { Recipe } from "@/lib/types"
 
 // Tutorial Components
 // TutorialOverlay is rendered globally in layout.tsx
@@ -36,7 +39,7 @@ export default function DashboardPage() {
     plannedMeals: 0,
     shoppingItems: 0,
   })
-  const [recentRecipes, setRecentRecipes] = useState<any[]>([])
+  const [recentRecipes, setRecentRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
   const [showTutorialPrompt, setShowTutorialPrompt] = useState(false)
   const [showTutorialModal, setShowTutorialModal] = useState(false)
@@ -94,47 +97,38 @@ export default function DashboardPage() {
     try {
       setLoading(true)
 
-      const { count: recipesCount } = await supabase
-        .from("recipes")
-        .select("*", { count: "exact", head: true })
-        .eq("author_id", user.id)
+      // Fetch recipes by author to get count
+      const userRecipes = await recipeDB.fetchRecipesByAuthor(user.id, { limit: 1000 })
+      const recipesCount = userRecipes.length
 
-      const { count: favoritesCount } = await supabase
-        .from("recipe_favorites")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
+      // Fetch favorite recipe IDs to get count
+      const favoriteIds = await recipeFavoritesDB.fetchFavoriteRecipeIds(user.id)
+      const favoritesCount = favoriteIds.length
 
+      // Fetch meal schedule for current week
       const weekStart = format(startOfWeek(new Date()), "yyyy-MM-dd")
-      const { data: mealPlanData } = await supabase
-        .from("meal_plans")
-        .select("meals")
-        .eq("user_id", user.id)
-        .eq("week_start", weekStart)
-        .maybeSingle()
+      const weekEnd = format(endOfWeek(new Date()), "yyyy-MM-dd")
+      const mealSchedule = await mealPlannerDB.fetchMealScheduleByDateRange(user.id, weekStart, weekEnd)
+      const plannedMealsCount = mealSchedule.length
 
-      let plannedMealsCount = 0
-      if (mealPlanData?.meals) {
-        plannedMealsCount = Array.isArray(mealPlanData.meals) ? mealPlanData.meals.length : 0
-      }
-
-      const shoppingItems = await db.fetchUserItems(user.id)
+      // Fetch shopping list items
+      const shoppingItems = await shoppingListDB.fetchUserItems(user.id)
       const shoppingItemsCount = shoppingItems.length
 
       setStats({
-        totalRecipes: recipesCount || 0,
-        favoriteRecipes: favoritesCount || 0,
+        totalRecipes: recipesCount,
+        favoriteRecipes: favoritesCount,
         plannedMeals: plannedMealsCount,
         shoppingItems: shoppingItemsCount,
       })
 
-      const { data: recipes } = await supabase
-        .from("recipes")
-        .select("*")
-        .eq("author_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(3)
+      // Fetch recent recipes
+      const recentRecipesData = await recipeDB.fetchRecipesByAuthor(user.id, {
+        sortBy: "created_at",
+        limit: 3,
+      })
 
-      setRecentRecipes(recipes || [])
+      setRecentRecipes(recentRecipesData)
     } catch (error) {
       console.error("Error loading dashboard data:", error)
     } finally {
@@ -372,9 +366,9 @@ export default function DashboardPage() {
                       <RecipeCard
                         id={recipe.id}
                         title={recipe.title}
-                        image_url={recipe.image_url || "/placeholder.svg"}
+                        content={recipe.content}
                         rating_avg={recipe.rating_avg || 0}
-                        difficulty={(recipe.difficulty as "beginner" | "intermediate" | "advanced") || "beginner"}
+                        difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                         comments={recipe.rating_count || 0}
                         tags={recipe.tags}
                         nutrition={recipe.nutrition}

@@ -218,9 +218,9 @@ function RecipeCardComponent({
 
         <div className="absolute inset-0 p-3 md:p-6 flex flex-col justify-between pointer-events-none">
           <div className="flex flex-wrap gap-1 md:gap-2 justify-end mr-10 md:mr-12">
-            {tags?.dietary &&
-              Array.isArray(tags.dietary) &&
-              tags.dietary.slice(0, 2).map((tag, index) => (
+            {tags &&
+              Array.isArray(tags) &&
+              tags.slice(0, 2).map((tag, index) => (
                 <Badge
                   key={index}
                   variant="secondary"

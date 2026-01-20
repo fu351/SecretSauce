@@ -1,25 +1,14 @@
 /**
- * Unified Recipe Tags Type
+ * Recipe Tags Type
  *
- * Consolidates all recipe categorization into a single JSONB structure.
- * Includes user-editable tags (dietary) and auto-generated tags (allergens, protein, meal_type, cuisine).
+ * Array of dietary tags including both user-selected preferences and auto-detected allergen flags.
+ * This consolidates all dietary restrictions and allergen information into a single array.
  *
- * This unified approach provides:
- * - Flexibility for future tag types
- * - Single source of truth for recipe metadata
- * - Efficient database storage
+ * Note: protein and meal_type are stored as separate fields on the Recipe type.
  *
  * @see DIETARY_TAGS
- * @see PROTEIN_TAGS
- * @see MEAL_TYPE_TAGS
- * @see CUISINE_TYPES
  */
-export interface RecipeTags {
-  dietary: DietaryTag[] // User-editable dietary restrictions
-  protein?: ProteinTag // Auto-generated: main protein type
-  meal_type?: MealTypeTag // Auto-generated: meal classification
-  cuisine_guess?: CuisineType // Auto-generated: AI-detected cuisine hint
-}
+export type RecipeTags = DietaryTag[]
 
 /**
  * Dietary Tag Type - values derived from DIETARY_TAGS constant

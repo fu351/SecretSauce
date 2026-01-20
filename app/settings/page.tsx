@@ -12,16 +12,15 @@ import { useTutorial } from "@/contexts/tutorial-context"
 import { useRouter } from "next/navigation"
 import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen, Camera, Mail, Lock, UserCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { profileDB } from "@/lib/database/profile-db"
+import { profileDB, type Profile } from "@/lib/database/profile-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
-import type { Database } from "@/lib/supabase"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import { useToast } from "@/hooks"
 import Image from "next/image"
 import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 
-type ProfileUpdates = Database["public"]["Tables"]["profiles"]["Update"]
+type ProfileUpdates = Partial<Profile>
 
 export default function SettingsPage() {
   const { user, updateProfile } = useAuth()

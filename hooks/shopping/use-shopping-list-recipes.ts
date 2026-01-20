@@ -3,7 +3,7 @@
 import { useCallback } from "react"
 import { useToast } from "../ui/use-toast"
 import { shoppingListDB } from "@/lib/database/store-list-db"
-import { useRecipeCart } from "../recipe/use-recipe-cart"
+import { recipeDB } from "@/lib/database/recipe-db"
 import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
@@ -24,7 +24,6 @@ export function useShoppingListRecipes(
   userId: string | null
 ) {
   const { toast } = useToast()
-  const recipeCart = useRecipeCart()
 
   /**
    * Add a recipe and all its ingredients to the shopping list
@@ -34,13 +33,40 @@ export function useShoppingListRecipes(
       if (!userId) return
 
       try {
-        const recipe = await recipeCart.fetchRecipeDetails(recipeId)
-        const validation = recipeCart.validateRecipe(recipe)
+        // Fetch recipe details
+        const recipe = await recipeDB.fetchRecipeById(recipeId)
 
-        if (!validation.valid) throw new Error(validation.error || "Invalid recipe")
+        if (!recipe) {
+          throw new Error("Recipe not found")
+        }
+
+        if (!recipe.ingredients || recipe.ingredients.length === 0) {
+          throw new Error("Recipe has no ingredients")
+        }
 
         const finalServings = servings || recipe.servings || 1
-        const itemsToInsert = recipeCart.createRecipeItems(userId, recipeId, recipe, finalServings)
+        const baseServings = recipe.servings || 1
+
+        // Create shopping list items from recipe ingredients
+        const itemsToInsert = recipe.ingredients.map((ing, idx) => {
+          const baseAmount = Number(ing.quantity) || 1
+          const perServingAmount = baseAmount / baseServings
+          const finalQuantity = perServingAmount * finalServings
+
+          return {
+            user_id: userId,
+            source_type: 'recipe' as const,
+            recipe_id: recipeId,
+            recipe_ingredient_index: idx,
+            name: ing.name,
+            quantity: finalQuantity,
+            unit: ing.unit || "piece",
+            ingredient_id: ing.standardizedIngredientId,
+            checked: false,
+            servings: finalServings
+          }
+        })
+
         const mappedItems = await shoppingListDB.upsertItems(itemsToInsert)
 
         setItems(prev => {
@@ -54,7 +80,7 @@ export function useShoppingListRecipes(
         toast({ title: "Error", description: errorMessage, variant: "destructive" })
       }
     },
-    [userId, toast, recipeCart]
+    [userId, toast]
   )
 
   /**
@@ -68,11 +94,11 @@ export function useShoppingListRecipes(
       // Optimistic update
       setItems(prev => prev.map(item => {
         if (item.recipe_id === recipeId && item.source_type === 'recipe') {
-          const newQuantity = recipeCart.calculateServingMultiplier(
-            item.quantity,
-            item.servings || 1,
-            safeServings
-          )
+          // Calculate new quantity based on servings multiplier
+          const currentServings = item.servings || 1
+          const perServingAmount = item.quantity / currentServings
+          const newQuantity = perServingAmount * safeServings
+
           const changes = { servings: safeServings, quantity: newQuantity }
           updates.push({ id: item.id, changes })
           return { ...item, ...changes }
@@ -89,7 +115,7 @@ export function useShoppingListRecipes(
         }
       }
     },
-    [recipeCart, toast, loadShoppingList]
+    [toast, loadShoppingList]
   )
 
   /**

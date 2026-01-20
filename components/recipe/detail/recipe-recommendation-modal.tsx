@@ -56,7 +56,7 @@ export function RecipeSearchModal({
         allRecipes.forEach((r) => {
           if (favoriteIds.has(r.id)) {
             if (r.cuisine) userLikedCuisines.add(r.cuisine.toLowerCase())
-            if (r.tags?.dietary) r.tags.dietary.forEach(tag => userLikedTags.add(tag.toLowerCase()))
+            if (r.tags) r.tags.forEach(tag => userLikedTags.add(tag.toLowerCase()))
           }
         })
 
@@ -64,7 +64,7 @@ export function RecipeSearchModal({
         if (recipe.cuisine && userLikedCuisines.has(recipe.cuisine.toLowerCase())) {
           score += 1.5
         }
-        if (recipe.tags?.dietary && recipe.tags.dietary.some(tag => userLikedTags.has(tag.toLowerCase()))) {
+        if (recipe.tags && recipe.tags.some(tag => userLikedTags.has(tag.toLowerCase()))) {
           score += 0.5
         }
       }
@@ -94,7 +94,7 @@ export function RecipeSearchModal({
         const matchesTitle = recipe.title?.toLowerCase().includes(query)
         const matchesCuisine = recipe.cuisine?.toLowerCase().includes(query)
         const matchesDifficulty = recipe.difficulty?.toLowerCase().includes(query)
-        const matchesTags = recipe.tags?.dietary?.some(tag => tag.toLowerCase().includes(query))
+        const matchesTags = recipe.tags?.some((tag: string) => tag.toLowerCase().includes(query))
 
         return matchesTitle || matchesCuisine || matchesDifficulty || matchesTags
       })

@@ -214,9 +214,9 @@ export function CompactRecipeCard({
               </div>
 
               {/* Tags */}
-              {recipe.tags?.dietary && recipe.tags.dietary.length > 0 && (
+              {recipe.tags && recipe.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {recipe.tags.dietary.map((tag, index) => (
+                  {recipe.tags.map((tag, index) => (
                     <Badge
                       key={index}
                       variant="secondary"

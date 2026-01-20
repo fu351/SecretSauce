@@ -53,13 +53,11 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
         instructions: parseInstructionsFromDB(content.instructions),
       },
 
-      // UNIFIED TAG SYSTEM - tags array contains both dietary and allergen tags
-      tags: {
-        dietary: dbItem.tags || [],
-        protein: dbItem.protein || undefined,
-        meal_type: dbItem.meal_type || undefined,
-        cuisine_guess: undefined,
-      },
+      // UNIFIED TAG SYSTEM - tags array contains dietary and allergen tags
+      tags: dbItem.tags || [],
+      protein: dbItem.protein || undefined,
+      meal_type: dbItem.meal_type || undefined,
+      cuisine_guess: undefined,
 
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at,
@@ -273,11 +271,11 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       },
 
       // Map tags array (dietary and allergen tags consolidated)
-      tags: recipe.tags?.dietary || [],
+      tags: recipe.tags || [],
 
       // Map enum fields
-      protein: recipe.tags?.protein || null,
-      meal_type: recipe.tags?.meal_type || null,
+      protein: recipe.protein || null,
+      meal_type: recipe.meal_type || null,
       cuisine: recipe.cuisine_name || "other",
 
       // Soft delete defaults
@@ -347,18 +345,16 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     }
 
     // Map tags if provided (dietary and allergen tags consolidated into tags array)
-    if (updates.tags) {
-      if (updates.tags.dietary !== undefined) {
-        dbUpdates.tags = updates.tags.dietary
-      }
+    if (updates.tags !== undefined) {
+      dbUpdates.tags = updates.tags
+    }
 
-      if (updates.tags.protein !== undefined) {
-        dbUpdates.protein = updates.tags.protein
-      }
+    if (updates.protein !== undefined) {
+      dbUpdates.protein = updates.protein
+    }
 
-      if (updates.tags.meal_type !== undefined) {
-        dbUpdates.meal_type = updates.tags.meal_type
-      }
+    if (updates.meal_type !== undefined) {
+      dbUpdates.meal_type = updates.meal_type
     }
 
     // Map cuisine_name if provided

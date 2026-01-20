@@ -1,11 +1,10 @@
 import type { DietaryTag, ProteinTag, MealTypeTag, CuisineType, DifficultyLevel } from './tags'
 import type { Recipe } from './recipe'
 
-/**
- * Dietary tag constants
- * Used for form dropdowns, validation, and tag generation
- */
-export const DIETARY_TAGS = [
+
+
+// Finalize constant exports
+export const DIETARY_TAGS: DietaryTag[] = [
   'vegetarian',
   'vegan',
   'gluten-free',
@@ -13,14 +12,16 @@ export const DIETARY_TAGS = [
   'keto',
   'paleo',
   'low-carb',
-  'other',
-] as const satisfies readonly DietaryTag[]
+  'contains-dairy',
+  'contains-gluten',
+  'contains-nuts',
+  'contains-shellfish',
+  'contains-egg',
+  'contains-soy',
+  'other'
+]
 
-/**
- * Protein tag constants
- * Used for automatic protein detection and categorization
- */
-export const PROTEIN_TAGS = [
+export const PROTEIN_TAGS: ProteinTag[] = [
   'chicken',
   'beef',
   'pork',
@@ -30,26 +31,18 @@ export const PROTEIN_TAGS = [
   'tofu',
   'legume',
   'egg',
-  'other',
-] as const satisfies readonly ProteinTag[]
+  'other'
+]
 
-/**
- * Meal type tag constants
- * Used for recipe classification and filtering
- */
-export const MEAL_TYPE_TAGS = [
+export const MEAL_TYPE_TAGS: MealTypeTag[] = [
   'breakfast',
   'lunch',
   'dinner',
   'snack',
-  'dessert',
-] as const satisfies readonly MealTypeTag[]
+  'dessert'
+]
 
-/**
- * Cuisine type constants
- * Used for cuisine-based filtering and recommendations
- */
-export const CUISINE_TYPES = [
+export const CUISINE_TYPES: CuisineType[] = [
   'italian',
   'mexican',
   'chinese',
@@ -64,14 +57,14 @@ export const CUISINE_TYPES = [
   'spanish',
   'vietnamese',
   'middle-eastern',
-  'other',
-] as const satisfies readonly CuisineType[]
+  'other'
+]
 
-/**
- * Difficulty level constants
- * Used for skill-based recipe discovery
- */
-export const DIFFICULTY_LEVELS = ['beginner', 'intermediate', 'advanced'] as const satisfies readonly DifficultyLevel[]
+export const DIFFICULTY_LEVELS: DifficultyLevel[] = [
+  'beginner',
+  'intermediate',
+  'advanced'
+]
 
 // ============================================================================
 // HELPER FUNCTIONS FOR TAG OPERATIONS
@@ -90,19 +83,5 @@ export const DIFFICULTY_LEVELS = ['beginner', 'intermediate', 'advanced'] as con
  * }
  */
 export function hasTag(recipe: Recipe, tag: DietaryTag): boolean {
-  return recipe.tags.dietary.includes(tag)
+  return recipe.tags.includes(tag)
 }
-
-/**
- * Extract allergen labels from a recipe's allergen tags
- *
- * Converts allergen field names (e.g., 'contains_dairy') to human-readable labels (e.g., 'dairy')
- * Only returns allergens that are marked as present (true).
- *
- * @param recipe - Recipe to extract allergens from
- * @returns Array of allergen names (e.g., ['dairy', 'nuts'])
- *
- * @example
- * const allergens = getAllergens(recipe)
- * // Returns: ['dairy', 'nuts'] if recipe contains these allergens
- */

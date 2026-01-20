@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,7 +32,7 @@ import {
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
 import { QuantityControl } from "@/components/shared/quantity-control"
 import { useMergedItems, distributeQuantityChange } from "@/hooks"
-import { useRecipeTitles } from "@/hooks"
+import { recipeDB } from "@/lib/database/recipe-db"
 import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory, getCategoryIcon } from "@/lib/constants/categories"
 
 /**
@@ -128,12 +128,38 @@ export function ShoppingListSection({
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
 
   // -- Recipe Titles --
+  const [recipeTitles, setRecipeTitles] = useState<Record<string, string>>({})
+
   const recipeIds = useMemo(() =>
     shoppingList
       .filter(item => item.recipe_id)
       .map(item => item.recipe_id!)
   , [shoppingList])
-  const { titles: recipeTitles } = useRecipeTitles(recipeIds)
+
+  useEffect(() => {
+    const fetchRecipeTitles = async () => {
+      if (recipeIds.length === 0) {
+        setRecipeTitles({})
+        return
+      }
+
+      const titleMap: Record<string, string> = {}
+
+      // Fetch each recipe's title
+      await Promise.all(
+        recipeIds.map(async (id) => {
+          const recipe = await recipeDB.findById(id)
+          if (recipe) {
+            titleMap[id] = recipe.title
+          }
+        })
+      )
+
+      setRecipeTitles(titleMap)
+    }
+
+    fetchRecipeTitles()
+  }, [recipeIds])
 
   // -- Clear shopping list handler --
   const handleClearList = async () => {

@@ -22,7 +22,7 @@ import Image from "next/image"
 import { useRecipesFiltered, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
 import type { Recipe } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
-import { supabase } from "@/lib/supabase"
+import { CUISINE_TYPES, DIETARY_TAGS, DIFFICULTY_LEVELS } from "@/lib/types/recipe/constants"
 
 export default function RecipesPage() {
   // UI state
@@ -34,78 +34,12 @@ export default function RecipesPage() {
   const [viewMode, setViewMode] = useState<"tile" | "details">("tile")
   const [searchInput, setSearchInput] = useState("")
 
-  // Cuisine and dietary tag lookups
-  const [allCuisines, setAllCuisines] = useState<string[]>([])
-  const [loadingCuisines, setLoadingCuisines] = useState(true)
-  const [allDietaryTags, setAllDietaryTags] = useState<string[]>([])
-  const [loadingTags, setLoadingTags] = useState(true)
-
   const { user } = useAuth()
   const { theme } = useTheme()
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
-
-  // Fetch unique cuisine values from recipes
-  useEffect(() => {
-    const fetchCuisines = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("recipes")
-          .select("cuisine")
-          .not("cuisine", "is", null)
-
-        if (error) {
-          console.error("Error fetching cuisines:", error)
-        } else {
-          // Extract unique cuisine values
-          const cuisines = new Set<string>()
-          data?.forEach((recipe: any) => {
-            if (recipe.cuisine) {
-              cuisines.add(recipe.cuisine)
-            }
-          })
-          setAllCuisines(Array.from(cuisines).sort())
-        }
-      } catch (error) {
-        console.error("Error fetching cuisines:", error)
-      } finally {
-        setLoadingCuisines(false)
-      }
-    }
-
-    fetchCuisines()
-  }, [])
-
-  // Fetch all unique dietary tags from recipes
-  useEffect(() => {
-    const fetchDietaryTags = async () => {
-      try {
-        const { data } = await supabase
-          .from("recipes")
-          .select("tags")
-          .not("tags", "is", null)
-
-        const tags = new Set<string>()
-        data?.forEach((recipe: any) => {
-          // tags is an enum array, not a JSONB object
-          if (Array.isArray(recipe.tags)) {
-            recipe.tags.forEach((tag: string) => {
-              tags.add(tag)
-            })
-          }
-        })
-        setAllDietaryTags(Array.from(tags).sort())
-      } catch (error) {
-        console.error("Error fetching dietary tags:", error)
-      } finally {
-        setLoadingTags(false)
-      }
-    }
-
-    fetchDietaryTags()
-  }, [])
 
   // Create filters object for database-level filtering
   const filters = useMemo(() => ({
@@ -193,8 +127,17 @@ export default function RecipesPage() {
     [user, favorites, toast, toggleFavoriteMutation],
   )
 
-  // Use all dietary tags (not from filtered results)
-  const dietaryTags = allDietaryTags
+  // Get all available cuisines and dietary tags from constants
+  const cuisineTypes = CUISINE_TYPES
+  const dietaryTags = DIETARY_TAGS
+
+  // Helper to capitalize cuisine names for display
+  const formatCuisineName = (cuisine: string) => {
+    return cuisine
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  }
 
   const getDifficultyColor = (level: string) => {
     switch (level) {
@@ -358,9 +301,9 @@ export default function RecipesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Cuisines</SelectItem>
-                  {allCuisines.map((cuisine) => (
+                  {cuisineTypes.map((cuisine) => (
                     <SelectItem key={cuisine} value={cuisine}>
-                      {cuisine}
+                      {formatCuisineName(cuisine)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -389,7 +332,7 @@ export default function RecipesPage() {
               <Select
                 value={sortBy}
                 onValueChange={(value) => {
-                  setSortBy(value)
+                  setSortBy(value as SortBy)
                   updateURL({ sort: value })
                 }}
               >
@@ -497,7 +440,7 @@ export default function RecipesPage() {
                 <RecipeCard
                   id={recipe.id}
                   title={recipe.title}
-                  image_url={recipe.image_url || "/placeholder.svg?height=300&width=400"}
+                  content={recipe.content}
                   rating_avg={recipe.rating_avg || 0}
                   difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                   comments={recipe.rating_count || 0}
@@ -505,7 +448,7 @@ export default function RecipesPage() {
                   nutrition={recipe.nutrition}
                   initialIsFavorited={favorites.has(recipe.id)}
                   skipFavoriteCheck
-                  onFavoriteChange={(id, isFav) => toggleFavorite(id, new MouseEvent('click'))}
+                  onFavoriteChange={(id, isFav) => toggleFavorite(id, {} as React.MouseEvent)}
                 />
               </div>
             ))}
@@ -536,7 +479,7 @@ export default function RecipesPage() {
                       <div className="flex">
                         <div className="w-1/2 relative min-h-[300px]">
                           <Image
-                            src={getRecipeImageUrl(recipe.image_url) || "/placeholder.svg"}
+                            src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
                             alt={recipe.title}
                             fill
                             sizes="(max-width: 768px) 100vw, 50vw"
@@ -556,7 +499,7 @@ export default function RecipesPage() {
                               <Badge className={getDifficultyColor(recipe.difficulty)}>{recipe.difficulty}</Badge>
                             </div>
 
-                            <p className={`mb-6 line-clamp-3 ${mutedTextClass}`}>{recipe.description}</p>
+                            <p className={`mb-6 line-clamp-3 ${mutedTextClass}`}>{recipe.content?.description}</p>
 
                             <div className="grid grid-cols-2 gap-6 mb-6">
                               <div className="flex items-center gap-3">
@@ -611,9 +554,9 @@ export default function RecipesPage() {
                             </div>
                           </div>
 
-                          {recipe.tags?.dietary && recipe.tags.dietary.length > 0 && (
+                          {recipe.tags && recipe.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2">
-                              {recipe.tags.dietary.map((tag, index) => (
+                              {recipe.tags.map((tag, index) => (
                                 <Badge
                                   key={index}
                                   variant="secondary"

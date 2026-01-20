@@ -354,6 +354,28 @@ class PantryItemsTable extends BaseTable<
   }
 
   /**
+   * Delete all items for a user
+   */
+  async deleteByUserId(userId: string): Promise<boolean> {
+    try {
+      const { error } = await this.supabase
+        .from(this.tableName)
+        .delete()
+        .eq('user_id', userId)
+
+      if (error) {
+        this.handleError(error, 'deleteByUserId')
+        return false
+      }
+
+      return true
+    } catch (error) {
+      this.handleError(error, 'deleteByUserId')
+      return false
+    }
+  }
+
+  /**
    * Get pantry statistics
    * Used for dashboard/insights
    */

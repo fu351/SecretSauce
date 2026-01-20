@@ -2,29 +2,26 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useQueryClient } from "@tanstack/react-query"
 import clsx from "clsx"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 import { useStandardizeRecipeIngredients } from "@/hooks"
-import { supabase } from "@/lib/supabase"
+import { recipeDB } from "@/lib/database/recipe-db"
 import { uploadRecipeImage } from "@/lib/image-helper"
 import { PenLine, Download } from "lucide-react"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
 import { RecipeImportTabs } from "@/components/recipe/import/recipe-import-tabs"
-import type { ImportedRecipe, RecipeSubmissionData } from "@/lib/types"
+import type { ImportedRecipe, RecipeSubmissionData, Recipe } from "@/lib/types"
 
 export default function UploadRecipePage() {
   const router = useRouter()
   const { user } = useAuth()
   const { toast } = useToast()
   const { theme } = useTheme()
-  const queryClient = useQueryClient()
   const isDark = theme === "dark"
 
-  // Use standardize ingredients mutation
   const standardizeMutation = useStandardizeRecipeIngredients()
 
   const [mainTab, setMainTab] = useState<"manual" | "import">("manual")
@@ -44,7 +41,7 @@ export default function UploadRecipePage() {
       servings: recipe.servings || 1,
       difficulty: recipe.difficulty || "beginner",
       cuisine: recipe.cuisine || null,
-      dietary_tags: recipe.tags?.dietary || recipe.dietary_tags || [],
+      dietary_tags: recipe.tags || recipe.dietary_tags || [],
       ingredients: (recipe.ingredients as any) || [],
       instructions: (recipe as any).instructions || [],
       nutrition: recipe.nutrition || {},
@@ -56,111 +53,66 @@ export default function UploadRecipePage() {
 
   const handleSubmit = async (submissionData: RecipeSubmissionData) => {
     if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to upload recipes.",
-        variant: "destructive",
-      })
+      toast({ title: "Authentication required", description: "Please sign in.", variant: "destructive" })
       return
     }
 
     setLoading(true)
 
     try {
-      console.log("Form submission data:", submissionData)
-      console.log("Image file:", submissionData.imageFile, "Image URL:", submissionData.image_url)
+      let imageValue = submissionData.image_url || null
 
-      let imageValue = null
-
-      // Handle file upload first (priority over URL)
-      if (submissionData.imageFile && submissionData.imageFile instanceof File) {
-        console.log("Uploading image file:", submissionData.imageFile.name, submissionData.imageFile.size)
+      // 1. Handle Image Upload
+      if (submissionData.imageFile instanceof File) {
         try {
-          const storagePath = await uploadRecipeImage(submissionData.imageFile, user.id)
-          console.log("Image uploaded successfully, path:", storagePath)
-          imageValue = storagePath
+          imageValue = await uploadRecipeImage(submissionData.imageFile, user.id)
         } catch (error: any) {
-          console.error("Error uploading image:", error)
-          toast({
-            title: "Image upload failed",
-            description: error.message || "Failed to upload image. Continuing without image.",
-            variant: "destructive",
-          })
-          imageValue = null
-        }
-      } else if (submissionData.image_url) {
-        // Fall back to URL if no file was selected
-        console.log("Using image URL:", submissionData.image_url)
-        imageValue = submissionData.image_url
-      }
-
-      // Look up cuisine ID if cuisine name is provided
-      let cuisineId: number | null = null
-      if (submissionData.cuisine) {
-        const { data: cuisineData, error: cuisineError } = await supabase
-          .from("cuisines")
-          .select("id")
-          .eq("name", submissionData.cuisine)
-          .single()
-
-        if (cuisineError) {
-          console.warn("Failed to find cuisine:", submissionData.cuisine, cuisineError)
-        } else if (cuisineData) {
-          cuisineId = cuisineData.id
+          toast({ title: "Image upload failed", description: "Continuing without image.", variant: "destructive" })
         }
       }
 
-      const recipeData = {
+      // 2. Prepare data for the DAO
+      // Note: recipeDB.insertRecipe handles the transformation into the DB schema
+      const recipeToInsert: Partial<Recipe> = {
         title: submissionData.title,
-        description: submissionData.description || null,
-        image_url: imageValue,
-        prep_time: submissionData.prep_time || null,
-        cook_time: submissionData.cook_time || null,
-        servings: submissionData.servings || null,
-        difficulty: submissionData.difficulty,
-        cuisine_id: cuisineId,
-        tags: {
-          dietary: submissionData.dietary_tags || [],
-          allergens: undefined,
-          protein: undefined,
-          meal_type: undefined,
-          cuisine_guess: undefined
-        },
+        prep_time: submissionData.prep_time,
+        cook_time: submissionData.cook_time,
+        servings: submissionData.servings,
+        difficulty: submissionData.difficulty as any,
+        cuisine_name: submissionData.cuisine || "other",
         ingredients: submissionData.ingredients,
-        instructions: submissionData.instructions,
-        nutrition: submissionData.nutrition && Object.values(submissionData.nutrition).some(v => v !== undefined) ? submissionData.nutrition : null,
+        nutrition: submissionData.nutrition,
         author_id: user.id,
+        content: {
+          description: submissionData.description || "",
+          image_url: imageValue || undefined,
+          instructions: submissionData.instructions,
+        },
+        tags: submissionData.dietary_tags as any || [],
+        protein: undefined,
+        meal_type: undefined,
+        cuisine_guess: undefined,
       }
 
-      console.log("Recipe data to insert:", recipeData)
+      // 3. Use the singleton for the database operation
+      const newRecipe = await recipeDB.insertRecipe(recipeToInsert)
 
-      const { data, error } = await supabase.from("recipes").insert(recipeData).select()
+      if (!newRecipe) throw new Error("Failed to create recipe record")
 
-      if (error) {
-        console.error("Supabase error:", error)
-        throw error
-      }
-
-      if (!data || data.length === 0) {
-        throw new Error("No data returned from insert")
-      }
-
-      console.log("Recipe inserted successfully:", data[0])
-
-      // Standardize ingredients asynchronously (don't wait for it)
-      standardizeMutation.mutate({ recipeId: data[0].id, ingredients: recipeData.ingredients })
-
-      toast({
-        title: "Recipe uploaded!",
-        description: "Your recipe has been successfully uploaded.",
+      // 4. Trigger background standardization
+      standardizeMutation.mutate({ 
+        recipeId: newRecipe.id, 
+        ingredients: submissionData.ingredients 
       })
 
-      router.push(`/recipes/${data[0].id}`)
+      toast({ title: "Recipe uploaded!", description: "Your recipe is now live." })
+      router.push(`/recipes/${newRecipe.id}`)
+      
     } catch (error: any) {
-      console.error("Error uploading recipe:", error)
+      console.error("[UploadPage] Submit error:", error)
       toast({
         title: "Upload failed",
-        description: error.message || "Failed to upload recipe. Please try again.",
+        description: error.message || "Please try again.",
         variant: "destructive",
       })
     } finally {

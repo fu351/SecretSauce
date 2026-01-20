@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Heart, ChefHat } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { supabase } from "@/lib/supabase"
+import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import Link from "next/link"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 import { DatabaseSetupNotice } from "@/components/shared/database-setup-notice"
 import { Recipe } from "@/lib/types"
 
-// Use Recipe type from @/lib/types/recipe which has the proper tags structure
-type FavoriteRecipe = Pick<Recipe, 'id' | 'title' | 'image_url' | 'rating_avg' | 'difficulty' | 'rating_count' | 'nutrition' | 'created_at' | 'tags'>
+// Using Recipe type from @/lib/types/recipe
+type FavoriteRecipe = Recipe
 
 export default function FavoritesPage() {
   const [favorites, setFavorites] = useState<FavoriteRecipe[]>([])
@@ -37,34 +37,8 @@ export default function FavoritesPage() {
     if (!user) return
 
     try {
-      const { data, error } = await supabase
-        .from("recipe_favorites")
-        .select(`
-          recipes (
-            id,
-            title,
-            image_url,
-            rating_avg,
-            difficulty,
-            rating_count,
-            dietary_tags,
-            nutrition,
-            created_at
-          )
-        `)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-
-      if (error) {
-        console.warn("Database not set up yet:", error.message)
-        setFavorites([])
-        return
-      }
-
-      // Transform the data to flatten the recipes
-      const favoriteRecipes = data?.map((item: any) => item.recipes).filter(Boolean) || []
-
-      setFavorites(favoriteRecipes)
+      const recipes = await recipeFavoritesDB.fetchFavoriteRecipes(user.id)
+      setFavorites(recipes)
     } catch (error) {
       console.error("Error fetching favorites:", error)
       setFavorites([])
@@ -156,7 +130,7 @@ export default function FavoritesPage() {
                   <RecipeCard
                     id={recipe.id}
                     title={recipe.title}
-                    image_url={recipe.image_url || "/placeholder.svg?height=300&width=400"}
+                    content={recipe.content}
                     rating_avg={recipe.rating_avg || 0}
                     difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                     comments={recipe.rating_count || 0}

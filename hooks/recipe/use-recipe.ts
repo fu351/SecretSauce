@@ -116,18 +116,9 @@ export function useFavorites(userId: string | null) {
     queryFn: async () => {
       if (!userId) return new Set<string>()
 
-      const { supabase } = await import("@/lib/supabase")
-      const { data, error } = await supabase
-        .from("recipe_favorites")
-        .select("recipe_id")
-        .eq("user_id", userId)
-
-      if (error) {
-        console.warn("Error fetching favorites:", error)
-        return new Set<string>()
-      }
-
-      return new Set(data?.map((item: any) => item.recipe_id) || [])
+      const { recipeFavoritesDB } = await import("@/lib/database/recipe-favorites-db")
+      const favoriteIds = await recipeFavoritesDB.fetchFavoriteRecipeIds(userId)
+      return new Set(favoriteIds)
     },
     enabled: !!userId,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -151,23 +142,15 @@ export function useToggleFavorite() {
       userId: string
       isFavorited: boolean
     }) => {
-      const { supabase } = await import("@/lib/supabase")
+      const { recipeFavoritesDB } = await import("@/lib/database/recipe-favorites-db")
 
       if (isFavorited) {
-        const { error } = await supabase
-          .from("recipe_favorites")
-          .delete()
-          .eq("recipe_id", recipeId)
-          .eq("user_id", userId)
-
-        if (error) throw error
+        const success = await recipeFavoritesDB.removeFavorite(userId, recipeId)
+        if (!success) throw new Error("Failed to remove favorite")
         return { action: "removed", recipeId }
       } else {
-        const { error } = await supabase
-          .from("recipe_favorites")
-          .insert({ recipe_id: recipeId, user_id: userId })
-
-        if (error) throw error
+        const result = await recipeFavoritesDB.addFavorite(userId, recipeId)
+        if (!result) throw new Error("Failed to add favorite")
         return { action: "added", recipeId }
       }
     },

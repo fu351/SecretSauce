@@ -7,16 +7,14 @@ import { useEffect, useState, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile } from "@/hooks"
-import { supabase } from "@/lib/supabase"
+import { recipeDB } from "@/lib/database/recipe-db"
 import Image from "next/image"
 import { ArrowRight, Search, Clock, Users } from "lucide-react"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
-import { Recipe, RecipeTags } from "@/lib/types"
+import { Recipe } from "@/lib/types"
 
-// Type for home page recipe cards (subset of full Recipe type)
-type HomePageRecipe = Pick<Recipe, 'id' | 'title' | 'image_url' | 'difficulty' | 'rating_avg' | 'rating_count' | 'nutrition'> & {
-  tags: RecipeTags
-}
+// Type for home page recipe cards
+type HomePageRecipe = Recipe
 
 export default function HomePage() {
   const { user, loading } = useAuth()
@@ -70,16 +68,13 @@ export default function HomePage() {
     setLoadingRecipes(true)
 
     try {
-      const { data, error } = await supabase
-        .from("recipes")
-        .select(
-          "id, title, image_url, difficulty, rating_avg, rating_count, nutrition, tags",
-        )
-        .order("rating_avg", { ascending: false })
-        .limit(6)
+      const recipes = await recipeDB.fetchRecipes({
+        sortBy: "rating_avg",
+        limit: 6,
+      })
 
-      if (!error && data && isMounted.current) {
-        setPopularRecipes(data)
+      if (recipes && isMounted.current) {
+        setPopularRecipes(recipes)
       }
     } catch (error) {
       console.error("Error fetching recipes:", error)
@@ -259,7 +254,7 @@ export default function HomePage() {
                   <RecipeCard
                     id={recipe.id}
                     title={recipe.title}
-                    image_url={recipe.image_url || "/placeholder.svg?height=300&width=400"}
+                    content={recipe.content}
                     rating_avg={recipe.rating_avg || 0}
                     difficulty={recipe.difficulty as "beginner" | "intermediate" | "advanced"}
                     comments={recipe.rating_count || 0}

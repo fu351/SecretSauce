@@ -63,13 +63,10 @@ export default function EditRecipePage() {
         servings: data.servings,
         difficulty: data.difficulty as "beginner" | "intermediate" | "advanced",
         cuisine: data.cuisine,
-        tags: {
-          dietary: data.dietary_tags || [],
-          allergens: recipe?.tags.allergens,
-          protein: recipe?.tags.protein,
-          meal_type: recipe?.tags.meal_type,
-          cuisine_guess: recipe?.tags.cuisine_guess
-        },
+        tags: data.dietary_tags || [],
+        protein: recipe?.protein,
+        meal_type: recipe?.meal_type,
+        cuisine_guess: recipe?.cuisine_guess,
         ingredients: data.ingredients,
         instructions: data.instructions,
         nutrition: data.nutrition,

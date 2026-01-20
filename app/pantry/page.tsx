@@ -36,43 +36,14 @@ import {
 import { format } from "date-fns"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks"
+import { Recipe, RecipeIngredient, PantryItem } from "@/lib/types"
 import Link from "next/link"
 import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory as normalizeCategoryUtil, getCategoryIcon } from "@/lib/constants/categories"
+import { pantryItemsDB } from "@/lib/database/pantry-items-db"
+import { recipeDB } from "@/lib/database/recipe-db"
 
-interface PantryItem {
-  id: string
-  name: string
-  quantity: number
-  unit: string
-  expiry_date: string | null
-  category: string
-  created_at: string
-  updated_at: string
-  standardized_ingredient_id?: string | null
-  standardized_name?: string | null
-}
 
-interface Recipe {
-  id: string
-  title: string
-  image_url: string
-  prep_time: number
-  cook_time: number
-  servings: number
-  difficulty: string
-  ingredients: RecipeIngredient[]
-  match_percentage: number
-}
-
-interface RecipeIngredient {
-  name: string
-  amount?: string
-  unit?: string
-  standardizedIngredientId?: string
-  standardized_ingredient_id?: string
-}
 
 const categories = [...FOOD_CATEGORIES, DEFAULT_CATEGORY]
 
@@ -140,19 +111,10 @@ export default function PantryPage() {
   }, [pantryItems, searchTerm, selectedCategory, showExpiringSoon])
 
   const fetchPantryItems = async () => {
+    if (!user) return
     try {
       console.log("Fetching pantry items for user:", user?.id)
-      const { data, error } = await supabase
-        .from("pantry_items")
-        .select("*")
-        .eq("user_id", user?.id)
-        .order("created_at", { ascending: false })
-
-      if (error) {
-        console.error("Supabase error:", error)
-        if (!error.message.includes("does not exist")) throw error
-      }
-      
+      const data = await pantryItemsDB.findByUserId(user.id)
       console.log("Fetched pantry items:", data)
       setPantryItems(data || [])
     } catch (error) {
@@ -210,9 +172,7 @@ export default function PantryPage() {
 
   const findSuggestedRecipes = async () => {
     try {
-      const { data: recipes, error } = await supabase.from("recipes").select("*").limit(50)
-
-      if (error && !error.message.includes("does not exist")) throw error
+      const recipes = await recipeDB.fetchRecipes({ limit: 50 })
 
       if (recipes) {
         // Calculate match percentage for each recipe
@@ -338,20 +298,16 @@ export default function PantryPage() {
     if (!user || !newItem.name.trim()) return
 
     try {
-      const { data, error } = await supabase
-        .from("pantry_items")
-        .insert({
-          user_id: user.id,
-          name: newItem.name,
-          quantity: newItem.quantity,
-          unit: newItem.unit,
-          category: newItem.category,
-          expiry_date: newItem.expiry_date?.toISOString().split("T")[0] || null,
-        })
-        .select()
-        .single()
+      const data = await pantryItemsDB.create({
+        user_id: user.id,
+        name: newItem.name,
+        quantity: newItem.quantity,
+        unit: newItem.unit,
+        category: newItem.category,
+        expiry_date: newItem.expiry_date?.toISOString().split("T")[0] || null,
+      })
 
-      if (error) throw error
+      if (!data) throw new Error("Failed to create pantry item")
 
       setPantryItems([data, ...pantryItems])
       standardizePantryItem(data.id, data.name, data.quantity, data.unit)
@@ -385,12 +341,9 @@ export default function PantryPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from("pantry_items")
-        .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
-        .eq("id", id)
+      const updatedItem = await pantryItemsDB.update(id, { quantity: newQuantity })
 
-      if (error) throw error
+      if (!updatedItem) throw new Error("Failed to update quantity")
 
       setPantryItems(pantryItems.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item)))
     } catch (error) {
@@ -400,9 +353,9 @@ export default function PantryPage() {
 
   const deletePantryItem = async (id: string) => {
     try {
-      const { error } = await supabase.from("pantry_items").delete().eq("id", id)
+      const success = await pantryItemsDB.remove(id)
 
-      if (error) throw error
+      if (!success) throw new Error("Failed to delete item")
 
       setPantryItems(pantryItems.filter((item) => item.id !== id))
       toast({
@@ -415,10 +368,11 @@ export default function PantryPage() {
   }
 
   const deleteAllPantryItems = async () => {
+    if (!user) return
     try {
-      const { error } = await supabase.from("pantry_items").delete().eq("user_id", user?.id)
+      const success = await pantryItemsDB.deleteByUserId(user.id)
 
-      if (error) throw error
+      if (!success) throw new Error("Failed to delete all items")
 
       setPantryItems([])
       setIsDeleteAllDialogOpen(false)
@@ -437,15 +391,11 @@ export default function PantryPage() {
       const yesterday = new Date()
       yesterday.setDate(yesterday.getDate() - 1)
 
-      const { error } = await supabase
-        .from("pantry_items")
-        .update({
-          expiry_date: yesterday.toISOString().split("T")[0],
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
+      const updatedItem = await pantryItemsDB.update(id, {
+        expiry_date: yesterday.toISOString().split("T")[0],
+      })
 
-      if (error) throw error
+      if (!updatedItem) throw new Error("Failed to mark item as expired")
 
       // Update local state
       setPantryItems(
@@ -721,7 +671,7 @@ export default function PantryPage() {
                         <CardContent className="p-6">
                           <div className="flex gap-4">
                             <img
-                              src={recipe.image_url || "/placeholder.svg?height=80&width=80"}
+                              src={recipe.content.image_url || "/placeholder.svg?height=80&width=80"}
                               alt={recipe.title}
                               className="w-20 h-20 object-cover rounded-lg shadow-md"
                             />
