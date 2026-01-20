@@ -73,21 +73,20 @@ class ShoppingListTable extends BaseTable<
 
   /**
    * Insert a new item
+   * Note: Database triggers may merge items, so we don't return the inserted item
+   * Callers should reload the shopping list to get the final state
    */
-  async insertItem(item: Partial<ShoppingListItem>): Promise<ShoppingListItem> {
+  async insertItem(item: Partial<ShoppingListItem>): Promise<void> {
     console.log("[Shopping List DB] Attempting to insert item:", item)
-    const { data, error } = await this.supabase
+    const { error } = await this.supabase
       .from(this.tableName)
       .insert(item as any)
-      .select("*")
-      .single()
 
     if (error) {
       console.error("[Shopping List DB] Insert error:", error)
       throw error
     }
-    console.log("[Shopping List DB] Insert successful, returned data:", data)
-    return this.map(data)
+    console.log("[Shopping List DB] Insert successful (triggers may have merged)")
   }
 
   /**
