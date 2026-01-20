@@ -169,11 +169,11 @@ async function resolveStandardizedIdForTerm(
 ): Promise<string | null> {
   try {
     if (recipeId) {
-      return await resolveStandardizedIngredientForRecipe(supabaseClient, recipeId, term)
+      return await resolveStandardizedIngredientForRecipe(recipeId, term)
     }
 
     // Use the shared pipeline resolver so fuzzy/normalized lookups reuse existing cache rows
-    return await resolveOrCreateStandardizedId(supabaseClient, term)
+    return await resolveOrCreateStandardizedId(term)
   } catch (error) {
     console.error("[grocery-search] resolveStandardizedIdForTerm error", error)
     return null
@@ -246,7 +246,6 @@ export async function GET(request: NextRequest) {
       // Resolve standardized ID for caching
       if (recipeId) {
         standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
-          supabaseClient,
           recipeId,
           sanitizedSearchTerm,
         )
@@ -314,7 +313,6 @@ export async function GET(request: NextRequest) {
   try {
     if (recipeId) {
       standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
-        supabaseClient,
         recipeId,
         sanitizedSearchTerm,
       )
@@ -330,7 +328,6 @@ export async function GET(request: NextRequest) {
       })
 
       cachedRows = await getOrRefreshIngredientPricesForStores(
-        supabaseClient,
         standardizedIngredientId,
         storeKeys,
         {
@@ -367,7 +364,7 @@ export async function GET(request: NextRequest) {
         stores: storeKeys,
         zipCode: zipToUse,
       })
-      cachedRows = await searchOrCreateIngredientAndPrices(supabaseClient, sanitizedSearchTerm, storeKeys, {
+      cachedRows = await searchOrCreateIngredientAndPrices(sanitizedSearchTerm, storeKeys, {
         zipCode: zipToUse,
         allowRealTimeScraping: false // Only return cached results - daily scraper pre-populates cache
       })

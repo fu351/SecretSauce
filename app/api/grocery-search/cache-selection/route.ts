@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServerClient()
 
     // Get or create standardized_ingredient_id for the search term
-    const standardizedIngredientId = await resolveOrCreateStandardizedId(supabase, searchTerm)
+    const standardizedIngredientId = await resolveOrCreateStandardizedId(searchTerm)
 
     console.log("[Cache Selection] Resolved standardized ID", {
       searchTerm,

@@ -200,9 +200,9 @@ export async function getCheapestStoreItem(
   try {
     const standardizedId =
       ingredient.standardizedIngredientId ||
-      (await resolveOrCreateStandardizedId(client, ingredient.name))
+      (await resolveOrCreateStandardizedId(ingredient.name))
 
-    const cacheRow = await getOrRefreshIngredientPrice(client, standardizedId, storeId, {
+    const cacheRow = await getOrRefreshIngredientPrice(standardizedId, storeId, {
       allowRealTimeScraping,
     })
 

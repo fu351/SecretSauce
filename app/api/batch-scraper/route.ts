@@ -97,7 +97,6 @@ export async function POST(request: NextRequest) {
 
         if (recipeId) {
           standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
-            supabaseClient,
             recipeId,
             ingredientName
           )
@@ -148,7 +147,6 @@ export async function POST(request: NextRequest) {
 
         // Fetch/scrape prices for all stores in parallel
         const cachedRows: IngredientCacheResult[] = await getOrRefreshIngredientPricesForStores(
-          supabaseClient,
           standardizedIngredientId,
           DEFAULT_STORE_KEYS,
           { zipCode, forceRefresh }
