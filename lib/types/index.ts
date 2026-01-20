@@ -12,7 +12,6 @@ export type { Instruction } from './recipe/instruction'
 export { normalizeInstructions, parseInstructionsFromDB } from './recipe/instruction'
 export type { NutritionInfo } from './recipe/nutrition'
 export type {
-  AllergenTags,
   RecipeTags,
   DietaryTag,
   ProteinTag,
