@@ -23,7 +23,6 @@ export {
 
 // Shopping Hooks
 export { useShoppingList } from "./shopping/use-shopping-list"
-export { useMergedItems, distributeQuantityChange } from "./shopping/use-merged-items"
 export { useStoreComparison } from "./shopping/use-store-comparison"
 export { useClosestStore } from "./shopping/use-closest-store"
 

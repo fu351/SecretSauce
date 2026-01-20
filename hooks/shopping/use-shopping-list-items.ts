@@ -20,64 +20,21 @@ export function useShoppingListItems(
   items: ShoppingListItem[],
   setItems: React.Dispatch<React.SetStateAction<ShoppingListItem[]>>,
   setHasChanges: (value: boolean) => void,
-  userId: string | null
+  userId: string | null,
+  loadShoppingList: () => Promise<void>
 ) {
   const { toast } = useToast()
 
   /**
    * Add a new manual item to the shopping list
-   * If an item with the same name, unit, and recipe_id already exists, merge quantities instead
+   * Database triggers handle merging - just insert and reload
    */
   const addItem = useCallback(
     async (name: string, quantity = 1, unit = "piece", checked = false, ingredientId?: string) => {
       if (!userId) return null
 
-      // Check if an item with the same name, unit, and recipe_id already exists
-      const existingItem = items.find(
-        item => item.source_type === 'manual' &&
-                 item.name.toLowerCase() === name.toLowerCase() &&
-                 item.unit === unit &&
-                 !item.recipe_id
-      )
-
-      if (existingItem) {
-        // Merge quantities instead of creating a duplicate
-        const newQuantity = existingItem.quantity + quantity
-        setItems(prev => prev.map(item =>
-          item.id === existingItem.id ? { ...item, quantity: newQuantity } : item
-        ))
-
-        try {
-          const updatedItem = await shoppingListDB.updateItem(existingItem.id, { quantity: newQuantity })
-          setItems(prev => prev.map(item => item.id === existingItem.id ? updatedItem : item))
-          return updatedItem
-        } catch (error) {
-          // Revert on error
-          setItems(prev => prev.map(item =>
-            item.id === existingItem.id ? { ...item, quantity: existingItem.quantity } : item
-          ))
-          toast({ title: "Error", description: "Failed to update item.", variant: "destructive" })
-          return null
-        }
-      }
-
-      // Create new item if no duplicate exists
-      const tempId = `temp-${crypto.randomUUID()}`
-      const newItem: ShoppingListItem = {
-        id: tempId,
-        user_id: userId,
-        name,
-        quantity,
-        unit,
-        checked,
-        source_type: 'manual',
-        ingredient_id: ingredientId
-      }
-
-      setItems(prev => [...prev, newItem])
-
       try {
-        const realItem = await shoppingListDB.insertItem({
+        await shoppingListDB.insertItem({
           user_id: userId,
           name,
           quantity,
@@ -86,15 +43,17 @@ export function useShoppingListItems(
           source_type: 'manual',
           ingredient_id: ingredientId
         })
-        setItems(prev => prev.map(item => item.id === tempId ? realItem : item))
-        return realItem
+
+        // Database handles merging - reload to get the final state
+        await loadShoppingList()
+
+        return true
       } catch (error) {
-        setItems(prev => prev.filter(item => item.id !== tempId))
-        toast({ title: "Error", description: "Failed to save item.", variant: "destructive" })
+        toast({ title: "Error", description: "Failed to add item.", variant: "destructive" })
         return null
       }
     },
-    [userId, toast, items]
+    [userId, toast, loadShoppingList]
   )
 
   /**

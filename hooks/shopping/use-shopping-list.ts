@@ -52,7 +52,7 @@ export function useShoppingList() {
   }, [user, toast])
 
   // Compose sub-hooks for item and recipe operations
-  const itemOperations = useShoppingListItems(items, setItems, setHasChanges, user?.id ?? null)
+  const itemOperations = useShoppingListItems(items, setItems, setHasChanges, user?.id ?? null, loadShoppingList)
   const recipeOperations = useShoppingListRecipes(items, setItems, loadShoppingList, user?.id ?? null)
 
   // Batch save sync

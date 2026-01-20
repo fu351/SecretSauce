@@ -23,7 +23,6 @@ import {
   ChevronRight,
   ShoppingBasket,
   Trash2,
-  List,
   Layers,
   Users,
   Grid
@@ -31,7 +30,6 @@ import {
 
 import type { ShoppingListItem, ShoppingListSectionProps } from "@/lib/types/store"
 import { QuantityControl } from "@/components/shared/quantity-control"
-import { useMergedItems, distributeQuantityChange } from "@/hooks"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory, getCategoryIcon } from "@/lib/constants/categories"
 
@@ -111,7 +109,7 @@ export function ShoppingListSection({
 }: ExtendedShoppingListSectionProps) {
   
   // -- View State --
-  type ViewMode = 'recipe' | 'category' | 'ungrouped'
+  type ViewMode = 'recipe' | 'category'
   const [viewMode, setViewMode] = useState<ViewMode>('recipe')
   const [showUnits, setShowUnits] = useState(true)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
@@ -233,12 +231,7 @@ export function ShoppingListSection({
   }, [uniqueList])
 
   // =========================================================
-  // 3. MERGE LOGIC FOR UNGROUPED VIEW
-  // =========================================================
-  const mergedUngroupedList = useMergedItems(uniqueList, viewMode !== 'ungrouped')
-
-  // =========================================================
-  // 4. QUANTITY CONTROL WIDTH NORMALIZATION
+  // 3. QUANTITY CONTROL WIDTH NORMALIZATION
   // =========================================================
   const quantityControlWidth = useMemo(() => {
     if (!showUnits) return "auto"
@@ -246,8 +239,8 @@ export function ShoppingListSection({
   }, [uniqueList, showUnits])
 
   // -- Handlers --
-  const handleMergedQuantityUpdate = (mergedItem: ShoppingListItem & { itemsWithSameName?: ShoppingListItem[] }, newTotalQuantity: number) => {
-    distributeQuantityChange(mergedItem, newTotalQuantity, onUpdateQuantity)
+  const handleQuantityUpdate = (item: ShoppingListItem, newTotalQuantity: number) => {
+    onUpdateQuantity(item.id, newTotalQuantity)
   }
 
   const startEditing = (item: ShoppingListItem) => {
@@ -282,7 +275,7 @@ export function ShoppingListSection({
     if (!isNaN(newQuantity) && newQuantity >= 1) {
       const item = uniqueList.find(i => i.id === itemId)
       if (item) {
-        handleMergedQuantityUpdate(item, newQuantity)
+        handleQuantityUpdate(item, newQuantity)
       }
     }
     resetEditingQuantity()
@@ -388,8 +381,8 @@ export function ShoppingListSection({
             editingValue={editingQuantityValue}
             onQuantityChange={setEditingQuantityValue}
             onQuantityKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
-            onDecrement={() => handleMergedQuantityUpdate(item, Math.max(1, item.quantity - 1))}
-            onIncrement={() => handleMergedQuantityUpdate(item, item.quantity + 1)}
+            onDecrement={() => handleQuantityUpdate(item, Math.max(1, item.quantity - 1))}
+            onIncrement={() => handleQuantityUpdate(item, item.quantity + 1)}
             theme={theme as "light" | "dark"}
             textClass={textClass}
             disableDecrement={item.quantity <= 1}
@@ -601,19 +594,6 @@ export function ShoppingListSection({
                     >
                       <Grid className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setViewMode('ungrouped')}
-                      className={`h-7 w-7 rounded-sm transition-all ${
-                        viewMode === 'ungrouped'
-                          ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
-                          : mutedTextClass
-                      }`}
-                      title="Ungrouped List"
-                    >
-                      <List className="h-4 w-4" />
-                    </Button>
                   </div>
 
                   <Button
@@ -703,7 +683,7 @@ export function ShoppingListSection({
                   true
                 )}
               </>
-            ) : viewMode === 'category' ? (
+            ) : (
               <>
                 {FOOD_CATEGORIES.map(category => {
                   const items = categoryGroups[category]
@@ -730,10 +710,6 @@ export function ShoppingListSection({
                   )
                 }
               </>
-            ) : (
-              <div className="space-y-2">
-                {mergedUngroupedList.map(renderItemRow)}
-              </div>
             )}
           </div>
         )}

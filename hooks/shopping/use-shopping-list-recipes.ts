@@ -67,12 +67,10 @@ export function useShoppingListRecipes(
           }
         })
 
-        const mappedItems = await shoppingListDB.upsertItems(itemsToInsert)
+        await shoppingListDB.upsertItems(itemsToInsert)
 
-        setItems(prev => {
-          const filtered = prev.filter(item => item.recipe_id !== recipeId)
-          return [...filtered, ...mappedItems]
-        })
+        // Database handles merging - reload to get the final state
+        await loadShoppingList()
 
         toast({ title: "Recipe Added", description: `Added ${recipe.title} to list.` })
       } catch (error) {
@@ -210,10 +208,10 @@ export function useShoppingListRecipes(
         }
 
         // Single bulk insert
-        const mappedItems = await shoppingListDB.upsertItems(allItemsToInsert)
+        await shoppingListDB.upsertItems(allItemsToInsert)
 
-        // Update local state
-        setItems(prev => [...prev, ...mappedItems])
+        // Database handles merging - reload to get the final state
+        await loadShoppingList()
 
         return totalRecipesAdded
       } catch (error) {
