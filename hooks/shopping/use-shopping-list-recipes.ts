@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 import { useToast } from "../ui/use-toast"
-import { useShoppingListDB } from "@/lib/database/store-list-db"
+import { shoppingListDB } from "@/lib/database/store-list-db"
 import { useRecipeCart } from "../recipe/use-recipe-cart"
 import type { ShoppingListItem } from "@/lib/types/store"
 
@@ -24,7 +24,6 @@ export function useShoppingListRecipes(
   userId: string | null
 ) {
   const { toast } = useToast()
-  const db = useShoppingListDB()
   const recipeCart = useRecipeCart()
 
   /**
@@ -42,7 +41,7 @@ export function useShoppingListRecipes(
 
         const finalServings = servings || recipe.servings || 1
         const itemsToInsert = recipeCart.createRecipeItems(userId, recipeId, recipe, finalServings)
-        const mappedItems = await db.upsertItems(itemsToInsert)
+        const mappedItems = await shoppingListDB.upsertItems(itemsToInsert)
 
         setItems(prev => {
           const filtered = prev.filter(item => item.recipe_id !== recipeId)
@@ -55,7 +54,7 @@ export function useShoppingListRecipes(
         toast({ title: "Error", description: errorMessage, variant: "destructive" })
       }
     },
-    [userId, toast, db, recipeCart]
+    [userId, toast, recipeCart]
   )
 
   /**
@@ -83,14 +82,14 @@ export function useShoppingListRecipes(
 
       if (updates.length > 0) {
         try {
-          await db.batchUpdateItems(updates)
+          await shoppingListDB.batchUpdateItems(updates)
         } catch (error) {
           toast({ title: "Error", description: "Sync failed. Reverting...", variant: "destructive" })
           loadShoppingList()
         }
       }
     },
-    [db, recipeCart, toast, loadShoppingList]
+    [recipeCart, toast, loadShoppingList]
   )
 
   /**
@@ -102,13 +101,13 @@ export function useShoppingListRecipes(
       setItems(prev => prev.filter(item => item.recipe_id !== recipeId))
 
       try {
-        if (userId) await db.deleteRecipeItems(userId, recipeId)
+        if (userId) await shoppingListDB.deleteRecipeItems(userId, recipeId)
       } catch (error) {
         setItems(backup)
         toast({ title: "Error", description: "Failed to remove recipe.", variant: "destructive" })
       }
     },
-    [userId, items, db, toast]
+    [userId, items, toast]
   )
 
   /**
@@ -121,13 +120,13 @@ export function useShoppingListRecipes(
     setItems(prev => prev.filter(i => !i.checked))
 
     try {
-      await db.deleteBatch(checkedIds)
+      await shoppingListDB.deleteBatch(checkedIds)
       toast({ title: "List cleared", description: "Checked items removed." })
     } catch (error) {
       loadShoppingList()
       toast({ title: "Error", description: "Failed to clear items.", variant: "destructive" })
     }
-  }, [items, db, toast, loadShoppingList])
+  }, [items, toast, loadShoppingList])
 
   return {
     addRecipeToCart,

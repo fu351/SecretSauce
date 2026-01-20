@@ -197,11 +197,15 @@ class MealPlannerCache {
   }
 }
 
-// Singleton instance
+/**
+ * Singleton instance using the same pattern as database classes
+ * Backwards compatible with getMealPlannerCache() function
+ */
 let cacheInstance: MealPlannerCache | null = null
 
 /**
  * Get the global meal planner cache instance
+ * @deprecated Use mealPlannerCache singleton instance instead
  */
 export function getMealPlannerCache(): MealPlannerCache {
   if (!cacheInstance) {
@@ -209,3 +213,9 @@ export function getMealPlannerCache(): MealPlannerCache {
   }
   return cacheInstance
 }
+
+/**
+ * Singleton instance export for consistency with other DB files
+ * This is the preferred way to access the cache
+ */
+export const mealPlannerCache = getMealPlannerCache()

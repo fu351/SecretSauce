@@ -1,19 +1,35 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
-import { supabase } from "@/lib/supabase"
+import { BaseTable } from "./base-db"
 import { Recipe, parseInstructionsFromDB } from "@/lib/types"
 
 /**
- * Universal database operations for recipes
- * Separated from state management for reusability across different components
+ * Database operations for recipes
+ * Singleton class extending BaseTable with specialized recipe operations
+ *
+ * IMPORTANT: This table uses soft delete - all queries filter by deleted_at IS NULL
+ * NOTE: Uses Recipe type instead of RecipeRow for application-level abstraction
  */
+class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<Recipe>> {
+  private static instance: RecipeTable | null = null
+  readonly tableName = "recipes" as const
 
-export function useRecipeDB() {
+  private constructor() {
+    super()
+  }
+
+  static getInstance(): RecipeTable {
+    if (!RecipeTable.instance) {
+      RecipeTable.instance = new RecipeTable()
+    }
+    return RecipeTable.instance
+  }
+
   /**
    * Map raw database recipe to typed Recipe
+   * Handles complex transformation from DB schema (JSONB content, enum arrays) to Recipe type
    */
-  const mapRecipe = useCallback((dbItem: any): Recipe => {
+  protected map(dbItem: any): Recipe {
     // Extract content JSONB
     const content = dbItem.content || {}
 
@@ -27,12 +43,12 @@ export function useRecipeDB() {
       cuisine_name: dbItem.cuisine || undefined, // Map enum directly to string
       ingredients: dbItem.ingredients || [],
       nutrition: dbItem.nutrition || {},
-      author_id: dbItem.author_id || '',
+      author_id: dbItem.author_id || "",
       rating_avg: dbItem.rating_avg || 0,
       rating_count: dbItem.rating_count || 0,
 
       content: {
-        description: content.description || '',
+        description: content.description || "",
         image_url: content.image_url,
         instructions: parseInstructionsFromDB(content.instructions),
       },
@@ -42,18 +58,45 @@ export function useRecipeDB() {
         dietary: dbItem.tags || [],
         protein: dbItem.protein || undefined,
         meal_type: dbItem.meal_type || undefined,
-        cuisine_guess: undefined
+        cuisine_guess: undefined,
       },
 
       created_at: dbItem.created_at,
-      updated_at: dbItem.updated_at
+      updated_at: dbItem.updated_at,
     }
-  }, [])
+  }
+
+  /**
+   * Override findById to filter soft-deleted recipes
+   */
+  async findById(id: string): Promise<Recipe | null> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null) // Filter soft-deleted recipes
+      .single()
+
+    if (error) {
+      this.handleError(error, `findById(${id})`)
+      return null
+    }
+
+    return data ? this.map(data) : null
+  }
+
+  /**
+   * Alias for findById to maintain backwards compatibility
+   */
+  async fetchRecipeById(id: string): Promise<Recipe | null> {
+    return this.findById(id)
+  }
 
   /**
    * Fetch all recipes with optional filtering and sorting
+   * Replaces BaseTable's findAll() with advanced filtering capabilities
    */
-  const fetchRecipes = useCallback(async (options?: {
+  async fetchRecipes(options?: {
     sortBy?: "created_at" | "rating_avg" | "prep_time" | "title"
     difficulty?: string
     cuisine?: string
@@ -63,7 +106,7 @@ export function useRecipeDB() {
     mealType?: string
     limit?: number
     offset?: number
-  }): Promise<Recipe[]> => {
+  }): Promise<Recipe[]> {
     const {
       sortBy = "created_at",
       difficulty,
@@ -73,11 +116,11 @@ export function useRecipeDB() {
       protein,
       mealType,
       limit = 50,
-      offset = 0
+      offset = 0,
     } = options || {}
 
-    let query = supabase
-      .from("recipes")
+    let query = this.supabase
+      .from(this.tableName)
       .select("*")
       .is("deleted_at", null) // Filter soft-deleted recipes
 
@@ -126,104 +169,86 @@ export function useRecipeDB() {
     const { data, error } = await query
 
     if (error) {
-      console.warn("[Recipe DB] Error fetching recipes:", error.message)
+      this.handleError(error, "fetchRecipes")
       return []
     }
 
-    return (data || []).map(mapRecipe)
-  }, [mapRecipe])
-
-  /**
-   * Fetch a single recipe by ID
-   */
-  const fetchRecipeById = useCallback(async (id: string): Promise<Recipe | null> => {
-    const { data, error } = await supabase
-      .from("recipes")
-      .select("*")
-      .eq("id", id)
-      .is("deleted_at", null)
-      .single()
-
-    if (error) {
-      console.warn("[Recipe DB] Error fetching recipe:", error.message)
-      return null
-    }
-
-    return data ? mapRecipe(data) : null
-  }, [mapRecipe])
+    return (data || []).map((item) => this.map(item))
+  }
 
   /**
    * Fetch recipes by author
    */
-  const fetchRecipesByAuthor = useCallback(async (
+  async fetchRecipesByAuthor(
     authorId: string,
     options?: {
       sortBy?: "created_at" | "rating_avg" | "prep_time" | "title"
       limit?: number
       offset?: number
     }
-  ): Promise<Recipe[]> => {
-    return fetchRecipes({
+  ): Promise<Recipe[]> {
+    return this.fetchRecipes({
       ...options,
-      authorId
+      authorId,
     })
-  }, [fetchRecipes])
+  }
 
   /**
    * Fetch recipes by cuisine
    */
-  const fetchRecipesByCuisine = useCallback(async (
+  async fetchRecipesByCuisine(
     cuisine: string,
     options?: {
       sortBy?: "created_at" | "rating_avg" | "prep_time" | "title"
       limit?: number
       offset?: number
     }
-  ): Promise<Recipe[]> => {
-    return fetchRecipes({
+  ): Promise<Recipe[]> {
+    return this.fetchRecipes({
       ...options,
-      cuisine
+      cuisine,
     })
-  }, [fetchRecipes])
+  }
 
   /**
    * Fetch recipes by difficulty level
    */
-  const fetchRecipesByDifficulty = useCallback(async (
+  async fetchRecipesByDifficulty(
     difficulty: string,
     options?: {
       sortBy?: "created_at" | "rating_avg" | "prep_time" | "title"
       limit?: number
       offset?: number
     }
-  ): Promise<Recipe[]> => {
-    return fetchRecipes({
+  ): Promise<Recipe[]> {
+    return this.fetchRecipes({
       ...options,
-      difficulty
+      difficulty,
     })
-  }, [fetchRecipes])
+  }
 
   /**
    * Fetch recipes by tags
    */
-  const fetchRecipesByTags = useCallback(async (
+  async fetchRecipesByTags(
     tags: string[],
     options?: {
       sortBy?: "created_at" | "rating_avg" | "prep_time" | "title"
       limit?: number
       offset?: number
     }
-  ): Promise<Recipe[]> => {
-    return fetchRecipes({
+  ): Promise<Recipe[]> {
+    return this.fetchRecipes({
       ...options,
-      tags
+      tags,
     })
-  }, [fetchRecipes])
+  }
 
   /**
    * Insert a new recipe
+   * Transforms Recipe type to DB schema with JSONB content field
    */
-  const insertRecipe = useCallback(async (recipe: Partial<Recipe>): Promise<Recipe | null> => {
+  async insertRecipe(recipe: Partial<Recipe>): Promise<Recipe | null> {
     console.log("[Recipe DB] Attempting to insert recipe:", recipe)
 
     // Transform Recipe type to DB schema
@@ -242,9 +267,9 @@ export function useRecipeDB() {
 
       // Build content JSONB
       content: {
-        description: recipe.content?.description || '',
+        description: recipe.content?.description || "",
         image_url: recipe.content?.image_url || null,
-        instructions: recipe.content?.instructions || []
+        instructions: recipe.content?.instructions || [],
       },
 
       // Map tags array (dietary and allergen tags consolidated)
@@ -253,34 +278,39 @@ export function useRecipeDB() {
       // Map enum fields
       protein: recipe.tags?.protein || null,
       meal_type: recipe.tags?.meal_type || null,
-      cuisine: recipe.cuisine_name || 'other',
+      cuisine: recipe.cuisine_name || "other",
 
       // Soft delete defaults
-      deleted_at: null
+      deleted_at: null,
     }
 
-    const { data, error } = await supabase
-      .from("recipes")
-      .insert(dbRecipe)
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .insert(dbRecipe as any)
       .select("*")
       .single()
 
     if (error) {
-      console.error("[Recipe DB] Insert error:", error)
+      this.handleError(error, "insertRecipe")
       return null
     }
 
     console.log("[Recipe DB] Insert successful, returned data:", data)
-    return data ? mapRecipe(data) : null
-  }, [mapRecipe])
+    return data ? this.map(data) : null
+  }
+
+  /**
+   * Alias for insertRecipe (uses BaseTable's create pattern)
+   */
+  async create(insertData: Partial<Recipe>): Promise<Recipe | null> {
+    return this.insertRecipe(insertData)
+  }
 
   /**
    * Update an existing recipe
+   * Handles complex partial updates with JSONB content merging
    */
-  const updateRecipe = useCallback(async (
-    id: string,
-    updates: Partial<Recipe>
-  ): Promise<Recipe | null> => {
+  async updateRecipe(id: string, updates: Partial<Recipe>): Promise<Recipe | null> {
     console.log("[Recipe DB] Attempting to update recipe:", id, updates)
 
     // Transform Recipe type to DB schema (only for provided fields)
@@ -300,20 +330,19 @@ export function useRecipeDB() {
     // Build content JSONB if any content fields are updated
     if (updates.content) {
       // Fetch current content first if partial update
-      const { data: currentRecipe } = await supabase
-        .from("recipes")
+      const { data: currentRecipe } = await (this.supabase.from(this.tableName) as any)
         .select("content")
         .eq("id", id)
         .single()
 
-      const currentContent = currentRecipe?.content || {}
+      const currentContent = (currentRecipe as any)?.content || {}
 
       dbUpdates.content = {
         description:
           updates.content.description !== undefined ? updates.content.description : currentContent.description,
         image_url: updates.content.image_url !== undefined ? updates.content.image_url : currentContent.image_url,
         instructions:
-          updates.content.instructions !== undefined ? updates.content.instructions : currentContent.instructions
+          updates.content.instructions !== undefined ? updates.content.instructions : currentContent.instructions,
       }
     }
 
@@ -334,11 +363,10 @@ export function useRecipeDB() {
 
     // Map cuisine_name if provided
     if (updates.cuisine_name !== undefined) {
-      dbUpdates.cuisine = updates.cuisine_name || 'other'
+      dbUpdates.cuisine = updates.cuisine_name || "other"
     }
 
-    const { data, error } = await supabase
-      .from("recipes")
+    const { data, error } = await (this.supabase.from(this.tableName) as any)
       .update(dbUpdates)
       .eq("id", id)
       .is("deleted_at", null)
@@ -346,84 +374,92 @@ export function useRecipeDB() {
       .single()
 
     if (error) {
-      console.error("[Recipe DB] Update error:", error)
+      this.handleError(error, "updateRecipe")
       return null
     }
 
     console.log("[Recipe DB] Update successful, returned data:", data)
-    return data ? mapRecipe(data) : null
-  }, [mapRecipe])
+    return data ? this.map(data) : null
+  }
+
+  /**
+   * Override update to use updateRecipe
+   */
+  async update(id: string, updateData: Partial<Recipe>): Promise<Recipe | null> {
+    return this.updateRecipe(id, updateData)
+  }
 
   /**
    * Delete a recipe (soft delete)
+   * Sets deleted_at timestamp instead of removing the record
    */
-  const deleteRecipe = useCallback(async (id: string): Promise<boolean> => {
-    const { error } = await supabase
-      .from("recipes")
+  async deleteRecipe(id: string): Promise<boolean> {
+    const { error } = await (this.supabase.from(this.tableName) as any)
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", id)
       .is("deleted_at", null)
 
     if (error) {
-      console.error("[Recipe DB] Delete error:", error)
+      this.handleError(error, `deleteRecipe(${id})`)
       return false
     }
 
     console.log("[Recipe DB] Soft delete successful for recipe:", id)
     return true
-  }, [])
+  }
+
+  /**
+   * Override remove to use soft delete
+   */
+  async remove(id: string): Promise<boolean> {
+    return this.deleteRecipe(id)
+  }
 
   /**
    * Update recipe rating
    */
-  const updateRecipeRating = useCallback(async (
-    id: string,
-    rating_avg: number,
-    rating_count: number
-  ): Promise<Recipe | null> => {
-    return updateRecipe(id, {
+  async updateRecipeRating(id: string, rating_avg: number, rating_count: number): Promise<Recipe | null> {
+    return this.updateRecipe(id, {
       rating_avg,
-      rating_count
+      rating_count,
     })
-  }, [updateRecipe])
+  }
 
   /**
    * Batch update recipe ratings
    */
-  const batchUpdateRatings = useCallback(async (
+  async batchUpdateRatings(
     updates: Array<{ id: string; rating_avg: number; rating_count: number }>
-  ): Promise<Recipe[]> => {
+  ): Promise<Recipe[]> {
     const results = await Promise.all(
-      updates.map(({ id, rating_avg, rating_count }) =>
-        updateRecipeRating(id, rating_avg, rating_count)
-      )
+      updates.map(({ id, rating_avg, rating_count }) => this.updateRecipeRating(id, rating_avg, rating_count))
     )
     return results.filter((recipe): recipe is Recipe => recipe !== null)
-  }, [updateRecipeRating])
+  }
 
   /**
    * Search recipes by title, description, or ingredients
+   * Client-side filtering after fetching (Supabase lacks full-text search without custom functions)
    */
-  const searchRecipes = useCallback(async (
+  async searchRecipes(
     query: string,
     options?: {
       limit?: number
       offset?: number
     }
-  ): Promise<Recipe[]> => {
+  ): Promise<Recipe[]> {
     const { limit = 50, offset = 0 } = options || {}
     const searchQuery = query.toLowerCase()
 
     // Fetch recipes and filter client-side for flexible search
-    // (Supabase doesn't support full-text search without custom functions)
-    const { data, error } = await supabase
-      .from("recipes")
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select("*")
       .is("deleted_at", null)
       .range(offset, offset + limit - 1)
 
     if (error) {
-      console.warn("[Recipe DB] Error searching recipes:", error.message)
+      this.handleError(error, "searchRecipes")
       return []
     }
 
@@ -439,43 +475,15 @@ export function useRecipeDB() {
         const matchesDescription = description.includes(searchQuery)
 
         // Search ingredients by name
-        const matchesIngredient = Array.isArray(recipe.ingredients) &&
-          recipe.ingredients.some((ing: any) =>
-            ing.name?.toLowerCase().includes(searchQuery)
-          )
+        const matchesIngredient =
+          Array.isArray(recipe.ingredients) &&
+          recipe.ingredients.some((ing: any) => ing.name?.toLowerCase().includes(searchQuery))
 
         return matchesTitle || matchesDescription || matchesIngredient
       })
-      .map(mapRecipe)
-  }, [mapRecipe])
-
-  return useMemo(() => ({
-    mapRecipe,
-    fetchRecipes,
-    fetchRecipeById,
-    fetchRecipesByAuthor,
-    fetchRecipesByCuisine,
-    fetchRecipesByDifficulty,
-    fetchRecipesByTags,
-    insertRecipe,
-    updateRecipe,
-    deleteRecipe,
-    updateRecipeRating,
-    batchUpdateRatings,
-    searchRecipes
-  }), [
-    mapRecipe,
-    fetchRecipes,
-    fetchRecipeById,
-    fetchRecipesByAuthor,
-    fetchRecipesByCuisine,
-    fetchRecipesByDifficulty,
-    fetchRecipesByTags,
-    insertRecipe,
-    updateRecipe,
-    deleteRecipe,
-    updateRecipeRating,
-    batchUpdateRatings,
-    searchRecipes
-  ])
+      .map((item) => this.map(item))
+  }
 }
+
+// Export singleton instance
+export const recipeDB = RecipeTable.getInstance()

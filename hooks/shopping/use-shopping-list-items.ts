@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 import { useToast } from "../ui/use-toast"
-import { useShoppingListDB } from "@/lib/database/store-list-db"
+import { shoppingListDB } from "@/lib/database/store-list-db"
 import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
@@ -23,7 +23,6 @@ export function useShoppingListItems(
   userId: string | null
 ) {
   const { toast } = useToast()
-  const db = useShoppingListDB()
 
   /**
    * Add a new manual item to the shopping list
@@ -49,7 +48,7 @@ export function useShoppingListItems(
         ))
 
         try {
-          const updatedItem = await db.updateItem(existingItem.id, { quantity: newQuantity })
+          const updatedItem = await shoppingListDB.updateItem(existingItem.id, { quantity: newQuantity })
           setItems(prev => prev.map(item => item.id === existingItem.id ? updatedItem : item))
           return updatedItem
         } catch (error) {
@@ -78,7 +77,7 @@ export function useShoppingListItems(
       setItems(prev => [...prev, newItem])
 
       try {
-        const realItem = await db.insertItem({
+        const realItem = await shoppingListDB.insertItem({
           user_id: userId,
           name,
           quantity,
@@ -95,7 +94,7 @@ export function useShoppingListItems(
         return null
       }
     },
-    [userId, toast, db, items]
+    [userId, toast, items]
   )
 
   /**
@@ -109,13 +108,13 @@ export function useShoppingListItems(
       setItems(prev => prev.filter(item => item.id !== id))
 
       try {
-        await db.deleteItem(id)
+        await shoppingListDB.deleteItem(id)
       } catch (error) {
         setItems(prev => [...prev, backup])
         toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" })
       }
     },
-    [items, toast, db]
+    [items, toast]
   )
 
   /**
@@ -129,14 +128,14 @@ export function useShoppingListItems(
         item.id === id ? { ...item, quantity: safeQuantity } : item
       ))
 
-      db.updateItem(id, { quantity: safeQuantity })
+      shoppingListDB.updateItem(id, { quantity: safeQuantity })
         .catch(() => {
           toast({ title: "Error", description: "Failed to update quantity.", variant: "destructive" })
         })
 
       setHasChanges(true)
     },
-    [toast, db]
+    [toast]
   )
 
   /**
@@ -155,13 +154,13 @@ export function useShoppingListItems(
       setItems(prev => prev.map(item => item.id === id ? { ...item, name: newName } : item))
 
       try {
-        await db.updateItem(id, { name: newName })
+        await shoppingListDB.updateItem(id, { name: newName })
       } catch (error) {
         setItems(prev => prev.map(item => item.id === id ? { ...item, name: currentItem.name } : item))
         toast({ title: "Error", description: "Failed to update item name.", variant: "destructive" })
       }
     },
-    [items, toast, db]
+    [items, toast]
   )
 
   /**
@@ -175,14 +174,14 @@ export function useShoppingListItems(
       const newValue = !item.checked
       setItems(prev => prev.map(i => i.id === id ? { ...i, checked: newValue } : i))
 
-      db.updateItem(id, { checked: newValue })
+      shoppingListDB.updateItem(id, { checked: newValue })
         .catch(() => {
           toast({ title: "Error", description: "Failed to update item.", variant: "destructive" })
         })
 
       setHasChanges(true)
     },
-    [items, toast, db]
+    [items, toast]
   )
 
   return {

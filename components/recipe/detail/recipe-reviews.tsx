@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Star } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
-import { useProfileDB } from "@/lib/database/profile-db"
+import { profileDB } from "@/lib/database/profile-db"
 import { useToast } from "@/hooks"
 import { RecipeReviewsSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 
@@ -35,7 +35,6 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
   const [loadingReviews, setLoadingReviews] = useState(true)
   const { user } = useAuth()
   const { toast } = useToast()
-  const profileDB = useProfileDB()
   const mounted = useRef(true)
   const loadingRef = useRef(false)
 

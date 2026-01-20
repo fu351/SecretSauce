@@ -1,11 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useMealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
+import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
 
 export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number) {
-  const db = useMealPlannerDB()
   const [meals, setMeals] = useState<MealScheduleRow[]>([])
   const [recipesById, setRecipesById] = useState<Record<string, Recipe>>({})
   const [loading, setLoading] = useState(false)
@@ -19,12 +18,12 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
       // For now, we'll just log that we would fetch.
       console.log(`[useWeeklyMealPlan] Fetching week ${weekIndex} for user ${userId}`)
 
-      const mealSchedule = await db.fetchMealScheduleByWeekIndex(userId, weekIndex)
+      const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(userId, weekIndex)
       setMeals(mealSchedule)
 
       const recipeIds = Array.from(new Set(mealSchedule.map((m) => m.recipe_id)))
       if (recipeIds.length > 0) {
-        const recipes = await db.fetchRecipesByIds(recipeIds)
+        const recipes = await mealPlannerDB.fetchRecipesByIds(recipeIds)
         const recipesMap: Record<string, Recipe> = {}
         recipes.forEach((r) => {
           recipesMap[r.id] = r
@@ -38,14 +37,14 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
     } finally {
       setLoading(false)
     }
-  }, [userId, weekIndex, db])
+  }, [userId, weekIndex])
 
   const addToMealPlan = useCallback(
     async (recipe: Recipe, mealType: string, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
       try {
-        const result = await db.addMealToSchedule(
+        const result = await mealPlannerDB.addMealToSchedule(
           userId,
           recipe.id,
           date,
@@ -61,7 +60,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
         throw error
       }
     },
-    [userId, db, loadWeeklyMealPlan]
+    [userId, loadWeeklyMealPlan]
   )
 
   const removeFromMealPlan = useCallback(
@@ -69,7 +68,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
       if (!userId) return
 
       try {
-        const success = await db.removeMealSlot(
+        const success = await mealPlannerDB.removeMealSlot(
           userId,
           date,
           mealType as "breakfast" | "lunch" | "dinner"
@@ -84,7 +83,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
         throw error
       }
     },
-    [userId, db, loadWeeklyMealPlan]
+    [userId, loadWeeklyMealPlan]
   )
 
   useEffect(() => {

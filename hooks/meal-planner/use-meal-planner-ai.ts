@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { useMealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
+import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
 import { getDatesForWeek } from "@/lib/date-utils"
 import { useToast } from "@/hooks/ui/use-toast"
@@ -19,7 +19,6 @@ interface AiProgress {
 }
 
 export function useMealPlannerAi(userId: string | undefined, weekIndex: number) {
-  const db = useMealPlannerDB()
   const { toast } = useToast()
   const [aiPlannerLoading, setAiPlannerLoading] = useState(false)
   const [aiPlannerProgress, setAiPlannerProgress] = useState<AiProgress>({ step: 0, message: "" })
@@ -79,7 +78,7 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
       // Fetch recipe details for the plan
       if (plan.meals && plan.meals.length > 0) {
         const recipeIds = [...new Set(plan.meals.map((m: any) => m.recipeId))]
-        const recipes = await db.fetchRecipesByIds(recipeIds)
+        const recipes = await mealPlannerDB.fetchRecipesByIds(recipeIds)
 
         if (recipes) {
           const newRecipes: Record<string, Recipe> = {}
@@ -103,7 +102,7 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
     } finally {
       setAiPlannerLoading(false)
     }
-  }, [userId, toast, db])
+  }, [userId, toast, mealPlannerDB])
 
   const applyAiPlanToMealPlanner = useCallback(
     async () => {
@@ -115,7 +114,7 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
         for (const meal of aiPlanResult.meals) {
           const date = weekDates[meal.dayIndex]
           if (date) {
-            await db.addMealToSchedule(userId, meal.recipeId, date, meal.mealType)
+            await mealPlannerDB.addMealToSchedule(userId, meal.recipeId, date, meal.mealType)
           }
         }
 
@@ -138,7 +137,7 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
         return false
       }
     },
-    [aiPlanResult, userId, weekIndex, db, toast]
+    [aiPlanResult, userId, weekIndex, mealPlannerDB, toast]
   )
 
   return {

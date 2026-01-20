@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import { format, startOfWeek } from "date-fns"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
-import { useShoppingListDB } from "@/lib/database/store-list-db"
+import { shoppingListDB } from "@/lib/database/store-list-db"
 
 // Tutorial Components
 // TutorialOverlay is rendered globally in layout.tsx
@@ -46,7 +46,6 @@ export default function DashboardPage() {
   const { theme } = useTheme()
   const { isActive } = useTutorial()
   const isDark = theme === "dark"
-  const db = useShoppingListDB()
 
   useEffect(() => {
     if (user) {

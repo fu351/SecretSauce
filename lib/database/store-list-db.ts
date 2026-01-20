@@ -1,19 +1,44 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
-import { supabase } from "@/lib/supabase"
+import { BaseTable } from "./base-db"
+import type { Database } from "@/lib/supabase"
 import type { ShoppingListItem } from "@/lib/types/store"
 
-/**
- * Universal database operations for shopping list items
- * Separated from state management for reusability across different components
- */
+type ShoppingListItemRow = Database["public"]["Tables"]["shopping_list_items"]["Row"]
+type ShoppingListItemInsert = Database["public"]["Tables"]["shopping_list_items"]["Insert"]
+type ShoppingListItemUpdate = Database["public"]["Tables"]["shopping_list_items"]["Update"]
 
-export function useShoppingListDB() {
+/**
+ * Database operations for shopping list items
+ * Singleton class extending BaseTable with specialized shopping list operations
+ *
+ * NOTE: Unlike other DB classes, this one THROWS errors instead of returning null
+ */
+class ShoppingListTable extends BaseTable<
+  "shopping_list_items",
+  ShoppingListItemRow,
+  ShoppingListItemInsert,
+  ShoppingListItemUpdate
+> {
+  private static instance: ShoppingListTable | null = null
+  readonly tableName = "shopping_list_items" as const
+
+  private constructor() {
+    super()
+  }
+
+  static getInstance(): ShoppingListTable {
+    if (!ShoppingListTable.instance) {
+      ShoppingListTable.instance = new ShoppingListTable()
+    }
+    return ShoppingListTable.instance
+  }
+
   /**
    * Map raw database item to typed ShoppingListItem
+   * Ensures proper type coercion for quantity and servings
    */
-  const mapShoppingItem = useCallback((dbItem: any): ShoppingListItem => {
+  protected map(dbItem: any): ShoppingListItem {
     return {
       id: dbItem.id,
       user_id: dbItem.user_id,
@@ -28,32 +53,32 @@ export function useShoppingListDB() {
       ingredient_id: dbItem.ingredient_id,
       category: dbItem.category || null,
       created_at: dbItem.created_at,
-      updated_at: dbItem.updated_at
+      updated_at: dbItem.updated_at,
     }
-  }, [])
+  }
 
   /**
    * Fetch all items for a user
    */
-  const fetchUserItems = useCallback(async (userId: string): Promise<ShoppingListItem[]> => {
-    const { data, error } = await supabase
-      .from("shopping_list_items")
+  async fetchUserItems(userId: string): Promise<ShoppingListItem[]> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: true })
 
     if (error) throw error
-    return (data || []).map(mapShoppingItem)
-  }, [mapShoppingItem])
+    return (data || []).map((item) => this.map(item))
+  }
 
   /**
    * Insert a new item
    */
-  const insertItem = useCallback(async (item: Partial<ShoppingListItem>) => {
+  async insertItem(item: Partial<ShoppingListItem>): Promise<ShoppingListItem> {
     console.log("[Shopping List DB] Attempting to insert item:", item)
-    const { data, error } = await supabase
-      .from("shopping_list_items")
-      .insert(item)
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .insert(item as any)
       .select("*")
       .single()
 
@@ -62,39 +87,42 @@ export function useShoppingListDB() {
       throw error
     }
     console.log("[Shopping List DB] Insert successful, returned data:", data)
-    return mapShoppingItem(data)
-  }, [mapShoppingItem])
+    return this.map(data)
+  }
 
   /**
    * Update an existing item
    */
-  const updateItem = useCallback(async (id: string, updates: Partial<ShoppingListItem>) => {
-    const { data, error } = await supabase
-      .from("shopping_list_items")
-      .update(updates)
+  async updateItem(id: string, updates: Partial<ShoppingListItem>): Promise<ShoppingListItem> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      } as any)
       .eq("id", id)
       .select("*")
       .single()
 
     if (error) throw error
-    return mapShoppingItem(data)
-  }, [mapShoppingItem])
+    return this.map(data)
+  }
 
   /**
    * Bulk upsert items (for recipes with multiple ingredients)
    * Note: Since recipe items are typically added after removing old ones,
    * we use insert which is simpler and avoids constraint issues.
    */
-  const upsertItems = useCallback(async (items: Partial<ShoppingListItem>[]) => {
+  async upsertItems(items: Partial<ShoppingListItem>[]): Promise<ShoppingListItem[]> {
     if (!items || items.length === 0) {
       console.warn("[Shopping List DB] upsertItems called with empty items array")
       return []
     }
 
     console.log("[Shopping List DB] Inserting items:", items)
-    const { data, error } = await supabase
-      .from("shopping_list_items")
-      .insert(items)
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .insert(items as any)
       .select("*")
 
     if (error) {
@@ -102,93 +130,79 @@ export function useShoppingListDB() {
       throw error
     }
     console.log("[Shopping List DB] Insert successful, returned data:", data)
-    return (data || []).map(mapShoppingItem)
-  }, [mapShoppingItem])
+    return (data || []).map((item) => this.map(item))
+  }
 
   /**
    * Delete a single item
    */
-  const deleteItem = useCallback(async (id: string) => {
-    const { error } = await supabase
-      .from("shopping_list_items")
-      .delete()
-      .eq("id", id)
+  async deleteItem(id: string): Promise<void> {
+    const { error } = await this.supabase.from(this.tableName).delete().eq("id", id)
 
     if (error) throw error
-  }, [])
+  }
 
   /**
    * Delete all items for a recipe
    */
-  const deleteRecipeItems = useCallback(async (userId: string, recipeId: string) => {
-    const { error } = await supabase
-      .from("shopping_list_items")
+  async deleteRecipeItems(userId: string, recipeId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from(this.tableName)
       .delete()
       .eq("recipe_id", recipeId)
       .eq("user_id", userId)
 
     if (error) throw error
-  }, [])
+  }
 
   /**
    * Delete multiple items by their IDs (batch operation)
    */
-  const deleteBatch = useCallback(async (ids: string[]) => {
+  async deleteBatch(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) {
       return
     }
 
-    const { error } = await supabase
-      .from("shopping_list_items")
-      .delete()
-      .in("id", ids)
+    const { error } = await this.supabase.from(this.tableName).delete().in("id", ids)
 
     if (error) throw error
-  }, [])
+  }
 
   /**
    * Batch update multiple items using a single bulk operation
    * Groups updates by common fields to minimize API calls
    */
-  const batchUpdateItems = useCallback(async (updates: Array<{ id: string; changes: Partial<ShoppingListItem> }>) => {
+  async batchUpdateItems(
+    updates: Array<{ id: string; changes: Partial<ShoppingListItem> }>
+  ): Promise<ShoppingListItem[]> {
     if (!updates || updates.length === 0) {
       return []
     }
 
     // If all updates have identical changes, do a single bulk update
     const firstChanges = updates[0].changes
-    const allIdentical = updates.every(u =>
-      JSON.stringify(u.changes) === JSON.stringify(firstChanges)
-    )
+    const allIdentical = updates.every((u) => JSON.stringify(u.changes) === JSON.stringify(firstChanges))
 
     if (allIdentical && updates.length > 1) {
-      const ids = updates.map(u => u.id)
-      const { data, error } = await supabase
-        .from("shopping_list_items")
-        .update(firstChanges)
+      const ids = updates.map((u) => u.id)
+      const { data, error } = await this.supabase
+        .from(this.tableName)
+        .update({
+          ...firstChanges,
+          updated_at: new Date().toISOString(),
+        } as any)
         .in("id", ids)
         .select("*")
 
       if (error) throw error
-      return (data || []).map(mapShoppingItem)
+      return (data || []).map((item) => this.map(item))
     }
 
     // Otherwise, execute updates in parallel
-    const results = await Promise.all(
-      updates.map(({ id, changes }) => updateItem(id, changes))
-    )
+    const results = await Promise.all(updates.map(({ id, changes }) => this.updateItem(id, changes)))
     return results
-  }, [updateItem, mapShoppingItem])
-
-  return useMemo(() => ({
-    mapShoppingItem,
-    fetchUserItems,
-    insertItem,
-    updateItem,
-    upsertItems,
-    deleteItem,
-    deleteRecipeItems,
-    deleteBatch,
-    batchUpdateItems
-  }), [mapShoppingItem, fetchUserItems, insertItem, updateItem, upsertItems, deleteItem, deleteRecipeItems, deleteBatch, batchUpdateItems])
+  }
 }
+
+// Export singleton instance
+export const shoppingListDB = ShoppingListTable.getInstance()

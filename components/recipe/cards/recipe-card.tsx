@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
-import { useRecipeDB } from "@/lib/database/recipe-db"
+import { recipeDB } from "@/lib/database/recipe-db"
 import { Recipe, RecipeTags } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import { useDraggable } from "@dnd-kit/core"
@@ -54,7 +54,6 @@ function RecipeCardComponent({
   getDraggableProps,
   ...rest
 }: RecipeCardProps) {
-  const { updateRecipeRating } = useRecipeDB()
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
@@ -157,7 +156,7 @@ function RecipeCardComponent({
   const updateRating = async (newRating: number) => {
     try {
       const newCount = (rating_avg ? 1 : 0)
-      await updateRecipeRating(id, newRating, newCount)
+      await recipeDB.updateRecipeRating(id, newRating, newCount)
     } catch (error) {
       console.error("Error updating recipe rating:", error)
       toast({

@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import { useMealPlannerDB } from "@/lib/database/meal-planner-db"
+import { mealPlannerDB } from "@/lib/database/meal-planner-db"
+import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import type { Recipe } from "@/lib/types"
 
 export function useMealPlannerRecipes(userId: string | undefined) {
-  const db = useMealPlannerDB()
   const [favoriteRecipes, setFavoriteRecipes] = useState<Recipe[]>([])
   const [suggestedRecipes, setSuggestedRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(false)
@@ -18,7 +18,7 @@ export function useMealPlannerRecipes(userId: string | undefined) {
     try {
       loadingRef.current.favorites = true
       setLoading(true)
-      const recipes = await db.fetchFavoriteRecipes(userId)
+      const recipes = await recipeFavoritesDB.fetchFavoriteRecipes(userId)
       setFavoriteRecipes(recipes)
     } catch (error) {
       console.error("[Meal Planner Recipes Hook] Error loading favorite recipes:", error)
@@ -35,7 +35,7 @@ export function useMealPlannerRecipes(userId: string | undefined) {
     try {
       loadingRef.current.suggested = true
       setLoading(true)
-      const recipes = await db.fetchSuggestedRecipes(20)
+      const recipes = await mealPlannerDB.fetchSuggestedRecipes(20)
       setSuggestedRecipes(recipes)
     } catch (error) {
       console.error("[Meal Planner Recipes Hook] Error loading suggested recipes:", error)

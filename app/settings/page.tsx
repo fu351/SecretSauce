@@ -12,7 +12,7 @@ import { useTutorial } from "@/contexts/tutorial-context"
 import { useRouter } from "next/navigation"
 import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen, Camera, Mail, Lock, UserCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { useProfileDB } from "@/lib/database/profile-db"
+import { profileDB } from "@/lib/database/profile-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
 import type { Database } from "@/lib/supabase"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
@@ -29,7 +29,6 @@ export default function SettingsPage() {
   const { tutorialCompleted: contextTutorialCompleted, tutorialCompletedAt: contextTutorialCompletedAt } = useTutorial()
   const router = useRouter()
   const { toast } = useToast()
-  const profileDB = useProfileDB()
   const [mounted, setMounted] = useState(false)
 
   // Profile state

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
-import { supabase } from "@/lib/supabase"
+import { recipeDB } from "@/lib/database/recipe-db"
 import type { ShoppingListItem } from "@/lib/types/store"
 
 /**
@@ -14,14 +14,18 @@ export function useRecipeCart() {
    * Fetch a recipe's details (servings and ingredients)
    */
   const fetchRecipeDetails = useCallback(async (recipeId: string) => {
-    const { data, error } = await supabase
-      .from("recipes")
-      .select("id, title, servings, ingredients")
-      .eq("id", recipeId)
-      .single()
+    const recipe = await recipeDB.fetchRecipeById(recipeId)
 
-    if (error) throw error
-    return data
+    if (!recipe) {
+      throw new Error("Recipe not found")
+    }
+
+    return {
+      id: recipe.id,
+      title: recipe.title,
+      servings: recipe.servings,
+      ingredients: recipe.ingredients
+    }
   }, [])
 
   /**

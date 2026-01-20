@@ -17,6 +17,9 @@ const WEEKLY_STAT_FIELDS = [
 ] as const
 
 export function NutritionSummaryCard({ weeklyTotals, weeklyAverages }: NutritionSummaryCardProps) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
+
   return (
     <div className="rounded-2xl bg-card/60 shadow-sm p-2.5 md:p-3 transition-colors">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4" data-tutorial="planner-macros">

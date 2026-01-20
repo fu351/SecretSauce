@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import { useRecipe, useStandardizeRecipeIngredients } from "@/hooks"
-import { useRecipeDB } from "@/lib/database/recipe-db"
+import { recipeDB } from "@/lib/database/recipe-db"
 import { uploadRecipeImage } from "@/lib/image-helper"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
 import type { RecipeSubmissionData, ImportedRecipe } from "@/lib/types"
@@ -23,8 +23,6 @@ export default function EditRecipePage() {
   // Use React Query hook for data fetching
   const { data: recipe, isLoading } = useRecipe(recipeId || null)
 
-  // Use recipe-db hook for mutations
-  const { updateRecipe, deleteRecipe } = useRecipeDB()
 
   // Use standardize ingredients mutation
   const standardizeMutation = useStandardizeRecipeIngredients()
@@ -79,7 +77,7 @@ export default function EditRecipePage() {
       }
 
       // Update using recipe-db
-      await updateRecipe(recipeId, recipeData)
+      await recipeDB.updateRecipe(recipeId, recipeData)
 
       // Invalidate cache
       await queryClient.invalidateQueries({ queryKey: ["recipe", recipeId] })
@@ -111,7 +109,7 @@ export default function EditRecipePage() {
 
     setDeleting(true)
     try {
-      await deleteRecipe(recipeId)
+      await recipeDB.deleteRecipe(recipeId)
 
       // Invalidate cache
       await queryClient.invalidateQueries({ queryKey: ["recipes"] })

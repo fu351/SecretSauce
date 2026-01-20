@@ -1,11 +1,10 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import { useMealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
+import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
 
 export function useMealPlanner(userId: string | undefined, dates: string[]) {
-  const db = useMealPlannerDB()
   const [meals, setMeals] = useState<MealScheduleRow[]>([])
   const [recipesById, setRecipesById] = useState<Record<string, Recipe>>({})
   const [loading, setLoading] = useState(false)
@@ -53,7 +52,7 @@ export function useMealPlanner(userId: string | undefined, dates: string[]) {
       // Fetch all new ranges
       const newMeals: MealScheduleRow[] = []
       for (const range of rangesToFetch) {
-        const mealSchedule = await db.fetchMealScheduleByDateRange(userId, range.start, range.end)
+        const mealSchedule = await mealPlannerDB.fetchMealScheduleByDateRange(userId, range.start, range.end)
         if (mealSchedule) {
           newMeals.push(...mealSchedule)
         }
@@ -69,7 +68,7 @@ export function useMealPlanner(userId: string | undefined, dates: string[]) {
       // Fetch recipes for new meals
       const newRecipeIds = Array.from(new Set(newMeals.map((m) => m.recipe_id)))
       if (newRecipeIds.length > 0) {
-        const recipes = await db.fetchRecipesByIds(newRecipeIds)
+        const recipes = await mealPlannerDB.fetchRecipesByIds(newRecipeIds)
         setRecipesById((prev) => {
           const updated = { ...prev }
           recipes.forEach((r) => {
@@ -97,7 +96,7 @@ export function useMealPlanner(userId: string | undefined, dates: string[]) {
       if (!userId) return
 
       try {
-        const result = await db.addMealToSchedule(userId, recipe.id, date, mealType as "breakfast" | "lunch" | "dinner")
+        const result = await mealPlannerDB.addMealToSchedule(userId, recipe.id, date, mealType as "breakfast" | "lunch" | "dinner")
 
         if (result) {
           // Update local state optimistically
@@ -117,7 +116,7 @@ export function useMealPlanner(userId: string | undefined, dates: string[]) {
       if (!userId) return
 
       try {
-        const success = await db.removeMealSlot(userId, date, mealType as "breakfast" | "lunch" | "dinner")
+        const success = await mealPlannerDB.removeMealSlot(userId, date, mealType as "breakfast" | "lunch" | "dinner")
 
         if (success) {
           // Update local state optimistically

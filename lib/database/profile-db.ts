@@ -1,13 +1,7 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
-import { supabase } from "@/lib/supabase"
+import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/supabase"
-
-/**
- * Universal database operations for user profiles
- * Separated from state management for reusability across different components
- */
 
 // Type aliases for clarity and maintainability
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"]
@@ -20,12 +14,30 @@ export type ProfileMinimal = Pick<ProfileRow, "id" | "email" | "full_name">
 // Export full profile type for convenience
 export type Profile = ProfileRow
 
-export function useProfileDB() {
+/**
+ * Database operations for user profiles
+ * Singleton class extending BaseTable with specialized profile operations
+ */
+class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, ProfileUpdate> {
+  private static instance: ProfileTable | null = null
+  readonly tableName = "profiles" as const
+
+  private constructor() {
+    super()
+  }
+
+  static getInstance(): ProfileTable {
+    if (!ProfileTable.instance) {
+      ProfileTable.instance = new ProfileTable()
+    }
+    return ProfileTable.instance
+  }
+
   /**
    * Map raw database profile to typed Profile
    * Ensures all fields have proper defaults and types
    */
-  const mapProfile = useCallback((dbItem: any): Profile => {
+  protected map(dbItem: any): Profile {
     return {
       id: dbItem.id,
       email: dbItem.email,
@@ -34,28 +46,39 @@ export function useProfileDB() {
       cooking_level: dbItem.cooking_level ?? null,
       budget_range: dbItem.budget_range ?? null,
       dietary_preferences: dbItem.dietary_preferences ?? null,
+      primary_goal: dbItem.primary_goal ?? null,
+      created_at: dbItem.created_at ?? null,
+      updated_at: dbItem.updated_at ?? null,
       cuisine_preferences: dbItem.cuisine_preferences ?? [],
+      cooking_time_preference: dbItem.cooking_time_preference ?? null,
       postal_code: dbItem.postal_code ?? null,
       grocery_distance_miles: dbItem.grocery_distance_miles ?? 10,
       theme_preference: dbItem.theme_preference ?? "dark",
+      tutorial_completed: dbItem.tutorial_completed ?? false,
+      tutorial_completed_at: dbItem.tutorial_completed_at ?? null,
+      tutorial_path: dbItem.tutorial_path ?? null,
       formatted_address: dbItem.formatted_address ?? null,
+      address_line1: dbItem.address_line1 ?? null,
+      address_line2: dbItem.address_line2 ?? null,
+      city: dbItem.city ?? null,
+      state: dbItem.state ?? null,
+      country: dbItem.country ?? null,
       latitude: dbItem.latitude ?? null,
       longitude: dbItem.longitude ?? null,
-      tutorial_completed: dbItem.tutorial_completed ?? false,
-      created_at: dbItem.created_at,
-      updated_at: dbItem.updated_at
+      email_verified: dbItem.email_verified ?? null,
     }
-  }, [])
+  }
 
   /**
+   * Override findById with special PGRST116 handling
    * Fetch complete profile by user ID
    * Used by AuthContext, Settings page, and other components needing full profile data
    */
-  const fetchProfileById = useCallback(async (userId: string): Promise<Profile | null> => {
+  async findById(userId: string): Promise<Profile | null> {
     console.log("[Profile DB] Fetching profile for user:", userId)
 
-    const { data, error } = await supabase
-      .from("profiles")
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select("*")
       .eq("id", userId)
       .single()
@@ -66,32 +89,39 @@ export function useProfileDB() {
         console.warn("[Profile DB] Profile not found for user:", userId)
         return null
       }
-      console.warn("[Profile DB] Error fetching profile:", error.message)
+      this.handleError(error, `findById(${userId})`)
       return null
     }
 
-    return data ? mapProfile(data) : null
-  }, [mapProfile])
+    return data ? this.map(data) : null
+  }
+
+  /**
+   * Alias for findById to maintain backwards compatibility
+   */
+  async fetchProfileById(userId: string): Promise<Profile | null> {
+    return this.findById(userId)
+  }
 
   /**
    * Fetch profile by email (for onboarding flow before authentication)
    */
-  const fetchProfileByEmail = useCallback(async (email: string): Promise<Profile | null> => {
+  async fetchProfileByEmail(email: string): Promise<Profile | null> {
     console.log("[Profile DB] Fetching profile by email")
 
-    const { data, error } = await supabase
-      .from("profiles")
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select("*")
       .eq("email", email)
       .maybeSingle()
 
     if (error) {
-      console.warn("[Profile DB] Error fetching profile by email:", error.message)
+      this.handleError(error, "fetchProfileByEmail")
       return null
     }
 
-    return data ? mapProfile(data) : null
-  }, [mapProfile])
+    return data ? this.map(data) : null
+  }
 
   /**
    * Fetch specific profile fields (optimized for performance)
@@ -99,25 +129,25 @@ export function useProfileDB() {
    * @param userId - User ID to fetch
    * @param fields - Array of field names to select
    */
-  const fetchProfileFields = useCallback(async <T extends keyof ProfileRow>(
+  async fetchProfileFields<T extends keyof ProfileRow>(
     userId: string,
     fields: T[]
-  ): Promise<Pick<ProfileRow, T> | null> => {
+  ): Promise<Pick<ProfileRow, T> | null> {
     console.log("[Profile DB] Fetching profile fields:", fields)
 
-    const { data, error } = await supabase
-      .from("profiles")
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select(fields.join(", "))
       .eq("id", userId)
       .maybeSingle()
 
     if (error) {
-      console.warn("[Profile DB] Error fetching profile fields:", error.message)
+      this.handleError(error, "fetchProfileFields")
       return null
     }
 
     return data as Pick<ProfileRow, T> | null
-  }, [])
+  }
 
   /**
    * Batch fetch multiple profiles (for reviews, comments, etc.)
@@ -125,10 +155,10 @@ export function useProfileDB() {
    * @param userIds - Array of user IDs
    * @param fields - Optional fields to select (defaults to minimal set for reviews)
    */
-  const fetchProfilesBatch = useCallback(async (
+  async fetchProfilesBatch(
     userIds: string[],
     fields: string[] = ["id", "email", "full_name"]
-  ): Promise<ProfileMinimal[]> => {
+  ): Promise<ProfileMinimal[]> {
     if (!userIds || userIds.length === 0) {
       console.warn("[Profile DB] fetchProfilesBatch called with empty userIds")
       return []
@@ -136,73 +166,49 @@ export function useProfileDB() {
 
     console.log("[Profile DB] Batch fetching profiles:", userIds.length)
 
-    const { data, error } = await supabase
-      .from("profiles")
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select(fields.join(", "))
       .in("id", userIds)
 
     if (error) {
-      console.warn("[Profile DB] Error batch fetching profiles:", error.message)
+      this.handleError(error, "fetchProfilesBatch")
       return []
     }
 
     return (data || []) as ProfileMinimal[]
-  }, [])
+  }
 
   /**
    * Create a new profile (INSERT)
    * Used as fallback when database trigger fails to create profile
    */
-  const createProfile = useCallback(async (
-    profileData: ProfileInsert
-  ): Promise<Profile | null> => {
+  async createProfile(profileData: ProfileInsert): Promise<Profile | null> {
     console.log("[Profile DB] Creating profile for:", profileData.email)
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert(profileData)
-      .select("*")
-      .single()
-
-    if (error) {
-      console.error("[Profile DB] Error creating profile:", error)
-      return null
-    }
-
-    console.log("[Profile DB] Profile created successfully")
-    return data ? mapProfile(data) : null
-  }, [mapProfile])
+    return this.create(profileData)
+  }
 
   /**
-   * Update existing profile (UPDATE)
-   * Automatically includes updated_at timestamp
+   * Override update to automatically include updated_at timestamp
    * @param userId - User ID to update
    * @param updates - Partial profile updates
    */
-  const updateProfile = useCallback(async (
-    userId: string,
-    updates: ProfileUpdate
-  ): Promise<Profile | null> => {
+  async update(userId: string, updates: ProfileUpdate): Promise<Profile | null> {
     console.log("[Profile DB] Updating profile:", userId)
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", userId)
-      .select("*")
-      .single()
+    return super.update(userId, {
+      ...updates,
+      updated_at: new Date().toISOString(),
+    } as ProfileUpdate)
+  }
 
-    if (error) {
-      console.error("[Profile DB] Error updating profile:", error)
-      return null
-    }
-
-    console.log("[Profile DB] Profile updated successfully")
-    return data ? mapProfile(data) : null
-  }, [mapProfile])
+  /**
+   * Update existing profile (UPDATE)
+   * Alias for update method
+   */
+  async updateProfile(userId: string, updates: ProfileUpdate): Promise<Profile | null> {
+    return this.update(userId, updates)
+  }
 
   /**
    * Upsert profile (INSERT or UPDATE)
@@ -211,33 +217,34 @@ export function useProfileDB() {
    * @param profileData - Profile data to insert/update (id optional when using onConflict)
    * @param options - Optional upsert options (e.g., onConflict)
    */
-  const upsertProfile = useCallback(async (
+  async upsertProfile(
     profileData: Partial<ProfileInsert> & { email: string },
     options?: { onConflict?: string }
-  ): Promise<Profile | null> => {
+  ): Promise<Profile | null> {
     console.log("[Profile DB] Upserting profile")
 
-    const upsertOptions = options?.onConflict
-      ? { onConflict: options.onConflict }
-      : undefined
+    const upsertOptions = options?.onConflict ? { onConflict: options.onConflict } : undefined
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .upsert({
-        ...profileData,
-        updated_at: new Date().toISOString()
-      }, upsertOptions)
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .upsert(
+        {
+          ...profileData,
+          updated_at: new Date().toISOString(),
+        } as any,
+        upsertOptions
+      )
       .select("*")
       .single()
 
     if (error) {
-      console.error("[Profile DB] Error upserting profile:", error)
+      this.handleError(error, "upsertProfile")
       return null
     }
 
     console.log("[Profile DB] Profile upserted successfully")
-    return data ? mapProfile(data) : null
-  }, [mapProfile])
+    return data ? this.map(data) : null
+  }
 
   /**
    * Update tutorial completion status
@@ -245,48 +252,32 @@ export function useProfileDB() {
    * @param userId - User ID
    * @param tutorialPath - Tutorial path (cooking, budgeting, health)
    */
-  const updateTutorialCompletion = useCallback(async (
+  async updateTutorialCompletion(
     userId: string,
     tutorialPath: ProfileRow["tutorial_path"]
-  ): Promise<boolean> => {
+  ): Promise<boolean> {
     console.log("[Profile DB] Updating tutorial completion")
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        tutorial_completed: true,
-        updated_at: new Date().toISOString()
-      })
+    const updateData: Partial<ProfileUpdate> = {
+      tutorial_completed: true,
+      tutorial_completed_at: new Date().toISOString(),
+      tutorial_path: tutorialPath,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { error } = await (this.supabase.from(this.tableName) as any)
+      .update(updateData)
       .eq("id", userId)
 
     if (error) {
-      console.error("[Profile DB] Error updating tutorial completion:", error)
+      this.handleError(error, "updateTutorialCompletion")
       return false
     }
 
     console.log("[Profile DB] Tutorial completion updated successfully")
     return true
-  }, [])
-
-  return useMemo(() => ({
-    mapProfile,
-    fetchProfileById,
-    fetchProfileByEmail,
-    fetchProfileFields,
-    fetchProfilesBatch,
-    createProfile,
-    updateProfile,
-    upsertProfile,
-    updateTutorialCompletion
-  }), [
-    mapProfile,
-    fetchProfileById,
-    fetchProfileByEmail,
-    fetchProfileFields,
-    fetchProfilesBatch,
-    createProfile,
-    updateProfile,
-    upsertProfile,
-    updateTutorialCompletion
-  ])
+  }
 }
+
+// Export singleton instance
+export const profileDB = ProfileTable.getInstance()

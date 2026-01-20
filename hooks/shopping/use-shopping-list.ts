@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "../ui/use-toast"
-import { useShoppingListDB } from "@/lib/database/store-list-db"
+import { shoppingListDB } from "@/lib/database/store-list-db"
 import { useShoppingListItems } from "./use-shopping-list-items"
 import { useShoppingListRecipes } from "./use-shopping-list-recipes"
 import type { ShoppingListItem } from "@/lib/types/store"
@@ -26,7 +26,6 @@ import type { ShoppingListItem } from "@/lib/types/store"
 export function useShoppingList() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const db = useShoppingListDB()
 
   const [items, setItems] = useState<ShoppingListItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -41,7 +40,7 @@ export function useShoppingList() {
 
     setLoading(true)
     try {
-      const loadedItems = await db.fetchUserItems(user.id)
+      const loadedItems = await shoppingListDB.fetchUserItems(user.id)
       setItems(loadedItems)
       setHasChanges(false)
     } catch (error) {
@@ -50,7 +49,7 @@ export function useShoppingList() {
     } finally {
       setLoading(false)
     }
-  }, [user, toast, db])
+  }, [user, toast])
 
   // Compose sub-hooks for item and recipe operations
   const itemOperations = useShoppingListItems(items, setItems, setHasChanges, user?.id ?? null)

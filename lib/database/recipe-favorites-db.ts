@@ -1,7 +1,6 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
-import { supabase } from "@/lib/supabase"
+import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/supabase"
 import type { Recipe } from "@/lib/types"
 
@@ -10,20 +9,38 @@ export type RecipeFavoriteInsert = Database["public"]["Tables"]["recipe_favorite
 export type RecipeFavoriteUpdate = Database["public"]["Tables"]["recipe_favorites"]["Update"]
 
 /**
- * Universal database operations for recipe favorites
- * Separated from state management for reusability across different components
+ * Database operations for recipe favorites
+ * Singleton class extending BaseTable with specialized favorites operations
  */
+class RecipeFavoritesTable extends BaseTable<
+  "recipe_favorites",
+  RecipeFavoriteRow,
+  RecipeFavoriteInsert,
+  RecipeFavoriteUpdate
+> {
+  private static instance: RecipeFavoritesTable | null = null
+  readonly tableName = "recipe_favorites" as const
 
-export function useRecipeFavoritesDB() {
+  private constructor() {
+    super()
+  }
+
+  static getInstance(): RecipeFavoritesTable {
+    if (!RecipeFavoritesTable.instance) {
+      RecipeFavoritesTable.instance = new RecipeFavoritesTable()
+    }
+    return RecipeFavoritesTable.instance
+  }
+
   /**
    * Fetch user's favorite recipes with full recipe data using relationship join
    */
-  const fetchFavoriteRecipes = useCallback(async (userId: string): Promise<Recipe[]> => {
+  async fetchFavoriteRecipes(userId: string): Promise<Recipe[]> {
     console.log("[Recipe Favorites DB] Fetching favorite recipes for user:", userId)
 
     // Single batch query using relationship join - more efficient than two separate queries
-    const { data, error } = await supabase
-      .from("recipe_favorites")
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select(`
         recipe_id,
         recipes (
@@ -55,7 +72,7 @@ export function useRecipeFavoritesDB() {
         console.log("[Recipe Favorites DB] Favorites table not available or relationship not configured:", error.message)
         return []
       }
-      console.error("[Recipe Favorites DB] Error fetching favorites:", error)
+      this.handleError(error, "fetchFavoriteRecipes")
       return []
     }
 
@@ -94,33 +111,33 @@ export function useRecipeFavoritesDB() {
       }))
 
     return recipes
-  }, [])
+  }
 
   /**
    * Fetch just the favorite recipe IDs for a user (lightweight query)
    */
-  const fetchFavoriteRecipeIds = useCallback(async (userId: string): Promise<string[]> => {
+  async fetchFavoriteRecipeIds(userId: string): Promise<string[]> {
     console.log("[Recipe Favorites DB] Fetching favorite recipe IDs for user:", userId)
 
-    const { data, error } = await supabase
-      .from("recipe_favorites")
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select("recipe_id")
       .eq("user_id", userId)
 
     if (error) {
-      console.error("[Recipe Favorites DB] Error fetching favorite IDs:", error)
+      this.handleError(error, "fetchFavoriteRecipeIds")
       return []
     }
 
     return (data || []).map((item) => item.recipe_id)
-  }, [])
+  }
 
   /**
    * Check if a recipe is favorited by a user
    */
-  const isFavorite = useCallback(async (userId: string, recipeId: string): Promise<boolean> => {
-    const { data, error } = await supabase
-      .from("recipe_favorites")
+  async isFavorite(userId: string, recipeId: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .select("id")
       .eq("user_id", userId)
       .eq("recipe_id", recipeId)
@@ -131,21 +148,21 @@ export function useRecipeFavoritesDB() {
       if (error.code === "PGRST116") {
         return false
       }
-      console.error("[Recipe Favorites DB] Error checking favorite:", error)
+      this.handleError(error, "isFavorite")
       return false
     }
 
     return !!data
-  }, [])
+  }
 
   /**
    * Add a recipe to favorites
    */
-  const addFavorite = useCallback(async (userId: string, recipeId: string): Promise<RecipeFavoriteRow | null> => {
+  async addFavorite(userId: string, recipeId: string): Promise<RecipeFavoriteRow | null> {
     console.log("[Recipe Favorites DB] Adding favorite:", { userId, recipeId })
 
-    const { data, error } = await supabase
-      .from("recipe_favorites")
+    const { data, error } = await this.supabase
+      .from(this.tableName)
       .insert({
         user_id: userId,
         recipe_id: recipeId,
@@ -159,83 +176,70 @@ export function useRecipeFavoritesDB() {
         console.log("[Recipe Favorites DB] Recipe already favorited")
         return null
       }
-      console.error("[Recipe Favorites DB] Error adding favorite:", error)
+      this.handleError(error, "addFavorite")
       return null
     }
 
     console.log("[Recipe Favorites DB] Favorite added successfully")
     return data
-  }, [])
+  }
 
   /**
    * Remove a recipe from favorites
    */
-  const removeFavorite = useCallback(async (userId: string, recipeId: string): Promise<boolean> => {
+  async removeFavorite(userId: string, recipeId: string): Promise<boolean> {
     console.log("[Recipe Favorites DB] Removing favorite:", { userId, recipeId })
 
-    const { error } = await supabase
-      .from("recipe_favorites")
+    const { error } = await this.supabase
+      .from(this.tableName)
       .delete()
       .eq("user_id", userId)
       .eq("recipe_id", recipeId)
 
     if (error) {
-      console.error("[Recipe Favorites DB] Error removing favorite:", error)
+      this.handleError(error, "removeFavorite")
       return false
     }
 
     console.log("[Recipe Favorites DB] Favorite removed successfully")
     return true
-  }, [])
+  }
 
   /**
    * Toggle favorite status for a recipe
    */
-  const toggleFavorite = useCallback(
-    async (userId: string, recipeId: string): Promise<boolean> => {
-      const isCurrentlyFavorite = await isFavorite(userId, recipeId)
+  async toggleFavorite(userId: string, recipeId: string): Promise<boolean> {
+    const isCurrentlyFavorite = await this.isFavorite(userId, recipeId)
 
-      if (isCurrentlyFavorite) {
-        await removeFavorite(userId, recipeId)
-        return false
-      } else {
-        await addFavorite(userId, recipeId)
-        return true
-      }
-    },
-    [isFavorite, removeFavorite, addFavorite]
-  )
+    if (isCurrentlyFavorite) {
+      await this.removeFavorite(userId, recipeId)
+      return false
+    } else {
+      await this.addFavorite(userId, recipeId)
+      return true
+    }
+  }
 
   /**
    * Remove all favorites for a user
    */
-  const clearAllFavorites = useCallback(async (userId: string): Promise<boolean> => {
+  async clearAllFavorites(userId: string): Promise<boolean> {
     console.log("[Recipe Favorites DB] Clearing all favorites for user:", userId)
 
-    const { error } = await supabase
-      .from("recipe_favorites")
+    const { error } = await this.supabase
+      .from(this.tableName)
       .delete()
       .eq("user_id", userId)
 
     if (error) {
-      console.error("[Recipe Favorites DB] Error clearing favorites:", error)
+      this.handleError(error, "clearAllFavorites")
       return false
     }
 
     console.log("[Recipe Favorites DB] All favorites cleared successfully")
     return true
-  }, [])
-
-  return useMemo(
-    () => ({
-      fetchFavoriteRecipes,
-      fetchFavoriteRecipeIds,
-      isFavorite,
-      addFavorite,
-      removeFavorite,
-      toggleFavorite,
-      clearAllFavorites,
-    }),
-    [fetchFavoriteRecipes, fetchFavoriteRecipeIds, isFavorite, addFavorite, removeFavorite, toggleFavorite, clearAllFavorites]
-  )
+  }
 }
+
+// Export singleton instance
+export const recipeFavoritesDB = RecipeFavoritesTable.getInstance()

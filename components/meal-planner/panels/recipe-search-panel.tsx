@@ -20,7 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import { useRecipesFiltered, type SortBy } from "@/hooks"
-import { useRecipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
+import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import { useAuth } from "@/contexts/auth-context"
 import { supabase } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
@@ -59,7 +59,6 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   onToggleCollapse,
 }: RecipeSearchPanelProps) {
   const { user } = useAuth()
-  const favoritesDB = useRecipeFavoritesDB()
 
   // Filter state
   const [searchInput, setSearchInput] = useState("")

@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
@@ -17,42 +16,9 @@ import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
 import { TagSelector } from "@/components/recipe/tags/tag-selector"
 import { useShoppingList } from "@/hooks"
-import { useRecipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
-
-interface Ingredient {
-  amount: string
-  unit: string
-  name: string
-}
-
-interface Recipe {
-  id: string
-  title: string
-  prep_time: number
-  cook_time: number
-  servings: number
-  difficulty: string
-  cuisine: string | null
-  protein: string | null
-  meal_type: string | null
-  tags: string[]
-  ingredients: Ingredient[]
-  author_id: string
-  created_at: string
-  rating_avg?: number
-  rating_count?: number
-  content: {
-    description?: string
-    image_url?: string
-    instructions?: any[]
-  }
-  nutrition?: {
-    calories?: number
-    protein?: number
-    carbs?: number
-    fat?: number
-  }
-}
+import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
+import { recipeDB } from "@/lib/database/recipe-db"
+import type { Recipe } from "@/lib/types"
 
 export default function RecipeDetailPage() {
   const params = useParams()
@@ -61,7 +27,6 @@ export default function RecipeDetailPage() {
   const { toast } = useToast()
 
   const { addRecipeToCart } = useShoppingList()
-  const recipeFavoritesDB = useRecipeFavoritesDB()
 
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -139,35 +104,13 @@ export default function RecipeDetailPage() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("recipes")
-        .select("*")
-        .eq("id", params.id)
-        .single()
+      const recipe = await recipeDB.fetchRecipeById(params.id as string)
 
-      if (error) throw error
-
-      const processedRecipe: Recipe = {
-        id: data.id,
-        title: data.title,
-        prep_time: data.prep_time || 0,
-        cook_time: data.cook_time || 0,
-        servings: data.servings || 1,
-        difficulty: data.difficulty || "",
-        cuisine: data.cuisine || null,
-        protein: data.protein || null,
-        meal_type: data.meal_type || null,
-        tags: data.tags || [],
-        ingredients: data.ingredients || [],
-        author_id: data.author_id || "",
-        created_at: data.created_at,
-        rating_avg: data.rating_avg || 0,
-        rating_count: data.rating_count || 0,
-        content: data.content || {},
-        nutrition: data.nutrition || {},
+      if (!recipe) {
+        throw new Error("Recipe not found")
       }
 
-      setRecipe(processedRecipe)
+      setRecipe(recipe)
     } catch (error) {
       console.error("Error loading recipe:", error)
       router.push("/recipes")
@@ -394,18 +337,13 @@ export default function RecipeDetailPage() {
 
                 {/* Tag Display System */}
                 <TagSelector
-                  tags={{
-                    dietary: recipe.tags as any || [],
-                    protein: recipe.protein as any || undefined,
-                    meal_type: recipe.meal_type as any || undefined,
-                    cuisine_guess: undefined,
-                  }}
+                  tags={recipe.tags}
                   mode="view"
                   sections={{
                     tags: true,
                     protein: true,
                     mealType: true,
-                    cuisine: recipe.cuisine ? false : true,
+                    cuisine: recipe.cuisine_name ? false : true,
                   }}
                 />
               </CardContent>

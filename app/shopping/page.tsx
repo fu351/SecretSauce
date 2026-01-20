@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
-import { useProfileDB } from "@/lib/database/profile-db"
+import { profileDB } from "@/lib/database/profile-db"
 import type { GroceryItem } from "@/lib/types/store"
 
 import { useShoppingList } from "@/hooks"
@@ -28,7 +28,6 @@ export default function ShoppingPage() {
   const { theme } = useTheme()
   const { toast } = useToast()
   const searchParams = useSearchParams()
-  const profileDB = useProfileDB()
 
   const [mounted, setMounted] = useState(false)
   const [zipCode, setZipCode] = useState(DEFAULT_SHOPPING_ZIP)

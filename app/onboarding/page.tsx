@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 import { useTutorial } from "@/contexts/tutorial-context"
-import { useProfileDB } from "@/lib/database/profile-db"
+import { profileDB } from "@/lib/database/profile-db"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import type { TutorialPath } from "@/lib/types/tutorial"
 import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS, type DietaryTag, type CuisineType, type DifficultyLevel } from "@/lib/types"
@@ -163,7 +163,6 @@ export default function OnboardingPage() {
   const [activeIndex, setActiveIndex] = useState(0)
   const lastStepIndex = questionOrder.length - 1
   const atLastStep = activeIndex === lastStepIndex
-  const profileDB = useProfileDB()
 
   const router = useRouter()
   const { updateProfile } = useAuth()

@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 import { performanceMonitor } from "@/lib/performance-monitor"
-import { useProfileDB } from "@/lib/database/profile-db"
+import { profileDB } from "@/lib/database/profile-db"
 
 interface AuthContextType {
   user: User | null
@@ -19,9 +19,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const profileDB = useProfileDB()
-  const [user, setUser] = useState<User | null>(null)
+export function AuthProvider({ children }: { children: React.ReactNode }) {  const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const mounted = useRef(true)
