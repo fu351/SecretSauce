@@ -11,10 +11,13 @@ interface RecipeFilters {
   diet?: string
   search?: string
   limit?: number
+  page?: number
+  pageSize?: number
+  favoriteIds?: string[]
 }
 
 /**
- * Fetch recipes with efficient database-level filtering
+ * Fetch recipes with efficient database-level filtering and pagination
  * Uses indexes added in migration 0001_add_recipe_search_indexes.sql
  *
  * Benefits:
@@ -29,14 +32,15 @@ export function useRecipesFiltered(
   sortBy: SortBy = "created_at",
   filters?: RecipeFilters
 ) {
-  const { difficulty, cuisine, diet, search, limit = 50 } = filters || {}
+  const { difficulty, cuisine, diet, search, page = 1, pageSize = 24, favoriteIds } = filters || {}
+  const offset = (page - 1) * pageSize
 
   return useQuery({
-    queryKey: ["recipes", sortBy, difficulty, cuisine, diet, search],
+    queryKey: ["recipes", sortBy, difficulty, cuisine, diet, search, page, pageSize, favoriteIds],
     queryFn: async () => {
       // If search is provided, use search function
       if (search && search.trim()) {
-        return recipeDB.searchRecipes(search, { limit })
+        return recipeDB.searchRecipes(search, { limit: pageSize, offset })
       }
 
       // Otherwise use filtered fetch with categorical filters
@@ -48,7 +52,38 @@ export function useRecipesFiltered(
         difficulty: difficulty && difficulty !== "all" ? difficulty : undefined,
         cuisine: cuisineValue,
         tags,
-        limit
+        favoriteIds,
+        limit: pageSize,
+        offset
+      })
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  })
+}
+
+/**
+ * Fetch total count of recipes matching filters
+ * Used for pagination to calculate total pages
+ */
+export function useRecipesCount(filters?: {
+  difficulty?: string
+  cuisine?: string
+  diet?: string
+  search?: string
+  favoriteIds?: string[]
+}) {
+  const { difficulty, cuisine, diet, search, favoriteIds } = filters || {}
+
+  return useQuery({
+    queryKey: ["recipes", "count", difficulty, cuisine, diet, search, favoriteIds],
+    queryFn: async () => {
+      return recipeDB.fetchRecipesCount({
+        difficulty: difficulty && difficulty !== "all" ? difficulty : undefined,
+        cuisine: cuisine && cuisine !== "all" ? cuisine : undefined,
+        diet: diet && diet !== "all" ? diet : undefined,
+        search: search && search.trim() ? search : undefined,
+        favoriteIds,
       })
     },
     staleTime: 5 * 60 * 1000, // 5 minutes

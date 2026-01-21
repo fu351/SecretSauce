@@ -12,6 +12,7 @@ export { useResponsiveImage } from "./ui/use-responsive-image"
 // Recipe Hooks
 export {
   useRecipesFiltered,
+  useRecipesCount,
   useRecipes,
   useUserRecipes,
   useRecipe,

@@ -101,6 +101,7 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     tags?: string[]
     protein?: string
     mealType?: string
+    favoriteIds?: string[]
     limit?: number
     offset?: number
   }): Promise<Recipe[]> {
@@ -112,6 +113,7 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       tags,
       protein,
       mealType,
+      favoriteIds,
       limit = 50,
       offset = 0,
     } = options || {}
@@ -147,6 +149,11 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     // Apply meal_type filter (uses B-tree index on enum)
     if (mealType) {
       query = query.eq("meal_type", mealType)
+    }
+
+    // Apply favorites filter (server-side filtering by recipe IDs)
+    if (favoriteIds && favoriteIds.length > 0) {
+      query = query.in("id", favoriteIds)
     }
 
     // Apply sorting (uses B-tree indexes)
@@ -477,6 +484,85 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
         return matchesTitle || matchesDescription || matchesIngredient
       })
       .map((item) => this.map(item))
+  }
+
+  /**
+   * Fetch count of recipes matching filters
+   * Used for pagination to calculate total pages
+   */
+  async fetchRecipesCount(options?: {
+    difficulty?: string
+    cuisine?: string
+    search?: string
+    diet?: string
+    favoriteIds?: string[]
+  }): Promise<number> {
+    const { difficulty, cuisine, search, diet, favoriteIds } = options || {}
+
+    let query = this.supabase
+      .from(this.tableName)
+      .select("*", { count: "exact", head: true })
+      .is("deleted_at", null) // Filter soft-deleted recipes
+
+    // Apply same filters as fetchRecipes
+    if (difficulty) {
+      query = query.eq("difficulty", difficulty)
+    }
+
+    if (cuisine) {
+      query = query.eq("cuisine", cuisine)
+    }
+
+    // Apply diet filter (tags array contains dietary tags)
+    if (diet) {
+      query = query.contains("tags", [diet])
+    }
+
+    // Apply favorites filter (server-side filtering by recipe IDs)
+    if (favoriteIds && favoriteIds.length > 0) {
+      query = query.in("id", favoriteIds)
+    }
+
+    // Note: search filter is applied client-side in searchRecipes,
+    // so for count with search, we need a different approach
+    // For now, if search is provided, we'll fetch and count client-side
+    if (search) {
+      const searchQuery = search.toLowerCase()
+      const { data, error } = await this.supabase
+        .from(this.tableName)
+        .select("*")
+        .is("deleted_at", null)
+
+      if (error) {
+        this.handleError(error, "fetchRecipesCount (with search)")
+        return 0
+      }
+
+      const filtered = (data || []).filter((recipe: any) => {
+        const title = recipe.title?.toLowerCase() || ""
+        const content = recipe.content || {}
+        const description = content.description?.toLowerCase() || ""
+
+        const matchesTitle = title.includes(searchQuery)
+        const matchesDescription = description.includes(searchQuery)
+        const matchesIngredient =
+          Array.isArray(recipe.ingredients) &&
+          recipe.ingredients.some((ing: any) => ing.name?.toLowerCase().includes(searchQuery))
+
+        return matchesTitle || matchesDescription || matchesIngredient
+      })
+
+      return filtered.length
+    }
+
+    const { count, error } = await query
+
+    if (error) {
+      this.handleError(error, "fetchRecipesCount")
+      return 0
+    }
+
+    return count || 0
   }
 }
 
