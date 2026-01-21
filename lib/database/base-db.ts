@@ -1,5 +1,3 @@
-"use client"
-
 import { SupabaseClient, PostgrestError } from '@supabase/supabase-js';
 import { supabase, Database } from '@/lib/supabase';
 

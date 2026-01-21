@@ -1,4 +1,3 @@
-"use client"
 
 import { Recipe } from "@/lib/types"
 import type { MealScheduleRow } from "./meal-planner-db"

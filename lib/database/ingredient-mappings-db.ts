@@ -1,4 +1,3 @@
-"use client"
 
 import { BaseTable } from './base-db'
 import type { Database } from '@/lib/supabase'

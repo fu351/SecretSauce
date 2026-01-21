@@ -1,5 +1,3 @@
-"use client"
-
 import { BaseTable } from './base-db'
 import type { Database } from '@/lib/supabase'
 
@@ -65,12 +63,15 @@ class StandardizedIngredientsTable extends BaseTable<
     try {
       console.log(`[StandardizedIngredientsTable] Searching for: ${query}`)
 
-      const { data, error } = await this.supabase
-        .from(this.tableName)
-        .select('*')
-        .textSearch('search_vector', query)
-        .limit(options?.limit || 10)
-
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select('*')
+      // Add the configuration object as the third argument
+      .textSearch('search_vector', query, {
+        config: 'english',
+        type: 'plain' // <--- This is the key change
+      })
+      .limit(options?.limit || 10)
       if (error) {
         this.handleError(error, 'searchByText')
         return []

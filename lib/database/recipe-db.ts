@@ -1,4 +1,3 @@
-"use client"
 
 import { BaseTable } from "./base-db"
 import { Recipe, parseInstructionsFromDB } from "@/lib/types"
