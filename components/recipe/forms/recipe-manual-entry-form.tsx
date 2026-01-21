@@ -39,7 +39,6 @@ export function RecipeManualEntryForm({
   loading,
   initialData,
   mode = "create",
-  recipeId,
   onDelete,
   deleting = false,
 }: RecipeManualEntryFormProps) {
@@ -134,8 +133,8 @@ export function RecipeManualEntryForm({
     }
 
     // Convert string inputs to numbers for submission
-    const parsePrepTime = prep_time.trim() ? Number.parseInt(prep_time) : null
-    const parseCookTime = cook_time.trim() ? Number.parseInt(cook_time) : null
+    const parsePrepTime = prep_time.trim() ? Number.parseInt(prep_time) : 15
+    const parseCookTime = cook_time.trim() ? Number.parseInt(cook_time) : 30
     const parseServings = servings.trim() ? Number.parseInt(servings) : 1
 
     console.log("Form state before submission:", {
@@ -152,9 +151,9 @@ export function RecipeManualEntryForm({
       description,
       image_url: imageUrl || null,
       imageFile: imageFile,
-      prep_time: parsePrepTime !== null ? parsePrepTime : 0,
-      cook_time: parseCookTime !== null ? parseCookTime : 0,
-      servings: parseServings !== null ? parseServings : 1,
+      prep_time: parsePrepTime,
+      cook_time: parseCookTime,
+      servings: parseServings,
       difficulty,
       cuisine: cuisine || null,
       tags,
