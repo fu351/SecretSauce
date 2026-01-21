@@ -72,6 +72,21 @@ export abstract class BaseTable<
     return data ? this.map(data) : null;
   }
 
+  async findByIds(ids: string[]): Promise<TRow[]> {
+    if (ids.length === 0) return [];
+    
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select('*')
+      .in('id', ids);
+    if (error) {
+      this.handleError(error, `findByIds([${ids.join(', ')}])`);
+      return [];
+    }
+
+    return (data || []).map(d => this.map(d));
+  }
+
   /**
    * Fetches all records from the table.
    */

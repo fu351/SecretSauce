@@ -68,7 +68,8 @@ class IngredientCacheTable extends BaseTable<
    */
   async findByStandardizedId(
     standardizedIngredientId: string,
-    stores?: string[]
+    stores?: string[],
+    zipCode?: string | null
   ): Promise<IngredientCacheRow[]> {
     try {
       let query = this.supabase
@@ -80,6 +81,10 @@ class IngredientCacheTable extends BaseTable<
       if (stores && stores.length > 0) {
         const normalizedStores = stores.map(s => this.normalizeStoreName(s))
         query = query.in('store', normalizedStores)
+      }
+
+      if (zipCode) {
+        query = query.eq('zip_code', zipCode)
       }
 
       const { data, error } = await query.order('unit_price', { ascending: true })
@@ -102,7 +107,8 @@ class IngredientCacheTable extends BaseTable<
    */
   async findByStandardizedIds(
     standardizedIngredientIds: string[],
-    stores?: string[]
+    stores?: string[],
+    zipCode?: string | null
   ): Promise<IngredientCacheRow[]> {
     try {
       if (standardizedIngredientIds.length === 0) return []
@@ -116,6 +122,10 @@ class IngredientCacheTable extends BaseTable<
       if (stores && stores.length > 0) {
         const normalizedStores = stores.map(s => this.normalizeStoreName(s))
         query = query.in('store', normalizedStores)
+      }
+
+      if (zipCode) {
+        query = query.eq('zip_code', zipCode)
       }
 
       const { data, error } = await query
@@ -134,7 +144,7 @@ class IngredientCacheTable extends BaseTable<
 
   /**
    * Cache or update a price entry
-   * Upserts based on (standardized_ingredient_id, store) uniqueness
+   * Upserts based on (standardized_ingredient_id, store, zip_code) uniqueness
    * Automatically calculates expires_at based on store-specific TTL
    */
   async cachePrice(
@@ -149,13 +159,14 @@ class IngredientCacheTable extends BaseTable<
       productName?: string | null
       productId?: string | null
       location?: string | null
+      zipCode?: string | null
     }
   ): Promise<IngredientCacheRow | null> {
     try {
       const normalizedStore = this.normalizeStoreName(store)
       const expiresAt = this.calculateExpiresAt(normalizedStore)
 
-      console.log(`[IngredientCacheTable] Caching price for ingredient ${standardizedIngredientId} at ${normalizedStore}`)
+      console.log(`[IngredientCacheTable] Caching price for ingredient ${standardizedIngredientId} at ${normalizedStore}${options?.zipCode ? ` (zip: ${options.zipCode})` : ''}`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)
@@ -171,11 +182,12 @@ class IngredientCacheTable extends BaseTable<
             product_name: options?.productName || null,
             product_id: options?.productId || null,
             location: options?.location || null,
+            zip_code: options?.zipCode || null,
             expires_at: expiresAt,
             updated_at: new Date().toISOString()
           },
           {
-            onConflict: 'standardized_ingredient_id,store'
+            onConflict: 'standardized_ingredient_id,store,zip_code'
           }
         )
         .select()
@@ -210,6 +222,7 @@ class IngredientCacheTable extends BaseTable<
       productName?: string | null
       productId?: string | null
       location?: string | null
+      zipCode?: string | null
     }>
   ): Promise<number> {
     try {
@@ -258,6 +271,7 @@ class IngredientCacheTable extends BaseTable<
       productName?: string | null
       productId?: string | null
       location?: string | null
+      zipCode?: string | null
     }>
   ): Promise<number> {
     try {
@@ -278,6 +292,7 @@ class IngredientCacheTable extends BaseTable<
           product_name: item.productName || null,
           product_id: item.productId || null,
           location: item.location || null,
+          zip_code: item.zipCode || null,
           expires_at: this.calculateExpiresAt(normalizedStore),
           updated_at: new Date().toISOString()
         }
@@ -286,7 +301,7 @@ class IngredientCacheTable extends BaseTable<
       const { data, error } = await this.supabase
         .from(this.tableName)
         .upsert(insertData, {
-          onConflict: 'standardized_ingredient_id,store'
+          onConflict: 'standardized_ingredient_id,store,zip_code'
         })
         .select()
 
@@ -308,7 +323,8 @@ class IngredientCacheTable extends BaseTable<
    */
   async searchByProductName(
     query: string,
-    stores?: string[]
+    stores?: string[],
+    zipCode?: string | null
   ): Promise<IngredientCacheRow[]> {
     try {
       console.log(`[IngredientCacheTable] Searching products: ${query}`)
@@ -322,6 +338,10 @@ class IngredientCacheTable extends BaseTable<
       if (stores && stores.length > 0) {
         const normalizedStores = stores.map(s => this.normalizeStoreName(s))
         dbQuery = dbQuery.in('store', normalizedStores)
+      }
+
+      if (zipCode) {
+        dbQuery = dbQuery.eq('zip_code', zipCode)
       }
 
       const { data, error } = await dbQuery.order('unit_price', { ascending: true })

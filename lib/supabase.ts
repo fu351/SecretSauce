@@ -315,6 +315,7 @@ export type Database = {
           created_at: string | null
           updated_at: string | null
           location: string | null
+          zip_code: string | null
         }
         Insert: {
           id?: string
@@ -331,6 +332,7 @@ export type Database = {
           created_at?: string | null
           updated_at?: string | null
           location?: string | null
+          zip_code?: string | null
         }
         Update: {
           id?: string
@@ -347,6 +349,7 @@ export type Database = {
           created_at?: string | null
           updated_at?: string | null
           location?: string | null
+          zip_code?: string | null
         }
       }
       ingredient_mappings: {
@@ -411,6 +414,8 @@ export type Database = {
           name: string
           quantity: number | null
           unit: string | null
+          standarized_unit: string | null
+          unit_price: number | null
           expiry_date: string | null
           category: string | null
           created_at: string | null

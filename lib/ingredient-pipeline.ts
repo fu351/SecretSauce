@@ -284,10 +284,11 @@ function pickBestScrapedProduct(items: ScraperResult[]): ScraperResult | null {
 async function upsertCacheEntry(
   standardizedIngredientId: string,
   store: string,
-  product: ScraperResult // Assuming the input comes from your scraper
+  product: ScraperResult,
+  zipCode?: string | null
 ): Promise<IngredientCacheRow | null> {
-  
-  // 1. We let the class handle the logic. 
+
+  // 1. We let the class handle the logic.
   // Notice we don't pass 'client' anymore; the singleton handles it.
   const result = await ingredientCacheDB.cachePrice(
     standardizedIngredientId,
@@ -300,7 +301,8 @@ async function upsertCacheEntry(
       imageUrl: product.image_url ?? null,
       productName: product.product_name ?? product.title ?? null,
       productId: product.product_id ? String(product.product_id) : null,
-      location: product.location ?? null
+      location: product.location ?? null,
+      zipCode: zipCode ?? null
     }
   );
 
@@ -382,8 +384,9 @@ export async function getOrRefreshIngredientPricesForStores(
   // 1. Single batched query for all stores using the new class method
   // This automatically filters out expired entries based on your store-specific TTLs
   const cachedItems = await ingredientCacheDB.findByStandardizedId(
-    standardizedIngredientId, 
-    stores
+    standardizedIngredientId,
+    stores,
+    options.zipCode
   )
 
   // Map cached items for quick lookup
@@ -427,7 +430,8 @@ export async function getOrRefreshIngredientPricesForStores(
       imageUrl: bestProduct.image_url,
       productName: bestProduct.product_name || bestProduct.title,
       productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
-      location: bestProduct.location
+      location: bestProduct.location,
+      zipCode: options.zipCode
     }
   })
 
@@ -441,7 +445,8 @@ export async function getOrRefreshIngredientPricesForStores(
       // Refresh results from DB to ensure we have the full rows (with calculated expires_at)
       const freshScrapedData = await ingredientCacheDB.findByStandardizedId(
         standardizedIngredientId,
-        validPayloads.map(p => p.store)
+        validPayloads.map(p => p.store),
+        options.zipCode
       )
       results.push(...freshScrapedData)
     }
@@ -477,7 +482,8 @@ export async function getOrRefreshIngredientPrice(
   // Use the new class method to check for cached result
   const cachedItems = await ingredientCacheDB.findByStandardizedId(
     standardizedIngredientId,
-    [normalizedStore]
+    [normalizedStore],
+    options.zipCode
   )
   const cached = cachedItems[0] || null
 
@@ -543,7 +549,7 @@ export async function getOrRefreshIngredientPrice(
   })
 
   const upsertStart = Date.now()
-  const result = await upsertCacheEntry(standardizedIngredientId, store, bestProduct)
+  const result = await upsertCacheEntry(standardizedIngredientId, store, bestProduct, options.zipCode)
   const totalTime = Date.now() - startTime
 
   console.log("[ingredient-pipeline] getOrRefreshIngredientPrice completed", {
@@ -717,7 +723,7 @@ export async function estimateIngredientCostsForStore(
   const normalizedStore = normalizeStoreName(store);
 
   // 2. Check cache for all items with single bulk query
-  const cachedResults = await ingredientCacheDB.findByStandardizedIds(standardizedIds, [normalizedStore]);
+  const cachedResults = await ingredientCacheDB.findByStandardizedIds(standardizedIds, [normalizedStore], options.zipCode);
   const cachedMap = new Map<string, IngredientCacheRow>();
   cachedResults.forEach(entry => cachedMap.set(entry.standardized_ingredient_id, entry));
 
@@ -749,9 +755,10 @@ export async function estimateIngredientCostsForStore(
         imageUrl: bestProduct.image_url,
         productName: bestProduct.product_name || bestProduct.title,
         productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
-        location: bestProduct.location
+        location: bestProduct.location,
+        zipCode: options.zipCode
       };
-      
+
       newCachePayloads.push(payload);
     });
 
@@ -764,7 +771,7 @@ export async function estimateIngredientCostsForStore(
     if (count > 0) {
       // Re-fetch the newly cached items to get the full DB row
       const newIds = newCachePayloads.map(p => p.standardizedIngredientId);
-      const newEntries = await ingredientCacheDB.findByStandardizedIds(newIds, [normalizedStore]);
+      const newEntries = await ingredientCacheDB.findByStandardizedIds(newIds, [normalizedStore], options.zipCode);
       newEntries.forEach(entry => {
         if (!cachedMap.has(entry.standardized_ingredient_id)) {
           cachedMap.set(entry.standardized_ingredient_id, entry);

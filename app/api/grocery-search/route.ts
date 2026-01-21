@@ -65,12 +65,18 @@ async function scrapeDirectFallback(
 
     if (standardizedIngredientId && supabaseClient) {
       // Single batched query for all stores
-      const { data: cachedItems } = await supabaseClient
+      let query = supabaseClient
         .from("ingredient_cache")
         .select("*")
         .eq("standardized_ingredient_id", standardizedIngredientId)
         .in("store", stores.map(s => s.toLowerCase()))
         .gt("expires_at", new Date().toISOString())
+
+      if (zip) {
+        query = query.eq("zip_code", zip)
+      }
+
+      const { data: cachedItems } = await query
 
       // Build a map of cached stores
       const cachedByStore = new Map<string, any>()
@@ -272,12 +278,13 @@ export async function GET(request: NextRequest) {
               image_url: item.image_url || null,
               product_id: item.id,
               location: item.location || null,
+              zip_code: zipToUse || null,
               expires_at: expires,
             }))
 
             await supabaseClient
               .from("ingredient_cache")
-              .upsert(payloads, { onConflict: "standardized_ingredient_id,store" })
+              .upsert(payloads, { onConflict: "standardized_ingredient_id,store,zip_code" })
 
             console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
           })
@@ -441,6 +448,7 @@ export async function GET(request: NextRequest) {
               image_url: item.image_url || null,
               product_id: item.id,
               location: item.location || null,
+              zip_code: zipToUse || null,
               expires_at: expires,
             }))
 
@@ -457,7 +465,7 @@ export async function GET(request: NextRequest) {
           // Batch upsert all cache entries at once
           const { data, error } = await supabaseClient
             .from("ingredient_cache")
-            .upsert(payloads, { onConflict: "standardized_ingredient_id,store" })
+            .upsert(payloads, { onConflict: "standardized_ingredient_id,store,zip_code" })
             .select("id, store")
 
           if (error) {
