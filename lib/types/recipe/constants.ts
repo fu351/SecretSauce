@@ -1,6 +1,5 @@
-import type { DietaryTag, ProteinTag, MealTypeTag, CuisineType, DifficultyLevel } from './tags'
+import type { DietaryTag, ProteinTag, MealTypeTag, CuisineType, DifficultyLevel, AllergenTag } from './tags'
 import type { Recipe } from './recipe'
-
 
 
 // Finalize constant exports
@@ -12,14 +11,19 @@ export const DIETARY_TAGS: DietaryTag[] = [
   'keto',
   'paleo',
   'low-carb',
+  'other'
+]
+
+export const ALLERGEN_TAGS: AllergenTag[] = [
   'contains-dairy',
   'contains-gluten',
   'contains-nuts',
   'contains-shellfish',
   'contains-egg',
   'contains-soy',
-  'other'
 ]
+
+export const RECIPE_TAGS = [...DIETARY_TAGS, ...ALLERGEN_TAGS] as const
 
 export const PROTEIN_TAGS: ProteinTag[] = [
   'chicken',

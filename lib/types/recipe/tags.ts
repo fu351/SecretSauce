@@ -8,7 +8,7 @@
  *
  * @see DIETARY_TAGS
  */
-export type RecipeTags = DietaryTag[]
+export type RecipeTags = (DietaryTag | AllergenTag)[]
 
 /**
  * Dietary Tag Type - values derived from DIETARY_TAGS constant
@@ -25,13 +25,16 @@ export type DietaryTag =
   | 'keto'
   | 'paleo'
   | 'low-carb'
-  | 'contains-dairy'
-  | 'contains-gluten'
-  | 'contains-nuts'
-  | 'contains-shellfish'
-  | 'contains-egg'
-  | 'contains-soy'
   | 'other'
+
+  // --- Allergen Flags ---
+  export type AllergenTag =
+    | 'contains-dairy'
+    | 'contains-gluten'
+    | 'contains-nuts'
+    | 'contains-shellfish'
+    | 'contains-egg'
+    | 'contains-soy'
 
 /**
  * Protein Tag Type - values derived from PROTEIN_TAGS constant
