@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from "lucide-react"
 import { useIsMobile } from "@/hooks"
 
@@ -17,6 +18,7 @@ interface PlannerActionsProps {
   onGoToToday: () => void
   onPreviousWeek: () => void
   onNextWeek: () => void
+  onClearWeek: () => void
   aiLoading: boolean
 }
 
@@ -26,6 +28,7 @@ export function PlannerActions({
   onGoToToday,
   onPreviousWeek,
   onNextWeek,
+  onClearWeek,
   aiLoading,
 }: PlannerActionsProps) {
   const isMobile = useIsMobile()
@@ -82,7 +85,17 @@ export function PlannerActions({
         <ShoppingCart className="h-4 w-4 mr-2" />
         {isMobile ? "Add to Cart" : "Add to Shopping List"}
       </Button>
+      <Button
+        variant="outline"
+        className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
+        onClick={onClearWeek}
+        disabled={aiLoading}
+      >
+        <Trash2 className="h-4 w-4 mr-2" />
+        {isMobile ? "Clear" : "Clear Week"}
+      </Button>
     </div>
+    
   )
 }
 

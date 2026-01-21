@@ -86,6 +86,27 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
     [userId, loadWeeklyMealPlan]
   )
 
+  const clearWeek = useCallback(
+    async () => {
+      if (!userId || !weekIndex) return false
+
+      try {
+        const success = await mealPlannerDB.clearWeekSchedule(userId, weekIndex)
+
+        if (success) {
+          // Reload data to reflect changes
+          await loadWeeklyMealPlan()
+        }
+
+        return success
+      } catch (error) {
+        console.error("[useWeeklyMealPlan] Error clearing week:", error)
+        throw error
+      }
+    },
+    [userId, weekIndex, loadWeeklyMealPlan]
+  )
+
   useEffect(() => {
     loadWeeklyMealPlan()
   }, [loadWeeklyMealPlan])
@@ -97,5 +118,6 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
     reload: loadWeeklyMealPlan,
     addToMealPlan,
     removeFromMealPlan,
+    clearWeek,
   }
 }

@@ -292,6 +292,30 @@ class MealPlannerTable extends BaseTable<
   }
 
   /**
+   * Clear all meals for a specific week
+   * Invalidates cache after successful deletion
+   */
+  async clearWeekSchedule(userId: string, weekIndex: number): Promise<boolean> {
+    console.log("[Meal Planner DB] Clearing week schedule:", { userId, weekIndex })
+
+    const { error } = await this.supabase
+      .from(this.tableName)
+      .delete()
+      .eq("user_id", userId)
+      .eq("week_index", weekIndex)
+
+    if (error) {
+      this.handleError(error, "clearWeekSchedule")
+      return false
+    }
+
+    // Invalidate meal schedule cache after clearing
+    this.cache.invalidateMealScheduleCache(userId)
+
+    return true
+  }
+
+  /**
    * Fetch user's favorite recipes using batch query with relationship join
    * @deprecated Use recipeFavoritesDB.fetchFavoriteRecipes() instead
    * This method is preserved for backwards compatibility but should be migrated away from

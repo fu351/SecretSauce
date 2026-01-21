@@ -62,6 +62,7 @@ export default function MealPlannerPage() {
     reload: reloadWeeklyPlan,
     addToMealPlan,
     removeFromMealPlan,
+    clearWeek,
   } = useWeeklyMealPlan(user?.id, weekIndex)
 
   const recipes = useMealPlannerRecipes(user?.id)
@@ -130,6 +131,25 @@ export default function MealPlannerPage() {
     const success = await aiPlanner.applyAiPlanToMealPlanner()
     if (success) reloadWeeklyPlan()
   }, [aiPlanner, reloadWeeklyPlan])
+
+  const handleClearWeek = useCallback(async () => {
+    if (!user) return
+    try {
+      const success = await clearWeek()
+      if (success) {
+        toast({
+          title: "Week cleared",
+          description: "All meals for this week have been removed.",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear week",
+        variant: "destructive",
+      })
+    }
+  }, [user, clearWeek, toast])
 
   const openRecipeSelector = useCallback((mealType: string, date: string) => {
     setFocusMode({ mealType, date })
@@ -216,6 +236,7 @@ export default function MealPlannerPage() {
                     onGoToToday={handleGoToToday}
                     onPreviousWeek={handlePreviousWeek}
                     onNextWeek={handleNextWeek}
+                    onClearWeek={handleClearWeek}
                     aiLoading={aiPlanner.aiPlannerLoading}
                   />
                 </div>
