@@ -4,7 +4,7 @@ import React, { useMemo } from "react"
 import { DayCard } from "../cards/day-card"
 import type { MealScheduleRow } from "@/lib/database/meal-planner-db"
 import { getDatesForWeek } from "@/lib/date-utils"
-import type { Recipe, MealWithRecipe } from "@/lib/types"
+import type { Recipe } from "@/lib/types"
 
 interface WeeklyViewProps {
   weekIndex: number
@@ -51,7 +51,7 @@ export function WeeklyView({
 
   // Optimize mealsByDate calculation with better data structure
   const mealsByDate = useMemo(() => {
-    const byDate: Record<string, Record<string, MealWithRecipe>> = {}
+    const byDate: Record<string, Record<string, MealScheduleRow & { recipe: Recipe }>> = {}
 
     if (!meals?.length || !recipesById) return byDate
 

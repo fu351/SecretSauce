@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, memo } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
 import { useRouter } from "next/navigation"
 import {
@@ -45,7 +44,6 @@ const WEEKDAYS_FULL = [
 
 export default function MealPlannerPage() {
   const { user } = useAuth()
-  const { theme } = useTheme()
   const isMobile = useIsMobile()
   const { toast } = useToast()
   const shoppingList = useShoppingList()
@@ -148,12 +146,17 @@ export default function MealPlannerPage() {
   const handleCloseRecipeModal = useCallback(() => setSelectedRecipeId(null), [])
 
   const handleAddToCart = useCallback(async (recipe: Recipe, servings: number) => {
-    if (!user) return
+    if (!user) {
+      toast({ title: "Sign in required", description: "Please sign in to add items to your shopping list.", variant: "destructive" })
+      return
+    }
     try {
       await shoppingList.addRecipeToCart(recipe.id, servings)
-      toast({ title: "Success", description: "Added to shopping list" })
+      toast({ title: "Success", description: `Added ${recipe.title} to shopping list` })
     } catch (e) {
-      toast({ title: "Error", variant: "destructive" })
+      const errorMessage = e instanceof Error ? e.message : "Failed to add recipe to shopping list"
+      console.error("Error adding to cart:", e)
+      toast({ title: "Error", description: errorMessage, variant: "destructive" })
     }
   }, [user, shoppingList, toast])
 
@@ -310,7 +313,6 @@ export default function MealPlannerPage() {
           recipeId={selectedRecipeId}
           onClose={handleCloseRecipeModal}
           onAddToCart={handleAddToCart}
-          theme={theme}
         />
       </div>
 

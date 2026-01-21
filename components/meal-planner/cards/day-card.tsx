@@ -3,7 +3,8 @@
 import { memo } from "react"
 import { MealSlotCard } from "./meal-slot-card"
 import { useTheme } from "@/contexts/theme-context"
-import type { Recipe, MealWithRecipe } from "@/lib/types"
+import type { Recipe } from "@/lib/types"
+import type { MealScheduleRow } from "@/lib/database/meal-planner-db"
 
 const mealTypes = [
   { key: "breakfast", label: "BREAKFAST" },
@@ -15,7 +16,7 @@ const weekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
 
 interface DayCardProps {
   date: Date
-  meals: { [mealType: string]: MealWithRecipe }
+  meals: { [mealType: string]: MealScheduleRow & { recipe: Recipe } }
   onRemove: (mealType: string, date: string) => void
   onAdd: (mealType: string, date: string) => void
   onRecipeClick?: (recipeId: string) => void
@@ -63,7 +64,7 @@ function DayCardComponent({
     >
       <div className="flex items-center gap-2">
         <div
-          className={`rounded-full w-9 h-9 flex items-center justify-center font-semibold text-sm ring-offset-background ${
+          className={`rounded-full w-9 h-9 flex items-center justify-center font-semibold text-sm ring-offset-background flex-shrink-0 ${
             isToday
               ? "bg-accent text-accent-foreground ring-2 ring-accent ring-offset-1"
               : "bg-muted text-muted-foreground"
@@ -71,18 +72,9 @@ function DayCardComponent({
         >
           {dayNumber}
         </div>
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-foreground">
-            {weekdays[dayIndex]}
-          </h2>
-          {isToday && (
-            <span
-              className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-accent/20 text-accent"
-            >
-              Today
-            </span>
-          )}
-        </div>
+        <h2 className="text-lg font-semibold text-foreground">
+          {weekdays[dayIndex]}
+        </h2>
       </div>
 
       <div className="flex flex-col gap-2.5">

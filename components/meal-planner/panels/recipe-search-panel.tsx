@@ -22,9 +22,9 @@ import { formatDietaryTag } from "@/lib/tag-formatter"
 import { useRecipesFiltered, type SortBy } from "@/hooks"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
+import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS } from "@/lib/types/recipe/constants"
 
 interface MealType {
   key: string
@@ -72,8 +72,6 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   // Data state
   const [favoriteRecipes, setFavoriteRecipes] = useState<Recipe[]>([])
   const [loadingFavorites, setLoadingFavorites] = useState(false)
-  const [allCuisines, setAllCuisines] = useState<string[]>([])
-  const [allDietaryTags, setAllDietaryTags] = useState<string[]>([])
 
   // 1. DEBOUNCE SEARCH: Only trigger filter update after user stops typing
   useEffect(() => {
@@ -83,26 +81,9 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
     return () => clearTimeout(handler)
   }, [searchInput])
 
-  // 2. CACHE METADATA: Fetch only once on mount
-  useEffect(() => {
-    const fetchMetadata = async () => {
-      const [{ data: cData }, { data: tData }] = await Promise.all([
-        supabase.from("recipes").select("cuisine").not("cuisine", "is", null),
-        supabase.from("recipes").select("tags").not("tags", "is", null)
-      ])
-      
-      const cuisines = new Set<string>()
-      cData?.forEach((r: any) => r.cuisine && cuisines.add(r.cuisine))
-      setAllCuisines(Array.from(cuisines).sort())
+  // Removed metadata fetching - now using constants from @/lib/types/recipe/constants
 
-      const tags = new Set<string>()
-      tData?.forEach((r: any) => Array.isArray(r.tags) && r.tags.forEach((t: string) => tags.add(t)))
-      setAllDietaryTags(Array.from(tags).sort())
-    }
-    fetchMetadata()
-  }, [])
-
-  // 3. CACHE FAVORITES
+  // 2. CACHE FAVORITES
   useEffect(() => {
     if (user?.id && showFavoritesOnly) {
       let isMounted = true
@@ -203,19 +184,29 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
               <div className="grid gap-4">
                 <FilterSelect label="Difficulty" value={selectedDifficulty} onChange={setSelectedDifficulty}>
                   <SelectItem value="all">All Levels</SelectItem>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="intermediate">Intermediate</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
+                  {DIFFICULTY_LEVELS.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </SelectItem>
+                  ))}
                 </FilterSelect>
 
                 <FilterSelect label="Cuisine" value={selectedCuisine} onChange={setSelectedCuisine}>
                   <SelectItem value="all">All Cuisines</SelectItem>
-                  {allCuisines.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {CUISINE_TYPES.map((cuisine) => (
+                    <SelectItem key={cuisine} value={cuisine}>
+                      {cuisine.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                    </SelectItem>
+                  ))}
                 </FilterSelect>
 
                 <FilterSelect label="Diet" value={selectedDiet} onChange={setSelectedDiet}>
                   <SelectItem value="all">Any Diet</SelectItem>
-                  {allDietaryTags.map((d) => <SelectItem key={d} value={d}>{formatDietaryTag(d)}</SelectItem>)}
+                  {DIETARY_TAGS.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {formatDietaryTag(tag)}
+                    </SelectItem>
+                  ))}
                 </FilterSelect>
 
                 <div className="pt-2 border-t dark:border-neutral-800">

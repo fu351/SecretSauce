@@ -37,6 +37,7 @@ class ShoppingListTable extends BaseTable<
   /**
    * Map raw database item to typed ShoppingListItem
    * Ensures proper type coercion for quantity and servings
+   * Converts null category to "other" to match enum
    */
   protected map(dbItem: any): ShoppingListItem {
     return {
@@ -47,11 +48,11 @@ class ShoppingListTable extends BaseTable<
       unit: dbItem.unit || "piece",
       checked: dbItem.checked || false,
       source_type: dbItem.source_type,
-      recipe_id: dbItem.recipe_id,
+      recipe_id: dbItem.recipe_id || undefined,
       recipe_ingredient_index: dbItem.recipe_ingredient_index,
       servings: dbItem.servings ? Number(dbItem.servings) : undefined,
       ingredient_id: dbItem.ingredient_id,
-      category: dbItem.category || null,
+      category: dbItem.category || "other",
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at,
     }

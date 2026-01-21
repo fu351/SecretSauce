@@ -63,7 +63,8 @@ export function useShoppingListRecipes(
             unit: ing.unit || "piece",
             ingredient_id: ing.standardizedIngredientId,
             checked: false,
-            servings: finalServings
+            servings: finalServings,
+            category: "other"  // Default to "other" to match database enum
           }
         })
 
@@ -195,7 +196,8 @@ export function useShoppingListRecipes(
               unit: ing.unit || "piece",
               ingredient_id: ing.standardizedIngredientId,
               checked: false,
-              servings: finalServings
+              servings: finalServings,
+              category: "other"  // Default to "other" to match database enum
             }
           })
 
