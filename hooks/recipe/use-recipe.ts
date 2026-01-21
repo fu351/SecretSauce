@@ -184,8 +184,8 @@ export function useToggleFavorite() {
         if (!success) throw new Error("Failed to remove favorite")
         return { action: "removed", recipeId }
       } else {
-        const result = await recipeFavoritesDB.addFavorite(userId, recipeId)
-        if (!result) throw new Error("Failed to add favorite")
+        // addFavorite returns null if already favorited (duplicate), which is acceptable
+        await recipeFavoritesDB.addFavorite(userId, recipeId)
         return { action: "added", recipeId }
       }
     },

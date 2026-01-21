@@ -12,7 +12,7 @@ import type { Recipe } from "@/lib/types"
 export interface RecipeListViewProps {
   recipes: Recipe[]
   favorites: Set<string>
-  onFavoriteToggle: (recipeId: string, e: React.MouseEvent) => Promise<void>
+  onFavoriteToggle: (recipeId: string, e?: React.MouseEvent) => Promise<void>
 }
 
 /**

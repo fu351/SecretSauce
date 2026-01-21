@@ -5,7 +5,7 @@ import type { Recipe } from "@/lib/types"
 export interface RecipeGridProps {
   recipes: Recipe[]
   favorites: Set<string>
-  onFavoriteToggle: (recipeId: string, e: React.MouseEvent) => Promise<void>
+  onFavoriteToggle: (recipeId: string, e?: React.MouseEvent) => Promise<void>
   onRecipeClick: (recipeId: string) => void
 }
 
@@ -56,7 +56,7 @@ export const RecipeGrid = memo(function RecipeGrid({
             nutrition={recipe.nutrition}
             initialIsFavorited={favorites.has(recipe.id)}
             skipFavoriteCheck
-            onFavoriteChange={(id, isFav) => onFavoriteToggle(id, {} as React.MouseEvent)}
+            onFavoriteChange={(id, isFav) => onFavoriteToggle(id)}
           />
         </div>
       ))}

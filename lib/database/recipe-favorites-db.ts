@@ -160,21 +160,23 @@ class RecipeFavoritesTable extends BaseTable<
   async addFavorite(userId: string, recipeId: string): Promise<RecipeFavoriteRow | null> {
     console.log("[Recipe Favorites DB] Adding favorite:", { userId, recipeId })
 
-    const { data, error } = await this.supabase
-      .from(this.tableName)
-      .insert({
-        user_id: userId,
-        recipe_id: recipeId,
-      })
+    // Use upsert to avoid duplicate key errors - it will insert or do nothing if exists
+    const { data, error } = await (this.supabase
+      .from(this.tableName) as any)
+      .upsert(
+        {
+          user_id: userId,
+          recipe_id: recipeId,
+        },
+        {
+          onConflict: "recipe_id,user_id",
+          ignoreDuplicates: true,
+        }
+      )
       .select()
-      .single()
+      .maybeSingle()
 
     if (error) {
-      // Duplicate entry is acceptable - just means it's already favorited
-      if (error.code === "23505") {
-        console.log("[Recipe Favorites DB] Recipe already favorited")
-        return null
-      }
       this.handleError(error, "addFavorite")
       return null
     }

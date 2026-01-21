@@ -112,9 +112,9 @@ export default function RecipesPage() {
     [searchParams, router],
   )
 
-  const toggleFavorite = async (recipeId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const toggleFavorite = async (recipeId: string, e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
 
     if (!user) {
       toast({
