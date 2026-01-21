@@ -1,4 +1,4 @@
-import { BaseTable } from "./database/base-db"
+import { from } from "./database/base-db"
 
 
 export interface StorePricing {
@@ -30,8 +30,8 @@ export interface RecipePricingInfo {
 export async function getRecipePricingInfo(recipeId: string): Promise<RecipePricingInfo | null> {
   const now = new Date().toISOString();
 
-  // OPTIMAL: Use the static BaseTable accessor to perform a deep relational join
-  const { data: recipe, error } = await BaseTable.from("recipes")
+  // OPTIMAL: Use the from helper to perform a deep relational join
+  const { data: recipe, error } = await from("recipes")
     .select(`
       title,
       mappings:ingredient_mappings (
@@ -99,7 +99,7 @@ export async function getRecipePricingInfo(recipeId: string): Promise<RecipePric
 }
 /**
  * REFACTORED: Batch Recipe Pricing
- * Uses BaseTable.from to fetch a nested data tree for multiple recipes in one trip.
+ * Uses the from helper to fetch a nested data tree for multiple recipes in one trip.
  */
 export async function getRecipesPricingInfo(recipeIds: string[]): Promise<Map<string, RecipePricingInfo>> {
   const results = new Map<string, RecipePricingInfo>();
@@ -110,7 +110,7 @@ export async function getRecipesPricingInfo(recipeIds: string[]): Promise<Map<st
 
     // 1. SINGLE BATCH JOIN: The Infrastructure Gold Standard
     // We fetch the entire tree: Recipe -> Mappings -> Prices
-    const { data: recipes, error } = await BaseTable.from("recipes")
+    const { data: recipes, error } = await from("recipes")
       .select(`
         id,
         title,
@@ -194,14 +194,14 @@ export async function getRecipeCheapestPrice(recipeId: string): Promise<number |
 
 /**
  * REFACTORED: Check pricing availability
- * Uses BaseTable.from to perform a single-trip relational check.
+ * Uses the from helper to perform a single-trip relational check.
  */
 export async function isRecipePricingAvailable(recipeId: string): Promise<boolean> {
   try {
     const now = new Date().toISOString();
 
     // SINGLE TRIP: Join mappings and prices
-    const { data: mappings, error } = await BaseTable.from("ingredient_mappings")
+    const { data: mappings, error } = await from("ingredient_mappings")
       .select(`
         standardized_ingredient_id,
         prices:ingredient_cache (

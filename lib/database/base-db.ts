@@ -154,3 +154,11 @@ export abstract class BaseTable<
     return supabase.from(tableName);
   }
 }
+
+/**
+ * Standalone helper function for direct query builder access.
+ * Use this instead of BaseTable.from() to avoid bundling issues with static methods.
+ */
+export function from<K extends TableName>(tableName: K) {
+  return supabase.from(tableName);
+}
