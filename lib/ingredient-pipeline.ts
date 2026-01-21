@@ -154,24 +154,6 @@ async function createStandardizedIngredient(
   return ingredient.id
 }
 
-async function ensureIngredientMapping(
-  recipeId: string,
-  originalName: string,
-  standardizedIngredientId: string
-): Promise<void> {
-  // The new class method handles the logic in a single 'upsert' query
-  // which is faster and safer against race conditions.
-  const result = await ingredientMappingsDB.upsertMapping(
-    recipeId,
-    originalName,
-    standardizedIngredientId
-  )
-
-  if (!result) {
-    console.warn(`[ingredient-pipeline] Failed to ensure mapping for ${originalName}`)
-  }
-}
-
 async function loadCanonicalName(
   standardizedIngredientId: string
 ): Promise<string | null> {
@@ -219,92 +201,66 @@ function normalizeZipInput(value?: string | null): string | undefined {
 async function runStoreScraper(
   store: string,
   canonicalName: string,
-  options: StoreLookupOptions = {},
+  options: StoreLookupOptions = {}
 ): Promise<ScraperResult[]> {
-  const normalizedStore = normalizeStoreName(store)
-  const zip = normalizeZipInput(options.zipCode)
+  const normalizedStore = normalizeStoreName(store);
+  const zip = normalizeZipInput(options.zipCode);
+
   try {
-    console.log("[ingredient-pipeline] Running scraper", { store: normalizedStore, canonicalName, zip })
+    console.log("[ingredient-pipeline] Running scraper", { store: normalizedStore, canonicalName, zip });
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const scrapers = require("./scrapers")
+    const scrapers = require("./scrapers");
 
-    const scraperMap: Record<string, ((query: string, zip?: string | null) => Promise<ScraperResult[] | any>) | undefined> =
-      {
-        walmart: scrapers.searchWalmartAPI,
-        safeway: scrapers.searchSafeway,
-        andronicos: scrapers.searchAndronicos,
-        traderjoes: scrapers.searchTraderJoes,
-        wholefoods: scrapers.searchWholeFoods,
-        whole_foods: scrapers.searchWholeFoods,
-        aldi: scrapers.searchAldi,
-        kroger: scrapers.Krogers,
-        meijer: scrapers.Meijers,
-        target: scrapers.getTargetProducts,
-        ranch99: scrapers.search99Ranch,
-        "99ranch": scrapers.search99Ranch,
-    }
+    type ScraperFunction = (query: string, zip?: string | null) => Promise<ScraperResult[] | any>;
 
-    const scraper = scraperMap[normalizedStore]
+    const scraperMap: Record<string, ScraperFunction> = {
+      walmart: scrapers.searchWalmartAPI,
+      safeway: scrapers.searchSafeway,
+      andronicos: scrapers.searchAndronicos,
+      traderjoes: scrapers.searchTraderJoes,
+      wholefoods: scrapers.searchWholeFoods,
+      whole_foods: scrapers.searchWholeFoods,
+      aldi: scrapers.searchAldi,
+      kroger: (query, zipCode) => scrapers.Krogers(zipCode, query),
+      meijer: (query, zipCode) => scrapers.Meijers(zipCode, query),
+      target: (query, zipCode) => scrapers.getTargetProducts(query, null, zipCode),
+      ranch99: scrapers.search99Ranch,
+      "99ranch": scrapers.search99Ranch,
+    };
+
+    const scraper = scraperMap[normalizedStore];
     if (!scraper) {
-      console.warn(`[ingredient-pipeline] No scraper configured for store ${store}`)
-      return []
+      console.warn(`[ingredient-pipeline] No scraper configured for store ${store}`);
+      return [];
     }
 
-    // Most scrapers expect (zip, query) or (query, zip); handle known signatures below.
-    let results: any
-    switch (normalizedStore) {
-      case "kroger":
-        results = await scraper(zip, canonicalName)
-        break
-      case "meijer":
-        results = await scraper(zip, canonicalName)
-        break
-      case "target":
-        results = await scraper(canonicalName, null, zip)
-        break
-      case "walmart":
-        results = await scraper(canonicalName, zip)
-        break
-      case "traderjoes":
-      case "wholefoods":
-      case "whole_foods":
-      case "aldi":
-      case "safeway":
-      case "andronicos":
-      case "ranch99":
-      case "99ranch":
-        results = await scraper(canonicalName, zip)
-        break
-      default:
-        results = await scraper(canonicalName, zip)
-        break
-    }
+    const results = await scraper(canonicalName, zip);
 
     if (!results) {
-      console.warn("[ingredient-pipeline] Scraper returned no results", { store: normalizedStore, canonicalName, zip })
-      return []
+      console.warn("[ingredient-pipeline] Scraper returned no results", { store: normalizedStore, canonicalName, zip });
+      return [];
     }
     if (Array.isArray(results)) {
-      console.log("[ingredient-pipeline] Scraper results", { store: normalizedStore, count: results.length })
-      return results
+      console.log("[ingredient-pipeline] Scraper results", { store: normalizedStore, count: results.length });
+      return results;
     }
     if (results?.items && Array.isArray(results.items)) {
-      console.log("[ingredient-pipeline] Scraper results (items field)", { store: normalizedStore, count: results.items.length })
-      return results.items
+      console.log("[ingredient-pipeline] Scraper results (items field)", { store: normalizedStore, count: results.items.length });
+      return results.items;
     }
-    console.warn("[ingredient-pipeline] Scraper results not in expected format", { store: normalizedStore, canonicalName, zip })
-    return []
+    console.warn("[ingredient-pipeline] Scraper results not in expected format", { store: normalizedStore, canonicalName, zip });
+    return [];
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorStack = error instanceof Error ? error.stack : undefined
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
     console.error(`[ingredient-pipeline] Scraper failed for ${store}`, {
       store,
       canonicalName,
       zip,
       errorMessage,
       errorStack: errorStack?.split('\n').slice(0, 3).join('\n') // First 3 lines of stack
-    })
-    return []
+    });
+    return [];
   }
 }
 
@@ -696,65 +652,148 @@ export async function estimateIngredientCostsForStore(
   store: string,
   options: StoreLookupOptions = {}
 ): Promise<CostEstimate> {
-  const priced: PricedIngredient[] = []
-  const missing: PipelineIngredientInput[] = []
-  let total = 0
+  const priced: PricedIngredient[] = [];
+  const missing: PipelineIngredientInput[] = [];
+  let total = 0;
 
-  // Filter valid items first
-  const validItems = items.filter(item => item.name?.trim())
-  const invalidItems = items.filter(item => !item.name?.trim())
-  missing.push(...invalidItems)
+  const validItems = items.filter(item => item.name?.trim());
+  const invalidItems = items.filter(item => !item.name?.trim());
+  missing.push(...invalidItems);
 
-  // Process all items in parallel for better performance
-  const itemPromises = validItems.map(async (item) => {
-    const displayName = item.name!.trim()
-
-    let standardizedId = item.standardizedIngredientId || null
-    try {
-      if (!standardizedId && item.recipeId) {
-        standardizedId = await resolveStandardizedIngredientForRecipe(
-          item.recipeId,
-          displayName
-        )
-      }
-
-      if (!standardizedId) {
-        standardizedId = await resolveOrCreateStandardizedId(displayName)
-      }
-    } catch (error) {
-      console.warn("[ingredient-pipeline] Failed to resolve standardized ingredient", {
-        item,
-        error,
-      })
-      return { item, success: false, cacheRow: null, standardizedId: null }
+  // 1. Deduplicate items by normalized name to prevent race conditions
+  const itemsByName = new Map<string, PipelineIngredientInput[]>();
+  validItems.forEach(item => {
+    const key = item.name!.trim().toLowerCase();
+    if (!itemsByName.has(key)) {
+      itemsByName.set(key, []);
     }
+    itemsByName.get(key)!.push(item);
+  });
 
-    const cacheRow = await getOrRefreshIngredientPrice(standardizedId, store, options)
-    return { item, success: !!cacheRow, cacheRow, standardizedId, displayName }
-  })
+  // 2. Resolve unique names only (prevents duplicate creates)
+  const uniqueNames = Array.from(itemsByName.keys());
+  const resolvedIdsMap = new Map<string, string | null>();
 
-  const results = await Promise.all(itemPromises)
+  await Promise.all(
+    uniqueNames.map(async name => {
+      const item = itemsByName.get(name)![0];
+      const displayName = item.name!.trim();
+      let standardizedId = item.standardizedIngredientId || null;
 
-  // Process results
-  for (const result of results) {
-    if (!result.success || !result.cacheRow) {
-      missing.push(result.item)
-    } else {
-      const quantityMultiplier = Number.isFinite(result.item.quantity) ? Number(result.item.quantity) : 1
-      total += result.cacheRow.price * quantityMultiplier
-      priced.push({
-        standardizedIngredientId: result.standardizedId!,
-        name: result.displayName!,
-        cache: result.cacheRow,
-      })
+      try {
+        if (!standardizedId && item.recipeId) {
+          standardizedId = await resolveStandardizedIngredientForRecipe(item.recipeId, displayName);
+        }
+        if (!standardizedId) {
+          standardizedId = await resolveOrCreateStandardizedId(displayName);
+        }
+        resolvedIdsMap.set(name, standardizedId);
+      } catch (error) {
+        console.warn("[ingredient-pipeline] Failed to resolve standardized ingredient", { name, error });
+        resolvedIdsMap.set(name, null);
+      }
+    })
+  );
+
+  // 3. Map resolved IDs back to all original items
+  const resolvedItems = validItems.map(item => {
+    const key = item.name!.trim().toLowerCase();
+    return {
+      ...item,
+      standardizedIngredientId: resolvedIdsMap.get(key) || null,
+      displayName: item.name!.trim()
+    };
+  });
+
+  const itemsWithIds = resolvedItems.filter(item => item.standardizedIngredientId);
+  const itemsWithoutIds = resolvedItems.filter(item => !item.standardizedIngredientId);
+  missing.push(...itemsWithoutIds.map(i => i as PipelineIngredientInput));
+
+  if (itemsWithIds.length === 0) {
+    return { total: 0, priced, missing };
+  }
+
+  const standardizedIds = [...new Set(itemsWithIds.map(item => item.standardizedIngredientId!))];
+  const normalizedStore = normalizeStoreName(store);
+
+  // 2. Check cache for all items with single bulk query
+  const cachedResults = await ingredientCacheDB.findByStandardizedIds(standardizedIds, [normalizedStore]);
+  const cachedMap = new Map<string, IngredientCacheRow>();
+  cachedResults.forEach(entry => cachedMap.set(entry.standardized_ingredient_id, entry));
+
+  const itemsToScrape = itemsWithIds.filter(item => !cachedMap.has(item.standardizedIngredientId!));
+  const newCachePayloads: any[] = [];
+
+  // 3. Scrape for missing items if allowed
+  if (itemsToScrape.length > 0 && options.allowRealTimeScraping !== false) {
+    const idsToFetchNames = [...new Set(itemsToScrape.map(item => item.standardizedIngredientId!))];
+    const canonicalNameRows = await standardizedIngredientsDB.fetchByIds(idsToFetchNames);
+    const canonicalNameMap = new Map(canonicalNameRows.map(row => [row.id, row.canonical_name]));
+    
+    const scrapePromises = idsToFetchNames.map(async id => {
+      const canonicalName = canonicalNameMap.get(id);
+      if (!canonicalName) return;
+
+      const scraped = await runStoreScraper(store, canonicalName, options);
+      const bestProduct = pickBestScrapedProduct(scraped);
+
+      if (!bestProduct) return;
+      
+      const payload = {
+        standardizedIngredientId: id,
+        store: normalizedStore,
+        price: Number(bestProduct.price) || 0,
+        quantity: Number(bestProduct.quantity) || 1,
+        unit: bestProduct.unit || "unit",
+        unitPrice: bestProduct.unit_price,
+        imageUrl: bestProduct.image_url,
+        productName: bestProduct.product_name || bestProduct.title,
+        productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
+        location: bestProduct.location
+      };
+      
+      newCachePayloads.push(payload);
+    });
+
+    await Promise.all(scrapePromises);
+  }
+
+  // 4. Bulk insert new cache entries
+  if (newCachePayloads.length > 0) {
+    const count = await ingredientCacheDB.batchCachePrices(newCachePayloads);
+    if (count > 0) {
+      // Re-fetch the newly cached items to get the full DB row
+      const newIds = newCachePayloads.map(p => p.standardizedIngredientId);
+      const newEntries = await ingredientCacheDB.findByStandardizedIds(newIds, [normalizedStore]);
+      newEntries.forEach(entry => {
+        if (!cachedMap.has(entry.standardized_ingredient_id)) {
+          cachedMap.set(entry.standardized_ingredient_id, entry);
+        }
+      });
     }
   }
+  
+  // 5. Calculate total and build final lists
+  itemsWithIds.forEach(item => {
+    const cacheRow = cachedMap.get(item.standardizedIngredientId!);
+    if (cacheRow) {
+      const quantityMultiplier = Number.isFinite(item.quantity) ? Number(item.quantity) : 1;
+      total += (cacheRow.price || 0) * quantityMultiplier;
+      priced.push({
+        standardizedIngredientId: item.standardizedIngredientId!,
+        name: item.displayName!,
+        cache: cacheRow,
+      });
+    } else {
+      missing.push(item);
+    }
+  });
 
   return {
     total: Number(total.toFixed(2)),
     priced,
     missing,
-  }
+  };
 }
 
 /**
