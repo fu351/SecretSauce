@@ -3,222 +3,182 @@
 import { useEffect, useState } from "react"
 import { DollarSign, TrendingDown, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useTheme } from "@/contexts/theme-context"
 import { RecipePricingSkeleton } from "@/components/recipe/cards/recipe-skeleton"
-import clsx from "clsx"
+import { recipeDB } from "@/lib/database/recipe-db"
 import Image from "next/image"
 
-interface StorePricing {
-  store: string
-  total: number
-  items: Array<{
-    ingredient: string
-    price: number
-    quantity: number
-    unit: string
-  }>
-}
+{/*TODO FIX: Currently only fetches from a few stores. Expand to more stores and make store list configurable by user.*/}
 
 interface RecipePricingProps {
   recipeId: string
+  servings?: number
+  zipCode?: string
 }
 
+const STORES_TO_CHECK = ["walmart", "target", "kroger", "safeway", "aldi"]
+
 const getStoreLogoPath = (store: string) => {
-  const key = store.trim().toLowerCase()
+  const key = store.toLowerCase()
   if (key.includes("target")) return "/Target.jpg"
   if (key.includes("kroger")) return "/kroger.jpg"
-  if (key.includes("meijer")) return "/meijers.png"
-  if (key.includes("99")) return "/99ranch.png"
   if (key.includes("walmart")) return "/walmart.png"
-  if (key.includes("trader")) return "/trader-joes.png"
   if (key.includes("aldi")) return "/aldi.png"
   if (key.includes("safeway")) return "/safeway.jpeg"
   return "/placeholder-logo.png"
 }
 
-/**
- * Component to display recipe pricing information
- * Shows the cheapest store option and breakdown by store
- */
-export function RecipePricingInfo({ recipeId }: RecipePricingProps) {
-  const [pricingData, setPricingData] = useState<{
-    recipeName: string
-    cheapest: StorePricing | null
-    byStore: StorePricing[]
-    allStores: string[]
-    totalIngredients: number
-    cachedIngredients: number
-    isComplete: boolean
-  } | null>(null)
+export function RecipePricingInfo({ 
+  recipeId, 
+  servings = 2, 
+  zipCode = "47906" 
+}: RecipePricingProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { theme } = useTheme()
-  const isDark = theme === "dark"
+  const [pricingResults, setPricingResults] = useState<any[]>([])
 
   useEffect(() => {
-    const fetchPricingInfo = async () => {
+    async function fetchAllPricing() {
+      setLoading(true)
       try {
-        setLoading(true)
-        const response = await fetch(`/api/recipe-pricing?recipeId=${recipeId}`)
-        const data = await response.json()
+        // Fetch pricing for all supported stores in parallel
+        const pricePromises = STORES_TO_CHECK.map(store => 
+          recipeDB.calculateCostEstimate(recipeId, store, zipCode, servings)
+        )
+        
+        const results = await Promise.all(pricePromises)
+        console.log("Fetched pricing results:", results)
+        // Filter out nulls (stores where items weren't found) and add the store name
+        const validResults = results
+          .map((res, index) => {
+            // Only count it as a valid result if it found ingredients (totalCost > 0)
+            if (res && res.totalCost > 0) {
+              return { ...res, store: STORES_TO_CHECK[index] };
+            }
+            return null;
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.totalCost - b.totalCost);
 
-        if (!response.ok) {
-          setError(data.error || "Failed to fetch pricing information")
-          return
-        }
-
-        setPricingData(data)
-        setError(null)
+        setPricingResults(validResults)
       } catch (err) {
-        console.error("Error fetching recipe pricing:", err)
-        setError("Failed to load pricing information")
+        setError("Failed to fetch current pricing data.")
       } finally {
         setLoading(false)
       }
     }
 
-    if (recipeId) {
-      fetchPricingInfo()
-    }
-  }, [recipeId])
+    fetchAllPricing()
+  }, [recipeId, servings, zipCode])
 
-  if (loading) {
-    return <RecipePricingSkeleton />
-  }
+  if (loading) return <RecipePricingSkeleton />
 
-  if (error || !pricingData || !pricingData.cheapest || !pricingData.isComplete) {
+  if (error || pricingResults.length === 0) {
     return (
-      <Card
-        className={clsx(
-          "shadow-lg border rounded-2xl",
-          isDark ? "bg-card border-border" : "bg-white/90 backdrop-blur-sm border-0"
-        )}
-      >
+      <Card className="shadow-md border-destructive/20 bg-destructive/5">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            Recipe Cost
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <AlertCircle className="w-4 h-4 text-destructive" />
+            Pricing Unavailable
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-muted-foreground">
-            {error || (pricingData && !pricingData.isComplete
-              ? `Pricing incomplete: ${pricingData.cachedIngredients} of ${pricingData.totalIngredients} ingredients have cached prices.`
-              : "Recipe pricing not yet available. Ingredients may not be standardized.")}
-          </div>
+          <p className="text-sm text-muted-foreground">
+            No local price data found for these ingredients in {zipCode}.
+          </p>
         </CardContent>
       </Card>
     )
   }
 
-  const cheapest = pricingData.cheapest
-  const savings =
-    pricingData.byStore.length > 1
-      ? pricingData.byStore[pricingData.byStore.length - 1].total - cheapest.total
-      : 0
+  const cheapest = pricingResults[0]
+  const mostExpensive = pricingResults[pricingResults.length - 1]
+  const savings = mostExpensive.totalCost - cheapest.totalCost
 
   return (
-    <Card
-      className={clsx(
-        "shadow-lg border rounded-2xl",
-        isDark ? "bg-card border-border" : "bg-white/90 backdrop-blur-sm border-0"
-      )}
-    >
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <DollarSign className="w-5 h-5" />
+    <Card className="shadow-sm border-border overflow-hidden">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <DollarSign className="w-5 h-5 text-primary" />
           Recipe Cost
         </CardTitle>
-        <CardDescription>Cheapest option for this recipe based on current prices</CardDescription>
+        <CardDescription>
+          Estimated total for {servings} servings
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Cheapest option */}
-        <div
-          className={clsx(
-            "p-4 rounded-lg border-2",
-            isDark
-              ? "bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30"
-              : "bg-gradient-to-br from-green-100 to-emerald-100 border-green-300"
-          )}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border/50 shadow-sm">
+      
+      <CardContent className="space-y-6">
+        {/* Featured Cheapest Store */}
+        <div className="relative overflow-hidden rounded-xl border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/10 p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border bg-white shadow-sm">
                 <Image
                   src={getStoreLogoPath(cheapest.store)}
-                  alt={`${cheapest.store} logo`}
-                  width={40}
-                  height={40}
-                  className="object-contain"
+                  alt={cheapest.store}
+                  fill
+                  className="object-contain p-1"
                 />
               </div>
-              <div className="text-sm font-medium text-muted-foreground">Cheapest</div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  Best Value
+                </p>
+                <p className="text-lg font-bold capitalize">{cheapest.store}</p>
+              </div>
             </div>
             <div className="text-right">
-              <div className="text-4xl font-bold text-green-600">${cheapest.total.toFixed(2)}</div>
+              <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
+                ${cheapest.totalCost.toFixed(2) ?? "0.00"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                ${cheapest.costPerServing.toFixed(2) ?? "0.00"} / serving
+              </p>
             </div>
           </div>
+
           {savings > 0 && (
-            <div
-              className={clsx(
-                "mt-2 text-sm font-medium flex items-center gap-1",
-                isDark ? "text-green-400" : "text-green-700"
-              )}
-            >
+            <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
               <TrendingDown className="w-4 h-4" />
-              Save ${savings.toFixed(2)} vs most expensive option
+              Save ${savings.toFixed(2)} compared to local alternatives
             </div>
           )}
         </div>
 
-        {/* Ingredient breakdown */}
-        {cheapest.items.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Ingredient Breakdown:</div>
-            <div className="space-y-1 text-sm">
-              {cheapest.items.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center py-1">
-                  <span className={isDark ? "text-muted-foreground" : "text-gray-600"}>
-                    {item.ingredient}
-                  </span>
-                  <span className="font-medium">${item.price.toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
+        {/* Ingredient Cost Items */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground">Estimate Breakdown</h4>
+          <div className="divide-y divide-border rounded-lg border bg-card">
+            {Object.entries(cheapest.ingredients as Record<string, number>).map(([name, price]) => (
+              <div key={name} className="flex justify-between p-3 text-sm">
+                <span className="capitalize">{name}</span>
+                <span className="font-mono font-medium text-foreground">${price.toFixed(2)}</span>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
 
-        {/* All store comparison */}
-        {pricingData.byStore.length > 1 && (
-          <div className="space-y-2 pt-2">
-            <div className="text-sm font-medium">Price by Store:</div>
-            <div className="grid grid-cols-2 gap-2">
-              {pricingData.byStore.map((store, idx) => (
-                <div
-                  key={idx}
-                  className={clsx(
-                    "p-2 rounded text-sm border flex items-center gap-2",
-                    store.store === cheapest.store
-                      ? isDark
-                        ? "bg-green-500/10 border-green-500/30"
-                        : "bg-green-100 border-green-300"
-                      : isDark
-                        ? "bg-secondary/70 border-border"
-                        : "bg-gray-100 border-gray-200"
-                  )}
+        {/* Store Comparison Grid */}
+        {pricingResults.length > 1 && (
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase text-muted-foreground">Other Stores</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {pricingResults.slice(1).map((result) => (
+                <div 
+                  key={result.store}
+                  className="flex items-center justify-between rounded-lg border bg-secondary/30 p-3"
                 >
-                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border/50 flex-shrink-0">
-                    <Image
-                      src={getStoreLogoPath(store.store)}
-                      alt={`${store.store} logo`}
-                      width={28}
-                      height={28}
-                      className="object-contain"
-                    />
+                  <div className="flex items-center gap-2">
+                    <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border bg-white">
+                      <Image
+                        src={getStoreLogoPath(result.store)}
+                        alt={result.store}
+                        fill
+                        className="object-contain p-0.5"
+                      />
+                    </div>
+                    <span className="text-xs font-medium capitalize">{result.store}</span>
                   </div>
-                  <div className={clsx("font-medium", store.store === cheapest.store && "text-green-600")}>
-                    ${store.total.toFixed(2)}
-                  </div>
+                  <span className="text-xs font-bold">${result.totalCost.toFixed(2)}</span>
                 </div>
               ))}
             </div>

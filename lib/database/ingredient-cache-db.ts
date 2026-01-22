@@ -432,6 +432,8 @@ class IngredientCacheTable extends BaseTable<
       }
     }
   }
+
+  
 }
 
 export const ingredientCacheDB = IngredientCacheTable.getInstance()
