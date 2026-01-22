@@ -265,6 +265,7 @@ export async function GET(request: NextRequest) {
         Promise.resolve()
           .then(async () => {
             const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
             const payloads = directItems.map(item => ({
               standardized_ingredient_id: standardizedIngredientId,
               store: item.provider.toLowerCase(),
@@ -284,7 +285,7 @@ export async function GET(request: NextRequest) {
 
             await supabaseClient
               .from("ingredient_cache")
-              .upsert(payloads, { onConflict: "standardized_ingredient_id,store,zip_code" })
+              .upsert(payloads, { onConflict: "standardized_ingredient_id,store,product_id,zip_code" })
 
             console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
           })
@@ -465,7 +466,7 @@ export async function GET(request: NextRequest) {
           // Batch upsert all cache entries at once
           const { data, error } = await supabaseClient
             .from("ingredient_cache")
-            .upsert(payloads, { onConflict: "standardized_ingredient_id,store,zip_code" })
+            .upsert(payloads, { onConflict: "standardized_ingredient_id,store,product_id,zip_code" })
             .select("id, store")
 
           if (error) {

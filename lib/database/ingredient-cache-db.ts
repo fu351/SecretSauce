@@ -187,7 +187,7 @@ class IngredientCacheTable extends BaseTable<
             updated_at: new Date().toISOString()
           },
           {
-            onConflict: 'standardized_ingredient_id,store,zip_code'
+            onConflict: 'standardized_ingredient_id,store,product_id,zip_code'
           }
         )
         .select()
@@ -301,7 +301,7 @@ class IngredientCacheTable extends BaseTable<
       const { data, error } = await this.supabase
         .from(this.tableName)
         .upsert(insertData, {
-          onConflict: 'standardized_ingredient_id,store,zip_code'
+          onConflict: 'standardized_ingredient_id,store,product_id,zip_code'
         })
         .select()
 
