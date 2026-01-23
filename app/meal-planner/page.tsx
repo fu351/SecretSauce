@@ -8,6 +8,7 @@ import {
   useMealPlannerRecipes,
   useMealPlannerNutrition,
   useMealPlannerAi,
+  useHeuristicPlan,
   useMealPlannerDragDrop,
   useWeeklyMealPlan,
 } from "@/hooks"
@@ -128,9 +129,56 @@ export default function MealPlannerPage() {
   }, [user, meals, shoppingList, toast, router])
 
   const handleApplyAiPlan = useCallback(async () => {
-    const success = await aiPlanner.applyAiPlanToMealPlanner()
-    if (success) reloadWeeklyPlan()
-  }, [aiPlanner, reloadWeeklyPlan])
+    try {
+      const success = await aiPlanner.applyAiPlanToMealPlanner()
+      if (success) reloadWeeklyPlan()
+    } catch (error) {
+      console.error("[MealPlanner] AI plan failed, falling back to heuristic plan:", error)
+
+      // Fallback to heuristic plan
+      if (user?.id) {
+        try {
+          toast({
+            title: "Switching to smart planner",
+            description: "Generating meal plan using our smart algorithm...",
+          })
+
+          const heuristicPlan = await useHeuristicPlan(user.id, weekIndex)
+
+          // Apply the heuristic plan
+          if (heuristicPlan.meals && heuristicPlan.meals.length > 0) {
+            const weekDates = getDatesForWeek(weekIndex).map(d => d.toISOString().split("T")[0])
+
+            for (const meal of heuristicPlan.meals) {
+              const date = weekDates[meal.dayIndex]
+              if (date) {
+                await addToMealPlan(
+                  { id: meal.recipeId } as Recipe,
+                  meal.mealType,
+                  date,
+                  { reload: false }
+                )
+              }
+            }
+
+            await reloadWeeklyPlan()
+
+            toast({
+              title: "Success",
+              description: `${heuristicPlan.meals.length} meals added! Estimated cost: $${heuristicPlan.totalCost.toFixed(2)} at ${heuristicPlan.storeId}`,
+            })
+          }
+        } catch (fallbackError) {
+          console.error("[MealPlanner] Heuristic plan also failed:", fallbackError)
+          toast({
+            title: "Error",
+            description: "Failed to generate meal plan. Please try again.",
+            variant: "destructive",
+          })
+        }
+      }
+    }
+  }, [aiPlanner, reloadWeeklyPlan, user, weekIndex, addToMealPlan, toast])
 
   const handleClearWeek = useCallback(async () => {
     if (!user) return

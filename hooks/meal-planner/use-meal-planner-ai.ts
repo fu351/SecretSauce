@@ -2,14 +2,15 @@
 
 import { useState, useCallback } from "react"
 import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
-import type { Recipe } from "@/lib/types"
+import type { Recipe, MealTypeTag } from "@/lib/types"
 import { getDatesForWeek } from "@/lib/date-utils"
 import { useToast } from "@/hooks/ui/use-toast"
+import { generateWeeklyMealPlan } from "@/lib/planner/agent"
 
 interface AiPlanResult {
   storeId: string
   totalCost: number
-  meals: Array<{ dayIndex: number; mealType: 'breakfast' | 'lunch' | 'dinner'; recipeId: string }>
+  meals: Array<{ dayIndex: number; mealType: MealTypeTag; recipeId: string }>
   explanation: string
 }
 
@@ -43,7 +44,7 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
     setShowAiPlanDialog(true)
 
     try {
-      // Simulate progress updates (the API doesn't stream, so we estimate timing)
+      // Simulate progress updates
       const progressTimer = setTimeout(() => {
         setAiPlannerProgress({ step: 2, message: "Searching recipes that match your taste..." })
       }, 1500)
@@ -56,24 +57,29 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
         setAiPlannerProgress({ step: 4, message: "Optimizing for variety and budget..." })
       }, 7000)
 
-      const response = await fetch("/api/weekly-dinner-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, weekIndex }),
-      })
+      // COMMENTED OUT: AI API call - using heuristic plan instead
+      // const response = await fetch("/api/weekly-dinner-plan", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({ userId, weekIndex }),
+      // })
 
       // Clear progress timers
       clearTimeout(progressTimer)
       clearTimeout(progressTimer2)
       clearTimeout(progressTimer3)
 
-      if (!response.ok) {
-        throw new Error("Failed to generate plan")
-      }
+      // COMMENTED OUT: API response handling
+      // if (!response.ok) {
+      //   throw new Error("Failed to generate plan")
+      // }
 
       setAiPlannerProgress({ step: 5, message: "Finalizing your meal plan..." })
 
-      const plan = await response.json()
+      // Use heuristic plan instead of AI API
+      const plan = await generateWeeklyMealPlan(userId, weekIndex)
+
+      // const plan = await response.json()
 
       // Fetch recipe details for the plan
       if (plan.meals && plan.meals.length > 0) {

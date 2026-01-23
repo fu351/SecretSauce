@@ -1,7 +1,8 @@
 
 import { options } from "happy-dom/lib/PropertySymbol"
 import { BaseTable } from "./base-db"
-import { Recipe, parseInstructionsFromDB } from "@/lib/types"
+import { MealTypeTag, Recipe, parseInstructionsFromDB } from "@/lib/types"
+import type { Database } from "./supabase"
 
 /**
  * Database operations for recipes
@@ -581,15 +582,13 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     console.log(`[Recipe DB] Calculating cost estimate for recipe ${recipeId} at store ${store} for ${servings} servings in zip ${zip_code}`)
     
     // Note: Parameter names must match the SQL function exactly (p_store_id vs p_store)
-    const { data, error } = await this.supabase.rpc("calculate_recipe_cost", {
+    const { data, error } = await (this.supabase as any).rpc("calculate_recipe_cost", {
       p_recipe_id: recipeId,
       p_store_id: store,
       p_zip_code: zip_code,
       p_servings: servings
-    } 
-    Returns: {
-      any
     });
+
 
     if (error) {
       this.handleError(error, "calculateCostEstimate");
@@ -626,6 +625,43 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     }
 
     return data;
+  }
+
+  async getSmartRecommendations(userId: string, limit: number): Promise<Recipe[]> {
+    console.log(`[Recipe DB] Fetching smart recommendations for user ${userId} with limit ${limit}`)
+
+    const { data, error } = await this.supabase.rpc("recommend_recipes_global", {
+      p_user_id: userId,
+      p_limit: limit
+    });
+
+    if (error) {
+      this.handleError(error, "getSmartRecommendations");
+      return [];
+    }
+
+    return (data || []).map((item: any) => this.map(item));
+  }
+
+  async getSmartRecommendationsByMealType(userId: string, limit: number, mealType: MealTypeTag): Promise<Recipe[]> {
+    console.log(`[Recipe DB] Fetching smart recommendations for user ${userId} with limit ${limit} and meal type ${mealType}`)
+
+    // Cast to database enum type (breakfast | lunch | dinner | snack | dessert)
+    // TypeScript needs 'as any' cast for RPC due to Database type limitations
+    const mealTypeEnum: Database["public"]["Enums"]["meal_type_enum"] = mealType as Database["public"]["Enums"]["meal_type_enum"]
+
+    const { data, error } = await this.supabase.rpc("recommend_recipes_smart", {
+      p_user_id: userId,
+      p_meal_type: mealTypeEnum,
+      p_limit: limit
+    });
+
+    if (error) {
+      this.handleError(error, "getSmartRecommendationsByMealType");
+      return [];
+    }
+
+    return (data || []).map((item: any) => this.map(item));
   }
 }
 

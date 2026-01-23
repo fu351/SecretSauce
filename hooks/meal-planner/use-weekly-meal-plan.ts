@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
-import type { Recipe } from "@/lib/types"
+import type { Recipe, MealTypeTag } from "@/lib/types"
+import { generateWeeklyMealPlan } from "@/lib/planner/agent"
 
 export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number) {
   const [meals, setMeals] = useState<MealScheduleRow[]>([])
@@ -40,7 +41,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
   }, [userId, weekIndex])
 
   const addToMealPlan = useCallback(
-    async (recipe: Recipe, mealType: string, date: string, options: { reload: boolean } = { reload: true }) => {
+    async (recipe: Recipe, mealType: MealTypeTag, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
       try {
@@ -48,7 +49,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
           userId,
           recipe.id,
           date,
-          mealType as "breakfast" | "lunch" | "dinner"
+          mealType
         )
 
         if (result && options.reload) {
@@ -64,14 +65,14 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
   )
 
   const removeFromMealPlan = useCallback(
-    async (mealType: string, date: string, options: { reload: boolean } = { reload: true }) => {
+    async (mealType: MealTypeTag, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
       try {
         const success = await mealPlannerDB.removeMealSlot(
           userId,
           date,
-          mealType as "breakfast" | "lunch" | "dinner"
+          mealType
         )
 
         if (success && options.reload) {

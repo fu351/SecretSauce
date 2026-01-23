@@ -1,23 +1,23 @@
-import { recipeDB } from "../database/recipe-db"
-import { profileDB } from "../database/profile-db"
-import { mealPlannerDB } from "../database/meal-planner-db"
+import { recipeDB } from "@/lib/database/recipe-db"
+import { mealPlannerDB } from "@/lib/database/meal-planner-db"
+import type { MealTypeTag, Recipe } from "@/lib/types"
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'] as const
 type PlannerMealType = typeof MEAL_TYPES[number]
 
-export async function generateWeeklyMealPlan(userId: string, weekIndex?: number): Promise<WeeklyMealPlan> {
+interface WeeklyMealPlan extends Recipe {
+    storeId: string
+}
+
+export async function useHeuristicPlan(userId: string, weekIndex?: number): Promise<WeeklyMealPlan[]> {
   const startTime = Date.now()
   console.log("[planner] Starting DB-native weekly plan")
 
   // 1. Gather Context
   // UPDATED: Fetch profile alongside schedule to access zipcode
-  const [existingSchedule, userProfile] = await Promise.all([
-    fetchExistingSchedule(userId, weekIndex),
-    profileDB.findById(userId)
-  ])
+  const existingSchedule = await fetchExistingSchedule(userId, weekIndex);
 
   const existingRecipeIds = existingSchedule.map(s => s.recipe_id).filter(Boolean)
-  const userZipCode = userProfile?.postal_code
 
   // 2. Identify Open Slots
   const slotsNeeded = getOpenSlotsMap(existingSchedule)
@@ -38,7 +38,7 @@ export async function generateWeeklyMealPlan(userId: string, weekIndex?: number)
         type,
         recipes: await recipeDB.getSmartRecommendationsByMealType(
           userId,
-          2*count, // Small buffer
+          count + 5, // Small buffer
           type
         )
       }
@@ -74,7 +74,6 @@ export async function generateWeeklyMealPlan(userId: string, weekIndex?: number)
   const bestStore = await mealPlannerDB.bestStore(
     userId,
     allRecipeIds,
-    userZipCode || undefined
   )
 
   console.log(`[planner] Completed in ${Date.now() - startTime}ms`)

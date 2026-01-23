@@ -607,16 +607,60 @@ export type Database = {
       calculate_recipe_cost: {
         Args: {
           p_recipe_id: string
-          p_store_id: string
+          p_store_id: Database["public"]["Enums"]["grocery_store"] // Use Enum
           p_zip_code: string
           p_servings: number
         }
         Returns: {
+          recipe_id: string
           totalCost: number
           costPerServing: number
           ingredients: Record<string, number>
         }
       }
+      get_best_store_for_plan: {
+        Args: {
+          p_user_id: string
+          p_recipe_ids: string[]
+        }
+        Returns: {
+          store_id: string
+          store_name: string
+          total_cost: number
+          missing_ingredients_count: number
+          protein_mix: Record<string, number>
+        }[]
+      }
+      recommend_recipes_smart: {
+        Args: {
+          p_user_id: string
+          p_meal_type: Database["public"]["Enums"]["meal_type_enum"] // Use Enum
+          p_limit: number
+        }
+        Returns: Database["public"]["Tables"]["recipes"]["Row"][]
+      }
+      recommend_recipes_global: {
+        Args: {
+          p_user_id: string
+          p_limit: number
+        }
+        Returns: Database["public"]["Tables"]["recipes"]["Row"][]
+      }
+    }
+    Enums: {
+      shopping_list_source_type: "recipe" | "manual"
+      recipe_difficulty: "beginner" | "intermediate" | "advanced"
+      meal_type_enum: "breakfast" | "lunch" | "dinner" | "snack" | "dessert"
+      protein_type_enum: "chicken" | "beef" | "pork" | "fish" | "shellfish" | "turkey" | "tofu" | "legume" | "egg" | "other"
+      cuisine_type_enum: "italian" | "mexican" | "chinese" | "indian" | "american" | "french" | "japanese" | "thai" | "mediterranean" | "korean" | "greek" | "spanish" | "vietnamese" | "middle-eastern" | "other"
+      tags_enum: "vegetarian" | "vegan" | "gluten-free" | "dairy-free" | "keto" | "paleo" | "low-carb" | "other" | "contains-dairy" | "contains-gluten" | "contains-nuts" | "contains-shellfish" | "contains-egg" | "contains-soy"
+      cooking_level_enum: "beginner" | "intermediate" | "advanced"
+      budget_range_enum: "low" | "medium" | "high"
+      theme_enum: "light" | "dark"
+      item_category_enum: "baking" | "beverages" | "condiments" | "dairy" | "meat_seafood" | "pantry_staples" | "produce" | "snacks" | "other"
+      grocery_store: "aldi" | "kroger" | "safeway" | "meijer" | "target" | "traderjoes" | "99ranch" | "walmart" | "andronicos" | "wholefoods"
+      unit_category: "weight" | "volume" | "count" | "other"
+      unit_label: "oz" | "lb" | "fl oz" | "ml" | "gal" | "ct" | "each" | "bunch" | "gram" | "unit"
     }
   }
 }

@@ -1,5 +1,8 @@
 import type { BasketCostResult, WeeklyPlanInput } from "./types"
-import { getRecipesByIds, getUserPantry, getCheapestStoreItem } from "./data"
+import type { ProteinTag } from "../types"
+import { getCheapestStoreItem } from "./data"
+import { recipeDB } from "../database/recipe-db"
+import { pantryItemsDB } from "../database/pantry-items-db"
 
 type IngredientDemand = {
   name: string
@@ -11,22 +14,33 @@ type IngredientDemand = {
 const buildIngredientKey = (name: string, unit?: string | null) =>
   `${name.trim().toLowerCase()}::${(unit || "").trim().toLowerCase() || "unit"}`
 
-const normalizeProteinTag = (name: string) => {
-  const lower = name.toLowerCase()
-  if (lower.includes("chicken")) return "chicken"
-  if (lower.includes("beef")) return "beef"
-  if (lower.includes("pork")) return "pork"
-  if (lower.includes("tofu")) return "tofu"
-  if (lower.includes("turkey")) return "turkey"
-  if (lower.includes("salmon") || lower.includes("fish")) return "fish"
-  if (lower.includes("bean") || lower.includes("lentil")) return "legume"
-  if (lower.includes("egg")) return "egg"
-  return "other"
-}
+const normalizeProteinTag = (name: string): ProteinTag => {
+  const lower = name.toLowerCase();
+
+  const rules: { keywords: string[]; tag: ProteinTag }[] = [
+    { keywords: ["chicken"], tag: "chicken" },
+    { keywords: ["beef"], tag: "beef" },
+    { keywords: ["pork"], tag: "pork" },
+    { keywords: ["tofu"], tag: "tofu" },
+    { keywords: ["turkey"], tag: "turkey" },
+    { keywords: ["salmon", "fish", "tuna", "cod"], tag: "fish" },
+    { keywords: ["bean", "lentil", "chickpea"], tag: "legume" },
+    { keywords: ["egg"], tag: "egg" },
+  ];
+
+  for (const rule of rules) {
+    if (rule.keywords.some(keyword => lower.includes(keyword))) {
+      return rule.tag;
+    }
+  }
+
+  return "other";
+};
+
 
 export async function estimateWeekBasketCost(input: WeeklyPlanInput): Promise<BasketCostResult> {
-  const recipes = await getRecipesByIds(input.recipeIds)
-  const pantry = await getUserPantry(input.userId)
+  const recipes = await recipeDB.findByIds(input.recipeIds)
+  const pantry = await pantryItemsDB.findByUserId(input.userId)
 
   const demand = new Map<string, IngredientDemand>()
   const mainProteinCounts: Record<string, number> = {}

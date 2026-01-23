@@ -1,4 +1,5 @@
 import type { Database } from "@/lib/database/supabase"
+import type { MealTypeTag } from "@/lib/types"
 
 export type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"]
 export type RecipeRow = Database["public"]["Tables"]["recipes"]["Row"]
@@ -105,7 +106,7 @@ export type BasketCostResult = {
 export type WeeklyMealPlan = {
   storeId: string
   totalCost: number
-  meals: Array<{ dayIndex: number; mealType: 'breakfast' | 'lunch' | 'dinner'; recipeId: string }>
+  meals: Array<{ dayIndex: number; mealType: MealTypeTag; recipeId: string }>
   explanation: string
 }
 

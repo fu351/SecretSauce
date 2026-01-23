@@ -1,7 +1,7 @@
 
 import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/database/supabase"
-import { Recipe } from "@/lib/types"
+import { Recipe, MealTypeTag } from "@/lib/types"
 import { getMealPlannerCache } from "./meal-planner-cache"
 import { getWeek, getYear, eachDayOfInterval, parseISO } from "date-fns"
 
@@ -174,7 +174,7 @@ class MealPlannerTable extends BaseTable<
     userId: string,
     recipeId: string,
     date: string,
-    mealType: "breakfast" | "lunch" | "dinner"
+    mealType: MealTypeTag
   ): Promise<MealScheduleRow | null> {
     console.log("[Meal Planner DB] Adding meal to schedule:", { userId, recipeId, date, mealType })
 
@@ -208,7 +208,7 @@ class MealPlannerTable extends BaseTable<
   async updateMealInSchedule(
     mealId: string,
     recipeId: string,
-    mealType: "breakfast" | "lunch" | "dinner"
+    mealType: MealTypeTag
   ): Promise<MealScheduleRow | null> {
     console.log("[Meal Planner DB] Updating meal in schedule:", { mealId, recipeId, mealType })
 
@@ -269,7 +269,7 @@ class MealPlannerTable extends BaseTable<
   async removeMealSlot(
     userId: string,
     date: string,
-    mealType: "breakfast" | "lunch" | "dinner"
+    mealType: MealTypeTag
   ): Promise<boolean> {
     console.log("[Meal Planner DB] Removing meal slot:", { userId, date, mealType })
 
@@ -430,6 +430,25 @@ class MealPlannerTable extends BaseTable<
     const result = data || []
     this.cache.setSuggestedRecipesCache(result)
     return result
+  }
+
+  async bestStore(userId: string, recipeIds: string[], userZipCode?: string): Promise<any> {
+    const client = this.supabase as any
+
+    const { data, error } = await client
+      .rpc('get_best_store_for_plan', { 
+        p_user_id: userId, 
+        p_recipe_ids: recipeIds,
+        p_zip_code: userZipCode || null
+      })
+      .single()
+
+    if (error) {
+      this.handleError(error, "bestStore")
+      return null
+    }
+
+    return data
   }
 }
 

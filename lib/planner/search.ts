@@ -1,7 +1,8 @@
 import { estimateIngredientCostsForStore } from "@/lib/ingredient-pipeline"
-import { createServerClient } from "@/lib/supabase"
+import { recipeDB } from "../database/recipe-db"
+import { createServerClient } from "@/lib/database/supabase"
 import type { PriceAwareRecipeHit, RecipeSearchFilters, Recipe, PantryItem } from "./types"
-import { getRecipesByIds } from "./data"
+import { options } from "happy-dom/lib/PropertySymbol"
 
 const perRunCostCache = new Map<string, number>()
 
@@ -101,20 +102,7 @@ export async function searchPriceAwareRecipes(
   const client = createServerClient()
   const storeId = filters.requiredStoreId || "walmart"
 
-  // Fetch candidates with a light text filter
-  const { data, error } = await client
-    .from("recipes")
-    .select("id, title, prep_time, cook_time, tags, protein, ingredients, servings, nutrition")
-    .ilike("title", `%${query}%`)
-    .is("deleted_at", null)
-    .limit(Math.max(limit * 2, 20))
-
-  if (error) {
-    console.error("[planner] Recipe search failed", error)
-    return []
-  }
-
-  const recipes = await getRecipesByIds((data || []).map((row) => row.id))
+  const recipes = await recipeDB.findAll({ limit: 20 })
   const filtered = recipes.filter((recipe) => withinFilters(recipe, filters)).slice(0, limit * 2)
 
   // Prefer recipes matching user's cuisine preferences

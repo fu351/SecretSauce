@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase"
+import { createServerClient } from "@/lib/database/supabase"
 
 type TasteHistory = {
   likedRecipeIds: string[]

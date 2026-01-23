@@ -1,15 +1,12 @@
-import { createServerClient } from "@/lib/supabase"
+import { createServerClient } from "@/lib/database/supabase"
 import {
   resolveOrCreateStandardizedId,
   getOrRefreshIngredientPrice,
 } from "@/lib/ingredient-pipeline"
 import type {
-  PantryItem,
-  Recipe,
   RecipeIngredient,
   Store,
   StoreItem,
-  UserProfile,
 } from "./types"
 
 const FALLBACK_STORES: Store[] = [
@@ -22,70 +19,6 @@ const FALLBACK_STORES: Store[] = [
   { id: "meijer", name: "Meijer" },
   { id: "wholefoods", name: "Whole Foods" },
 ]
-
-const normalizeQuantity = (value: any) => {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return 0
-  return parsed
-}
-
-const normalizeIngredient = (raw: any): RecipeIngredient => {
-  return {
-    name: raw?.name || raw?.ingredient || "",
-    amount: normalizeQuantity(raw?.amount ?? raw?.quantity ?? 1),
-    unit: raw?.unit || raw?.measure || undefined,
-    standardizedIngredientId: raw?.standardized_ingredient_id ?? null,
-  }
-}
-
-export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  const client = createServerClient()
-  const { data, error } = await client
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle()
-
-  if (error) {
-    console.error("[planner] Failed to load profile", error)
-    return null
-  }
-
-  if (!data) return null
-
-  return {
-    id: data.id,
-    email: data.email,
-    budgetRange: data.budget_range,
-    dietaryPreferences: data.dietary_preferences,
-    cuisinePreferences: data.cuisine_preferences,
-    cookingTimePreference: data.cooking_time_preference,
-    primaryGoal: data.primary_goal,
-    groceryZip: data.postal_code,
-    groceryDistanceMiles: data.grocery_distance_miles,
-  }
-}
-
-export async function getUserPantry(userId: string): Promise<PantryItem[]> {
-  const client = createServerClient()
-  const { data, error } = await client
-    .from("pantry_items")
-    .select("id, name, quantity, unit, standardized_ingredient_id")
-    .eq("user_id", userId)
-
-  if (error) {
-    console.error("[planner] Failed to load pantry", error)
-    return []
-  }
-
-  return (data || []).map((item) => ({
-    id: item.id,
-    name: item.name,
-    quantity: normalizeQuantity(item.quantity ?? 0),
-    unit: item.unit,
-    standardizedIngredientId: (item as any).standardized_ingredient_id ?? null,
-  }))
-}
 
 export async function listCandidateStores(userId?: string): Promise<Store[]> {
   const client = createServerClient()
@@ -116,77 +49,6 @@ export async function listCandidateStores(userId?: string): Promise<Store[]> {
     console.error("[planner] Failed to list candidate stores", error)
     return FALLBACK_STORES
   }
-}
-
-export async function getRecipeById(recipeId: string): Promise<Recipe | null> {
-  const client = createServerClient()
-  const { data, error } = await client
-    .from("recipes")
-    .select("*")
-    .eq("id", recipeId)
-    .is("deleted_at", null)
-    .maybeSingle()
-
-  if (error) {
-    console.error("[planner] Failed to load recipe", error)
-    return null
-  }
-
-  if (!data) return null
-
-  const servings = data.servings ?? 1
-  const ingredients = Array.isArray(data.ingredients) ? data.ingredients.map(normalizeIngredient) : []
-  const content = data.content || {}
-
-  return {
-    id: data.id,
-    title: data.title,
-    description: content.description,
-    servings: servings > 0 ? servings : 1,
-    prepTimeMinutes: data.prep_time,
-    cookTimeMinutes: data.cook_time,
-    dietaryTags: data.tags,
-    ingredients,
-    nutrition: data.nutrition,
-    dietaryFlags: null, // Removed from schema
-    proteinTag: data.protein,
-    cuisine: data.cuisine ?? null,
-    cuisineGuess: null, // Removed from schema
-  }
-}
-
-export async function getRecipesByIds(recipeIds: string[]): Promise<Recipe[]> {
-  if (recipeIds.length === 0) return []
-  const client = createServerClient()
-  const { data, error } = await client
-    .from("recipes")
-    .select("*")
-    .in("id", recipeIds)
-    .is("deleted_at", null)
-
-  if (error) {
-    console.error("[planner] Failed to load recipes batch", error)
-    return []
-  }
-
-  return (data || []).map((row) => {
-    const content = row.content || {}
-    return {
-      id: row.id,
-      title: row.title,
-      description: content.description,
-      servings: row.servings ?? 1,
-      prepTimeMinutes: row.prep_time,
-      cookTimeMinutes: row.cook_time,
-      dietaryTags: row.tags,
-      ingredients: Array.isArray(row.ingredients) ? row.ingredients.map(normalizeIngredient) : [],
-      nutrition: row.nutrition,
-      dietaryFlags: null, // Removed from schema
-      proteinTag: row.protein,
-      cuisine: row.cuisine ?? null,
-      cuisineGuess: null, // Removed from schema
-    }
-  })
 }
 
 export async function getCheapestStoreItem(
