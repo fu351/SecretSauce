@@ -1,4 +1,4 @@
-import { createServerClient, type Database } from "./supabase"
+import { createServerClient, type Database } from "./database/supabase"
 import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
 import { normalizeStoreName } from "./ingredient-cache"
 import { ingredientMappingsDB } from "./database/ingredient-mappings-db"

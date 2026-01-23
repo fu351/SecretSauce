@@ -1,6 +1,6 @@
 
 import { BaseTable } from "./base-db"
-import type { Database } from "@/lib/supabase"
+import type { Database } from "@/lib/database/supabase"
 import { Recipe } from "@/lib/types"
 import { getMealPlannerCache } from "./meal-planner-cache"
 import { getWeek, getYear, eachDayOfInterval, parseISO } from "date-fns"

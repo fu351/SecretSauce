@@ -4,7 +4,7 @@ import {
   batchGetOrCreateStandardizedIngredients,
   batchMapIngredientsToStandardized,
 } from "@/lib/ingredient-cache"
-import { createServerClient } from "@/lib/supabase"
+import { createServerClient } from "@/lib/database/supabase"
 
 interface RequestIngredient {
   id?: string | number

@@ -8,7 +8,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import clsx from "clsx"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/database/supabase"
 
 interface FeedbackWidgetProps {
   position?: "bottom-left" | "bottom-right"

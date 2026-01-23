@@ -1,6 +1,6 @@
 
 import { BaseTable } from './base-db'
-import type { Database } from '@/lib/supabase'
+import type { Database } from '@/lib/database/supabase'
 
 type IngredientCacheRow = Database['public']['Tables']['ingredient_cache']['Row']
 type IngredientCacheInsert = Database['public']['Tables']['ingredient_cache']['Insert']

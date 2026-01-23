@@ -1,6 +1,6 @@
 
 import { BaseTable } from "./base-db"
-import type { Database } from "@/lib/supabase"
+import type { Database } from "@/lib/database/supabase"
 
 // Type aliases for clarity and maintainability
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"]

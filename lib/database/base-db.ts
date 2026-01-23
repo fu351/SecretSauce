@@ -1,5 +1,5 @@
 import { SupabaseClient, PostgrestError } from '@supabase/supabase-js';
-import { supabase, Database } from '@/lib/supabase';
+import { supabase, Database } from '@/lib/database/supabase';
 
 // Define types for table names valid in the database schema
 type TableName = keyof Database['public']['Tables'];
@@ -90,10 +90,16 @@ export abstract class BaseTable<
   /**
    * Fetches all records from the table.
    */
-  async findAll(): Promise<TRow[]> {
-    const { data, error } = await this.supabase
+  async findAll(options? : { limit?: number}): Promise<TRow[]> {
+    let query = this.supabase
       .from(this.tableName)
       .select('*');
+    
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       this.handleError(error, `findAll()`);

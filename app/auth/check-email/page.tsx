@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/database/supabase"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Mail, KeyRound, ArrowRight } from "lucide-react"
 

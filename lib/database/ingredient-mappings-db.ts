@@ -1,6 +1,6 @@
 
 import { BaseTable } from './base-db'
-import type { Database } from '@/lib/supabase'
+import type { Database } from '@/lib/database/supabase'
 
 type IngredientMappingRow = Database['public']['Tables']['ingredient_mappings']['Row']
 type IngredientMappingInsert = Database['public']['Tables']['ingredient_mappings']['Insert']

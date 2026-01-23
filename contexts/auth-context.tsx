@@ -3,7 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/database/supabase"
 import { performanceMonitor } from "@/lib/performance-monitor"
 import { profileDB } from "@/lib/database/profile-db"
 

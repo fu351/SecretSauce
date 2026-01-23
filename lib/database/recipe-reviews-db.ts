@@ -1,6 +1,6 @@
 
 import { BaseTable } from './base-db'
-import type { Database } from '@/lib/supabase'
+import type { Database } from '@/lib/database/supabase'
 import { profileDB } from './profile-db'
 import { recipeDB } from './recipe-db'
 

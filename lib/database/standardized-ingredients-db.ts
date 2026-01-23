@@ -1,5 +1,5 @@
 import { BaseTable } from './base-db'
-import type { Database } from '@/lib/supabase'
+import type { Database } from '@/lib/database/supabase'
 
 type StandardizedIngredientRow = Database['public']['Tables']['standardized_ingredients']['Row']
 type StandardizedIngredientInsert = Database['public']['Tables']['standardized_ingredients']['Insert']

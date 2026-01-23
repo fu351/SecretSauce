@@ -1,6 +1,6 @@
 
 import { BaseTable } from './base-db'
-import type { Database } from '@/lib/supabase'
+import type { Database } from '@/lib/database/supabase'
 
 type FeedbackRow = Database['public']['Tables']['feedback']['Row']
 type FeedbackInsert = Database['public']['Tables']['feedback']['Insert']

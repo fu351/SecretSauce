@@ -1,6 +1,6 @@
 
 import { BaseTable } from './base-db'
-import type { Database } from '@/lib/supabase'
+import type { Database } from '@/lib/database/supabase'
 
 type StoreLocationCacheRow = Database['public']['Tables']['store_locations_cache']['Row']
 type StoreLocationCacheInsert = Database['public']['Tables']['store_locations_cache']['Insert']

@@ -40,7 +40,7 @@ vi.mock('@/lib/supabase', () => {
 })
 
 // Import after mocking
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/database/supabase'
 import { recipeDB } from '../recipe-db'
 
 // Get references to the mocked functions

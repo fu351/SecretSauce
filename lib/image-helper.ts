@@ -1,4 +1,4 @@
-import { supabase } from "./supabase"
+import { supabase } from "./database/supabase"
 
 /**
  * Helper function to get the correct image URL from either a direct URL or a Supabase storage path

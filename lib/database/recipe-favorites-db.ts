@@ -1,6 +1,6 @@
 
 import { BaseTable } from "./base-db"
-import type { Database } from "@/lib/supabase"
+import type { Database } from "@/lib/database/supabase"
 import type { Recipe } from "@/lib/types"
 
 export type RecipeFavoriteRow = Database["public"]["Tables"]["recipe_favorites"]["Row"]

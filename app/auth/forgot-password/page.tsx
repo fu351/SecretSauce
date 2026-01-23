@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/database/supabase"
 import { ArrowLeft, Mail } from "lucide-react"
 
 export default function ForgotPasswordPage() {

@@ -603,5 +603,20 @@ export type Database = {
         }
       }
     }
+    Functions: {
+      calculate_recipe_cost: {
+        Args: {
+          p_recipe_id: string
+          p_store_id: string
+          p_zip_code: string
+          p_servings: number
+        }
+        Returns: {
+          totalCost: number
+          costPerServing: number
+          ingredients: Record<string, number>
+        }
+      }
+    }
   }
 }

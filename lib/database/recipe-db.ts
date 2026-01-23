@@ -1,4 +1,5 @@
 
+import { options } from "happy-dom/lib/PropertySymbol"
 import { BaseTable } from "./base-db"
 import { Recipe, parseInstructionsFromDB } from "@/lib/types"
 
@@ -87,6 +88,11 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
    */
   async fetchRecipeById(id: string): Promise<Recipe | null> {
     return this.findById(id)
+  }
+  
+  async fetchRecipeByIds(ids: string[]): Promise<Recipe[]> {
+    if (ids.length === 0) return [];
+    return this.findByIds(ids);
   }
 
   /**
@@ -563,6 +569,63 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     }
 
     return count || 0
+  }
+
+  async calculateCostEstimate(
+    recipeId: string, 
+    store: string,
+    zip_code: string,
+    servings: number
+  ): Promise<{ totalCost: number; costPerServing: number; ingredients: Record<string, number> } | null> {
+
+    console.log(`[Recipe DB] Calculating cost estimate for recipe ${recipeId} at store ${store} for ${servings} servings in zip ${zip_code}`)
+    
+    // Note: Parameter names must match the SQL function exactly (p_store_id vs p_store)
+    const { data, error } = await this.supabase.rpc("calculate_recipe_cost", {
+      p_recipe_id: recipeId,
+      p_store_id: store,
+      p_zip_code: zip_code,
+      p_servings: servings
+    } 
+    Returns: {
+      any
+    });
+
+    if (error) {
+      this.handleError(error, "calculateCostEstimate");
+      return null;
+    }
+
+    // data is the JSONB object: { totalCost: X, costPerServing: Y, ingredients: {...} }
+    return data;
+  }
+
+  async calculateMultipleCostEstimates(
+    recipeIds: string[],
+    store: string,
+    zip_code: string,
+    servingsMap: Record<string, number>
+  ): Promise<any> {
+    // 1. Transform your servingsMap into the JSON structure the SQL function expects
+    const recipeConfigs = recipeIds.map(id => ({
+      id: id,
+      servings: servingsMap[id] || 1
+    }));
+
+    // 2. Make ONE call to the batch function
+    const { data, error } = await (this.supabase as any).rpc("calculate_weekly_basket", {
+      p_recipe_configs: recipeConfigs,
+      p_user_id: (await this.supabase.auth.getUser()).data.user?.id, // Assumes user is logged in
+      p_store_id: store,
+      p_zip_code: zip_code
+    });
+
+    if (error) {
+      this.handleError(error, "calculateMultipleCostEstimates");
+      return null;
+    }
+
+    return data;
   }
 }
 

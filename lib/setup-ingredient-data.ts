@@ -3,7 +3,7 @@
  * Usage: Run this script to batch insert the ingredient data into Supabase
  */
 
-import { createServerClient } from "./supabase"
+import { createServerClient } from "./database/supabase"
 
 interface StandardizedIngredient {
   canonical_name: string

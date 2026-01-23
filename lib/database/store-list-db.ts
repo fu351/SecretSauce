@@ -1,6 +1,6 @@
 
 import { BaseTable } from "./base-db"
-import type { Database } from "@/lib/supabase"
+import type { Database } from "@/lib/database/supabase"
 import type { ShoppingListItem } from "@/lib/types/store"
 
 type ShoppingListItemRow = Database["public"]["Tables"]["shopping_list_items"]["Row"]

@@ -6,7 +6,7 @@ import {
   searchOrCreateIngredientAndPrices,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
-import { createServerClient } from "@/lib/supabase"
+import { createServerClient } from "@/lib/database/supabase"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",

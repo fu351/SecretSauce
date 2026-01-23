@@ -430,7 +430,7 @@ async function getStoreCacheFromSupabase(
   }
 
   try {
-    const { createBrowserClient } = await import("@/lib/supabase")
+    const { createBrowserClient } = await import("@/lib/database/supabase")
     const supabase = createBrowserClient()
     const canonical = canonicalizeStoreName(storeName)
 
@@ -486,7 +486,7 @@ async function saveStoreCacheToSupabase(
   }
 
   try {
-    const { createBrowserClient } = await import("@/lib/supabase")
+    const { createBrowserClient } = await import("@/lib/database/supabase")
     const supabase = createBrowserClient()
     const canonical = canonicalizeStoreName(storeName)
 
