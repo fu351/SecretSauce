@@ -4,9 +4,14 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { useToast } from "../ui/use-toast"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import type { StoreComparison, GroceryItem, ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
+import { useAuth } from "@/contexts/auth-context"
+import { profileDB } from "@/lib/database/profile-db"
 
 const SEARCH_CACHE_KEY = "store_search_cache"
 const SEARCH_CACHE_TTL = 1000 * 60 * 30 // 30 minutes
+const SEARCH_BATCH_SIZE = 5
+
+type StoreSearchResults = Awaited<ReturnType<typeof searchGroceryStores>>
 
 interface SearchCacheData {
   results: StoreComparison[]
@@ -29,6 +34,8 @@ export function useStoreComparison(
   userLocation: { lat: number, lng: number } | null,
 ) {
   const { toast } = useToast()
+  const { user } = useAuth()
+  const [profileZipCode, setProfileZipCode] = useState<string | null>(null)
 
   const [results, setResults] = useState<StoreComparison[]>([])
   const [loading, setLoading] = useState(false)
@@ -36,10 +43,35 @@ export function useStoreComparison(
   const carouselRef = useRef<HTMLDivElement>(null)
   const [sortMode, setSortMode] = useState<"best-price" | "nearest" | "best-value">("best-price")
   const [usingCache, setUsingCache] = useState(false)
+  const resolvedZipCode = zipCode || profileZipCode || ""
+
+  useEffect(() => {
+    if (!user) {
+      setProfileZipCode(null)
+      return
+    }
+
+    let isActive = true
+    void (async () => {
+      try {
+        const data = await profileDB.fetchProfileFields(user.id, ["postal_code"])
+        if (isActive) {
+          setProfileZipCode(data?.postal_code ?? null)
+        }
+      } catch (error) {
+        console.error("[useStoreComparison] Failed to load profile zip:", error)
+      }
+    })()
+
+    return () => {
+      isActive = false
+    }
+  }, [user])
 
   // Load cached search results on mount
   useEffect(() => {
     if (typeof window === "undefined" || !shoppingList.length) return
+    if (!resolvedZipCode) return
 
     try {
       const cached = localStorage.getItem(SEARCH_CACHE_KEY)
@@ -50,7 +82,7 @@ export function useStoreComparison(
 
         // Check if cache is valid AND has results
         if (
-          parsedCache.zipCode === zipCode &&
+          parsedCache.zipCode === resolvedZipCode &&
           parsedCache.itemsHash === currentHash &&
           now - parsedCache.timestamp < SEARCH_CACHE_TTL &&
           parsedCache.results.length > 0
@@ -66,7 +98,7 @@ export function useStoreComparison(
       console.error("Error loading cached search:", error)
       localStorage.removeItem(SEARCH_CACHE_KEY)
     }
-  }, []) // Only run on mount
+  }, [resolvedZipCode]) // Reload when zip code resolves
 
   // -- Actions --
   const performMassSearch = useCallback(async () => {
@@ -84,7 +116,7 @@ export function useStoreComparison(
         const now = Date.now()
 
         if (
-          parsedCache.zipCode === zipCode &&
+          parsedCache.zipCode === resolvedZipCode &&
           parsedCache.itemsHash === currentHash &&
           now - parsedCache.timestamp < SEARCH_CACHE_TTL &&
           parsedCache.results.length > 0
@@ -105,12 +137,29 @@ export function useStoreComparison(
     setUsingCache(false)
 
     try {
-      const searchPromises = shoppingList.map(async (item) => {
-        const storeResults = await searchGroceryStores(item.name, zipCode)
-        return { item, storeResults }
-      })
+      const zipForSearch = resolvedZipCode || undefined
+      const aggregatedSearchData: Array<{ item: ShoppingListItem; storeResults: StoreSearchResults }> = []
 
-      const searchData = await Promise.all(searchPromises)
+      for (let startIndex = 0; startIndex < shoppingList.length; startIndex += SEARCH_BATCH_SIZE) {
+        const batch = shoppingList.slice(startIndex, startIndex + SEARCH_BATCH_SIZE)
+        const batchResults = await Promise.all(batch.map(async (item) => {
+          try {
+            const storeResults = await searchGroceryStores(
+              item.name,
+              zipForSearch,
+              undefined,
+              item.recipe_id ?? undefined
+            )
+            return { item, storeResults }
+          } catch (error) {
+            console.error("[useStoreComparison] search failed for", item.name, error)
+            return { item, storeResults: [] }
+          }
+        }))
+        aggregatedSearchData.push(...batchResults)
+      }
+
+      const searchData = aggregatedSearchData
       const storeMap = new Map<string, StoreComparison>()
 
       searchData.forEach(({ item, storeResults }) => {
@@ -212,7 +261,7 @@ export function useStoreComparison(
           results: comparisons,
           timestamp: Date.now(),
           itemsHash: currentHash,
-          zipCode,
+          zipCode: resolvedZipCode,
         }
         localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify(cacheData))
       } catch (error) {
@@ -225,7 +274,7 @@ export function useStoreComparison(
     } finally {
       setLoading(false)
     }
-  }, [shoppingList, zipCode, toast])
+  }, [shoppingList, resolvedZipCode, toast])
 
   // -- FIX: IMMUTABLE STATE PATCHER --
   // This ensures price changes trigger a re-render by creating new object references

@@ -22,7 +22,7 @@ export default function UploadRecipePage() {
   const { theme } = useTheme()
   const isDark = theme === "dark"
 
-  const standardizeMutation = useStandardizeRecipeIngredients()
+  const { mutateAsync: standardizeRecipeIngredients } = useStandardizeRecipeIngredients()
 
   const [mainTab, setMainTab] = useState<"manual" | "import">("manual")
   const [loading, setLoading] = useState(false)
@@ -100,10 +100,21 @@ export default function UploadRecipePage() {
       if (!newRecipe) throw new Error("Failed to create recipe record")
 
       // 4. Trigger background standardization
-      standardizeMutation.mutate({ 
-        recipeId: newRecipe.id, 
-        ingredients: submissionData.ingredients 
-      })
+      if (submissionData.ingredients?.length) {
+        try {
+          await standardizeRecipeIngredients({
+            recipeId: newRecipe.id,
+            ingredients: submissionData.ingredients,
+          })
+        } catch (error) {
+          console.error("[UploadPage] Ingredient standardization failed:", error)
+          toast({
+            title: "Partial upload",
+            description: "Recipe saved but ingredient mapping failed. Please retry the standardization step in recipe settings.",
+            variant: "destructive",
+          })
+        }
+      }
 
       toast({ title: "Recipe uploaded!", description: "Your recipe is now live." })
       router.push(`/recipes/${newRecipe.id}`)
