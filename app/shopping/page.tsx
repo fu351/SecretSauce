@@ -19,7 +19,7 @@ import { RecipeSearchModal } from "@/components/recipe/detail/recipe-recommendat
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ShoppingBag, Loader2, ArrowRight, AlertCircle, ChefHat } from "lucide-react"
+import { ShoppingBag, Loader2, ArrowRight, AlertCircle } from "lucide-react"
 
 const DEFAULT_SHOPPING_ZIP = ""
 
@@ -269,22 +269,12 @@ export default function ShoppingPage() {
                     onNewItemInputChange={setNewItemInput}
                     onAddCustomItem={handleCustomInputSubmit}
                     inputClass={styles.inputClass}
+                    onOpenRecipeSearch={() => setShowRecipeModal(true)}
                   />
                 </div>
               </CardContent>
             </Card>
           </div>
-        </div>
-
-        {/* Fixed floating chef hat button - Opens recipe recommendation modal */}
-        <div className="fixed bottom-6 right-6 z-50">
-          <Button
-            onClick={() => setShowRecipeModal(true)}
-            className={`${styles.buttonClass} rounded-full w-14 h-14 p-0 flex items-center justify-center shadow-lg`}
-            title="Search recipes"
-          >
-            <ChefHat className="h-6 w-6" />
-          </Button>
         </div>
 
         {/* Mobile modal - DISABLED */}

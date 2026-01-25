@@ -82,6 +82,7 @@ interface ExtendedShoppingListSectionProps extends ShoppingListSectionProps {
   onNewItemInputChange?: (value: string) => void;
   onAddCustomItem?: () => void;
   inputClass?: string;
+  onOpenRecipeSearch?: () => void;
 }
 
 export function ShoppingListSection({
@@ -106,6 +107,7 @@ export function ShoppingListSection({
   onNewItemInputChange,
   onAddCustomItem,
   inputClass,
+  onOpenRecipeSearch,
 }: ExtendedShoppingListSectionProps) {
   
   // -- View State --
@@ -569,6 +571,16 @@ export function ShoppingListSection({
 
             <div className="flex items-center gap-2">
               {headerAction && <div>{headerAction}</div>}
+
+              {onOpenRecipeSearch && (
+                <Button
+                  onClick={onOpenRecipeSearch}
+                  className={`h-8 w-8 flex-shrink-0 p-0 ${buttonClass}`}
+                  title="Search recipes"
+                >
+                  <ChefHat className="h-4 w-4" />
+                </Button>
+              )}
 
               {uniqueList.length > 0 && (
                 <>
