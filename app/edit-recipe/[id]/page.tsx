@@ -3,13 +3,16 @@
 import { useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
+import clsx from "clsx"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import { useRecipe, useStandardizeRecipeIngredients } from "@/hooks"
+import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { uploadRecipeImage } from "@/lib/image-helper"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
 import type { RecipeSubmissionData, ImportedRecipe } from "@/lib/types"
+import { parseInstructionsFromDB } from "@/lib/types"
 
 export default function EditRecipePage() {
   const router = useRouter()
@@ -17,6 +20,8 @@ export default function EditRecipePage() {
   const { user } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { theme } = useTheme()
+  const pageBackgroundClass = theme === "dark" ? "bg-background" : "bg-gradient-to-br from-orange-50 to-yellow-50"
 
   const recipeId = Array.isArray(params.id) ? params.id[0] : params.id
 
@@ -132,7 +137,18 @@ export default function EditRecipePage() {
   // Convert Recipe to ImportedRecipe format
   const recipeData: ImportedRecipe | undefined = recipe
     ? {
-        ...recipe,
+        title: recipe.title || undefined,
+        description: recipe.description || undefined,
+        image_url: recipe.image_url || undefined,
+        prep_time: recipe.prep_time,
+        cook_time: recipe.cook_time,
+        servings: recipe.servings,
+        difficulty: recipe.difficulty,
+        cuisine: recipe.cuisine_name || undefined,
+        tags: recipe.tags,
+        ingredients: recipe.ingredients,
+        instructions: parseInstructionsFromDB(recipe.instructions_list),
+        nutrition: recipe.nutrition,
         source_type: "manual" as const,
       }
     : undefined
@@ -150,8 +166,8 @@ export default function EditRecipePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto p-4 md:p-6">
+    <div className={clsx("min-h-screen transition-colors", pageBackgroundClass)}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Edit Recipe</h1>
           <p className="text-muted-foreground">Update your recipe details</p>

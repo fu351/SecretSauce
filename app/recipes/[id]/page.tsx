@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import clsx from "clsx"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils } from "lucide-react"
+import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils, Pencil } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
@@ -77,6 +77,7 @@ export default function RecipeDetailPage() {
   const primaryButtonClass = isDark
     ? "bg-primary text-primary-foreground hover:bg-primary/90"
     : "bg-orange-500 hover:bg-orange-600"
+  const isRecipeOwner = Boolean(user && recipe && user.id === recipe.author_id)
 
   useEffect(() => {
     if (params.id) {
@@ -282,7 +283,7 @@ export default function RecipeDetailPage() {
           <div className="lg:w-2/5 w-full">
             <Card className={infoPanelClass}>
               <CardContent className="p-8 space-y-8">
-                <div>
+                <div className="flex items-start justify-between gap-4">
                   <h1
                     className={clsx(
                       "text-2xl sm:text-3xl font-bold leading-tight",
@@ -291,6 +292,17 @@ export default function RecipeDetailPage() {
                   >
                     {recipe.title}
                   </h1>
+                  {isRecipeOwner && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="whitespace-nowrap"
+                      onClick={() => router.push(`/edit-recipe/${recipe.id}`)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Edit
+                    </Button>
+                  )}
                 </div>
 
                 <p className={clsx("leading-relaxed text-base sm:text-lg", descriptionTextClass)}>

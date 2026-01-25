@@ -377,16 +377,21 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     if (updates.rating_avg !== undefined) dbUpdates.rating_avg = updates.rating_avg
     if (updates.rating_count !== undefined) dbUpdates.rating_count = updates.rating_count
 
-    if (updates.content?.description !== undefined) {
+    if (updates.description !== undefined) {
+      dbUpdates.description = updates.description
+    } else if (updates.content?.description !== undefined) {
       dbUpdates.description = updates.content.description
     }
 
-    if (updates.content?.image_url !== undefined) {
+    if (updates.image_url !== undefined) {
+      dbUpdates.image_url = updates.image_url
+    } else if (updates.content?.image_url !== undefined) {
       dbUpdates.image_url = updates.content.image_url
     }
 
-    if (updates.content?.instructions !== undefined) {
-      dbUpdates.instructions_list = parseInstructionsFromDB(updates.content.instructions)
+    const instructionSource = updates.instructions ?? updates.content?.instructions
+    if (instructionSource !== undefined) {
+      dbUpdates.instructions_list = parseInstructionsFromDB(instructionSource)
         .map((step) => step.description)
         .filter(Boolean)
     }

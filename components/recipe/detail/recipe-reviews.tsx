@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import clsx from "clsx"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -10,6 +11,7 @@ import { supabase } from "@/lib/database/supabase"
 import { profileDB } from "@/lib/database/profile-db"
 import { useToast } from "@/hooks"
 import { RecipeReviewsSkeleton } from "@/components/recipe/cards/recipe-skeleton"
+import { useTheme } from "@/contexts/theme-context"
 
 interface Review {
   id: string
@@ -37,6 +39,8 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
   const { toast } = useToast()
   const mounted = useRef(true)
   const loadingRef = useRef(false)
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
 
   useEffect(() => {
     mounted.current = true
@@ -193,8 +197,29 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
 
   const averageRating = reviews.length > 0 ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length : 0
 
+  const cardClassName = clsx(
+    "shadow-lg border rounded-2xl transition-colors",
+    isDark ? "bg-card border-border" : "bg-white/90 backdrop-blur-sm border-0",
+  )
+  const reviewFormClass = clsx(
+    "space-y-4 p-4 rounded-lg border",
+    isDark ? "bg-secondary/70 border-border text-foreground" : "bg-orange-50 border-orange-100 text-gray-800",
+  )
+  const reviewedMessageClass = clsx(
+    "p-4 rounded-lg text-center border",
+    isDark ? "bg-secondary/70 border-border text-foreground" : "bg-green-50 border-green-200 text-green-900",
+  )
+  const reviewCardClass = clsx(
+    "p-4 rounded-lg border transition-colors",
+    isDark ? "bg-card border-border text-foreground" : "bg-white/80 border-white/50 text-gray-800",
+  )
+  const emptyStateClass = clsx(
+    "text-center py-8 rounded-lg border",
+    isDark ? "bg-secondary/70 border-border text-muted-foreground" : "bg-white/80 border-white/50 text-gray-500",
+  )
+
   return (
-    <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
+    <Card className={cardClassName}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Reviews & Ratings</span>
@@ -209,7 +234,7 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
       </CardHeader>
       <CardContent className="space-y-6">
         {user && !hasReviewed && (
-          <div className="space-y-4 p-4 bg-orange-50 rounded-lg">
+          <div className={reviewFormClass}>
             <div>
               <label className="text-sm font-medium mb-2 block">Your Rating</label>
               <div className="flex gap-2">
@@ -249,7 +274,7 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
         )}
 
         {hasReviewed && user && (
-          <div className="p-4 bg-green-50 text-green-800 rounded-lg text-center">
+          <div className={reviewedMessageClass}>
             Thank you for your review! You've already reviewed this recipe.
           </div>
         )}
@@ -258,17 +283,22 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
           {loadingReviews ? (
             <RecipeReviewsSkeleton />
           ) : reviews.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className={emptyStateClass}>
               <Star className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>No reviews yet. Be the first to review this recipe!</p>
             </div>
           ) : (
             reviews.map((review) => (
-              <div key={review.id} className="p-4 bg-white rounded-lg border">
+              <div key={review.id} className={reviewCardClass}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                      <span className="text-orange-600 font-semibold">
+                    <div
+                      className={clsx(
+                        "w-10 h-10 rounded-full flex items-center justify-center",
+                        isDark ? "bg-orange-100 text-orange-800" : "bg-orange-100 text-orange-600",
+                      )}
+                    >
+                      <span className="font-semibold">
                         {review.user_name?.[0] || review.user_email?.[0] || "?"}
                       </span>
                     </div>

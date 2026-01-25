@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
@@ -23,6 +23,7 @@ import { RecipeIngredientsForm } from "./recipe-ingredients-form"
 import { RecipeInstructionsForm } from "./recipe-instructions-form"
 import { RecipeNutritionForm } from "./recipe-nutrition-form"
 import type { IngredientFormInput, NutritionFormInput, RecipeSubmissionData, Instruction, ImportedRecipe } from "@/lib/types"
+import { getRecipeImageUrl } from "@/lib/image-helper"
 
 interface RecipeManualEntryFormProps {
   onSubmit: (data: RecipeSubmissionData) => Promise<void>
@@ -56,12 +57,19 @@ export function RecipeManualEntryForm({
   const [tags, setTags] = useState<string[]>(initialData?.tags || [])
 
   // Image state
-  const [imageMode, setImageMode] = useState<"url" | "file">(
-    initialData?.image_url ? "url" : "file"
-  )
-  const [imageUrl, setImageUrl] = useState(initialData?.image_url || "")
+  const extractImageValue = (data?: ImportedRecipe) => {
+    if (!data) return ""
+    const contentImage = (data as any)?.content?.image_url
+    return data.image_url || contentImage || ""
+  }
+  const [imageMode, setImageMode] = useState<"url" | "file">(extractImageValue(initialData) ? "url" : "file")
+  const [imageUrl, setImageUrl] = useState(extractImageValue(initialData))
   const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState(initialData?.image_url || "")
+  const resolveInitialImageUrl = (data?: ImportedRecipe) => {
+    const value = extractImageValue(data)
+    return value ? getRecipeImageUrl(value) : ""
+  }
+  const [imagePreview, setImagePreview] = useState(() => resolveInitialImageUrl(initialData))
 
   // Ingredients state
   const [ingredients, setIngredients] = useState<IngredientFormInput[]>(
@@ -90,6 +98,41 @@ export function RecipeManualEntryForm({
     carbs: initialData?.nutrition?.carbs?.toString() || "",
     fat: initialData?.nutrition?.fat?.toString() || "",
   })
+
+  useEffect(() => {
+    if (!initialData) return
+
+    setTitle(initialData.title || "")
+    setDescription(initialData.description || "")
+    setPrep_time((initialData.prep_time || "").toString())
+    setCook_time((initialData.cook_time || "").toString())
+    setServings((initialData.servings || "").toString())
+    setDifficulty(initialData.difficulty || "beginner")
+    setCuisine(initialData.cuisine || "")
+    setTags(initialData.tags || [])
+    const imageValue = extractImageValue(initialData)
+    setImageMode(imageValue ? "url" : "file")
+    setImageUrl(imageValue)
+    setImagePreview(resolveInitialImageUrl(initialData))
+    setIngredients(
+      initialData.ingredients?.length
+        ? initialData.ingredients.map((ing) => ({
+            name: ing.name,
+            amount: ing.quantity?.toString() || "",
+            unit: ing.unit || "",
+            standardizedIngredientId: ing.standardizedIngredientId,
+            standardizedName: ing.standardizedName,
+          }))
+        : [{ name: "", amount: "", unit: "" }],
+    )
+    setInstructions(initialData.instructions?.length ? initialData.instructions : [{ step: 1, description: "" }])
+    setNutrition({
+      calories: initialData.nutrition?.calories?.toString() || "",
+      protein: initialData.nutrition?.protein?.toString() || "",
+      carbs: initialData.nutrition?.carbs?.toString() || "",
+      fat: initialData.nutrition?.fat?.toString() || "",
+    })
+  }, [initialData])
 
   const handleNutritionChange = (field: string, value: string) => {
     setNutrition((prev) => ({ ...prev, [field]: value }))
