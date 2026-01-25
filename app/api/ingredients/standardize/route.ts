@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { standardizeIngredientsWithAI } from "@/lib/ingredient-standardizer"
-import {
-  batchGetOrCreateStandardizedIngredients,
-  batchMapIngredientsToStandardized,
-} from "@/lib/ingredient-cache"
+import { batchGetOrCreateStandardizedIngredients } from "@/lib/ingredient-cache"
+import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import { createServerClient } from "@/lib/database/supabase"
 
 interface RequestIngredient {
@@ -70,8 +68,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "All ingredients were blank" }, { status: 400 })
     }
 
+    if (context === "recipe" && recipeId) {
+      const displayNames = normalizedInputs.map((input) => input.name)
+      await recipeIngredientsDB.batchUpsertDisplayNames(recipeId, displayNames)
+
+      return NextResponse.json({
+        context,
+        standardized: [],
+      })
+    }
+
     const aiResults = await standardizeIngredientsWithAI(normalizedInputs, context)
-    const client = createServerClient()
 
     // OPTIMIZED: Batch create all standardized ingredients in one query
     const standardizedItems = aiResults.map(result => ({
@@ -91,8 +98,6 @@ export async function POST(request: NextRequest) {
       originalIndex: number
     }> = []
 
-    const mappingsToCreate: Array<{ originalName: string; standardizedIngredientId: string }> = []
-
     for (const result of aiResults) {
       const target = normalizedInputs.find((input) => input.id === result.id) || normalizedInputs[0]
       const normalizedCanonical = result.canonicalName.trim().toLowerCase()
@@ -111,32 +116,10 @@ export async function POST(request: NextRequest) {
 
       updates.push(payload)
 
-      if (context === "recipe" && recipeId) {
-        mappingsToCreate.push({
-          originalName: result.originalName,
-          standardizedIngredientId: standardizedId,
-        })
-      }
     }
 
-    // OPTIMIZED: Batch create all mappings in one query
-    if (context === "recipe" && recipeId && mappingsToCreate.length > 0) {
-      await batchMapIngredientsToStandardized(recipeId, mappingsToCreate)
-    }
-
-    if (context === "recipe" && recipeId) {
-      const updatedIngredients = ingredients.map((ingredient, index) => {
-        const match = updates.find((update) => update.originalIndex === index)
-        if (!match) return ingredient
-        return {
-          ...ingredient,
-          standardizedIngredientId: match.standardizedIngredientId,
-          standardizedName: match.canonicalName,
-        }
-      })
-
-      await client.from("recipes").update({ ingredients: updatedIngredients }).eq("id", recipeId)
-    } else if (context === "pantry" && pantryItemId && updates[0]) {
+    if (context === "pantry" && pantryItemId && updates[0]) {
+      const client = createServerClient()
       const primary = updates[0]
       await client
         .from("pantry_items")

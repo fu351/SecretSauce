@@ -223,14 +223,15 @@ export type Database = {
           prep_time: number | null
           cook_time: number | null
           tags: string[] | null
-          ingredients: any | null // JSONB
-          content: any | null // JSONB containing description, image_url, instructions
           nutrition: any | null // JSONB
           rating_avg: number | null
           rating_count: number | null
           created_at: string | null
           updated_at: string | null
           deleted_at: string | null
+          description: string | null
+          image_url: string | null
+          instructions_list: string[] | null
         }
         Insert: {
           id?: string
@@ -244,14 +245,15 @@ export type Database = {
           prep_time?: number | null
           cook_time?: number | null
           tags?: string[] | null
-          ingredients?: any | null
-          content?: any | null
           nutrition?: any | null
           rating_avg?: number | null
           rating_count?: number | null
           created_at?: string | null
           updated_at?: string | null
           deleted_at?: string | null
+          description?: string | null
+          image_url?: string | null
+          instructions_list?: string[] | null
         }
         Update: {
           id?: string
@@ -265,13 +267,46 @@ export type Database = {
           prep_time?: number | null
           cook_time?: number | null
           tags?: string[] | null
-          ingredients?: any | null
-          content?: any | null
           nutrition?: any | null
           rating_avg?: number | null
           rating_count?: number | null
           created_at?: string | null
           updated_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          image_url?: string | null
+          instructions_list?: string[] | null
+        }
+      }
+      recipe_ingredients: {
+        Row: {
+          id: string
+          recipe_id: string
+          standardized_ingredient_id: string | null
+          display_name: string
+          created_at: string | null
+          quantity: number | null
+          units: string | null
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          recipe_id: string
+          standardized_ingredient_id?: string | null
+          display_name: string
+          created_at?: string | null
+          quantity?: number | null
+          units?: string | null
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          recipe_id?: string
+          standardized_ingredient_id?: string | null
+          display_name?: string
+          created_at?: string | null
+          quantity?: number | null
+          units?: string | null
           deleted_at?: string | null
         }
       }
@@ -523,7 +558,7 @@ export type Database = {
           user_id: string
           source_type: "recipe" | "manual"
           recipe_id: string | null
-          recipe_ingredient_index: number | null
+          recipe_ingredient_id: string | null
           name: string
           quantity: number
           unit: string | null
@@ -539,7 +574,7 @@ export type Database = {
           user_id: string
           source_type: "recipe" | "manual"
           recipe_id?: string | null
-          recipe_ingredient_index?: number | null
+          recipe_ingredient_id?: string | null
           name: string
           quantity?: number
           unit?: string | null
@@ -555,7 +590,7 @@ export type Database = {
           user_id?: string
           source_type?: "recipe" | "manual"
           recipe_id?: string | null
-          recipe_ingredient_index?: number | null
+          recipe_ingredient_id?: string | null
           name?: string
           quantity?: number
           unit?: string | null

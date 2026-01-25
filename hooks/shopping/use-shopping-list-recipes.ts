@@ -6,6 +6,20 @@ import { shoppingListDB } from "@/lib/database/store-list-db"
 import { recipeDB } from "@/lib/database/recipe-db"
 import type { ShoppingListItem } from "@/lib/types/store"
 
+type RecipeIngredientRow = {
+  id: string
+  recipe_id: string
+  display_name: string
+  quantity: number | null
+  units: string | null
+  standardized_ingredient_id: string | null
+}
+
+type RecipeIngredientsSource = {
+  findByRecipeId: (recipeId: string) => Promise<RecipeIngredientRow[]>
+  findByRecipeIds: (recipeIds: string[]) => Promise<RecipeIngredientRow[]>
+}
+
 /**
  * Composable hook for recipe-related shopping list operations
  * Handles adding recipes to cart, updating servings, removing recipes, and clearing checked items
@@ -21,7 +35,8 @@ export function useShoppingListRecipes(
   items: ShoppingListItem[],
   setItems: React.Dispatch<React.SetStateAction<ShoppingListItem[]>>,
   loadShoppingList: () => Promise<void>,
-  userId: string | null
+  userId: string | null,
+  recipeIngredientsDB: RecipeIngredientsSource
 ) {
   const { toast } = useToast()
 
@@ -33,14 +48,16 @@ export function useShoppingListRecipes(
       if (!userId) return
 
       try {
-        // Fetch recipe details
-        const recipe = await recipeDB.fetchRecipeById(recipeId)
+        const [recipe, ingredients] = await Promise.all([
+          recipeDB.fetchRecipeById(recipeId),
+          recipeIngredientsDB.findByRecipeId(recipeId)
+        ])
 
         if (!recipe) {
           throw new Error("Recipe not found")
         }
 
-        if (!recipe.ingredients || recipe.ingredients.length === 0) {
+        if (!ingredients || ingredients.length === 0) {
           throw new Error("Recipe has no ingredients")
         }
 
@@ -48,7 +65,7 @@ export function useShoppingListRecipes(
         const baseServings = recipe.servings || 1
 
         // Create shopping list items from recipe ingredients
-        const itemsToInsert = recipe.ingredients.map((ing, idx) => {
+        const itemsToInsert = ingredients.map((ing, idx) => {
           const baseAmount = Number(ing.quantity) || 1
           const perServingAmount = baseAmount / baseServings
           const finalQuantity = perServingAmount * finalServings
@@ -57,11 +74,11 @@ export function useShoppingListRecipes(
             user_id: userId,
             source_type: 'recipe' as const,
             recipe_id: recipeId,
-            recipe_ingredient_index: idx,
-            name: ing.name,
+            recipe_ingredient_id: ing.id,
+            name: ing.display_name,
             quantity: finalQuantity,
-            unit: ing.unit || "piece",
-            ingredient_id: ing.standardizedIngredientId,
+            unit: ing.units || "piece",
+            ingredient_id: ing.standardized_ingredient_id,
             checked: false,
             servings: finalServings,
             category: "other"  // Default to "other" to match database enum
@@ -79,7 +96,7 @@ export function useShoppingListRecipes(
         toast({ title: "Error", description: errorMessage, variant: "destructive" })
       }
     },
-    [userId, toast]
+    [userId, toast, loadShoppingList, recipeIngredientsDB]
   )
 
   /**
@@ -162,26 +179,35 @@ export function useShoppingListRecipes(
 
       try {
         // Fetch all recipes in parallel
-        const recipes = await Promise.all(
-          recipeIds.map(id => recipeDB.fetchRecipeById(id))
-        )
+        const [recipes, ingredients] = await Promise.all([
+          recipeDB.fetchRecipeByIds(recipeIds),
+          recipeIngredientsDB.findByRecipeIds(recipeIds)
+        ])
+
+        const recipesById = new Map(recipes.map(recipe => [recipe.id, recipe]))
+        const ingredientsByRecipeId = new Map<string, RecipeIngredientRow[]>()
+        for (const ingredient of ingredients) {
+          const list = ingredientsByRecipeId.get(ingredient.recipe_id) || []
+          list.push(ingredient)
+          ingredientsByRecipeId.set(ingredient.recipe_id, list)
+        }
 
         // Build all items to insert
         const allItemsToInsert: any[] = []
         let totalRecipesAdded = 0
 
-        for (let i = 0; i < recipes.length; i++) {
-          const recipe = recipes[i]
-          const recipeId = recipeIds[i]
+        for (const recipeId of recipeIds) {
+          const recipe = recipesById.get(recipeId)
+          const recipeIngredients = ingredientsByRecipeId.get(recipeId) || []
 
-          if (!recipe || !recipe.ingredients || recipe.ingredients.length === 0) {
+          if (!recipe || recipeIngredients.length === 0) {
             continue
           }
 
           const finalServings = recipe.servings || 1
           const baseServings = recipe.servings || 1
 
-          const recipeItems = recipe.ingredients.map((ing, idx) => {
+          const recipeItems = recipeIngredients.map((ing, idx) => {
             const baseAmount = Number(ing.quantity) || 1
             const perServingAmount = baseAmount / baseServings
             const finalQuantity = perServingAmount * finalServings
@@ -190,11 +216,11 @@ export function useShoppingListRecipes(
               user_id: userId,
               source_type: 'recipe' as const,
               recipe_id: recipeId,
-              recipe_ingredient_index: idx,
-              name: ing.name,
+              recipe_ingredient_id: ing.id,
+              name: ing.display_name,
               quantity: finalQuantity,
-              unit: ing.unit || "piece",
-              ingredient_id: ing.standardizedIngredientId,
+              unit: ing.units || "piece",
+              ingredient_id: ing.standardized_ingredient_id,
               checked: false,
               servings: finalServings,
               category: "other"  // Default to "other" to match database enum
@@ -221,7 +247,7 @@ export function useShoppingListRecipes(
         throw new Error(errorMessage)
       }
     },
-    [userId]
+    [userId, loadShoppingList, recipeIngredientsDB]
   )
 
   return {

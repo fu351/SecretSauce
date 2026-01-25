@@ -17,7 +17,6 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
     try {
       // We need a db function that fetches by weekIndex.
       // For now, we'll just log that we would fetch.
-      console.log(`[useWeeklyMealPlan] Fetching week ${weekIndex} for user ${userId}`)
 
       const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(userId, weekIndex)
       setMeals(mealSchedule)

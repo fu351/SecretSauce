@@ -2,6 +2,7 @@
 import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/database/supabase"
 import type { Recipe } from "@/lib/types"
+import { parseInstructionsFromDB } from "@/lib/types"
 
 export type RecipeFavoriteRow = Database["public"]["Tables"]["recipe_favorites"]["Row"]
 export type RecipeFavoriteInsert = Database["public"]["Tables"]["recipe_favorites"]["Insert"]
@@ -45,7 +46,9 @@ class RecipeFavoritesTable extends BaseTable<
         recipes (
           id,
           title,
-          content,
+          description,
+          image_url,
+          instructions_list,
           prep_time,
           cook_time,
           servings,
@@ -58,7 +61,6 @@ class RecipeFavoritesTable extends BaseTable<
           meal_type,
           cuisine,
           nutrition,
-          ingredients,
           created_at,
           updated_at
         )
@@ -83,31 +85,39 @@ class RecipeFavoritesTable extends BaseTable<
     const recipes = data
       .map((item: any) => item.recipes)
       .filter(Boolean)
-      .map((recipe: any) => ({
-        id: recipe.id,
-        title: recipe.title,
-        description: recipe.content?.description || "",
-        image_url: recipe.content?.image_url,
-        prep_time: recipe.prep_time || 0,
-        cook_time: recipe.cook_time || 0,
-        servings: recipe.servings,
-        difficulty: recipe.difficulty,
-        cuisine_name: recipe.cuisine || undefined,
-        ingredients: recipe.ingredients || [],
-        instructions: recipe.content?.instructions || [],
-        nutrition: recipe.nutrition || {},
-        author_id: recipe.author_id || "",
-        rating_avg: recipe.rating_avg || 0,
-        rating_count: recipe.rating_count || 0,
-        tags: {
-          dietary: recipe.tags || [],
-          protein: recipe.protein || undefined,
-          meal_type: recipe.meal_type || undefined,
-          cuisine_guess: undefined,
-        },
-        created_at: recipe.created_at,
-        updated_at: recipe.updated_at,
-      }))
+      .map((recipe: any) => {
+        const description = recipe.description ?? recipe.content?.description ?? ""
+        const imageUrl = recipe.image_url ?? recipe.content?.image_url
+        const instructions = parseInstructionsFromDB(
+          recipe.instructions_list ?? recipe.content?.instructions
+        )
+
+        return {
+          id: recipe.id,
+          title: recipe.title,
+          description,
+          image_url: imageUrl,
+          prep_time: recipe.prep_time || 0,
+          cook_time: recipe.cook_time || 0,
+          servings: recipe.servings,
+          difficulty: recipe.difficulty,
+          cuisine_name: recipe.cuisine || undefined,
+          ingredients: recipe.ingredients || [],
+          instructions,
+          nutrition: recipe.nutrition || {},
+          author_id: recipe.author_id || "",
+          rating_avg: recipe.rating_avg || 0,
+          rating_count: recipe.rating_count || 0,
+          tags: {
+            dietary: recipe.tags || [],
+            protein: recipe.protein || undefined,
+            meal_type: recipe.meal_type || undefined,
+            cuisine_guess: undefined,
+          },
+          created_at: recipe.created_at,
+          updated_at: recipe.updated_at,
+        }
+      })
 
     return recipes
   }
@@ -140,13 +150,9 @@ class RecipeFavoritesTable extends BaseTable<
       .select("id")
       .eq("user_id", userId)
       .eq("recipe_id", recipeId)
-      .single()
+      .maybeSingle()
 
     if (error) {
-      // Not found is expected for non-favorites
-      if (error.code === "PGRST116") {
-        return false
-      }
       this.handleError(error, "isFavorite")
       return false
     }

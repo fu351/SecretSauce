@@ -28,11 +28,14 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
 
   /**
    * Map raw database recipe to typed Recipe
-   * Handles complex transformation from DB schema (JSONB content, enum arrays) to Recipe type
+   * Handles transformation from DB schema (column fields with legacy JSONB fallback) to Recipe type
    */
   protected map(dbItem: any): Recipe {
-    // Extract content JSONB
+    // Support new columns with fallback to legacy content JSONB during migration
     const content = dbItem.content || {}
+    const description = dbItem.description ?? content.description ?? ""
+    const imageUrl = dbItem.image_url ?? content.image_url
+    const instructionsRaw = dbItem.instructions_list ?? content.instructions
 
     return {
       id: dbItem.id,
@@ -42,16 +45,26 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       servings: dbItem.servings,
       difficulty: dbItem.difficulty,
       cuisine_name: dbItem.cuisine || undefined, // Map enum directly to string
-      ingredients: dbItem.ingredients || [],
+      ingredients: (dbItem.recipe_ingredients || []).map((ing: any) => ({
+        id: ing.id,
+        display_name: ing.display_name,
+        name: ing.display_name,
+        quantity: ing.quantity ?? undefined,
+        units: ing.units ?? undefined,
+        unit: ing.units ?? undefined,
+        standardizedIngredientId: ing.standardized_ingredient_id ?? undefined,
+        standardized_ingredient_id: ing.standardized_ingredient_id ?? undefined,
+        standardizedName: ing.standardized_ingredient?.canonical_name ?? ing.standardized_ingredients?.canonical_name ?? undefined,
+      })),
       nutrition: dbItem.nutrition || {},
       author_id: dbItem.author_id || "",
       rating_avg: dbItem.rating_avg || 0,
       rating_count: dbItem.rating_count || 0,
 
       content: {
-        description: content.description || "",
-        image_url: content.image_url,
-        instructions: parseInstructionsFromDB(content.instructions),
+        description,
+        image_url: imageUrl,
+        instructions: parseInstructionsFromDB(instructionsRaw),
       },
 
       // UNIFIED TAG SYSTEM - tags array contains dietary and allergen tags
@@ -71,7 +84,7 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
   async findById(id: string): Promise<Recipe | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
+      .select("*, recipe_ingredients(*)")
       .eq("id", id)
       .is("deleted_at", null) // Filter soft-deleted recipes
       .single()
@@ -79,6 +92,28 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     if (error) {
       this.handleError(error, `findById(${id})`)
       return null
+    }
+
+    if (data && process.env.NODE_ENV !== "production") {
+      const recipeIngredientCount = Array.isArray((data as any).recipe_ingredients)
+        ? (data as any).recipe_ingredients.length
+        : 0
+      const legacyIngredients = (data as any).ingredients
+      const legacyContentIngredients = (data as any).content?.ingredients
+      const legacyIngredientsCount = Array.isArray(legacyIngredients) ? legacyIngredients.length : 0
+      const legacyContentIngredientsCount = Array.isArray(legacyContentIngredients)
+        ? legacyContentIngredients.length
+        : 0
+
+      if (recipeIngredientCount === 0 || legacyIngredientsCount > 0 || legacyContentIngredientsCount > 0) {
+        console.log("[Recipe DB] Ingredient source snapshot", {
+          recipeId: id,
+          recipeIngredientCount,
+          legacyIngredientsCount,
+          legacyContentIngredientsCount,
+          hasLegacyIngredients: legacyIngredientsCount > 0 || legacyContentIngredientsCount > 0,
+        })
+      }
     }
 
     return data ? this.map(data) : null
@@ -127,7 +162,7 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
 
     let query = this.supabase
       .from(this.tableName)
-      .select("*")
+      .select("*, recipe_ingredients(*)")
       .is("deleted_at", null) // Filter soft-deleted recipes
 
     // Apply filters
@@ -257,12 +292,15 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
 
   /**
    * Insert a new recipe
-   * Transforms Recipe type to DB schema with JSONB content field
+   * Transforms Recipe type to DB schema using column-based description/media fields
    */
   async insertRecipe(recipe: Partial<Recipe>): Promise<Recipe | null> {
     console.log("[Recipe DB] Attempting to insert recipe:", recipe)
 
     // Transform Recipe type to DB schema
+    const instructionsList = parseInstructionsFromDB(recipe.content?.instructions)
+      .map((step) => step.description)
+      .filter(Boolean)
     const dbRecipe = {
       // Direct mappings
       title: recipe.title,
@@ -270,18 +308,14 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       cook_time: recipe.cook_time,
       servings: recipe.servings,
       difficulty: recipe.difficulty,
-      ingredients: recipe.ingredients,
       nutrition: recipe.nutrition,
       author_id: recipe.author_id,
       rating_avg: recipe.rating_avg,
       rating_count: recipe.rating_count,
 
-      // Build content JSONB
-      content: {
-        description: recipe.content?.description || "",
-        image_url: recipe.content?.image_url || null,
-        instructions: recipe.content?.instructions || [],
-      },
+      description: recipe.content?.description || "",
+      image_url: recipe.content?.image_url || null,
+      instructions_list: instructionsList,
 
       // Map tags array (dietary and allergen tags consolidated)
       tags: recipe.tags || [],
@@ -319,7 +353,7 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
 
   /**
    * Update an existing recipe
-   * Handles complex partial updates with JSONB content merging
+   * Handles partial updates for recipe columns and content fields
    */
   async updateRecipe(id: string, updates: Partial<Recipe>): Promise<Recipe | null> {
     console.log("[Recipe DB] Attempting to update recipe:", id, updates)
@@ -333,28 +367,22 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     if (updates.cook_time !== undefined) dbUpdates.cook_time = updates.cook_time
     if (updates.servings !== undefined) dbUpdates.servings = updates.servings
     if (updates.difficulty !== undefined) dbUpdates.difficulty = updates.difficulty
-    if (updates.ingredients !== undefined) dbUpdates.ingredients = updates.ingredients
     if (updates.nutrition !== undefined) dbUpdates.nutrition = updates.nutrition
     if (updates.rating_avg !== undefined) dbUpdates.rating_avg = updates.rating_avg
     if (updates.rating_count !== undefined) dbUpdates.rating_count = updates.rating_count
 
-    // Build content JSONB if any content fields are updated
-    if (updates.content) {
-      // Fetch current content first if partial update
-      const { data: currentRecipe } = await (this.supabase.from(this.tableName) as any)
-        .select("content")
-        .eq("id", id)
-        .single()
+    if (updates.content?.description !== undefined) {
+      dbUpdates.description = updates.content.description
+    }
 
-      const currentContent = (currentRecipe as any)?.content || {}
+    if (updates.content?.image_url !== undefined) {
+      dbUpdates.image_url = updates.content.image_url
+    }
 
-      dbUpdates.content = {
-        description:
-          updates.content.description !== undefined ? updates.content.description : currentContent.description,
-        image_url: updates.content.image_url !== undefined ? updates.content.image_url : currentContent.image_url,
-        instructions:
-          updates.content.instructions !== undefined ? updates.content.instructions : currentContent.instructions,
-      }
+    if (updates.content?.instructions !== undefined) {
+      dbUpdates.instructions_list = parseInstructionsFromDB(updates.content.instructions)
+        .map((step) => step.description)
+        .filter(Boolean)
     }
 
     // Map tags if provided (dietary and allergen tags consolidated into tags array)
@@ -458,15 +486,17 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       authorId?: string
       favoriteIds?: string[]
       tags?: string[]
+      protein?: string
+      mealType?: string
     }
   ): Promise<Recipe[]> {
-    const { limit = 50, offset = 0, authorId, favoriteIds, tags } = options || {}
+    const { limit = 50, offset = 0, authorId, favoriteIds, tags, protein, mealType } = options || {}
     const searchQuery = query.toLowerCase()
 
     // Fetch recipes and filter client-side for flexible search
     let queryBuilder = this.supabase
       .from(this.tableName)
-      .select("*")
+      .select("*, recipe_ingredients(*)")
       .is("deleted_at", null)
 
     if (authorId) {
@@ -481,6 +511,14 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       queryBuilder = queryBuilder.contains("tags", tags)
     }
 
+    if (protein) {
+      queryBuilder = queryBuilder.eq("protein", protein)
+    }
+
+    if (mealType) {
+      queryBuilder = queryBuilder.eq("meal_type", mealType)
+    }
+
     const { data, error } = await queryBuilder.range(offset, offset + limit - 1)
 
     if (error) {
@@ -492,17 +530,15 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       .filter((recipe: any) => {
         const title = recipe.title?.toLowerCase() || ""
 
-        // Search in content.description instead of direct description column
-        const content = recipe.content || {}
-        const description = content.description?.toLowerCase() || ""
+        const description = recipe.description?.toLowerCase() || recipe.content?.description?.toLowerCase() || ""
 
         const matchesTitle = title.includes(searchQuery)
         const matchesDescription = description.includes(searchQuery)
 
         // Search ingredients by name
         const matchesIngredient =
-          Array.isArray(recipe.ingredients) &&
-          recipe.ingredients.some((ing: any) => ing.name?.toLowerCase().includes(searchQuery))
+          Array.isArray(recipe.recipe_ingredients) &&
+          recipe.recipe_ingredients.some((ing: any) => ing.display_name?.toLowerCase().includes(searchQuery))
 
         return matchesTitle || matchesDescription || matchesIngredient
       })
@@ -520,8 +556,10 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     diet?: string[]
     favoriteIds?: string[]
     authorId?: string
+    protein?: string
+    mealType?: string
   }): Promise<number> {
-    const { difficulty, cuisine, search, diet, favoriteIds, authorId } = options || {}
+    const { difficulty, cuisine, search, diet, favoriteIds, authorId, protein, mealType } = options || {}
 
     let query = this.supabase
       .from(this.tableName)
@@ -547,6 +585,14 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       query = query.in("id", favoriteIds)
     }
 
+    if (protein) {
+      query = query.eq("protein", protein)
+    }
+
+    if (mealType) {
+      query = query.eq("meal_type", mealType)
+    }
+
     // Note: search filter is applied client-side in searchRecipes,
     // so for count with search, we need a different approach
     // For now, if search is provided, we'll fetch and count client-side
@@ -554,7 +600,7 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       const searchQuery = search.toLowerCase()
       let searchQueryBuilder = this.supabase
         .from(this.tableName)
-        .select("*")
+        .select("*, recipe_ingredients(display_name)")
         .is("deleted_at", null)
 
       if (authorId) {
@@ -569,6 +615,14 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
         searchQueryBuilder = searchQueryBuilder.contains("tags", diet)
       }
 
+      if (protein) {
+        searchQueryBuilder = searchQueryBuilder.eq("protein", protein)
+      }
+
+      if (mealType) {
+        searchQueryBuilder = searchQueryBuilder.eq("meal_type", mealType)
+      }
+
       const { data, error } = await searchQueryBuilder
 
       if (error) {
@@ -578,14 +632,13 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
 
       const filtered = (data || []).filter((recipe: any) => {
         const title = recipe.title?.toLowerCase() || ""
-        const content = recipe.content || {}
-        const description = content.description?.toLowerCase() || ""
+        const description = recipe.description?.toLowerCase() || recipe.content?.description?.toLowerCase() || ""
 
         const matchesTitle = title.includes(searchQuery)
         const matchesDescription = description.includes(searchQuery)
         const matchesIngredient =
-          Array.isArray(recipe.ingredients) &&
-          recipe.ingredients.some((ing: any) => ing.name?.toLowerCase().includes(searchQuery))
+          Array.isArray(recipe.recipe_ingredients) &&
+          recipe.recipe_ingredients.some((ing: any) => ing.display_name?.toLowerCase().includes(searchQuery))
 
         return matchesTitle || matchesDescription || matchesIngredient
       })

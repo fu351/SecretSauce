@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { recipeDB } from "@/lib/database/recipe-db"
+import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 
 export type SortBy = "created_at" | "rating_avg" | "prep_time" | "title"
 
@@ -9,6 +10,8 @@ interface RecipeFilters {
   difficulty?: string
   cuisine?: string
   diet?: string[]
+  mealType?: string
+  protein?: string
   search?: string
   limit?: number
   page?: number
@@ -33,18 +36,18 @@ export function useRecipesFiltered(
   sortBy: SortBy = "created_at",
   filters?: RecipeFilters
 ) {
-  const { difficulty, cuisine, diet, search, page = 1, pageSize = 24, favoriteIds, authorId } = filters || {}
+  const { difficulty, cuisine, diet, mealType, protein, search, page = 1, pageSize = 24, favoriteIds, authorId } = filters || {}
   const offset = (page - 1) * pageSize
 
   return useQuery({
-    queryKey: ["recipes", sortBy, difficulty, cuisine, diet, search, page, pageSize, favoriteIds, authorId],
+    queryKey: ["recipes", sortBy, difficulty, cuisine, diet, mealType, protein, search, page, pageSize, favoriteIds, authorId],
     queryFn: async () => {
       if (favoriteIds && favoriteIds.length === 0) {
         return []
       }
       // If search is provided, use search function
       if (search && search.trim()) {
-        return recipeDB.searchRecipes(search, { limit: pageSize, offset, authorId, favoriteIds, tags: diet })
+        return recipeDB.searchRecipes(search, { limit: pageSize, offset, authorId, favoriteIds, tags: diet, mealType, protein })
       }
 
       // Otherwise use filtered fetch with categorical filters
@@ -56,6 +59,8 @@ export function useRecipesFiltered(
         difficulty: difficulty && difficulty !== "all" ? difficulty : undefined,
         cuisine: cuisineValue,
         tags,
+        mealType,
+        protein,
         authorId,
         favoriteIds,
         limit: pageSize,
@@ -75,14 +80,16 @@ export function useRecipesCount(filters?: {
   difficulty?: string
   cuisine?: string
   diet?: string[]
+  mealType?: string
+  protein?: string
   search?: string
   favoriteIds?: string[]
   authorId?: string
 }) {
-  const { difficulty, cuisine, diet, search, favoriteIds, authorId } = filters || {}
+  const { difficulty, cuisine, diet, mealType, protein, search, favoriteIds, authorId } = filters || {}
 
   return useQuery({
-    queryKey: ["recipes", "count", difficulty, cuisine, diet, search, favoriteIds, authorId],
+    queryKey: ["recipes", "count", difficulty, cuisine, diet, mealType, protein, search, favoriteIds, authorId],
     queryFn: async () => {
       if (favoriteIds && favoriteIds.length === 0) {
         return 0
@@ -91,6 +98,8 @@ export function useRecipesCount(filters?: {
         difficulty: difficulty && difficulty !== "all" ? difficulty : undefined,
         cuisine: cuisine && cuisine !== "all" ? cuisine : undefined,
         diet: diet && diet !== "all" ? diet : undefined,
+        mealType,
+        protein,
         search: search && search.trim() ? search : undefined,
         favoriteIds,
         authorId,
@@ -144,7 +153,29 @@ export function useRecipe(recipeId: string | null) {
     queryKey: ["recipe", recipeId],
     queryFn: async () => {
       if (!recipeId) return null
-      return recipeDB.fetchRecipeById(recipeId)
+      const [recipe, ingredients] = await Promise.all([
+        recipeDB.fetchRecipeById(recipeId),
+        recipeIngredientsDB.findByRecipeIdWithStandardized(recipeId)
+      ])
+
+      if (!recipe) return null
+
+      const mappedIngredients = ingredients.map((ing) => ({
+        id: ing.id,
+        display_name: ing.display_name,
+        name: ing.display_name,
+        quantity: ing.quantity ?? undefined,
+        units: ing.units ?? undefined,
+        unit: ing.units ?? undefined,
+        standardizedIngredientId: ing.standardized_ingredient_id ?? undefined,
+        standardized_ingredient_id: ing.standardized_ingredient_id ?? undefined,
+        standardizedName: ing.standardized_ingredient?.canonical_name ?? undefined,
+      }))
+
+      return {
+        ...recipe,
+        ingredients: mappedIngredients
+      }
     },
     enabled: !!recipeId,
     staleTime: 10 * 60 * 1000, // 10 minutes

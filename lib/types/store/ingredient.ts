@@ -36,27 +36,27 @@ export interface ShoppingListIngredient extends StandardizedIngredient {
   // Quantity tracking
   quantity: number
   checked: boolean
-  servings?: number | null
+  servings: number | null
 
   // Source tracking
   source_type: ShoppingSourceType
 
   // Recipe-specific fields
-  recipe_ingredient_index?: number | null
   recipe_title?: string
-  recipe_id?: string
+  recipe_id: string | null
+  recipe_ingredient_id: string | null
 
   // Ingredient and standardization
-  ingredient_id?: string | null
-  category?: string | null
+  ingredient_id: string | null
+  category: string | null
 
   // Pricing and shopping metadata
   price?: number | null
   store_name?: string | null
 
   // Timestamps
-  created_at?: string
-  updated_at?: string
+  created_at: string
+  updated_at: string
 }
 
 /**

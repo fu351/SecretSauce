@@ -10,9 +10,6 @@ interface WeeklyMealPlan extends Recipe {
 }
 
 export async function useHeuristicPlan(userId: string, weekIndex?: number): Promise<WeeklyMealPlan[]> {
-  const startTime = Date.now()
-  console.log("[planner] Starting DB-native weekly plan")
-
   // 1. Gather Context
   // UPDATED: Fetch profile alongside schedule to access zipcode
   const existingSchedule = await fetchExistingSchedule(userId, weekIndex);
@@ -75,8 +72,6 @@ export async function useHeuristicPlan(userId: string, weekIndex?: number): Prom
     userId,
     allRecipeIds,
   )
-
-  console.log(`[planner] Completed in ${Date.now() - startTime}ms`)
 
   // Fallback if cache is empty for this zip
   if (!bestStore) {

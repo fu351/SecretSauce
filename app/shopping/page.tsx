@@ -104,7 +104,6 @@ export default function ShoppingPage() {
   // --- Handlers ---
 
   const handleCustomInputSubmit = async () => {
-    console.log("[Shopping Page] handleCustomInputSubmit called with:", newItemInput)
     if (newItemInput.trim()) {
       await addItem(newItemInput)
       setNewItemInput("")
@@ -112,7 +111,6 @@ export default function ShoppingPage() {
   }
 
   const handleDirectAdd = async (name: string) => {
-    console.log("[Shopping Page] handleDirectAdd called with:", name)
     if (name.trim()) {
       const result = await addItem(name)
       if (result) {

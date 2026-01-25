@@ -113,9 +113,7 @@ export default function PantryPage() {
   const fetchPantryItems = async () => {
     if (!user) return
     try {
-      console.log("Fetching pantry items for user:", user?.id)
       const data = await pantryItemsDB.findByUserId(user.id)
-      console.log("Fetched pantry items:", data)
       setPantryItems(data || [])
     } catch (error) {
       console.error("Error fetching pantry items:", error)

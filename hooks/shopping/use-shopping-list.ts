@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "../ui/use-toast"
 import { shoppingListDB } from "@/lib/database/store-list-db"
+import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import { useShoppingListItems } from "./use-shopping-list-items"
 import { useShoppingListRecipes } from "./use-shopping-list-recipes"
 import type { ShoppingListItem } from "@/lib/types/store"
@@ -35,6 +36,7 @@ export function useShoppingList() {
   const loadShoppingList = useCallback(async () => {
     if (!user) {
       setItems([])
+      setHasChanges(false)
       return
     }
 
@@ -53,7 +55,13 @@ export function useShoppingList() {
 
   // Compose sub-hooks for item and recipe operations
   const itemOperations = useShoppingListItems(items, setItems, setHasChanges, user?.id ?? null, loadShoppingList)
-  const recipeOperations = useShoppingListRecipes(items, setItems, loadShoppingList, user?.id ?? null)
+  const recipeOperations = useShoppingListRecipes(
+    items,
+    setItems,
+    loadShoppingList,
+    user?.id ?? null,
+    recipeIngredientsDB
+  )
 
   // Batch save sync
   const saveChanges = useCallback(async () => {

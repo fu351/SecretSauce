@@ -17,6 +17,7 @@ import { TagSelector } from "@/components/recipe/tags/tag-selector"
 import { useShoppingList } from "@/hooks"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import { recipeDB } from "@/lib/database/recipe-db"
+import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import type { Recipe } from "@/lib/types"
 
 export default function RecipeDetailPage() {
@@ -103,13 +104,31 @@ export default function RecipeDetailPage() {
     }
 
     try {
-      const recipe = await recipeDB.fetchRecipeById(params.id as string)
+      const [recipe, ingredients] = await Promise.all([
+        recipeDB.fetchRecipeById(params.id as string),
+        recipeIngredientsDB.findByRecipeIdWithStandardized(params.id as string)
+      ])
 
       if (!recipe) {
         throw new Error("Recipe not found")
       }
 
-      setRecipe(recipe)
+      const mappedIngredients = ingredients.map((ing) => ({
+        id: ing.id,
+        display_name: ing.display_name,
+        name: ing.display_name,
+        quantity: ing.quantity ?? undefined,
+        units: ing.units ?? undefined,
+        unit: ing.units ?? undefined,
+        standardizedIngredientId: ing.standardized_ingredient_id ?? undefined,
+        standardized_ingredient_id: ing.standardized_ingredient_id ?? undefined,
+        standardizedName: ing.standardized_ingredient?.canonical_name ?? undefined,
+      }))
+
+      setRecipe({
+        ...recipe,
+        ingredients: mappedIngredients.length > 0 ? mappedIngredients : recipe.ingredients
+      })
     } catch (error) {
       console.error("Error loading recipe:", error)
       router.push("/recipes")
@@ -374,7 +393,7 @@ export default function RecipeDetailPage() {
                 {recipe.ingredients.map((ingredient, index) => (
                   <div key={index} className={itemPillClass}>
                     <span className="text-sm leading-relaxed font-medium">
-                      {ingredient.amount} {ingredient.unit} {ingredient.name}
+                      {ingredient.quantity} {ingredient.unit} {ingredient.name}
                     </span>
                   </div>
                 ))}
