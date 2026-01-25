@@ -10,8 +10,7 @@ import { RecipeSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { useRecipesFiltered, useRecipesCount, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
 import { Pagination } from "@/components/ui/pagination"
 import { RecipeHeader } from "@/components/recipe/recipe-header"
-import { RecipeSearchBar } from "@/components/recipe/recipe-search-bar"
-import { RecipeFilters } from "@/components/recipe/recipe-filters"
+import { RecipeFilterSidebar } from "@/components/recipe/recipe-filter-sidebar"
 import { RecipeResultsHeader } from "@/components/recipe/recipe-results-header"
 import { RecipeGrid } from "@/components/recipe/recipe-grid"
 import { RecipeListView } from "@/components/recipe/recipe-list-view"
@@ -22,12 +21,13 @@ export default function RecipesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDifficulty, setSelectedDifficulty] = useState("all")
   const [selectedCuisine, setSelectedCuisine] = useState("all")
-  const [selectedDiet, setSelectedDiet] = useState("all")
+  const [selectedDiet, setSelectedDiet] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<SortBy>("created_at")
   const [viewMode, setViewMode] = useState<"tile" | "details">("tile")
   const [searchInput, setSearchInput] = useState("")
   const [page, setPage] = useState(1)
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+  const [showUserOnly, setShowUserOnly] = useState(false)
 
   const { user } = useAuth()
   const { toast } = useToast()
@@ -43,34 +43,41 @@ export default function RecipesPage() {
   const filters = useMemo(() => ({
     difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined,
     cuisine: selectedCuisine !== "all" ? selectedCuisine : undefined,
-    diet: selectedDiet !== "all" ? selectedDiet : undefined,
+    diet: selectedDiet.length > 0 ? selectedDiet : undefined,
     search: searchTerm || undefined,
     favoriteIds: showFavoritesOnly && user ? Array.from(favorites) : undefined,
+    authorId: showUserOnly && user ? user.id : undefined,
     page,
     pageSize,
-  }), [selectedDifficulty, selectedCuisine, selectedDiet, searchTerm, showFavoritesOnly, favorites, user, page])
+  }), [selectedDifficulty, selectedCuisine, selectedDiet, searchTerm, showFavoritesOnly, favorites, showUserOnly, user, page])
 
   // Use React Query hooks for data fetching with caching
-  const { data: recipes = [], isLoading: loading } = useRecipesFiltered(sortBy, filters)
-  const { data: totalCount = 0 } = useRecipesCount({
+  const { data: recipes = [], isLoading: loading, isFetching: recipesFetching } = useRecipesFiltered(sortBy, filters)
+  const { data: totalCount = 0, isFetching: countFetching } = useRecipesCount({
     difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined,
     cuisine: selectedCuisine !== "all" ? selectedCuisine : undefined,
-    diet: selectedDiet !== "all" ? selectedDiet : undefined,
+    diet: selectedDiet.length > 0 ? selectedDiet : undefined,
     search: searchTerm || undefined,
     favoriteIds: showFavoritesOnly && user ? Array.from(favorites) : undefined,
+    authorId: showUserOnly && user ? user.id : undefined,
   })
   const toggleFavoriteMutation = useToggleFavorite()
 
   const totalPages = Math.ceil(totalCount / pageSize)
+  const [displayRecipes, setDisplayRecipes] = useState(recipes)
 
   useEffect(() => {
     const urlSearch = searchParams.get("search") || ""
     const currentDifficulty = searchParams.get("difficulty") || "all"
     const currentCuisine = searchParams.get("cuisine") || "all"
-    const currentDiet = searchParams.get("diet") || "all"
+    const dietParam = searchParams.get("diet")
+    const currentDiet = dietParam && dietParam !== "all"
+      ? dietParam.split(",").filter(Boolean)
+      : []
     const currentSort = (searchParams.get("sort") || "created_at") as SortBy
     const currentPage = parseInt(searchParams.get("page") || "1", 10)
     const currentFavorites = searchParams.get("favorites") === "true"
+    const currentMine = searchParams.get("mine") === "true"
 
     setSearchTerm(urlSearch)
     setSelectedDifficulty(currentDifficulty)
@@ -79,7 +86,14 @@ export default function RecipesPage() {
     setSortBy(currentSort)
     setPage(currentPage)
     setShowFavoritesOnly(currentFavorites)
+    setShowUserOnly(currentMine)
   }, [searchParams])
+
+  useEffect(() => {
+    if (!recipesFetching) {
+      setDisplayRecipes(recipes)
+    }
+  }, [recipes, recipesFetching])
 
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>, resetPage = false) => {
@@ -106,7 +120,7 @@ export default function RecipesPage() {
       const nextUrl = `/recipes?${params.toString()}`
       if (urlUpdateTimer.current) clearTimeout(urlUpdateTimer.current)
       urlUpdateTimer.current = setTimeout(() => {
-        router.replace(nextUrl)
+        router.replace(nextUrl, { scroll: false })
       }, 300)
     },
     [searchParams, router],
@@ -159,8 +173,9 @@ export default function RecipesPage() {
     setSearchTerm("")
     setSelectedDifficulty("all")
     setSelectedCuisine("all")
-    setSelectedDiet("all")
+    setSelectedDiet([])
     setShowFavoritesOnly(false)
+    setShowUserOnly(false)
     setPage(1)
     router.replace("/recipes")
   }
@@ -168,10 +183,11 @@ export default function RecipesPage() {
   const hasActiveFilters =
     selectedDifficulty !== "all" ||
     selectedCuisine !== "all" ||
-    selectedDiet !== "all" ||
-    showFavoritesOnly
+    selectedDiet.length > 0 ||
+    showFavoritesOnly ||
+    showUserOnly
 
-  if (loading) {
+  if (loading && displayRecipes.length === 0) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto p-6">
@@ -195,97 +211,114 @@ export default function RecipesPage() {
         <div className="mb-8">
           <RecipeHeader />
 
-          <RecipeSearchBar
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+          <RecipeFilterSidebar
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
             onSearch={handleSearch}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
-          />
-        </div>
-
-        <RecipeFilters
-          selectedDifficulty={selectedDifficulty}
-          onDifficultyChange={(value) => {
-            setSelectedDifficulty(value)
-            setPage(1)
-            updateURL({ difficulty: value }, true)
-          }}
-          selectedCuisine={selectedCuisine}
-          onCuisineChange={(value) => {
-            setSelectedCuisine(value)
-            setPage(1)
-            updateURL({ cuisine: value }, true)
-          }}
-          selectedDiet={selectedDiet}
-          onDietChange={(value) => {
-            setSelectedDiet(value)
-            setPage(1)
-            updateURL({ diet: value }, true)
-          }}
-          sortBy={sortBy}
-          onSortChange={(value) => {
-            setSortBy(value as SortBy)
-            setPage(1)
-            updateURL({ sort: value }, true)
-          }}
-          showFavoritesOnly={showFavoritesOnly}
-          onFavoritesToggle={() => {
-            const newValue = !showFavoritesOnly
-            setShowFavoritesOnly(newValue)
-            setPage(1)
-            updateURL({ favorites: newValue ? "true" : undefined }, true)
-          }}
-          onClearFilters={handleClearFilters}
-        />
-
-        <RecipeResultsHeader
-          totalCount={totalCount}
-          page={page}
-          pageSize={pageSize}
-          totalPages={totalPages}
-          searchTerm={searchTerm}
-          hasActiveFilters={hasActiveFilters}
-          onPageChange={(newPage) => {
-            setPage(newPage)
-            updateURL({ page: String(newPage) })
-          }}
-        />
-
-        {recipes.length === 0 ? (
-          <RecipeEmptyState
-            hasNoRecipes={totalCount === 0 && !hasActiveFilters}
-            searchTerm={searchTerm}
+            selectedDifficulty={selectedDifficulty}
+            onDifficultyChange={(value) => {
+              setSelectedDifficulty(value)
+              setPage(1)
+              updateURL({ difficulty: value }, true)
+            }}
+            selectedCuisine={selectedCuisine}
+            onCuisineChange={(value) => {
+              setSelectedCuisine(value)
+              setPage(1)
+              updateURL({ cuisine: value }, true)
+            }}
+            selectedDiet={selectedDiet}
+            onDietChange={(value) => {
+              setSelectedDiet(value)
+              setPage(1)
+              updateURL({ diet: value.length > 0 ? value.join(",") : undefined }, true)
+            }}
+            sortBy={sortBy}
+            onSortChange={(value) => {
+              setSortBy(value as SortBy)
+              setPage(1)
+              updateURL({ sort: value }, true)
+            }}
+            showFavoritesOnly={showFavoritesOnly}
+            onFavoritesToggle={() => {
+              const newValue = !showFavoritesOnly
+              setShowFavoritesOnly(newValue)
+              setPage(1)
+              updateURL({ favorites: newValue ? "true" : undefined }, true)
+            }}
+            showUserOnly={showUserOnly}
+            onUserRecipesToggle={() => {
+              if (!user) {
+                toast({
+                  title: "Sign in required",
+                  description: "Please sign in to view your recipes",
+                  variant: "destructive",
+                })
+                return
+              }
+              const newValue = !showUserOnly
+              setShowUserOnly(newValue)
+              setPage(1)
+              updateURL({ mine: newValue ? "true" : undefined }, true)
+            }}
             onClearFilters={handleClearFilters}
           />
-        ) : viewMode === "tile" ? (
-          <RecipeGrid
-            recipes={recipes}
-            favorites={favorites}
-            onFavoriteToggle={toggleFavorite}
-            onRecipeClick={(id) => router.push(`/recipes/${id}`)}
-          />
-        ) : (
-          <RecipeListView
-            recipes={recipes}
-            favorites={favorites}
-            onFavoriteToggle={toggleFavorite}
-          />
-        )}
 
-        {totalPages > 1 && recipes.length > 0 && (
-          <div className="mt-8">
-            <Pagination
-              currentPage={page}
+          <div>
+            <RecipeResultsHeader
+              totalCount={countFetching ? displayRecipes.length : totalCount}
+              page={page}
+              pageSize={pageSize}
               totalPages={totalPages}
+              searchTerm={searchTerm}
+              hasActiveFilters={hasActiveFilters}
               onPageChange={(newPage) => {
                 setPage(newPage)
                 updateURL({ page: String(newPage) })
-                window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
             />
+
+            {displayRecipes.length === 0 && !recipesFetching ? (
+              <RecipeEmptyState
+                hasNoRecipes={totalCount === 0 && !hasActiveFilters}
+                searchTerm={searchTerm}
+                onClearFilters={handleClearFilters}
+              />
+            ) : viewMode === "tile" ? (
+              <RecipeGrid
+                recipes={displayRecipes}
+                favorites={favorites}
+                onFavoriteToggle={toggleFavorite}
+                onRecipeClick={(id) => router.push(`/recipes/${id}`)}
+              />
+            ) : (
+              <RecipeListView
+                recipes={displayRecipes}
+                favorites={favorites}
+                onFavoriteToggle={toggleFavorite}
+              />
+            )}
+
+            {totalPages > 1 && displayRecipes.length > 0 && (
+              <div className="mt-8">
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={(newPage) => {
+                    setPage(newPage)
+                    updateURL({ page: String(newPage) })
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                />
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

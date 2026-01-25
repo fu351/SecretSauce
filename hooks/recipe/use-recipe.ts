@@ -8,12 +8,13 @@ export type SortBy = "created_at" | "rating_avg" | "prep_time" | "title"
 interface RecipeFilters {
   difficulty?: string
   cuisine?: string
-  diet?: string
+  diet?: string[]
   search?: string
   limit?: number
   page?: number
   pageSize?: number
   favoriteIds?: string[]
+  authorId?: string
 }
 
 /**
@@ -32,26 +33,30 @@ export function useRecipesFiltered(
   sortBy: SortBy = "created_at",
   filters?: RecipeFilters
 ) {
-  const { difficulty, cuisine, diet, search, page = 1, pageSize = 24, favoriteIds } = filters || {}
+  const { difficulty, cuisine, diet, search, page = 1, pageSize = 24, favoriteIds, authorId } = filters || {}
   const offset = (page - 1) * pageSize
 
   return useQuery({
-    queryKey: ["recipes", sortBy, difficulty, cuisine, diet, search, page, pageSize, favoriteIds],
+    queryKey: ["recipes", sortBy, difficulty, cuisine, diet, search, page, pageSize, favoriteIds, authorId],
     queryFn: async () => {
+      if (favoriteIds && favoriteIds.length === 0) {
+        return []
+      }
       // If search is provided, use search function
       if (search && search.trim()) {
-        return recipeDB.searchRecipes(search, { limit: pageSize, offset })
+        return recipeDB.searchRecipes(search, { limit: pageSize, offset, authorId, favoriteIds, tags: diet })
       }
 
       // Otherwise use filtered fetch with categorical filters
       const cuisineValue = cuisine && cuisine !== "all" ? cuisine : undefined
-      const tags = diet && diet !== "all" ? [diet] : undefined
+      const tags = diet && diet.length > 0 ? diet : undefined
 
       return recipeDB.fetchRecipes({
         sortBy,
         difficulty: difficulty && difficulty !== "all" ? difficulty : undefined,
         cuisine: cuisineValue,
         tags,
+        authorId,
         favoriteIds,
         limit: pageSize,
         offset
@@ -69,21 +74,26 @@ export function useRecipesFiltered(
 export function useRecipesCount(filters?: {
   difficulty?: string
   cuisine?: string
-  diet?: string
+  diet?: string[]
   search?: string
   favoriteIds?: string[]
+  authorId?: string
 }) {
-  const { difficulty, cuisine, diet, search, favoriteIds } = filters || {}
+  const { difficulty, cuisine, diet, search, favoriteIds, authorId } = filters || {}
 
   return useQuery({
-    queryKey: ["recipes", "count", difficulty, cuisine, diet, search, favoriteIds],
+    queryKey: ["recipes", "count", difficulty, cuisine, diet, search, favoriteIds, authorId],
     queryFn: async () => {
+      if (favoriteIds && favoriteIds.length === 0) {
+        return 0
+      }
       return recipeDB.fetchRecipesCount({
         difficulty: difficulty && difficulty !== "all" ? difficulty : undefined,
         cuisine: cuisine && cuisine !== "all" ? cuisine : undefined,
         diet: diet && diet !== "all" ? diet : undefined,
         search: search && search.trim() ? search : undefined,
         favoriteIds,
+        authorId,
       })
     },
     staleTime: 5 * 60 * 1000, // 5 minutes

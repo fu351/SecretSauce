@@ -455,17 +455,33 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     options?: {
       limit?: number
       offset?: number
+      authorId?: string
+      favoriteIds?: string[]
+      tags?: string[]
     }
   ): Promise<Recipe[]> {
-    const { limit = 50, offset = 0 } = options || {}
+    const { limit = 50, offset = 0, authorId, favoriteIds, tags } = options || {}
     const searchQuery = query.toLowerCase()
 
     // Fetch recipes and filter client-side for flexible search
-    const { data, error } = await this.supabase
+    let queryBuilder = this.supabase
       .from(this.tableName)
       .select("*")
       .is("deleted_at", null)
-      .range(offset, offset + limit - 1)
+
+    if (authorId) {
+      queryBuilder = queryBuilder.eq("author_id", authorId)
+    }
+
+    if (favoriteIds && favoriteIds.length > 0) {
+      queryBuilder = queryBuilder.in("id", favoriteIds)
+    }
+
+    if (tags && tags.length > 0) {
+      queryBuilder = queryBuilder.contains("tags", tags)
+    }
+
+    const { data, error } = await queryBuilder.range(offset, offset + limit - 1)
 
     if (error) {
       this.handleError(error, "searchRecipes")
@@ -501,10 +517,11 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     difficulty?: string
     cuisine?: string
     search?: string
-    diet?: string
+    diet?: string[]
     favoriteIds?: string[]
+    authorId?: string
   }): Promise<number> {
-    const { difficulty, cuisine, search, diet, favoriteIds } = options || {}
+    const { difficulty, cuisine, search, diet, favoriteIds, authorId } = options || {}
 
     let query = this.supabase
       .from(this.tableName)
@@ -521,8 +538,8 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     }
 
     // Apply diet filter (tags array contains dietary tags)
-    if (diet) {
-      query = query.contains("tags", [diet])
+    if (diet && diet.length > 0) {
+      query = query.contains("tags", diet)
     }
 
     // Apply favorites filter (server-side filtering by recipe IDs)
@@ -535,10 +552,24 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     // For now, if search is provided, we'll fetch and count client-side
     if (search) {
       const searchQuery = search.toLowerCase()
-      const { data, error } = await this.supabase
+      let searchQueryBuilder = this.supabase
         .from(this.tableName)
         .select("*")
         .is("deleted_at", null)
+
+      if (authorId) {
+        searchQueryBuilder = searchQueryBuilder.eq("author_id", authorId)
+      }
+
+      if (favoriteIds && favoriteIds.length > 0) {
+        searchQueryBuilder = searchQueryBuilder.in("id", favoriteIds)
+      }
+
+      if (diet && diet.length > 0) {
+        searchQueryBuilder = searchQueryBuilder.contains("tags", diet)
+      }
+
+      const { data, error } = await searchQueryBuilder
 
       if (error) {
         this.handleError(error, "fetchRecipesCount (with search)")
