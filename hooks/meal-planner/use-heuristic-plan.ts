@@ -1,5 +1,6 @@
 import { recipeDB } from "@/lib/database/recipe-db"
 import { mealPlannerDB } from "@/lib/database/meal-planner-db"
+import { profileDB } from "@/lib/database/profile-db"
 import type { MealTypeTag, Recipe } from "@/lib/types"
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'] as const
@@ -11,8 +12,12 @@ interface WeeklyMealPlan extends Recipe {
 
 export async function useHeuristicPlan(userId: string, weekIndex?: number): Promise<WeeklyMealPlan[]> {
   // 1. Gather Context
-  // UPDATED: Fetch profile alongside schedule to access zipcode
-  const existingSchedule = await fetchExistingSchedule(userId, weekIndex);
+  const [existingSchedule, profileFields] = await Promise.all([
+    fetchExistingSchedule(userId, weekIndex),
+    profileDB.fetchProfileFields(userId, ["postal_code"]),
+  ])
+
+  const userZipCode = profileFields?.postal_code || undefined
 
   const existingRecipeIds = existingSchedule.map(s => s.recipe_id).filter(Boolean)
 
@@ -71,6 +76,7 @@ export async function useHeuristicPlan(userId: string, weekIndex?: number): Prom
   const bestStore = await mealPlannerDB.bestStore(
     userId,
     allRecipeIds,
+    userZipCode,
   )
 
   // Fallback if cache is empty for this zip
