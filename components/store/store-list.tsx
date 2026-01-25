@@ -116,8 +116,6 @@ export function ShoppingListSection({
   const [showUnits, setShowUnits] = useState(true)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
-  console.log('[ShoppingList] Current viewMode:', viewMode)
-
   // -- Editing State --
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")

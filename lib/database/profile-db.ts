@@ -74,7 +74,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * Used by AuthContext, Settings page, and other components needing full profile data
    */
   async findById(userId: string): Promise<Profile | null> {
-    console.log("[Profile DB] Fetching profile for user:", userId)
 
     const { data, error } = await this.supabase
       .from(this.tableName)
@@ -106,7 +105,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * Fetch profile by email (for onboarding flow before authentication)
    */
   async fetchProfileByEmail(email: string): Promise<Profile | null> {
-    console.log("[Profile DB] Fetching profile by email")
 
     const { data, error } = await this.supabase
       .from(this.tableName)
@@ -132,7 +130,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
     userId: string,
     fields: T[]
   ): Promise<Pick<ProfileRow, T> | null> {
-    console.log("[Profile DB] Fetching profile fields:", fields)
 
     const { data, error } = await this.supabase
       .from(this.tableName)
@@ -163,8 +160,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       return []
     }
 
-    console.log("[Profile DB] Batch fetching profiles:", userIds.length)
-
     const { data, error } = await this.supabase
       .from(this.tableName)
       .select(fields.join(", "))
@@ -183,7 +178,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * Used as fallback when database trigger fails to create profile
    */
   async createProfile(profileData: ProfileInsert): Promise<Profile | null> {
-    console.log("[Profile DB] Creating profile for:", profileData.email)
     return this.create(profileData)
   }
 
@@ -193,8 +187,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * @param updates - Partial profile updates
    */
   async update(userId: string, updates: ProfileUpdate): Promise<Profile | null> {
-    console.log("[Profile DB] Updating profile:", userId)
-
     return super.update(userId, {
       ...updates,
       updated_at: new Date().toISOString(),
@@ -220,7 +212,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
     profileData: Partial<ProfileInsert> & { email: string },
     options?: { onConflict?: string }
   ): Promise<Profile | null> {
-    console.log("[Profile DB] Upserting profile")
 
     const upsertOptions = options?.onConflict ? { onConflict: options.onConflict } : undefined
 
@@ -241,7 +232,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       return null
     }
 
-    console.log("[Profile DB] Profile upserted successfully")
     return data ? this.map(data) : null
   }
 
@@ -255,7 +245,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
     userId: string,
     tutorialPath: ProfileRow["tutorial_path"]
   ): Promise<boolean> {
-    console.log("[Profile DB] Updating tutorial completion")
 
     const updateData: Partial<ProfileUpdate> = {
       tutorial_completed: true,
@@ -272,8 +261,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       this.handleError(error, "updateTutorialCompletion")
       return false
     }
-
-    console.log("[Profile DB] Tutorial completion updated successfully")
+    
     return true
   }
 }

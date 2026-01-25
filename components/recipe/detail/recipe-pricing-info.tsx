@@ -46,7 +46,6 @@ export function RecipePricingInfo({
         )
         
         const results = await Promise.all(pricePromises)
-        console.log("Fetched pricing results:", results)
         // Filter out nulls (stores where items weren't found) and add the store name
         const validResults = results
           .map((res, index) => {

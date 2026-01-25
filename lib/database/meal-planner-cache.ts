@@ -49,7 +49,6 @@ class MealPlannerCache {
     const cached = this.mealScheduleCache.get(key)
 
     if (cached && this.isValid(cached)) {
-      console.log("[Meal Planner Cache] Cache hit for meal schedule")
       return cached.data
     }
 
@@ -73,8 +72,6 @@ class MealPlannerCache {
       timestamp: now,
       expiresAt: now + CACHE_DURATION,
     })
-
-    console.log("[Meal Planner Cache] Cached meal schedule")
   }
 
   /**
@@ -90,7 +87,6 @@ class MealPlannerCache {
     })
 
     keysToDelete.forEach((key) => this.mealScheduleCache.delete(key))
-    console.log("[Meal Planner Cache] Invalidated meal schedule cache for user:", userId)
   }
 
   /**
@@ -103,7 +99,6 @@ class MealPlannerCache {
     const cached = this.recipesCache.get(key)
 
     if (cached && this.isValid(cached)) {
-      console.log("[Meal Planner Cache] Cache hit for recipes")
       return cached.data
     }
 
@@ -124,8 +119,6 @@ class MealPlannerCache {
       timestamp: now,
       expiresAt: now + CACHE_DURATION,
     })
-
-    console.log("[Meal Planner Cache] Cached recipes")
   }
 
   /**
@@ -135,7 +128,6 @@ class MealPlannerCache {
     const cached = this.favoriteRecipesCache.get(userId)
 
     if (cached && this.isValid(cached)) {
-      console.log("[Meal Planner Cache] Cache hit for favorite recipes")
       return cached.data
     }
 
@@ -154,7 +146,6 @@ class MealPlannerCache {
       expiresAt: now + CACHE_DURATION,
     })
 
-    console.log("[Meal Planner Cache] Cached favorite recipes")
   }
 
   /**
@@ -162,7 +153,6 @@ class MealPlannerCache {
    */
   getSuggestedRecipesCache(): Recipe[] | null {
     if (this.suggestedRecipesCache && this.isValid(this.suggestedRecipesCache)) {
-      console.log("[Meal Planner Cache] Cache hit for suggested recipes")
       return this.suggestedRecipesCache.data
     }
 
@@ -181,7 +171,6 @@ class MealPlannerCache {
       expiresAt: now + CACHE_DURATION,
     }
 
-    console.log("[Meal Planner Cache] Cached suggested recipes")
   }
 
   /**
@@ -192,7 +181,6 @@ class MealPlannerCache {
     this.recipesCache.clear()
     this.favoriteRecipesCache.clear()
     this.suggestedRecipesCache = null
-    console.log("[Meal Planner Cache] Cleared all caches")
   }
 }
 

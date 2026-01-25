@@ -72,8 +72,6 @@ class MealPlannerTable extends BaseTable<
       return cached
     }
 
-    console.log("[Meal Planner DB] Fetching meal schedule:", { userId, startDate, endDate })
-
     const weekIndices = getWeekIndicesForRange(startDate, endDate)
 
     const { data, error } = await this.supabase
@@ -100,8 +98,6 @@ class MealPlannerTable extends BaseTable<
    * Week index format: YYYYWW (e.g., 202301)
    */
   async fetchMealScheduleByWeekIndex(userId: string, weekIndex: number): Promise<MealScheduleRow[]> {
-    console.log("[Meal Planner DB] Fetching meal schedule by week:", { userId, weekIndex })
-
     const { data, error } = await this.supabase
       .from(this.tableName)
       .select("*")
@@ -121,7 +117,6 @@ class MealPlannerTable extends BaseTable<
    * Fetch meal schedule for a specific date
    */
   async fetchMealScheduleByDate(userId: string, date: string): Promise<MealScheduleRow[]> {
-    console.log("[Meal Planner DB] Fetching meals for date:", { userId, date })
 
     const { data, error } = await this.supabase
       .from(this.tableName)
@@ -152,8 +147,6 @@ class MealPlannerTable extends BaseTable<
       return cached
     }
 
-    console.log("[Meal Planner DB] Fetching recipes:", { count: recipeIds.length })
-
     const { data, error } = await this.supabase.from("recipes").select("*").in("id", recipeIds)
 
     if (error) {
@@ -176,7 +169,6 @@ class MealPlannerTable extends BaseTable<
     date: string,
     mealType: MealTypeTag
   ): Promise<MealScheduleRow | null> {
-    console.log("[Meal Planner DB] Adding meal to schedule:", { userId, recipeId, date, mealType })
 
     const { data, error } = await (this.supabase.from(this.tableName) as any)
       .insert({
@@ -210,7 +202,6 @@ class MealPlannerTable extends BaseTable<
     recipeId: string,
     mealType: MealTypeTag
   ): Promise<MealScheduleRow | null> {
-    console.log("[Meal Planner DB] Updating meal in schedule:", { mealId, recipeId, mealType })
 
     const { data, error } = await (this.supabase.from(this.tableName) as any)
       .update({
@@ -239,7 +230,6 @@ class MealPlannerTable extends BaseTable<
    * Invalidates cache after successful deletion
    */
   async removeMealFromSchedule(mealId: string): Promise<boolean> {
-    console.log("[Meal Planner DB] Removing meal from schedule:", { mealId })
 
     // Fetch the meal first to get userId for cache invalidation
     const { data: mealData } = await (this.supabase.from(this.tableName) as any)
@@ -271,7 +261,6 @@ class MealPlannerTable extends BaseTable<
     date: string,
     mealType: MealTypeTag
   ): Promise<boolean> {
-    console.log("[Meal Planner DB] Removing meal slot:", { userId, date, mealType })
 
     const { error } = await this.supabase
       .from(this.tableName)
@@ -296,7 +285,6 @@ class MealPlannerTable extends BaseTable<
    * Invalidates cache after successful deletion
    */
   async clearWeekSchedule(userId: string, weekIndex: number): Promise<boolean> {
-    console.log("[Meal Planner DB] Clearing week schedule:", { userId, weekIndex })
 
     const { error } = await this.supabase
       .from(this.tableName)
@@ -326,7 +314,6 @@ class MealPlannerTable extends BaseTable<
       return cached
     }
 
-    console.log("[Meal Planner DB] Fetching favorite recipes for user:", userId)
 
     // Single batch query using relationship join - more efficient than two separate queries
     const { data, error } = await this.supabase
@@ -357,11 +344,6 @@ class MealPlannerTable extends BaseTable<
       .eq("user_id", userId)
 
     if (error) {
-      // Table might not exist in test environment or foreign key relationship not configured
-      if (error.code === "PGRST116" || error.code === "PGRST200" || error.message?.includes("relation")) {
-        console.log("[Meal Planner DB] Favorites table not available or relationship not configured:", error.message)
-        return []
-      }
       this.handleError(error, "fetchFavoriteRecipes")
       return []
     }
@@ -413,8 +395,6 @@ class MealPlannerTable extends BaseTable<
     if (cached) {
       return cached
     }
-
-    console.log("[Meal Planner DB] Fetching suggested recipes:", { limit })
 
     const { data, error } = await this.supabase
       .from("recipes")

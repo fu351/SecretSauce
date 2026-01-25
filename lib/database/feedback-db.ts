@@ -34,7 +34,6 @@ class FeedbackTable extends BaseTable<
     userId?: string | null
   ): Promise<FeedbackRow | null> {
     try {
-      console.log(`[FeedbackTable] Submitting feedback from user: ${userId || 'anonymous'}`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)
@@ -128,7 +127,6 @@ class FeedbackTable extends BaseTable<
    */
   async markAsRead(feedbackId: string): Promise<FeedbackRow | null> {
     try {
-      console.log(`[FeedbackTable] Marking feedback as read: ${feedbackId}`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)
@@ -156,7 +154,6 @@ class FeedbackTable extends BaseTable<
     try {
       if (feedbackIds.length === 0) return true
 
-      console.log(`[FeedbackTable] Batch marking ${feedbackIds.length} items as read`)
 
       const { error } = await this.supabase
         .from(this.tableName)
@@ -225,7 +222,6 @@ class FeedbackTable extends BaseTable<
    */
   async search(query: string): Promise<FeedbackRow[]> {
     try {
-      console.log(`[FeedbackTable] Searching for: ${query}`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)

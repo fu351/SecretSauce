@@ -166,8 +166,6 @@ class IngredientCacheTable extends BaseTable<
       const normalizedStore = this.normalizeStoreName(store)
       const expiresAt = this.calculateExpiresAt(normalizedStore)
 
-      console.log(`[IngredientCacheTable] Caching price for ingredient ${standardizedIngredientId} at ${normalizedStore}${options?.zipCode ? ` (zip: ${options.zipCode})` : ''}`)
-
       const { data, error } = await this.supabase
         .from(this.tableName)
         .upsert(
@@ -228,8 +226,6 @@ class IngredientCacheTable extends BaseTable<
     try {
       if (items.length === 0) return 0
 
-      console.log(`[IngredientCacheTable] Batch caching ${items.length} prices via RPC`)
-
       // Call database RPC function for bulk upsert
       // Database automatically handles:
       // - TTL calculation (fn_calculate_expires_at trigger)
@@ -246,7 +242,6 @@ class IngredientCacheTable extends BaseTable<
       }
 
       const count = data?.length || 0
-      console.log(`[IngredientCacheTable] Successfully cached ${count} prices`)
       return count
     } catch (error) {
       this.handleError(error, 'batchCachePrices (RPC)')
@@ -276,8 +271,6 @@ class IngredientCacheTable extends BaseTable<
   ): Promise<number> {
     try {
       if (items.length === 0) return 0
-
-      console.log(`[IngredientCacheTable] Batch caching ${items.length} prices (legacy method)`)
 
       const insertData = items.map(item => {
         const normalizedStore = this.normalizeStoreName(item.store)
@@ -327,7 +320,6 @@ class IngredientCacheTable extends BaseTable<
     zipCode?: string | null
   ): Promise<IngredientCacheRow[]> {
     try {
-      console.log(`[IngredientCacheTable] Searching products: ${query}`)
 
       let dbQuery = this.supabase
         .from(this.tableName)
@@ -364,7 +356,6 @@ class IngredientCacheTable extends BaseTable<
    */
   async cleanupExpired(): Promise<number> {
     try {
-      console.log(`[IngredientCacheTable] Cleaning up expired entries`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)
@@ -378,7 +369,6 @@ class IngredientCacheTable extends BaseTable<
       }
 
       const count = data?.length || 0
-      console.log(`[IngredientCacheTable] Cleaned up ${count} expired entries`)
       return count
     } catch (error) {
       this.handleError(error, 'cleanupExpired')

@@ -139,7 +139,6 @@ class IngredientMappingsTable extends BaseTable<
     standardizedIngredientId: string
   ): Promise<IngredientMappingRow | null> {
     try {
-      console.log(`[IngredientMappingsTable] Upserting mapping for ${originalName} in recipe ${recipeId}`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)

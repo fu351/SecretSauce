@@ -137,15 +137,6 @@ export function RecipeManualEntryForm({
     const parseCookTime = cook_time.trim() ? Number.parseInt(cook_time) : 30
     const parseServings = servings.trim() ? Number.parseInt(servings) : 1
 
-    console.log("Form state before submission:", {
-      imageMode,
-      imageUrl,
-      imageFile: imageFile?.name || null,
-      parsePrepTime,
-      parseCookTime,
-      parseServings,
-    })
-
     const submissionData: RecipeSubmissionData = {
       title,
       description,

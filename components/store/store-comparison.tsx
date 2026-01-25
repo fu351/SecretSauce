@@ -114,7 +114,6 @@ export function StoreComparisonSection({
         ) {
           setCachedResults(parsedCache.data);
           setUsingCache(true);
-          console.log("Using cached store comparison data");
         } else {
           // Cache expired or different postal code
           localStorage.removeItem(CACHE_KEY);

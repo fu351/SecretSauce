@@ -6,12 +6,10 @@ import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import type { StoreComparison, GroceryItem, ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import { useAuth } from "@/contexts/auth-context"
 import { profileDB } from "@/lib/database/profile-db"
+import { zip } from "lodash"
 
 const SEARCH_CACHE_KEY = "store_search_cache"
 const SEARCH_CACHE_TTL = 1000 * 60 * 30 // 30 minutes
-const SEARCH_BATCH_SIZE = 5
-
-type StoreSearchResults = Awaited<ReturnType<typeof searchGroceryStores>>
 
 interface SearchCacheData {
   results: StoreComparison[]
@@ -137,29 +135,12 @@ export function useStoreComparison(
     setUsingCache(false)
 
     try {
-      const zipForSearch = resolvedZipCode || undefined
-      const aggregatedSearchData: Array<{ item: ShoppingListItem; storeResults: StoreSearchResults }> = []
+      const searchPromises = shoppingList.map(async (item) => {
+        const storeResults = await searchGroceryStores(item.name, resolvedZipCode || undefined)
+        return { item, storeResults }
+      })
 
-      for (let startIndex = 0; startIndex < shoppingList.length; startIndex += SEARCH_BATCH_SIZE) {
-        const batch = shoppingList.slice(startIndex, startIndex + SEARCH_BATCH_SIZE)
-        const batchResults = await Promise.all(batch.map(async (item) => {
-          try {
-            const storeResults = await searchGroceryStores(
-              item.name,
-              zipForSearch,
-              undefined,
-              item.recipe_id ?? undefined
-            )
-            return { item, storeResults }
-          } catch (error) {
-            console.error("[useStoreComparison] search failed for", item.name, error)
-            return { item, storeResults: [] }
-          }
-        }))
-        aggregatedSearchData.push(...batchResults)
-      }
-
-      const searchData = aggregatedSearchData
+      const searchData = await Promise.all(searchPromises)
       const storeMap = new Map<string, StoreComparison>()
 
       searchData.forEach(({ item, storeResults }) => {

@@ -221,12 +221,10 @@ class PantryItemsTable extends BaseTable<
     quantityDelta: number
   ): Promise<PantryItemRow | null> {
     try {
-      console.log(`[PantryItemsTable] Updating quantity for item ${itemId} by ${quantityDelta}`)
 
       // First, get the current item
       const current = await this.findById(itemId)
       if (!current) {
-        console.log(`[PantryItemsTable] Item ${itemId} not found`)
         return null
       }
 
@@ -234,7 +232,6 @@ class PantryItemsTable extends BaseTable<
 
       // Don't allow negative quantities
       if (newQuantity < 0) {
-        console.log(`[PantryItemsTable] Cannot set negative quantity for item ${itemId}`)
         return null
       }
 
@@ -268,8 +265,6 @@ class PantryItemsTable extends BaseTable<
     try {
       if (items.length === 0) return []
 
-      console.log(`[PantryItemsTable] Batch creating ${items.length} pantry items`)
-
       const { data, error } = await this.supabase
         .from(this.tableName)
         .insert(items)
@@ -292,7 +287,6 @@ class PantryItemsTable extends BaseTable<
    */
   async deleteExpired(userId: string): Promise<number> {
     try {
-      console.log(`[PantryItemsTable] Deleting expired items for user ${userId}`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)
@@ -308,7 +302,6 @@ class PantryItemsTable extends BaseTable<
       }
 
       const count = data?.length || 0
-      console.log(`[PantryItemsTable] Deleted ${count} expired items`)
       return count
     } catch (error) {
       this.handleError(error, 'deleteExpired')
@@ -331,7 +324,6 @@ class PantryItemsTable extends BaseTable<
    */
   async searchByName(userId: string, query: string): Promise<PantryItemRow[]> {
     try {
-      console.log(`[PantryItemsTable] Searching for: ${query}`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)
