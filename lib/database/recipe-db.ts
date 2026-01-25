@@ -61,6 +61,12 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       rating_avg: dbItem.rating_avg || 0,
       rating_count: dbItem.rating_count || 0,
 
+      description,
+      image_url: imageUrl,
+      instructions_list: Array.isArray(dbItem.instructions_list)
+        ? dbItem.instructions_list
+        : undefined,
+
       content: {
         description,
         image_url: imageUrl,

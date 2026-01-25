@@ -43,6 +43,9 @@ export interface Recipe {
   prep_time: number
   cook_time: number
   servings: number
+  description?: string | null
+  image_url?: string | null
+  instructions_list?: string[] | null
   difficulty: DifficultyLevel
   cuisine_id?: number
   cuisine_name?: string

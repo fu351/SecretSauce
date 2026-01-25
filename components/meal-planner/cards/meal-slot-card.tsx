@@ -42,6 +42,7 @@ function MealSlotCardComponent({
 }: MealSlotCardProps) {
   const { theme } = useTheme()
   const isDark = theme === "dark"
+  const recipeImageUrl = recipe?.image_url ?? recipe?.content?.image_url
 
   // Make slot droppable
   const droppableProps = getDroppableProps(mealType, date, recipe)
@@ -87,8 +88,8 @@ function MealSlotCardComponent({
             onClick={() => onRecipeClick?.(recipe.id)}
             className="cursor-grab active:cursor-grabbing w-full h-full"
           >
-            <Image
-              src={getRecipeImageUrl(recipe.content?.image_url)}
+          <Image
+              src={getRecipeImageUrl(recipeImageUrl)}
               alt={recipe.title}
               fill
               sizes="260px"
