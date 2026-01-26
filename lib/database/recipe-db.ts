@@ -738,6 +738,22 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     return (data || []).map((item: any) => this.map(item));
   }
 
+  async getSmartTrendingRecommendations(userId: string, limit = 5): Promise<Recipe[]> {
+    console.log(`[Recipe DB] Fetching smart trending recommendations for user ${userId} with limit ${limit}`)
+
+    const { data, error } = await this.supabase.rpc("get_smart_trending_recommendations", {
+      p_user_id: userId,
+      p_limit: limit
+    });
+
+    if (error) {
+      this.handleError(error, "getSmartTrendingRecommendations");
+      return [];
+    }
+
+    return (data || []).map((item: any) => this.map(item));
+  }
+
   async getSmartRecommendationsByMealType(userId: string, limit: number, mealType: MealTypeTag): Promise<Recipe[]> {
     console.log(`[Recipe DB] Fetching smart recommendations for user ${userId} with limit ${limit} and meal type ${mealType}`)
 

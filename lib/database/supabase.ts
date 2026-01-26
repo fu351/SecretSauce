@@ -681,6 +681,13 @@ export type Database = {
         }
         Returns: Database["public"]["Tables"]["recipes"]["Row"][]
       }
+      get_smart_trending_recommendations: {
+        Args: {
+          p_user_id: string
+          p_limit: number
+        }
+        Returns: Database["public"]["Tables"]["recipes"]["Row"][]
+      }
     }
     Enums: {
       shopping_list_source_type: "recipe" | "manual"
