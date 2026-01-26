@@ -1,0 +1,24 @@
+name: Temporary Database Janitor
+
+on:
+  schedule:
+    # Runs at 3:55 AM PST (11:55 AM UTC), 5 mins before your scraper would run
+    - cron: '55 11 * * *' 
+  workflow_dispatch: # Allows you to click "Run Workflow" manually
+
+jobs:
+  truncate-recent:
+    name: Wipe Recent Table
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL Client
+        run: sudo apt-get install -y postgresql-client
+
+      - name: Truncate Table
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "🧹 Performing scheduled wipe of ingredients_recent..."
+          psql "$DB_URL" -c "TRUNCATE TABLE public.ingredients_recent;"
+          
+          echo "✅ Table is now empty and ready for the next batch."

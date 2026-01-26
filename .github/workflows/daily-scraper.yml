@@ -2,21 +2,19 @@ name: Daily Ingredient Scraper
 
 on:
   schedule:
-    # Run at 4 AM PST every day (12 PM UTC)
     - cron: '0 12 * * *'
   workflow_dispatch:
-    # Allow manual triggering from GitHub UI
     inputs:
       zip_code:
-        description: 'Zip code for scraping (default: 94704)'
+        description: 'Zip code for scraping'
         required: false
         default: '94704'
 
 jobs:
   scrape-ingredients:
-    name: Scrape Ingredient Prices
+    name: Scrape and Maintain
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # Fail if takes longer than 30 minutes
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -27,6 +25,16 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Database Maintenance (Pre-Scrape Reset)
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "🧹 Clearing ingredients_recent to prepare for new data..."
+          # This ensures the 'Recent' table is empty before the new scrape starts
+          psql "$DB_URL" -c "TRUNCATE TABLE public.ingredients_recent;"
+          
+          echo "📊 Maintenance complete. Database is ready for new batch."
+
       - name: Run Daily Scraper
         env:
           VERCEL_URL: ${{ secrets.VERCEL_URL || 'https://the-secret-sauce.vercel.app' }}
@@ -36,30 +44,17 @@ jobs:
           ZIP_CODE: ${{ github.event.inputs.zip_code || '94704' }}
         run: |
           echo "🚀 Starting Daily Ingredient Scraper"
-          echo "Vercel URL: $VERCEL_URL"
-          echo "Zip Code: $ZIP_CODE"
-          echo "Strategy: Scraping ALL canonical ingredients"
-          echo ""
           node scripts/daily-scraper.js
+
+      - name: Database Maintenance (Post-Scrape Optimization)
+        if: success()
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "📈 Updating database statistics for the new batch..."
+          psql "$DB_URL" -c "ANALYZE public.ingredients_history;"
+          psql "$DB_URL" -c "ANALYZE public.ingredients_recent;"
 
       - name: Report Success
         if: success()
-        run: |
-          echo "✅ Daily scraper completed successfully!"
-          echo "Check the logs above for detailed statistics."
-
-      - name: Report Failure
-        if: failure()
-        run: |
-          echo "❌ Daily scraper failed!"
-          echo "Check the logs above for error details."
-          exit 1
-
-      - name: Upload Logs (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: scraper-failure-logs
-          path: |
-            ${{ github.workspace }}/*.log
-          retention-days: 7
+        run: echo "✅ Database wiped, items scraped, and history updated."
