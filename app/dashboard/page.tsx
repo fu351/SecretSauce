@@ -11,7 +11,7 @@ import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import { mealPlannerDB } from "@/lib/database/meal-planner-db"
 import { shoppingListDB } from "@/lib/database/store-list-db"
 import Link from "next/link"
-import { format, startOfWeek, endOfWeek } from "date-fns"
+import { getWeek, getYear } from "date-fns"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 import { Recipe } from "@/lib/types"
 
@@ -105,10 +105,10 @@ export default function DashboardPage() {
       const favoriteIds = await recipeFavoritesDB.fetchFavoriteRecipeIds(user.id)
       const favoritesCount = favoriteIds.length
 
-      // Fetch meal schedule for current week
-      const weekStart = format(startOfWeek(new Date()), "yyyy-MM-dd")
-      const weekEnd = format(endOfWeek(new Date()), "yyyy-MM-dd")
-      const mealSchedule = await mealPlannerDB.fetchMealScheduleByDateRange(user.id, weekStart, weekEnd)
+      // Fetch meal schedule for current week via week index
+      const now = new Date()
+      const currentWeekIndex = getYear(now) * 100 + getWeek(now, { weekStartsOn: 1 })
+      const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(user.id, currentWeekIndex)
       const plannedMealsCount = mealSchedule.length
 
       // Fetch shopping list items
@@ -264,7 +264,7 @@ export default function DashboardPage() {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8"   data-tutorial="dashboard-stats">
-            <Link href="/your-recipes" className="block">
+            <Link href="/recipes?mine=true" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -277,7 +277,7 @@ export default function DashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/favorites" className="block">
+            <Link href="/recipes?favorites=true" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card" data-tutorial="dashboard-actions">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -351,7 +351,7 @@ export default function DashboardPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-foreground">Recent Recipes</CardTitle>
-                <Link href="/your-recipes">
+                <Link href="/recipes?mine=true">
                   <Button variant="outline" size="sm">
                     View All
                   </Button>

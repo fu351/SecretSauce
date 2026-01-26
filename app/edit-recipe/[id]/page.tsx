@@ -42,7 +42,7 @@ export default function EditRecipePage() {
       description: "You can only edit your own recipes.",
       variant: "destructive",
     })
-    router.push("/your-recipes")
+    router.push("/recipes?mine=true")
     return null
   }
 
@@ -121,7 +121,7 @@ export default function EditRecipePage() {
         description: "Your recipe has been successfully deleted.",
       })
 
-      router.push("/your-recipes")
+      router.push("/recipes?mine=true")
     } catch (error: any) {
       console.error("Error deleting recipe:", error)
       toast({
