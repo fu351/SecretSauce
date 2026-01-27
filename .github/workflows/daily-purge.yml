@@ -19,6 +19,7 @@ jobs:
           DB_URL: ${{ secrets.DATABASE_URL }}
         run: |
           echo "🧹 Performing scheduled wipe of ingredients_recent..."
+          # Pass the variable as an argument to psql
           psql "$DB_URL" -c "TRUNCATE TABLE public.ingredients_recent;"
           
           echo "✅ Table is now empty and ready for the next batch."
