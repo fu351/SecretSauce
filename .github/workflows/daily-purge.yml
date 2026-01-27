@@ -21,7 +21,7 @@ jobs:
           node-version: '20'
 
       - name: Install Supabase client (runtime-only)
-        run: npm install --no-save --no-package-lock @supabase/supabase-js
+        run: npm install --no-save --no-package-lock --legacy-peer-deps @supabase/supabase-js
 
       - name: Wipe ingredients_recent via Supabase
         env:
