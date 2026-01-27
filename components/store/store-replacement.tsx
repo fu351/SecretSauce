@@ -6,12 +6,19 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
+import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import type { GroceryItem } from "@/lib/types/store"
 
 interface ItemReplacementModalProps {
   isOpen: boolean
   onClose: () => void
-  target: { term: string; store: string } | null
+  target: {
+    term: string
+    store: string
+    shoppingListId?: string
+    shoppingListIds?: string[]
+    standardizedIngredientId?: string | null
+  } | null
   zipCode: string
   onSelect: (item: GroceryItem) => void
   styles: any
@@ -37,7 +44,41 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     try {
       // Pass the specific store to search only that provider
       const res = await searchGroceryStores(searchTerm, zipCode, target?.store, undefined, true)
-      setResults(res.flatMap(r => r.items || []))
+      const flatResults = res.flatMap(r => r.items || [])
+      setResults(flatResults)
+
+      // Bulk upsert scraped options into ingredients_history so pricing pipeline can pick them up
+      const standardizedId = target?.standardizedIngredientId
+      if (standardizedId) {
+        const payload = flatResults
+          .filter(item => typeof item.price === "number" && item.price > 0)
+          .map(item => {
+            const unitPrice =
+              item.pricePerUnit != null
+                ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, "")) || null
+                : null
+
+            return {
+              standardizedIngredientId: standardizedId,
+              store: item.provider?.toLowerCase?.() || target?.store || "unknown",
+              price: item.price,
+              quantity: 1,
+              unit: item.unit || "unit",
+              unitPrice,
+              imageUrl: item.image_url,
+              productName: item.title,
+              productId: item.id,
+              location: item.location || null,
+              zipCode: zipCode || null,
+            }
+          })
+
+        if (payload.length > 0) {
+          ingredientsHistoryDB.batchInsertPrices(payload).catch(err =>
+            console.error("[ItemReplacementModal] Failed to cache scraped results", err)
+          )
+        }
+      }
     } catch (e) {
       console.error(e)
     } finally {

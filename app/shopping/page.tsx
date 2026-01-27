@@ -43,6 +43,7 @@ export default function ShoppingPage() {
     store: string;
     shoppingListId?: string;
     shoppingListIds?: string[];
+    standardizedIngredientId?: string | null;
   } | null>(null)
   
   const {
@@ -137,7 +138,11 @@ export default function ShoppingPage() {
   }
 
   const handleReloadRequest = (target: { term: string; store: string; shoppingListId: string; shoppingListIds?: string[] }) => {
-    setReloadTarget(target)
+    const primaryId = target.shoppingListIds?.[0] || target.shoppingListId
+    const matchedItem = shoppingList.find(i => i.id === primaryId)
+    const standardizedIngredientId = matchedItem?.ingredient_id || matchedItem?.standardizedIngredientId || null
+
+    setReloadTarget({ ...target, standardizedIngredientId })
     setReloadModalOpen(true)
   }
 
