@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import type { Recipe, MealTypeTag } from "@/lib/types"
-import { generateWeeklyMealPlan } from "@/lib/planner/agent"
 
 export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number) {
   const [meals, setMeals] = useState<MealScheduleRow[]>([])

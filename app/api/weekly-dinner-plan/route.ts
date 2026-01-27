@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { generateWeeklyDinnerPlan } from "@/lib/planner/agent"
+import { useHeuristicPlan } from "@/hooks/meal-planner/use-heuristic-plan"
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 })
     }
 
-    const plan = await generateWeeklyDinnerPlan(userId, weekIndex)
+    const plan = await useHeuristicPlan(userId, weekIndex)
     return NextResponse.json(plan)
   } catch (error) {
     console.error("[weekly-dinner-plan] Failed to generate plan", error)
