@@ -2,9 +2,8 @@ name: Temporary Database Janitor
 
 on:
   schedule:
-    # Runs at 3:55 AM PST (11:55 AM UTC)
     - cron: '55 11 * * *' 
-  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   truncate-recent:
@@ -18,22 +17,13 @@ jobs:
 
       - name: Truncate Table
         env:
-          # This must be the full connection string: postgresql://user:pass@host:5432/dbname
+          # Use the connection string from Supabase Settings > Database
           DB_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          echo "🧹 Performing scheduled wipe of ingredients_recent..."
+          echo "🧹 Connecting to Supabase to wipe ingredients_recent..."
           
-          # Pass the DB_URL variable directly as the first argument to psql
-          # RESTART IDENTITY resets any auto-incrementing counters
-          # CASCADE ensures it runs even if there are complicated dependencies
+          # We wrap $DB_URL in quotes to handle special characters in passwords
+          # We use RESTART IDENTITY so your IDs start back at 1
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "TRUNCATE TABLE public.ingredients_recent RESTART IDENTITY CASCADE;"
           
-          echo "✅ Table is now empty and ready for the next batch."
-
-      - name: Health Check
-        if: success()
-        env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          echo "Checking row count..."
-          psql "$DB_URL" -c "SELECT count(*) FROM public.ingredients_recent;"
+          echo "✅ Table wiped successfully."
