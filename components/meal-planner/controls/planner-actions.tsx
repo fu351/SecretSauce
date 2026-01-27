@@ -13,23 +13,23 @@ import {
 import { useIsMobile } from "@/hooks"
 
 interface PlannerActionsProps {
-  onAiPlan: () => void
+  onHeuristicPlan: () => void
   onAddToCart: () => void
   onGoToToday: () => void
   onPreviousWeek: () => void
   onNextWeek: () => void
   onClearWeek: () => void
-  aiLoading: boolean
+  heuristicLoading: boolean
 }
 
 export function PlannerActions({
-  onAiPlan,
+  onHeuristicPlan,
   onAddToCart,
   onGoToToday,
   onPreviousWeek,
   onNextWeek,
   onClearWeek,
-  aiLoading,
+  heuristicLoading,
 }: PlannerActionsProps) {
   const isMobile = useIsMobile()
 
@@ -39,7 +39,7 @@ export function PlannerActions({
         variant="outline"
         className="shrink-0"
         onClick={onGoToToday}
-        disabled={aiLoading}
+        disabled={heuristicLoading}
       >
         <CalendarDays className="h-4 w-4 mr-2" />
         Today
@@ -49,7 +49,7 @@ export function PlannerActions({
           variant="outline"
           size="icon"
           onClick={onPreviousWeek}
-          disabled={aiLoading}
+          disabled={heuristicLoading}
           aria-label="Previous week"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -58,12 +58,14 @@ export function PlannerActions({
           variant="outline"
           size="icon"
           onClick={onNextWeek}
-          disabled={aiLoading}
+          disabled={heuristicLoading}
           aria-label="Next week"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+      {/* AI planner temporarily disabled until we rely on the heuristic smart planner */}
+      {/*
       <Button
         className="!bg-gradient-to-r !from-purple-600 !to-blue-600 !text-white hover:!from-purple-700 hover:!to-blue-700 shadow-sm shrink-0"
         onClick={onAiPlan}
@@ -77,6 +79,20 @@ export function PlannerActions({
         )}
         {isMobile ? "AI Plan" : "AI Weekly Planner"}
       </Button>
+      */}
+      <Button
+        className="!bg-gradient-to-r !from-purple-600 !to-blue-600 !text-white hover:!from-purple-700 hover:!to-blue-700 shadow-sm shrink-0"
+        onClick={onHeuristicPlan}
+        disabled={heuristicLoading}
+        data-tutorial="planner-smart"
+      >
+        {heuristicLoading ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Sparkles className="h-4 w-4 mr-2" />
+        )}
+        {isMobile ? "Smart Plan" : "Smart Weekly Planner"}
+      </Button>
       <Button
         className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm shrink-0"
         onClick={onAddToCart}
@@ -89,7 +105,7 @@ export function PlannerActions({
         variant="outline"
         className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
         onClick={onClearWeek}
-        disabled={aiLoading}
+        disabled={heuristicLoading}
       >
         <Trash2 className="h-4 w-4 mr-2" />
         {isMobile ? "Clear" : "Clear Week"}
@@ -98,4 +114,3 @@ export function PlannerActions({
     
   )
 }
-

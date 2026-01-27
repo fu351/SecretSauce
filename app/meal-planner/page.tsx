@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation"
 import {
   useMealPlannerRecipes,
   useMealPlannerNutrition,
-  useMealPlannerAi,
   useHeuristicPlan,
   useMealPlannerDragDrop,
   useWeeklyMealPlan,
@@ -18,7 +17,7 @@ import { SignInNotification } from "@/components/shared/signin-notification"
 import { PlannerActions } from "@/components/meal-planner/controls/planner-actions"
 import { NutritionSummaryCard } from "@/components/meal-planner/cards/nutrition-summary-card"
 import { WeeklyView } from "@/components/meal-planner/views/weekly-view"
-import { AiPlannerModal } from "@/components/meal-planner/modals/ai-planner-modal"
+// import { AiPlannerModal } from "@/components/meal-planner/modals/ai-planner-modal"
 import { RecipeSearchPanel } from "@/components/meal-planner/panels/recipe-search-panel"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
 import { RecipeDetailModal } from "@/components/recipe/detail/recipe-detail-modal"
@@ -55,6 +54,7 @@ export default function MealPlannerPage() {
   const [showRecipeSidebar, setShowRecipeSidebar] = useState(false)
   const [weekIndex, setWeekIndex] = useState(getCurrentWeekIndex())
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
+  const [heuristicPlanLoading, setHeuristicPlanLoading] = useState(false)
 
   // Custom hooks
   const {
@@ -87,12 +87,6 @@ export default function MealPlannerPage() {
   [weekDates])
 
   const nutrition = useMealPlannerNutrition(meals, weekDateStrings, recipesById)
-  const aiPlanner = useMealPlannerAi(user?.id, weekIndex)
-
-  const allRecipesById = useMemo(() => ({ 
-    ...recipesById, 
-    ...aiPlanner.aiRecipesById 
-  }), [recipesById, aiPlanner.aiRecipesById])
 
   // 3. MEMOIZED CALLBACKS
   const handleGoToToday = useCallback(() => setWeekIndex(getCurrentWeekIndex()), [])
@@ -128,57 +122,51 @@ export default function MealPlannerPage() {
     }
   }, [user, meals, shoppingList, toast, router])
 
-  const handleApplyAiPlan = useCallback(async () => {
+  const handleGenerateHeuristicPlan = useCallback(async () => {
+    if (!user?.id) return
+    setHeuristicPlanLoading(true)
+
     try {
-      const success = await aiPlanner.applyAiPlanToMealPlanner()
-      if (success) reloadWeeklyPlan()
-    } catch (error) {
-      console.error("[MealPlanner] AI plan failed, falling back to heuristic plan:", error)
+      const heuristicPlan = await useHeuristicPlan(user.id, weekIndex)
 
-      // Fallback to heuristic plan
-      if (user?.id) {
-        try {
-          toast({
-            title: "Switching to smart planner",
-            description: "Generating meal plan using our smart algorithm...",
-          })
+      if (heuristicPlan.meals && heuristicPlan.meals.length > 0) {
+        const weekDates = getDatesForWeek(weekIndex).map((d) => d.toISOString().split("T")[0])
 
-          const heuristicPlan = await useHeuristicPlan(user.id, weekIndex)
-
-          // Apply the heuristic plan
-          if (heuristicPlan.meals && heuristicPlan.meals.length > 0) {
-            const weekDates = getDatesForWeek(weekIndex).map(d => d.toISOString().split("T")[0])
-
-            for (const meal of heuristicPlan.meals) {
-              const date = weekDates[meal.dayIndex]
-              if (date) {
-                await addToMealPlan(
-                  { id: meal.recipeId } as Recipe,
-                  meal.mealType,
-                  date,
-                  { reload: false }
-                )
-              }
-            }
-
-            await reloadWeeklyPlan()
-
-            toast({
-              title: "Success",
-              description: `${heuristicPlan.meals.length} meals added! Estimated cost: $${heuristicPlan.totalCost.toFixed(2)} at ${heuristicPlan.storeId}`,
-            })
+        for (const meal of heuristicPlan.meals) {
+          const date = weekDates[meal.dayIndex]
+          if (date) {
+            await addToMealPlan(
+              { id: meal.recipeId } as Recipe,
+              meal.mealType,
+              date,
+              { reload: false }
+            )
           }
-        } catch (fallbackError) {
-          console.error("[MealPlanner] Heuristic plan also failed:", fallbackError)
-          toast({
-            title: "Error",
-            description: "Failed to generate meal plan. Please try again.",
-            variant: "destructive",
-          })
         }
+
+        await reloadWeeklyPlan()
+
+        toast({
+          title: "Success",
+          description: `${heuristicPlan.meals.length} meals added! Estimated cost: $${heuristicPlan.totalCost.toFixed(2)} at ${heuristicPlan.storeId}`,
+        })
+      } else {
+        toast({
+          title: "Smart planner",
+          description: heuristicPlan.explanation || "Week already planned.",
+        })
       }
+    } catch (error) {
+      console.error("[MealPlanner] Heuristic plan failed:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate meal plan. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setHeuristicPlanLoading(false)
     }
-  }, [aiPlanner, reloadWeeklyPlan, user, weekIndex, addToMealPlan, toast])
+  }, [user?.id, weekIndex, addToMealPlan, reloadWeeklyPlan, toast])
 
   const handleClearWeek = useCallback(async () => {
     if (!user) return
@@ -278,15 +266,15 @@ export default function MealPlannerPage() {
                 </div>
 
                 <div className="flex flex-col md:flex-row md:items-center gap-3">
-                  <PlannerActions
-                    onAiPlan={() => aiPlanner.generateAiWeeklyPlan(recipesById)}
-                    onAddToCart={handleAddToShoppingList}
-                    onGoToToday={handleGoToToday}
-                    onPreviousWeek={handlePreviousWeek}
-                    onNextWeek={handleNextWeek}
-                    onClearWeek={handleClearWeek}
-                    aiLoading={aiPlanner.aiPlannerLoading}
-                  />
+                <PlannerActions
+                  onHeuristicPlan={handleGenerateHeuristicPlan}
+                  onAddToCart={handleAddToShoppingList}
+                  onGoToToday={handleGoToToday}
+                  onPreviousWeek={handlePreviousWeek}
+                  onNextWeek={handleNextWeek}
+                  onClearWeek={handleClearWeek}
+                  heuristicLoading={heuristicPlanLoading}
+                />
                 </div>
               </div>
 
@@ -367,16 +355,7 @@ export default function MealPlannerPage() {
         </Sheet>
 
         {/* Modals */}
-        <AiPlannerModal
-          open={aiPlanner.showAiPlanDialog}
-          onClose={() => aiPlanner.setShowAiPlanDialog(false)}
-          loading={aiPlanner.aiPlannerLoading}
-          progress={aiPlanner.aiPlannerProgress}
-          result={aiPlanner.aiPlanResult}
-          recipesById={allRecipesById}
-          weekdaysFull={WEEKDAYS_FULL}
-          onApply={handleApplyAiPlan}
-        />
+        {/* AI planner modal disabled while the heuristic planner drives the experience */}
 
         <RecipeDetailModal
           recipeId={selectedRecipeId}
