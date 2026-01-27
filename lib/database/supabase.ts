@@ -664,6 +664,38 @@ export type Database = {
           read?: boolean | null
         }
       }
+      grocery_stores: {
+        Row: {
+          id: string
+          store_enum: Database["public"]["Enums"]["grocery_store"]
+          name: string
+          address: string | null
+          zip_code: string | null
+          geom: unknown | null
+          is_active: boolean | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          store_enum: Database["public"]["Enums"]["grocery_store"]
+          name: string
+          address?: string | null
+          zip_code?: string | null
+          geom?: unknown | null
+          is_active?: boolean | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          store_enum?: Database["public"]["Enums"]["grocery_store"]
+          name?: string
+          address?: string | null
+          zip_code?: string | null
+          geom?: unknown | null
+          is_active?: boolean | null
+          created_at?: string | null
+        }
+      }
       shopping_list_items: {
         Row: {
           id: string
@@ -752,6 +784,51 @@ export type Database = {
           store?: Database["public"]["Enums"]["grocery_store"]
         }
       }
+      store_list_history: {
+        Row: {
+          id: string
+          user_id: string
+          grocery_store_id: string
+          standardized_ingredient_id: string
+          unit_price_at_selection: number
+          quantity_needed: number
+          total_item_price: number | null
+          week_index: number
+          is_delivery_confirmed: boolean | null
+          expires_at: string
+          created_at: string | null
+          updated_at: string | null
+          delivery_date: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          grocery_store_id: string
+          standardized_ingredient_id: string
+          unit_price_at_selection: number
+          quantity_needed: number
+          week_index: number
+          is_delivery_confirmed?: boolean | null
+          expires_at: string
+          created_at?: string | null
+          updated_at?: string | null
+          delivery_date?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          grocery_store_id?: string
+          standardized_ingredient_id?: string
+          unit_price_at_selection?: number
+          quantity_needed?: number
+          week_index?: number
+          is_delivery_confirmed?: boolean | null
+          expires_at?: string
+          created_at?: string | null
+          updated_at?: string | null
+          delivery_date?: string | null
+        }
+      }
       store_locations_cache: {
         Row: {
           id: number
@@ -812,6 +889,14 @@ export type Database = {
           target_delivery_date: string
         }
         Returns: void
+      }
+      fn_add_to_delivery_log: {
+        Args: {
+          p_shopping_list_item_id: string
+          p_product_mapping_id: string
+          p_delivery_date: string | null
+        }
+        Returns: string
       }
       get_best_store_for_plan: {
         Args: {
