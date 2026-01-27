@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { standardizeIngredientsWithAI } from "@/lib/ingredient-standardizer"
-import { batchGetOrCreateStandardizedIngredients } from "@/lib/ingredient-cache"
+import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import { createServerClient } from "@/lib/database/supabase"
 
@@ -82,11 +82,11 @@ export async function POST(request: NextRequest) {
 
     // OPTIMIZED: Batch create all standardized ingredients in one query
     const standardizedItems = aiResults.map(result => ({
-      canonicalName: result.canonicalName,
+      canonicalName: result.canonicalName.trim().toLowerCase(),
       category: result.category || null,
     }))
 
-    const standardizedIdMap = await batchGetOrCreateStandardizedIngredients(standardizedItems)
+    const standardizedIdMap = await standardizedIngredientsDB.batchGetOrCreate(standardizedItems)
 
     const updates: Array<{
       id: string

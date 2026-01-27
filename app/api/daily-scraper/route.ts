@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@/lib/database/supabase"
-import { cacheIngredientPrice } from "@/lib/ingredient-cache"
+import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 
 // List of stores to scrape
 const STORES = [
@@ -14,6 +14,42 @@ const STORES = [
   "Trader Joes"
 ]
 const DEFAULT_ZIP_CODE = "94704"
+
+const INGREDIENT_STOP_WORDS = new Set([
+  "fresh",
+  "large",
+  "small",
+  "boneless",
+  "skinless",
+  "ripe",
+  "optional",
+  "chopped",
+  "sliced",
+  "diced",
+  "minced",
+  "ground",
+  "crushed",
+  "grated",
+  "shredded",
+  "cooked",
+  "uncooked",
+  "raw",
+  "whole",
+  "dried",
+  "toasted",
+  "packed",
+  "divided",
+])
+
+function simplifyIngredientTokens(value: string): string {
+  return value
+    .replace(/\(.*?\)/g, " ")
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter((token) => token && !INGREDIENT_STOP_WORDS.has(token.toLowerCase()))
+    .join(" ")
+    .trim()
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -103,7 +139,6 @@ export async function GET(request: NextRequest) {
 async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: string, store: string) {
   try {
     const scrapers = require("@/lib/scrapers")
-    const { simplifyIngredientTokens } = require("@/lib/ingredient-cache")
 
     // Try scraping with canonical name first
     let scrapedItems: any[] = []
@@ -187,20 +222,21 @@ async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: st
       const unitPrice = cheapest.pricePerUnit ? parseFloat(cheapest.pricePerUnit) : null
 
       // Cache the cheapest item for this ingredient from this store
-      const success = await cacheIngredientPrice(
-        ingredientId,
+      const successRow = await ingredientsHistoryDB.insertPrice({
+        standardizedIngredientId: ingredientId,
         store,
-        cheapest.title || cheapest.name || ingredientName,
-        Number(cheapest.price) || 0,
+        price: Number(cheapest.price) || 0,
         quantity,
         unit,
         unitPrice,
-        cheapest.image_url,
-        cheapest.product_url || null,
-        cheapest.id || null
-      )
+        imageUrl: cheapest.image_url ?? null,
+        productName: (cheapest.title || cheapest.name || ingredientName) ?? null,
+        productId: (cheapest.id || null) ?? null,
+        location: null,
+        zipCode: DEFAULT_ZIP_CODE,
+      })
 
-      if (!success) {
+      if (!successRow) {
         throw new Error(`Failed to cache ingredient for ${store}`)
       }
 
