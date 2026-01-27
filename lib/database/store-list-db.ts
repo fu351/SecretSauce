@@ -201,6 +201,28 @@ class ShoppingListTable extends BaseTable<
     const results = await Promise.all(updates.map(({ id, changes }) => this.updateItem(id, changes)))
     return results
   }
+
+  /**
+   * Mark a shopping list order as complete by invoking the database function.
+   */
+  async completeOrder(
+    selections: Array<{ shopping_list_id: string; store_id: string }>,
+    targetDeliveryDate: string,
+  ): Promise<void> {
+    if (!selections || selections.length === 0) {
+      return
+    }
+
+    const { error } = await this.supabase.rpc('complete_order', {
+      input_data: selections,
+      target_delivery_date: targetDeliveryDate,
+    })
+
+    if (error) {
+      this.handleError(error, 'completeOrder')
+      throw error
+    }
+  }
 }
 
 // Export singleton instance

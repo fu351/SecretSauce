@@ -11,6 +11,7 @@ import {
   ArrowLeftRight,
   Store,
   CheckCircle2,
+  DollarSign,
   Map as MapIcon,
   List,
   Clock
@@ -23,6 +24,13 @@ import { getUserLocation } from "@/lib/geocoding"
 import Image from "next/image"
 
 // Map store names to logo files
+function titleCaseStore(name: string): string {
+  return name
+    .split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ")
+}
+
 function getStoreLogo(storeName: string): string | null {
   const normalized = storeName.toLowerCase().replace(/\s+/g, '')
   const logoMap: Record<string, string> = {
@@ -65,15 +73,8 @@ interface StoreComparisonSectionProps {
   mutedTextClass: string
   buttonClass: string
   theme: "light" | "dark"
-}
-
-const CACHE_KEY = "store_comparison_cache";
-const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
-
-interface CachedStoreData {
-  data: StoreComparison[];
-  timestamp: number;
-  postalCode: string;
+  sortMode: "cheapest" | "best-value" | "nearest"
+  onChangeSort: (mode: "cheapest" | "best-value" | "nearest") => void
 }
 
 export function StoreComparisonSection({
@@ -88,62 +89,21 @@ export function StoreComparisonSection({
   mutedTextClass,
   buttonClass,
   theme,
+  sortMode,
+  onChangeSort,
 }: StoreComparisonSectionProps) {
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [userCoords, setUserCoords] = useState<google.maps.LatLngLiteral | null>(null);
-  const [cachedResults, setCachedResults] = useState<StoreComparison[]>([]);
-  const [usingCache, setUsingCache] = useState(false);
 
   // Initialize the new hook
   const { closestIndex, travelData, calculateClosest, isLoading: travelLoading } = useClosestStore();
 
-  // Load cached data on mount
+  // Use results directly from props (server-provided)
+  const displayResults = massSearchResults;
+
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsedCache: CachedStoreData = JSON.parse(cached);
-        const now = Date.now();
-
-        // Check if cache is valid and matches current postal code
-        if (
-          parsedCache.postalCode === postalCode &&
-          now - parsedCache.timestamp < CACHE_TTL
-        ) {
-          setCachedResults(parsedCache.data);
-          setUsingCache(true);
-        } else {
-          // Cache expired or different postal code
-          localStorage.removeItem(CACHE_KEY);
-        }
-      }
-    } catch (error) {
-      console.error("Error loading cached store data:", error);
-      localStorage.removeItem(CACHE_KEY);
-    }
-  }, [postalCode]);
-
-  // Cache new results when they arrive
-  useEffect(() => {
-    if (typeof window === "undefined" || !massSearchResults.length) return;
-
-    try {
-      const cacheData: CachedStoreData = {
-        data: massSearchResults,
-        timestamp: Date.now(),
-        postalCode,
-      };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-      setUsingCache(false);
-    } catch (error) {
-      console.error("Error caching store data:", error);
-    }
-  }, [massSearchResults, postalCode]);
-
-  // Use cached results if available and no new results
-  const displayResults = massSearchResults.length > 0 ? massSearchResults : cachedResults;
+    console.log("[StoreComparison] render results len", displayResults.length, "loading", comparisonLoading);
+  }, [displayResults.length, comparisonLoading]);
 
   // 1. Get User Location on Mount
   useEffect(() => {
@@ -165,32 +125,8 @@ export function StoreComparisonSection({
     return displayResults[carouselIndex] || displayResults[0];
   }, [displayResults, carouselIndex]);
 
-  // Merge duplicate items by title and sum their quantities
-  // Also track all shopping list IDs for merged items
-  const mergedItems = useMemo(() => {
-    if (!activeStore?.items) return [];
-
-    const itemMap = new Map<string, typeof activeStore.items[0] & { shoppingItemIds: string[] }>();
-
-    activeStore.items.forEach(item => {
-      const key = item.title.toLowerCase().trim();
-      if (itemMap.has(key)) {
-        const existing = itemMap.get(key)!;
-        itemMap.set(key, {
-          ...existing,
-          quantity: (existing.quantity || 1) + (item.quantity || 1),
-          shoppingItemIds: [...existing.shoppingItemIds, item.shoppingItemId]
-        });
-      } else {
-        itemMap.set(key, {
-          ...item,
-          shoppingItemIds: [item.shoppingItemId]
-        });
-      }
-    });
-
-    return Array.from(itemMap.values());
-  }, [activeStore]);
+  // Items come pre-merged from get_pricing; render directly
+  const displayItems = activeStore?.items || [];
 
   useEffect(() => {
     if (listContainerRef.current) {
@@ -206,7 +142,24 @@ export function StoreComparisonSection({
   };
 
 
+  const cheapestIndex = useMemo(() => {
+    console.log("[StoreComparison] compute cheapestIndex", { displayResults });
+    if (!displayResults?.length) return -1;
+    let bestIdx = 0;
+    let min = Number(displayResults[0].total);
+    displayResults.forEach((store, idx) => {
+      const t = Number(store.total);
+      if (t < min) {
+        min = t;
+        bestIdx = idx;
+      }
+    });
+    console.log("[StoreComparison] cheapestIndex result", { bestIdx, min });
+    return bestIdx;
+  }, [displayResults]);
+
   const bestValueIndex = useMemo(() => {
+    console.log("[StoreComparison] compute bestValueIndex", { displayResults });
     if (!displayResults?.length) return -1;
     let bestIdx = -1;
     let minScore = Infinity;
@@ -220,10 +173,11 @@ export function StoreComparisonSection({
          bestIdx = idx;
        }
     });
+    console.log("[StoreComparison] bestValueIndex result", { bestIdx, minScore });
     return bestIdx;
   }, [displayResults]);
 
-  if ((!displayResults?.length) && !comparisonLoading && !usingCache) {
+  if ((!displayResults?.length) && !comparisonLoading) {
     return (
       <div className={`flex flex-col items-center justify-center py-16 ${mutedTextClass}`}>
         <Store className="h-12 w-12 mb-4 opacity-10" />
@@ -240,14 +194,41 @@ export function StoreComparisonSection({
       {/* HEADER */}
       <div className="flex items-center justify-between px-2">
         <label className={`text-[11px] font-bold uppercase tracking-wider ${mutedTextClass}`}>
-          Compare Stores ({displayResults.length}) {usingCache && <span className="text-[9px] opacity-50">(cached)</span>}
+          Compare Stores ({displayResults.length})
         </label>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={sortMode === "cheapest" ? "default" : "outline"}
+            size="sm"
+            className="h-8 px-3"
+            onClick={() => onChangeSort("cheapest")}
+          >
+            Cheapest
+          </Button>
+          <Button
+            variant={sortMode === "best-value" ? "default" : "outline"}
+            size="sm"
+            className="h-8 px-3"
+            onClick={() => onChangeSort("best-value")}
+          >
+            Best Value
+          </Button>
+          <Button
+            variant={sortMode === "nearest" ? "default" : "outline"}
+            size="sm"
+            className="h-8 px-3"
+            onClick={() => onChangeSort("nearest")}
+          >
+            Nearest
+          </Button>
+        </div>
       </div>
 
       {/* STORE SWITCHER RAIL */}
       <div className="flex items-center gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x px-4 pt-4">
         {displayResults.map((result, idx) => {
           const isSelected = carouselIndex === idx;
+          const isCheapest = idx === cheapestIndex;
           const isBest = idx === bestValueIndex;
           const isClosest = idx === closestIndex; // From new hook
           const travelInfo = travelData.get(idx); // From new hook
@@ -284,6 +265,11 @@ export function StoreComparisonSection({
                 </div>
 
                 {/* Visual Indicators - Outside the scaled container */}
+                {isCheapest && (
+                  <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-1 border-2 border-white dark:border-[#121212] z-20 shadow-sm" title="Cheapest">
+                    <DollarSign className="h-2.5 w-2.5 text-white" />
+                  </div>
+                )}
                 {isBest && (
                   <div className="absolute -top-1 -right-1 bg-green-600 rounded-full p-1 border-2 border-white dark:border-[#121212] z-20 shadow-sm" title="Best Price">
                     <CheckCircle2 className="h-2.5 w-2.5 text-white" />
@@ -298,7 +284,7 @@ export function StoreComparisonSection({
 
               <div className="flex flex-col items-center gap-1.5">
                 <span className={`text-[11px] font-bold truncate w-24 text-center ${isSelected ? textClass : mutedTextClass}`}>
-                  {result.store}
+                  {titleCaseStore(result.store)}
                 </span>
                 <div className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                   isSelected
@@ -330,11 +316,9 @@ export function StoreComparisonSection({
           <Card className={`overflow-hidden border-0 shadow-2xl ${cardBgClass} transition-all duration-300 h-full flex flex-col`}>
           <div className={`p-6 flex justify-between items-end border-b ${theme === 'dark' ? 'border-white/5 bg-white/5' : 'border-gray-100 bg-gray-50/50'}`}>
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <h4 className={`text-2xl font-bold ${textClass}`}>{activeStore.store}</h4>
-                {carouselIndex === bestValueIndex && <Badge className="bg-green-600 text-[10px] px-2 h-5">BEST VALUE</Badge>}
-                {carouselIndex === closestIndex && <Badge className="bg-blue-500 text-[10px] px-2 h-5">CLOSEST</Badge>}
-              </div>
+            <div className="flex items-center gap-2 mb-1.5">
+                <h4 className={`text-2xl font-bold ${textClass}`}>{titleCaseStore(activeStore.store)}</h4>
+            </div>
               <p className={`text-xs font-medium ${percentFound === 100 ? 'text-green-500' : 'text-amber-500'}`}>
                 {percentFound}% Stock Match ({activeStore.items.length} items found)
               </p>
@@ -353,7 +337,7 @@ export function StoreComparisonSection({
             className="p-0 min-h-[400px] max-h-[600px] overflow-y-auto scroll-smooth"
           >
             <div className="divide-y divide-gray-100 dark:divide-white/5">
-              {mergedItems.map((item, i) => (
+              {displayItems.map((item, i) => (
                 <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
                   <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === 'dark' ? 'bg-white border-white/10' : 'bg-white border-gray-100'}`}>
                     {item.image_url ? (
@@ -369,7 +353,7 @@ export function StoreComparisonSection({
                     </p>
                   </div>
                   <div className="text-right mr-2">
-                    <p className={`text-sm font-bold ${textClass}`}>${item.price.toFixed(2)}</p>
+                    <p className={`text-sm font-bold ${textClass}`}>${Number(item.price || 0).toFixed(2)}</p>
                     {(item.quantity || 1) > 1 && <p className={`text-[10px] ${mutedTextClass}`}>{item.quantity || 1} units</p>}
                   </div>
                   <Button

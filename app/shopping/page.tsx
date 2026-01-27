@@ -63,10 +63,12 @@ export default function ShoppingPage() {
     activeStoreIndex: carouselIndex,
     results: massSearchResults,
     loading: comparisonLoading,
+    hasFetched: comparisonFetched,
     performMassSearch,
     scrollToStore,
     replaceItemForStore,
-    recalculateTotals,
+    sortMode,
+    setSortMode
   } = useStoreComparison(shoppingList, zipCode, null)
 
   useEffect(() => setMounted(true), [])
@@ -85,14 +87,6 @@ export default function ShoppingPage() {
     }
     loadPrefs()
   }, [user, authLoading, profileDB])
-
-  // Update comparison when items change while showing comparison (by scaling prices)
-  useEffect(() => {
-    if (showComparison && massSearchResults.length > 0) {
-      // Scale prices based on quantity changes instead of re-fetching
-      recalculateTotals()
-    }
-  }, [shoppingList, showComparison, massSearchResults.length, recalculateTotals])
 
   useEffect(() => {
     if (mounted && searchParams.get("expandList") === "true") {
@@ -130,7 +124,7 @@ export default function ShoppingPage() {
     // Save all pending changes before showing comparison
     await saveChanges()
     setShowComparison(true)
-    performMassSearch()
+    await performMassSearch()
     // Scroll to comparison section after a brief delay to ensure it's rendered
     setTimeout(() => {
       document.querySelector("[data-comparison]")?.scrollIntoView({ behavior: "smooth" })
@@ -301,7 +295,7 @@ export default function ShoppingPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {comparisonLoading ? (
+                {comparisonLoading || !comparisonFetched ? (
                   <div className="text-center py-20">
                     <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-orange-500" />
                     <h3 className={`text-xl font-medium ${styles.textClass}`}>Scanning local stores...</h3>
@@ -320,6 +314,8 @@ export default function ShoppingPage() {
                       mutedTextClass={styles.mutedTextClass}
                       buttonClass={styles.buttonClass}
                       theme={styles.theme}
+                      sortMode={sortMode}
+                      onChangeSort={setSortMode}
                     />
                   </div>
                 )}

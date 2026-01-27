@@ -36,7 +36,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     setLoading(true)
     try {
       // Pass the specific store to search only that provider
-      const res = await searchGroceryStores(searchTerm, zipCode, target?.store)
+      const res = await searchGroceryStores(searchTerm, zipCode, target?.store, undefined, true)
       setResults(res.flatMap(r => r.items || []))
     } catch (e) {
       console.error(e)

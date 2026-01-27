@@ -1,5 +1,14 @@
 import { createClient } from "@supabase/supabase-js"
 
+// Basic JSON type used for Postgres json/jsonb return values
+type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json }
+  | Json[]
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -649,6 +658,44 @@ export type Database = {
           category?: string | null
         }
       }
+      shopping_item_price_cache: {
+        Row: {
+          shopping_list_item_id: string
+          standardized_ingredient_id: string | null
+          price: number | null
+          unit_price: number | null
+          product_name: string | null
+          store_name: string | null
+          image_url: string | null
+          cached_at: string | null
+          zip_code: string
+          store: Database["public"]["Enums"]["grocery_store"]
+        }
+        Insert: {
+          shopping_list_item_id: string
+          standardized_ingredient_id?: string | null
+          price?: number | null
+          unit_price?: number | null
+          product_name?: string | null
+          store_name?: string | null
+          image_url?: string | null
+          cached_at?: string | null
+          zip_code: string
+          store: Database["public"]["Enums"]["grocery_store"]
+        }
+        Update: {
+          shopping_list_item_id?: string
+          standardized_ingredient_id?: string | null
+          price?: number | null
+          unit_price?: number | null
+          product_name?: string | null
+          store_name?: string | null
+          image_url?: string | null
+          cached_at?: string | null
+          zip_code?: string
+          store?: Database["public"]["Enums"]["grocery_store"]
+        }
+      }
       store_locations_cache: {
         Row: {
           id: number
@@ -700,6 +747,16 @@ export type Database = {
           ingredients: Record<string, number>
         }
       }
+      complete_order: {
+        Args: {
+          input_data: Array<{
+            shopping_list_id: string
+            store_id: string
+          }>
+          target_delivery_date: string
+        }
+        Returns: void
+      }
       get_best_store_for_plan: {
         Args: {
           p_user_id: string
@@ -711,6 +768,27 @@ export type Database = {
           total_cost: number
           missing_ingredients_count: number
           protein_mix: Record<string, number>
+        }[]
+      }
+      get_pricing: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: {
+          standardized_ingredient_id: string
+          total_quantity: number
+          item_ids: string[]
+          offers: {
+            store: string
+            store_id?: string | null
+            store_name?: string | null
+            unit_price: number | null
+            total_price: number | null
+            product_name?: string | null
+            image_url?: string | null
+            zip_code?: string | null
+            distance?: number | null
+          }[]
         }[]
       }
       recommend_recipes_smart: {
