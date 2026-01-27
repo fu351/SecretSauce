@@ -5,7 +5,7 @@ import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner
 import type { Recipe, MealTypeTag } from "@/lib/types"
 import { getDatesForWeek } from "@/lib/date-utils"
 import { useToast } from "@/hooks/ui/use-toast"
-import { generateWeeklyMealPlan } from "@/lib/planner/agent"
+import { useHeuristicPlan } from "@/hooks/meal-planner/use-heuristic-plan"
 
 interface AiPlanResult {
   storeId: string
@@ -77,7 +77,7 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
       setAiPlannerProgress({ step: 5, message: "Finalizing your meal plan..." })
 
       // Use heuristic plan instead of AI API
-      const plan = await generateWeeklyMealPlan(userId, weekIndex)
+      const plan = await useHeuristicPlan(userId, weekIndex)
 
       // const plan = await response.json()
 
