@@ -360,6 +360,15 @@ export function useStoreComparison(
     })
   }, [])
 
+  // Clear comparison state when upstream data changes
+  const resetComparison = useCallback(() => {
+    setResults([])
+    setHasFetched(false)
+    setActiveStoreIndex(0)
+    setLoading(false)
+    setSortMode("cheapest")
+  }, [])
+
   const sortedResults = useMemo(() => {
     const sorted = [...results]
     sorted.sort((a, b) => {
@@ -429,6 +438,7 @@ export function useStoreComparison(
     prevStore,
     sortMode,
     setSortMode,
-    replaceItemForStore
+    replaceItemForStore,
+    resetComparison
   }
 }

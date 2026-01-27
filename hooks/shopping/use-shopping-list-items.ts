@@ -11,7 +11,7 @@ import type { ShoppingListItem } from "@/lib/types/store"
  *
  * @param items - Current shopping list items
  * @param setItems - State setter for items
- * @param setHasChanges - State setter for tracking unsaved changes
+ * @param queueSave - Debounced saver to persist changes after inactivity
  * @param userId - Current user ID for database operations
  *
  * @returns Object containing item operation functions
@@ -19,7 +19,9 @@ import type { ShoppingListItem } from "@/lib/types/store"
 export function useShoppingListItems(
   items: ShoppingListItem[],
   setItems: React.Dispatch<React.SetStateAction<ShoppingListItem[]>>,
-  setHasChanges: (value: boolean) => void,
+  queueSave: () => void,
+  registerPendingUpdate: (id: string, changes: Partial<ShoppingListItem>) => void,
+  registerPendingDelete: (id: string) => void,
   userId: string | null,
   loadShoppingList: () => Promise<void>
 ) {
@@ -47,33 +49,28 @@ export function useShoppingListItems(
         // Database handles merging - reload to get the final state
         await loadShoppingList()
 
+        queueSave()
         return true
       } catch (error) {
         toast({ title: "Error", description: "Failed to add item.", variant: "destructive" })
         return null
       }
     },
-    [userId, toast, loadShoppingList]
+    [userId, toast, loadShoppingList, queueSave]
   )
 
   /**
    * Remove an item from the shopping list
    */
   const removeItem = useCallback(
-    async (id: string) => {
+    (id: string) => {
       const backup = items.find(i => i.id === id)
       if (!backup) return
 
       setItems(prev => prev.filter(item => item.id !== id))
-
-      try {
-        await shoppingListDB.deleteItem(id)
-      } catch (error) {
-        setItems(prev => [...prev, backup])
-        toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" })
-      }
+      registerPendingDelete(id)
     },
-    [items, toast]
+    [items, registerPendingDelete]
   )
 
   /**
@@ -87,21 +84,16 @@ export function useShoppingListItems(
         item.id === id ? { ...item, quantity: safeQuantity } : item
       ))
 
-      shoppingListDB.updateItem(id, { quantity: safeQuantity })
-        .catch(() => {
-          toast({ title: "Error", description: "Failed to update quantity.", variant: "destructive" })
-        })
-
-      setHasChanges(true)
+      registerPendingUpdate(id, { quantity: safeQuantity })
     },
-    [toast]
+    [registerPendingUpdate]
   )
 
   /**
    * Update item name (manual items only)
    */
   const updateItemName = useCallback(
-    async (id: string, newName: string) => {
+    (id: string, newName: string) => {
       const currentItem = items.find(i => i.id === id)
       if (!currentItem || currentItem.name === newName) return
 
@@ -112,14 +104,9 @@ export function useShoppingListItems(
 
       setItems(prev => prev.map(item => item.id === id ? { ...item, name: newName } : item))
 
-      try {
-        await shoppingListDB.updateItem(id, { name: newName })
-      } catch (error) {
-        setItems(prev => prev.map(item => item.id === id ? { ...item, name: currentItem.name } : item))
-        toast({ title: "Error", description: "Failed to update item name.", variant: "destructive" })
-      }
+      registerPendingUpdate(id, { name: newName })
     },
-    [items, toast]
+    [items, registerPendingUpdate, toast]
   )
 
   /**
@@ -133,14 +120,9 @@ export function useShoppingListItems(
       const newValue = !item.checked
       setItems(prev => prev.map(i => i.id === id ? { ...i, checked: newValue } : i))
 
-      shoppingListDB.updateItem(id, { checked: newValue })
-        .catch(() => {
-          toast({ title: "Error", description: "Failed to update item.", variant: "destructive" })
-        })
-
-      setHasChanges(true)
+      registerPendingUpdate(id, { checked: newValue })
     },
-    [items, toast]
+    [items, registerPendingUpdate]
   )
 
   return {

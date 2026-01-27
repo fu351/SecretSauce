@@ -19,7 +19,7 @@ import { RecipeSearchModal } from "@/components/recipe/detail/recipe-recommendat
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ShoppingBag, Loader2, ArrowRight, AlertCircle } from "lucide-react"
+import { ShoppingBag, Loader2, ArrowRight } from "lucide-react"
 
 const DEFAULT_SHOPPING_ZIP = ""
 
@@ -47,7 +47,6 @@ export default function ShoppingPage() {
   
   const {
     items: shoppingList,
-    hasChanges,
     addItem,
     updateQuantity,
     updateItemName,
@@ -68,10 +67,18 @@ export default function ShoppingPage() {
     scrollToStore,
     replaceItemForStore,
     sortMode,
-    setSortMode
+    setSortMode,
+    resetComparison
   } = useStoreComparison(shoppingList, zipCode, null)
 
   useEffect(() => setMounted(true), [])
+
+  // Any change to the shopping list invalidates existing comparisons
+  useEffect(() => {
+    if (!mounted) return
+    resetComparison()
+    setShowComparison(false)
+  }, [shoppingList, mounted, resetComparison])
 
   useEffect(() => {
     if (authLoading) return
@@ -109,14 +116,12 @@ export default function ShoppingPage() {
       const result = await addItem(name)
       if (result) {
         toast({ description: `Added "${name}" to list` })
-        setShowComparison(false)
       }
     }
   }
 
   const handleAddRecipe = async (id: string, title: string, servings?: number) => {
     await addRecipeToCart(id, servings)
-    setShowComparison(false)
   }
 
   const handleCompareClick = async () => {
@@ -195,39 +200,18 @@ export default function ShoppingPage() {
                 </CardTitle>
 
                 <div className="flex items-center gap-2">
-                  {hasChanges && (
-                    <>
-                      <div className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-                        style={{
-                          backgroundColor: isDark ? "rgba(232, 220, 196, 0.15)" : "rgba(251, 146, 60, 0.1)",
-                          color: isDark ? "#e8dcc4" : "#ea580c"
-                        }}>
-                        <AlertCircle className="h-3.5 w-3.5" />
-                        <span>Unsaved changes</span>
-                      </div>
-                      <Button
-                        onClick={() => saveChanges()}
-                        className={styles.buttonClass}
-                        data-tutorial="store-save"
-                      >
-                        Save Changes
-                      </Button>
-                    </>
-                  )}
-                  {!(showComparison && !hasChanges) && (
-                    <Button
-                      onClick={handleCompareClick}
-                      disabled={shoppingList.length === 0 || comparisonLoading}
-                      className={styles.buttonClass}
-                      data-tutorial="store-compare"
-                    >
-                      {comparisonLoading ? (
-                        <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating... </>
-                      ) : (
-                        <> Compare Prices <ArrowRight className="ml-2 h-4 w-4" /> </>
-                      )}
-                    </Button>
-                  )}
+                  <Button
+                    onClick={handleCompareClick}
+                    disabled={shoppingList.length === 0 || comparisonLoading}
+                    className={styles.buttonClass}
+                    data-tutorial="store-compare"
+                  >
+                    {comparisonLoading ? (
+                      <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Calculating... </>
+                    ) : (
+                      <> Compare Prices <ArrowRight className="ml-2 h-4 w-4" /> </>
+                    )}
+                  </Button>
                 </div>
               </CardHeader>
 

@@ -42,6 +42,7 @@ class IngredientsHistoryTable extends BaseTable<
     zipCode?: string | null
     standardizedUnit?: Database["public"]["Enums"]["unit_label"] | null
     groceryStoreId?: string | null
+    productMappingId?: string | null
   }): Promise<IngredientsHistoryRow | null> {
     try {
       const normalizedStore = normalizeStoreName(payload.store)
@@ -62,6 +63,7 @@ class IngredientsHistoryTable extends BaseTable<
           zip_code: payload.zipCode ?? null,
           standardized_unit: payload.standardizedUnit ?? null,
           grocery_store_id: payload.groceryStoreId ?? null,
+          product_mapping_id: payload.productMappingId ?? null,
         })
         .select()
         .single()
@@ -93,6 +95,7 @@ class IngredientsHistoryTable extends BaseTable<
       zipCode?: string | null
       standardizedUnit?: Database["public"]["Enums"]["unit_label"] | null
       groceryStoreId?: string | null
+      productMappingId?: string | null
     }>
   ): Promise<number> {
     try {
@@ -112,6 +115,7 @@ class IngredientsHistoryTable extends BaseTable<
         zip_code: item.zipCode ?? null,
         standardized_unit: item.standardizedUnit ?? null,
         grocery_store_id: item.groceryStoreId ?? null,
+        product_mapping_id: item.productMappingId ?? null,
       }))
 
       const { data, error } = await this.supabase
@@ -147,6 +151,7 @@ class IngredientsHistoryTable extends BaseTable<
       productId?: string | null
       location?: string | null
       zipCode?: string | null
+      productMappingId?: string | null
     }>
   ): Promise<number> {
     try {
@@ -165,6 +170,7 @@ class IngredientsHistoryTable extends BaseTable<
           productId: item.productId ?? null,
           location: item.location ?? null,
           zipCode: item.zipCode ?? "",
+          productMappingId: item.productMappingId ?? null,
         }))
 
       if (!payload.length) return 0

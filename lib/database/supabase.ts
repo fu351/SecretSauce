@@ -361,6 +361,7 @@ export type Database = {
           grocery_store_id: string | null
           created_at: string | null
           updated_at: string | null
+          product_mapping_id: string | null
         }
         Insert: {
           id?: string
@@ -379,6 +380,7 @@ export type Database = {
           grocery_store_id?: string | null
           created_at?: string | null
           updated_at?: string | null
+          product_mapping_id?: string | null
         }
         Update: {
           id?: string
@@ -397,6 +399,7 @@ export type Database = {
           grocery_store_id?: string | null
           created_at?: string | null
           updated_at?: string | null
+          product_mapping_id?: string | null
         }
       }
       ingredients_recent: {
@@ -413,6 +416,7 @@ export type Database = {
           image_url: string | null
           zip_code: string | null
           created_at: string | null
+          product_mapping_id: string | null
         }
         Insert: {
           id: string
@@ -427,6 +431,7 @@ export type Database = {
           image_url?: string | null
           zip_code?: string | null
           created_at?: string | null
+          product_mapping_id?: string | null
         }
         Update: {
           id?: string
@@ -441,6 +446,7 @@ export type Database = {
           image_url?: string | null
           zip_code?: string | null
           created_at?: string | null
+          product_mapping_id?: string | null
         }
       }
       ingredient_mappings: {

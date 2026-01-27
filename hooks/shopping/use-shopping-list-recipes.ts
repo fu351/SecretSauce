@@ -36,7 +36,8 @@ export function useShoppingListRecipes(
   setItems: React.Dispatch<React.SetStateAction<ShoppingListItem[]>>,
   loadShoppingList: () => Promise<void>,
   userId: string | null,
-  recipeIngredientsDB: RecipeIngredientsSource
+  recipeIngredientsDB: RecipeIngredientsSource,
+  queueSave: () => void
 ) {
   const { toast } = useToast()
 
@@ -90,13 +91,14 @@ export function useShoppingListRecipes(
         // Database handles merging - reload to get the final state
         await loadShoppingList()
 
+        queueSave()
         toast({ title: "Recipe Added", description: `Added ${recipe.title} to list.` })
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to add recipe"
         toast({ title: "Error", description: errorMessage, variant: "destructive" })
       }
     },
-    [userId, toast, loadShoppingList, recipeIngredientsDB]
+    [userId, toast, loadShoppingList, recipeIngredientsDB, queueSave]
   )
 
   /**
@@ -125,13 +127,14 @@ export function useShoppingListRecipes(
       if (updates.length > 0) {
         try {
           await shoppingListDB.batchUpdateItems(updates)
+          queueSave()
         } catch (error) {
           toast({ title: "Error", description: "Sync failed. Reverting...", variant: "destructive" })
           loadShoppingList()
         }
       }
     },
-    [toast, loadShoppingList]
+    [toast, loadShoppingList, queueSave]
   )
 
   /**
@@ -144,12 +147,13 @@ export function useShoppingListRecipes(
 
       try {
         if (userId) await shoppingListDB.deleteRecipeItems(userId, recipeId)
+        queueSave()
       } catch (error) {
         setItems(backup)
         toast({ title: "Error", description: "Failed to remove recipe.", variant: "destructive" })
       }
     },
-    [userId, items, toast]
+    [userId, items, toast, queueSave]
   )
 
   /**
@@ -164,11 +168,12 @@ export function useShoppingListRecipes(
     try {
       await shoppingListDB.deleteBatch(checkedIds)
       toast({ title: "List cleared", description: "Checked items removed." })
+      queueSave()
     } catch (error) {
       loadShoppingList()
       toast({ title: "Error", description: "Failed to clear items.", variant: "destructive" })
     }
-  }, [items, toast, loadShoppingList])
+  }, [items, toast, loadShoppingList, queueSave])
 
   /**
    * Add multiple recipes to cart in a single bulk operation
@@ -240,6 +245,7 @@ export function useShoppingListRecipes(
 
         // Database handles merging - reload to get the final state
         await loadShoppingList()
+        queueSave()
 
         return totalRecipesAdded
       } catch (error) {
@@ -247,7 +253,7 @@ export function useShoppingListRecipes(
         throw new Error(errorMessage)
       }
     },
-    [userId, loadShoppingList, recipeIngredientsDB]
+    [userId, loadShoppingList, recipeIngredientsDB, queueSave]
   )
 
   return {
