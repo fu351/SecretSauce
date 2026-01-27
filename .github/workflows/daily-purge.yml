@@ -20,8 +20,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Supabase client (runtime-only)
-        run: npm install --no-save --no-package-lock --legacy-peer-deps @supabase/supabase-js
+      - name: Install Supabase client (isolated)
+        run: |
+          mkdir -p /tmp/supabase-client
+          npm install --no-save --no-package-lock --legacy-peer-deps --prefix /tmp/supabase-client @supabase/supabase-js
 
       - name: Wipe ingredients_recent via Supabase
         env:
@@ -29,7 +31,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           node - <<'NODE'
-          const { createClient } = require('@supabase/supabase-js')
+          const { createClient } = require('/tmp/supabase-client/node_modules/@supabase/supabase-js')
 
           const supabaseUrl = process.env.SUPABASE_URL
           const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
