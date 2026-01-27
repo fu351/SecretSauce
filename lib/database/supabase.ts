@@ -334,11 +334,11 @@ export type Database = {
           updated_at?: string | null
         }
       }
-      ingredient_cache: {
+      ingredients_history: {
         Row: {
           id: string
           standardized_ingredient_id: string
-          store: string
+          store: Database["public"]["Enums"]["grocery_store"]
           price: number
           quantity: number
           unit: string
@@ -346,16 +346,17 @@ export type Database = {
           image_url: string | null
           product_name: string | null
           product_id: string | null
-          expires_at: string
+          location: string | null
+          standardized_unit: Database["public"]["Enums"]["unit_label"] | null
+          zip_code: string | null
+          grocery_store_id: string | null
           created_at: string | null
           updated_at: string | null
-          location: string | null
-          zip_code: string | null
         }
         Insert: {
           id?: string
           standardized_ingredient_id: string
-          store: string
+          store: Database["public"]["Enums"]["grocery_store"]
           price: number
           quantity: number
           unit: string
@@ -363,16 +364,17 @@ export type Database = {
           image_url?: string | null
           product_name?: string | null
           product_id?: string | null
-          expires_at: string
+          location?: string | null
+          standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
+          zip_code?: string | null
+          grocery_store_id?: string | null
           created_at?: string | null
           updated_at?: string | null
-          location?: string | null
-          zip_code?: string | null
         }
         Update: {
           id?: string
           standardized_ingredient_id?: string
-          store?: string
+          store?: Database["public"]["Enums"]["grocery_store"]
           price?: number
           quantity?: number
           unit?: string
@@ -380,11 +382,56 @@ export type Database = {
           image_url?: string | null
           product_name?: string | null
           product_id?: string | null
-          expires_at?: string
+          location?: string | null
+          standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
+          zip_code?: string | null
+          grocery_store_id?: string | null
           created_at?: string | null
           updated_at?: string | null
-          location?: string | null
+        }
+      }
+      ingredients_recent: {
+        Row: {
+          id: string
+          standardized_ingredient_id: string
+          grocery_store_id: string | null
+          store: Database["public"]["Enums"]["grocery_store"]
+          price: number
+          quantity: number
+          unit: string
+          unit_price: number | null
+          product_name: string | null
+          image_url: string | null
+          zip_code: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id: string
+          standardized_ingredient_id: string
+          grocery_store_id?: string | null
+          store: Database["public"]["Enums"]["grocery_store"]
+          price: number
+          quantity: number
+          unit: string
+          unit_price?: number | null
+          product_name?: string | null
+          image_url?: string | null
           zip_code?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          standardized_ingredient_id?: string
+          grocery_store_id?: string | null
+          store?: Database["public"]["Enums"]["grocery_store"]
+          price?: number
+          quantity?: number
+          unit?: string
+          unit_price?: number | null
+          product_name?: string | null
+          image_url?: string | null
+          zip_code?: string | null
+          created_at?: string | null
         }
       }
       ingredient_mappings: {

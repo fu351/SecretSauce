@@ -1,16 +1,22 @@
 import { createServerClient, type Database } from "./database/supabase"
 import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
-import { normalizeStoreName } from "./ingredient-cache"
 import { ingredientMappingsDB } from "./database/ingredient-mappings-db"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
-import { ingredientCacheDB } from "./database/ingredient-cache-db"
+import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "./database/ingredients-db"
 
 type DB = Database["public"]["Tables"]
-type IngredientCacheRow = DB["ingredient_cache"]["Row"]
+type IngredientRecentRow = DB["ingredients_recent"]["Row"]
+type IngredientHistoryRow = DB["ingredients_history"]["Row"]
 type IngredientMappingRow = DB["ingredient_mappings"]["Row"]
 type StandardizedIngredientRow = DB["standardized_ingredients"]["Row"]
 
-export type IngredientCacheResult = IngredientCacheRow
+export type IngredientCacheResult = IngredientRecentRow & {
+  product_id?: string | null
+  location?: string | null
+  standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
+  product_url?: string | null
+  from_cache?: boolean
+}
 
 export interface PricedIngredient {
   standardizedIngredientId: string
@@ -286,31 +292,36 @@ async function upsertCacheEntry(
   store: string,
   product: ScraperResult,
   zipCode?: string | null
-): Promise<IngredientCacheRow | null> {
+): Promise<IngredientCacheResult | null> {
 
-  // 1. We let the class handle the logic.
-  // Notice we don't pass 'client' anymore; the singleton handles it.
-  const result = await ingredientCacheDB.cachePrice(
+  const normalizedStore = normalizeStoreName(store)
+
+  const historyRow = await ingredientsHistoryDB.insertPrice({
     standardizedIngredientId,
-    store,
-    Number(product.price) || 0,
-    Number(product.quantity) || 1,
-    product.unit || "unit",
-    {
-      unitPrice: product.unit_price ?? null,
-      imageUrl: product.image_url ?? null,
-      productName: product.product_name ?? product.title ?? null,
-      productId: product.product_id ? String(product.product_id) : null,
-      location: product.location ?? null,
-      zipCode: zipCode ?? null
-    }
-  );
+    store: normalizedStore,
+    price: Number(product.price) || 0,
+    quantity: Number(product.quantity) || 1,
+    unit: product.unit || "unit",
+    unitPrice: product.unit_price ?? null,
+    imageUrl: product.image_url ?? null,
+    productName: product.product_name ?? product.title ?? null,
+    productId: product.product_id ? String(product.product_id) : null,
+    location: product.location ?? null,
+    zipCode: zipCode ?? null,
+  })
 
-  if (!result) {
-    console.error(`[ingredient-pipeline] Failed to cache entry for ${store}`);
+  if (!historyRow) {
+    console.error(`[ingredient-pipeline] Failed to record price history for ${store}`)
+    return null
   }
 
-  return result;
+  const recents = await ingredientsRecentDB.findByStandardizedId(
+    standardizedIngredientId,
+    [normalizedStore],
+    zipCode
+  )
+
+  return recents[0] || { ...historyRow, product_id: historyRow.product_id ?? null, location: historyRow.location ?? null }
 }
 
 export async function resolveStandardizedIngredientForRecipe(
@@ -380,26 +391,33 @@ export async function getOrRefreshIngredientPricesForStores(
   if (!stores || stores.length === 0) return []
 
   const startTime = Date.now()
+  const forceRefresh = options.forceRefresh === true
 
-  // 1. Single batched query for all stores using the new class method
-  // This automatically filters out expired entries based on your store-specific TTLs
-  const cachedItems = await ingredientCacheDB.findByStandardizedId(
+  // 1. Single batched query for all stores using the recents materialized table
+  const cachedItems = await ingredientsRecentDB.findByStandardizedId(
     standardizedIngredientId,
     stores,
     options.zipCode
   )
 
   // Map cached items for quick lookup
-  const cachedByStore = new Map(cachedItems.map(item => [item.store, item]))
+  const cachedByStore = new Map(cachedItems.map(item => [normalizeStoreName(item.store), item]))
   
   // Identify missing stores (Note: findByStandardizedId handles normalization of the 'stores' input)
-  const normalizedRequestedStores = stores.map(s => s.toLowerCase().replace(/\s+/g, ''))
-  const storesToScrape = normalizedRequestedStores.filter(store => !cachedByStore.has(store))
+  const normalizedRequestedStores = stores.map(normalizeStoreName)
+  const storesToScrape = forceRefresh
+    ? normalizedRequestedStores
+    : normalizedRequestedStores.filter(store => !cachedByStore.has(store))
   
-  const results: IngredientCacheResult[] = [...cachedItems]
+  const results: IngredientCacheResult[] = forceRefresh ? [] : [...cachedItems]
 
-  // 2. Early exit if no scraping is needed or allowed
-  if (storesToScrape.length === 0 || options.allowRealTimeScraping === false) {
+  // 2. Early exit if scraping is disabled
+  if (options.allowRealTimeScraping === false) {
+    return cachedItems
+  }
+
+  // 3. Early exit if no scraping is needed
+  if (storesToScrape.length === 0) {
     return results
   }
 
@@ -437,27 +455,37 @@ export async function getOrRefreshIngredientPricesForStores(
 
   const validPayloads = (await Promise.all(scrapePromises)).filter((p): p is any => p !== null)
 
-  // 5. Batch upsert using the new DB method
+  // 5. Batch insert into history via RPC; triggers sync recents
   if (validPayloads.length > 0) {
-    const count = await ingredientCacheDB.batchCachePrices(validPayloads)
+    let count = await ingredientsHistoryDB.batchInsertPricesRpc(validPayloads)
+
+    // Fallback to standard insert if RPC is unavailable
+    if (count === 0) {
+      count = await ingredientsHistoryDB.batchInsertPrices(validPayloads)
+    }
     
     if (count > 0) {
-      // Refresh results from DB to ensure we have the full rows (with calculated expires_at)
-      const freshScrapedData = await ingredientCacheDB.findByStandardizedId(
+      // Refresh results from recents to ensure we have the latest rows
+      const freshScrapedData = await ingredientsRecentDB.findByStandardizedId(
         standardizedIngredientId,
         validPayloads.map(p => p.store),
         options.zipCode
       )
-      results.push(...freshScrapedData)
+      freshScrapedData.forEach((row) => {
+        cachedByStore.set(normalizeStoreName(row.store), row)
+      })
+      results.splice(0, results.length, ...Array.from(cachedByStore.values()))
     }
   }
 
+  const finalResults = results.length > 0 ? results : cachedItems
+
   console.log("[ingredient-pipeline] completed", {
-    totalResults: results.length,
+    totalResults: finalResults.length,
     totalTimeMs: Date.now() - startTime
   })
 
-  return results
+  return finalResults
 }
 
 export async function getOrRefreshIngredientPrice(
@@ -479,8 +507,10 @@ export async function getOrRefreshIngredientPrice(
     zipCode: options.zipCode,
   })
 
-  // Use the new class method to check for cached result
-  const cachedItems = await ingredientCacheDB.findByStandardizedId(
+  const forceRefresh = options.forceRefresh === true
+
+  // Use the recents materialized table to check for cached result
+  const cachedItems = await ingredientsRecentDB.findByStandardizedId(
     standardizedIngredientId,
     [normalizedStore],
     options.zipCode
@@ -488,12 +518,11 @@ export async function getOrRefreshIngredientPrice(
   const cached = cachedItems[0] || null
 
   // Check if cache exists and is still valid
-  if (cached) {
-    console.log("[ingredient-pipeline] Cache HIT (valid)", {
+  if (cached && !forceRefresh) {
+    console.log("[ingredient-pipeline] Cache HIT", {
       store: normalizedStore,
       product_name: cached.product_name,
       price: cached.price,
-      expires_at: cached.expires_at,
       timeMs: Date.now() - startTime,
     })
     return cached
@@ -507,11 +536,11 @@ export async function getOrRefreshIngredientPrice(
 
   // If real-time scraping is disabled, return null for missing/expired cache
   if (options.allowRealTimeScraping === false) {
-    console.log("[ingredient-pipeline] Real-time scraping disabled, returning null for missing cache", {
+    console.log("[ingredient-pipeline] Real-time scraping disabled, returning cached value if present", {
       store: normalizedStore,
       standardizedIngredientId,
     })
-    return null
+    return cached
   }
 
   const canonicalName = await loadCanonicalName(standardizedIngredientId)
@@ -559,7 +588,7 @@ export async function getOrRefreshIngredientPrice(
     totalTimeMs: totalTime,
   })
 
-  return result
+  return result || cached
 }
 
 export async function resolveOrCreateStandardizedId(
@@ -723,8 +752,12 @@ export async function estimateIngredientCostsForStore(
   const normalizedStore = normalizeStoreName(store);
 
   // 2. Check cache for all items with single bulk query
-  const cachedResults = await ingredientCacheDB.findByStandardizedIds(standardizedIds, [normalizedStore], options.zipCode);
-  const cachedMap = new Map<string, IngredientCacheRow>();
+  const cachedResults = await ingredientsRecentDB.findByStandardizedIds(
+    standardizedIds,
+    [normalizedStore],
+    options.zipCode
+  );
+  const cachedMap = new Map<string, IngredientRecentRow>();
   cachedResults.forEach(entry => cachedMap.set(entry.standardized_ingredient_id, entry));
 
   const itemsToScrape = itemsWithIds.filter(item => !cachedMap.has(item.standardizedIngredientId!));
@@ -767,11 +800,18 @@ export async function estimateIngredientCostsForStore(
 
   // 4. Bulk insert new cache entries
   if (newCachePayloads.length > 0) {
-    const count = await ingredientCacheDB.batchCachePrices(newCachePayloads);
+    let count = await ingredientsHistoryDB.batchInsertPricesRpc(newCachePayloads);
+    if (count === 0) {
+      count = await ingredientsHistoryDB.batchInsertPrices(newCachePayloads);
+    }
     if (count > 0) {
-      // Re-fetch the newly cached items to get the full DB row
+      // Re-fetch the newly cached items from recents to get the latest rows
       const newIds = newCachePayloads.map(p => p.standardizedIngredientId);
-      const newEntries = await ingredientCacheDB.findByStandardizedIds(newIds, [normalizedStore], options.zipCode);
+      const newEntries = await ingredientsRecentDB.findByStandardizedIds(
+        newIds,
+        [normalizedStore],
+        options.zipCode
+      );
       newEntries.forEach(entry => {
         if (!cachedMap.has(entry.standardized_ingredient_id)) {
           cachedMap.set(entry.standardized_ingredient_id, entry);

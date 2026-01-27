@@ -24,12 +24,10 @@ export interface RecipePricingInfo {
 
 /**
  * Calculate the cheapest cost to make a recipe
- * Queries the ingredient_cache to get non-expired prices
+ * Queries ingredients_recent to get the latest prices
  * Returns cost per store and identifies cheapest overall
  */
 export async function getRecipePricingInfo(recipeId: string): Promise<RecipePricingInfo | null> {
-  const now = new Date().toISOString();
-
   // OPTIMAL: Use the from helper to perform a deep relational join
   const { data: recipe, error } = await from("recipes")
     .select(`
@@ -37,7 +35,7 @@ export async function getRecipePricingInfo(recipeId: string): Promise<RecipePric
       mappings:ingredient_mappings (
         original_name,
         standardized_ingredient_id,
-        prices:ingredient_cache (
+        prices:ingredients_recent (
           store,
           price,
           quantity,
@@ -46,7 +44,6 @@ export async function getRecipePricingInfo(recipeId: string): Promise<RecipePric
       )
     `)
     .eq("id", recipeId)
-    .gt("ingredient_mappings.ingredient_cache.expires_at", now) // Filter valid prices
     .is("deleted_at", null) // Filter soft-deleted recipes
     .single();
 
@@ -106,8 +103,6 @@ export async function getRecipesPricingInfo(recipeIds: string[]): Promise<Map<st
   if (!recipeIds || recipeIds.length === 0) return results;
 
   try {
-    const now = new Date().toISOString();
-
     // 1. SINGLE BATCH JOIN: The Infrastructure Gold Standard
     // We fetch the entire tree: Recipe -> Mappings -> Prices
     const { data: recipes, error } = await from("recipes")
@@ -117,7 +112,7 @@ export async function getRecipesPricingInfo(recipeIds: string[]): Promise<Map<st
         mappings:ingredient_mappings (
           original_name,
           standardized_ingredient_id,
-          prices:ingredient_cache (
+          prices:ingredients_recent (
             store,
             price,
             quantity,
@@ -126,7 +121,6 @@ export async function getRecipesPricingInfo(recipeIds: string[]): Promise<Map<st
         )
       `)
       .in("id", recipeIds)
-      .gt("ingredient_mappings.ingredient_cache.expires_at", now) // Server-side filter
       .is("deleted_at", null);
 
     if (error || !recipes) {
@@ -198,18 +192,15 @@ export async function getRecipeCheapestPrice(recipeId: string): Promise<number |
  */
 export async function isRecipePricingAvailable(recipeId: string): Promise<boolean> {
   try {
-    const now = new Date().toISOString();
-
     // SINGLE TRIP: Join mappings and prices
     const { data: mappings, error } = await from("ingredient_mappings")
       .select(`
         standardized_ingredient_id,
-        prices:ingredient_cache (
+        prices:ingredients_recent (
           id
         )
       `)
-      .eq("id", recipeId)
-      .gt("ingredient_cache.expires_at", now);
+      .eq("recipe_id", recipeId);
 
     if (error || !mappings || mappings.length === 0) {
       return false;

@@ -52,11 +52,11 @@ interface WarmingOptions {
 async function getPopularIngredients(limit: number): Promise<Array<{ id: string; canonical_name: string; access_count: number }>> {
   console.log(`\n📊 Finding top ${limit} most popular ingredients...`)
 
-  // Query to get ingredients ordered by how often they're in the cache
+  // Query to get ingredients ordered by how often they're in the recent materialized view
   const { data, error } = await supabase
-    .from("ingredient_cache")
+    .from("ingredients_recent")
     .select("standardized_ingredient_id")
-    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
 
   if (error) {
     console.error("Error fetching ingredient cache:", error)
@@ -208,10 +208,12 @@ async function warmIngredient(
 
   try {
     const results = await getOrRefreshIngredientPricesForStores(
-      supabase as any,
       ingredient.id,
       stores,
-      { zipCode: options.zipCode }
+      {
+        zipCode: options.zipCode,
+        forceRefresh: options.forceRefresh,
+      }
     )
 
     const success = results.length

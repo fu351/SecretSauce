@@ -1,5 +1,5 @@
 import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
-import { ingredientCacheDB } from "./database/ingredient-cache-db"
+import { ingredientsHistoryDB, ingredientsRecentDB } from "./database/ingredients-db"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 import { ingredientMappingsDB } from "./database/ingredient-mappings-db"
 
@@ -14,11 +14,12 @@ export interface CachedIngredient {
   unit_price: number | null
   image_url: string | null
   product_url?: string | null
-  product_id: string | null
+  product_id?: string | null
   location?: string | null
-  expires_at: string
+  zip_code?: string | null
   created_at?: string | null
   updated_at?: string | null
+  grocery_store_id?: string | null
 }
 
 type StandardizedIngredientRow = { id: string; canonical_name: string; category?: string | null }
@@ -48,48 +49,6 @@ const INGREDIENT_STOP_WORDS = new Set([
   "packed",
   "divided",
 ])
-
-/**
- * Store-specific cache TTL in hours
- * Different stores update prices at different frequencies
- */
-const STORE_CACHE_TTL_HOURS: Record<string, number> = {
-  // Frequent price changes
-  walmart: 12,
-  target: 12,
-  kroger: 18,
-  meijer: 18,
-
-  // Moderate updates
-  safeway: 24,
-  wholefoods: 24,
-  whole_foods: 24,
-  andronicos: 24,
-
-  // Stable prices
-  traderjoes: 48,
-  aldi: 36,
-  "99ranch": 48,
-  ranch99: 48,
-}
-
-const DEFAULT_CACHE_TTL_HOURS = 24
-
-/**
- * Normalize store name for consistent cache lookups
- * Converts to lowercase and removes spaces: "99 Ranch" → "99ranch", "Trader Joes" → "traderjoes"
- */
-export function normalizeStoreName(store: string): string {
-  return store.toLowerCase().replace(/\s+/g, "").replace(/[']/g, "").trim()
-}
-
-/**
- * Get cache TTL for a specific store
- */
-export function getCacheTTLForStore(store: string): number {
-  const normalizedStore = normalizeStoreName(store)
-  return STORE_CACHE_TTL_HOURS[normalizedStore] || DEFAULT_CACHE_TTL_HOURS
-}
 
 const STANDARDIZED_CACHE_TTL_MS = 1000 * 60 * 5
 let standardizedIngredientCache: StandardizedIngredientRow[] | null = null
@@ -195,7 +154,7 @@ export async function getStandardizedIngredientMetadata(
 }
 
 /**
- * Search ingredient cache for matching ingredients that haven't expired
+ * Search ingredient cache for matching ingredients using the recents materialized table
  * Uses advanced fuzzy matching with variants, full-text search, and trigrams
  * OPTIMIZED: Uses PostgreSQL search_standardized_ingredients() function if available
  */
@@ -245,8 +204,8 @@ export async function searchIngredientCache(
       return []
     }
 
-    // Query the cache for non-expired items matching the standardized ingredients
-    const cachedItems = await ingredientCacheDB.findByStandardizedIds(ingredientIds, stores)
+    // Query the cache for the latest items matching the standardized ingredients
+    const cachedItems = await ingredientsRecentDB.findByStandardizedIds(ingredientIds, stores)
 
     console.log("[Cache] Found cached items", {
       count: cachedItems?.length || 0,
@@ -269,7 +228,7 @@ export async function getCachedIngredientById(
   stores?: string[]
 ): Promise<CachedIngredient[]> {
   try {
-    const data = await ingredientCacheDB.findByStandardizedId(standardizedIngredientId, stores)
+    const data = await ingredientsRecentDB.findByStandardizedId(standardizedIngredientId, stores)
 
     console.log("[Cache] getCachedIngredientById results", {
       standardizedIngredientId,
@@ -304,20 +263,18 @@ export async function cacheIngredientPrice(
     const normalizedPrice = Number(price)
     const priceValue = Number.isFinite(normalizedPrice) ? normalizedPrice : 0
 
-    const result = await ingredientCacheDB.cachePrice(
+    const result = await ingredientsHistoryDB.insertPrice({
       standardizedIngredientId,
       store,
-      priceValue,
+      price: priceValue,
       quantity,
       unit,
-      {
-        unitPrice,
-        imageUrl,
-        productName,
-        productId,
-        location: null
-      }
-    )
+      unitPrice,
+      imageUrl,
+      productName,
+      productId,
+      location: null,
+    })
 
     if (result) {
       console.log("[Cache] Cached ingredient price", {
@@ -422,8 +379,7 @@ export async function getOrCreateStandardizedIngredient(
 }
 
 /**
- * Batch upsert multiple cache entries at once
- * OPTIMIZED: Single query instead of one per item, uses store-specific TTL
+ * Batch insert multiple price history entries at once
  */
 export async function batchCacheIngredientPrices(
   items: Array<{
@@ -455,27 +411,29 @@ export async function batchCacheIngredientPrices(
       location: null
     }))
 
-    const count = await ingredientCacheDB.batchCachePrices(batchItems)
+    let count = await ingredientsHistoryDB.batchInsertPricesRpc(
+      batchItems.map((item) => ({
+        standardizedIngredientId: item.standardizedIngredientId,
+        store: item.store,
+        price: item.price,
+        quantity: item.quantity,
+        unit: item.unit,
+        imageUrl: item.imageUrl,
+        productName: item.productName,
+        productId: item.productId,
+        location: item.location ?? null,
+        zipCode: null,
+      }))
+    )
+
+    if (count === 0) {
+      count = await ingredientsHistoryDB.batchInsertPrices(batchItems)
+    }
 
     console.log(`[Cache] Batch upserted ${count} items`)
     return count
   } catch (error) {
     console.error("[Cache] Error in batchCacheIngredientPrices:", error)
-    return 0
-  }
-}
-
-/**
- * Clean up expired cache entries (for manual cleanup or scheduled job)
- */
-export async function cleanupExpiredCache(): Promise<number> {
-  try {
-    const count = await ingredientCacheDB.cleanupExpired()
-
-    console.log(`Cleaned up ${count} expired cache entries`)
-    return count
-  } catch (error) {
-    console.error("Error in cleanupExpiredCache:", error)
     return 0
   }
 }
@@ -692,8 +650,8 @@ export async function batchSearchWithCache(
 }
 
 /**
- * Cache scraped grocery items to the ingredient_cache table
- * Called after successful scraping to populate the cache
+ * Cache scraped grocery items to ingredients_history (triggers populate ingredients_recent)
+ * Called after successful scraping to populate the cache tables
  */
 export async function cacheScrapedResults(
   scrapedItems: Array<{

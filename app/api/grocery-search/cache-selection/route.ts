@@ -6,7 +6,7 @@ import { resolveOrCreateStandardizedId } from "@/lib/ingredient-pipeline"
  * Cache User's Manual Product Selection
  *
  * When a user manually selects a specific product from search results,
- * save that selection to ingredient_cache so future searches return the same product.
+ * save that selection to ingredients_history so future searches return the same product.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -53,9 +53,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Save to ingredient_cache
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
-
+    // Save to ingredients_history (triggers sync to ingredients_recent)
     const cachePayload = {
       standardized_ingredient_id: standardizedIngredientId,
       store: store.toLowerCase(),
@@ -67,12 +65,11 @@ export async function POST(request: NextRequest) {
       unit_price: unitPrice,
       image_url: product.image_url || null,
       location: product.location || null,
-      expires_at: expiresAt,
     }
 
     const { error: cacheError } = await supabase
-      .from("ingredient_cache")
-      .upsert(cachePayload, { onConflict: "standardized_ingredient_id,store" })
+      .from("ingredients_history")
+      .insert(cachePayload)
 
     if (cacheError) {
       console.error("[Cache Selection] Failed to upsert cache", cacheError)

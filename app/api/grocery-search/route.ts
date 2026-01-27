@@ -66,23 +66,25 @@ async function scrapeDirectFallback(
     if (standardizedIngredientId && supabaseClient) {
       // Single batched query for all stores
       let query = supabaseClient
-        .from("ingredient_cache")
+        .from("ingredients_recent")
         .select("*")
         .eq("standardized_ingredient_id", standardizedIngredientId)
         .in("store", stores.map(s => s.toLowerCase()))
-        .gt("expires_at", new Date().toISOString())
 
       if (zip) {
         query = query.eq("zip_code", zip)
       }
 
-      const { data: cachedItems } = await query
+      const { data: cachedItems } = await query.order("created_at", { ascending: false })
 
       // Build a map of cached stores
       const cachedByStore = new Map<string, any>()
       if (cachedItems) {
         cachedItems.forEach(cached => {
-          cachedByStore.set(cached.store.toLowerCase(), cached)
+          const key = cached.store?.toLowerCase?.() || cached.store
+          if (key && !cachedByStore.has(key)) {
+            cachedByStore.set(key, cached)
+          }
         })
       }
 
@@ -264,8 +266,6 @@ export async function GET(request: NextRequest) {
       if (standardizedIngredientId) {
         Promise.resolve()
           .then(async () => {
-            const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-
             const payloads = directItems.map(item => ({
               standardized_ingredient_id: standardizedIngredientId,
               store: item.provider.toLowerCase(),
@@ -280,12 +280,11 @@ export async function GET(request: NextRequest) {
               product_id: item.id,
               location: item.location || null,
               zip_code: zipToUse || null,
-              expires_at: expires,
             }))
 
             await supabaseClient
-              .from("ingredient_cache")
-              .upsert(payloads, { onConflict: "standardized_ingredient_id,store,product_id,zip_code" })
+              .from("ingredients_history")
+              .insert(payloads)
 
             console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
           })
@@ -431,8 +430,6 @@ export async function GET(request: NextRequest) {
 
           console.log("[grocery-search] Resolved standardized ID for caching", { standardizedId, searchTerm: sanitizedSearchTerm })
 
-          const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-
           // Build all payloads for batch upsert
           const payloads = directItems
             .filter(item => !item.fromCache) // Only cache scraped items, not already-cached ones
@@ -450,7 +447,6 @@ export async function GET(request: NextRequest) {
               product_id: item.id,
               location: item.location || null,
               zip_code: zipToUse || null,
-              expires_at: expires,
             }))
 
           if (payloads.length === 0) {
@@ -465,8 +461,8 @@ export async function GET(request: NextRequest) {
 
           // Batch upsert all cache entries at once
           const { data, error } = await supabaseClient
-            .from("ingredient_cache")
-            .upsert(payloads, { onConflict: "standardized_ingredient_id,store,product_id,zip_code" })
+            .from("ingredients_history")
+            .insert(payloads)
             .select("id, store")
 
           if (error) {
