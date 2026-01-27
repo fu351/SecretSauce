@@ -12,27 +12,51 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Install PostgreSQL Client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Truncate Table
-        env:
-          # This must be the "Connection String" from Supabase Settings -> Database
-          DB_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          echo "🧹 Connecting to Supabase to wipe ingredients_recent..."
-          
-          # CRITICAL: "$DB_URL" must come BEFORE the -c flag
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "TRUNCATE TABLE public.ingredients_recent RESTART IDENTITY CASCADE;"
-          
-          echo "✅ Table is now empty and ready for the next batch."
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Verify Wipe
-        if: success()
+      - name: Install Supabase client (runtime-only)
+        run: npm install --no-save --no-package-lock @supabase/supabase-js
+
+      - name: Wipe ingredients_recent via Supabase
         env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          echo "Current row count:"
-          psql "$DB_URL" -t -c "SELECT count(*) FROM public.ingredients_recent;"
+          node - <<'NODE'
+          const { createClient } = require('@supabase/supabase-js')
+
+          const supabaseUrl = process.env.SUPABASE_URL
+          const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+          if (!supabaseUrl || !supabaseKey) {
+            console.error("❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+            process.exit(1)
+          }
+
+          const supabase = createClient(supabaseUrl, supabaseKey)
+
+          async function wipeRecent() {
+            console.log("🧹 Attempting to wipe ingredients_recent...")
+
+            // Delete all rows; the dummy UUID protects against accidental full-table delete guardrails
+            const { error } = await supabase
+              .from('ingredients_recent')
+              .delete()
+              .neq('id', '00000000-0000-0000-0000-000000000000')
+
+            if (error) {
+              console.error("❌ Error wiping table:", error)
+              process.exit(1)
+            }
+
+            console.log("✅ ingredients_recent table is now empty.")
+          }
+
+          wipeRecent()
+          NODE
