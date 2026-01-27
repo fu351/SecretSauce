@@ -100,10 +100,13 @@ export const supabase =
 
 // Server-side client for admin operations
 export const createServerClient = () => {
+  if (typeof window !== "undefined") {
+    throw new Error("createServerClient is server-only; do not call from the browser.")
+  }
+
   const supabaseServiceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_ANON_KEY
+    process.env.SUPABASE_SERVICE_KEY
 
   if (!supabaseServiceKey) {
     throw new Error("Missing Supabase service credentials. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY.")
@@ -113,16 +116,13 @@ export const createServerClient = () => {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.")
   }
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.warn(
-      "[Supabase] SUPABASE_SERVICE_ROLE_KEY is not set. Falling back to a non-privileged key; cache writes may fail if RLS is enabled."
-    )
-  }
-
   return createMonitoredClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    global: {
+      fetch: fetch.bind(globalThis),
     },
   })
 }
@@ -400,6 +400,56 @@ export type Database = {
           created_at?: string | null
           updated_at?: string | null
           product_mapping_id?: string | null
+        }
+      }
+      product_mappings: {
+        Row: {
+          id: string
+          external_product_id: string
+          store_id: string | null
+          zip_code: string | null
+          raw_product_name: string | null
+          standardized_ingredient_id: string | null
+          ingredient_confidence: number | null
+          standardized_unit: Database["public"]["Enums"]["unit_label"] | null
+          standardized_quantity: number | null
+          unit_confidence: number | null
+          manual_override: boolean | null
+          last_seen_at: string | null
+          modal_opened_count: number | null
+          exchange_count: number | null
+        }
+        Insert: {
+          id?: string
+          external_product_id: string
+          store_id?: string | null
+          zip_code?: string | null
+          raw_product_name?: string | null
+          standardized_ingredient_id?: string | null
+          ingredient_confidence?: number | null
+          standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
+          standardized_quantity?: number | null
+          unit_confidence?: number | null
+          manual_override?: boolean | null
+          last_seen_at?: string | null
+          modal_opened_count?: number | null
+          exchange_count?: number | null
+        }
+        Update: {
+          id?: string
+          external_product_id?: string
+          store_id?: string | null
+          zip_code?: string | null
+          raw_product_name?: string | null
+          standardized_ingredient_id?: string | null
+          ingredient_confidence?: number | null
+          standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
+          standardized_quantity?: number | null
+          unit_confidence?: number | null
+          manual_override?: boolean | null
+          last_seen_at?: string | null
+          modal_opened_count?: number | null
+          exchange_count?: number | null
         }
       }
       ingredients_recent: {
@@ -811,6 +861,14 @@ export type Database = {
           p_limit: number
         }
         Returns: Database["public"]["Tables"]["recipes"]["Row"][]
+      }
+      increment_mapping_counters: {
+        Args: {
+          target_id: string
+          modal_inc?: number
+          exchange_inc?: number
+        }
+        Returns: void
       }
       get_smart_trending_recommendations: {
         Args: {

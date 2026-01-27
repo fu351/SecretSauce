@@ -257,9 +257,13 @@ export function useStoreComparison(
 
         if (historyPayload.length > 0) {
           console.log("[useStoreComparison] inserting history payload", historyPayload.length)
-          await ingredientsHistoryDB.batchInsertPrices(historyPayload).catch(err =>
-            console.error("[useStoreComparison] Failed to insert history from scraper", err)
-          )
+          let count = await ingredientsHistoryDB.batchInsertPricesRpc(historyPayload)
+          if (count === 0) {
+            count = await ingredientsHistoryDB.batchInsertPrices(historyPayload)
+          }
+          if (count === 0) {
+            console.error("[useStoreComparison] Failed to insert history from scraper")
+          }
 
           const refreshed = await shoppingItemPriceCacheDB.getPricingForUser(user?.id || "")
           const refreshedComparisons = buildComparisonsFromPricing(refreshed)

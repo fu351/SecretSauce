@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
+import { productMappingsDB } from "@/lib/database/product-mappings-db"
 import type { GroceryItem } from "@/lib/types/store"
 
 interface ItemReplacementModalProps {
@@ -28,6 +29,11 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
   const [term, setTerm] = useState("")
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<GroceryItem[]>([])
+  const prevOpenRef = useRef(false)
+
+  useEffect(() => {
+    prevOpenRef.current = isOpen
+  }, [isOpen])
 
   // Reset state when modal opens
   useEffect(() => {
@@ -74,9 +80,16 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
           })
 
         if (payload.length > 0) {
-          ingredientsHistoryDB.batchInsertPrices(payload).catch(err =>
-            console.error("[ItemReplacementModal] Failed to cache scraped results", err)
-          )
+          ingredientsHistoryDB.batchInsertPricesRpc(payload)
+            .then(async (count) => {
+              if (count === 0) {
+                return await ingredientsHistoryDB.batchInsertPrices(payload)
+              }
+              return count
+            })
+            .catch(err =>
+              console.error("[ItemReplacementModal] Failed to cache scraped results", err)
+            )
         }
       }
     } catch (e) {
@@ -87,7 +100,23 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      // If closing, log modal impressions for currently shown items
+      if (prevOpenRef.current && !open && results.length > 0) {
+        const tasks = results.map(item =>
+          productMappingsDB.incrementCounts({
+            external_product_id: item.id,
+            zip_code: zipCode || null,
+            raw_product_name: target?.term || item.title,
+            standardized_ingredient_id: target?.standardizedIngredientId || null,
+            modal_delta: 1,
+          })
+        )
+        void Promise.all(tasks)
+      }
+      prevOpenRef.current = open
+      if (!open) onClose()
+    }}>
       <DialogContent className={`${styles.cardBgClass} max-w-3xl`}>
         <DialogHeader>
           <DialogTitle className={styles.textClass}>
@@ -105,31 +134,45 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
             <Button onClick={() => performSearch(term)}>Search</Button>
           </div>
           
-          <div className="max-h-[300px] overflow-y-auto">
-            {loading ? (
-              <div className="p-4 text-center">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
-              </div>
-            ) : (
-              <>
-                {results.length === 0 && (
-                    <p className={`p-4 text-center ${styles.mutedTextClass}`}>No results found at {target?.store}</p>
-                )}
-                {results.map((item, i) => (
-                  <div key={i} className={`flex justify-between items-center p-2 border-b ${styles.theme === "dark" ? "border-[#e8dcc4]/10" : ""}`}>
-                      <div className="flex items-center gap-3">
-                        {item.image_url && <img src={item.image_url} className="w-8 h-8 object-contain" />}
-                        <div>
-                          <div className={`font-medium ${styles.textClass}`}>{item.title}</div>
-                          <div className={`text-xs ${styles.mutedTextClass}`}>{item.provider} - ${item.price.toFixed(2)}</div>
-                        </div>
-                      </div>
-                      <Button size="sm" onClick={() => onSelect(item)}>Select</Button>
-                  </div>
-                ))}
-              </>
-            )}
+      <div className="max-h-[300px] overflow-y-auto">
+        {loading ? (
+          <div className="p-4 text-center">
+            <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
           </div>
+        ) : (
+          <>
+            {results.length === 0 && (
+                <p className={`p-4 text-center ${styles.mutedTextClass}`}>No results found at {target?.store}</p>
+            )}
+            {results.map((item, i) => (
+              <div key={i} className={`flex justify-between items-center p-2 border-b ${styles.theme === "dark" ? "border-[#e8dcc4]/10" : ""}`}>
+                  <div className="flex items-center gap-3">
+                    {item.image_url && <img src={item.image_url} className="w-8 h-8 object-contain" />}
+                    <div>
+                      <div className={`font-medium ${styles.textClass}`}>{item.title}</div>
+                      <div className={`text-xs ${styles.mutedTextClass}`}>{item.provider} - ${item.price.toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      void productMappingsDB.incrementCounts({
+                        external_product_id: item.id,
+                        zip_code: zipCode || null,
+                        raw_product_name: item.title,
+                        standardized_ingredient_id: target?.standardizedIngredientId || null,
+                        exchange_delta: 1,
+                      })
+                      onSelect(item)
+                    }}
+                  >
+                    Select
+                  </Button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
         </div>
       </DialogContent>
     </Dialog>

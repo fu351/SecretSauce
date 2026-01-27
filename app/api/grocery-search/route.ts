@@ -266,6 +266,7 @@ export async function GET(request: NextRequest) {
       if (standardizedIngredientId) {
         Promise.resolve()
           .then(async () => {
+            // Note: product_mappings are automatically created by fn_resolve_product_mapping trigger
             const payloads = directItems.map(item => ({
               standardized_ingredient_id: standardizedIngredientId,
               store: item.provider.toLowerCase(),
@@ -278,6 +279,7 @@ export async function GET(request: NextRequest) {
                 : null,
               image_url: item.image_url || null,
               product_id: item.id,
+              product_mapping_id: null, // Trigger will populate this
               location: item.location || null,
               zip_code: zipToUse || null,
             }))
@@ -431,23 +433,25 @@ export async function GET(request: NextRequest) {
           console.log("[grocery-search] Resolved standardized ID for caching", { standardizedId, searchTerm: sanitizedSearchTerm })
 
           // Build all payloads for batch upsert
-          const payloads = directItems
-            .filter(item => !item.fromCache) // Only cache scraped items, not already-cached ones
-            .map(item => ({
-              standardized_ingredient_id: standardizedId,
-              store: item.provider.toLowerCase(),
-              product_name: item.title,
-              price: item.price,
-              quantity: 1,
-              unit: item.unit || "unit",
-              unit_price: item.pricePerUnit
-                ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
-                : null,
-              image_url: item.image_url || null,
-              product_id: item.id,
-              location: item.location || null,
-              zip_code: zipToUse || null,
-            }))
+          // Note: product_mappings are automatically created by fn_resolve_product_mapping trigger
+          const freshItems = directItems.filter(item => !item.fromCache)
+
+          const payloads = freshItems.map(item => ({
+            standardized_ingredient_id: standardizedId,
+            store: item.provider.toLowerCase(),
+            product_name: item.title,
+            price: item.price,
+            quantity: 1,
+            unit: item.unit || "unit",
+            unit_price: item.pricePerUnit
+              ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
+              : null,
+            image_url: item.image_url || null,
+            product_id: item.id,
+            product_mapping_id: null, // Trigger will populate this
+            location: item.location || null,
+            zip_code: zipToUse || null,
+          }))
 
           if (payloads.length === 0) {
             console.log("[grocery-search] No new items to cache (all from cache)")
