@@ -1,7 +1,7 @@
 import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
 import { ingredientsHistoryDB, ingredientsRecentDB } from "./database/ingredients-db"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
-import { ingredientMappingsDB } from "./database/ingredient-mappings-db"
+import { recipeIngredientsDB } from "./database/recipe-ingredients-db"
 
 export interface CachedIngredient {
   id: string
@@ -342,7 +342,13 @@ export async function batchMapIngredientsToStandardized(
   if (!mappings || mappings.length === 0) return true
 
   try {
-    return await ingredientMappingsDB.batchUpsertMappings(recipeId, mappings)
+    return await recipeIngredientsDB.batchUpsertStandardized(
+      recipeId,
+      mappings.map((m) => ({
+        displayName: m.originalName,
+        standardizedIngredientId: m.standardizedIngredientId,
+      }))
+    )
   } catch (error) {
     console.error("Error in batchMapIngredientsToStandardized:", error)
     return false
@@ -448,7 +454,11 @@ export async function mapIngredientToStandardized(
   standardizedIngredientId: string
 ): Promise<boolean> {
   try {
-    const result = await ingredientMappingsDB.upsertMapping(recipeId, originalName, standardizedIngredientId)
+    const result = await recipeIngredientsDB.upsertDisplayNameWithStandardized(
+      recipeId,
+      originalName,
+      standardizedIngredientId
+    )
     return result !== null
   } catch (error) {
     console.error("Error in mapIngredientToStandardized:", error)
@@ -464,7 +474,7 @@ export async function getMappedIngredient(
   originalName: string
 ): Promise<string | null> {
   try {
-    const data = await ingredientMappingsDB.findByRecipeAndName(recipeId, originalName)
+    const data = await recipeIngredientsDB.findByRecipeIdAndDisplayName(recipeId, originalName)
     return data?.standardized_ingredient_id || null
   } catch (error) {
     console.error("Error in getMappedIngredient:", error)
@@ -483,7 +493,11 @@ async function upsertFreeformMapping(
 ): Promise<void> {
   if (!recipeId || !originalName || !standardizedIngredientId) return
   try {
-    const result = await ingredientMappingsDB.upsertMapping(recipeId, originalName, standardizedIngredientId)
+    const result = await recipeIngredientsDB.upsertDisplayNameWithStandardized(
+      recipeId,
+      originalName,
+      standardizedIngredientId
+    )
     if (!result) {
       console.warn("[Cache] Failed to upsert freeform mapping", { originalName })
     }

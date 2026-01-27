@@ -1,13 +1,12 @@
 import { createServerClient, type Database } from "./database/supabase"
 import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
-import { ingredientMappingsDB } from "./database/ingredient-mappings-db"
+import { recipeIngredientsDB } from "./database/recipe-ingredients-db"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "./database/ingredients-db"
 
 type DB = Database["public"]["Tables"]
 type IngredientRecentRow = DB["ingredients_recent"]["Row"]
 type IngredientHistoryRow = DB["ingredients_history"]["Row"]
-type IngredientMappingRow = DB["ingredient_mappings"]["Row"]
 type StandardizedIngredientRow = DB["standardized_ingredients"]["Row"]
 
 export type IngredientCacheResult = IngredientRecentRow & {
@@ -332,10 +331,10 @@ export async function resolveStandardizedIngredientForRecipe(
   const trimmed = rawIngredientName?.trim()
   if (!trimmed) throw new Error("rawIngredientName is required")
 
-  // 1. Check for existing mapping (Specific to this recipe)
-  const existingMapping = await ingredientMappingsDB.findByRecipeAndName(recipeId, trimmed)
-  if (existingMapping?.standardized_ingredient_id) {
-    return existingMapping.standardized_ingredient_id
+  // 1. Check for existing mapping stored directly on recipe_ingredients
+  const existingIngredient = await recipeIngredientsDB.findByRecipeIdAndDisplayName(recipeId, trimmed)
+  if (existingIngredient?.standardized_ingredient_id) {
+    return existingIngredient.standardized_ingredient_id
   }
 
   // 2. Try to find a match in the Master Ingredient list
@@ -374,7 +373,7 @@ export async function resolveStandardizedIngredientForRecipe(
   }
 
   // 5. Link this specific recipe name to the standardized ID for next time
-  await ingredientMappingsDB.upsertMapping(recipeId, trimmed, standardizedId)
+  await recipeIngredientsDB.upsertDisplayNameWithStandardized(recipeId, trimmed, standardizedId)
 
   return standardizedId
 }

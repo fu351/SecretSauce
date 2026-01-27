@@ -1,5 +1,5 @@
 /**
- * Utility script to populate standardized ingredients and ingredient mappings
+ * Utility script to populate standardized ingredients and recipe_ingredients links
  * Usage: Run this script to batch insert the ingredient data into Supabase
  */
 
@@ -142,8 +142,8 @@ export async function insertStandardizedIngredients() {
 }
 
 /**
- * Create ingredient mappings for recipes
- * Matches original ingredient names to standardized names
+ * Create recipe_ingredients rows for recipes
+ * Matches display_name (original ingredient names) to standardized names
  */
 export async function createIngredientMappingsForRecipes() {
   try {
@@ -180,8 +180,8 @@ export async function createIngredientMappingsForRecipes() {
       canonicalToIdMap.set(ing.canonical_name.toLowerCase(), ing.id)
     })
 
-    // Process recipes and create mappings
-    const mappingsToInsert: any[] = []
+    // Process recipes and create recipe_ingredients rows
+    const ingredientsToUpsert: any[] = []
     let unmappedCount = 0
 
     for (const recipe of recipes) {
@@ -208,9 +208,9 @@ export async function createIngredientMappingsForRecipes() {
 
         if (canonicalName && canonicalToIdMap.has(canonicalName)) {
           const standardizedId = canonicalToIdMap.get(canonicalName)
-          mappingsToInsert.push({
+          ingredientsToUpsert.push({
             recipe_id: recipe.id,
-            original_name: originalName,
+            display_name: originalName,
             standardized_ingredient_id: standardizedId,
           })
         } else {
@@ -222,24 +222,26 @@ export async function createIngredientMappingsForRecipes() {
       }
     }
 
-    // Batch insert mappings
-    if (mappingsToInsert.length > 0) {
-      console.log(`Inserting ${mappingsToInsert.length} ingredient mappings...`)
-      const { error: insertError } = await client.from("ingredient_mappings").insert(mappingsToInsert)
+    // Batch upsert recipe_ingredients
+    if (ingredientsToUpsert.length > 0) {
+      console.log(`Upserting ${ingredientsToUpsert.length} recipe_ingredients...`)
+      const { error: insertError } = await client
+        .from("recipe_ingredients")
+        .upsert(ingredientsToUpsert, { onConflict: "recipe_id,display_name" })
 
       if (insertError) {
-        console.error("Error inserting ingredient mappings:", insertError)
+        console.error("Error upserting recipe_ingredients:", insertError)
         return { success: false, error: insertError }
       }
     }
 
-    console.log(`Successfully created ingredient mappings`)
-    console.log(`  Mapped: ${mappingsToInsert.length}`)
+    console.log(`Successfully populated recipe_ingredients`)
+    console.log(`  Mapped: ${ingredientsToUpsert.length}`)
     console.log(`  Unmapped: ${unmappedCount}`)
 
     return {
       success: true,
-      mapped: mappingsToInsert.length,
+      mapped: ingredientsToUpsert.length,
       unmapped: unmappedCount,
     }
   } catch (error) {

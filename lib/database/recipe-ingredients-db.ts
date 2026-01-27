@@ -203,6 +203,103 @@ class RecipeIngredientsTable extends BaseTable<
       return false
     }
   }
+
+  /**
+   * Get a single ingredient row for a recipe/display_name pair.
+   */
+  async findByRecipeIdAndDisplayName(
+    recipeId: string,
+    displayName: string
+  ): Promise<RecipeIngredientRow | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from(this.tableName)
+        .select('*')
+        .eq('recipe_id', recipeId)
+        .eq('display_name', displayName)
+        .is('deleted_at', null)
+        .single()
+
+      if (error) {
+        this.handleError(error, 'findByRecipeIdAndDisplayName')
+        return null
+      }
+
+      return data
+    } catch (error) {
+      this.handleError(error, 'findByRecipeIdAndDisplayName')
+      return null
+    }
+  }
+
+  /**
+   * Upsert a single ingredient row and set its standardized_ingredient_id.
+   * Uses the unique (recipe_id, display_name) constraint.
+   */
+  async upsertDisplayNameWithStandardized(
+    recipeId: string,
+    displayName: string,
+    standardizedIngredientId: string
+  ): Promise<RecipeIngredientRow | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from(this.tableName)
+        .upsert(
+          {
+            recipe_id: recipeId,
+            display_name: displayName,
+            standardized_ingredient_id: standardizedIngredientId,
+            deleted_at: null,
+          },
+          { onConflict: 'recipe_id,display_name' }
+        )
+        .select('*')
+        .single()
+
+      if (error) {
+        this.handleError(error, 'upsertDisplayNameWithStandardized')
+        return null
+      }
+
+      return data
+    } catch (error) {
+      this.handleError(error, 'upsertDisplayNameWithStandardized')
+      return null
+    }
+  }
+
+  /**
+   * Batch upsert display names with standardized IDs in a single query.
+   */
+  async batchUpsertStandardized(
+    recipeId: string,
+    mappings: Array<{ displayName: string; standardizedIngredientId: string }>
+  ): Promise<boolean> {
+    try {
+      if (mappings.length === 0) return true
+
+      const payload = mappings.map((item) => ({
+        recipe_id: recipeId,
+        display_name: item.displayName,
+        standardized_ingredient_id: item.standardizedIngredientId,
+        deleted_at: null,
+      }))
+
+      const { error } = await this.supabase
+        .from(this.tableName)
+        .upsert(payload, { onConflict: 'recipe_id,display_name' })
+
+      if (error) {
+        this.handleError(error, 'batchUpsertStandardized')
+        return false
+      }
+
+      return true
+    } catch (error) {
+      this.handleError(error, 'batchUpsertStandardized')
+      return false
+    }
+  }
 }
 
 export const recipeIngredientsDB = RecipeIngredientsTable.getInstance()
