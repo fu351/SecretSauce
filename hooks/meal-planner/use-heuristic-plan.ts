@@ -14,10 +14,10 @@ export async function useHeuristicPlan(userId: string, weekIndex?: number): Prom
   // 1. Gather Context
   const [existingSchedule, profileFields] = await Promise.all([
     fetchExistingSchedule(userId, weekIndex),
-    profileDB.fetchProfileFields(userId, ["postal_code"]),
+    profileDB.fetchProfileFields(userId, ["zip_code"]),
   ])
 
-  const userZipCode = profileFields?.postal_code || undefined
+  const userZipCode = profileFields?.zip_code || undefined
 
   const existingRecipeIds = existingSchedule.map(s => s.recipe_id).filter(Boolean)
 

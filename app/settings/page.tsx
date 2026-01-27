@@ -143,7 +143,7 @@ export default function SettingsPage() {
       budget_range: budgetRange || null,
       cuisine_preferences: cuisinePreferences,
       cooking_time_preference: cookingTimePreference,
-      postal_code: postalCode || null,
+      zip_code: postalCode || null,
       formatted_address: formattedAddress || null,
       address_line1: addressLine1 || null,
       address_line2: addressLine2 || null,
@@ -232,7 +232,7 @@ export default function SettingsPage() {
       setCookingLevel(profile.cooking_level || "")
       setBudgetRange(profile.budget_range || "")
       setCuisinePreferences(profile.cuisine_preferences || [])
-      setPostalCode(profile.postal_code || "")
+      setPostalCode(profile.zip_code || "")
       setFormattedAddress(profile.formatted_address || "")
       setLat(profile.latitude ?? null)
       setLng(profile.longitude ?? null)

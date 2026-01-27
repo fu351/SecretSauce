@@ -50,7 +50,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       updated_at: dbItem.updated_at ?? null,
       cuisine_preferences: dbItem.cuisine_preferences ?? [],
       cooking_time_preference: dbItem.cooking_time_preference ?? null,
-      postal_code: dbItem.postal_code ?? null,
+      zip_code: dbItem.zip_code ?? null,
       grocery_distance_miles: dbItem.grocery_distance_miles ?? 10,
       theme_preference: dbItem.theme_preference ?? "dark",
       tutorial_completed: dbItem.tutorial_completed ?? false,

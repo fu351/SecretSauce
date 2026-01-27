@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
 
   const supabaseClient = createServerClient()
 
-  // Prefer current user's profile postal_code if logged in
+  // Prefer current user's profile zip_code if logged in
   if (!zipToUse) {
     try {
       const { data: authUserRes } = await supabaseClient.auth.getUser()
@@ -214,10 +214,10 @@ export async function GET(request: NextRequest) {
       if (userId) {
         const { data: profile } = await supabaseClient
           .from("profiles")
-          .select("postal_code")
+          .select("zip_code")
           .eq("id", userId)
           .maybeSingle()
-        zipToUse = normalizeZipInput(profile?.postal_code)
+        zipToUse = normalizeZipInput(profile?.zip_code)
       }
     } catch (error) {
       console.warn("[grocery-search] Failed to derive zip from current user profile", error)

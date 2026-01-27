@@ -52,9 +52,9 @@ export function useStoreComparison(
     let isActive = true
     void (async () => {
       try {
-        const data = await profileDB.fetchProfileFields(user.id, ["postal_code"])
+        const data = await profileDB.fetchProfileFields(user.id, ["zip_code"])
         if (isActive) {
-          setProfileZipCode(data?.postal_code ?? null)
+          setProfileZipCode(data?.zip_code ?? null)
         }
       } catch (error) {
         console.error("[useStoreComparison] Failed to load profile zip:", error)

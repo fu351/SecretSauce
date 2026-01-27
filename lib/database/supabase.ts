@@ -135,7 +135,7 @@ export type Database = {
           updated_at: string | null
           cuisine_preferences: string[] | null
           cooking_time_preference: string | null
-          postal_code: string | null
+          zip_code: string | null
           grocery_distance_miles: number | null
           theme_preference: string | null
           tutorial_completed: boolean | null
@@ -164,7 +164,7 @@ export type Database = {
           updated_at?: string | null
           cuisine_preferences?: string[] | null
           cooking_time_preference?: string | null
-          postal_code?: string | null
+          zip_code?: string | null
           grocery_distance_miles?: number | null
           theme_preference?: string | null
           tutorial_completed?: boolean | null
@@ -193,7 +193,7 @@ export type Database = {
           updated_at?: string | null
           cuisine_preferences?: string[] | null
           cooking_time_preference?: string | null
-          postal_code?: string | null
+          zip_code?: string | null
           grocery_distance_miles?: number | null
           theme_preference?: string | null
           tutorial_completed?: boolean | null

@@ -75,9 +75,9 @@ export default function ShoppingPage() {
     if (authLoading) return
     const loadPrefs = async () => {
       if (user) {
-        const profileData = await profileDB.fetchProfileFields(user.id, ["postal_code"])
+        const profileData = await profileDB.fetchProfileFields(user.id, ["zip_code"])
 
-        if (profileData?.postal_code) setZipCode(profileData.postal_code)
+        if (profileData?.zip_code) setZipCode(profileData.zip_code)
       } else {
         const saved = localStorage.getItem("shopping_zip_code")
         if (saved) setZipCode(saved)

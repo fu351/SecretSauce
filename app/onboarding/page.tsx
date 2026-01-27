@@ -621,7 +621,7 @@ export default function OnboardingPage() {
         dietary_preferences: dbDietaryPreferences,
         cuisine_preferences: dbCuisinePreferences,
         cooking_time_preference: cookingTimePreference,
-        postal_code: postalCode || null,
+        zip_code: postalCode || null,
         grocery_distance_miles: Number.parseInt(groceryDistance) || 10,
         theme_preference: selectedTheme,
         formatted_address: formattedAddress || null,
