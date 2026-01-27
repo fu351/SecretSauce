@@ -2,13 +2,15 @@ name: Temporary Database Janitor
 
 on:
   schedule:
+    # Runs at 3:55 AM PST (11:55 AM UTC)
     - cron: '55 11 * * *' 
-  workflow_dispatch:
+  workflow_dispatch: # Allows you to click "Run Workflow" manually
 
 jobs:
   truncate-recent:
     name: Wipe Recent Table
     runs-on: ubuntu-latest
+    
     steps:
       - name: Install PostgreSQL Client
         run: |
@@ -17,13 +19,20 @@ jobs:
 
       - name: Truncate Table
         env:
-          # Use the connection string from Supabase Settings > Database
+          # This must be the "Connection String" from Supabase Settings -> Database
           DB_URL: ${{ secrets.DATABASE_URL }}
         run: |
           echo "🧹 Connecting to Supabase to wipe ingredients_recent..."
           
-          # We wrap $DB_URL in quotes to handle special characters in passwords
-          # We use RESTART IDENTITY so your IDs start back at 1
+          # CRITICAL: "$DB_URL" must come BEFORE the -c flag
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "TRUNCATE TABLE public.ingredients_recent RESTART IDENTITY CASCADE;"
           
-          echo "✅ Table wiped successfully."
+          echo "✅ Table is now empty and ready for the next batch."
+
+      - name: Verify Wipe
+        if: success()
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "Current row count:"
+          psql "$DB_URL" -t -c "SELECT count(*) FROM public.ingredients_recent;"
