@@ -82,7 +82,7 @@ function groupByDateAndStore(data: any[]): GroupedDelivery[] {
         createdAt: item.created_at,
         weekIndex: item.week_index,
       })),
-      total: storeItems.reduce((sum, item) => sum + (item.total_item_price || 0), 0),
+      total: storeItems.reduce((sum, item) => sum + ((item.total_item_price || 0) * item.quantity_needed), 0),
     }))
 
     // Calculate grand total

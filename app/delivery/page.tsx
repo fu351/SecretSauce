@@ -224,11 +224,11 @@ function OrderList({ orders, router, styles, isPast }: OrderListProps) {
                         <div className="flex-1">
                           <p className={styles.textClass}>{item.ingredientName}</p>
                           <p className={`text-sm ${styles.mutedTextClass}`}>
-                            {item.quantity} × ${item.unitPrice.toFixed(2)}
+                            {item.quantity} × ${item.totalPrice.toFixed(2)}
                           </p>
                         </div>
                         <p className={`font-bold ${styles.textClass}`}>
-                          ${item.totalPrice.toFixed(2)}
+                          ${(item.quantity * item.totalPrice).toFixed(2)}
                         </p>
                       </div>
                     ))}

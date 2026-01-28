@@ -250,12 +250,12 @@ class StoreListHistoryTable extends BaseTable<
 
   /**
    * Calculate total cost for a delivery log entry
-   * Note: total_item_price is a generated column (unit_price * quantity)
+   * Note: total_item_price is the price per item, multiply by quantity_needed for line total
    */
   async calculateTotalForUser(userId: string, weekIndex?: number): Promise<number> {
     let query = this.supabase
       .from(this.tableName)
-      .select("total_item_price")
+      .select("total_item_price, quantity_needed")
       .eq("user_id", userId)
 
     if (weekIndex !== undefined) {
@@ -269,7 +269,7 @@ class StoreListHistoryTable extends BaseTable<
       return 0
     }
 
-    return (data || []).reduce((sum, item) => sum + (item.total_item_price || 0), 0)
+    return (data || []).reduce((sum, item) => sum + ((item.total_item_price || 0) * item.quantity_needed), 0)
   }
 
   /**
