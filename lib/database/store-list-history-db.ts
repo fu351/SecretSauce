@@ -195,6 +195,23 @@ class StoreListHistoryTable extends BaseTable<
   }
 
   /**
+   * Get all delivery log entries for a specific order
+   */
+  async findByOrderId(orderId: string): Promise<StoreListHistoryRow[]> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select("*")
+      .eq("order_id", orderId)
+
+    if (error) {
+      this.handleError(error, `findByOrderId(${orderId})`)
+      return []
+    }
+
+    return (data || []).map((d) => this.map(d))
+  }
+
+  /**
    * Confirm delivery for log entries
    */
   async confirmDelivery(logIds: string[]): Promise<boolean> {

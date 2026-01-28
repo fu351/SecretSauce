@@ -750,6 +750,7 @@ export type Database = {
         Row: {
           shopping_list_item_id: string
           standardized_ingredient_id: string | null
+          product_mapping_id: string | null
           price: number | null
           unit_price: number | null
           product_name: string | null
@@ -762,6 +763,7 @@ export type Database = {
         Insert: {
           shopping_list_item_id: string
           standardized_ingredient_id?: string | null
+          product_mapping_id?: string | null
           price?: number | null
           unit_price?: number | null
           product_name?: string | null
@@ -774,6 +776,7 @@ export type Database = {
         Update: {
           shopping_list_item_id?: string
           standardized_ingredient_id?: string | null
+          product_mapping_id?: string | null
           price?: number | null
           unit_price?: number | null
           product_name?: string | null
@@ -795,6 +798,7 @@ export type Database = {
           total_item_price: number | null
           week_index: number
           is_delivery_confirmed: boolean | null
+          order_id: string | null
           expires_at: string
           created_at: string | null
           updated_at: string | null
@@ -809,6 +813,7 @@ export type Database = {
           quantity_needed: number
           week_index: number
           is_delivery_confirmed?: boolean | null
+          order_id?: string | null
           expires_at: string
           created_at?: string | null
           updated_at?: string | null
@@ -823,6 +828,7 @@ export type Database = {
           quantity_needed?: number
           week_index?: number
           is_delivery_confirmed?: boolean | null
+          order_id?: string | null
           expires_at?: string
           created_at?: string | null
           updated_at?: string | null

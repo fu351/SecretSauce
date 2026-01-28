@@ -13,6 +13,7 @@ type PricingOffer = {
   store: string
   store_id?: string | null
   store_name?: string | null
+  product_mapping_id?: string | null
   unit_price: number | null
   total_price: number | null
   product_name?: string | null

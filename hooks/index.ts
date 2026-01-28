@@ -27,6 +27,9 @@ export { useShoppingList } from "./shopping/use-shopping-list"
 export { useStoreComparison } from "./shopping/use-store-comparison"
 export { useClosestStore } from "./shopping/use-closest-store"
 
+// Delivery Hooks
+export { useDeliveryOrders, type DeliveryOrder, type GroupedDelivery } from "./delivery/use-delivery-orders"
+
 // Meal Planner Hooks
 export { useMealPlanner } from "./meal-planner/use-meal-planner"
 export { useMealPlannerRecipes } from "./meal-planner/use-meal-planner-recipes"

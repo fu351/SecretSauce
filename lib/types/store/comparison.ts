@@ -42,7 +42,12 @@ export interface GroceryItem {
  */
 export interface StoreComparison {
   store: string
-  items: (GroceryItem & { shoppingItemId: string; originalName: string })[]
+  items: (GroceryItem & {
+    shoppingItemId: string
+    originalName: string
+    shoppingItemIds?: string[]
+    productMappingId?: string
+  })[]
   total: number
   savings: number
   outOfRadius?: boolean

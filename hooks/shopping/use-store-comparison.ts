@@ -73,6 +73,7 @@ export function useStoreComparison(
           shoppingItemId: itemIds[0] || "",
           originalName: fallbackName,
           shoppingItemIds: itemIds,
+          productMappingId: offer?.product_mapping_id || undefined,
         })
 
         comp.total += totalPrice

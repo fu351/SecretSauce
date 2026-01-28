@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { profileDB } from "@/lib/database/profile-db"
+import { supabase } from "@/lib/database/supabase"
 import type { GroceryItem } from "@/lib/types/store"
 
 import { useShoppingList } from "@/hooks"
@@ -19,7 +20,7 @@ import { RecipeSearchModal } from "@/components/recipe/detail/recipe-recommendat
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ShoppingBag, Loader2, ArrowRight } from "lucide-react"
+import { ShoppingBag, Loader2, ArrowRight, ShoppingCart } from "lucide-react"
 
 const DEFAULT_SHOPPING_ZIP = ""
 
@@ -27,6 +28,7 @@ export default function ShoppingPage() {
   const { user, loading: authLoading } = useAuth()
   const { theme } = useTheme()
   const { toast } = useToast()
+  const router = useRouter()
   const searchParams = useSearchParams()
 
   const [mounted, setMounted] = useState(false)
@@ -161,6 +163,114 @@ export default function ShoppingPage() {
       addItem(newItem.title, 1, newItem.unit)
     }
     setReloadModalOpen(false)
+  }
+
+  const handleCheckout = async () => {
+    if (!user) {
+      toast({ title: "Error", description: "Please sign in to checkout", variant: "destructive" })
+      return
+    }
+
+    if (massSearchResults.length === 0) {
+      toast({ title: "Error", description: "No comparison results available", variant: "destructive" })
+      return
+    }
+
+    // Get the best store (first one after sorting)
+    const bestStore = massSearchResults[0]
+    if (!bestStore || bestStore.items.length === 0) {
+      toast({ title: "Error", description: "No items to checkout", variant: "destructive" })
+      return
+    }
+
+    // DEBUG: Log the items to see what we're working with
+    console.log("=== CHECKOUT DEBUG ===")
+    console.log("Best store:", bestStore.store)
+    console.log("Number of items:", bestStore.items.length)
+    console.log("Items:", bestStore.items.map(item => ({
+      title: item.title,
+      shoppingItemId: item.shoppingItemId,
+      productMappingId: item.productMappingId,
+      hasProductMappingId: !!item.productMappingId
+    })))
+
+    try {
+      // Generate order ID for this checkout
+      const orderId = crypto.randomUUID()
+
+      toast({ title: "Processing...", description: "Creating your delivery order" })
+
+      // Collect all log entry IDs
+      const logEntryIds: string[] = []
+      const skippedItems: string[] = []
+
+      // Call RPC function for each item in the best store
+      for (const item of bestStore.items) {
+        const shoppingListItemId = item.shoppingItemId
+        const productMappingId = item.productMappingId
+
+        if (!productMappingId) {
+          console.warn(`Skipping item ${item.title} - no product_mapping_id`, item)
+          skippedItems.push(item.title)
+          continue
+        }
+
+        console.log(`Adding item ${item.title} with mapping ID: ${productMappingId}`)
+
+        // Call the RPC function
+        const { data: logId, error } = await supabase.rpc("fn_add_to_delivery_log", {
+          p_shopping_list_item_id: shoppingListItemId,
+          p_product_mapping_id: productMappingId,
+          p_delivery_date: null, // Use default (today)
+        })
+
+        if (error) {
+          console.error("Error adding item to delivery log:", error)
+          throw error
+        }
+
+        if (logId) {
+          console.log(`Successfully added item, log ID: ${logId}`)
+          logEntryIds.push(logId)
+        }
+      }
+
+      console.log(`=== CHECKOUT SUMMARY ===`)
+      console.log(`Total items processed: ${bestStore.items.length}`)
+      console.log(`Successfully added: ${logEntryIds.length}`)
+      console.log(`Skipped (no mapping ID): ${skippedItems.length}`)
+      if (skippedItems.length > 0) {
+        console.log(`Skipped items:`, skippedItems)
+      }
+
+      // Update all created entries with the order_id
+      if (logEntryIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from("store_list_history")
+          .update({ order_id: orderId })
+          .in("id", logEntryIds)
+
+        if (updateError) {
+          console.error("Error updating order_id:", updateError)
+          throw updateError
+        }
+      }
+
+      // Success! Redirect to order detail page
+      toast({
+        title: "Order Created!",
+        description: `Your delivery order has been created (${logEntryIds.length} items)`,
+      })
+
+      router.push(`/delivery/${orderId}`)
+    } catch (error) {
+      console.error("Checkout error:", error)
+      toast({
+        title: "Checkout Failed",
+        description: "There was an error creating your order. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   // --- Styles ---
@@ -310,6 +420,31 @@ export default function ShoppingPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Checkout Button Section */}
+            {!comparisonLoading && comparisonFetched && massSearchResults.length > 0 && (
+              <Card className={`${styles.cardBgClass} mt-6`}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className={`font-semibold text-lg ${styles.textClass}`}>
+                        Ready to checkout?
+                      </h3>
+                      <p className={styles.mutedTextClass}>
+                        Review your selections and proceed to payment
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleCheckout}
+                      className={`${styles.buttonClass} h-12 px-8`}
+                    >
+                      <ShoppingCart className="mr-2 h-5 w-5" />
+                      Proceed to Checkout
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>
