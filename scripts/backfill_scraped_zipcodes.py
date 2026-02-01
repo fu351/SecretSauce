@@ -14,7 +14,9 @@ Run with:
 from __future__ import annotations
 
 import argparse
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable
 
 import requests
@@ -39,11 +41,26 @@ def gather_missing_zipcodes(supabase: Client, limit: int) -> list[dict]:
     return response.data or []
 
 
-def fetch_zip_metadata(zip_code: str, session: requests.Session) -> dict | None:
+thread_local = threading.local()
+
+
+def _get_worker_session() -> requests.Session:
+    """
+    Provide a retry-enabled requests.Session per worker thread.
+    """
+    session = getattr(thread_local, "session", None)
+    if session is None:
+        session = create_retry_session(retries=3, backoff_factor=2)
+        thread_local.session = session
+    return session
+
+
+def fetch_zip_metadata(zip_code: str, session: requests.Session | None = None) -> dict | None:
     """
     Call Zippopotam for the ZIP centroid and city/state.
     """
     url = f"{ZIPPOTAM_BASE_URL}/{zip_code}"
+    session = session or create_retry_session(retries=3, backoff_factor=2)
     try:
         resp: Response = session.get(url, timeout=15)
         if resp.status_code != 200:
@@ -94,38 +111,51 @@ def update_zipcode(
 
 def process_batch(
     supabase: Client,
-    session: requests.Session,
     rows: Iterable[dict],
     delay: float,
-    dry_run: bool
+    dry_run: bool,
+    concurrency: int,
 ) -> int:
     """
-    Fetch and apply metadata for a batch of ZIP codes.
+    Fetch and apply metadata for a batch of ZIP codes using parallel requests.
     """
     processed = 0
-    for row in rows:
-        zip_code = row.get("zip_code")
-        if not zip_code:
-            continue
+    zip_codes = [row["zip_code"] for row in rows if row.get("zip_code")]
+    if not zip_codes:
+        return 0
 
+    workers = min(concurrency, len(zip_codes))
+
+    def fetch_worker(zip_code: str) -> tuple[str, dict | None]:
         print(f"🔎 Processing {zip_code}...")
-        metadata = fetch_zip_metadata(zip_code, session)
-        if not metadata:
-            continue
+        metadata = fetch_zip_metadata(zip_code, session=_get_worker_session())
+        if metadata:
+            time.sleep(delay)
+        return zip_code, metadata
 
-        update_zipcode(supabase, zip_code, metadata, dry_run=dry_run)
-        processed += 1
-        time.sleep(delay)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(fetch_worker, zip_code): zip_code for zip_code in zip_codes}
+        for future in as_completed(futures):
+            zip_code, metadata = future.result()
+            if metadata:
+                update_zipcode(supabase, zip_code, metadata, dry_run=dry_run)
+                processed += 1
 
     return processed
 
 
-def run_backfill(limit: int, delay: float, dry_run: bool, loop: bool, max_batches: int | None):
+def run_backfill(
+    limit: int,
+    delay: float,
+    dry_run: bool,
+    loop: bool,
+    max_batches: int | None,
+    concurrency: int,
+) -> None:
     """
     Drive the backfill process, optionally looping until the table is healthy.
     """
     supabase = get_supabase_client()
-    session = create_retry_session(retries=3, backoff_factor=2)
     batch_number = 0
     total_processed = 0
 
@@ -140,7 +170,7 @@ def run_backfill(limit: int, delay: float, dry_run: bool, loop: bool, max_batche
             break
 
         print(f"\n📦 Batch {batch_number}: processing {len(rows)} ZIP codes")
-        processed = process_batch(supabase, session, rows, delay, dry_run)
+        processed = process_batch(supabase, rows, delay, dry_run, concurrency)
         total_processed += processed
 
         if not loop:
@@ -188,18 +218,27 @@ def _parse_args() -> argparse.Namespace:
         default=0,
         help="When used with --loop, stop after this many batches (0 = unlimited)"
     )
+    parser.add_argument(
+        "--concurrency",
+        "-c",
+        type=int,
+        default=10,
+        help="Number of ZIP metadata requests to run in parallel (default: 10)"
+    )
     return parser.parse_args()
 
 
 def main():
     args = _parse_args()
     max_batches = args.max_batches if args.max_batches > 0 else None
+    concurrency = max(1, args.concurrency)
     run_backfill(
         limit=args.limit,
         delay=args.delay,
         dry_run=args.dry_run,
         loop=args.loop,
-        max_batches=max_batches
+        max_batches=max_batches,
+        concurrency=concurrency,
     )
 
 
