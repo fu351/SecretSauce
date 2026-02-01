@@ -48,14 +48,18 @@ def create_retry_session(retries=3, backoff_factor=1):
     session.mount("https://", adapter)
     return session
 
-def geocode_zip_code(zip_code: str) -> dict | None:
+def geocode_zip_code(zip_code: str, session: requests.Session = None) -> dict | None:
     """
-    Geocode a ZIP code using Google Maps Geocoding API.
+    Geocode a ZIP code using Google Maps Geocoding API with retry logic.
     Returns coordinates as {lat, lng} or None if failed.
     """
     if not GOOGLE_MAPS_API_KEY:
         print("⚠️  No GOOGLE_MAPS_API_KEY found. Skipping ZIP centroid fallback.")
         return None
+
+    # Create retry session if not provided
+    if session is None:
+        session = create_retry_session(retries=3, backoff_factor=2)
 
     try:
         # Add small delay to avoid hitting Google Maps API rate limits
@@ -66,7 +70,7 @@ def geocode_zip_code(zip_code: str) -> dict | None:
             "address": zip_code,
             "key": GOOGLE_MAPS_API_KEY
         }
-        response = requests.get(url, params=params, timeout=10)
+        response = session.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
 
@@ -79,8 +83,14 @@ def geocode_zip_code(zip_code: str) -> dict | None:
         else:
             print(f"   ⚠️  Google Geocoding API returned status: {data.get('status')}")
             return None
+    except requests.exceptions.HTTPError as e:
+        print(f"   ❌ HTTP error geocoding ZIP {zip_code}: {e.response.status_code}")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"   ❌ Network error geocoding ZIP {zip_code}: {e}")
+        return None
     except Exception as e:
-        print(f"   ❌ Error geocoding ZIP {zip_code}: {e}")
+        print(f"   ❌ Unexpected error geocoding ZIP {zip_code}: {e}")
         return None
 
 def fix_missing_geometry():
@@ -89,14 +99,16 @@ def fix_missing_geometry():
     # Statistics tracking
     stats = {
         "all_the_places": 0,
+        "centroid_upgrades": 0,  # Centroids upgraded to precise locations
         "zip_fallback": 0,
         "failed": 0
     }
 
     # Check how many stores are being skipped due to high failure counts
+    # Includes both NULL geometry and stores with centroids
     skipped_response = supabase.table("grocery_stores") \
         .select("id", count="exact") \
-        .is_("geom", "null") \
+        .or_("geom.is.null,address.like.*centroid*") \
         .gte("failure_count", 3) \
         .execute()
 
@@ -105,11 +117,12 @@ def fix_missing_geometry():
         print(f"⏭️  Skipping {skipped_count} stores with 3+ failed attempts")
 
     # We pull the id (to update), store_enum (to match brand),
-    # zip_code (the primary lookup key), and failure_count
+    # zip_code (the primary lookup key), failure_count, and address
+    # Process stores with NULL geometry OR centroid addresses (to try upgrading)
     # Only process stores that haven't failed 3+ times
     response = supabase.table("grocery_stores") \
-        .select("id, store_enum, zip_code, name, failure_count") \
-        .is_("geom", "null") \
+        .select("id, store_enum, zip_code, name, failure_count, address") \
+        .or_("geom.is.null,address.like.*centroid*") \
         .lt("failure_count", 3) \
         .execute()
 
@@ -134,8 +147,15 @@ def fix_missing_geometry():
     # Track updates to batch them
     batch_updates = []
 
-    # Track failed stores to increment their failure_count at the end
-    failed_store_ids = set()
+    # Track stores by their status for failure_count updates
+    failed_store_ids = set()  # Complete failures (no location at all)
+    centroid_store_ids = set()  # Stores that end up with/keep centroids
+    stores_with_existing_centroids = set()  # Track which stores already had centroids
+
+    # Identify stores that already have centroids
+    for item in missing_data:
+        if item.get('address') and 'centroid' in item.get('address', '').lower():
+            stores_with_existing_centroids.add(item['id'])
 
     # Track which iteration we're on for rate limiting
     spider_count = 0
@@ -182,7 +202,10 @@ def fix_missing_geometry():
                         if coords and len(coords) == 2:
                             # Match the first unmatched store in this ZIP
                             for store in stores_by_zip[osm_zip]:
-                                print(f"   🎯 Match! {store['name']} in {osm_zip}")
+                                # Check if this is upgrading a centroid
+                                was_centroid = store['id'] in stores_with_existing_centroids
+                                upgrade_msg = " (upgraded from centroid)" if was_centroid else ""
+                                print(f"   🎯 Match! {store['name']} in {osm_zip}{upgrade_msg}")
 
                                 # Queue the update instead of executing immediately
                                 batch_updates.append({
@@ -190,7 +213,10 @@ def fix_missing_geometry():
                                     "geom": f"POINT({coords[0]} {coords[1]})"
                                 })
 
-                                stats["all_the_places"] += 1
+                                if was_centroid:
+                                    stats["centroid_upgrades"] += 1
+                                else:
+                                    stats["all_the_places"] += 1
 
                                 # Remove from the lookup dict
                                 stores_by_zip[osm_zip].remove(store)
@@ -227,6 +253,9 @@ def fix_missing_geometry():
     # ============================================================================
     print(f"\n📍 Starting ZIP centroid fallback for remaining stores...")
 
+    # Create retry session for Google Maps API calls
+    geocode_session = create_retry_session(retries=3, backoff_factor=2)
+
     # Cache for geocoded ZIP codes to avoid duplicate API calls
     zip_cache = {}
 
@@ -259,15 +288,24 @@ def fix_missing_geometry():
 
         for store in stores:
             zip_code = store.get('zip_code')
+            store_id = store['id']
+            already_has_centroid = store_id in stores_with_existing_centroids
+
             if not zip_code:
                 print(f"   ⚠️  Store {store['id']} has no ZIP code, skipping")
                 stats["failed"] += 1
-                failed_store_ids.add(store['id'])
+                failed_store_ids.add(store_id)
                 continue
 
-            # Check cache first
+            # If store already has a centroid and wasn't upgraded, just track for failure increment
+            if already_has_centroid:
+                print(f"   ⏭️  {store['name']} in {zip_code} → keeping existing centroid (no upgrade found)")
+                centroid_store_ids.add(store_id)
+                continue
+
+            # For new centroids, geocode the ZIP
             if zip_code not in zip_cache:
-                zip_cache[zip_code] = geocode_zip_code(zip_code)
+                zip_cache[zip_code] = geocode_zip_code(zip_code, session=geocode_session)
 
             coords = zip_cache[zip_code]
 
@@ -288,16 +326,18 @@ def fix_missing_geometry():
                     print(f"   ⚠️  Skipping address update for {store['name']} ({zip_code}) because the marker is already in use")
 
                 batch_updates.append({
-                    "id": store['id'],
+                    "id": store_id,
                     **update_payload
                 })
 
                 print(f"   📌 {store['name']} in {zip_code} → ZIP centroid")
                 stats["zip_fallback"] += 1
+                # Track this store for failure_count increment (using centroid, not precise location)
+                centroid_store_ids.add(store_id)
             else:
                 print(f"   ❌ Failed to geocode ZIP {zip_code} for {store['name']}")
                 stats["failed"] += 1
-                failed_store_ids.add(store['id'])
+                failed_store_ids.add(store_id)
 
     # ============================================================================
     # FINAL BATCH UPDATE
@@ -309,16 +349,23 @@ def fix_missing_geometry():
             supabase.table("grocery_stores").update(update).eq("id", store_id).execute()
 
     # ============================================================================
-    # INCREMENT FAILURE COUNT FOR FAILED STORES
+    # INCREMENT FAILURE COUNT FOR STORES WITHOUT PRECISE LOCATIONS
     # ============================================================================
-    if failed_store_ids:
-        print(f"\n📈 Incrementing failure_count for {len(failed_store_ids)} stores that failed...")
+    # Combine failed stores and stores that used/kept centroids
+    stores_to_increment = failed_store_ids | centroid_store_ids
+
+    if stores_to_increment:
+        print(f"\n📈 Incrementing failure_count for {len(stores_to_increment)} stores:")
+        if failed_store_ids:
+            print(f"   • {len(failed_store_ids)} complete failures")
+        if centroid_store_ids:
+            print(f"   • {len(centroid_store_ids)} using/keeping centroid locations")
 
         # Batch increment using PostgreSQL function
         # This requires the increment_geocoding_failures function to exist in the database
         try:
             result = supabase.rpc('increment_geocoding_failures', {
-                'store_ids': list(failed_store_ids)
+                'store_ids': list(stores_to_increment)
             }).execute()
 
             # Check if any stores hit the 3-failure threshold
@@ -336,9 +383,12 @@ def fix_missing_geometry():
     print(f"📊 ENRICHMENT COMPLETE")
     print(f"{'='*60}")
     print(f"   All the Places matches: {stats['all_the_places']}")
+    print(f"   Centroid upgrades:      {stats['centroid_upgrades']}")
     print(f"   ZIP centroid fallback:  {stats['zip_fallback']}")
     print(f"   Failed to geocode:      {stats['failed']}")
-    print(f"   Total processed:        {stats['all_the_places'] + stats['zip_fallback'] + stats['failed']}")
+    total_precise = stats['all_the_places'] + stats['centroid_upgrades']
+    total_processed = total_precise + stats['zip_fallback'] + stats['failed']
+    print(f"   Total processed:        {total_processed} ({total_precise} precise locations)")
     print(f"{'='*60}\n")
 
 if __name__ == "__main__":
