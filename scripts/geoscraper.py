@@ -45,14 +45,24 @@ def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str]:
     raw_values: list[str] = []
     raw_values.extend(args.zip or [])
     if args.zipcodes:
-        raw_values.extend(args.zipcodes.replace(",", " ").split())
+        raw_values.append(args.zipcodes)
 
     env_values = os.environ.get(args.env_zip_var or "REALTIME_TARGET_ZIPCODES")
     if env_values:
-        raw_values.extend(env_values.replace(",", " ").split())
+        raw_values.append(env_values)
 
-    zoned = {value.strip() for value in raw_values if value and value.strip()}
-    return zoned
+    # Expand comma/space-separated values (similar to gather_brand_filter_from_args)
+    expanded: list[str] = []
+    for raw in raw_values:
+        if not raw:
+            continue
+        # Replace commas with spaces so we can split on whitespace cleanly
+        for part in raw.replace(",", " ").split():
+            candidate = part.strip()
+            if candidate:
+                expanded.append(candidate)
+
+    return set(expanded) if expanded else set()
 
 
 def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,

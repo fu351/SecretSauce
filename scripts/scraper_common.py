@@ -51,7 +51,7 @@ ENUM_TO_SPIDER = {
 }
 
 # Batch processing configuration
-DEFAULT_BATCH_SIZE = 100
+DEFAULT_BATCH_SIZE = 5
 
 
 # ============================================================================
