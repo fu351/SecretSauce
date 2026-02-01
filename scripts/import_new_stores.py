@@ -142,6 +142,7 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
     # Fetch existing stores for each brand to check for duplicates
     # Build a set of existing store keys for O(1) lookup
     existing_stores = set()
+    existing_null_address_pairs = set()
 
     print(f"\n📊 Fetching existing stores from database...")
     for brand_enum in brands_to_process:
@@ -158,6 +159,9 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
                 store.get('zip_code', '')
             )
             existing_stores.add(key)
+            if not store.get('address'):
+                zip_code = store.get('zip_code') or ''
+                existing_null_address_pairs.add((store['store_enum'], zip_code))
 
     print(f"   Found {len(existing_stores)} existing stores across {len(brands_to_process)} brands")
 
@@ -239,7 +243,15 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
 
                     street_address = ', '.join(filter(None, address_parts)) if address_parts else None
 
+                    # If we don't have a street address, only insert one per brand+ZIP to satisfy the partial unique index.
+                    null_address_pair = (brand_enum, zip_code)
+                    if not street_address and null_address_pair in existing_null_address_pairs:
+                        stats["duplicates_skipped"] += 1
+                        continue
+
                     # Prepare store record with separate city and state columns
+                    if not street_address:
+                        existing_null_address_pairs.add(null_address_pair)
                     store_record = {
                         "store_enum": brand_enum,
                         "name": name,
