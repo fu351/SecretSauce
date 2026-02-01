@@ -1,0 +1,65 @@
+name: Backfill Scraped ZIP Codes
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "How many ZIP codes to fetch per batch"
+        required: false
+        default: "100"
+      delay:
+        description: "Seconds to wait between each API call"
+        required: false
+        default: "0.1"
+      loop:
+        description: "Whether to keep looping until no rows remain"
+        required: false
+        default: "false"
+      max_batches:
+        description: "Stop after this many batches when looping (0 = unlimited)"
+        required: false
+        default: "0"
+      dry_run:
+        description: "Print updates without writing to the database"
+        required: false
+        default: "false"
+  schedule:
+    - cron: '0 5 * * *'
+
+jobs:
+  run-backfill:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: backfill-scraped-zipcodes
+      cancel-in-progress: true
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKFILL_LIMIT: ${{ github.event.inputs.limit || '100' }}
+      BACKFILL_DELAY: ${{ github.event.inputs.delay || '0.1' }}
+      BACKFILL_LOOP: ${{ github.event.inputs.loop || 'false' }}
+      BACKFILL_MAX_BATCHES: ${{ github.event.inputs.max_batches || '0' }}
+      BACKFILL_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install supabase requests
+
+      - name: Run backfill
+        run: |
+          set -euo pipefail
+          args="--limit $BACKFILL_LIMIT --delay $BACKFILL_DELAY --max-batches $BACKFILL_MAX_BATCHES"
+          if [ "${BACKFILL_LOOP,,}" = "true" ]; then
+            args="$args --loop"
+          fi
+          if [ "${BACKFILL_DRY_RUN,,}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python scripts/backfill_scraped_zipcodes.py $args
