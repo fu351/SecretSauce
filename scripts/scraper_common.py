@@ -39,15 +39,15 @@ def get_supabase_client() -> Client:
 
 # Mapping your Enum values to the All the Places Spider names
 ENUM_TO_SPIDER = {
-    "aldi": "aldi",
-    "kroger": "kroger",
+    "aldi": "aldi_sud_us",
+    "kroger": "kroger_us",
     "safeway": "safeway",
-    "meijer": "meijer",
+    "meijer": "meijer_us",
     "target": "target_us",
     "traderjoes": "trader_joes_us",
-    "99ranch": "99_ranch_market",
+    "99ranch": "99_ranch_market_us",
     "walmart": "walmart_us",
-    "wholefoods": "whole_foods_market"
+    "wholefoods": "whole_foods"
 }
 
 # Batch processing configuration

@@ -65,15 +65,15 @@ def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str]:
     return set(expanded) if expanded else set()
 
 
-def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,
+def run_geoscraper(target_zipcodes: set[str] | None, brand_filter: set[str] | None, *,
                    dry_run: bool = False):
-    if not target_zipcodes:
-        print("⚠️  No ZIP codes provided. Provide --zip/-z or set REALTIME_TARGET_ZIPCODES.")
-        return
-
     brands_to_process = brand_filter if brand_filter else set(ENUM_TO_SPIDER.keys())
     stats = create_stats_dict()
     zips_with_stores: dict[str, int] = {}
+
+    # Fetch existing stores for duplicate detection
+    # If target_zipcodes provided, optimize by only fetching those ZIPs
+    # Otherwise, fetch all existing stores for the brands (slower but necessary)
     existing_stores, existing_null_address_pairs = fetch_existing_store_keys(
         supabase, brands_to_process, target_zipcodes
     )
@@ -82,7 +82,10 @@ def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,
     spider_count = 0
     total_spiders = len(brands_to_process)
 
-    print(f"🔍 Real-time scrape for {len(target_zipcodes)} ZIP codes across {total_spiders} brands")
+    if target_zipcodes:
+        print(f"🔍 Real-time scrape for {len(target_zipcodes)} ZIP codes across {total_spiders} brands")
+    else:
+        print(f"🔍 Nationwide scrape across {total_spiders} brands")
 
     for brand_enum in brands_to_process:
         spider_count += 1
@@ -112,10 +115,6 @@ def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,
                         continue
 
                     zip_code = store_record["zip_code"]
-
-                    if zip_code not in target_zipcodes:
-                        stats["wrong_zipcode"] += 1
-                        continue
 
                     store_key = build_store_key(brand_enum, store_record["name"], zip_code)
                     if store_key in existing_stores:
@@ -182,11 +181,11 @@ def main():
         "--zip",
         "-z",
         action="append",
-        help="Target ZIP code to include (can be repeated)."
+        help="(Optional) Target ZIP code for tracking purposes (can be repeated)."
     )
     parser.add_argument(
         "--zipcodes",
-        help="Comma or space-separated list of ZIP codes (legacy)."
+        help="(Optional) Comma or space-separated list of ZIP codes for tracking (legacy)."
     )
     parser.add_argument(
         "--env-zip-var",
@@ -207,6 +206,10 @@ def main():
 
     args = parser.parse_args()
     target_zipcodes = gather_zipcodes_from_args(args)
+
+    # If no ZIP codes provided, set to None (will scrape nationwide)
+    if not target_zipcodes:
+        target_zipcodes = None
 
     brand_filter = gather_brand_filter_from_args(args.brand or [])
     run_geoscraper(target_zipcodes, brand_filter, dry_run=args.dry_run)

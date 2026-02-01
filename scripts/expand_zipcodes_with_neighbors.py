@@ -23,7 +23,7 @@ from supabase import create_client, Client
 
 def expand_zipcodes_with_neighbors(
     input_zipcodes: list[str],
-    radius: int = 5,
+    radius: int = 10,
     cleanup: bool = False,
     skip_existing: bool = True
 ) -> list[str]:

@@ -3,44 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       zip_code:
-        description: 'ZIP(s) to scrape (comma separated)'
-        required: true
+        description: 'ZIP(s) that triggered this scrape (for tracking only)'
+        required: false
       brand:
         description: 'Optional Brand filter'
         required: false
 
 jobs:
-  # Job 1: Expand ZIP codes by adding neighbors
-  expand-zips:
-    runs-on: ubuntu-latest
-    outputs:
-      expanded_zips: ${{ steps.expand.outputs.expanded_zips }}
-    env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install supabase
-
-      - name: Expand ZIP codes with neighbors
-        id: expand
-        run: |
-          EXPANDED=$(python scripts/expand_zipcodes_with_neighbors.py --zips "${{ github.event.inputs.zip_code }}" --radius 5)
-          echo "expanded_zips=$EXPANDED" >> $GITHUB_OUTPUT
-          echo "Original ZIPs: ${{ github.event.inputs.zip_code }}"
-          echo "Expanded ZIPs: $EXPANDED"
-
-  # Job 2: Scrape stores in parallel across all brands
+  # Scrape stores in parallel across all brands
   scrape:
-    needs: expand-zips
-    if: needs.expand-zips.outputs.expanded_zips != ''  # Skip if no ZIPs need scraping
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false  # Continue other brands even if one fails
@@ -63,14 +34,12 @@ jobs:
 
       - name: Run Geoscraper for ${{ matrix.brand }}
         run: |
-          python scripts/geoscraper.py \
-            --zip "${{ needs.expand-zips.outputs.expanded_zips }}" \
-            --brand "${{ matrix.brand }}"
+          python scripts/geoscraper.py --brand "${{ matrix.brand }}"
 
-  # Job 3: Mark original ZIP codes as completed
+  # Mark original ZIP codes as completed (if provided)
   complete-events:
-    needs: [expand-zips, scrape]
-    if: always()  # Run even if scrape was skipped or some brands failed
+    needs: scrape
+    if: always() && github.event.inputs.zip_code != ''
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -96,6 +65,8 @@ jobs:
           supabase = create_client(url, key)
           zips = '${{ github.event.inputs.zip_code }}'.split(',')
           for z in zips:
-              supabase.table('scraping_events').update({'status': 'completed'}).eq('zip_code', z.strip()).eq('status', 'processing').execute()
-          print(f'✅ Marked {len(zips)} events as completed')
+              z = z.strip()
+              if z:
+                  supabase.table('scraping_events').update({'status': 'completed'}).eq('zip_code', z).eq('status', 'processing').execute()
+          print(f'✅ Marked {len([z for z in zips if z.strip()])} events as completed')
           "
