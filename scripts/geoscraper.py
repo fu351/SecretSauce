@@ -14,43 +14,30 @@ import argparse
 import io
 import os
 import time
-from typing import Iterable
 
 import ijson
 import requests
-from requests.adapters import HTTPAdapter
-from supabase import Client, create_client
-from urllib3.util.retry import Retry
+from supabase import Client
 
-from scripts.import_new_stores import ENUM_TO_SPIDER, build_store_key
+from scraper_common import (
+    get_supabase_client,
+    ENUM_TO_SPIDER,
+    create_retry_session,
+    build_store_key,
+    gather_brand_filter_from_args,
+    parse_store_from_feature,
+    fetch_existing_store_keys,
+    insert_store_batch,
+    update_scraped_zipcodes,
+    create_stats_dict,
+    print_stats_summary,
+)
 
-URL = os.environ.get("SUPABASE_URL")
-KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-supabase: Client = create_client(URL, KEY)
+supabase: Client = get_supabase_client()
 
 # Rate limiting (keep low for real-time to stay responsive)
 DELAY_BETWEEN_SPIDERS = 10
 MAX_BATCH_SIZE = 100
-
-
-def create_retry_session(retries=3, backoff_factor=1):
-    """Copy of the helper in import_new_stores to keep retry behavior consistent."""
-    session = requests.Session()
-    session.mount("http://", HTTPAdapter(max_retries=Retry(
-        total=retries,
-        backoff_factor=backoff_factor,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"],
-        raise_on_status=False,
-    )))
-    session.mount("https://", HTTPAdapter(max_retries=Retry(
-        total=retries,
-        backoff_factor=backoff_factor,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"],
-        raise_on_status=False,
-    )))
-    return session
 
 
 def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str]:
@@ -68,60 +55,6 @@ def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str]:
     return zoned
 
 
-def gather_brand_filter(args: argparse.Namespace) -> set[str] | None:
-    raw_values: list[str] = []
-    raw_values.extend(args.brand or [])
-    env_value = os.environ.get("BRAND_FILTER")
-    if env_value:
-        raw_values.append(env_value)
-
-    expanded: list[str] = []
-    for raw in raw_values:
-        if not raw:
-            continue
-        for part in raw.replace(",", " ").split():
-            candidate = part.strip()
-            if candidate:
-                expanded.append(candidate)
-
-    return set(expanded) if expanded else None
-
-
-def fetch_existing_store_keys(brands: Iterable[str], target_zipcodes: set[str]):
-    """Pre-load existing store keys (and null-address pairs) to avoid duplicates."""
-    existing_keys: set[str] = set()
-    existing_null_address: set[tuple[str, str]] = set()
-
-    for brand in brands:
-        query = supabase.table("grocery_stores") \
-            .select("store_enum, name, zip_code, address") \
-            .eq("store_enum", brand)
-
-        if target_zipcodes:
-            query = query.in_("zip_code", list(target_zipcodes))
-
-        response = query.execute()
-        for store in response.data:
-            key = build_store_key(
-                store["store_enum"],
-                store.get("name", ""),
-                store.get("zip_code", ""),
-            )
-            existing_keys.add(key)
-            if not store.get("address"):
-                existing_null_address.add((store["store_enum"], store.get("zip_code") or ""))
-
-    return existing_keys, existing_null_address
-
-
-def record_inserted_zips(records: list[dict], zips_with_stores: dict[str, int]):
-    for record in records:
-        zip_code = record.get("zip_code")
-        if not zip_code:
-            continue
-        zips_with_stores[zip_code] = zips_with_stores.get(zip_code, 0) + 1
-
-
 def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,
                    dry_run: bool = False):
     if not target_zipcodes:
@@ -129,17 +62,10 @@ def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,
         return
 
     brands_to_process = brand_filter if brand_filter else set(ENUM_TO_SPIDER.keys())
-    stats = {
-        "new_stores": 0,
-        "duplicates_skipped": 0,
-        "no_geometry": 0,
-        "wrong_zipcode": 0,
-        "errors": 0,
-    }
-
+    stats = create_stats_dict()
     zips_with_stores: dict[str, int] = {}
     existing_stores, existing_null_address_pairs = fetch_existing_store_keys(
-        brands_to_process, target_zipcodes
+        supabase, brands_to_process, target_zipcodes
     )
 
     stores_to_insert: list[dict] = []
@@ -167,40 +93,27 @@ def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,
                 store_count = 0
 
                 for feature in features:
-                    props = feature.get("properties", {})
-                    name = props.get("name", props.get("brand", ""))
-                    raw_zip = str(props.get("addr:postcode", props.get("postcode", "")))
-                    zip_code = raw_zip.split("-")[0].strip()
+                    # Parse the feature into a store record
+                    store_record = parse_store_from_feature(feature, brand_enum)
 
-                    if not name or not zip_code:
+                    # Skip if parsing failed (no name, zip, or geometry)
+                    if not store_record:
+                        stats["no_geometry"] += 1
                         continue
+
+                    zip_code = store_record["zip_code"]
 
                     if zip_code not in target_zipcodes:
                         stats["wrong_zipcode"] += 1
                         continue
 
-                    store_key = build_store_key(brand_enum, name, zip_code)
+                    store_key = build_store_key(brand_enum, store_record["name"], zip_code)
                     if store_key in existing_stores:
                         stats["duplicates_skipped"] += 1
                         continue
 
-                    coords = feature.get("geometry", {}).get("coordinates")
-                    if not coords or len(coords) != 2:
-                        stats["no_geometry"] += 1
-                        continue
-
-                    street = props.get("addr:street", props.get("street", ""))
-                    housenumber = props.get("addr:housenumber", props.get("housenumber", ""))
-                    city = props.get("addr:city", props.get("city", ""))
-                    state = props.get("addr:state", props.get("state", ""))
-
-                    address_parts = []
-                    if housenumber and street:
-                        address_parts.append(f"{housenumber} {street}")
-                    elif street:
-                        address_parts.append(street)
-
-                    street_address = ", ".join(filter(None, address_parts)) if address_parts else None
+                    # If we don't have a street address, only insert one per brand+ZIP to satisfy the partial unique index.
+                    street_address = store_record["address"]
                     null_address_pair = (brand_enum, zip_code)
                     if not street_address and null_address_pair in existing_null_address_pairs:
                         stats["duplicates_skipped"] += 1
@@ -209,23 +122,12 @@ def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,
                     if not street_address:
                         existing_null_address_pairs.add(null_address_pair)
 
-                    store_record = {
-                        "store_enum": brand_enum,
-                        "name": name,
-                        "address": street_address,
-                        "city": city or None,
-                        "state": state or None,
-                        "zip_code": zip_code,
-                        "geom": f"POINT({coords[0]} {coords[1]})",
-                        "failure_count": 0,
-                    }
-
                     stores_to_insert.append(store_record)
                     existing_stores.add(store_key)
                     store_count += 1
 
                     if len(stores_to_insert) >= MAX_BATCH_SIZE:
-                        insert_batch(stores_to_insert, zips_with_stores, stats, dry_run)
+                        insert_store_batch(supabase, stores_to_insert, zips_with_stores, stats, dry_run)
                         stores_to_insert = []
 
                 print(f"   📊 Matched {store_count} stores in target ZIPs")
@@ -250,46 +152,16 @@ def run_geoscraper(target_zipcodes: set[str], brand_filter: set[str] | None, *,
             time.sleep(DELAY_BETWEEN_SPIDERS)
 
     if stores_to_insert:
-        insert_batch(stores_to_insert, zips_with_stores, stats, dry_run)
+        insert_store_batch(supabase, stores_to_insert, zips_with_stores, stats, dry_run)
 
     if not dry_run and zips_with_stores:
-        update_scraped_zipcodes(zips_with_stores)
+        update_scraped_zipcodes(supabase, zips_with_stores)
 
+    # Print final statistics
     print("\n" + "=" * 60)
     print("🛰️  Geoscraper run complete")
     print("=" * 60)
-    print(f"   Target ZIP codes:       {len(target_zipcodes)}")
-    print(f"   New stores added:       {stats['new_stores']}")
-    print(f"   Duplicates skipped:     {stats['duplicates_skipped']}")
-    print(f"   Wrong ZIPs filtered:    {stats['wrong_zipcode']}")
-    print(f"   No geometry:            {stats['no_geometry']}")
-    print(f"   Errors:                 {stats['errors']}")
-    print("=" * 60 + "\n")
-
-
-def insert_batch(batch: list[dict], zips_with_stores: dict[str, int],
-                 stats: dict[str, int], dry_run: bool):
-    if dry_run:
-        print(f"   💡 Dry run – would insert {len(batch)} stores")
-    else:
-        supabase.table("grocery_stores").insert(batch).execute()
-        print(f"   ✅ Inserted {len(batch)} stores")
-
-    stats["new_stores"] += len(batch)
-    record_inserted_zips(batch, zips_with_stores)
-
-
-def update_scraped_zipcodes(zips_with_stores: dict[str, int]):
-    print("\n📝 Updating scraped_zipcodes table...")
-    for zip_code, count in zips_with_stores.items():
-        supabase.table("scraped_zipcodes").upsert({
-            "zip_code": zip_code,
-            "last_scraped_at": "now()",
-            "store_count": count,
-            "updated_at": "now()"
-        }).execute()
-
-    print(f"   ✅ Tracked {len(zips_with_stores)} ZIP codes")
+    print_stats_summary(stats, target_zipcodes)
 
 
 def main():
@@ -326,7 +198,7 @@ def main():
     args = parser.parse_args()
     target_zipcodes = gather_zipcodes_from_args(args)
 
-    brand_filter = gather_brand_filter(args)
+    brand_filter = gather_brand_filter_from_args(args.brand or [])
     run_geoscraper(target_zipcodes, brand_filter, dry_run=args.dry_run)
 
 
