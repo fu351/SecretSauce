@@ -1,5 +1,6 @@
 import os
 import io
+import time
 import ijson
 import requests
 from requests.adapters import HTTPAdapter
@@ -11,6 +12,11 @@ URL = os.environ.get("SUPABASE_URL")
 KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY")
 supabase: Client = create_client(URL, KEY)
+
+# Rate limiting configuration
+DELAY_BETWEEN_SPIDERS = 5  # seconds between processing different spiders
+DELAY_AFTER_ERROR = 15     # seconds to wait after server errors before continuing
+DELAY_BETWEEN_GEOCODE = 0.5  # seconds between Google Maps API calls
 
 # Mapping your Enum values to the All the Places Spider names
 ENUM_TO_SPIDER = {
@@ -52,6 +58,9 @@ def geocode_zip_code(zip_code: str) -> dict | None:
         return None
 
     try:
+        # Add small delay to avoid hitting Google Maps API rate limits
+        time.sleep(DELAY_BETWEEN_GEOCODE)
+
         url = f"https://maps.googleapis.com/maps/api/geocode/json"
         params = {
             "address": zip_code,
@@ -84,16 +93,32 @@ def fix_missing_geometry():
         "failed": 0
     }
 
-    # We pull the id (to update), store_enum (to match brand),
-    # and zip_code (the primary lookup key)
-    response = supabase.table("grocery_stores") \
-        .select("id, store_enum, zip_code, name") \
+    # Check how many stores are being skipped due to high failure counts
+    skipped_response = supabase.table("grocery_stores") \
+        .select("id", count="exact") \
         .is_("geom", "null") \
+        .gte("failure_count", 3) \
+        .execute()
+
+    skipped_count = skipped_response.count or 0
+    if skipped_count > 0:
+        print(f"⏭️  Skipping {skipped_count} stores with 3+ failed attempts")
+
+    # We pull the id (to update), store_enum (to match brand),
+    # zip_code (the primary lookup key), and failure_count
+    # Only process stores that haven't failed 3+ times
+    response = supabase.table("grocery_stores") \
+        .select("id, store_enum, zip_code, name, failure_count") \
+        .is_("geom", "null") \
+        .lt("failure_count", 3) \
         .execute()
 
     missing_data = response.data
     if not missing_data:
-        print("✅ No missing geometry found. Database is healthy!")
+        if skipped_count > 0:
+            print(f"✅ No stores to process ({skipped_count} permanently skipped)")
+        else:
+            print("✅ No missing geometry found. Database is healthy!")
         return
 
     print(f"📊 Found {len(missing_data)} stores missing geometry")
@@ -109,7 +134,15 @@ def fix_missing_geometry():
     # Track updates to batch them
     batch_updates = []
 
+    # Track failed stores to increment their failure_count at the end
+    failed_store_ids = set()
+
+    # Track which iteration we're on for rate limiting
+    spider_count = 0
+    total_spiders = len(queue)
+
     for brand_enum, stores in queue.items():
+        spider_count += 1
         spider = ENUM_TO_SPIDER.get(brand_enum)
         if not spider:
             print(f"⚠️ No spider mapped for brand enum: {brand_enum}")
@@ -168,15 +201,25 @@ def fix_missing_geometry():
         except requests.exceptions.HTTPError as e:
             if e.response.status_code >= 500:
                 print(f"   ❌ Server error {e.response.status_code} for {spider} - retries exhausted")
+                print(f"   ⏳ Waiting {DELAY_AFTER_ERROR}s before continuing to let server recover...")
+                time.sleep(DELAY_AFTER_ERROR)
             else:
                 print(f"   ❌ HTTP error {e.response.status_code}: {e}")
         except requests.exceptions.RequestException as e:
             print(f"   ❌ Network error processing {spider}: {e}")
+            # Network errors often indicate server overload, wait before continuing
+            print(f"   ⏳ Waiting {DELAY_AFTER_ERROR}s before continuing...")
+            time.sleep(DELAY_AFTER_ERROR)
         except Exception as e:
             print(f"   ❌ Unexpected error processing {spider}: {type(e).__name__}: {e}")
 
         # Rebuild stores list from remaining unmatched stores
         queue[brand_enum] = [store for zip_stores in stores_by_zip.values() for store in zip_stores]
+
+        # Add delay between spiders to avoid overwhelming the server
+        if spider_count < total_spiders:
+            print(f"   ⏳ Waiting {DELAY_BETWEEN_SPIDERS}s before next spider... ({spider_count}/{total_spiders})")
+            time.sleep(DELAY_BETWEEN_SPIDERS)
 
     # ============================================================================
     # ZIP CENTROID FALLBACK
@@ -219,6 +262,7 @@ def fix_missing_geometry():
             if not zip_code:
                 print(f"   ⚠️  Store {store['id']} has no ZIP code, skipping")
                 stats["failed"] += 1
+                failed_store_ids.add(store['id'])
                 continue
 
             # Check cache first
@@ -253,6 +297,7 @@ def fix_missing_geometry():
             else:
                 print(f"   ❌ Failed to geocode ZIP {zip_code} for {store['name']}")
                 stats["failed"] += 1
+                failed_store_ids.add(store['id'])
 
     # ============================================================================
     # FINAL BATCH UPDATE
@@ -262,6 +307,27 @@ def fix_missing_geometry():
         for update in batch_updates:
             store_id = update.pop("id")
             supabase.table("grocery_stores").update(update).eq("id", store_id).execute()
+
+    # ============================================================================
+    # INCREMENT FAILURE COUNT FOR FAILED STORES
+    # ============================================================================
+    if failed_store_ids:
+        print(f"\n📈 Incrementing failure_count for {len(failed_store_ids)} stores that failed...")
+
+        # Batch increment using PostgreSQL function
+        # This requires the increment_geocoding_failures function to exist in the database
+        try:
+            result = supabase.rpc('increment_geocoding_failures', {
+                'store_ids': list(failed_store_ids)
+            }).execute()
+
+            # Check if any stores hit the 3-failure threshold
+            if result.data:
+                for store_id in result.data:
+                    print(f"   ⚠️  Store {store_id} has reached maximum failure count (3) and will be skipped in future runs")
+        except Exception as e:
+            print(f"   ⚠️  Could not increment failure counts: {e}")
+            print(f"   ℹ️  Make sure the increment_geocoding_failures function exists in your database")
 
     # ============================================================================
     # FINAL STATISTICS

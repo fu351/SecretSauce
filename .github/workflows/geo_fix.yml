@@ -7,6 +7,7 @@ on:
 jobs:
   fix-geo:
     runs-on: ubuntu-latest
+    timeout-minutes: 60 # Increased timeout due to rate limiting delays
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -17,13 +18,16 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-          # We need ijson for memory-efficient parsing
+        # We need ijson for memory-efficient parsing
         run: |
           pip install requests supabase ijson
 
       - name: Run Geo Fixer
+        # Note: Requires increment_geocoding_failures() function in database
+        # See scripts/create_increment_failures_function.sql for setup
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
         run: python scripts/fix_missing_geo.py
+        continue-on-error: false # Fail the workflow if geocoding fails
