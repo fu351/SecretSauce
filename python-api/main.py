@@ -98,6 +98,20 @@ app.add_middleware(
 # Path to your scraper scripts (in lib/scrapers from project root)
 SCRAPER_PATH = Path(__file__).parent.parent / "lib" / "scrapers"
 
+DEFAULT_ZIP_CODE = os.getenv("ZIP_CODE") or os.getenv("DEFAULT_ZIP_CODE")
+
+
+def normalize_zip_code(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    trimmed = value.strip()
+    match = re.search(r"\b\d{5}(?:-\d{4})?\b", trimmed)
+    if match:
+        return match.group(0)[:5]
+    if re.fullmatch(r"\d{5}", trimmed):
+        return trimmed
+    return None
+
 
 def run_scraper_isolated(script: str, search_term: str, zip_code: str) -> Dict[str, Any]:
     """
@@ -181,7 +195,7 @@ async def health_check():
 @app.get("/grocery-search")
 async def grocery_search(
     searchTerm: str = Query(..., min_length=1),
-    zipCode: str = Query(default="47906")
+    zipCode: Optional[str] = Query(default=None)
 ):
     """
     Search for grocery items across multiple stores concurrently.
@@ -191,13 +205,16 @@ async def grocery_search(
     - Detailed error logging per store
     - Timeout protection (30s per store, total ~30s due to async)
     """
-    logger.info(f"Starting grocery search for: {searchTerm} (zip: {zipCode})")
+    resolved_zip = normalize_zip_code(zipCode) or normalize_zip_code(DEFAULT_ZIP_CODE)
+    if not resolved_zip:
+        raise HTTPException(status_code=400, detail="zipCode query parameter is required")
+    logger.info(f"Starting grocery search for: {searchTerm} (zip: {resolved_zip})")
     results = []
     stores = ["Target", "Kroger", "Meijer", "99Ranch", "Walmart"]
 
     # Run scrapers concurrently in isolated tasks so a slow store doesn't block the rest
     tasks = [
-        asyncio.to_thread(run_scraper_isolated, store, searchTerm, zipCode)
+        asyncio.to_thread(run_scraper_isolated, store, searchTerm, resolved_zip)
         for store in stores
     ]
 

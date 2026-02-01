@@ -6,6 +6,7 @@ from supabase import create_client, Client
 # 1. Setup
 URL = os.environ.get("SUPABASE_URL")
 KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY")
 supabase: Client = create_client(URL, KEY)
 
 # Mapping your Enum values to the All the Places Spider names
@@ -21,20 +22,61 @@ ENUM_TO_SPIDER = {
     "wholefoods": "whole_foods_market"
 }
 
+def geocode_zip_code(zip_code: str) -> dict | None:
+    """
+    Geocode a ZIP code using Google Maps Geocoding API.
+    Returns coordinates as {lat, lng} or None if failed.
+    """
+    if not GOOGLE_MAPS_API_KEY:
+        print("⚠️  No GOOGLE_MAPS_API_KEY found. Skipping ZIP centroid fallback.")
+        return None
+
+    try:
+        url = f"https://maps.googleapis.com/maps/api/geocode/json"
+        params = {
+            "address": zip_code,
+            "key": GOOGLE_MAPS_API_KEY
+        }
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("status") == "OK" and len(data.get("results", [])) > 0:
+            location = data["results"][0]["geometry"]["location"]
+            return {
+                "lat": location["lat"],
+                "lng": location["lng"]
+            }
+        else:
+            print(f"   ⚠️  Google Geocoding API returned status: {data.get('status')}")
+            return None
+    except Exception as e:
+        print(f"   ❌ Error geocoding ZIP {zip_code}: {e}")
+        return None
+
 def fix_missing_geometry():
     print("🔍 Querying database for stores missing geometry...")
-    
-    # We pull the id (to update), store_enum (to match brand), 
+
+    # Statistics tracking
+    stats = {
+        "all_the_places": 0,
+        "zip_fallback": 0,
+        "failed": 0
+    }
+
+    # We pull the id (to update), store_enum (to match brand),
     # and zip_code (the primary lookup key)
     response = supabase.table("grocery_stores") \
         .select("id, store_enum, zip_code, name") \
         .is_("geom", "null") \
         .execute()
-    
+
     missing_data = response.data
     if not missing_data:
         print("✅ No missing geometry found. Database is healthy!")
         return
+
+    print(f"📊 Found {len(missing_data)} stores missing geometry")
 
     # Group work by brand to minimize large file downloads
     queue = {}
@@ -74,19 +116,69 @@ def fix_missing_geometry():
                             coords = feature.get('geometry', {}).get('coordinates')
                             if coords and len(coords) == 2:
                                 print(f"   🎯 Match! {store['name']} in {db_zip}")
-                                
+
                                 # Update the row with the found coordinates
                                 # Supabase expects EWKT format for geography: 'POINT(lon lat)'
                                 supabase.table("grocery_stores").update({
                                     "geom": f"POINT({coords[0]} {coords[1]})"
                                 }).eq("id", store['id']).execute()
-                                
+
+                                stats["all_the_places"] += 1
+
                                 # Optimization: remove from current brand list once found
                                 stores.remove(store)
                                 break
 
         except Exception as e:
             print(f"   ❌ Error processing {spider}: {e}")
+
+    # ============================================================================
+    # ZIP CENTROID FALLBACK
+    # For stores that weren't found in All the Places, use ZIP code centroid
+    # ============================================================================
+    print(f"\n📍 Starting ZIP centroid fallback for remaining stores...")
+
+    for brand_enum, stores in queue.items():
+        if not stores:
+            continue  # All stores for this brand were already matched
+
+        print(f"   Processing {len(stores)} remaining {brand_enum} stores via ZIP geocoding")
+
+        for store in stores:
+            zip_code = store.get('zip_code')
+            if not zip_code:
+                print(f"   ⚠️  Store {store['id']} has no ZIP code, skipping")
+                stats["failed"] += 1
+                continue
+
+            # Geocode the ZIP code to get centroid coordinates
+            coords = geocode_zip_code(zip_code)
+
+            if coords:
+                # Update store with ZIP centroid, mark address as approximate
+                address_marker = f"ZIP {zip_code} (centroid)"
+                supabase.table("grocery_stores").update({
+                    "geom": f"POINT({coords['lng']} {coords['lat']})",
+                    "address": address_marker
+                }).eq("id", store['id']).execute()
+
+                print(f"   📌 {store['name']} in {zip_code} → ZIP centroid")
+                stats["zip_fallback"] += 1
+            else:
+                print(f"   ❌ Failed to geocode ZIP {zip_code} for {store['name']}")
+                stats["failed"] += 1
+
+    # ============================================================================
+    # FINAL STATISTICS
+    # ============================================================================
+    print(f"\n{'='*60}")
+    print(f"📊 ENRICHMENT COMPLETE")
+    print(f"{'='*60}")
+    print(f"   All the Places matches: {stats['all_the_places']}")
+    print(f"   ZIP centroid fallback:  {stats['zip_fallback']}")
+    print(f"   Failed to geocode:      {stats['failed']}")
+    print(f"   Total processed:        {stats['all_the_places'] + stats['zip_fallback'] + stats['failed']}")
+    print(f"{'='*60}\n")
 
 if __name__ == "__main__":
     fix_missing_geometry()
