@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       zip_code:
-        description: 'ZIP to scrape'
+        description: 'ZIP(s) to scrape (comma separated)'
         required: true
       brand:
         description: 'Optional Brand filter'
@@ -25,10 +25,26 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install supabase requests ijson
+        # Added urllib3 and ensured all script requirements are met
+        run: pip install supabase requests ijson urllib3
 
       - name: Run Geoscraper
-        # We pass the input from the webhook dispatch to the script
         run: |
           python scripts/geoscraper.py --zip "${{ github.event.inputs.zip_code }}" \
           ${{ github.event.inputs.brand && format('--brand {0}', github.event.inputs.brand) || '' }}
+
+      - name: Mark Events as Completed
+        if: success()
+        run: |
+          # This SQL update marks all ZIPs in this batch as 'completed'
+          # We use a simple python inline script to handle the Supabase call
+          python -c "
+          import os
+          from supabase import create_client
+          url = os.environ.get('SUPABASE_URL')
+          key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+          supabase = create_client(url, key)
+          zips = '${{ github.event.inputs.zip_code }}'.split(',')
+          for z in zips:
+              supabase.table('scraping_events').update({'status': 'completed'}).eq('zip_code', z.strip()).eq('status', 'processing').execute()
+          "
