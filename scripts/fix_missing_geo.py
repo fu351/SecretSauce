@@ -1,6 +1,9 @@
 import os
+import io
 import ijson
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from supabase import create_client, Client
 
 # 1. Setup
@@ -21,6 +24,23 @@ ENUM_TO_SPIDER = {
     "walmart": "walmart_us",
     "wholefoods": "whole_foods_market"
 }
+
+def create_retry_session(retries=3, backoff_factor=1):
+    """
+    Create a requests session with retry logic for transient failures.
+    Automatically retries on server errors (5xx) with exponential backoff.
+    """
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"]
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
 
 def geocode_zip_code(zip_code: str) -> dict | None:
     """
@@ -108,11 +128,14 @@ def fix_missing_geometry():
                 stores_by_zip[db_zip].append(store)
 
         try:
-            # We stream the file to keep RAM usage low on GitHub Actions
-            with requests.get(url, stream=True, timeout=120) as r:
+            # Create session with retry logic for transient failures
+            session = create_retry_session(retries=3, backoff_factor=1)
+
+            # Fetch GeoJSON with automatic gzip decompression
+            with session.get(url, timeout=120) as r:
                 r.raise_for_status()
-                # Parse the 'features' array one by one
-                features = ijson.items(r.raw, 'features.item')
+                # r.content auto-decompresses gzip, io.BytesIO provides file-like interface
+                features = ijson.items(io.BytesIO(r.content), 'features.item')
 
                 for feature in features:
                     props = feature.get('properties', {})
@@ -142,8 +165,15 @@ def fix_missing_geometry():
                                     del stores_by_zip[osm_zip]
                                 break
 
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code >= 500:
+                print(f"   ❌ Server error {e.response.status_code} for {spider} - retries exhausted")
+            else:
+                print(f"   ❌ HTTP error {e.response.status_code}: {e}")
+        except requests.exceptions.RequestException as e:
+            print(f"   ❌ Network error processing {spider}: {e}")
         except Exception as e:
-            print(f"   ❌ Error processing {spider}: {e}")
+            print(f"   ❌ Unexpected error processing {spider}: {type(e).__name__}: {e}")
 
         # Rebuild stores list from remaining unmatched stores
         queue[brand_enum] = [store for zip_stores in stores_by_zip.values() for store in zip_stores]
