@@ -82,21 +82,29 @@ const createMissingEnvProxy = (message: string) => {
 const missingEnvMessage =
   "Supabase client is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
 
+const browserClientOptions = {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    flowType: "pkce",
+  },
+  global: {
+    fetch: fetch.bind(globalThis),
+  },
+}
+
+export const createBrowserClient = () => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(missingEnvMessage)
+  }
+
+  return createMonitoredClient(supabaseUrl, supabaseAnonKey, browserClientOptions)
+}
+
 export const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createMonitoredClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-          storage: typeof window !== "undefined" ? window.localStorage : undefined,
-          flowType: "pkce",
-        },
-        global: {
-          fetch: fetch.bind(globalThis),
-        },
-      })
-    : createMissingEnvProxy(missingEnvMessage)
+  supabaseUrl && supabaseAnonKey ? createBrowserClient() : createMissingEnvProxy(missingEnvMessage)
 
 // Server-side client for admin operations
 export const createServerClient = () => {
