@@ -176,12 +176,14 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
             # Higher backoff_factor to avoid hammering struggling servers
             session = create_retry_session(retries=3, backoff_factor=3)
 
-            # Fetch GeoJSON with streaming to avoid loading entire file into memory
-            # This is crucial for large spider files (some are 100MB+)
-            with session.get(url, stream=True, timeout=120) as r:
+            # Fetch GeoJSON with automatic gzip decompression
+            # Note: We use r.content instead of streaming because ijson with r.raw
+            # doesn't auto-decompress gzip. Since we're filtering by ZIP code,
+            # we process far fewer stores even though we download the full file.
+            with session.get(url, timeout=120) as r:
                 r.raise_for_status()
-                # Stream directly from response - much more memory efficient
-                features = ijson.items(r.raw, 'features.item')
+                # r.content auto-decompresses gzip, io.BytesIO provides file-like interface
+                features = ijson.items(io.BytesIO(r.content), 'features.item')
 
                 store_count = 0
                 for feature in features:
