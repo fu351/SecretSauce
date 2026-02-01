@@ -1,3 +1,4 @@
+import argparse
 import os
 import io
 import time
@@ -14,9 +15,14 @@ GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY")
 supabase: Client = create_client(URL, KEY)
 
 # Rate limiting configuration
-DELAY_BETWEEN_SPIDERS = 5  # seconds between processing different spiders
-DELAY_AFTER_ERROR = 15     # seconds to wait after server errors before continuing
+DELAY_BETWEEN_SPIDERS = 15  # seconds between processing different spiders (increased for API health)
+DELAY_AFTER_ERROR = 60     # seconds to wait after server errors before continuing (longer recovery time)
 DELAY_BETWEEN_GEOCODE = 0.5  # seconds between Google Maps API calls
+
+# Batch processing configuration
+# Set MAX_SPIDERS_PER_RUN to limit how many brands to process in a single run
+# This helps avoid overloading the All the Places API
+MAX_SPIDERS_PER_RUN = int(os.environ.get("MAX_SPIDERS_PER_RUN", "0")) or None  # None = no limit
 
 # Mapping your Enum values to the All the Places Spider names
 ENUM_TO_SPIDER = {
@@ -31,17 +37,29 @@ ENUM_TO_SPIDER = {
     "wholefoods": "whole_foods_market"
 }
 
+
+def apply_brand_filter(query, brand_filter: set[str] | None):
+    if not brand_filter:
+        return query
+    return query.in_("store_enum", list(brand_filter))
+
 def create_retry_session(retries=3, backoff_factor=1):
     """
     Create a requests session with retry logic for transient failures.
     Automatically retries on server errors (5xx) with exponential backoff.
+
+    Example: With retries=3 and backoff_factor=3:
+      - 1st retry after 3s
+      - 2nd retry after 6s
+      - 3rd retry after 12s
     """
     session = requests.Session()
     retry_strategy = Retry(
         total=retries,
         backoff_factor=backoff_factor,
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"]
+        allowed_methods=["GET"],
+        raise_on_status=False  # Let us handle errors manually for better logging
     )
     adapter = HTTPAdapter(max_retries=retry_strategy)
     session.mount("http://", adapter)
@@ -93,8 +111,10 @@ def geocode_zip_code(zip_code: str, session: requests.Session = None) -> dict | 
         print(f"   ❌ Unexpected error geocoding ZIP {zip_code}: {e}")
         return None
 
-def fix_missing_geometry():
+def fix_missing_geometry(brand_filter: set[str] | None = None):
     print("🔍 Querying database for stores missing geometry...")
+    if brand_filter:
+        print(f"   🔖 Brand filter applied: {', '.join(sorted(brand_filter))}")
 
     # Statistics tracking
     stats = {
@@ -106,11 +126,12 @@ def fix_missing_geometry():
 
     # Check how many stores are being skipped due to high failure counts
     # Includes both NULL geometry and stores with centroids
-    skipped_response = supabase.table("grocery_stores") \
+    skipped_query = supabase.table("grocery_stores") \
         .select("id", count="exact") \
         .or_("geom.is.null,address.like.*centroid*") \
-        .gte("failure_count", 3) \
-        .execute()
+        .gte("failure_count", 3)
+
+    skipped_response = apply_brand_filter(skipped_query, brand_filter).execute()
 
     skipped_count = skipped_response.count or 0
     if skipped_count > 0:
@@ -120,11 +141,12 @@ def fix_missing_geometry():
     # zip_code (the primary lookup key), failure_count, and address
     # Process stores with NULL geometry OR centroid addresses (to try upgrading)
     # Only process stores that haven't failed 3+ times
-    response = supabase.table("grocery_stores") \
+    missing_query = supabase.table("grocery_stores") \
         .select("id, store_enum, zip_code, name, failure_count, address") \
         .or_("geom.is.null,address.like.*centroid*") \
-        .lt("failure_count", 3) \
-        .execute()
+        .lt("failure_count", 3)
+
+    response = apply_brand_filter(missing_query, brand_filter).execute()
 
     missing_data = response.data
     if not missing_data:
@@ -143,6 +165,17 @@ def fix_missing_geometry():
         if brand not in queue:
             queue[brand] = []
         queue[brand].append(item)
+
+    # Limit brands per run if MAX_SPIDERS_PER_RUN is set
+    if MAX_SPIDERS_PER_RUN and len(queue) > MAX_SPIDERS_PER_RUN:
+        # Sort brands by number of stores (process brands with most missing stores first)
+        sorted_brands = sorted(queue.items(), key=lambda x: len(x[1]), reverse=True)
+        queue = dict(sorted_brands[:MAX_SPIDERS_PER_RUN])
+        skipped_brands = len(sorted_brands) - MAX_SPIDERS_PER_RUN
+        skipped_stores = sum(len(stores) for _, stores in sorted_brands[MAX_SPIDERS_PER_RUN:])
+        print(f"⚙️  MAX_SPIDERS_PER_RUN={MAX_SPIDERS_PER_RUN}: Processing {len(queue)} brands")
+        print(f"   Skipping {skipped_brands} brands ({skipped_stores} stores) for this run")
+        print(f"   Run again to process remaining brands")
 
     # Track updates to batch them
     batch_updates = []
@@ -168,7 +201,8 @@ def fix_missing_geometry():
             print(f"⚠️ No spider mapped for brand enum: {brand_enum}")
             continue
 
-        print(f"📂 Processing spider '{spider}' for {len(stores)} missing points...")
+        print(f"\n📂 [{spider_count}/{total_spiders}] Processing spider '{spider}' for {len(stores)} missing points...")
+        print(f"   URL: https://data.alltheplaces.xyz/runs/latest/output/{spider}.geojson")
         url = f"https://data.alltheplaces.xyz/runs/latest/output/{spider}.geojson"
 
         # Create a dictionary for O(1) lookup by ZIP code
@@ -182,13 +216,15 @@ def fix_missing_geometry():
 
         try:
             # Create session with retry logic for transient failures
-            session = create_retry_session(retries=3, backoff_factor=1)
+            # Higher backoff_factor to avoid hammering struggling servers
+            session = create_retry_session(retries=3, backoff_factor=3)
 
-            # Fetch GeoJSON with automatic gzip decompression
-            with session.get(url, timeout=120) as r:
+            # Fetch GeoJSON with streaming to avoid loading entire file into memory
+            # This is crucial for large spider files (some are 100MB+)
+            with session.get(url, stream=True, timeout=120) as r:
                 r.raise_for_status()
-                # r.content auto-decompresses gzip, io.BytesIO provides file-like interface
-                features = ijson.items(io.BytesIO(r.content), 'features.item')
+                # Stream directly from response - much more memory efficient
+                features = ijson.items(r.raw, 'features.item')
 
                 for feature in features:
                     props = feature.get('properties', {})
@@ -227,6 +263,9 @@ def fix_missing_geometry():
         except requests.exceptions.HTTPError as e:
             if e.response.status_code >= 500:
                 print(f"   ❌ Server error {e.response.status_code} for {spider} - retries exhausted")
+                print(f"   💡 All the Places server may be overloaded. Consider:")
+                print(f"       • Using --brand to process fewer spiders")
+                print(f"       • Running at off-peak hours")
                 print(f"   ⏳ Waiting {DELAY_AFTER_ERROR}s before continuing to let server recover...")
                 time.sleep(DELAY_AFTER_ERROR)
             else:
@@ -391,5 +430,38 @@ def fix_missing_geometry():
     print(f"   Total processed:        {total_processed} ({total_precise} precise locations)")
     print(f"{'='*60}\n")
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Fill in missing grocery store geometry.")
+    parser.add_argument(
+        "--brand",
+        "-b",
+        action="append",
+        help="Limit the run to specific store_enum values (comma or space separated; can be repeated)."
+    )
+    return parser.parse_args()
+
+
+def _gather_brand_filter(args: argparse.Namespace) -> set[str] | None:
+    raw_values: list[str] = []
+    raw_values.extend(args.brand or [])
+    env_value = os.environ.get("BRAND_FILTER")
+    if env_value:
+        raw_values.append(env_value)
+
+    expanded: list[str] = []
+    for raw in raw_values:
+        if not raw:
+            continue
+        # Replace commas with spaces so we can split on whitespace cleanly
+        for part in raw.replace(",", " ").split():
+            candidate = part.strip()
+            if candidate:
+                expanded.append(candidate)
+
+    return set(expanded) if expanded else None
+
+
 if __name__ == "__main__":
-    fix_missing_geometry()
+    args = _parse_args()
+    brand_filter = _gather_brand_filter(args)
+    fix_missing_geometry(brand_filter)
