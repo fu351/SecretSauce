@@ -843,6 +843,29 @@ export type Database = {
           delivery_date?: string | null
         }
       }
+      user_preferred_stores: {
+        Row: {
+          profile_id: string
+          grocery_store_id: string
+          store_enum: Database["public"]["Enums"]["grocery_store"]
+          distance_miles: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          profile_id: string
+          grocery_store_id: string
+          store_enum: Database["public"]["Enums"]["grocery_store"]
+          distance_miles?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          profile_id?: string
+          grocery_store_id?: string
+          store_enum?: Database["public"]["Enums"]["grocery_store"]
+          distance_miles?: number | null
+          updated_at?: string | null
+        }
+      }
       store_locations_cache: {
         Row: {
           id: number
@@ -968,6 +991,20 @@ export type Database = {
           exchange_inc?: number
         }
         Returns: void
+      }
+      get_closest_stores: {
+        Args: {
+          user_id: string
+        }
+        Returns: {
+          store_id: string
+          store_name: string
+          store_brand: Database["public"]["Enums"]["grocery_store"]
+          distance_miles: number
+          latitude: number
+          longitude: number
+          geojson: Json
+        }[]
       }
       get_smart_trending_recommendations: {
         Args: {
