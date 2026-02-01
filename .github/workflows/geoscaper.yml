@@ -1,0 +1,34 @@
+name: Real-time GeoScraper
+on:
+  workflow_dispatch:
+    inputs:
+      zip_code:
+        description: 'ZIP to scrape'
+        required: true
+      brand:
+        description: 'Optional Brand filter'
+        required: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install supabase requests ijson
+
+      - name: Run Geoscraper
+        # We pass the input from the webhook dispatch to the script
+        run: |
+          python scripts/geoscraper.py --zip "${{ github.event.inputs.zip_code }}" \
+          ${{ github.event.inputs.brand && format('--brand {0}', github.event.inputs.brand) || '' }}
