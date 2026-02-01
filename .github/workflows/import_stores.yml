@@ -48,10 +48,12 @@ jobs:
 
       - name: Update Target ZIP Codes
         # Refresh the list of ZIP codes to scrape based on user locations
+        # Automatically adds neighboring ZIP codes (±5 from each user ZIP)
+        # e.g., user in 94102 → also scrapes 94097-94101, 94103-94107
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scripts/update_target_zipcodes.py
+        run: python scripts/update_target_zipcodes.py --neighbor-radius 5
         continue-on-error: true # Don't fail if this step fails
 
       - name: Import Stores (${{ matrix.brand_group }})
@@ -84,10 +86,12 @@ jobs:
 
       - name: Update Target ZIP Codes
         # Refresh the list of ZIP codes to scrape based on user locations
+        # Automatically adds neighboring ZIP codes (±5 from each user ZIP)
+        # e.g., user in 94102 → also scrapes 94097-94101, 94103-94107
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scripts/update_target_zipcodes.py
+        run: python scripts/update_target_zipcodes.py --neighbor-radius 5
         continue-on-error: true # Don't fail if this step fails
 
       - name: Import Stores (Manual)

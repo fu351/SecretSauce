@@ -3,13 +3,16 @@
 Update target ZIP codes based on user locations.
 
 This script identifies which ZIP codes should be scraped for grocery stores
-based on where users are located and their grocery_distance_miles preference.
+based on user ZIP codes in the profiles table.
 
 Usage:
     python scripts/update_target_zipcodes.py
+    python scripts/update_target_zipcodes.py --no-neighbors
+    python scripts/update_target_zipcodes.py --neighbor-radius 10
 """
 
 import os
+import argparse
 from supabase import create_client, Client
 
 # Setup
@@ -18,24 +21,38 @@ KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(URL, KEY)
 
 
-def update_target_zipcodes():
+def update_target_zipcodes(add_neighbors=True, neighbor_radius=5):
     """
     Update the target_zipcodes table based on current user locations.
 
     This calls the database function that:
-    1. Finds all users with locations
+    1. Finds all users with ZIP codes
     2. Adds their ZIP codes as targets
-    3. Finds nearby ZIPs within their grocery_distance_miles
-    4. Prioritizes ZIPs by number of users
+    3. Prioritizes ZIPs by number of users
+    4. Optionally adds neighboring ZIPs (numeric proximity)
     """
-    print("🎯 Updating target ZIP codes based on user locations...")
+    print("🎯 Updating target ZIP codes based on user ZIP codes...")
 
     try:
         # Call the database function
         result = supabase.rpc('update_target_zipcodes').execute()
 
         count = result.data if result.data is not None else 0
-        print(f"   ✅ Processed {count} ZIP code entries")
+        print(f"   ✅ Processed {count} user ZIP codes")
+
+        # Optionally add neighboring ZIPs based on numeric proximity
+        if add_neighbors and count > 0:
+            print(f"   🔍 Adding neighboring ZIP codes (radius: {neighbor_radius})...")
+            try:
+                neighbor_result = supabase.rpc('add_neighbor_zipcodes', {
+                    'radius': neighbor_radius
+                }).execute()
+
+                neighbor_count = neighbor_result.data if neighbor_result.data is not None else 0
+                print(f"   ✅ Added {neighbor_count} neighboring ZIP codes")
+            except Exception as e:
+                print(f"   ⚠️  Could not add neighboring ZIPs: {e}")
+                print(f"   ℹ️  This is optional - continuing with just user ZIPs")
 
         # Get statistics
         stats_query = supabase.table("target_zipcodes").select("reason", count="exact")
@@ -100,10 +117,30 @@ def get_unscraped_target_count():
 
 
 if __name__ == "__main__":
-    total = update_target_zipcodes()
+    parser = argparse.ArgumentParser(description="Update target ZIP codes based on user locations.")
+    parser.add_argument(
+        "--no-neighbors",
+        action="store_true",
+        help="Don't add neighboring ZIP codes (only use exact user ZIPs)"
+    )
+    parser.add_argument(
+        "--neighbor-radius",
+        type=int,
+        default=5,
+        help="How many neighboring ZIPs to add on each side (default: 5)"
+    )
+    args = parser.parse_args()
+
+    total = update_target_zipcodes(
+        add_neighbors=not args.no_neighbors,
+        neighbor_radius=args.neighbor_radius
+    )
 
     if total > 0:
         print(f"\n💡 Next steps:")
         print(f"   1. Run import_new_stores.py to scrape these target ZIP codes")
         print(f"   2. The script will prioritize ZIPs with more users")
         print(f"   3. Already-scraped ZIPs will be skipped (unless refreshing)")
+    else:
+        print(f"\n⚠️  No users with ZIP codes found!")
+        print(f"   Make sure users have zip_code set in the profiles table")
