@@ -221,20 +221,20 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
                     city = props.get('addr:city', props.get('city', ''))
                     state = props.get('addr:state', props.get('state', ''))
 
-                    # Build full address
+                    # Build street address (without city/state)
                     address_parts = []
                     if housenumber and street:
                         address_parts.append(f"{housenumber} {street}")
                     elif street:
                         address_parts.append(street)
 
-                    full_address = ', '.join(filter(None, address_parts)) if address_parts else None
+                    street_address = ', '.join(filter(None, address_parts)) if address_parts else None
 
-                    # Prepare store record
+                    # Prepare store record with separate city and state columns
                     store_record = {
                         "store_enum": brand_enum,
                         "name": name,
-                        "address": full_address,
+                        "address": street_address,  # Just street address
                         "city": city or None,
                         "state": state or None,
                         "zip_code": zip_code,
