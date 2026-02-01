@@ -3,6 +3,7 @@ import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
 import { recipeIngredientsDB } from "./database/recipe-ingredients-db"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "./database/ingredients-db"
+import { normalizeZipCode } from "./utils/zip"
 
 type DB = Database["public"]["Tables"]
 type IngredientRecentRow = DB["ingredients_recent"]["Row"]
@@ -194,22 +195,13 @@ type StoreLookupOptions = {
   allowRealTimeScraping?: boolean // If false, only return cached results
 }
 
-function normalizeZipInput(value?: string | null): string | undefined {
-  if (!value) return undefined
-  const match = value.match(/\b\d{5}(?:-\d{4})?\b/)
-  if (match) return match[0].slice(0, 5)
-  const trimmed = value.trim()
-  if (/^\d{5}$/.test(trimmed)) return trimmed
-  return undefined
-}
-
 async function runStoreScraper(
   store: string,
   canonicalName: string,
   options: StoreLookupOptions = {}
 ): Promise<ScraperResult[]> {
   const normalizedStore = normalizeStoreName(store);
-  const zip = normalizeZipInput(options.zipCode);
+  const zip = normalizeZipCode(options.zipCode);
 
   try {
     console.log("[ingredient-pipeline] Running scraper", { store: normalizedStore, canonicalName, zip });

@@ -20,7 +20,7 @@ import {
 import type { StoreComparison } from "@/lib/types/store"
 import { StoreMap } from "@/components/store/store-map"
 import { useClosestStore } from "@/hooks" // Ensure this path is correct
-import { getUserLocation } from "@/lib/geocoding"
+import { getUserLocation } from "@/lib/geocoding-adapter"
 import Image from "next/image"
 
 // Map store names to logo files

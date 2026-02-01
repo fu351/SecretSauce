@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@/lib/database/supabase"
 import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
+import { normalizeZipCode } from "@/lib/utils/zip"
 
 // List of stores to scrape
 const STORES = [
@@ -13,7 +14,7 @@ const STORES = [
   "Safeway",
   "Trader Joes"
 ]
-const DEFAULT_ZIP_CODE = "94704"
+const FALLBACK_DAILY_ZIP = normalizeZipCode(process.env.ZIP_CODE ?? process.env.DEFAULT_ZIP_CODE)
 
 const INGREDIENT_STOP_WORDS = new Set([
   "fresh",
@@ -65,7 +66,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log("Starting daily ingredient scraper...")
+    const url = new URL(request.url)
+    const zipParam = url.searchParams.get("zipCode") || ""
+    const normalizedZipParam = normalizeZipCode(zipParam)
+    const zipToUse = normalizedZipParam ?? FALLBACK_DAILY_ZIP
+
+    if (!zipToUse) {
+      return NextResponse.json(
+        { error: "zipCode is required" },
+        { status: 400 }
+      )
+    }
+
+    console.log("Starting daily ingredient scraper...", { zipCode: zipToUse })
     const client = createServerClient()
 
     // Get all standardized ingredients
@@ -96,7 +109,7 @@ export async function GET(request: NextRequest) {
       try {
         // Scrape from each store
         const storePromises = STORES.map((store) =>
-          scrapeAndCacheIngredient(ingredient.id, ingredient.canonical_name, store)
+          scrapeAndCacheIngredient(ingredient.id, ingredient.canonical_name, store, zipToUse)
             .then(() => {
               results.cached++
             })
@@ -136,7 +149,7 @@ export async function GET(request: NextRequest) {
 /**
  * Scrape a single ingredient from a specific store and cache the result
  */
-async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: string, store: string) {
+async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: string, store: string, zipCode: string) {
   try {
     const scrapers = require("@/lib/scrapers")
 
@@ -144,30 +157,30 @@ async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: st
     let scrapedItems: any[] = []
 
     switch (store) {
-      case "Target":
-        scrapedItems = (await scrapers.getTargetProducts(ingredientName, null, DEFAULT_ZIP_CODE)) || []
-        break
-      case "Kroger":
-        scrapedItems = (await scrapers.Krogers(DEFAULT_ZIP_CODE, ingredientName)) || []
-        break
-      case "Meijer":
-        scrapedItems = (await scrapers.Meijers(DEFAULT_ZIP_CODE, ingredientName)) || []
-        break
-      case "99 Ranch":
-        scrapedItems = (await scrapers.search99Ranch(ingredientName, DEFAULT_ZIP_CODE)) || []
-        break
-      case "Walmart":
-        scrapedItems = (await scrapers.searchWalmartAPI(ingredientName, DEFAULT_ZIP_CODE)) || []
-        break
-      case "Aldi":
-        scrapedItems = (await scrapers.searchAldi(ingredientName, DEFAULT_ZIP_CODE)) || []
-        break
-      case "Safeway":
-        scrapedItems = (await scrapers.searchSafeway(ingredientName, DEFAULT_ZIP_CODE)) || []
-        break
-      case "Trader Joes":
-        scrapedItems = (await scrapers.searchTraderJoes(ingredientName, DEFAULT_ZIP_CODE)) || []
-        break
+        case "Target":
+          scrapedItems = (await scrapers.getTargetProducts(ingredientName, null, zipCode)) || []
+          break
+        case "Kroger":
+          scrapedItems = (await scrapers.Krogers(zipCode, ingredientName)) || []
+          break
+        case "Meijer":
+          scrapedItems = (await scrapers.Meijers(zipCode, ingredientName)) || []
+          break
+        case "99 Ranch":
+          scrapedItems = (await scrapers.search99Ranch(ingredientName, zipCode)) || []
+          break
+        case "Walmart":
+          scrapedItems = (await scrapers.searchWalmartAPI(ingredientName, zipCode)) || []
+          break
+        case "Aldi":
+          scrapedItems = (await scrapers.searchAldi(ingredientName, zipCode)) || []
+          break
+        case "Safeway":
+          scrapedItems = (await scrapers.searchSafeway(ingredientName, zipCode)) || []
+          break
+        case "Trader Joes":
+          scrapedItems = (await scrapers.searchTraderJoes(ingredientName, zipCode)) || []
+          break
       default:
         throw new Error(`Unknown store: ${store}`)
     }
@@ -180,28 +193,28 @@ async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: st
 
         switch (store) {
           case "Target":
-            scrapedItems = (await scrapers.getTargetProducts(simplifiedName, null, DEFAULT_ZIP_CODE)) || []
+            scrapedItems = (await scrapers.getTargetProducts(simplifiedName, null, zipCode)) || []
             break
           case "Kroger":
-            scrapedItems = (await scrapers.Krogers(DEFAULT_ZIP_CODE, simplifiedName)) || []
+            scrapedItems = (await scrapers.Krogers(zipCode, simplifiedName)) || []
             break
           case "Meijer":
-            scrapedItems = (await scrapers.Meijers(DEFAULT_ZIP_CODE, simplifiedName)) || []
+            scrapedItems = (await scrapers.Meijers(zipCode, simplifiedName)) || []
             break
           case "99 Ranch":
-            scrapedItems = (await scrapers.search99Ranch(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            scrapedItems = (await scrapers.search99Ranch(simplifiedName, zipCode)) || []
             break
           case "Walmart":
-            scrapedItems = (await scrapers.searchWalmartAPI(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            scrapedItems = (await scrapers.searchWalmartAPI(simplifiedName, zipCode)) || []
             break
           case "Aldi":
-            scrapedItems = (await scrapers.searchAldi(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            scrapedItems = (await scrapers.searchAldi(simplifiedName, zipCode)) || []
             break
           case "Safeway":
-            scrapedItems = (await scrapers.searchSafeway(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            scrapedItems = (await scrapers.searchSafeway(simplifiedName, zipCode)) || []
             break
           case "Trader Joes":
-            scrapedItems = (await scrapers.searchTraderJoes(simplifiedName, DEFAULT_ZIP_CODE)) || []
+            scrapedItems = (await scrapers.searchTraderJoes(simplifiedName, zipCode)) || []
             break
         }
       }
@@ -233,7 +246,7 @@ async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: st
         productName: (cheapest.title || cheapest.name || ingredientName) ?? null,
         productId: (cheapest.id || null) ?? null,
         location: null,
-        zipCode: DEFAULT_ZIP_CODE,
+        zipCode,
       })
 
       if (!successRow) {

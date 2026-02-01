@@ -5,6 +5,7 @@ import {
   resolveStandardizedIngredientForRecipe,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
+import { normalizeZipCode } from "@/lib/utils/zip"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",
@@ -16,6 +17,8 @@ const DEFAULT_STORE_KEYS = [
   "aldi",
   "safeway",
 ]
+
+const FALLBACK_BATCH_ZIP = normalizeZipCode(process.env.ZIP_CODE ?? process.env.DEFAULT_ZIP_CODE)
 
 interface BatchIngredient {
   name: string
@@ -66,10 +69,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { ingredients, zipCode = "94704", forceRefresh = false } = body as {
+    const { ingredients, zipCode, forceRefresh = false } = body as {
       ingredients: BatchIngredient[]
       zipCode?: string
       forceRefresh?: boolean
+    }
+    const requestedZip = normalizeZipCode(zipCode)
+    const zipToUse = requestedZip ?? FALLBACK_BATCH_ZIP
+
+    if (!zipToUse) {
+      return NextResponse.json(
+        { error: "zipCode is required" },
+        { status: 400 }
+      )
     }
 
     if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
@@ -79,7 +91,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`[Batch Scraper] Processing ${ingredients.length} ingredients for zip ${zipCode}`)
+    console.log(`[Batch Scraper] Processing ${ingredients.length} ingredients for zip ${zipToUse}`)
 
     const supabaseClient = createServerClient()
     const results: IngredientResult[] = []
@@ -149,7 +161,7 @@ export async function POST(request: NextRequest) {
         const cachedRows: IngredientCacheResult[] = await getOrRefreshIngredientPricesForStores(
           standardizedIngredientId,
           DEFAULT_STORE_KEYS,
-          { zipCode, forceRefresh }
+          { zipCode: zipToUse, forceRefresh }
         )
 
         // Build result map
@@ -241,7 +253,7 @@ export async function POST(request: NextRequest) {
         durationMs: duration
       },
       results: ingredientResults,
-      zipCode
+      zipCode: zipToUse
     })
 
   } catch (error) {

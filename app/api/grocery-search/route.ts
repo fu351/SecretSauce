@@ -7,6 +7,8 @@ import {
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
 import { createServerClient } from "@/lib/database/supabase"
+import { normalizeZipCode } from "@/lib/utils/zip"
+import { profileDB } from "@/lib/database/profile-db"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",
@@ -20,6 +22,26 @@ const DEFAULT_STORE_KEYS = [
   "wholefoods",
   "safeway",
 ]
+
+const FALLBACK_ZIP_CODE = normalizeZipCode(process.env.ZIP_CODE ?? process.env.DEFAULT_ZIP_CODE)
+
+function extractSupabaseAccessToken(request: NextRequest): string | null {
+  const headerToken = request.headers
+    .get("authorization")
+    ?.replace(/^Bearer\s+/i, "")
+    ?.trim()
+
+  if (headerToken) {
+    return headerToken
+  }
+
+  return (
+    request.cookies.get("sb-access-token")?.value ??
+    request.cookies.get("supabase-access-token")?.value ??
+    request.cookies.get("supabase-auth-token")?.value ??
+    null
+  )
+}
 
 async function scrapeDirectFallback(
   term: string,
@@ -161,15 +183,6 @@ async function scrapeDirectFallback(
   }
 }
 
-function normalizeZipInput(value?: string | null): string | undefined {
-  if (!value) return undefined
-  const match = value.match(/\b\d{5}(?:-\d{4})?\b/)
-  if (match) return match[0].slice(0, 5)
-  const trimmed = value.trim()
-  if (/^\d{5}$/.test(trimmed)) return trimmed
-  return undefined
-}
-
 async function resolveStandardizedIdForTerm(
   supabaseClient: ReturnType<typeof createServerClient>,
   term: string,
@@ -193,11 +206,13 @@ export async function GET(request: NextRequest) {
   // Debug logging version: 2025-11-23-v3
   console.log("[grocery-search] API endpoint hit", { timestamp: new Date().toISOString() })
 
+  const supabaseAccessToken = extractSupabaseAccessToken(request)
+
   const { searchParams } = new URL(request.url)
   const rawSearchTerm = searchParams.get("searchTerm") || ""
   const sanitizedSearchTerm = (rawSearchTerm.split(",")[0] || "").trim() || rawSearchTerm.trim()
   const zipParam = searchParams.get("zipCode") || ""
-  let zipToUse = normalizeZipInput(zipParam)
+  let zipToUse = normalizeZipCode(zipParam)
   const recipeId = searchParams.get("recipeId")
   const rawStoreParam = (searchParams.get("store") || "").trim()
   const storeKey = resolveStoreKey(rawStoreParam)
@@ -207,25 +222,30 @@ export async function GET(request: NextRequest) {
   const supabaseClient = createServerClient()
 
   // Prefer current user's profile zip_code if logged in
-  if (!zipToUse) {
-    try {
-      const { data: authUserRes } = await supabaseClient.auth.getUser()
-      const userId = authUserRes?.user?.id
-      if (userId) {
-        const { data: profile } = await supabaseClient
-          .from("profiles")
-          .select("zip_code")
-          .eq("id", userId)
-          .maybeSingle()
-        zipToUse = normalizeZipInput(profile?.zip_code)
+  let profileZip: string | null = null
+  try {
+    const { data: authUserRes } = await supabaseClient.auth.getUser(supabaseAccessToken ?? undefined)
+    const userId = authUserRes?.user?.id
+    if (userId) {
+      const profile = await profileDB.fetchProfileFields(userId, ["zip_code"])
+      profileZip = normalizeZipCode(profile?.zip_code)
+      if (profileZip) {
+        zipToUse = profileZip
+        console.log("[grocery-search] Using profile zip code", { profileZip })
       }
-    } catch (error) {
-      console.warn("[grocery-search] Failed to derive zip from current user profile", error)
     }
+  } catch (error) {
+    console.warn("[grocery-search] Failed to derive zip from current user profile", error)
   }
 
   if (!zipToUse) {
-    zipToUse = "47906"
+    zipToUse = FALLBACK_ZIP_CODE
+  }
+
+  console.log("[grocery-search] Resolved zip code", { zipToUse })
+
+  if (!zipToUse) {
+    return NextResponse.json({ error: "Zip code is required" }, { status: 400 })
   }
 
   if (!sanitizedSearchTerm) {

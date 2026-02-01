@@ -9,6 +9,16 @@ type GroceryStoreInsert = Database["public"]["Tables"]["grocery_stores"]["Insert
 type GroceryStoreUpdate = Database["public"]["Tables"]["grocery_stores"]["Update"]
 
 /**
+ * Extended type for stores with distance data from spatial queries
+ */
+export type StoreWithDistance = GroceryStoreRow & {
+  lat: number
+  lng: number
+  distance_meters: number
+  distance_miles: number
+}
+
+/**
  * Database operations for grocery_stores
  * Singleton class extending BaseTable for managing grocery store locations
  */
@@ -171,6 +181,112 @@ class GroceryStoresTable extends BaseTable<
     }
 
     return true
+  }
+
+  /**
+   * Find stores within a radius of given coordinates using PostGIS spatial query
+   * @param lat - Latitude
+   * @param lng - Longitude
+   * @param radiusMiles - Search radius in miles (default: 10)
+   * @param storeEnum - Optional filter by specific store brand
+   */
+  async findNearby(
+    lat: number,
+    lng: number,
+    radiusMiles: number = 10,
+    storeEnum?: Database["public"]["Enums"]["grocery_store"]
+  ): Promise<StoreWithDistance[]> {
+    const radiusMeters = radiusMiles * 1609.34
+
+    const { data, error } = await this.supabase.rpc("find_nearby_stores", {
+      p_lat: lat,
+      p_lng: lng,
+      p_radius_meters: radiusMeters,
+      p_store_enum: storeEnum || null,
+    })
+
+    if (error) {
+      this.handleError(error, `findNearby(${lat}, ${lng}, ${radiusMiles}, ${storeEnum})`)
+      return []
+    }
+
+    return (data || []) as StoreWithDistance[]
+  }
+
+  /**
+   * Find the closest store of a specific brand to given coordinates
+   * @param lat - Latitude
+   * @param lng - Longitude
+   * @param storeEnum - Store brand to search for
+   * @param radiusMiles - Maximum search radius in miles (default: 10)
+   */
+  async findClosest(
+    lat: number,
+    lng: number,
+    storeEnum: Database["public"]["Enums"]["grocery_store"],
+    radiusMiles: number = 10
+  ): Promise<StoreWithDistance | null> {
+    const stores = await this.findNearby(lat, lng, radiusMiles, storeEnum)
+    return stores.length > 0 ? stores[0] : null
+  }
+
+  /**
+   * Find the closest store for each of multiple brands
+   * Returns a map of store_enum -> store data
+   * @param lat - Latitude
+   * @param lng - Longitude
+   * @param storeEnums - Array of store brands to search for
+   * @param radiusMiles - Maximum search radius in miles (default: 10)
+   */
+  async findClosestForBrands(
+    lat: number,
+    lng: number,
+    storeEnums: Database["public"]["Enums"]["grocery_store"][],
+    radiusMiles: number = 10
+  ): Promise<Map<string, StoreWithDistance>> {
+    const result = new Map<string, StoreWithDistance>()
+
+    // Get all nearby stores first (single query)
+    const allStores = await this.findNearby(lat, lng, radiusMiles)
+
+    // Group by store_enum and take the closest for each
+    for (const storeEnum of storeEnums) {
+      const storesForBrand = allStores.filter((s) => s.store_enum === storeEnum)
+      if (storesForBrand.length > 0) {
+        // Already sorted by distance, so first is closest
+        result.set(storeEnum, storesForBrand[0])
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Find stores near an authenticated user's profile location
+   * Uses the user's stored latitude/longitude from their profile
+   * @param userId - User's UUID from auth.users
+   * @param storeEnum - Optional filter by specific store brand
+   * @param radiusMiles - Search radius in miles (default: 10)
+   */
+  async findStoresNearUser(
+    userId: string,
+    storeEnum?: Database["public"]["Enums"]["grocery_store"],
+    radiusMiles: number = 10
+  ): Promise<StoreWithDistance[]> {
+    const radiusMeters = radiusMiles * 1609.34
+
+    const { data, error } = await this.supabase.rpc("find_stores_near_user", {
+      p_user_id: userId,
+      p_radius_meters: radiusMeters,
+      p_store_enum: storeEnum || null,
+    })
+
+    if (error) {
+      this.handleError(error, `findStoresNearUser(${userId}, ${storeEnum}, ${radiusMiles})`)
+      return []
+    }
+
+    return (data || []) as StoreWithDistance[]
   }
 }
 

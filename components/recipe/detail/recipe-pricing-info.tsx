@@ -6,6 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RecipePricingSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { recipeDB } from "@/lib/database/recipe-db"
 import Image from "next/image"
+import { useAuth } from "@/contexts/auth-context"
+import { profileDB } from "@/lib/database/profile-db"
+import { normalizeZipCode } from "@/lib/utils/zip"
 
 {/*TODO FIX: Currently only fetches from a few stores. Expand to more stores and make store list configurable by user.*/}
 
@@ -30,19 +33,54 @@ const getStoreLogoPath = (store: string) => {
 export function RecipePricingInfo({ 
   recipeId, 
   servings = 2, 
-  zipCode = "47906" 
+  zipCode 
 }: RecipePricingProps) {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pricingResults, setPricingResults] = useState<any[]>([])
+  const [profileZipCode, setProfileZipCode] = useState<string | null>(null)
+  const resolvedZipCode = normalizeZipCode(zipCode || profileZipCode)
+  const displayZipCode = resolvedZipCode || zipCode || "your area"
+
+  useEffect(() => {
+    if (!user) {
+      setProfileZipCode(null)
+      return
+    }
+
+    let isActive = true
+    void (async () => {
+      try {
+        const data = await profileDB.fetchProfileFields(user.id, ["zip_code"])
+        if (isActive) {
+          setProfileZipCode(data?.zip_code ?? null)
+        }
+      } catch (fetchError) {
+        console.error("[RecipePricingInfo] Failed to load profile zip:", fetchError)
+      }
+    })()
+
+    return () => {
+      isActive = false
+    }
+  }, [user])
 
   useEffect(() => {
     async function fetchAllPricing() {
+      if (!resolvedZipCode) {
+        setError("Set a ZIP code to fetch pricing.")
+        setPricingResults([])
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       try {
+        setError(null)
         // Fetch pricing for all supported stores in parallel
         const pricePromises = STORES_TO_CHECK.map(store => 
-          recipeDB.calculateCostEstimate(recipeId, store, zipCode, servings)
+          recipeDB.calculateCostEstimate(recipeId, store, resolvedZipCode, servings)
         )
         
         const results = await Promise.all(pricePromises)
@@ -67,7 +105,7 @@ export function RecipePricingInfo({
     }
 
     fetchAllPricing()
-  }, [recipeId, servings, zipCode])
+  }, [recipeId, servings, resolvedZipCode])
 
   if (loading) return <RecipePricingSkeleton />
 
@@ -82,7 +120,7 @@ export function RecipePricingInfo({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            No local price data found for these ingredients in {zipCode}.
+            {error ?? `No local price data found for these ingredients in ${displayZipCode}.`}
           </p>
         </CardContent>
       </Card>

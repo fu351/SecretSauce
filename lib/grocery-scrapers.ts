@@ -1,3 +1,5 @@
+import { normalizeZipCode } from "@/lib/utils/zip"
+
 interface GroceryItem {
   id: string
   title: string
@@ -19,7 +21,7 @@ interface StoreResults {
 
 export async function searchGroceryStores(
   searchTerm: string,
-  zipCode = "47906",
+  zipCode?: string,
   store?: string,
   recipeId?: string,
   forceRefresh?: boolean
@@ -31,8 +33,11 @@ export async function searchGroceryStores(
     const storeQuery = store ? `&store=${encodeURIComponent(store)}` : ""
     const recipeQuery = recipeId ? `&recipeId=${encodeURIComponent(recipeId)}` : ""
     const forceRefreshQuery = forceRefresh ? "&forceRefresh=true" : ""
+    const normalizedZip = normalizeZipCode(zipCode)
+    const zipQuery = normalizedZip ? `&zipCode=${normalizedZip}` : ""
+
     const response = await fetch(
-      `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}&zipCode=${zipCode}${storeQuery}${recipeQuery}${forceRefreshQuery}`,
+      `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}${zipQuery}${storeQuery}${recipeQuery}${forceRefreshQuery}`,
       { signal: controller.signal }
     )
 

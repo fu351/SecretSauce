@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react"
 import { APIProvider, Map as GoogleMap, useMap } from "@vis.gl/react-google-maps"
 import { useTheme } from "@/contexts/theme-context"
-import { geocodeMultipleStores, geocodePostalCode, getUserLocation, canonicalizeStoreName } from "@/lib/geocoding"
+import { geocodeMultipleStores, geocodePostalCode, getUserLocation, canonicalizeStoreName } from "@/lib/geocoding-adapter"
 import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
