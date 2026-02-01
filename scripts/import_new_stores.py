@@ -122,6 +122,15 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
         "errors": 0
     }
 
+    zips_with_stores: dict[str, int] = {}
+
+    def record_inserted_zips(records: list[dict]):
+        for record in records:
+            zip_code = record.get("zip_code")
+            if not zip_code:
+                continue
+            zips_with_stores[zip_code] = zips_with_stores.get(zip_code, 0) + 1
+
     # Determine which brands to process
     brands_to_process = brand_filter if brand_filter else set(ENUM_TO_SPIDER.keys())
 
@@ -248,9 +257,11 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
 
                     # Insert in batches to avoid large transactions
                     if len(stores_to_insert) >= BATCH_SIZE:
-                        supabase.table("grocery_stores").insert(stores_to_insert).execute()
-                        stats["new_stores"] += len(stores_to_insert)
-                        print(f"   ✅ Inserted batch of {len(stores_to_insert)} stores")
+                        batch = stores_to_insert
+                        supabase.table("grocery_stores").insert(batch).execute()
+                        stats["new_stores"] += len(batch)
+                        record_inserted_zips(batch)
+                        print(f"   ✅ Inserted batch of {len(batch)} stores")
                         stores_to_insert = []
 
                 print(f"   📊 Processed {store_count} new stores from {spider}")
@@ -284,9 +295,12 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
     # Insert remaining stores
     if stores_to_insert:
         try:
-            supabase.table("grocery_stores").insert(stores_to_insert).execute()
-            stats["new_stores"] += len(stores_to_insert)
-            print(f"\n✅ Inserted final batch of {len(stores_to_insert)} stores")
+            batch = stores_to_insert
+            supabase.table("grocery_stores").insert(batch).execute()
+            stats["new_stores"] += len(batch)
+            record_inserted_zips(batch)
+            print(f"\n✅ Inserted final batch of {len(batch)} stores")
+            stores_to_insert = []
         except Exception as e:
             print(f"\n❌ Error inserting final batch: {e}")
             stats["errors"] += 1
@@ -297,12 +311,6 @@ def import_new_stores(brand_filter: set[str] | None = None, use_target_zipcodes:
     if target_zipcodes and use_target_zipcodes:
         print(f"\n📝 Updating scraped ZIP codes tracking...")
         try:
-            # Track which ZIPs we actually found stores in
-            zips_with_stores = {}
-            for store in stores_to_insert:
-                zip_code = store['zip_code']
-                zips_with_stores[zip_code] = zips_with_stores.get(zip_code, 0) + 1
-
             # Update scraped_zipcodes table
             for zip_code, count in zips_with_stores.items():
                 supabase.table("scraped_zipcodes").upsert({
