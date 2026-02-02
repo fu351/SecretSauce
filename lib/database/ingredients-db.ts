@@ -152,6 +152,7 @@ class IngredientsHistoryTable extends BaseTable<
       location?: string | null
       zipCode?: string | null
       productMappingId?: string | null
+      groceryStoreId?: string | null
     }>
   ): Promise<number> {
     try {
@@ -171,11 +172,12 @@ class IngredientsHistoryTable extends BaseTable<
           location: item.location ?? null,
           zipCode: item.zipCode ?? "",
           productMappingId: item.productMappingId ?? null,
+          store_id: item.groceryStoreId ?? null,
         }))
 
       if (!payload.length) return 0
 
-      const { data, error } = await this.supabase.rpc("bulk_cache_prices", {
+      const { data, error } = await (this.supabase.rpc as any)("bulk_cache_prices", {
         p_items: payload,
       })
 

@@ -16,6 +16,8 @@ export interface GroceryItem {
   image_url: string
   provider: string
   location?: string
+  latitude?: number
+  longitude?: number
   category?: string
   quantity?: number
 }
@@ -53,6 +55,8 @@ export interface StoreComparison {
   outOfRadius?: boolean
   distanceMiles?: number
   locationHint?: string
+  latitude?: number
+  longitude?: number
   missingItems?: boolean
   missingCount?: number
   providerAliases?: string[]

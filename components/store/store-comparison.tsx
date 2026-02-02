@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useMemo, useEffect, useRef, useState } from "react"
+import dynamic from "next/dynamic"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,10 +19,19 @@ import {
 } from "lucide-react"
 
 import type { StoreComparison } from "@/lib/types/store"
-import { StoreMap } from "@/components/store/store-map"
 import { useClosestStore } from "@/hooks" // Ensure this path is correct
 import { getUserLocation } from "@/lib/geocoding-adapter"
 import Image from "next/image"
+
+// Dynamically import StoreMap to prevent SSR issues with Leaflet
+const StoreMap = dynamic(() => import("@/components/store/store-map").then((mod) => mod.StoreMap), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-96 rounded-lg border flex items-center justify-center bg-gray-50">
+      <p className="text-sm text-gray-500">Loading map...</p>
+    </div>
+  ),
+})
 
 // Map store names to logo files
 function titleCaseStore(name: string): string {
@@ -101,10 +111,6 @@ export function StoreComparisonSection({
   // Use results directly from props (server-provided)
   const displayResults = massSearchResults;
 
-  useEffect(() => {
-    console.log("[StoreComparison] render results len", displayResults.length, "loading", comparisonLoading);
-  }, [displayResults.length, comparisonLoading]);
-
   // 1. Get User Location on Mount
   useEffect(() => {
     const fetchLocation = async () => {
@@ -143,7 +149,6 @@ export function StoreComparisonSection({
 
 
   const cheapestIndex = useMemo(() => {
-    console.log("[StoreComparison] compute cheapestIndex", { displayResults });
     if (!displayResults?.length) return -1;
     let bestIdx = 0;
     let min = Number(displayResults[0].total);
@@ -154,12 +159,10 @@ export function StoreComparisonSection({
         bestIdx = idx;
       }
     });
-    console.log("[StoreComparison] cheapestIndex result", { bestIdx, min });
     return bestIdx;
   }, [displayResults]);
 
   const bestValueIndex = useMemo(() => {
-    console.log("[StoreComparison] compute bestValueIndex", { displayResults });
     if (!displayResults?.length) return -1;
     let bestIdx = -1;
     let minScore = Infinity;
@@ -173,7 +176,6 @@ export function StoreComparisonSection({
          bestIdx = idx;
        }
     });
-    console.log("[StoreComparison] bestValueIndex result", { bestIdx, minScore });
     return bestIdx;
   }, [displayResults]);
 

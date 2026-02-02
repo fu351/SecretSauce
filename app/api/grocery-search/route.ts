@@ -8,7 +8,11 @@ import {
 } from "@/lib/ingredient-pipeline"
 import { createServerClient } from "@/lib/database/supabase"
 import { normalizeZipCode } from "@/lib/utils/zip"
+import { normalizeStoreName } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
+import type { Database } from "@/lib/database/supabase"
+import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
+import { getUserPreferredStores, type StoreData } from "@/lib/store/user-preferred-stores"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",
@@ -43,12 +47,16 @@ function extractSupabaseAccessToken(request: NextRequest): string | null {
   )
 }
 
+// getUserPreferredStores and StoreData type moved to @/lib/store/user-preferred-stores
+
+
 async function scrapeDirectFallback(
   term: string,
   stores: string[],
   zip?: string,
   standardizedIngredientId?: string | null,
   supabaseClient?: ReturnType<typeof createServerClient> | null,
+  preferredStoresMap?: Map<string, StoreData>,
 ): Promise<
   Array<{
     id: string
@@ -114,6 +122,10 @@ async function scrapeDirectFallback(
       for (const store of stores) {
         const cached = cachedByStore.get(store.toLowerCase())
         if (cached) {
+          // Get store coordinates from preferredStoresMap if available
+          const metadataKey = normalizeStoreName(store)
+          const storeData = preferredStoresMap?.get(metadataKey)
+
           results.push({
             id: cached.product_id || cached.id,
             title: cached.product_name || term,
@@ -123,6 +135,8 @@ async function scrapeDirectFallback(
             image_url: cached.image_url || null,
             provider: store,
             location: cached.location || null,
+            latitude: storeData?.latitude,
+            longitude: storeData?.longitude,
             fromCache: true,
           })
           cachedStores.push(store)
@@ -147,16 +161,29 @@ async function scrapeDirectFallback(
       .map(async (store) => {
         const scraper = scraperMap[store]
         try {
+          // Get store-specific data from database if available
+          const metadataKey = normalizeStoreName(store)
+          const storeData = preferredStoresMap?.get(metadataKey)
+          const storeZip = storeData?.zip_code || zip
+
+          // Format store location from database
+          const storeLocation = storeData && storeData.address && storeData.city && storeData.state && storeData.zip_code
+            ? `${storeData.address}, ${storeData.city}, ${storeData.state} ${storeData.zip_code}`
+            : null
+
+          console.log(`[scrapeDirectFallback] Scraping ${store} with ${storeData ? 'database' : 'fallback'} zip: ${storeZip}`)
+
           let data: any[] = []
           if (store === "kroger" || store === "meijer") {
-            data = (await scraper(zip, term)) || []
+            data = (await scraper(storeZip, term)) || []
           } else if (store === "target") {
-            data = (await scraper(term, null, zip)) || []
+            // Target scraper accepts store metadata as second parameter
+            data = (await scraper(term, storeData, storeZip)) || []
           } else {
-            data = (await scraper(term, zip)) || []
+            data = (await scraper(term, storeZip)) || []
           }
           if (!Array.isArray(data)) return []
-          return data.map((item: any) => ({
+          const mapped = data.map((item: any) => ({
             id: item.id || `${store}-${Math.random()}`,
             title: item.title || item.name || term,
             price: Number(item.price) || 0,
@@ -164,9 +191,13 @@ async function scrapeDirectFallback(
             pricePerUnit: item.pricePerUnit || null,
             image_url: item.image_url || null,
             provider: store,
-            location: item.location || null,
+            location: storeLocation || item.location || null,
+            latitude: storeData?.latitude,
+            longitude: storeData?.longitude,
             fromCache: false,
           }))
+          console.log("[scrapeDirectFallback] Results", { store, count: mapped.length })
+          return mapped;
         } catch (error) {
           console.warn("[grocery-search] Fallback scraper error", { store, error })
           return []
@@ -219,20 +250,28 @@ export async function GET(request: NextRequest) {
   const storeKeys = storeKey ? [storeKey] : DEFAULT_STORE_KEYS
   const forceRefresh = searchParams.get("forceRefresh") === "true"
 
+  if (rawStoreParam) {
+    console.log(`[grocery-search] Store mapping: "${rawStoreParam}" -> "${storeKey}"`)
+  }
+
   const supabaseClient = createServerClient()
 
-  // Prefer current user's profile zip_code if logged in
+  // Only use profile zip_code as fallback if no zipcode was explicitly provided
   let profileZip: string | null = null
+  let userId: string | null = null
   try {
     const { data: authUserRes } = await supabaseClient.auth.getUser(supabaseAccessToken ?? undefined)
-    const userId = authUserRes?.user?.id
-    if (userId) {
+    userId = authUserRes?.user?.id || null
+    if (userId && !zipToUse) {
+      // Only use profile zip if no zipcode was explicitly provided
       const profile = await profileDB.fetchProfileFields(userId, ["zip_code"])
-      profileZip = normalizeZipCode(profile?.zip_code)
+      profileZip = normalizeZipCode(profile?.zip_code) ?? null
       if (profileZip) {
         zipToUse = profileZip
-        console.log("[grocery-search] Using profile zip code", { profileZip })
+        console.log("[grocery-search] Using profile zip code as fallback", { profileZip })
       }
+    } else if (zipToUse) {
+      console.log("[grocery-search] Using explicitly provided zip code", { zipToUse })
     }
   } catch (error) {
     console.warn("[grocery-search] Failed to derive zip from current user profile", error)
@@ -252,6 +291,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Search term is required" }, { status: 400 })
   }
 
+  const preferredStoresMap = await getUserPreferredStores(
+    supabaseClient,
+    userId,
+    storeKeys,
+    zipToUse,
+  )
+  const preferredStoreMetadata = buildStoreMetadataFromStoreData(preferredStoresMap)
+  const cacheLookupOptions = {
+    zipCode: zipToUse,
+    allowRealTimeScraping: false,
+    storeMetadata: preferredStoreMetadata,
+  }
+
   let standardizedIngredientId: string | null = null
   let cachedRows: IngredientCacheResult[] = []
 
@@ -268,7 +320,20 @@ export async function GET(request: NextRequest) {
   if (forceRefresh) {
     console.log("[grocery-search] Force refresh requested, bypassing cache and scraping directly")
 
-    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, null, null)
+    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, null, null, preferredStoresMap)
+    if (directItems.length === 0) {
+      console.warn("[grocery-search] Force refresh produced 0 items", {
+        term: sanitizedSearchTerm,
+        stores: storeKeys,
+        zip: zipToUse,
+      })
+    } else {
+      console.log("[grocery-search] Force refresh scraped items", {
+        term: sanitizedSearchTerm,
+        count: directItems.length,
+        storesReturned: [...new Set(directItems.map(i => i.provider))],
+      })
+    }
 
     if (directItems.length > 0) {
       // Resolve standardized ID for caching
@@ -287,22 +352,30 @@ export async function GET(request: NextRequest) {
         Promise.resolve()
           .then(async () => {
             // Note: product_mappings are automatically created by fn_resolve_product_mapping trigger
-            const payloads = directItems.map(item => ({
-              standardized_ingredient_id: standardizedIngredientId,
-              store: item.provider.toLowerCase(),
-              product_name: item.title,
-              price: item.price,
-              quantity: 1,
-              unit: item.unit || "unit",
-              unit_price: item.pricePerUnit
-                ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
-                : null,
-              image_url: item.image_url || null,
-              product_id: item.id,
-              product_mapping_id: null, // Trigger will populate this
-              location: item.location || null,
-              zip_code: zipToUse || null,
-            }))
+            const payloads = directItems.map(item => {
+              const metadataKey = normalizeStoreName(item.provider)
+              const storeInfo = preferredStoresMap.get(metadataKey)
+              const groceryStoreId = storeInfo?.storeId ?? storeInfo?.grocery_store_id ?? null
+              const storeZip = storeInfo?.zip_code ?? zipToUse
+
+              return {
+                standardized_ingredient_id: standardizedIngredientId,
+                store: item.provider.toLowerCase(),
+                product_name: item.title,
+                price: item.price,
+                quantity: 1,
+                unit: item.unit || "unit",
+                unit_price: item.pricePerUnit
+                  ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
+                  : null,
+                image_url: item.image_url || null,
+                product_id: item.id,
+                product_mapping_id: null, // Trigger will populate this
+                location: item.location || null,
+                zip_code: storeZip || null,
+                grocery_store_id: groceryStoreId,
+              }
+            })
 
             await supabaseClient
               .from("ingredients_history")
@@ -359,10 +432,7 @@ export async function GET(request: NextRequest) {
       cachedRows = await getOrRefreshIngredientPricesForStores(
         standardizedIngredientId,
         storeKeys,
-        {
-          zipCode: zipToUse,
-          allowRealTimeScraping: false // Only return cached results - daily scraper pre-populates cache
-        }
+        cacheLookupOptions,
       )
 
       const cacheHitStores = cachedRows.map(r => r.store)
@@ -393,10 +463,7 @@ export async function GET(request: NextRequest) {
         stores: storeKeys,
         zipCode: zipToUse,
       })
-      cachedRows = await searchOrCreateIngredientAndPrices(sanitizedSearchTerm, storeKeys, {
-        zipCode: zipToUse,
-        allowRealTimeScraping: false // Only return cached results - daily scraper pre-populates cache
-      })
+      cachedRows = await searchOrCreateIngredientAndPrices(sanitizedSearchTerm, storeKeys, cacheLookupOptions)
 
       console.log("[grocery-search] searchOrCreate workflow completed", {
         searchTerm: sanitizedSearchTerm,
@@ -426,12 +493,14 @@ export async function GET(request: NextRequest) {
       standardizedIngredientId = await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId)
     }
 
+    // Use the preferred store metadata we already fetched
     const directItems = await scrapeDirectFallback(
       sanitizedSearchTerm,
       storeKeys,
       zipToUse,
       standardizedIngredientId,
-      supabaseClient
+      supabaseClient,
+      preferredStoresMap
     )
     if (directItems.length > 0) {
       // Fire-and-forget cache write so the user gets results immediately
@@ -456,22 +525,30 @@ export async function GET(request: NextRequest) {
           // Note: product_mappings are automatically created by fn_resolve_product_mapping trigger
           const freshItems = directItems.filter(item => !item.fromCache)
 
-          const payloads = freshItems.map(item => ({
-            standardized_ingredient_id: standardizedId,
-            store: item.provider.toLowerCase(),
-            product_name: item.title,
-            price: item.price,
-            quantity: 1,
-            unit: item.unit || "unit",
-            unit_price: item.pricePerUnit
-              ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
-              : null,
-            image_url: item.image_url || null,
-            product_id: item.id,
-            product_mapping_id: null, // Trigger will populate this
-            location: item.location || null,
-            zip_code: zipToUse || null,
-          }))
+          const payloads = freshItems.map(item => {
+            const metadataKey = normalizeStoreName(item.provider)
+            const storeInfo = preferredStoresMap.get(metadataKey)
+            const groceryStoreId = storeInfo?.storeId ?? storeInfo?.grocery_store_id ?? null
+            const storeZip = storeInfo?.zip_code ?? zipToUse
+
+            return {
+              standardized_ingredient_id: standardizedId,
+              store: item.provider.toLowerCase(),
+              product_name: item.title,
+              price: item.price,
+              quantity: 1,
+              unit: item.unit || "unit",
+              unit_price: item.pricePerUnit
+                ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
+                : null,
+              image_url: item.image_url || null,
+              product_id: item.id,
+              product_mapping_id: null, // Trigger will populate this
+              location: item.location || null,
+              zip_code: storeZip || null,
+              grocery_store_id: groceryStoreId,
+            }
+          });
 
           if (payloads.length === 0) {
             console.log("[grocery-search] No new items to cache (all from cache)")

@@ -4,6 +4,7 @@ import { recipeIngredientsDB } from "./database/recipe-ingredients-db"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "./database/ingredients-db"
 import { normalizeZipCode } from "./utils/zip"
+import type { StoreMetadata, StoreMetadataMap } from "./utils/store-metadata"
 
 type DB = Database["public"]["Tables"]
 type IngredientRecentRow = DB["ingredients_recent"]["Row"]
@@ -23,6 +24,12 @@ export interface PricedIngredient {
   name: string
   cache: IngredientCacheResult | null
 }
+
+// Re-export store metadata types from utility module for backward compatibility
+export type {
+  StoreMetadata,
+  StoreMetadataMap
+} from "@/lib/utils/store-metadata"
 
 const MEASUREMENT_TERMS = [
   "cup",
@@ -193,6 +200,7 @@ type StoreLookupOptions = {
   zipCode?: string | null
   forceRefresh?: boolean
   allowRealTimeScraping?: boolean // If false, only return cached results
+  storeMetadata?: StoreMetadataMap
 }
 
 async function runStoreScraper(
@@ -282,7 +290,8 @@ async function upsertCacheEntry(
   standardizedIngredientId: string,
   store: string,
   product: ScraperResult,
-  zipCode?: string | null
+  zipCode?: string | null,
+  storeMeta?: StoreMetadata
 ): Promise<IngredientCacheResult | null> {
 
   const normalizedStore = normalizeStoreName(store)
@@ -299,6 +308,7 @@ async function upsertCacheEntry(
     productId: product.product_id ? String(product.product_id) : null,
     location: product.location ?? null,
     zipCode: zipCode ?? null,
+    groceryStoreId: storeMeta?.storeId ?? storeMeta?.grocery_store_id ?? null,
   })
 
   if (!historyRow) {
@@ -381,29 +391,35 @@ export async function getOrRefreshIngredientPricesForStores(
   if (!standardizedIngredientId) throw new Error("standardizedIngredientId is required")
   if (!stores || stores.length === 0) return []
 
+  // Normalize zipCode at entry point
+  const normalizedOptions = {
+    ...options,
+    zipCode: normalizeZipCode(options.zipCode) ?? options.zipCode
+  }
+
   const startTime = Date.now()
-  const forceRefresh = options.forceRefresh === true
+  const forceRefresh = normalizedOptions.forceRefresh === true
 
   // 1. Single batched query for all stores using the recents materialized table
   const cachedItems = await ingredientsRecentDB.findByStandardizedId(
     standardizedIngredientId,
     stores,
-    options.zipCode
+    normalizedOptions.zipCode
   )
 
   // Map cached items for quick lookup
   const cachedByStore = new Map(cachedItems.map(item => [normalizeStoreName(item.store), item]))
-  
+
   // Identify missing stores (Note: findByStandardizedId handles normalization of the 'stores' input)
   const normalizedRequestedStores = stores.map(normalizeStoreName)
   const storesToScrape = forceRefresh
     ? normalizedRequestedStores
     : normalizedRequestedStores.filter(store => !cachedByStore.has(store))
-  
+
   const results: IngredientCacheResult[] = forceRefresh ? [] : [...cachedItems]
 
   // 2. Early exit if scraping is disabled
-  if (options.allowRealTimeScraping === false) {
+  if (normalizedOptions.allowRealTimeScraping === false) {
     return cachedItems
   }
 
@@ -423,10 +439,14 @@ export async function getOrRefreshIngredientPricesForStores(
 
   // 4. Scrape missing stores in parallel
   const scrapePromises = storesToScrape.map(async (store) => {
-    const scraped = await runStoreScraper(store, canonicalName, options)
+    const scraped = await runStoreScraper(store, canonicalName, normalizedOptions)
     const bestProduct = pickBestScrapedProduct(scraped)
-    
+
     if (!bestProduct) return null
+
+    const storeMeta = normalizedOptions.storeMetadata?.get(store)
+    const resolvedStoreId = storeMeta?.storeId ?? storeMeta?.grocery_store_id ?? null
+    const storeZip = storeMeta?.zipCode ?? normalizedOptions.zipCode
 
     // Return the specific payload format your batchCachePrices expects
     return {
@@ -440,7 +460,9 @@ export async function getOrRefreshIngredientPricesForStores(
       productName: bestProduct.product_name || bestProduct.title,
       productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
       location: bestProduct.location,
-      zipCode: options.zipCode
+      zipCode: storeZip,
+      storeId: resolvedStoreId,
+      groceryStoreId: storeMeta?.grocery_store_id ?? resolvedStoreId,
     }
   })
 
@@ -460,7 +482,7 @@ export async function getOrRefreshIngredientPricesForStores(
       const freshScrapedData = await ingredientsRecentDB.findByStandardizedId(
         standardizedIngredientId,
         validPayloads.map(p => p.store),
-        options.zipCode
+        normalizedOptions.zipCode
       )
       freshScrapedData.forEach((row) => {
         cachedByStore.set(normalizeStoreName(row.store), row)
@@ -489,6 +511,7 @@ export async function getOrRefreshIngredientPrice(
 
   // Normalize store name for cache lookup (handle both "target" and "Target", "99 Ranch" and "99ranch")
   const normalizedStore = normalizeStoreName(store)
+  const storeMetadata = options.storeMetadata?.get(normalizedStore)
 
   const startTime = Date.now()
   console.log("[ingredient-pipeline] getOrRefreshIngredientPrice called", {
@@ -569,7 +592,7 @@ export async function getOrRefreshIngredientPrice(
   })
 
   const upsertStart = Date.now()
-  const result = await upsertCacheEntry(standardizedIngredientId, store, bestProduct, options.zipCode)
+  const result = await upsertCacheEntry(standardizedIngredientId, store, bestProduct, options.zipCode, storeMetadata)
   const totalTime = Date.now() - startTime
 
   console.log("[ingredient-pipeline] getOrRefreshIngredientPrice completed", {
@@ -678,6 +701,12 @@ export async function estimateIngredientCostsForStore(
   store: string,
   options: StoreLookupOptions = {}
 ): Promise<CostEstimate> {
+  // Normalize zipCode at entry point
+  const normalizedOptions = {
+    ...options,
+    zipCode: normalizeZipCode(options.zipCode) ?? options.zipCode
+  }
+
   const priced: PricedIngredient[] = [];
   const missing: PipelineIngredientInput[] = [];
   let total = 0;
@@ -741,12 +770,13 @@ export async function estimateIngredientCostsForStore(
 
   const standardizedIds = [...new Set(itemsWithIds.map(item => item.standardizedIngredientId!))];
   const normalizedStore = normalizeStoreName(store);
+  const storeMetadata = normalizedOptions.storeMetadata?.get(normalizedStore)
 
   // 2. Check cache for all items with single bulk query
   const cachedResults = await ingredientsRecentDB.findByStandardizedIds(
     standardizedIds,
     [normalizedStore],
-    options.zipCode
+    normalizedOptions.zipCode
   );
   const cachedMap = new Map<string, IngredientRecentRow>();
   cachedResults.forEach(entry => cachedMap.set(entry.standardized_ingredient_id, entry));
@@ -755,20 +785,22 @@ export async function estimateIngredientCostsForStore(
   const newCachePayloads: any[] = [];
 
   // 3. Scrape for missing items if allowed
-  if (itemsToScrape.length > 0 && options.allowRealTimeScraping !== false) {
+  if (itemsToScrape.length > 0 && normalizedOptions.allowRealTimeScraping !== false) {
     const idsToFetchNames = [...new Set(itemsToScrape.map(item => item.standardizedIngredientId!))];
     const canonicalNameRows = await standardizedIngredientsDB.fetchByIds(idsToFetchNames);
     const canonicalNameMap = new Map(canonicalNameRows.map(row => [row.id, row.canonical_name]));
-    
+
     const scrapePromises = idsToFetchNames.map(async id => {
       const canonicalName = canonicalNameMap.get(id);
       if (!canonicalName) return;
 
-      const scraped = await runStoreScraper(store, canonicalName, options);
+      const scraped = await runStoreScraper(store, canonicalName, normalizedOptions);
       const bestProduct = pickBestScrapedProduct(scraped);
 
       if (!bestProduct) return;
-      
+
+      const storeZip = storeMetadata?.zipCode ?? normalizedOptions.zipCode
+
       const payload = {
         standardizedIngredientId: id,
         store: normalizedStore,
@@ -780,7 +812,9 @@ export async function estimateIngredientCostsForStore(
         productName: bestProduct.product_name || bestProduct.title,
         productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
         location: bestProduct.location,
-        zipCode: options.zipCode
+        zipCode: storeZip,
+        storeId: storeMetadata?.storeId ?? storeMetadata?.grocery_store_id ?? null,
+        groceryStoreId: storeMetadata?.grocery_store_id ?? storeMetadata?.storeId ?? null,
       };
 
       newCachePayloads.push(payload);

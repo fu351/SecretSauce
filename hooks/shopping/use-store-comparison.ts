@@ -7,7 +7,48 @@ import { useAuth } from "@/contexts/auth-context"
 import { profileDB } from "@/lib/database/profile-db"
 import { shoppingItemPriceCacheDB, type PricingResult } from "@/lib/database/shopping-item-price-cache-db"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
-import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
+import { ingredientsHistoryDB, normalizeStoreName } from "@/lib/database/ingredients-db"
+import { normalizeZipCode } from "@/lib/utils/zip"
+import { type StoreMetadataMap, type StoreMetadata } from "@/lib/utils/store-metadata"
+
+async function fetchUserStoreMetadata(
+  userId: string | undefined,
+  fallbackZip: string | undefined
+): Promise<StoreMetadataMap> {
+  if (!userId) return new Map()
+
+  try {
+    const response = await fetch(
+      `/api/user-store-metadata?userId=${userId}&zipCode=${fallbackZip || ""}`
+    )
+
+    if (!response.ok) {
+      console.error("[useStoreComparison] Failed to fetch store metadata")
+      return new Map()
+    }
+
+    const { metadata } = await response.json()
+
+    // Deserialize array back to Map
+    const metadataMap = new Map<string, StoreMetadata>()
+    metadata.forEach((item: any) => {
+      const normalizedName = normalizeStoreName(item.storeName)
+      metadataMap.set(normalizedName, {
+        storeId: item.storeId,
+        grocery_store_id: item.grocery_store_id,
+        zipCode: item.zipCode,
+        latitude: item.latitude ?? null,
+        longitude: item.longitude ?? null,
+        distanceMiles: item.distanceMiles ?? item.distance_miles ?? null,
+      })
+    })
+
+    return metadataMap
+  } catch (error) {
+    console.error("[useStoreComparison] Error fetching store metadata:", error)
+    return new Map()
+  }
+}
 
 export function useStoreComparison(
   shoppingList: ShoppingListItem[],
@@ -23,11 +64,9 @@ export function useStoreComparison(
   const [hasFetched, setHasFetched] = useState(false)
   const [activeStoreIndex, setActiveStoreIndex] = useState(0)
   const [sortMode, setSortMode] = useState<"cheapest" | "best-value" | "nearest">("cheapest")
-  const resolvedZipCode = zipCode || profileZipCode || ""
+  const resolvedZipCode = normalizeZipCode(zipCode) || normalizeZipCode(profileZipCode) || undefined
 
-  const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[]): StoreComparison[] => {
-    console.debug("[useStoreComparison] buildComparisonsFromPricing input", pricingData)
-    console.log("[useStoreComparison] buildComparisonsFromPricing input", pricingData)
+  const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[], storeMetadata: StoreMetadataMap): StoreComparison[] => {
     const storeMap = new Map<string, StoreComparison>()
     const itemsById = new Map(shoppingList.map(item => [item.id, item]))
 
@@ -90,11 +129,30 @@ export function useStoreComparison(
         itemIds.forEach((id: string) => foundItemIds.add(id))
       })
       const missingIngredients = shoppingList.filter(item => !foundItemIds.has(item.id))
+
+      // Get coordinates from store metadata (from getUserPreferredStores)
+      const normalizedStore = normalizeStoreName(comp.store)
+      const metadata = storeMetadata.get(normalizedStore)
+
+      // The metadata from getUserPreferredStores already has latitude/longitude from the RPC
+      const latitude = metadata?.latitude ?? undefined
+      const longitude = metadata?.longitude ?? undefined
+      const distanceMiles = metadata?.distanceMiles ?? comp.distanceMiles
+
+      if (latitude && longitude) {
+        console.log(`[buildComparisonsFromPricing] Adding coordinates for ${comp.store}: lat=${latitude}, lng=${longitude}`)
+      } else {
+        console.log("[useStoreComparison] No missing items after pricing; skipping scrape and history insert")
+      }
+
       return {
         ...comp,
         missingCount: missingIngredients.length,
         missingItems: missingIngredients.length > 0,
-        missingIngredients
+        missingIngredients,
+        latitude,
+        longitude,
+        distanceMiles,
       }
     })
 
@@ -104,12 +162,10 @@ export function useStoreComparison(
         c.savings = maxTotal - c.total
       })
     }
-
-    console.log("[useStoreComparison] buildComparisonsFromPricing output", comps)
     return comps
   }, [shoppingList])
 
-  const buildComparisonsFromScrape = useCallback((searchData: Array<{ item: ShoppingListItem; storeResults: any[] }>): StoreComparison[] => {
+  const buildComparisonsFromScrape = useCallback((searchData: Array<{ item: ShoppingListItem; storeResults: any[] }>, storeMetadata: StoreMetadataMap): StoreComparison[] => {
     const storeMap = new Map<string, StoreComparison>()
 
     searchData.forEach(({ item, storeResults }) => {
@@ -156,12 +212,22 @@ export function useStoreComparison(
         itemIds.forEach((id: string) => foundItemIds.add(id))
       })
       const missingIngredients = shoppingList.filter(item => !foundItemIds.has(item.id))
-      
+
+      // Enrich with coordinates & distance from store metadata
+      const normalizedStore = normalizeStoreName(comp.store)
+      const metadata = storeMetadata.get(normalizedStore)
+      const latitude = metadata?.latitude ?? undefined
+      const longitude = metadata?.longitude ?? undefined
+      const distanceMiles = metadata?.distanceMiles ?? comp.distanceMiles
+
       return {
         ...comp,
         missingCount: missingIngredients.length,
         missingItems: missingIngredients.length > 0,
-        missingIngredients: missingIngredients 
+        missingIngredients: missingIngredients,
+        latitude,
+        longitude,
+        distanceMiles,
       }
     })
 
@@ -186,7 +252,8 @@ export function useStoreComparison(
       try {
         const data = await profileDB.fetchProfileFields(user.id, ["zip_code"])
         if (isActive) {
-          setProfileZipCode(data?.zip_code ?? null)
+          const normalized = normalizeZipCode(data?.zip_code)
+          setProfileZipCode(normalized ?? null)
         }
       } catch (error) {
         console.error("[useStoreComparison] Failed to load profile zip:", error)
@@ -210,10 +277,18 @@ export function useStoreComparison(
     setActiveStoreIndex(0)
 
     try {
+      // ----- Fetch user preferred stores metadata via API (uses RPC with fallback) -----
+      const storeMetadata = await fetchUserStoreMetadata(user?.id, resolvedZipCode)
+      const missingLatLng = Array.from(storeMetadata.entries())
+        .filter(([_, meta]) => !meta.latitude || !meta.longitude)
+        .map(([name, meta]) => ({ name, zip: meta.zipCode, distance: meta.distanceMiles }))
+      if (missingLatLng.length > 0) {
+        console.log("[useStoreComparison] Stores missing lat/lng in metadata", missingLatLng)
+      }
+
       // ----- Primary: server-side pricing function -----
-      console.log("[useStoreComparison] performMassSearch -> getPricingForUser for use user.id:", user?.id)
       const pricingData = user ? await shoppingItemPriceCacheDB.getPricingForUser(user.id) : []
-      let comparisons = buildComparisonsFromPricing(pricingData)
+      let comparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
       let finalComparisons = comparisons
 
       // ----- Scrape only missing items, insert into history, then re-run pricing -----
@@ -222,39 +297,104 @@ export function useStoreComparison(
       console.log("[useStoreComparison] missing items count", missingItems.length)
 
       if (missingItems.length > 0) {
+        // Only scrape stores that we have metadata for (from getUserPreferredStores)
+        const availableStores = Array.from(storeMetadata.entries())
+          .filter(([_, meta]) => meta.zipCode) // Only stores with valid zipcodes
+          .map(([storeName, _]) => storeName)
+
+        const missingZipStores = Array.from(storeMetadata.entries())
+          .filter(([_, meta]) => !meta.zipCode)
+          .map(([name, meta]) => ({ name, meta }))
+
+        console.log("[useStoreComparison] storeMetadata entries", {
+          total: storeMetadata.size,
+          withZip: availableStores,
+          withoutZip: missingZipStores,
+        })
+
+        console.log("[useStoreComparison] Scraping stores from metadata:", availableStores)
+
         const scrapeResults = await Promise.all(
           missingItems.map(async (item) => {
             console.log("[useStoreComparison] scraping missing item", item.name)
-            const storeResults = await searchGroceryStores(item.name, resolvedZipCode || undefined, undefined, undefined, true)
-            return { item, storeResults }
+            // Scrape all available stores in parallel
+            const storeResults = await Promise.all(
+              availableStores.map(async (storeName) => {
+                const metadata = storeMetadata.get(storeName)!
+                console.log(`[useStoreComparison] Scraping store="${storeName}" with zipCode="${metadata.zipCode}"`)
+                // Use each store's specific zipcode from getUserPreferredStores
+                const results = await searchGroceryStores(
+                  item.name,
+                  metadata.zipCode!,
+                  storeName,
+                  undefined,
+                  true
+                )
+                console.log(`[useStoreComparison] Got ${results.length} results from ${storeName}`)
+                return results
+              })
+            )
+            // Flatten the array of arrays
+            const flattenedResults = storeResults.flat()
+            return { item, storeResults: flattenedResults }
           })
         )
 
-        let scrapeComparisons = buildComparisonsFromScrape(scrapeResults)
+        let scrapeComparisons = buildComparisonsFromScrape(scrapeResults, storeMetadata)
+
+        const skipLog: Array<{ item: string; store?: string; reason: string }> = []
 
         const historyPayload = scrapeResults.flatMap(({ item, storeResults }) => {
           const flattened = storeResults.flatMap(s => s.items.map(it => ({ ...it, store: s.store })))
           if (!flattened.length) return []
-          const best = flattened.sort((a, b) => a.price - b.price)[0]
-          if (!item.ingredient_id) return []
-          const unitPriceNumber =
-            typeof best.pricePerUnit === "string"
-              ? Number(String(best.pricePerUnit).replace(/[^0-9.]/g, "")) || null
-              : null
-          return [{
-            standardizedIngredientId: item.ingredient_id,
-            store: best.store.toLowerCase(),
-            price: best.price,
-            quantity: 1,
-            unit: best.unit || "unit",
-            unitPrice: unitPriceNumber,
-            imageUrl: best.image_url,
-            productName: best.title,
-            productId: best.id,
-            location: best.location || null,
-            zipCode: resolvedZipCode || null,
-          }]
+
+          return flattened.flatMap(best => {
+            if (!item.ingredient_id) {
+              skipLog.push({ item: item.name, store: best.store, reason: "missing ingredient_id" })
+              return []
+            }
+            const unitPriceNumber =
+              typeof best.pricePerUnit === "string"
+                ? Number(String(best.pricePerUnit).replace(/[^0-9.]/g, "")) || null
+                : null
+            const normalizedStore = normalizeStoreName(best.store)
+            const metadata = storeMetadata.get(normalizedStore)
+
+            // Only insert if we have valid metadata with zipcode from getUserPreferredStores
+            if (!metadata || !metadata.zipCode) {
+              console.warn(`[useStoreComparison] Skipping item "${item.name}" for store "${best.store}" - no metadata with zipcode found`)
+              skipLog.push({ item: item.name, store: best.store, reason: "no metadata zip" })
+              return []
+            }
+
+            if (!(best.price > 0)) {
+              skipLog.push({ item: item.name, store: best.store, reason: "non-positive price" })
+              return []
+            }
+
+            const groceryStoreId = metadata.grocery_store_id ?? null
+            const storeZipCode = metadata.zipCode  // Always use store's physical zipcode from RPC
+            return [{
+              standardizedIngredientId: item.ingredient_id,
+              store: normalizedStore,
+              price: best.price,
+              quantity: 1,
+              unit: best.unit || "unit",
+              unitPrice: unitPriceNumber,
+              imageUrl: best.image_url,
+              productName: best.title,
+              productId: best.id,
+              location: best.location || null,
+              zipCode: storeZipCode,
+              groceryStoreId,
+            }]
+          })
         })
+
+        console.log("[useStoreComparison] history payload size", historyPayload.length, "skip entries", skipLog.length)
+        if (skipLog.length > 0) {
+          console.warn("[useStoreComparison] Skipped history inserts", skipLog)
+        }
 
         if (historyPayload.length > 0) {
           console.log("[useStoreComparison] inserting history payload", historyPayload.length)
@@ -267,7 +407,7 @@ export function useStoreComparison(
           }
 
           const refreshed = await shoppingItemPriceCacheDB.getPricingForUser(user?.id || "")
-          const refreshedComparisons = buildComparisonsFromPricing(refreshed)
+          const refreshedComparisons = buildComparisonsFromPricing(refreshed, storeMetadata)
           if (refreshedComparisons.length > 0) {
             console.log("[useStoreComparison] refreshed comparisons loaded", refreshedComparisons.length)
             finalComparisons = refreshedComparisons
@@ -283,6 +423,40 @@ export function useStoreComparison(
           }
         }
       }
+
+      // Ensure every preferred store appears, even if no pricing/scrape data
+      const normalizedExisting = new Set(
+        finalComparisons.map((c) => normalizeStoreName(c.store))
+      )
+
+      storeMetadata.forEach((meta, storeKey) => {
+        if (normalizedExisting.has(storeKey)) return
+        // Only include stores we can place on the map (have zip or coords)
+        if (!meta.zipCode && !meta.latitude && !meta.longitude) return
+
+        finalComparisons.push({
+          store: storeKey,
+          items: [],
+          total: 0,
+          savings: 0,
+          missingItems: true,
+          missingCount: shoppingList.length,
+          missingIngredients: shoppingList,
+          latitude: meta.latitude ?? undefined,
+          longitude: meta.longitude ?? undefined,
+          distanceMiles: meta.distanceMiles ?? undefined,
+          locationHint: meta.zipCode ? `${storeKey} (${meta.zipCode})` : undefined,
+        })
+      })
+
+      console.log("[useStoreComparison] final comparisons", finalComparisons.map(c => ({
+        store: c.store,
+        items: c.items.length,
+        hasLatLng: !!c.latitude && !!c.longitude,
+        lat: c.latitude,
+        lng: c.longitude,
+        missing: c.missingCount
+      })))
 
       setResults(finalComparisons)
       setActiveStoreIndex(0)

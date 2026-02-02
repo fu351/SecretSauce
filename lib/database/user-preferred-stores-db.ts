@@ -44,6 +44,31 @@ class UserPreferredStoresTable extends BaseTable<
     return data || []
   }
 
+  async fetchForProfileWithStoreData(profileId: string): Promise<Array<UserPreferredStoreRow & { zip_code?: string | null }>> {
+    if (!profileId) return []
+
+    const { data, error } = await (this.supabase as any)
+      .from(this.tableName)
+      .select('*, grocery_stores!inner(zip_code)')
+      .eq('profile_id', profileId)
+      .order('distance_miles', { ascending: true })
+
+    if (error) {
+      this.handleError(error, 'fetchForProfileWithStoreData')
+      return []
+    }
+
+    // Flatten the nested grocery_stores data
+    return (data || []).map((row: any) => ({
+      profile_id: row.profile_id,
+      grocery_store_id: row.grocery_store_id,
+      store_enum: row.store_enum,
+      distance_miles: row.distance_miles,
+      updated_at: row.updated_at,
+      zip_code: row.grocery_stores?.zip_code ?? null,
+    }))
+  }
+
   async fetchPreference(
     profileId: string,
     storeEnum: GroceryStoreEnum
@@ -69,7 +94,7 @@ class UserPreferredStoresTable extends BaseTable<
       updated_at: entry.updated_at || new Date().toISOString(),
     }
 
-    const { data, error } = await this.supabase
+    const { data, error } = await (this.supabase as any)
       .from(this.tableName)
       .upsert(payload, { onConflict: 'profile_id,store_enum' })
       .select('*')
@@ -88,7 +113,7 @@ class UserPreferredStoresTable extends BaseTable<
     storeEnum: GroceryStoreEnum,
     distanceMiles: number | null
   ): Promise<UserPreferredStoreRow | null> {
-    const { data, error } = await this.supabase
+    const { data, error } = await (this.supabase as any)
       .from(this.tableName)
       .update({ distance_miles: distanceMiles, updated_at: new Date().toISOString() } as UserPreferredStoreUpdate)
       .eq('profile_id', profileId)
@@ -122,7 +147,7 @@ class UserPreferredStoresTable extends BaseTable<
   async getClosestStoresForUser(profileId: string): Promise<ClosestStoreResult> {
     if (!profileId) return []
 
-    const { data, error } = await this.supabase.rpc('get_closest_stores', { user_id: profileId })
+    const { data, error } = await (this.supabase.rpc as any)('get_closest_stores', { user_id: profileId })
 
     if (error) {
       this.handleError(error, 'getClosestStoresForUser')
