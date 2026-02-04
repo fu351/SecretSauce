@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { standardizeIngredientsWithAI } from "@/lib/ingredient-standardizer"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
-import { createServerClient } from "@/lib/database/supabase"
+import { pantryItemsDB } from "@/lib/database/pantry-items-db"
 
 interface RequestIngredient {
   id?: string | number
@@ -119,16 +119,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (context === "pantry" && pantryItemId && updates[0]) {
-      const client = createServerClient()
       const primary = updates[0]
-      await client
-        .from("pantry_items")
-        .update({
-          standardized_ingredient_id: primary.standardizedIngredientId,
-          standardized_name: primary.canonicalName,
-        })
-        .eq("id", pantryItemId)
-        .eq("user_id", userId)
+      await pantryItemsDB.update(pantryItemId, {
+        standardized_ingredient_id: primary.standardizedIngredientId,
+        standardized_name: primary.canonicalName,
+      })
     }
 
     return NextResponse.json({

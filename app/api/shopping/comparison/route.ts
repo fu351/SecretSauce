@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/database/supabase"
+import { from } from "@/lib/database/base-db"
 import type { Database } from "@/lib/database/supabase"
 import type { GroceryItem, ShoppingListIngredient, StoreComparison } from "@/lib/types/store"
 
@@ -71,9 +71,7 @@ export async function POST(request: NextRequest) {
 
     const itemIds = Array.from(new Set(normalizedItems.map((item) => item.id)))
 
-    const supabase = createServerClient()
-    let query = supabase
-      .from("shopping_item_price_cache")
+    let query = from("shopping_item_price_cache")
       .select("*")
       .in("shopping_list_item_id", itemIds)
       .order("cached_at", { ascending: false })

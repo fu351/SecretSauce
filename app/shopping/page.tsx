@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { profileDB } from "@/lib/database/profile-db"
-import { supabase } from "@/lib/database/supabase"
+import { storeListHistoryDB } from "@/lib/database/store-list-history-db"
 import type { GroceryItem } from "@/lib/types/store"
 
 import { useShoppingList } from "@/hooks"
@@ -195,16 +195,14 @@ export default function ShoppingPage() {
     })))
 
     try {
-      // Generate order ID for this checkout
-      const orderId = crypto.randomUUID()
-
       toast({ title: "Processing...", description: "Creating your delivery order" })
 
-      // Collect all log entry IDs
-      const logEntryIds: string[] = []
+      let orderId: string | null = null
+      let addedCount = 0
       const skippedItems: string[] = []
 
       // Call RPC function for each item in the best store
+      // order_id is assigned automatically by the DB on each entry
       for (const item of bestStore.items) {
         const shoppingListItemId = item.shoppingItemId
         const productMappingId = item.productMappingId
@@ -217,49 +215,34 @@ export default function ShoppingPage() {
 
         console.log(`Adding item ${item.title} with mapping ID: ${productMappingId}`)
 
-        // Call the RPC function
-        const { data: logId, error } = await supabase.rpc("fn_add_to_delivery_log", {
-          p_shopping_list_item_id: shoppingListItemId,
-          p_product_mapping_id: productMappingId,
-          p_delivery_date: null, // Use default (today)
-        })
+        const logId = await storeListHistoryDB.addToDeliveryLog(shoppingListItemId, productMappingId)
 
-        if (error) {
-          console.error("Error adding item to delivery log:", error)
-          throw error
+        if (!logId) {
+          console.error("Error adding item to delivery log")
+          throw new Error("Failed to add item to delivery log")
         }
 
-        if (logId) {
-          console.log(`Successfully added item, log ID: ${logId}`)
-          logEntryIds.push(logId)
-        }
+        console.log(`Successfully added item, log ID: ${logId}`)
+        if (!orderId) orderId = logId
+        addedCount++
       }
 
       console.log(`=== CHECKOUT SUMMARY ===`)
       console.log(`Total items processed: ${bestStore.items.length}`)
-      console.log(`Successfully added: ${logEntryIds.length}`)
+      console.log(`Successfully added: ${addedCount}`)
       console.log(`Skipped (no mapping ID): ${skippedItems.length}`)
       if (skippedItems.length > 0) {
         console.log(`Skipped items:`, skippedItems)
       }
 
-      // Update all created entries with the order_id
-      if (logEntryIds.length > 0) {
-        const { error: updateError } = await supabase
-          .from("store_list_history")
-          .update({ order_id: orderId })
-          .in("id", logEntryIds)
-
-        if (updateError) {
-          console.error("Error updating order_id:", updateError)
-          throw updateError
-        }
+      if (!orderId) {
+        throw new Error("No items were added to delivery log")
       }
 
       // Success! Redirect to order detail page
       toast({
         title: "Order Created!",
-        description: `Your delivery order has been created (${logEntryIds.length} items)`,
+        description: `Your delivery order has been created (${addedCount} items)`,
       })
 
       router.push(`/delivery/${orderId}`)

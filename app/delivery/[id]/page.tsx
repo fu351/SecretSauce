@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { supabase } from "@/lib/database/supabase"
+import { storeListHistoryDB } from "@/lib/database/store-list-history-db"
 
 // UI Components
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -75,19 +75,8 @@ export default function OrderDetailPage() {
     setLoading(true)
     try {
       // Fetch all items for this order with JOINs
-      const { data, error } = await supabase
-        .from("store_list_history")
-        .select(
-          `
-          *,
-          grocery_stores!inner(id, name, address),
-          standardized_ingredients!inner(canonical_name)
-        `
-        )
-        .eq("order_id", orderId)
-        .eq("user_id", user.id) // Security: ensure user owns this order
+      const data = await storeListHistoryDB.findByOrderIdWithJoins(orderId, user.id)
 
-      if (error) throw error
       if (!data || data.length === 0) {
         // Order not found or doesn't belong to user
         console.log("Order not found or access denied")

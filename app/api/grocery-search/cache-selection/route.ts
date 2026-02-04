@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/database/supabase"
+import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { resolveOrCreateStandardizedId } from "@/lib/ingredient-pipeline"
 
 /**
@@ -32,8 +32,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createServerClient()
-
     // Get or create standardized_ingredient_id for the search term
     const standardizedIngredientId = await resolveOrCreateStandardizedId(searchTerm)
 
@@ -54,27 +52,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Save to ingredients_history (triggers sync to ingredients_recent)
-    const cachePayload = {
-      standardized_ingredient_id: standardizedIngredientId,
+    const cached = await ingredientsHistoryDB.insertPrice({
+      standardizedIngredientId: standardizedIngredientId!,
       store: store.toLowerCase(),
-      product_name: product.title,
-      product_id: product.id,
+      productName: product.title,
+      productId: product.id,
       price: product.price,
       quantity: 1,
       unit: product.unit || "unit",
-      unit_price: unitPrice,
-      image_url: product.image_url || null,
+      unitPrice: unitPrice,
+      imageUrl: product.image_url || null,
       location: product.location || null,
-    }
+    })
 
-    const { error: cacheError } = await supabase
-      .from("ingredients_history")
-      .insert(cachePayload)
-
-    if (cacheError) {
-      console.error("[Cache Selection] Failed to upsert cache", cacheError)
+    if (!cached) {
+      console.error("[Cache Selection] Failed to insert cache entry")
       return NextResponse.json(
-        { error: "Failed to cache selection", details: cacheError.message },
+        { error: "Failed to cache selection" },
         { status: 500 }
       )
     }

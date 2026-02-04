@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/database/supabase"
+import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import {
   getOrRefreshIngredientPricesForStores,
   resolveStandardizedIngredientForRecipe,
@@ -93,7 +93,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Batch Scraper] Processing ${ingredients.length} ingredients for zip ${zipToUse}`)
 
-    const supabaseClient = createServerClient()
     const results: IngredientResult[] = []
 
     // Process all ingredients in parallel
@@ -122,22 +121,8 @@ export async function POST(request: NextRequest) {
             .trim()
             .replace(/\s+/g, " ")
 
-          const { data: existing } = await supabaseClient
-            .from("standardized_ingredients")
-            .select("id")
-            .eq("canonical_name", canonical)
-            .maybeSingle()
-
-          if (existing?.id) {
-            standardizedIngredientId = existing.id
-          } else {
-            const { data: inserted } = await supabaseClient
-              .from("standardized_ingredients")
-              .insert({ canonical_name: canonical })
-              .select("id")
-              .maybeSingle()
-            standardizedIngredientId = inserted?.id || null
-          }
+          const ingredient = await standardizedIngredientsDB.getOrCreate(canonical)
+          standardizedIngredientId = ingredient?.id || null
         }
 
         if (!standardizedIngredientId) {

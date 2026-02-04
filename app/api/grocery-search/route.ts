@@ -8,7 +8,7 @@ import {
 } from "@/lib/ingredient-pipeline"
 import { createServerClient } from "@/lib/database/supabase"
 import { normalizeZipCode } from "@/lib/utils/zip"
-import { normalizeStoreName } from "@/lib/database/ingredients-db"
+import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
 import type { Database } from "@/lib/database/supabase"
 import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
@@ -55,7 +55,6 @@ async function scrapeDirectFallback(
   stores: string[],
   zip?: string,
   standardizedIngredientId?: string | null,
-  supabaseClient?: ReturnType<typeof createServerClient> | null,
   preferredStoresMap?: Map<string, StoreData>,
 ): Promise<
   Array<{
@@ -93,19 +92,12 @@ async function scrapeDirectFallback(
     const storesToScrape: string[] = []
     const cachedStores: string[] = []
 
-    if (standardizedIngredientId && supabaseClient) {
-      // Single batched query for all stores
-      let query = supabaseClient
-        .from("ingredients_recent")
-        .select("*")
-        .eq("standardized_ingredient_id", standardizedIngredientId)
-        .in("store", stores.map(s => s.toLowerCase()))
-
-      if (zip) {
-        query = query.eq("zip_code", zip)
-      }
-
-      const { data: cachedItems } = await query.order("created_at", { ascending: false })
+    if (standardizedIngredientId) {
+      const cachedItems = await ingredientsRecentDB.findByStandardizedId(
+        standardizedIngredientId,
+        stores,
+        zip
+      )
 
       // Build a map of cached stores
       const cachedByStore = new Map<string, any>()
@@ -322,7 +314,7 @@ export async function GET(request: NextRequest) {
   if (forceRefresh) {
     console.log("[grocery-search] Force refresh requested, bypassing cache and scraping directly")
 
-    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, null, null, preferredStoresMap)
+    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, null, preferredStoresMap)
     if (directItems.length === 0) {
       console.warn("[grocery-search] Force refresh produced 0 items", {
         term: sanitizedSearchTerm,
@@ -361,27 +353,25 @@ export async function GET(request: NextRequest) {
               const storeZip = storeInfo?.zip_code ?? zipToUse
 
               return {
-                standardized_ingredient_id: standardizedIngredientId,
+                standardizedIngredientId: standardizedIngredientId!,
                 store: item.provider.toLowerCase(),
-                product_name: item.title,
+                productName: item.title,
                 price: item.price,
                 quantity: 1,
                 unit: item.unit || "unit",
-                unit_price: item.pricePerUnit
+                unitPrice: item.pricePerUnit
                   ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
                   : null,
-                image_url: item.image_url || null,
-                product_id: item.id,
-                product_mapping_id: null, // Trigger will populate this
+                imageUrl: item.image_url || null,
+                productId: item.id,
+                productMappingId: null,
                 location: item.location || null,
-                zip_code: storeZip || null,
-                grocery_store_id: groceryStoreId,
+                zipCode: storeZip || null,
+                groceryStoreId: groceryStoreId,
               }
             })
 
-            await supabaseClient
-              .from("ingredients_history")
-              .insert(payloads)
+            await ingredientsHistoryDB.batchInsertPrices(payloads)
 
             console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
           })
@@ -501,7 +491,6 @@ export async function GET(request: NextRequest) {
       storeKeys,
       zipToUse,
       standardizedIngredientId,
-      supabaseClient,
       preferredStoresMap
     )
     if (directItems.length > 0) {
@@ -534,21 +523,21 @@ export async function GET(request: NextRequest) {
             const storeZip = storeInfo?.zip_code ?? zipToUse
 
             return {
-              standardized_ingredient_id: standardizedId,
+              standardizedIngredientId: standardizedId,
               store: item.provider.toLowerCase(),
-              product_name: item.title,
+              productName: item.title,
               price: item.price,
               quantity: 1,
               unit: item.unit || "unit",
-              unit_price: item.pricePerUnit
+              unitPrice: item.pricePerUnit
                 ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
                 : null,
-              image_url: item.image_url || null,
-              product_id: item.id,
-              product_mapping_id: null, // Trigger will populate this
+              imageUrl: item.image_url || null,
+              productId: item.id,
+              productMappingId: null,
               location: item.location || null,
-              zip_code: storeZip || null,
-              grocery_store_id: groceryStoreId,
+              zipCode: storeZip || null,
+              groceryStoreId: groceryStoreId,
             }
           });
 
@@ -562,23 +551,14 @@ export async function GET(request: NextRequest) {
             stores: payloads.map(p => p.store),
           })
 
-          // Batch upsert all cache entries at once
-          const { data, error } = await supabaseClient
-            .from("ingredients_history")
-            .insert(payloads)
-            .select("id, store")
+          const count = await ingredientsHistoryDB.batchInsertPrices(payloads)
 
-          if (error) {
-            console.error("[grocery-search] Batch cache upsert FAILED", {
-              error: error.message,
-              code: error.code,
-              details: error.details,
-              hint: error.hint,
-            })
+          if (count === 0) {
+            console.error("[grocery-search] Batch cache upsert FAILED", { payloadCount: payloads.length })
           } else {
             console.log("[grocery-search] Batch cache upsert SUCCESS", {
-              count: data?.length || 0,
-              stores: data?.map(d => d.store) || [],
+              count,
+              stores: payloads.map(p => p.store),
             })
           }
         })

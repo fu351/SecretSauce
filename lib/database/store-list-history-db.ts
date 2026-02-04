@@ -273,6 +273,35 @@ class StoreListHistoryTable extends BaseTable<
   }
 
   /**
+   * Get delivery log entries for an order with grocery_stores and standardized_ingredients joined.
+   * Used by the order detail page to display store names and ingredient names.
+   */
+  async findByOrderIdWithJoins(
+    orderId: string,
+    userId: string
+  ): Promise<(StoreListHistoryRow & {
+    grocery_stores: { id: string; name: string; address: string | null }
+    standardized_ingredients: { canonical_name: string }
+  })[]> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select(`
+        *,
+        grocery_stores!inner(id, name, address),
+        standardized_ingredients!inner(canonical_name)
+      `)
+      .eq("order_id", orderId)
+      .eq("user_id", userId)
+
+    if (error) {
+      this.handleError(error, `findByOrderIdWithJoins(${orderId}, ${userId})`)
+      return []
+    }
+
+    return (data || []) as any
+  }
+
+  /**
    * Get delivery log entries grouped by store
    */
   async findGroupedByStore(

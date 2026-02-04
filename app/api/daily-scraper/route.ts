@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/database/supabase"
+import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { normalizeZipCode } from "@/lib/utils/zip"
 
@@ -79,17 +79,14 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("Starting daily ingredient scraper...", { zipCode: zipToUse })
-    const client = createServerClient()
 
     // Get all standardized ingredients
-    const { data: ingredients, error: ingredientsError } = await client
-      .from("standardized_ingredients")
-      .select("id, canonical_name, category")
+    const ingredients = await standardizedIngredientsDB.findAll()
 
-    if (ingredientsError || !ingredients) {
-      console.error("Error fetching standardized ingredients:", ingredientsError)
+    if (!ingredients || ingredients.length === 0) {
+      console.error("Error fetching standardized ingredients: empty result")
       return NextResponse.json(
-        { error: "Failed to fetch ingredients", details: ingredientsError },
+        { error: "Failed to fetch ingredients" },
         { status: 500 }
       )
     }
