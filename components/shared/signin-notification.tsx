@@ -15,7 +15,7 @@ export function SignInNotification({ featureName }: SignInNotificationProps) {
       <div className={`h-screen flex items-center justify-center bg-background`}>
         <Card className="bg-card">
           <CardContent className="p-6 text-center">
-            <h2 className={`text-2xl font-bold mb-4 text-text`}>Authentication Required</h2>
+            <h2 className={`text-2xl font-bold mb-4 text-foreground`}>Authentication Required</h2>
             
             {/* 3. Use the prop variable */}
             <p className={`text-muted-foreground mb-6`}>

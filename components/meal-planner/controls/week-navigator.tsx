@@ -20,7 +20,7 @@ export function WeekNavigator({ weekStart, onPrevious, onNext }: WeekNavigatorPr
       <Button variant="ghost" size="icon" onClick={onPrevious} className="h-9 w-9 hover:bg-accent">
         <ChevronLeft className="h-5 w-5" />
       </Button>
-      <span className="px-4 text-sm font-semibold text-text min-w-[140px] text-center">
+      <span className="px-4 text-sm font-semibold text-foreground min-w-[140px] text-center">
         {formatDate(weekStart || "")}
       </span>
       <Button variant="ghost" size="icon" onClick={onNext} className="h-9 w-9 hover:bg-accent">

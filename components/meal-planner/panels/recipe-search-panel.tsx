@@ -130,8 +130,8 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   }, [])
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-neutral-950 rounded-2xl overflow-hidden shadow-xl border border-neutral-200 dark:border-neutral-800">
-      <div className="flex flex-col bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md sticky top-0 z-10 border-b border-neutral-100 dark:border-neutral-800">
+    <div className="flex flex-col h-full bg-card overflow-hidden">
+      <div className="flex flex-col bg-card/80 backdrop-blur-md sticky top-0 z-10 border-b border-border">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
             <h3 className="font-bold text-base tracking-tight">Recipes</h3>
@@ -152,7 +152,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
 
         <div className="flex items-center gap-2 px-4 pb-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search recipes..."
               value={searchInput}
@@ -173,10 +173,10 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-4 space-y-5 shadow-2xl dark:bg-neutral-900" align="end">
+            <PopoverContent className="w-72 p-4 space-y-5 shadow-2xl bg-card" align="end">
               <div className="flex items-center justify-between">
                 <p className="font-bold text-sm">Refine Search</p>
-                <Button variant="ghost" size="sm" onClick={handleClearFilters} className="h-7 px-2 text-[10px] text-neutral-500">
+                <Button variant="ghost" size="sm" onClick={handleClearFilters} className="h-7 px-2 text-[10px] text-muted-foreground">
                   <RotateCcw className="h-3 w-3 mr-1" /> Reset
                 </Button>
               </div>
@@ -209,7 +209,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
                   ))}
                 </FilterSelect>
 
-                <div className="pt-2 border-t dark:border-neutral-800">
+                <div className="pt-2 border-t border-border">
                   <FilterSelect label="Sort By" value={sortBy} onChange={(v) => setSortBy(v as SortBy)}>
                     <SelectItem value="created_at">Date Added</SelectItem>
                     <SelectItem value="rating_avg">Top Rated</SelectItem>
@@ -223,7 +223,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-neutral-50/30 dark:bg-neutral-950/30 transform-gpu">
+      <div className="flex-1 overflow-y-auto bg-muted/30 transform-gpu">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
@@ -264,7 +264,7 @@ const TabButton = ({ active, onClick, children }: { active: boolean; onClick: ()
 
 const FilterSelect = memo(({ label, value, onChange, children }: { label: string; value: string; onChange: (v: string) => void; children: React.ReactNode }) => (
   <div className="space-y-1.5">
-    <label className="text-[10px] uppercase font-extrabold tracking-widest text-neutral-400">{label}</label>
+    <label className="text-[10px] uppercase font-extrabold tracking-widest text-muted-foreground">{label}</label>
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="h-9 text-xs">
         <SelectValue />
@@ -276,8 +276,8 @@ const FilterSelect = memo(({ label, value, onChange, children }: { label: string
 
 const EmptyState = ({ onClear }: { onClear: () => void }) => (
   <div className="flex flex-col items-center justify-center h-full text-center px-10 py-20">
-    <div className="bg-neutral-100 dark:bg-neutral-900 p-5 rounded-full mb-4">
-      <Utensils className="h-10 w-10 text-neutral-300 dark:text-neutral-700" />
+    <div className="bg-muted p-5 rounded-full mb-4">
+      <Utensils className="h-10 w-10 text-muted-foreground" />
     </div>
     <p className="text-sm font-bold">No matches found</p>
     <Button variant="link" size="sm" onClick={onClear} className="mt-4 text-accent font-bold">

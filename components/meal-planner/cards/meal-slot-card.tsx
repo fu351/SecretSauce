@@ -4,7 +4,6 @@ import { memo } from "react"
 import Image from "next/image"
 import { X, Plus } from "lucide-react"
 import type { Recipe } from "@/lib/types"
-import { useTheme } from "@/contexts/theme-context"
 import { useDroppable, useDraggable } from "@dnd-kit/core"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 
@@ -40,8 +39,6 @@ function MealSlotCardComponent({
   activeDragData,
   activeDropTarget,
 }: MealSlotCardProps) {
-  const { theme } = useTheme()
-  const isDark = theme === "dark"
   const recipeImageUrl = recipe?.image_url ?? recipe?.content?.image_url
 
   // Make slot droppable
@@ -117,7 +114,7 @@ function MealSlotCardComponent({
               {...attributes}
               {...listeners}
               onClick={() => onRecipeClick?.(recipe.id)}
-              className={`absolute inset-x-0 bottom-0 flex items-end p-2.5 z-10 cursor-grab active:cursor-grabbing ${isDark ? "bg-gradient-to-t from-black/80 to-transparent" : "bg-gradient-to-t from-black/75 to-transparent"}`}
+              className="absolute inset-x-0 bottom-0 flex items-end p-2.5 z-10 cursor-grab active:cursor-grabbing bg-gradient-to-t from-black/80 to-transparent"
             >
               <h4 className={`font-semibold text-sm line-clamp-2 text-white w-full pointer-events-none`}>{recipe.title}</h4>
             </div>
@@ -138,7 +135,7 @@ function MealSlotCardComponent({
           }}
           aria-label={`Add recipe to ${mealType} on ${date}`}
         >
-          <div className={`rounded-full border-2 p-3 transition-colors ${isDropTarget ? "border-primary text-primary" : isDark ? "border-accent/60 text-accent" : "border-accent/60 text-accent"}`}>
+          <div className={`rounded-full border-2 p-3 transition-colors ${isDropTarget ? "border-primary text-primary" : "border-accent/60 text-accent"}`}>
             <Plus className="h-6 w-6" />
           </div>
         </div>

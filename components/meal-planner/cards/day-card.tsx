@@ -2,7 +2,6 @@
 
 import { memo } from "react"
 import { MealSlotCard } from "./meal-slot-card"
-import { useTheme } from "@/contexts/theme-context"
 import type { Recipe } from "@/lib/types"
 import type { MealScheduleRow } from "@/lib/database/meal-planner-db"
 
@@ -46,8 +45,6 @@ function DayCardComponent({
   activeDragData,
   activeDropTarget,
 }: DayCardProps) {
-  const { theme } = useTheme()
-  const isDark = theme === "dark"
   const today = new Date()
   const isToday = date.toDateString() === today.toDateString()
 

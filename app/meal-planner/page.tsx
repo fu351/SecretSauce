@@ -257,7 +257,7 @@ export default function MealPlannerPage() {
               {/* Header */}
               <div className="flex flex-col gap-4 mb-6">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-text">
+                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
                     Meal Planner
                   </h1>
                   <p className="text-sm text-muted-foreground mt-1">
