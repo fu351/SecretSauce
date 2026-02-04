@@ -139,12 +139,6 @@ export function useStoreComparison(
       const longitude = metadata?.longitude ?? undefined
       const distanceMiles = metadata?.distanceMiles ?? comp.distanceMiles
 
-      if (latitude && longitude) {
-        console.log(`[buildComparisonsFromPricing] Adding coordinates for ${comp.store}: lat=${latitude}, lng=${longitude}`)
-      } else {
-        console.log("[useStoreComparison] No missing items after pricing; skipping scrape and history insert")
-      }
-
       return {
         ...comp,
         missingCount: missingIngredients.length,
@@ -279,13 +273,6 @@ export function useStoreComparison(
     try {
       // ----- Fetch user preferred stores metadata via API (uses RPC with fallback) -----
       const storeMetadata = await fetchUserStoreMetadata(user?.id, resolvedZipCode)
-      const missingLatLng = Array.from(storeMetadata.entries())
-        .filter(([_, meta]) => !meta.latitude || !meta.longitude)
-        .map(([name, meta]) => ({ name, zip: meta.zipCode, distance: meta.distanceMiles }))
-      if (missingLatLng.length > 0) {
-        console.log("[useStoreComparison] Stores missing lat/lng in metadata", missingLatLng)
-      }
-
       // ----- Primary: server-side pricing function -----
       const pricingData = user ? await shoppingItemPriceCacheDB.getPricingForUser(user.id) : []
       let comparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
@@ -294,44 +281,26 @@ export function useStoreComparison(
       // ----- Scrape only missing items, insert into history, then re-run pricing -----
       const missingItems = shoppingList.filter(item => !comparisons.some(c =>
         c.items.some(i => (i as any).shoppingItemIds?.includes(item.id) || i.shoppingItemId === item.id)))
-      console.log("[useStoreComparison] missing items count", missingItems.length)
-
       if (missingItems.length > 0) {
         // Only scrape stores that we have metadata for (from getUserPreferredStores)
         const availableStores = Array.from(storeMetadata.entries())
           .filter(([_, meta]) => meta.zipCode) // Only stores with valid zipcodes
           .map(([storeName, _]) => storeName)
 
-        const missingZipStores = Array.from(storeMetadata.entries())
-          .filter(([_, meta]) => !meta.zipCode)
-          .map(([name, meta]) => ({ name, meta }))
-
-        console.log("[useStoreComparison] storeMetadata entries", {
-          total: storeMetadata.size,
-          withZip: availableStores,
-          withoutZip: missingZipStores,
-        })
-
-        console.log("[useStoreComparison] Scraping stores from metadata:", availableStores)
-
         const scrapeResults = await Promise.all(
           missingItems.map(async (item) => {
-            console.log("[useStoreComparison] scraping missing item", item.name)
             // Scrape all available stores in parallel
             const storeResults = await Promise.all(
               availableStores.map(async (storeName) => {
                 const metadata = storeMetadata.get(storeName)!
-                console.log(`[useStoreComparison] Scraping store="${storeName}" with zipCode="${metadata.zipCode}"`)
                 // Use each store's specific zipcode from getUserPreferredStores
-                const results = await searchGroceryStores(
+                return searchGroceryStores(
                   item.name,
                   metadata.zipCode!,
                   storeName,
                   undefined,
                   true
                 )
-                console.log(`[useStoreComparison] Got ${results.length} results from ${storeName}`)
-                return results
               })
             )
             // Flatten the array of arrays
@@ -391,13 +360,11 @@ export function useStoreComparison(
           })
         })
 
-        console.log("[useStoreComparison] history payload size", historyPayload.length, "skip entries", skipLog.length)
         if (skipLog.length > 0) {
           console.warn("[useStoreComparison] Skipped history inserts", skipLog)
         }
 
         if (historyPayload.length > 0) {
-          console.log("[useStoreComparison] inserting history payload", historyPayload.length)
           let count = await ingredientsHistoryDB.batchInsertPricesRpc(historyPayload)
           if (count === 0) {
             count = await ingredientsHistoryDB.batchInsertPrices(historyPayload)
@@ -409,7 +376,6 @@ export function useStoreComparison(
           const refreshed = await shoppingItemPriceCacheDB.getPricingForUser(user?.id || "")
           const refreshedComparisons = buildComparisonsFromPricing(refreshed, storeMetadata)
           if (refreshedComparisons.length > 0) {
-            console.log("[useStoreComparison] refreshed comparisons loaded", refreshedComparisons.length)
             finalComparisons = refreshedComparisons
           }
         }
@@ -448,15 +414,6 @@ export function useStoreComparison(
           locationHint: meta.zipCode ? `${storeKey} (${meta.zipCode})` : undefined,
         })
       })
-
-      console.log("[useStoreComparison] final comparisons", finalComparisons.map(c => ({
-        store: c.store,
-        items: c.items.length,
-        hasLatLng: !!c.latitude && !!c.longitude,
-        lat: c.latitude,
-        lng: c.longitude,
-        missing: c.missingCount
-      })))
 
       setResults(finalComparisons)
       setActiveStoreIndex(0)

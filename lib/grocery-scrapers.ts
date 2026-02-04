@@ -34,22 +34,6 @@ export async function searchGroceryStores(
     const zipQuery = normalizedZip ? `&zipCode=${normalizedZip}` : ""
     const url = `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}${zipQuery}${storeQuery}${recipeQuery}${forceRefreshQuery}`
 
-    console.log(
-      "[searchGroceryStores] params",
-      JSON.stringify(
-        {
-          searchTerm,
-          zipCode: zipCode ?? null,
-          normalizedZip: normalizedZip ?? null,
-          store: store ?? null,
-          recipeId: recipeId ?? null,
-          forceRefresh: !!forceRefresh,
-          url,
-        },
-        null,
-        2
-      )
-    )
     // Use the local API route which can access the scrapers
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 60000) // Increased to 60 seconds for slower scrapers
