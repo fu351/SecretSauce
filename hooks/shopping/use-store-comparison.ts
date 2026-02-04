@@ -56,14 +56,13 @@ export function useStoreComparison(
 ) {
   const { toast } = useToast()
   const { user } = useAuth()
-  const [profileZipCode, setProfileZipCode] = useState<string | null>(null)
 
   const [results, setResults] = useState<StoreComparison[]>([])
   const [loading, setLoading] = useState(false)
   const [hasFetched, setHasFetched] = useState(false)
   const [activeStoreIndex, setActiveStoreIndex] = useState(0)
   const [sortMode, setSortMode] = useState<"cheapest" | "best-value" | "nearest">("cheapest")
-  const resolvedZipCode = normalizeZipCode(zipCode) || normalizeZipCode(profileZipCode) || undefined
+  const resolvedZipCode = normalizeZipCode(zipCode) || undefined
 
   const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[], storeMetadata: StoreMetadataMap): StoreComparison[] => {
     const storeMap = new Map<string, StoreComparison>()
@@ -234,30 +233,6 @@ export function useStoreComparison(
     return comparisons
   }, [shoppingList])
 
-  useEffect(() => {
-    if (!user) {
-      setProfileZipCode(null)
-      return
-    }
-
-    let isActive = true
-    void (async () => {
-      try {
-        const data = await profileDB.fetchProfileFields(user.id, ["zip_code"])
-        if (isActive) {
-          const normalized = normalizeZipCode(data?.zip_code)
-          setProfileZipCode(normalized ?? null)
-        }
-      } catch (error) {
-        console.error("[useStoreComparison] Failed to load profile zip:", error)
-      }
-    })()
-
-    return () => {
-      isActive = false
-    }
-  }, [user])
-
   // -- Actions --
   const performMassSearch = useCallback(async () => {
     if (!shoppingList || shoppingList.length === 0) {
@@ -278,7 +253,7 @@ export function useStoreComparison(
       let finalComparisons = comparisons
 
       // ----- Scrape only missing items, insert into history, then re-run pricing -----
-      const missingItems = shoppingList.filter(item => !comparisons.some(c =>
+      const missingItems = shoppingList.filter(item => item.ingredient_id && !comparisons.some(c =>
         c.items.some(i => (i as any).shoppingItemIds?.includes(item.id) || i.shoppingItemId === item.id)))
       if (missingItems.length > 0) {
         // Only scrape stores that we have metadata for (from getUserPreferredStores)

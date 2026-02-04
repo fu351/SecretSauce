@@ -51,6 +51,7 @@ class StoreListHistoryTable extends BaseTable<
       total_item_price: dbItem.total_item_price,
       week_index: dbItem.week_index,
       is_delivery_confirmed: dbItem.is_delivery_confirmed,
+      order_id: dbItem.order_id,
       expires_at: dbItem.expires_at,
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at,
@@ -78,10 +79,6 @@ class StoreListHistoryTable extends BaseTable<
     productMappingId: string,
     deliveryDate?: string
   ): Promise<string | null> {
-    console.log(
-      `[Store List History DB] Adding to delivery log: shopping_item=${shoppingListItemId}, product=${productMappingId}, date=${deliveryDate || "today"}`
-    )
-
     const { data, error } = await this.supabase.rpc("fn_add_to_delivery_log", {
       p_shopping_list_item_id: shoppingListItemId,
       p_product_mapping_id: productMappingId,
@@ -93,7 +90,6 @@ class StoreListHistoryTable extends BaseTable<
       return null
     }
 
-    console.log(`[Store List History DB] Successfully added to delivery log: ${data}`)
     return data
   }
 

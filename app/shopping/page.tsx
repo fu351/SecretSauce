@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { useAuth } from "@/contexts/auth-context"
@@ -36,8 +36,6 @@ export default function ShoppingPage() {
   const [showComparison, setShowComparison] = useState(false)
   const [newItemInput, setNewItemInput] = useState("")
   const [showRecipeModal, setShowRecipeModal] = useState(false)
-
-  const shoppingListRef = useRef<HTMLDivElement>(null)
 
   const [reloadModalOpen, setReloadModalOpen] = useState(false)
   const [reloadTarget, setReloadTarget] = useState<{
@@ -96,7 +94,7 @@ export default function ShoppingPage() {
       }
     }
     loadPrefs()
-  }, [user, authLoading, profileDB])
+  }, [user, authLoading])
 
   useEffect(() => {
     if (mounted && searchParams.get("expandList") === "true") {
@@ -123,7 +121,7 @@ export default function ShoppingPage() {
     }
   }
 
-  const handleAddRecipe = async (id: string, title: string, servings?: number) => {
+  const handleAddRecipe = async (id: string, _title: string, servings?: number) => {
     await addRecipeToCart(id, servings)
   }
 
@@ -183,17 +181,6 @@ export default function ShoppingPage() {
       return
     }
 
-    // DEBUG: Log the items to see what we're working with
-    console.log("=== CHECKOUT DEBUG ===")
-    console.log("Best store:", bestStore.store)
-    console.log("Number of items:", bestStore.items.length)
-    console.log("Items:", bestStore.items.map(item => ({
-      title: item.title,
-      shoppingItemId: item.shoppingItemId,
-      productMappingId: item.productMappingId,
-      hasProductMappingId: !!item.productMappingId
-    })))
-
     try {
       toast({ title: "Processing...", description: "Creating your delivery order" })
 
@@ -208,31 +195,17 @@ export default function ShoppingPage() {
         const productMappingId = item.productMappingId
 
         if (!productMappingId) {
-          console.warn(`Skipping item ${item.title} - no product_mapping_id`, item)
           skippedItems.push(item.title)
           continue
         }
 
-        console.log(`Adding item ${item.title} with mapping ID: ${productMappingId}`)
-
         const logId = await storeListHistoryDB.addToDeliveryLog(shoppingListItemId, productMappingId)
 
         if (!logId) {
-          console.error("Error adding item to delivery log")
           throw new Error("Failed to add item to delivery log")
         }
-
-        console.log(`Successfully added item, log ID: ${logId}`)
         if (!orderId) orderId = logId
         addedCount++
-      }
-
-      console.log(`=== CHECKOUT SUMMARY ===`)
-      console.log(`Total items processed: ${bestStore.items.length}`)
-      console.log(`Successfully added: ${addedCount}`)
-      console.log(`Skipped (no mapping ID): ${skippedItems.length}`)
-      if (skippedItems.length > 0) {
-        console.log(`Skipped items:`, skippedItems)
       }
 
       if (!orderId) {
@@ -247,7 +220,6 @@ export default function ShoppingPage() {
 
       router.push(`/delivery/${orderId}`)
     } catch (error) {
-      console.error("Checkout error:", error)
       toast({
         title: "Checkout Failed",
         description: "There was an error creating your order. Please try again.",
@@ -287,7 +259,7 @@ export default function ShoppingPage() {
         <div className="mb-8">
 
           {/* Shopping list card */}
-          <div ref={shoppingListRef} data-shopping-list>
+          <div data-shopping-list>
             <Card className={`${styles.cardBgClass} overflow-hidden flex flex-col h-full`} style={{ minHeight: shoppingList.length === 0 ? '70vh' : 'auto' }}>
 
               {/* Header */}
@@ -350,22 +322,6 @@ export default function ShoppingPage() {
             </Card>
           </div>
         </div>
-
-        {/* Mobile modal - DISABLED */}
-        {/* <Dialog open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-          <DialogContent className="h-[80vh] max-h-[80vh] p-0 border-0 flex flex-col rounded-t-2xl rounded-b-none">
-            <RecipeRecommendationSidebar
-              shoppingItems={shoppingList}
-              onAddRecipe={handleAddRecipe}
-              theme={styles.theme}
-              cardBgClass={styles.cardBgClass}
-              textClass={styles.textClass}
-              mutedTextClass={styles.mutedTextClass}
-              buttonClass={styles.buttonClass}
-              buttonOutlineClass={styles.buttonOutlineClass}
-            />
-          </DialogContent>
-        </Dialog> */}
 
         {/* Bottom: Price comparison (full width) */}
         {showComparison && (

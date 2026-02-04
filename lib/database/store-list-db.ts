@@ -77,16 +77,11 @@ class ShoppingListTable extends BaseTable<
    * Callers should reload the shopping list to get the final state
    */
   async insertItem(item: Partial<ShoppingListItem>): Promise<void> {
-    console.log("[Shopping List DB] Attempting to insert item:", item)
     const { error } = await this.supabase
       .from(this.tableName)
       .insert(item as any)
 
-    if (error) {
-      console.error("[Shopping List DB] Insert error:", error)
-      throw error
-    }
-    console.log("[Shopping List DB] Insert successful (triggers may have merged)")
+    if (error) throw error
   }
 
   /**
@@ -118,17 +113,12 @@ class ShoppingListTable extends BaseTable<
       return []
     }
 
-    console.log("[Shopping List DB] Inserting items:", items)
     const { data, error } = await this.supabase
       .from(this.tableName)
       .insert(items as any)
       .select("*")
 
-    if (error) {
-      console.error("[Shopping List DB] Insert error:", error)
-      throw error
-    }
-    console.log("[Shopping List DB] Insert successful, returned data:", data)
+    if (error) throw error
     return (data || []).map((item) => this.map(item))
   }
 
