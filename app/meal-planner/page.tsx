@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo, memo } from "react"
+import { useState, useEffect, useCallback, useMemo, memo } from "react"
+import dynamic from "next/dynamic"
 import { useAuth } from "@/contexts/auth-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
 import { useRouter } from "next/navigation"
@@ -17,8 +18,6 @@ import { SignInNotification } from "@/components/shared/signin-notification"
 import { PlannerActions } from "@/components/meal-planner/controls/planner-actions"
 import { NutritionSummaryCard } from "@/components/meal-planner/cards/nutrition-summary-card"
 import { WeeklyView } from "@/components/meal-planner/views/weekly-view"
-// import { AiPlannerModal } from "@/components/meal-planner/modals/ai-planner-modal"
-import { RecipeSearchPanel } from "@/components/meal-planner/panels/recipe-search-panel"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
 import { RecipeDetailModal } from "@/components/recipe/detail/recipe-detail-modal"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -30,17 +29,31 @@ import type { Recipe } from "@/lib/types"
 // This ensures that scrolling or dragging doesn't force a re-render of heavy UI
 const MemoizedWeeklyView = memo(WeeklyView)
 const MemoizedNutritionSummary = memo(NutritionSummaryCard)
-const MemoizedRecipeSearchPanel = memo(RecipeSearchPanel)
 
-const MEAL_TYPES = [
-  { key: "breakfast", label: "BREAKFAST" },
-  { key: "lunch", label: "LUNCH" },
-  { key: "dinner", label: "DINNER" },
-]
-
-const WEEKDAYS_FULL = [
-  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-]
+// Lazy-load the recipe search panel — it's only needed after the user opens the sidebar,
+// so deferring its bundle keeps the initial page load lighter.
+const RecipeSearchPanel = dynamic(
+  () => import("@/components/meal-planner/panels/recipe-search-panel").then((mod) => mod.RecipeSearchPanel),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-col h-full bg-card">
+        <div className="flex flex-col border-b border-border p-4 gap-3">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+            <div className="h-8 w-8 bg-muted rounded-full animate-pulse" />
+          </div>
+          <div className="h-10 bg-muted rounded-lg animate-pulse" />
+        </div>
+        <div className="flex-1 p-4 grid grid-cols-2 gap-4 auto-rows-max bg-muted/30">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="h-40 bg-muted rounded-lg animate-pulse" />
+          ))}
+        </div>
+      </div>
+    ),
+  }
+)
 
 export default function MealPlannerPage() {
   const { user } = useAuth()
@@ -316,16 +329,10 @@ export default function MealPlannerPage() {
           >
             {showRecipeSidebar && (
               <div className="w-[380px] h-full overflow-hidden">
-                <MemoizedRecipeSearchPanel
-                  mealType={null}
-                  mealTypes={MEAL_TYPES}
-                  favoriteRecipes={recipes.favoriteRecipes}
-                  suggestedRecipes={recipes.suggestedRecipes}
+                <RecipeSearchPanel
                   onSelect={handleRecipeSelection}
-                  onMealTypeChange={() => {}}
                   getDraggableProps={dnd.getDraggableProps}
                   activeDragData={dnd.activeDragData}
-                  isCollapsed={false}
                   onToggleCollapse={() => setShowRecipeSidebar(false)}
                 />
               </div>
@@ -336,26 +343,17 @@ export default function MealPlannerPage() {
         {/* Mobile Sidebar */}
         <Sheet open={showRecipeSidebar && isMobile} onOpenChange={setShowRecipeSidebar}>
           <SheetContent side="right" className="w-full p-0">
-            <MemoizedRecipeSearchPanel
-              mealType={null}
-              mealTypes={MEAL_TYPES}
-              favoriteRecipes={recipes.favoriteRecipes}
-              suggestedRecipes={recipes.suggestedRecipes}
+            <RecipeSearchPanel
               onSelect={(recipe) => {
                 handleRecipeSelection(recipe)
                 setShowRecipeSidebar(false)
               }}
-              onMealTypeChange={() => {}}
               getDraggableProps={dnd.getDraggableProps}
               activeDragData={dnd.activeDragData}
-              isCollapsed={false}
               onToggleCollapse={() => setShowRecipeSidebar(false)}
             />
           </SheetContent>
         </Sheet>
-
-        {/* Modals */}
-        {/* AI planner modal disabled while the heuristic planner drives the experience */}
 
         <RecipeDetailModal
           recipeId={selectedRecipeId}

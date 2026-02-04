@@ -26,11 +26,6 @@ import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
 import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS } from "@/lib/types/recipe/constants"
 
-interface MealType {
-  key: string
-  label: string
-}
-
 interface DragData {
   recipe: Recipe
   source: 'modal' | 'slot'
@@ -39,15 +34,9 @@ interface DragData {
 }
 
 interface RecipeSearchPanelProps {
-  mealType: string | null
-  mealTypes: MealType[]
-  favoriteRecipes: Recipe[]
-  suggestedRecipes: Recipe[]
   onSelect: (recipe: Recipe) => void
-  onMealTypeChange: (mealType: string) => void
   getDraggableProps: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
   activeDragData?: DragData | null
-  isCollapsed?: boolean
   onToggleCollapse?: () => void
 }
 
