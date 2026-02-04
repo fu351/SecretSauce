@@ -8,6 +8,12 @@ import type { LatLng, RouteResult, TravelMode, OSRMRouteResponse } from "./types
 
 const METERS_TO_MILES = 0.000621371
 
+// The public OSRM demo server only ships a "car" profile — requesting "foot"
+// silently returns identical car data.  We always fetch with "car" and, for
+// walking, recompute duration from the road distance at a realistic pace.
+const DRIVING_BUFFER = 1.2 // signals, congestion, real-world friction
+const WALKING_SPEED_MS = 1.34 // 3.0 mph in m/s – typical urban walking pace
+
 export class OSRMRoutingService {
   private baseUrl: string
   private timeout: number
@@ -31,7 +37,7 @@ export class OSRMRoutingService {
       return this.cache.get(cacheKey)!
     }
 
-    const profile = mode === "driving" ? "car" : "foot"
+    const profile = "car" // "foot" is broken on the public demo server
     const coords = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`
     const url = `${this.baseUrl}/route/v1/${profile}/${coords}`
 
@@ -62,17 +68,25 @@ export class OSRMRoutingService {
       const route = data.routes[0]
       const polyline = decode(route.geometry).map(([lat, lng]) => ({ lat, lng }))
 
+      // Driving: apply a buffer to OSRM's optimistic speed model.
+      // Walking: OSRM's public server has no real foot profile, so derive
+      // duration from the actual road distance at a walking pace instead.
+      const duration =
+        mode === "walking"
+          ? route.distance / WALKING_SPEED_MS
+          : route.duration * DRIVING_BUFFER
+
       const result: RouteResult = {
         polyline,
         distance: route.distance * METERS_TO_MILES,
-        duration: route.duration,
-        durationText: this.formatDuration(route.duration),
+        duration,
+        durationText: this.formatDuration(duration),
       }
 
       // Cache the result
       this.cache.set(cacheKey, result)
 
-      console.log(`[OSRM] Route calculated: ${result.distance.toFixed(1)} mi, ${result.durationText}`)
+      console.log(`[OSRM] ${mode} route: ${result.distance.toFixed(1)} mi, ${result.durationText}`)
 
       return result
     } catch (error) {
