@@ -177,8 +177,10 @@ async function scrapeDirectFallback(
           if (store === "kroger" || store === "meijer") {
             data = (await scraper(storeZip, term)) || []
           } else if (store === "target") {
-            // Target scraper accepts store metadata as second parameter
-            data = (await scraper(term, storeData, storeZip)) || []
+            // Pass null for storeMetadata — Target's scraper expects its own store IDs
+            // (numeric, from redsky), not our internal grocery_store_id UUIDs.
+            // It will resolve the correct store via getNearestStore(zipCode) itself.
+            data = (await scraper(term, null, storeZip)) || []
           } else {
             data = (await scraper(term, storeZip)) || []
           }

@@ -209,7 +209,8 @@ async function runStoreScraper(
   options: StoreLookupOptions = {}
 ): Promise<ScraperResult[]> {
   const normalizedStore = normalizeStoreName(store);
-  const zip = normalizeZipCode(options.zipCode);
+  const storeMeta = options.storeMetadata?.get(normalizedStore);
+  const zip = normalizeZipCode(storeMeta?.zipCode ?? options.zipCode);
 
   try {
     console.log("[ingredient-pipeline] Running scraper", { store: normalizedStore, canonicalName, zip });
@@ -835,7 +836,7 @@ export async function estimateIngredientCostsForStore(
       const newEntries = await ingredientsRecentDB.findByStandardizedIds(
         newIds,
         [normalizedStore],
-        options.zipCode
+        normalizedOptions.zipCode
       );
       newEntries.forEach(entry => {
         if (!cachedMap.has(entry.standardized_ingredient_id)) {
