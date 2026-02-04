@@ -5,9 +5,8 @@ import { useToast } from "../ui/use-toast"
 import type { StoreComparison, GroceryItem, ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import { useAuth } from "@/contexts/auth-context"
 import { profileDB } from "@/lib/database/profile-db"
-import { shoppingItemPriceCacheDB, type PricingResult } from "@/lib/database/shopping-item-price-cache-db"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
-import { ingredientsHistoryDB, normalizeStoreName } from "@/lib/database/ingredients-db"
+import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName, type PricingResult } from "@/lib/database/ingredients-db"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { type StoreMetadataMap, type StoreMetadata } from "@/lib/utils/store-metadata"
 
@@ -274,7 +273,7 @@ export function useStoreComparison(
       // ----- Fetch user preferred stores metadata via API (uses RPC with fallback) -----
       const storeMetadata = await fetchUserStoreMetadata(user?.id, resolvedZipCode)
       // ----- Primary: server-side pricing function -----
-      const pricingData = user ? await shoppingItemPriceCacheDB.getPricingForUser(user.id) : []
+      const pricingData = user ? await ingredientsRecentDB.getPricingForUser(user.id) : []
       let comparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
       let finalComparisons = comparisons
 
@@ -373,7 +372,7 @@ export function useStoreComparison(
             console.error("[useStoreComparison] Failed to insert history from scraper")
           }
 
-          const refreshed = await shoppingItemPriceCacheDB.getPricingForUser(user?.id || "")
+          const refreshed = await ingredientsRecentDB.getPricingForUser(user?.id || "")
           const refreshedComparisons = buildComparisonsFromPricing(refreshed, storeMetadata)
           if (refreshedComparisons.length > 0) {
             finalComparisons = refreshedComparisons
@@ -456,6 +455,7 @@ export function useStoreComparison(
               title: newItem.title,
               image_url: newItem.image_url || item.image_url,
               price: newItem.price,
+              productMappingId: newItem.productMappingId,
               originalName: item.originalName
             }
           }

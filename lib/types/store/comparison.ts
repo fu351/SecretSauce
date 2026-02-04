@@ -20,6 +20,7 @@ export interface GroceryItem {
   longitude?: number
   category?: string
   quantity?: number
+  productMappingId?: string
 }
 
 /**
@@ -48,7 +49,6 @@ export interface StoreComparison {
     shoppingItemId: string
     originalName: string
     shoppingItemIds?: string[]
-    productMappingId?: string
   })[]
   total: number
   savings: number

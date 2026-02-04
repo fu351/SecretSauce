@@ -917,16 +917,6 @@ export type Database = {
           ingredients: Record<string, number>
         }
       }
-      complete_order: {
-        Args: {
-          input_data: Array<{
-            shopping_list_id: string
-            store_id: string
-          }>
-          target_delivery_date: string
-        }
-        Returns: void
-      }
       fn_add_to_delivery_log: {
         Args: {
           p_shopping_list_item_id: string

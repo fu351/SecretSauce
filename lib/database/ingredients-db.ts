@@ -141,7 +141,7 @@ class IngredientsHistoryTable extends BaseTable<
    */
   async batchInsertPricesRpc(
     items: Array<{
-      standardizedIngredientId: string
+      standardizedIngredientId: string | null
       store: string
       price: number
       quantity: number // accepted for compatibility; RPC now ignores and defaults to 1
@@ -177,7 +177,7 @@ class IngredientsHistoryTable extends BaseTable<
 
       if (!payload.length) return 0
 
-      const { data, error } = await (this.supabase.rpc as any)("bulk_cache_prices", {
+      const { data, error } = await (this.supabase.rpc as any)("fn_bulk_insert_ingredient_history", {
         p_items: payload,
       })
 
@@ -189,6 +189,100 @@ class IngredientsHistoryTable extends BaseTable<
       return Array.isArray(data) ? data.length : 0
     } catch (error) {
       this.handleError(error, "batchInsertPricesRpc")
+      return 0
+    }
+  }
+
+  /**
+   * Fuzzy-match a batch of product names against standardized_ingredients.
+   * Calls fn_preview_ingredient_match which uses trigram similarity with
+   * substring fallback. Returns a map of productName -> matched ingredient UUID.
+   * Rows where no match was found (matched_id IS NULL) are omitted.
+   */
+  async previewStandardization(
+    items: Array<{
+      productName: string
+      standardizedIngredientId?: string | null
+    }>
+  ): Promise<Map<string, string>> {
+    try {
+      if (!items.length) return new Map()
+
+      const payload = items.map((item) => ({
+        productName: item.productName,
+      }))
+
+      const { data, error } = await (this.supabase.rpc as any)("fn_preview_ingredient_match", {
+        p_items: payload,
+      })
+
+      if (error) {
+        this.handleError(error, "previewStandardization")
+        return new Map()
+      }
+
+      const result = new Map<string, string>()
+      ;(data || []).forEach((row: any) => {
+        if (row.input_name && row.matched_id) {
+          result.set(row.input_name, row.matched_id)
+        }
+      })
+      return result
+    } catch (error) {
+      this.handleError(error, "previewStandardization")
+      return new Map()
+    }
+  }
+
+  /**
+   * Bulk insert with full standardization and product-mapping creation via RPC.
+   * Uses fn_bulk_standardize_and_match which:
+   *  - Resolves standardized_ingredient_id (uses manual value if provided, else fuzzy match)
+   *  - Extracts quantity/unit from product name
+   *  - Upserts into product_mappings (creates the row needed for checkout)
+   *  - Inserts into ingredients_history with product_mapping_id set
+   * Falls back to 0 on error so callers can decide to retry.
+   */
+  async batchStandardizeAndMatch(
+    items: Array<{
+      standardizedIngredientId?: string | null
+      store: string
+      price: number
+      productName?: string | null
+      productId?: string | null
+      zipCode?: string | null
+      groceryStoreId?: string | null
+    }>
+  ): Promise<number> {
+    try {
+      if (!items.length) return 0
+
+      const payload = items
+        .filter((i) => i.price > 0)
+        .map((item) => ({
+          standardizedIngredientId: item.standardizedIngredientId ?? null,
+          store: normalizeStoreName(item.store),
+          price: item.price,
+          productName: item.productName ?? null,
+          productId: item.productId ?? null,
+          zipCode: item.zipCode ?? "",
+          store_id: item.groceryStoreId ?? null,
+        }))
+
+      if (!payload.length) return 0
+
+      const { data, error } = await (this.supabase.rpc as any)("fn_bulk_standardize_and_match", {
+        p_items: payload,
+      })
+
+      if (error) {
+        this.handleError(error, "batchStandardizeAndMatch")
+        return 0
+      }
+
+      return Array.isArray(data) ? data.length : 0
+    } catch (error) {
+      this.handleError(error, "batchStandardizeAndMatch")
       return 0
     }
   }
@@ -278,6 +372,94 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
       return []
     }
   }
+
+  /**
+   * Fetch enriched price options for a single ingredient across user's preferred stores.
+   * Wraps get_ingredient_price_details RPC. Each offer includes product_mapping_id,
+   * which is what fn_add_to_delivery_log needs at checkout.
+   */
+  async getIngredientPriceDetails(
+    userId: string,
+    standardizedIngredientId: string,
+    quantity: number = 1
+  ): Promise<Array<{
+    store: string
+    productMappingId: string | null
+    unitPrice: number | null
+    packagePrice: number | null
+    totalPrice: number | null
+    packagesToBuy: number | null
+    productName: string | null
+    imageUrl: string | null
+    distance: number | null
+  }>> {
+    try {
+      const { data, error } = await (this.supabase.rpc as any)("get_ingredient_price_details", {
+        p_user_id: userId,
+        p_standardized_ingredient_id: standardizedIngredientId,
+        p_quantity: quantity,
+      })
+
+      if (error) {
+        this.handleError(error, "getIngredientPriceDetails")
+        return []
+      }
+
+      // RPC returns JSONB: [{ standardized_ingredient_id, offers: [...] }]
+      const entries = Array.isArray(data) ? data : []
+      return entries.flatMap((entry: any) =>
+        (entry.offers || []).map((offer: any) => ({
+          store: offer.store || "",
+          productMappingId: offer.product_mapping_id || null,
+          unitPrice: offer.unit_price != null ? Number(offer.unit_price) : null,
+          packagePrice: offer.package_price != null ? Number(offer.package_price) : null,
+          totalPrice: offer.total_price != null ? Number(offer.total_price) : null,
+          packagesToBuy: offer.packages_to_buy != null ? Number(offer.packages_to_buy) : null,
+          productName: offer.product_name || null,
+          imageUrl: offer.image_url || null,
+          distance: offer.distance != null ? Number(offer.distance) : null,
+        }))
+      )
+    } catch (error) {
+      this.handleError(error, "getIngredientPriceDetails")
+      return []
+    }
+  }
+
+  async getPricingForUser(userId: string): Promise<PricingResult[]> {
+    try {
+      const { data, error } = await (this.supabase.rpc as any)("get_pricing", {
+        p_user_id: userId,
+      })
+
+      if (error) {
+        this.handleError(error, "getPricingForUser")
+        return []
+      }
+
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      this.handleError(error, "getPricingForUser")
+      return []
+    }
+  }
+}
+
+export type PricingResult = {
+  standardized_ingredient_id: string
+  total_quantity: number
+  item_ids: string[]
+  offers: {
+    store: string
+    store_id?: string | null
+    store_name?: string | null
+    unit_price: number | null
+    total_price: number | null
+    product_name?: string | null
+    image_url?: string | null
+    zip_code?: string | null
+    distance?: number | null
+  }[]
 }
 
 export const ingredientsHistoryDB = IngredientsHistoryTable.getInstance()

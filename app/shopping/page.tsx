@@ -470,6 +470,7 @@ export default function ShoppingPage() {
         zipCode={zipCode}
         onSelect={handleSwapConfirmation}
         styles={styles}
+        userId={user?.id}
       />
     </div>
   )

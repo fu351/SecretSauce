@@ -60,7 +60,7 @@ class ProductMappingsTable {
     standardized_ingredient_id?: string | null
     modal_delta?: number
     exchange_delta?: number
-  }): Promise<void> {
+  }): Promise<string | null> {
     const {
       external_product_id,
       store_id = null,
@@ -108,12 +108,12 @@ class ProductMappingsTable {
 
       if (insertErr) {
         console.error("[ProductMappingsTable] incrementCounts insert failed", insertErr)
-        return
+        return null
       }
       mappingId = inserted?.[0]?.id
     }
 
-    if (!mappingId) return
+    if (!mappingId) return null
 
     // 2) Increment via security-definer RPC to bypass RLS updates
     const { error: rpcErr } = await supabase.rpc("increment_mapping_counters", {
@@ -125,6 +125,8 @@ class ProductMappingsTable {
     if (rpcErr) {
       console.error("[ProductMappingsTable] incrementCounts rpc failed", rpcErr)
     }
+
+    return mappingId
   }
 }
 

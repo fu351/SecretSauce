@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
-import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
+import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "@/lib/database/ingredients-db"
 import { productMappingsDB } from "@/lib/database/product-mappings-db"
 import type { GroceryItem } from "@/lib/types/store"
 
@@ -23,9 +23,10 @@ interface ItemReplacementModalProps {
   zipCode: string
   onSelect: (item: GroceryItem) => void
   styles: any
+  userId?: string
 }
 
-export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelect, styles }: ItemReplacementModalProps) {
+export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelect, styles, userId }: ItemReplacementModalProps) {
   const [term, setTerm] = useState("")
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<GroceryItem[]>([])
@@ -48,48 +49,77 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     if (!searchTerm) return
     setLoading(true)
     try {
-      // Pass the specific store to search only that provider
+      // 1. Scrape — show raw results immediately
       const res = await searchGroceryStores(searchTerm, zipCode, target?.store, undefined, true)
       const flatResults = res.flatMap(r => r.items || [])
       setResults(flatResults)
 
-      // Bulk upsert scraped options into ingredients_history so pricing pipeline can pick them up
-      const standardizedId = target?.standardizedIngredientId
-      if (standardizedId) {
-        const payload = flatResults
-          .filter(item => typeof item.price === "number" && item.price > 0)
-          .map(item => {
-            const unitPrice =
-              item.pricePerUnit != null
-                ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, "")) || null
-                : null
+      const validResults = flatResults.filter(item => typeof item.price === "number" && item.price > 0)
+      if (validResults.length === 0) return
 
-            return {
-              standardizedIngredientId: standardizedId,
-              store: item.provider?.toLowerCase?.() || target?.store || "unknown",
-              price: item.price,
-              quantity: 1,
-              unit: item.unit || "unit",
-              unitPrice,
-              imageUrl: item.image_url,
-              productName: item.title,
-              productId: item.id,
-              location: item.location || null,
-              zipCode: zipCode || null,
-            }
-          })
+      // 2. Resolve ingredient IDs via preview (manual if available, else fuzzy)
+      const ingredientMap = await ingredientsHistoryDB.previewStandardization(
+        validResults.map(item => ({
+          productName: item.title,
+          standardizedIngredientId: target?.standardizedIngredientId || null,
+        }))
+      )
+      const resolvedIngredientId = ingredientMap.values().next().value || target?.standardizedIngredientId
 
-        if (payload.length > 0) {
-          ingredientsHistoryDB.batchInsertPricesRpc(payload)
-            .then(async (count) => {
-              if (count === 0) {
-                return await ingredientsHistoryDB.batchInsertPrices(payload)
-              }
-              return count
-            })
-            .catch(err =>
-              console.error("[ItemReplacementModal] Failed to cache scraped results", err)
-            )
+      // 3. Persist + create product_mappings via fn_bulk_standardize_and_match
+      const payload = validResults.map(item => ({
+        standardizedIngredientId: ingredientMap.get(item.title) || resolvedIngredientId || null,
+        store: item.provider?.toLowerCase?.() || target?.store || "unknown",
+        price: item.price,
+        productName: item.title,
+        productId: item.id,
+        zipCode: zipCode || null,
+      }))
+      await ingredientsHistoryDB.batchStandardizeAndMatch(payload)
+
+      // 4. Query back via get_ingredient_price_details — results include product_mapping_id
+      if (userId && resolvedIngredientId) {
+        const dbOffers = await ingredientsRecentDB.getIngredientPriceDetails(
+          userId,
+          resolvedIngredientId
+        )
+        console.log("[ItemReplacementModal] === SCRAPE vs DB ===")
+        console.log("[ItemReplacementModal] Scraped (%d):", validResults.length, validResults.map(item => ({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          provider: item.provider,
+          unit: item.unit,
+          image_url: item.image_url,
+        })))
+        console.log("[ItemReplacementModal] DB offers (%d):", dbOffers.length, dbOffers.map(offer => ({
+          store: offer.store,
+          productName: offer.productName,
+          productMappingId: offer.productMappingId,
+          unitPrice: offer.unitPrice,
+          packagePrice: offer.packagePrice,
+          totalPrice: offer.totalPrice,
+          packagesToBuy: offer.packagesToBuy,
+          imageUrl: offer.imageUrl,
+          distance: offer.distance,
+        })))
+
+        const targetStore = normalizeStoreName(target?.store || "")
+        const dbItems: GroceryItem[] = dbOffers
+          .filter(offer => offer.store === targetStore && offer.productMappingId)
+          .map(offer => ({
+            id: offer.productMappingId!,
+            title: offer.productName || "Unknown",
+            brand: "",
+            price: offer.totalPrice || 0,
+            pricePerUnit: offer.unitPrice != null ? String(offer.unitPrice) : undefined,
+            image_url: offer.imageUrl || "",
+            provider: offer.store,
+            productMappingId: offer.productMappingId || undefined,
+          }))
+
+        if (dbItems.length > 0) {
+          setResults(dbItems)
         }
       }
     } catch (e) {
@@ -101,17 +131,19 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      // If closing, log modal impressions for currently shown items
+      // If closing, log modal impressions — only for scraper-sourced items (no productMappingId)
       if (prevOpenRef.current && !open && results.length > 0) {
-        const tasks = results.map(item =>
-          productMappingsDB.incrementCounts({
-            external_product_id: item.id,
-            zip_code: zipCode || null,
-            raw_product_name: target?.term || item.title,
-            standardized_ingredient_id: target?.standardizedIngredientId || null,
-            modal_delta: 1,
-          })
-        )
+        const tasks = results
+          .filter(item => !item.productMappingId)
+          .map(item =>
+            productMappingsDB.incrementCounts({
+              external_product_id: item.id,
+              zip_code: zipCode || null,
+              raw_product_name: target?.term || item.title,
+              standardized_ingredient_id: target?.standardizedIngredientId || null,
+              modal_delta: 1,
+            })
+          )
         void Promise.all(tasks)
       }
       prevOpenRef.current = open
@@ -125,15 +157,15 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex gap-2">
-            <Input 
-                value={term} 
+            <Input
+                value={term}
                 onChange={e => setTerm(e.target.value)}
                 className={styles.theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
                 onKeyDown={(e) => e.key === 'Enter' && performSearch(term)}
             />
             <Button onClick={() => performSearch(term)}>Search</Button>
           </div>
-          
+
       <div className="max-h-[300px] overflow-y-auto">
         {loading ? (
           <div className="p-4 text-center">
@@ -156,14 +188,21 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                   <Button
                     size="sm"
                     onClick={() => {
-                      void productMappingsDB.incrementCounts({
-                        external_product_id: item.id,
-                        zip_code: zipCode || null,
-                        raw_product_name: item.title,
-                        standardized_ingredient_id: target?.standardizedIngredientId || null,
-                        exchange_delta: 1,
-                      })
-                      onSelect(item)
+                      if (item.productMappingId) {
+                        // DB-sourced item — mapping ID already set
+                        onSelect(item)
+                      } else {
+                        // Scraper-sourced fallback — look up/create mapping
+                        productMappingsDB.incrementCounts({
+                          external_product_id: item.id,
+                          zip_code: zipCode || null,
+                          raw_product_name: item.title,
+                          standardized_ingredient_id: target?.standardizedIngredientId || null,
+                          exchange_delta: 1,
+                        }).then(mappingId => {
+                          onSelect({ ...item, productMappingId: mappingId || undefined })
+                        })
+                      }
                     }}
                   >
                     Select
