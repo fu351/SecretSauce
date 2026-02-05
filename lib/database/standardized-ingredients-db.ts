@@ -35,7 +35,7 @@ class StandardizedIngredientsTable extends BaseTable<
         .from(this.tableName)
         .select('*')
         .eq('canonical_name', canonicalName)
-        .single()
+        .maybeSingle()
 
       if (error) {
         this.handleError(error, 'findByCanonicalName')

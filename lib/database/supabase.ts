@@ -9,6 +9,9 @@ type Json =
   | { [key: string]: Json }
   | Json[]
 
+// Set to true to enable per-query [v0] logging from the Supabase client wrapper
+export let DB_DEBUG = false
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -19,7 +22,7 @@ const createMonitoredClient = (url: string, key: string, options: any) => {
   const originalFrom = client.from.bind(client)
   client.from = (table: string) => {
     const startTime = performance.now()
-    console.log(`[v0] Supabase query started: ${table}`)
+    if (DB_DEBUG) console.log(`[v0] Supabase query started: ${table}`)
 
     const query = originalFrom(table)
 
@@ -35,9 +38,9 @@ const createMonitoredClient = (url: string, key: string, options: any) => {
             originalThen(
               (value: any) => {
                 const duration = performance.now() - startTime
-                console.log(`[v0] Supabase ${methodName} completed: ${table} in ${duration.toFixed(2)}ms`)
+                if (DB_DEBUG) console.log(`[v0] Supabase ${methodName} completed: ${table} in ${duration.toFixed(2)}ms`)
 
-                if (value?.error) {
+                if (DB_DEBUG && value?.error) {
                   console.error(`[v0] Supabase error on ${table}:`, value.error)
                 }
 
@@ -45,7 +48,7 @@ const createMonitoredClient = (url: string, key: string, options: any) => {
               },
               (error: any) => {
                 const duration = performance.now() - startTime
-                console.error(`[v0] Supabase ${methodName} failed on ${table} after ${duration.toFixed(2)}ms:`, error)
+                if (DB_DEBUG) console.error(`[v0] Supabase ${methodName} failed on ${table} after ${duration.toFixed(2)}ms:`, error)
                 return onRejected ? onRejected(error) : Promise.reject(error)
               },
             )
@@ -807,6 +810,7 @@ export type Database = {
           week_index: number
           is_delivery_confirmed: boolean | null
           order_id: string | null
+          product_mapping_id: string | null
           expires_at: string
           created_at: string | null
           updated_at: string | null
@@ -822,6 +826,7 @@ export type Database = {
           week_index: number
           is_delivery_confirmed?: boolean | null
           order_id?: string | null
+          product_mapping_id?: string | null
           expires_at: string
           created_at?: string | null
           updated_at?: string | null
@@ -837,6 +842,7 @@ export type Database = {
           week_index?: number
           is_delivery_confirmed?: boolean | null
           order_id?: string | null
+          product_mapping_id?: string | null
           expires_at?: string
           created_at?: string | null
           updated_at?: string | null

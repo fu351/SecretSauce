@@ -52,6 +52,7 @@ class StoreListHistoryTable extends BaseTable<
       week_index: dbItem.week_index,
       is_delivery_confirmed: dbItem.is_delivery_confirmed,
       order_id: dbItem.order_id,
+      product_mapping_id: dbItem.product_mapping_id,
       expires_at: dbItem.expires_at,
       created_at: dbItem.created_at,
       updated_at: dbItem.updated_at,

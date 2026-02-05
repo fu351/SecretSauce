@@ -184,29 +184,21 @@ export default function ShoppingPage() {
     try {
       toast({ title: "Processing...", description: "Creating your delivery order" })
 
-      let orderId: string | null = null
-      let addedCount = 0
-      const skippedItems: string[] = []
+      const eligible = bestStore.items.filter(item => item.productMappingId)
 
-      // Call RPC function for each item in the best store
-      // order_id is assigned automatically by the DB on each entry
-      for (const item of bestStore.items) {
-        const shoppingListItemId = item.shoppingItemId
-        const productMappingId = item.productMappingId
-
-        if (!productMappingId) {
-          skippedItems.push(item.title)
-          continue
-        }
-
-        const logId = await storeListHistoryDB.addToDeliveryLog(shoppingListItemId, productMappingId)
-
-        if (!logId) {
-          throw new Error("Failed to add item to delivery log")
-        }
-        if (!orderId) orderId = logId
-        addedCount++
+      if (eligible.length === 0) {
+        throw new Error("No items were added to delivery log")
       }
+
+      // order_id is assigned automatically by DB trigger — safe to run in parallel
+      const results = await Promise.all(
+        eligible.map(item =>
+          storeListHistoryDB.addToDeliveryLog(item.shoppingItemId, item.productMappingId!)
+        )
+      )
+
+      const orderId = results.find(id => id !== null) ?? null
+      const addedCount = results.filter(id => id !== null).length
 
       if (!orderId) {
         throw new Error("No items were added to delivery log")
