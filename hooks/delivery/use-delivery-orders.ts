@@ -10,7 +10,7 @@ export interface DeliveryOrder {
   storeAddress: string | null
   ingredientName: string
   quantity: number
-  unitPrice: number
+  packagePrice: number
   totalPrice: number
   deliveryDate: string | null
   isConfirmed: boolean | null
@@ -75,14 +75,14 @@ function groupByDateAndStore(data: any[]): GroupedDelivery[] {
         storeAddress: item.grocery_stores?.address || null,
         ingredientName: item.standardized_ingredients?.canonical_name || "Unknown Item",
         quantity: item.quantity_needed,
-        unitPrice: item.unit_price_at_selection,
+        packagePrice: item.price_at_selection,
         totalPrice: item.total_item_price || 0,
         deliveryDate: item.delivery_date,
         isConfirmed: item.is_delivery_confirmed,
         createdAt: item.created_at,
         weekIndex: item.week_index,
       })),
-      total: storeItems.reduce((sum, item) => sum + ((item.total_item_price || 0) * item.quantity_needed), 0),
+      total: storeItems.reduce((sum, item) => sum + ((item.price_at_selection || 0) * item.quantity_needed), 0),
     }))
 
     // Calculate grand total

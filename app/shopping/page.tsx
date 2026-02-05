@@ -44,6 +44,7 @@ export default function ShoppingPage() {
     shoppingListId?: string;
     shoppingListIds?: string[];
     standardizedIngredientId?: string | null;
+    groceryStoreId?: string | null;
   } | null>(null)
   
   const {
@@ -137,7 +138,7 @@ export default function ShoppingPage() {
     }, 100)
   }
 
-  const handleReloadRequest = (target: { term: string; store: string; shoppingListId: string; shoppingListIds?: string[] }) => {
+  const handleReloadRequest = (target: { term: string; store: string; shoppingListId: string; shoppingListIds?: string[]; groceryStoreId?: string | null }) => {
     const primaryId = target.shoppingListIds?.[0] || target.shoppingListId
     const matchedItem = shoppingList.find(i => i.id === primaryId)
     const standardizedIngredientId = matchedItem?.ingredient_id || matchedItem?.standardizedIngredientId || null

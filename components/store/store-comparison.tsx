@@ -76,7 +76,7 @@ interface StoreComparisonSectionProps {
   massSearchResults: StoreComparison[]
   carouselIndex: number
   onStoreSelect: (index: number) => void
-  onReloadItem: (params: { term: string; store: string; shoppingListId: string; shoppingListIds?: string[] }) => void
+  onReloadItem: (params: { term: string; store: string; shoppingListId: string; shoppingListIds?: string[]; groceryStoreId?: string | null }) => void
   postalCode: string
   cardBgClass: string
   textClass: string
@@ -362,7 +362,13 @@ export function StoreComparisonSection({
                     size="icon"
                     variant="ghost"
                     className="h-9 w-9 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => onReloadItem({ term: item.originalName, store: activeStore.store, shoppingListId: item.shoppingItemIds[0], shoppingListIds: item.shoppingItemIds })}
+                    onClick={() => onReloadItem({
+                      term: item.originalName,
+                      store: activeStore.store,
+                      shoppingListId: item.shoppingItemIds?.[0] || item.shoppingItemId,
+                      shoppingListIds: item.shoppingItemIds,
+                      groceryStoreId: activeStore.groceryStoreId,
+                    })}
                   >
                     <ArrowLeftRight className="h-4 w-4" />
                   </Button>

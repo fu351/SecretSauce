@@ -145,6 +145,7 @@ export function useStoreComparison(
         latitude,
         longitude,
         distanceMiles,
+        groceryStoreId: metadata?.grocery_store_id ?? null,
       }
     })
 
@@ -220,6 +221,7 @@ export function useStoreComparison(
         latitude,
         longitude,
         distanceMiles,
+        groceryStoreId: metadata?.grocery_store_id ?? null,
       }
     })
 
@@ -385,6 +387,7 @@ export function useStoreComparison(
           latitude: meta.latitude ?? undefined,
           longitude: meta.longitude ?? undefined,
           distanceMiles: meta.distanceMiles ?? undefined,
+          groceryStoreId: meta.grocery_store_id ?? null,
           locationHint: meta.zipCode ? `${storeKey} (${meta.zipCode})` : undefined,
         })
       })

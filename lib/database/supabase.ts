@@ -804,7 +804,7 @@ export type Database = {
           user_id: string
           grocery_store_id: string
           standardized_ingredient_id: string
-          unit_price_at_selection: number
+          price_at_selection: number
           quantity_needed: number
           total_item_price: number | null
           week_index: number
@@ -821,7 +821,7 @@ export type Database = {
           user_id: string
           grocery_store_id: string
           standardized_ingredient_id: string
-          unit_price_at_selection: number
+          price_at_selection: number
           quantity_needed: number
           week_index: number
           is_delivery_confirmed?: boolean | null
@@ -837,7 +837,7 @@ export type Database = {
           user_id?: string
           grocery_store_id?: string
           standardized_ingredient_id?: string
-          unit_price_at_selection?: number
+          price_at_selection?: number
           quantity_needed?: number
           week_index?: number
           is_delivery_confirmed?: boolean | null

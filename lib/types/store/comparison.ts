@@ -61,6 +61,7 @@ export interface StoreComparison {
   missingCount?: number
   providerAliases?: string[]
   canonicalKey?: string
+  groceryStoreId?: string | null
   missingIngredients?: ShoppingListIngredient[]
 }
 

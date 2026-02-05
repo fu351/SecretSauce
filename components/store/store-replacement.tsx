@@ -19,6 +19,7 @@ interface ItemReplacementModalProps {
     shoppingListId?: string
     shoppingListIds?: string[]
     standardizedIngredientId?: string | null
+    groceryStoreId?: string | null
   } | null
   zipCode: string
   onSelect: (item: GroceryItem) => void
@@ -74,6 +75,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         productName: item.title,
         productId: item.id,
         zipCode: zipCode || null,
+        groceryStoreId: target?.groceryStoreId ?? null,
       }))
       await ingredientsHistoryDB.batchStandardizeAndMatch(payload)
 
@@ -83,27 +85,6 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
           userId,
           resolvedIngredientId
         )
-        console.log("[ItemReplacementModal] === SCRAPE vs DB ===")
-        console.log("[ItemReplacementModal] Scraped (%d):", validResults.length, validResults.map(item => ({
-          id: item.id,
-          title: item.title,
-          price: item.price,
-          provider: item.provider,
-          unit: item.unit,
-          image_url: item.image_url,
-        })))
-        console.log("[ItemReplacementModal] DB offers (%d):", dbOffers.length, dbOffers.map(offer => ({
-          store: offer.store,
-          productName: offer.productName,
-          productMappingId: offer.productMappingId,
-          unitPrice: offer.unitPrice,
-          packagePrice: offer.packagePrice,
-          totalPrice: offer.totalPrice,
-          packagesToBuy: offer.packagesToBuy,
-          imageUrl: offer.imageUrl,
-          distance: offer.distance,
-        })))
-
         const targetStore = normalizeStoreName(target?.store || "")
         const dbItems: GroceryItem[] = dbOffers
           .filter(offer => offer.store === targetStore && offer.productMappingId)
@@ -141,6 +122,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
               zip_code: zipCode || null,
               raw_product_name: target?.term || item.title,
               standardized_ingredient_id: target?.standardizedIngredientId || null,
+              store_id: target?.groceryStoreId ?? null,
               modal_delta: 1,
             })
           )
@@ -198,6 +180,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                           zip_code: zipCode || null,
                           raw_product_name: item.title,
                           standardized_ingredient_id: target?.standardizedIngredientId || null,
+                          store_id: target?.groceryStoreId ?? null,
                           exchange_delta: 1,
                         }).then(mappingId => {
                           onSelect({ ...item, productMappingId: mappingId || undefined })

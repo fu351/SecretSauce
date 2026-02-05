@@ -30,7 +30,7 @@ interface OrderItem {
   storeAddress: string | null
   ingredientName: string
   quantity: number
-  unitPrice: number
+  packagePrice: number
   totalPrice: number
 }
 
@@ -111,12 +111,12 @@ export default function OrderDetailPage() {
             storeAddress: item.grocery_stores.address,
             ingredientName: item.standardized_ingredients.canonical_name,
             quantity: item.quantity_needed,
-            unitPrice: item.unit_price_at_selection,
+            packagePrice: item.price_at_selection,
             totalPrice: item.total_item_price || 0,
           })),
-          subtotal: items.reduce((sum, item) => sum + ((item.total_item_price || 0) * item.quantity_needed), 0),
+          subtotal: items.reduce((sum, item) => sum + ((item.price_at_selection || 0) * item.quantity_needed), 0),
         })),
-        grandTotal: data.reduce((sum, item) => sum + ((item.total_item_price || 0) * item.quantity_needed), 0),
+        grandTotal: data.reduce((sum, item) => sum + ((item.price_at_selection || 0) * item.quantity_needed), 0),
       }
 
       setOrder(orderDetail)
@@ -246,11 +246,11 @@ export default function OrderDetailPage() {
                       <div className="flex-1">
                         <p className={`font-medium ${styles.textClass}`}>{item.ingredientName}</p>
                         <p className={`text-sm ${styles.mutedTextClass}`}>
-                          Qty: {item.quantity} × ${item.totalPrice.toFixed(2)}
+                          {item.quantity} pkg × ${item.packagePrice.toFixed(2)}
                         </p>
                       </div>
                       <p className={`font-bold ${styles.textClass}`}>
-                        ${(item.quantity * item.totalPrice).toFixed(2)}
+                        ${(item.quantity * item.packagePrice).toFixed(2)}
                       </p>
                     </div>
                   ))}
