@@ -58,28 +58,32 @@ export default function EditRecipePage() {
         imageValue = storagePath
       }
 
-      // Prepare update data
-      const recipeData: any = {
-        title: data.title,
-        description: data.description,
-        image_url: imageValue,
-        prep_time: data.prep_time,
-        cook_time: data.cook_time,
-        servings: data.servings,
-        difficulty: data.difficulty as "beginner" | "intermediate" | "advanced",
-        cuisine: data.cuisine,
-        tags: data.tags || [],
-        protein: recipe?.protein,
-        meal_type: recipe?.meal_type,
-        cuisine_guess: recipe?.cuisine_guess,
-        ingredients: data.ingredients,
-        instructions: data.instructions,
-        nutrition: data.nutrition,
-        updated_at: new Date().toISOString(),
-      }
+      const instructionSteps = data.instructions
+        .map((step) => step.description?.trim())
+        .filter(Boolean)
 
-      // Update using recipe-db
-      await recipeDB.updateRecipe(recipeId, recipeData)
+      const updatedRecipe = await recipeDB.upsertRecipeWithIngredients({
+        recipeId,
+        title: data.title,
+        authorId: recipe?.author_id || user.id,
+        cuisine: data.cuisine || recipe?.cuisine_name || null,
+        mealType: recipe?.meal_type ?? null,
+        protein: recipe?.protein ?? null,
+        difficulty: data.difficulty,
+        servings: data.servings,
+        prepTime: data.prep_time,
+        cookTime: data.cook_time,
+        tags: data.tags || [],
+        nutrition: data.nutrition,
+        description: data.description,
+        imageUrl: imageValue,
+        instructions: instructionSteps,
+        ingredients: data.ingredients,
+      })
+
+      if (!updatedRecipe) {
+        throw new Error("Failed to update recipe record")
+      }
 
       // Invalidate cache
       await queryClient.invalidateQueries({ queryKey: ["recipe", recipeId] })
@@ -93,7 +97,7 @@ export default function EditRecipePage() {
         description: "Your recipe has been successfully updated.",
       })
 
-      router.push(`/recipes/${recipeId}`)
+      router.push(`/recipes/${updatedRecipe.id}`)
     } catch (error: any) {
       console.error("Error updating recipe:", error)
       toast({

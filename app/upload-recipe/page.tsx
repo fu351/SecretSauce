@@ -13,7 +13,7 @@ import { uploadRecipeImage } from "@/lib/image-helper"
 import { PenLine, Download } from "lucide-react"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
 import { RecipeImportTabs } from "@/components/recipe/import/recipe-import-tabs"
-import type { ImportedRecipe, RecipeSubmissionData, Recipe } from "@/lib/types"
+import type { ImportedRecipe, RecipeSubmissionData } from "@/lib/types"
 
 export default function UploadRecipePage() {
   const router = useRouter()
@@ -71,31 +71,25 @@ export default function UploadRecipePage() {
         }
       }
 
-      // 2. Prepare data for the DAO
-      // Note: recipeDB.insertRecipe handles the transformation into the DB schema
-      const recipeToInsert: Partial<Recipe> = {
-        title: submissionData.title,
-        prep_time: submissionData.prep_time,
-        cook_time: submissionData.cook_time,
-        servings: submissionData.servings,
-        difficulty: submissionData.difficulty as any,
-        cuisine_name: submissionData.cuisine || "other",
-        ingredients: submissionData.ingredients,
-        nutrition: submissionData.nutrition,
-        author_id: user.id,
-        content: {
-          description: submissionData.description || "",
-          image_url: imageValue || undefined,
-          instructions: submissionData.instructions,
-        },
-        tags: submissionData.tags as any || [],
-        protein: undefined,
-        meal_type: undefined,
-        cuisine_guess: undefined,
-      }
+      const instructionSteps = submissionData.instructions
+        .map((step) => step.description?.trim())
+        .filter(Boolean)
 
-      // 3. Use the singleton for the database operation
-      const newRecipe = await recipeDB.insertRecipe(recipeToInsert)
+      const newRecipe = await recipeDB.upsertRecipeWithIngredients({
+        title: submissionData.title,
+        authorId: user.id,
+        cuisine: submissionData.cuisine,
+        difficulty: submissionData.difficulty,
+        servings: submissionData.servings,
+        prepTime: submissionData.prep_time,
+        cookTime: submissionData.cook_time,
+        tags: submissionData.tags || [],
+        nutrition: submissionData.nutrition,
+        description: submissionData.description,
+        imageUrl: imageValue,
+        instructions: instructionSteps,
+        ingredients: submissionData.ingredients,
+      })
 
       if (!newRecipe) throw new Error("Failed to create recipe record")
 

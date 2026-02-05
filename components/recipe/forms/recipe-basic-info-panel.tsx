@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Clock, Users, BarChart3 } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
-import { CUISINE_TYPES, DIFFICULTY_LEVELS, DietaryTag } from "@/lib/types"
+import { DIFFICULTY_LEVELS, DietaryTag } from "@/lib/types"
+import { CuisineAutocomplete } from "./cuisine-autocomplete"
 import { DietaryTagSelector } from "@/components/recipe/tags/dietary-tag-selector"
 
 interface RecipeBasicInfoPanelProps {
@@ -166,18 +167,7 @@ export function RecipeBasicInfoPanel({
         {/* Cuisine Type */}
         <div>
           <Label htmlFor="panel-cuisine" className="text-sm">Cuisine Type</Label>
-          <Select value={cuisine} onValueChange={onCuisineChange}>
-            <SelectTrigger id="panel-cuisine" className="mt-1">
-              <SelectValue placeholder="Select cuisine" />
-            </SelectTrigger>
-            <SelectContent>
-              {CUISINE_TYPES.map((cuisineType) => (
-                <SelectItem key={cuisineType} value={cuisineType}>
-                  {cuisineType.charAt(0).toUpperCase() + cuisineType.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <CuisineAutocomplete value={cuisine} onChange={onCuisineChange} placeholder="Search cuisine" />
         </div>
 
         {/* Dietary Tags - Using new DietaryTagSelector component */}

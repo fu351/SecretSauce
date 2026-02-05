@@ -925,6 +925,27 @@ export type Database = {
         }
         Returns: string
       }
+      fn_upsert_recipe_with_ingredients: {
+        Args: {
+          p_recipe_id?: string | null
+          p_title: string
+          p_author_id: string
+          p_cuisine?: Database["public"]["Enums"]["cuisine_type_enum"] | null
+          p_meal_type?: Database["public"]["Enums"]["meal_type_enum"] | null
+          p_protein?: Database["public"]["Enums"]["protein_type_enum"] | null
+          p_difficulty?: Database["public"]["Enums"]["recipe_difficulty"] | null
+          p_servings?: number | null
+          p_prep_time?: number | null
+          p_cook_time?: number | null
+          p_tags?: Database["public"]["Tables"]["recipes"]["Row"]["tags"] | null
+          p_nutrition?: Database["public"]["Tables"]["recipes"]["Row"]["nutrition"] | null
+          p_description?: string | null
+          p_image_url?: string | null
+          p_instructions?: string[] | null
+          p_ingredients?: Json
+        }
+        Returns: Database["public"]["Tables"]["recipes"]["Row"]
+      }
       get_best_store_for_plan: {
         Args: {
           p_user_id: string

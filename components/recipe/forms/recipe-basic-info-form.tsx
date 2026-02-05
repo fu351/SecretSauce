@@ -7,7 +7,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { RecipeImageUpload } from "./recipe-image-upload"
-import { CUISINE_TYPES, DIETARY_TAGS, DIFFICULTY_LEVELS } from "@/lib/types"
+import { DIETARY_TAGS, DIFFICULTY_LEVELS } from "@/lib/types"
+import { CuisineAutocomplete } from "./cuisine-autocomplete"
 
 interface RecipeBasicInfoFormProps {
   title: string
@@ -154,18 +155,7 @@ export function RecipeBasicInfoForm({
 
         <div>
           <Label htmlFor="cuisine">Cuisine Type</Label>
-          <Select value={cuisine} onValueChange={onCuisineChange}>
-            <SelectTrigger id="cuisine">
-              <SelectValue placeholder="Select cuisine type" />
-            </SelectTrigger>
-            <SelectContent>
-              {CUISINE_TYPES.map((cuisineType) => (
-                <SelectItem key={cuisineType} value={cuisineType}>
-                  {cuisineType.charAt(0).toUpperCase() + cuisineType.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <CuisineAutocomplete value={cuisine} onChange={onCuisineChange} placeholder="Search cuisine" />
         </div>
 
         <div>

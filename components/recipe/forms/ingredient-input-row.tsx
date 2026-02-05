@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { useTheme } from "@/contexts/theme-context"
 import type { IngredientFormInput } from "@/lib/types/forms"
+import { UnitAutocomplete } from "./unit-autocomplete"
 
 interface IngredientInputRowProps {
   ingredient: IngredientFormInput
@@ -24,11 +25,12 @@ export function IngredientInputRow({
 }: IngredientInputRowProps) {
   const { theme } = useTheme()
   const isDark = theme === "dark"
-
   const pillClass = clsx(
     "flex items-center gap-2 px-3 py-2 rounded-lg shadow-sm border transition-colors",
     isDark ? "bg-secondary/70 border-border hover:bg-secondary/80" : "bg-white/80 backdrop-blur-sm border-white/50 hover:bg-white/90"
   )
+
+  const unitListId = `unit-options-${index}`
 
   return (
     <div className={pillClass}>
@@ -44,12 +46,12 @@ export function IngredientInputRow({
         onChange={(e) => onChange(index, "amount", e.target.value)}
         className="w-16 border-0 bg-transparent h-8 p-0 text-xs"
       />
-      <Input
-        placeholder="Unit"
-        value={ingredient.unit}
-        onChange={(e) => onChange(index, "unit", e.target.value)}
-        className="w-20 border-0 bg-transparent h-8 p-0 text-xs"
-      />
+      <div className="w-20">
+        <UnitAutocomplete
+          value={ingredient.unit}
+          onChange={(value) => onChange(index, "unit", value)}
+        />
+      </div>
       {canRemove && (
         <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(index)} className="h-6 w-6 flex-shrink-0 hover:bg-destructive/10">
           <X className="h-3 w-3" />
