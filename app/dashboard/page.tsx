@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChefHat, Heart, Calendar, ShoppingCart, Plus, PlayCircle, X } from "lucide-react"
+import { ChefHat, Heart, Calendar, ShoppingCart, Plus, PlayCircle, X, Truck } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
@@ -323,7 +323,7 @@ export default function DashboardPage() {
               <CardTitle className="text-foreground">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Button asChild className="w-full h-24 flex flex-col gap-2">
                   <Link href="/upload-recipe">
                     <Plus className="h-6 w-6" />
@@ -340,6 +340,12 @@ export default function DashboardPage() {
                   <Link href="/pantry">
                     <ShoppingCart className="h-6 w-6" />
                     <span>Manage Pantry</span>
+                  </Link>
+                </Button>
+                <Button asChild className="w-full h-24 flex flex-col gap-2">
+                  <Link href="/delivery">
+                    <Truck className="h-6 w-6" />
+                    <span>My Deliveries</span>
                   </Link>
                 </Button>
               </div>
