@@ -5,7 +5,8 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-flash"
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
+// Change this line:
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`
 
 /**
  * Standardizer Ingredient Input Type
