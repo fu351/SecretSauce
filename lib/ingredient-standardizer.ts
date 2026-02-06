@@ -4,6 +4,7 @@ import { standardizedIngredientsDB } from "./database/standardized-ingredients-d
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim()
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview"
 const GEMINI_API_VERSION = process.env.GEMINI_API_VERSION?.trim()
@@ -59,7 +60,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
   const response = await axios.post(
     OPENAI_URL,
     {
-      model: "gpt-4o-mini",
+      model: OPENAI_MODEL,
       temperature: 0.1,
       max_tokens: 1000,
       messages: [
