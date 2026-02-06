@@ -4,8 +4,8 @@ import { standardizedIngredientsDB } from "./database/standardized-ingredients-d
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-pro"
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateText`
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-flash"
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
 /**
  * Standardizer Ingredient Input Type
@@ -83,11 +83,19 @@ async function callGemini(prompt: string): Promise<string | null> {
   const response = await axios.post(
     url,
     {
-      prompt: {
-        text: prompt,
+      contents: [
+        {
+          parts: [
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 1000,
       },
-      temperature: 0.1,
-      maxOutputTokens: 1000,
     },
     {
       headers: {
@@ -96,12 +104,12 @@ async function callGemini(prompt: string): Promise<string | null> {
     },
   )
 
-  return response.data?.candidates?.[0]?.output?.trim() ?? null
+  return response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null
 }
 
 function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: string[], context: "recipe" | "pantry") {
   const canonicalList =
-    canonicalNames.length > 0 ? canonicalNames.slice(0, 150).join(", ") : "No canonical list provided"
+    canonicalNames.length > 0 ? canonicalNames.slice(0, 200).join(", ") : "No canonical list provided"
 
   const formattedInputs = inputs.map((item, index) => ({
     id: item.id || String(index),
@@ -111,35 +119,52 @@ function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: stri
   }))
 
   return `
-You are an ingredient normalizer helping a cooking app map free-form ${context} entries to canonical grocery ingredients.
+You are an ingredient normalizer for a grocery shopping app. Your job is to map ${context} ingredient names to canonical grocery store items.
 
-EXISTING canonical ingredients (MUST match to these when possible): ${canonicalList}
+EXISTING CANONICAL INGREDIENTS (${canonicalNames.length} total):
+${canonicalList}
 
-Instructions:
-1. ALWAYS try to match to an existing canonical ingredient from the list above first.
-2. Strip away preparation methods and descriptors: chopped, minced, diced, sliced, grated, shredded, crushed, cooked, raw, large, small, ripe, etc.
-3. Remove qualifiers like "to taste", "optional", "for garnish", "divided", etc.
-4. Keep ingredient names SPECIFIC ENOUGH to be useful for grocery shopping:
-   - "grated parmesan cheese" → "parmesan cheese" (NOT just "cheese")
-   - "dry white wine" → "white wine" (NOT just "wine")
-   - "fresh basil leaves" → "basil"
-   - "chopped yellow onion" → "onion"
-   - "boneless skinless chicken breast" → "chicken breast"
-   - "extra virgin olive oil" → "olive oil"
-   - "salt and black pepper to taste" → "salt and pepper"
-5. For each input, return a canonical grocery ingredient name (singular, lowercase).
-6. If no existing match, create a new canonical name that is specific enough to find in a grocery store.
-7. REQUIRED: Include a specific category from ONLY these options: produce, dairy, meat & seafood, pantry staples, frozen, beverages, snacks, condiments, baking. NEVER use "other" - always pick the most appropriate category.
-8. Output confidence between 0 and 1 (higher if matched to existing canonical).
-9. Return ONLY valid JSON (no markdown) as an array of objects using this shape:
-   [{"id":"input-id","originalName":"original input","canonicalName":"canonical","category":"category","confidence":0.92}]
+CRITICAL: When an input closely matches an existing canonical ingredient, you MUST use that exact match. Only create new canonical names when no reasonable match exists.
 
-Inputs:
+Normalization Rules:
+1. **Match Existing First**: ALWAYS prioritize matching to the canonical list above. Use exact matches when possible.
+2. **Strip Preparation**: Remove preparation methods: chopped, minced, diced, sliced, grated, shredded, crushed, cooked, raw, etc.
+3. **Strip Qualifiers**: Remove descriptors: fresh, dried, large, small, ripe, organic, to taste, optional, divided, etc.
+4. **Remove Brands**: Strip brand names (e.g., "Kraft cheddar cheese" → "cheddar cheese")
+5. **Singular Form**: Use singular, not plural (e.g., "tomatoes" → "tomato")
+6. **Lowercase**: All canonical names must be lowercase
+7. **Keep Specificity**: Maintain enough detail for grocery shopping:
+   ✓ "grated parmesan cheese" → "parmesan cheese" (NOT "cheese")
+   ✓ "dry white wine" → "white wine" (NOT "wine")
+   ✓ "fresh basil leaves" → "basil"
+   ✓ "yellow onion, chopped" → "onion"
+   ✓ "boneless skinless chicken breast" → "chicken breast"
+   ✓ "extra virgin olive oil" → "olive oil"
+   ✓ "kosher salt" → "salt"
+   ✓ "all-purpose flour" → "all-purpose flour" (keep type for baking items)
+
+8. **Compound Ingredients**: For "X and Y", create ONE canonical name if it's a common pairing (e.g., "salt and pepper"), otherwise split into separate matches.
+
+9. **Categories**: Assign ONE category from ONLY these options:
+   - produce, dairy, meat & seafood, pantry staples, frozen, beverages, snacks, condiments, baking
+
+10. **Confidence Scoring**:
+    - 0.9-1.0: Exact match to existing canonical ingredient
+    - 0.7-0.9: Close match with minor normalization
+    - 0.5-0.7: New canonical name but clear ingredient
+    - 0.3-0.5: Ambiguous or unclear ingredient
+    - 0.0-0.3: Very uncertain or invalid input
+
+OUTPUT FORMAT:
+Return ONLY valid JSON (no markdown, no code blocks) as an array:
+[{"id":"input-id","originalName":"original input","canonicalName":"canonical","category":"category","confidence":0.92}]
+
+Inputs to process:
 ${JSON.stringify(formattedInputs, null, 2)}
 `
 }
 
-function fallbackResults(inputs: IngredientInput[]): IngredientStandardizationResult[] {
+function fallbackResults(inputs: StandardizerIngredientInput[]): IngredientStandardizationResult[] {
   return inputs.map((item, index) => ({
     id: item.id || String(index),
     originalName: item.name,
@@ -150,7 +175,7 @@ function fallbackResults(inputs: IngredientInput[]): IngredientStandardizationRe
 }
 
 export async function standardizeIngredientsWithAI(
-  inputs: IngredientInput[],
+  inputs: StandardizerIngredientInput[],
   context: "recipe" | "pantry"
 ): Promise<IngredientStandardizationResult[]> {
   if (!inputs || inputs.length === 0) {
