@@ -29,6 +29,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: 'gemini-3-flash'
           QUEUE_BATCH_LIMIT: '40'
           QUEUE_STANDARDIZER_CONTEXT: 'pantry'
           QUEUE_RESOLVER_NAME: 'nightly-gemini'
