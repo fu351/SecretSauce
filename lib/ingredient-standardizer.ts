@@ -36,6 +36,31 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   return Promise.race([promise, timeout])
 }
 
+/**
+ * Extracts JSON from AI response, handling various formats
+ * Returns null if no valid JSON found
+ */
+function extractJSON(content: string): string | null {
+  if (!content) return null
+
+  // Remove markdown code blocks
+  let cleaned = content.replace(/```json\n?|```/gi, "").trim()
+
+  // Try to find JSON array or object
+  const arrayMatch = cleaned.match(/\[[\s\S]*\]/)
+  const objectMatch = cleaned.match(/\{[\s\S]*\}/)
+
+  // Prefer array (expected format) over object
+  if (arrayMatch) {
+    return arrayMatch[0]
+  } else if (objectMatch) {
+    return objectMatch[0]
+  }
+
+  // If no clear boundaries, assume entire cleaned string
+  return cleaned
+}
+
 const geminiClient = GEMINI_API_KEY
   ? new GoogleGenAI({
       apiKey: GEMINI_API_KEY,
@@ -57,51 +82,85 @@ async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
 async function callOpenAI(prompt: string): Promise<string | null> {
   if (!OPENAI_API_KEY) return null
 
-  const response = await axios.post(
-    OPENAI_URL,
-    {
-      model: OPENAI_MODEL,
-      temperature: 0.1,
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "system",
-          content: "You standardize ingredient names for a cooking application and always return valid JSON.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
+  try {
+    const response = await axios.post(
+      OPENAI_URL,
+      {
+        model: OPENAI_MODEL,
+        temperature: 0.1,
+        max_tokens: 1000,
+        messages: [
+          {
+            role: "system",
+            content: "You standardize ingredient names for a cooking application and always return valid JSON.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
       },
-    },
-  )
+      {
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      },
+    )
 
-  return response.data?.choices?.[0]?.message?.content?.trim() ?? null
+    const content = response.data?.choices?.[0]?.message?.content?.trim()
+
+    if (!content) {
+      console.warn("[callOpenAI] Empty response from OpenAI")
+      return null
+    }
+
+    // Validate it looks like JSON
+    if (!content.startsWith('[') && !content.startsWith('{')) {
+      console.warn("[callOpenAI] Response doesn't look like JSON:", content.substring(0, 100))
+    }
+
+    return content
+  } catch (error) {
+    console.error("[callOpenAI] Request failed:", error)
+    return null
+  }
 }
 
 async function callGemini(prompt: string): Promise<string | null> {
   if (!geminiClient) return null
 
-  const response = await withTimeout(
-    geminiClient.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: prompt,
-      config: {
-        temperature: 0.1,
-        maxOutputTokens: 1000,
-        responseMimeType: "application/json",
-      },
-    }),
-    20000
-  )
+  try {
+    const response = await withTimeout(
+      geminiClient.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: prompt,
+        config: {
+          temperature: 0.1,
+          maxOutputTokens: 1000,
+          responseMimeType: "application/json",
+        },
+      }),
+      20000
+    )
 
-  return response.text?.trim() ?? null
+    const text = response.text?.trim()
+
+    if (!text) {
+      console.warn("[callGemini] Empty response from Gemini")
+      return null
+    }
+
+    // Validate it looks like JSON
+    if (!text.startsWith('[') && !text.startsWith('{')) {
+      console.warn("[callGemini] Response doesn't look like JSON:", text.substring(0, 100))
+    }
+
+    return text
+  } catch (error) {
+    console.error("[callGemini] Request failed:", error)
+    return null
+  }
 }
 
 function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: string[], context: "recipe" | "pantry") {
@@ -189,8 +248,12 @@ export async function standardizeIngredientsWithAI(
     return fallbackResults(inputs)
   }
 
-  const aiProvider: "Gemini" | "OpenAI" = hasOpenAI ? "OpenAI" : "Gemini"
-  const requestFn = hasOpenAI ? callOpenAI : callGemini
+  // Determine which provider to use (OpenAI preferred)
+  const useOpenAI = hasOpenAI
+  const aiProvider: "Gemini" | "OpenAI" = useOpenAI ? "OpenAI" : "Gemini"
+  const requestFn = useOpenAI ? callOpenAI : callGemini
+
+  console.log(`[IngredientStandardizer] Using ${aiProvider} for ${inputs.length} ingredients`)
 
   try {
     const canonicalList = await fetchCanonicalIngredients()
@@ -202,8 +265,23 @@ export async function standardizeIngredientsWithAI(
       return fallbackResults(inputs)
     }
 
-    const cleaned = content.replace(/```json|```/gi, "").trim()
-    const parsed = JSON.parse(cleaned)
+    // Extract JSON from response
+    const extracted = extractJSON(content)
+    if (!extracted) {
+      console.error(`[IngredientStandardizer] ${aiProvider} - Could not extract JSON from response`)
+      console.error(`[IngredientStandardizer] Response preview: ${content.substring(0, 200)}...`)
+      return fallbackResults(inputs)
+    }
+
+    // Parse with error handling
+    let parsed: any
+    try {
+      parsed = JSON.parse(extracted)
+    } catch (parseError) {
+      console.error(`[IngredientStandardizer] ${aiProvider} - JSON parse error:`, parseError)
+      console.error(`[IngredientStandardizer] Attempted to parse: ${extracted.substring(0, 300)}...`)
+      return fallbackResults(inputs)
+    }
 
     const resultEntries: any[] = Array.isArray(parsed)
       ? parsed
@@ -271,7 +349,18 @@ export async function standardizeIngredientsWithAI(
       }
     })
   } catch (error) {
-    console.error(`[IngredientStandardizer] Failed to call ${aiProvider}:`, error)
+    console.error(`[IngredientStandardizer] ${aiProvider} failed:`, error)
+    console.error(`[IngredientStandardizer] Error type: ${error instanceof Error ? error.constructor.name : typeof error}`)
+
+    // Try fallback provider if available
+    if (useOpenAI && hasGemini) {
+      console.log(`[IngredientStandardizer] Attempting fallback to Gemini...`)
+      // Could implement fallback logic here
+    } else if (!useOpenAI && hasOpenAI) {
+      console.log(`[IngredientStandardizer] Attempting fallback to OpenAI...`)
+      // Could implement fallback logic here
+    }
+
     return fallbackResults(inputs)
   }
 }
