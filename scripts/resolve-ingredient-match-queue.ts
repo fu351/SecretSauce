@@ -25,58 +25,95 @@ const requestedBatchLimit = Number(process.env.QUEUE_BATCH_LIMIT ?? 25)
 const batchLimit = Number.isFinite(requestedBatchLimit) && requestedBatchLimit > 0 ? Math.floor(requestedBatchLimit) : 25
 const standardizerContext = process.env.QUEUE_STANDARDIZER_CONTEXT === "recipe" ? "recipe" : "pantry"
 
-async function resolveRow(row: IngredientMatchQueueRow): Promise<boolean> {
-  const searchTerm = (row.cleaned_name || row.raw_product_name || "").trim()
-  if (!searchTerm) {
-    console.warn(`[QueueResolver] Row ${row.id} missing a name. Marking as failed.`)
-    await ingredientMatchQueueDB.markFailed(row.id, resolverName)
-    return false
+async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<{ resolved: number; failed: number }> {
+  // Filter out rows without names
+  const validRows = rows.filter((row) => {
+    const searchTerm = (row.cleaned_name || row.raw_product_name || "").trim()
+    if (!searchTerm) {
+      console.warn(`[QueueResolver] Row ${row.id} missing a name. Marking as failed.`)
+      ingredientMatchQueueDB.markFailed(row.id, resolverName).catch(console.error)
+      return false
+    }
+    return true
+  })
+
+  if (validRows.length === 0) {
+    return { resolved: 0, failed: rows.length }
   }
 
   try {
-    const aiResults = await standardizeIngredientsWithAI(
-      [
-        {
-          id: row.id,
-          name: searchTerm,
-        },
-      ],
-      standardizerContext,
+    // Batch AI call for all valid rows
+    const aiInput = validRows.map((row) => ({
+      id: row.id,
+      name: (row.cleaned_name || row.raw_product_name || "").trim(),
+    }))
+
+    const aiResults = await standardizeIngredientsWithAI(aiInput, standardizerContext)
+
+    // Process results
+    const results = await Promise.allSettled(
+      aiResults.map(async (result, idx) => {
+        const row = validRows[idx]
+        if (!row) {
+          throw new Error(`No row found for result index ${idx}`)
+        }
+
+        if (!result || !result.canonicalName) {
+          throw new Error("AI returned no canonical name")
+        }
+
+        const normalizedCanonical = result.canonicalName.trim().toLowerCase()
+        if (!normalizedCanonical) {
+          throw new Error("AI returned an empty canonical name")
+        }
+
+        const standardized = await standardizedIngredientsDB.getOrCreate(normalizedCanonical, result.category)
+        if (!standardized?.id) {
+          throw new Error("Failed to upsert standardized ingredient")
+        }
+
+        const success = await ingredientMatchQueueDB.markResolved({
+          rowId: row.id,
+          canonicalName: normalizedCanonical,
+          resolvedIngredientId: standardized.id,
+          confidence: result.confidence,
+          resolver: resolverName,
+        })
+
+        if (!success) {
+          throw new Error("Failed to mark queue row as resolved")
+        }
+
+        console.log(`[QueueResolver] ${row.id} → ${normalizedCanonical} (${standardized.id})`)
+        return true
+      })
     )
 
-    const result = aiResults[0]
-    if (!result || !result.canonicalName) {
-      throw new Error("AI returned no canonical name")
-    }
+    // Count successes and failures
+    let resolved = 0
+    let failed = 0
 
-    const normalizedCanonical = result.canonicalName.trim().toLowerCase()
-    if (!normalizedCanonical) {
-      throw new Error("AI returned an empty canonical name")
-    }
-
-    const standardized = await standardizedIngredientsDB.getOrCreate(normalizedCanonical, result.category)
-    if (!standardized?.id) {
-      throw new Error("Failed to upsert standardized ingredient")
-    }
-
-    const success = await ingredientMatchQueueDB.markResolved({
-      rowId: row.id,
-      canonicalName: normalizedCanonical,
-      resolvedIngredientId: standardized.id,
-      confidence: result.confidence,
-      resolver: resolverName,
+    results.forEach((result, idx) => {
+      if (result.status === "fulfilled") {
+        resolved += 1
+      } else {
+        failed += 1
+        const row = validRows[idx]
+        if (row) {
+          console.error(`[QueueResolver] ${row.id} failed to resolve:`, result.reason)
+          ingredientMatchQueueDB.markFailed(row.id, resolverName).catch(console.error)
+        }
+      }
     })
 
-    if (!success) {
-      throw new Error("Failed to mark queue row as resolved")
-    }
-
-    console.log(`[QueueResolver] ${row.id} → ${normalizedCanonical} (${standardized.id})`)
-    return true
+    return { resolved, failed: failed + (rows.length - validRows.length) }
   } catch (error) {
-    console.error(`[QueueResolver] ${row.id} failed to resolve:`, error)
-    await ingredientMatchQueueDB.markFailed(row.id, resolverName)
-    return false
+    console.error(`[QueueResolver] Batch processing failed:`, error)
+    // Mark all rows as failed
+    await Promise.allSettled(
+      validRows.map((row) => ingredientMatchQueueDB.markFailed(row.id, resolverName))
+    )
+    return { resolved: 0, failed: rows.length }
   }
 }
 
@@ -89,25 +126,36 @@ async function run(): Promise<void> {
     return
   }
 
-  const claimed = await ingredientMatchQueueDB.markProcessing(pending.map((row) => row.id), resolverName)
-  if (!claimed) {
-    console.error("[QueueResolver] Failed to mark pending rows as processing. Aborting run.")
-    return
+  // Process in smaller chunks (10 items at a time) for better resilience
+  const chunkSize = 10
+  const chunks: IngredientMatchQueueRow[][] = []
+  for (let i = 0; i < pending.length; i += chunkSize) {
+    chunks.push(pending.slice(i, i + chunkSize))
   }
 
-  let resolved = 0
-  let failed = 0
+  console.log(`[QueueResolver] Processing ${pending.length} items in ${chunks.length} chunks of ${chunkSize}`)
 
-  for (const row of pending) {
-    const success = await resolveRow(row)
-    if (success) {
-      resolved += 1
-    } else {
-      failed += 1
+  let totalResolved = 0
+  let totalFailed = 0
+
+  for (const [idx, chunk] of chunks.entries()) {
+    console.log(`[QueueResolver] Processing chunk ${idx + 1}/${chunks.length} (${chunk.length} items)`)
+
+    const claimed = await ingredientMatchQueueDB.markProcessing(chunk.map((row) => row.id), resolverName)
+    if (!claimed) {
+      console.error(`[QueueResolver] Failed to mark chunk ${idx + 1} as processing. Skipping.`)
+      totalFailed += chunk.length
+      continue
     }
+
+    const { resolved, failed } = await resolveBatch(chunk)
+    totalResolved += resolved
+    totalFailed += failed
+
+    console.log(`[QueueResolver] Chunk ${idx + 1} complete (resolved=${resolved}, failed=${failed})`)
   }
 
-  console.log(`[QueueResolver] Completed (resolved=${resolved}, failed=${failed})`)
+  console.log(`[QueueResolver] All chunks completed (total_resolved=${totalResolved}, total_failed=${totalFailed})`)
 }
 
 run().catch((error) => {
