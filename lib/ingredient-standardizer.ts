@@ -1,12 +1,12 @@
 import axios from "axios"
+import { GoogleGenAI } from "@google/genai"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-flash"
-// Change this line:
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim()
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview"
+const GEMINI_API_VERSION = process.env.GEMINI_API_VERSION?.trim()
 
 /**
  * Standardizer Ingredient Input Type
@@ -35,6 +35,13 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   return Promise.race([promise, timeout])
 }
 
+const geminiClient = GEMINI_API_KEY
+  ? new GoogleGenAI({
+      apiKey: GEMINI_API_KEY,
+      ...(GEMINI_API_VERSION ? { apiVersion: GEMINI_API_VERSION } : {}),
+    })
+  : null
+
 async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
   // Directly call the singleton instance
   const names = await standardizedIngredientsDB.getCanonicalNameSample(sampleSize)
@@ -47,23 +54,21 @@ async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
 }
 
 async function callGemini(prompt: string): Promise<string | null> {
-  if (!GEMINI_API_KEY) return null
+  if (!geminiClient) return null
 
-  const url = `${GEMINI_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`
-  const response = await axios.post(
-    url,
-    {
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
+  const response = await withTimeout(
+    geminiClient.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
         temperature: 0.1,
-        maxOutputTokens: 2000, // Increased slightly for large batches
-        responseMimeType: "application/json", // This is the "Proper" way
+        maxOutputTokens: 1000,
       },
-    },
-    { headers: { "Content-Type": "application/json" } }
+    }),
+    20000
   )
 
-  return response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null
+  return response.text?.trim() ?? null
 }
 
 function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: string[], context: "recipe" | "pantry") {
