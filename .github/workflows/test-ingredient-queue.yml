@@ -22,12 +22,12 @@ on:
       model:
         description: 'Gemini model to use'
         required: false
-        default: 'gemini-1.5-flash'
+        default: 'gemini-3-flash'
         type: choice
         options:
-          - 'gemini-1.5-flash'
-          - 'gemini-1.5-pro'
-          - 'gemini-2.0-flash-exp'
+          - 'gemini-3-flash'
+          - 'gemini-3-pro'
+          - 'gemini-2.5-flash' # Kept for backward compatibility if needed
 
 jobs:
   test-queue-resolver:
