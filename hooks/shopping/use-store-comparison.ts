@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react"
 import { useToast } from "../ui/use-toast"
 import type { StoreComparison, GroceryItem, ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { profileDB } from "@/lib/database/profile-db"
 import { shoppingItemPriceCacheDB, type PricingResult } from "@/lib/database/shopping-item-price-cache-db"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
@@ -15,7 +15,7 @@ export function useStoreComparison(
   userLocation: { lat: number, lng: number } | null,
 ) {
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user } = useUser()
   const [profileZipCode, setProfileZipCode] = useState<string | null>(null)
 
   const [results, setResults] = useState<StoreComparison[]>([])

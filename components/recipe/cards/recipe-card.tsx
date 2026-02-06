@@ -6,7 +6,7 @@ import Image from "next/image"
 import { Star, MessageCircle, BarChart3, Heart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { supabase } from "@/lib/database/supabase"
 import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
@@ -56,7 +56,7 @@ function RecipeCardComponent({
 }: RecipeCardProps) {
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided

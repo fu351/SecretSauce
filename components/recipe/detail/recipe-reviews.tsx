@@ -1,14 +1,5 @@
-"use client"
-
-import { useState, useEffect, useRef } from "react"
-import clsx from "clsx"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Star } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { supabase } from "@/lib/database/supabase"
-import { profileDB } from "@/lib/database/profile-db"
 import { useToast } from "@/hooks"
 import { RecipeReviewsSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { useTheme } from "@/contexts/theme-context"
@@ -21,6 +12,7 @@ interface Review {
   user_id: string
   user_email?: string
   user_name?: string
+  user_avatar_url?: string | null
 }
 
 interface RecipeReviewsProps {
@@ -35,7 +27,7 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
   const [loading, setLoading] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
   const [loadingReviews, setLoadingReviews] = useState(true)
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
   const mounted = useRef(true)
   const loadingRef = useRef(false)
@@ -80,21 +72,28 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
       // Then get user profiles for each review
       if (reviewsData && reviewsData.length > 0) {
         const userIds = [...new Set(reviewsData.map((r) => r.user_id))]
+        const usersResponse = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userIds }),
+        });
 
-        const profilesData = await profileDB.fetchProfilesBatch(userIds, ["id", "email", "full_name"])
+        if (usersResponse.ok && mounted.current) {
+            const usersData = await usersResponse.json();
+            const usersMap = new Map(usersData.map((u: any) => [u.id, u]));
 
-        if (profilesData && mounted.current) {
-          const profilesMap = new Map(profilesData.map((p) => [p.id, p]))
-
-          const enrichedReviews = reviewsData.map((review) => ({
-            ...review,
-            user_email: profilesMap.get(review.user_id)?.email || "Anonymous",
-            user_name: profilesMap.get(review.user_id)?.full_name || null,
-          }))
-
-          setReviews(enrichedReviews)
+            const enrichedReviews = reviewsData.map((review) => {
+                const reviewUser = usersMap.get(review.user_id);
+                return {
+                    ...review,
+                    user_email: reviewUser?.primaryEmailAddress || "Anonymous",
+                    user_name: reviewUser?.fullName || null,
+                    user_avatar_url: reviewUser?.imageUrl || null,
+                }
+            });
+            setReviews(enrichedReviews);
         } else {
-          setReviews(reviewsData)
+             setReviews(reviewsData); // fallback to reviews without user data
         }
       } else {
         setReviews([])
@@ -294,13 +293,17 @@ export function RecipeReviews({ recipeId }: RecipeReviewsProps) {
                   <div className="flex items-center gap-2">
                     <div
                       className={clsx(
-                        "w-10 h-10 rounded-full flex items-center justify-center",
+                        "w-10 h-10 rounded-full flex items-center justify-center overflow-hidden",
                         isDark ? "bg-orange-100 text-orange-800" : "bg-orange-100 text-orange-600",
                       )}
                     >
-                      <span className="font-semibold">
-                        {review.user_name?.[0] || review.user_email?.[0] || "?"}
-                      </span>
+                      {review.user_avatar_url ? (
+                          <img src={review.user_avatar_url} alt={review.user_name || ''} className="w-full h-full object-cover" />
+                      ) : (
+                          <span className="font-semibold">
+                              {review.user_name?.[0] || review.user_email?.[0] || "?"}
+                          </span>
+                      )}
                     </div>
                     <div>
                       <p className="font-medium">{review.user_name || review.user_email || "Anonymous"}</p>

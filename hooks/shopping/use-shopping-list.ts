@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useToast } from "../ui/use-toast"
 import { shoppingListDB } from "@/lib/database/store-list-db"
 import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
@@ -25,7 +25,7 @@ import type { ShoppingListItem } from "@/lib/types/store"
  * ```
  */
 export function useShoppingList() {
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
 
   const [items, setItems] = useState<ShoppingListItem[]>([])

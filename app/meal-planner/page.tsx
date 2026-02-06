@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, memo } from "react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
 import { useRouter } from "next/navigation"
 import {
@@ -43,7 +43,7 @@ const WEEKDAYS_FULL = [
 ]
 
 export default function MealPlannerPage() {
-  const { user } = useAuth()
+  const { user } = useUser()
   const isMobile = useIsMobile()
   const { toast } = useToast()
   const shoppingList = useShoppingList()

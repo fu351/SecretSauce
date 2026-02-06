@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useTheme } from "@/contexts/theme-context"
 
 /**
@@ -10,7 +10,8 @@ import { useTheme } from "@/contexts/theme-context"
  * Defaults to dark mode for users without a saved preference
  */
 export function ThemeSync() {
-  const { profile } = useAuth()
+  const { user } = useUser()
+  const profile = user?.unsafeMetadata
   const { theme: currentTheme, setTheme } = useTheme()
 
   useEffect(() => {

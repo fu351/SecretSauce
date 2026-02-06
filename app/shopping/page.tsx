@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { profileDB } from "@/lib/database/profile-db"
@@ -25,7 +25,7 @@ import { ShoppingBag, Loader2, ArrowRight, ShoppingCart } from "lucide-react"
 const DEFAULT_SHOPPING_ZIP = ""
 
 export default function ShoppingPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, isLoaded } = useUser()
   const { theme } = useTheme()
   const { toast } = useToast()
   const router = useRouter()
@@ -84,7 +84,7 @@ export default function ShoppingPage() {
   }, [shoppingList, mounted, resetComparison])
 
   useEffect(() => {
-    if (authLoading) return
+    if (!isLoaded) return
     const loadPrefs = async () => {
       if (user) {
         const profileData = await profileDB.fetchProfileFields(user.id, ["zip_code"])
@@ -96,7 +96,7 @@ export default function ShoppingPage() {
       }
     }
     loadPrefs()
-  }, [user, authLoading, profileDB])
+  }, [user, isLoaded])
 
   useEffect(() => {
     if (mounted && searchParams.get("expandList") === "true") {

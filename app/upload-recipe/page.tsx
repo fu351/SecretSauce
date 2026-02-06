@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import clsx from "clsx"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 import { useStandardizeRecipeIngredients } from "@/hooks"
@@ -17,7 +17,7 @@ import type { ImportedRecipe, RecipeSubmissionData, Recipe } from "@/lib/types"
 
 export default function UploadRecipePage() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
   const { theme } = useTheme()
   const isDark = theme === "dark"

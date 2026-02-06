@@ -34,7 +34,7 @@ import {
   Filter,
 } from "lucide-react"
 import { format } from "date-fns"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { Recipe, RecipeIngredient, PantryItem } from "@/lib/types"
@@ -76,7 +76,7 @@ export default function PantryPage() {
     expiry_date: null as Date | null,
   })
 
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
   const { theme } = useTheme()
   const isDark = theme === "dark"

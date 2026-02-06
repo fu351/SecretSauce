@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect, memo } from "react"
 import Image from "next/image"
 import { Star, Heart } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { supabase } from "@/lib/database/supabase"
 import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
@@ -51,7 +51,7 @@ function RecipeCardCompactComponent({
 }: RecipeCardCompactProps) {
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided

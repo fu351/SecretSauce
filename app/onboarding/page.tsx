@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 import { useTutorial } from "@/contexts/tutorial-context"
@@ -165,9 +165,19 @@ export default function OnboardingPage() {
   const atLastStep = activeIndex === lastStepIndex
 
   const router = useRouter()
-  const { updateProfile } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
   const { startTutorial } = useTutorial()
+
+  const updateProfile = async (data: Record<string, any>) => {
+    if (!user) return
+    return await user.update({
+      unsafeMetadata: {
+        ...user.unsafeMetadata,
+        ...data,
+      },
+    })
+  }
 
   // Memoize address change handler to prevent autocomplete recreation
   const handleAddressChange = useCallback((addr: any) => {
@@ -607,7 +617,7 @@ export default function OnboardingPage() {
   }
 
   const handleComplete = async () => {
-    if (!allRequiredAnswered) return
+    if (!allRequiredAnswered || !user) return
     setLoading(true)
     try {
       // Convert UI display values back to database format
@@ -632,49 +642,19 @@ export default function OnboardingPage() {
         country: country || null,
         latitude: lat,
         longitude: lng,
+        onboarding_completed: true, // Add this flag
       }
 
-      // Get the pending email from localStorage (stored during signup)
-      const pendingEmail = localStorage.getItem('pending_verification_email')
-
-      if (!pendingEmail) {
-        toast({
-          title: "Error",
-          description: "Email not found. Please sign up again.",
-          variant: "destructive",
-        })
-        router.push('/auth/signup')
-        return
-      }
-
-      // Save onboarding data BEFORE email verification
-      // This creates/updates the profile with the unverified email
-      const profile = await profileDB.upsertProfile({
-        email: pendingEmail,
-        ...onboardingData,
-      } as any, {
-        onConflict: 'email'
-      })
-
-      if (!profile) {
-        const error = new Error('Failed to save onboarding data')
-        console.error('[Onboarding] Error saving to profiles:', error)
-        throw error
-      }
-
-      console.log('[Onboarding] Successfully saved onboarding data to profiles table')
+      await updateProfile(onboardingData);
 
       toast({
         title: "Preferences saved!",
-        description: "Now verify your email to get started.",
+        description: "Your profile is all set up.",
       })
 
       setTheme(selectedTheme)
 
-      // Flow: User verifies email → /auth/callback → /welcome → tutorial auto-starts
-      // The tutorial-context maps primary_goal to TutorialPath:
-      //   "cooking" → "cooking", "budgeting" → "budgeting", "both" → "health"
-      router.push("/auth/check-email")
+      router.push("/welcome")
     } catch (error) {
       console.error('[Onboarding] Error saving preferences:', error)
       toast({

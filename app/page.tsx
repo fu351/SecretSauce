@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useEffect, useState, useRef } from "react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile } from "@/hooks"
 import { recipeDB } from "@/lib/database/recipe-db"
@@ -17,7 +17,7 @@ import { Recipe } from "@/lib/types"
 type HomePageRecipe = Recipe
 
 export default function HomePage() {
-  const { user, loading } = useAuth()
+  const { user, isLoaded } = useUser()
   const { theme, setTheme } = useTheme()
   const isMobile = useIsMobile()
   const [mounted, setMounted] = useState(false)
@@ -86,7 +86,7 @@ export default function HomePage() {
     }
   }
 
-  if (loading) {
+  if (!isLoaded) {
     const domDark =
       typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : null
     const useDark = domDark ?? theme === "dark"

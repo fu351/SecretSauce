@@ -21,7 +21,7 @@
     "test:api": "vitest run app/api/"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.31.1",
+    "@clerk/nextjs": "^6.37.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^3.9.1",
@@ -53,6 +53,7 @@
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
     "@sparticuz/chromium": "latest",
+    "@stripe/stripe-js": "^8.7.0",
     "@supabase/supabase-js": "latest",
     "@tanstack/react-query": "^5.90.10",
     "@types/lodash": "^4.17.20",
@@ -84,6 +85,7 @@
     "react-resizable-panels": "latest",
     "recharts": "latest",
     "sonner": "latest",
+    "stripe": "^20.3.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^6.0.1",

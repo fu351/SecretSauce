@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { useDeliveryOrders, type GroupedDelivery } from "@/hooks/delivery/use-delivery-orders"
@@ -26,7 +25,6 @@ import {
 } from "lucide-react"
 
 export default function DeliveryPage() {
-  const { user } = useAuth()
   const { theme } = useTheme()
   const { toast } = useToast()
   const router = useRouter()

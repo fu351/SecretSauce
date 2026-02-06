@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChefHat, Heart, Calendar, ShoppingCart, Plus, PlayCircle, X } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
@@ -45,7 +45,8 @@ export default function DashboardPage() {
   const [showTutorialModal, setShowTutorialModal] = useState(false)
   const [showIOSPrompt, setShowIOSPrompt] = useState(false)
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false)
-  const { user, profile } = useAuth()
+  const { user } = useUser()
+  const profile = user?.unsafeMetadata
   const { theme } = useTheme()
   const { isActive } = useTutorial()
   const isDark = theme === "dark"

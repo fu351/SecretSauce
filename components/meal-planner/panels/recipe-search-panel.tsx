@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import { useRecipesFiltered, type SortBy } from "@/hooks"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
 import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS } from "@/lib/types/recipe/constants"
@@ -58,7 +58,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   activeDragData,
   onToggleCollapse,
 }: RecipeSearchPanelProps) {
-  const { user } = useAuth()
+  const { user } = useUser()
 
   // Filter state
   const [searchInput, setSearchInput] = useState("")

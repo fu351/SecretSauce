@@ -9,15 +9,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { useAuth } from "@/contexts/auth-context"
+  SignedIn,
+  SignedOut,
+  UserButton
+} from "@clerk/nextjs"
 import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile } from "@/hooks"
 import Link from "next/link"
@@ -27,7 +22,6 @@ import Image from "next/image"
 import { useState, useEffect } from "react"
 
 export function Header() {
-  const { user, signOut } = useAuth()
   const { theme } = useTheme()
   const isMobile = useIsMobile()
   const pathname = usePathname()
@@ -35,7 +29,6 @@ export function Header() {
   const { toast } = useToast()
   const [isFirstTimeVisitor, setIsFirstTimeVisitor] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [signOutModalOpen, setSignOutModalOpen] = useState(false)
 
   // Prevent hydration mismatch by only rendering after mount
   useEffect(() => {
@@ -57,37 +50,7 @@ export function Header() {
   if (!mounted) {
     return null
   }
-
-  // Hide header for: first-time landing page visitors, auth and onboarding routes when not logged in
-  if (!user && (isFirstTimeVisitor || pathname.startsWith("/auth") || pathname === "/onboarding")) {
-    return null
-  }
-
-  const handleSignOut = async () => {
-    setSignOutModalOpen(false)
-    console.log("[v0] Sign out button clicked")
-    try {
-      console.log("[v0] Calling signOut...")
-      await signOut()
-      console.log("[v0] Sign out successful, redirecting...")
-
-      toast({
-        title: "Signed out successfully",
-        description: "You have been signed out of your account.",
-      })
-
-      router.push("/")
-      router.refresh()
-    } catch (error) {
-      console.error("[v0] Sign out error:", error)
-      toast({
-        title: "Error signing out",
-        description: "Please try again or refresh the page.",
-        variant: "destructive",
-      })
-    }
-  }
-
+  
   return (
     <header
       className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b sticky top-0 z-40 ${
@@ -133,88 +96,11 @@ export function Header() {
         </Link>
       </nav>
 
-      <div className="flex items-center gap-2 md:gap-3 min-w-[200px] justify-end">
-        {user ? (
-          <>
-            {/* Account action buttons */}
-            <div className="flex items-center gap-1 md:gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
-              >
-                <Link href="/dashboard">
-                  <User className="h-5 w-5" />
-                  <span className="sr-only">Dashboard</span>
-                </Link>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
-              >
-                <Link href="/settings">
-                  <Settings className="h-5 w-5" />
-                  <span className="sr-only">Settings</span>
-                </Link>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSignOutModalOpen(true)}
-                className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
-              >
-                <LogOut className="h-5 w-5" />
-                <span className="sr-only">Sign Out</span>
-              </Button>
-            </div>
-
-            {/* Mobile Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild className="md:hidden">
-                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}>
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className={isDark ? "bg-card border-border text-card-foreground" : ""}
-              >
-                <DropdownMenuItem asChild>
-                  <Link href="/recipes">Recipes</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/meal-planner">Meal Planner</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/shopping">Shopping</Link>
-                </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Dialog open={signOutModalOpen} onOpenChange={setSignOutModalOpen}>
-                <DialogContent className={isDark ? "bg-card border-border text-card-foreground" : ""}>
-                  <DialogHeader>
-                    <DialogTitle>Sign out</DialogTitle>
-                    <DialogDescription>Are you sure you want to end your session?</DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <DialogClose asChild>
-                      <Button variant="ghost" size="default">
-                        Cancel
-                      </Button>
-                    </DialogClose>
-                    <Button variant="destructive" onClick={handleSignOut}>
-                      Sign Out
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </>
-        ) : (
+      <div className="flex items-center gap-2 md:gap-3 justify-end">
+        <SignedIn>
+            <UserButton afterSignOutUrl="/" />
+        </SignedIn>
+        <SignedOut>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -236,7 +122,30 @@ export function Header() {
               <Link href="/auth/signup">{isMobile ? "Sign Up" : "Get Started"}</Link>
             </Button>
           </div>
-        )}
+        </SignedOut>
+        <div className="md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}>
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className={isDark ? "bg-card border-border text-card-foreground" : ""}
+              >
+                <DropdownMenuItem asChild>
+                  <Link href="/recipes">Recipes</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/meal-planner">Meal Planner</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/shopping">Shopping</Link>
+                </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+        </div>
       </div>
     </header>
   )

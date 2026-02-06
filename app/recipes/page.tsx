@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useToast } from "@/hooks"
 import { RecipeSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { useRecipesFiltered, useRecipesCount, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
@@ -29,7 +29,7 @@ export default function RecipesPage() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [showUserOnly, setShowUserOnly] = useState(false)
 
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()

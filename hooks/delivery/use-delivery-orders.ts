@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { supabase } from "@/lib/database/supabase"
 
 export interface DeliveryOrder {
@@ -109,7 +109,7 @@ function groupByDateAndStore(data: any[]): GroupedDelivery[] {
  * Hook for fetching and managing delivery orders
  */
 export function useDeliveryOrders() {
-  const { user } = useAuth()
+  const { user } = useUser()
   const [currentOrders, setCurrentOrders] = useState<GroupedDelivery[]>([])
   const [pastOrders, setPastOrders] = useState<GroupedDelivery[]>([])
   const [loading, setLoading] = useState(true)

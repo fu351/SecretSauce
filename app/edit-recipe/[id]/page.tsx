@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import clsx from "clsx"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useToast } from "@/hooks"
 import { useRecipe, useStandardizeRecipeIngredients } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
@@ -17,7 +17,7 @@ import { parseInstructionsFromDB } from "@/lib/types"
 export default function EditRecipePage() {
   const router = useRouter()
   const params = useParams()
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { theme } = useTheme()

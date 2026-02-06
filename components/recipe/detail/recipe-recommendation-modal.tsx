@@ -8,7 +8,7 @@ import { CompactRecipeCard } from "../cards/compact-recipe-card"
 import { RecipeDetailModal } from "./recipe-detail-modal"
 import { useRecipes, useFavorites } from "@/hooks"
 import { Recipe } from "@/lib/types"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import type { ShoppingListItem } from "@/lib/types/store"
 
 interface RecipeSearchModalProps {
@@ -32,7 +32,7 @@ export function RecipeSearchModal({
   isOpen = false,
   onClose = () => {},
 }: RecipeSearchModalProps) {
-  const { user } = useAuth()
+  const { user } = useUser()
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 

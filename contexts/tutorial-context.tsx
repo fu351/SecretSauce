@@ -3,7 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "./auth-context"
+import { useUser } from "@clerk/nextjs"
 
 import type {
   TutorialPath,
@@ -58,7 +58,17 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [tutorialCompleted, setTutorialCompleted] = useState(false)
   const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
   const router = useRouter()
-  const { user, profile, updateProfile } = useAuth()
+  const { user } = useUser()
+  const profile = user?.unsafeMetadata
+  const updateProfile = async (data: Record<string, any>) => {
+    if (!user) return
+    return await user.update({
+      unsafeMetadata: {
+        ...user.unsafeMetadata,
+        ...data,
+      },
+    })
+  }
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
 

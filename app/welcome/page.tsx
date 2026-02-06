@@ -4,13 +4,14 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react"
 
 export default function WelcomePage() {
-  const { user, profile, loading } = useAuth()
+  const { user, isLoaded } = useUser()
+  const profile = user?.unsafeMetadata
   const { startTutorial, skipTutorial, isActive } = useTutorial()
   const { theme } = useTheme()
   const router = useRouter()
@@ -19,10 +20,10 @@ export default function WelcomePage() {
   const isDark = theme === "dark"
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (isLoaded && !user) {
       router.push("/auth/signin")
     }
-  }, [user, loading, router])
+  }, [user, isLoaded, router])
 
   const handleStartTutorial = () => {
     console.log('[Welcome] handleStartTutorial called', {
@@ -70,7 +71,7 @@ export default function WelcomePage() {
     router.push("/dashboard")
   }
 
-  if (loading) {
+  if (!isLoaded) {
     return (
       <div
         className={`min-h-screen flex items-center justify-center ${isDark ? "bg-[#0a0a0a]" : "bg-[#FAF4E5]"}`}

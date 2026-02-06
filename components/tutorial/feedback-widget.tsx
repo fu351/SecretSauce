@@ -5,7 +5,7 @@ import { MessageCircle, X, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useTheme } from "@/contexts/theme-context"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useToast } from "@/hooks"
 import clsx from "clsx"
 import { supabase } from "@/lib/database/supabase"
@@ -20,7 +20,7 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { theme } = useTheme()
-  const { user } = useAuth()
+  const { user } = useUser()
   const { toast } = useToast()
 
   const isDark = theme === "dark"

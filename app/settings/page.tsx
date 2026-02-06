@@ -6,15 +6,16 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { useAuth } from "@/contexts/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { useTheme } from "@/contexts/theme-context"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useRouter } from "next/navigation"
-import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen, Camera, Mail, Lock, UserCircle } from "lucide-react"
-import { supabase } from "@/lib/database/supabase"
+import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen } from "lucide-react"
 import { profileDB, type Profile } from "@/lib/database/profile-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
+import { UserProfile } from "@clerk/nextjs"
+import { dark } from "@clerk/themes";
 import { useToast } from "@/hooks"
 import Image from "next/image"
 import { DIETARY_TAGS } from "@/lib/types"
@@ -23,23 +24,21 @@ import { formatDietaryTag } from "@/lib/tag-formatter"
 type ProfileUpdates = Partial<Profile>
 
 export default function SettingsPage() {
-  const { user, updateProfile } = useAuth()
+  const { user, isLoaded } = useUser()
+  const updateProfile = async (data: Record<string, any>) => {
+    if (!user) return
+    return await user.update({
+      unsafeMetadata: {
+        ...user.unsafeMetadata,
+        ...data,
+      },
+    })
+  }
   const { theme, setTheme } = useTheme()
   const { tutorialCompleted: contextTutorialCompleted, tutorialCompletedAt: contextTutorialCompletedAt } = useTutorial()
   const router = useRouter()
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
-
-  // Profile state
-  const [fullName, setFullName] = useState("")
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [updatingEmail, setUpdatingEmail] = useState(false)
-  const [updatingPassword, setUpdatingPassword] = useState(false)
-  const [newEmail, setNewEmail] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmNewPassword, setConfirmNewPassword] = useState("")
-  const [showPasswordChange, setShowPasswordChange] = useState(false)
 
   const [primaryGoal, setPrimaryGoal] = useState("")
   const [cookingLevel, setCookingLevel] = useState("")
@@ -114,146 +113,35 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true)
-    if (!user) {
+    if (isLoaded && !user) {
       router.push("/auth/signin")
-    } else {
-      fetchUserPreferences()
     }
-  }, [user, router])
-
-  // Sync selectedTheme when theme context changes
-  useEffect(() => {
-    setSelectedTheme(theme === "dark" ? "dark" : "light")
-  }, [theme])
-
-  // Sync tutorial completion state from context
-  useEffect(() => {
-    if (contextTutorialCompleted) {
-      setTutorialCompleted(contextTutorialCompleted)
-    }
-    if (contextTutorialCompletedAt) {
-      setTutorialCompletedAt(contextTutorialCompletedAt)
-    }
-  }, [contextTutorialCompleted, contextTutorialCompletedAt])
-
-  useEffect(() => {
-    const payload: ProfileUpdates = {
-      primary_goal: primaryGoal || null,
-      cooking_level: cookingLevel || null,
-      budget_range: budgetRange || null,
-      cuisine_preferences: cuisinePreferences,
-      cooking_time_preference: cookingTimePreference,
-      zip_code: postalCode || null,
-      formatted_address: formattedAddress || null,
-      address_line1: addressLine1 || null,
-      address_line2: addressLine2 || null,
-      city: city || null,
-      state: stateRegion || null,
-      country: country || null,
-      latitude: lat,
-      longitude: lng,
-      grocery_distance_miles: Number.parseInt(groceryDistance) || 10,
-      dietary_preferences: dietaryPreferences,
-      theme_preference: selectedTheme,
-    }
-
-    preferencesRef.current = payload
-    const serialized = JSON.stringify(payload)
-
-    if (!hasRecordedInitialSnapshot.current) {
-      if (!shouldRecordInitialSnapshot.current) {
-        return
-      }
-      hasRecordedInitialSnapshot.current = true
-      lastSavedSnapshotRef.current = serialized
-      hasPendingChangesRef.current = false
-      return
-    }
-
-    hasPendingChangesRef.current = serialized !== lastSavedSnapshotRef.current
-  }, [
-    primaryGoal,
-    cookingLevel,
-    budgetRange,
-    cuisinePreferences,
-    cookingTimePreference,
-    postalCode,
-    formattedAddress,
-    addressLine1,
-    addressLine2,
-    city,
-    stateRegion,
-    country,
-    lat,
-    lng,
-    groceryDistance,
-    dietaryPreferences,
-    selectedTheme,
-  ])
-
-  const handleThemeChange = async (newTheme: "light" | "dark") => {
-    setSelectedTheme(newTheme)
-    setTheme(newTheme)
-
-    if (typeof document !== "undefined") {
-      if (newTheme === "dark") {
-        document.documentElement.classList.add("dark")
-      } else {
-        document.documentElement.classList.remove("dark")
-      }
-    }
-
     if (user) {
-      try {
-        await updateProfile({ theme_preference: newTheme })
+        const profile = user.unsafeMetadata as Profile;
+        const primaryEmail = user.emailAddresses.find(e => e.id === user.primaryEmailAddressId)?.emailAddress;
 
-        const currentSnapshot = lastSavedSnapshotRef.current
-          ? (JSON.parse(lastSavedSnapshotRef.current) as ProfileUpdates)
-          : {}
-        const nextSnapshot = { ...currentSnapshot, theme_preference: newTheme }
-        lastSavedSnapshotRef.current = JSON.stringify(nextSnapshot)
-      } catch (error) {
-        console.error("Error saving theme preference:", error)
-      }
+        setPrimaryGoal(profile.primary_goal || "")
+        setCookingLevel(profile.cooking_level || "")
+        setBudgetRange(profile.budget_range || "")
+        setCuisinePreferences(profile.cuisine_preferences || [])
+        setPostalCode(profile.zip_code || "")
+        setFormattedAddress(profile.formatted_address || "")
+        setLat(profile.latitude ?? null)
+        setLng(profile.longitude ?? null)
+        setGroceryDistance(String(profile.grocery_distance_miles || 10))
+        setDietaryPreferences(profile.dietary_preferences || [])
+        setTutorialCompleted(profile.tutorial_completed || false)
+        setFullName(user.fullName || "")
+        setAvatarUrl(user.imageUrl || null)
+        setNewEmail(primaryEmail || "")
+
+        if (profile.theme_preference) {
+            setSelectedTheme(profile.theme_preference === "dark" ? "dark" : "light")
+            setTheme(profile.theme_preference === "dark" ? "dark" : "light")
+        }
+        shouldRecordInitialSnapshot.current = true
     }
-  }
-
-  const fetchUserPreferences = async () => {
-    if (!user) return
-
-    try {
-      const profile = await profileDB.fetchProfileById(user.id)
-
-      if (!profile) {
-        throw new Error("Failed to fetch user preferences")
-      }
-
-      setPrimaryGoal(profile.primary_goal || "")
-      setCookingLevel(profile.cooking_level || "")
-      setBudgetRange(profile.budget_range || "")
-      setCuisinePreferences(profile.cuisine_preferences || [])
-      setPostalCode(profile.zip_code || "")
-      setFormattedAddress(profile.formatted_address || "")
-      setLat(profile.latitude ?? null)
-      setLng(profile.longitude ?? null)
-      setGroceryDistance(String(profile.grocery_distance_miles || 10))
-      setDietaryPreferences(profile.dietary_preferences || [])
-      setTutorialCompleted(profile.tutorial_completed || false)
-      setFullName(profile.full_name || "")
-      setAvatarUrl(profile.avatar_url || null)
-      setNewEmail(profile.email || "")
-
-      // Initialize theme from database preference if available
-      if (profile.theme_preference) {
-        setSelectedTheme(profile.theme_preference === "dark" ? "dark" : "light")
-        setTheme(profile.theme_preference === "dark" ? "dark" : "light")
-      }
-    } catch (error) {
-      console.error("Error fetching preferences:", error)
-    } finally {
-      shouldRecordInitialSnapshot.current = true
-    }
-  }
+  }, [user, isLoaded, router, setTheme])
 
   const handleCuisineToggle = (cuisine: string) => {
     setCuisinePreferences((prev) => (prev.includes(cuisine) ? prev.filter((c) => c !== cuisine) : [...prev, cuisine]))
@@ -283,164 +171,6 @@ export default function SettingsPage() {
     setShowTutorialModal(true)
   }
 
-  const handleUpdateFullName = async () => {
-    if (!user) return
-    try {
-      await updateProfile({ full_name: fullName })
-      toast({
-        title: "Name updated",
-        description: "Your name has been updated successfully.",
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update name. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleUpdateEmail = async () => {
-    if (!user || !newEmail) return
-
-    if (newEmail === user.email) {
-      toast({
-        title: "No changes",
-        description: "This is already your email address.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setUpdatingEmail(true)
-    try {
-      // Update email in Supabase Auth
-      const { error } = await supabase.auth.updateUser({ email: newEmail })
-      if (error) throw error
-
-      toast({
-        title: "Verification email sent",
-        description: "Please check your new email to confirm the change.",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update email. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setUpdatingEmail(false)
-    }
-  }
-
-  const handleUpdatePassword = async () => {
-    if (!user || !newPassword) return
-
-    if (newPassword.length < 6) {
-      toast({
-        title: "Password too short",
-        description: "Password must be at least 6 characters.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      toast({
-        title: "Passwords don't match",
-        description: "Please make sure both passwords match.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setUpdatingPassword(true)
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword })
-      if (error) throw error
-
-      toast({
-        title: "Password updated",
-        description: "Your password has been changed successfully.",
-      })
-
-      // Reset form
-      setNewPassword("")
-      setConfirmNewPassword("")
-      setShowPasswordChange(false)
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update password. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setUpdatingPassword(false)
-    }
-  }
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!user || !e.target.files || e.target.files.length === 0) return
-
-    const file = e.target.files[0]
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload an image file.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload an image smaller than 2MB.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setUploadingAvatar(true)
-    try {
-      // Create unique filename
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`
-
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, { upsert: true })
-
-      if (uploadError) throw uploadError
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName)
-
-      // Update profile with new avatar URL
-      await updateProfile({ avatar_url: publicUrl })
-      setAvatarUrl(publicUrl)
-
-      toast({
-        title: "Avatar updated",
-        description: "Your profile picture has been updated successfully.",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Upload failed",
-        description: error.message || "Failed to upload avatar. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setUploadingAvatar(false)
-    }
-  }
-
   useEffect(() => {
     if (typeof window === "undefined") return
 
@@ -468,7 +198,7 @@ export default function SettingsPage() {
     }
   }, [savePreferences])
 
-  if (!mounted || !user) {
+  if (!isLoaded || !user) {
     return null
   }
 
@@ -889,177 +619,32 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         )}
-        {/* Profile Settings */}
+        {/* Account & Security */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <UserCircle className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
+              <Shield className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
               <div>
-                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Profile</CardTitle>
+                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Account & Security</CardTitle>
                 <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                  Update your personal information
+                  Manage your email, password, and account settings
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Avatar Upload */}
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <div className={`w-24 h-24 rounded-full overflow-hidden border-2 ${isDark ? "border-[#e8dcc4]/20" : "border-gray-300"}`}>
-                  {avatarUrl ? (
-                    <Image
-                      src={avatarUrl}
-                      alt="Profile"
-                      width={96}
-                      height={96}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className={`w-full h-full flex items-center justify-center ${isDark ? "bg-[#e8dcc4]/10" : "bg-gray-100"}`}>
-                      <User className={`w-12 h-12 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`} />
-                    </div>
-                  )}
-                </div>
-                <label htmlFor="avatar-upload" className={`absolute bottom-0 right-0 p-2 rounded-full cursor-pointer ${isDark ? "bg-[#e8dcc4] text-[#0a0a0a]" : "bg-orange-500 text-white"}`}>
-                  <Camera className="w-4 h-4" />
-                  <input
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    disabled={uploadingAvatar}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-              <div className="flex-1">
-                <Label className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                  Profile Picture
-                </Label>
-                <p className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                  {uploadingAvatar ? "Uploading..." : "Click the camera icon to upload a new photo (max 2MB)"}
-                </p>
-              </div>
-            </div>
-
-            {/* Full Name */}
-            <div className="space-y-2">
-              <Label htmlFor="full-name" className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>
-                Full Name
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="full-name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter your name"
-                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
-                />
-                <Button
-                  onClick={handleUpdateFullName}
-                  variant="outline"
-                  className={isDark ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : ""}
-                >
-                  Save
-                </Button>
-              </div>
-            </div>
-
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className={`flex items-center gap-2 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                <Mail className="w-4 h-4" />
-                Email Address
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="email"
-                  type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
-                />
-                <Button
-                  onClick={handleUpdateEmail}
-                  disabled={updatingEmail || newEmail === user?.email}
-                  variant="outline"
-                  className={isDark ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10 disabled:opacity-50" : ""}
-                >
-                  {updatingEmail ? "Sending..." : "Update"}
-                </Button>
-              </div>
-              <p className={`text-xs ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                You'll need to verify your new email address
-              </p>
-            </div>
-
-            {/* Password */}
-            <div className="space-y-2">
-              <Label className={`flex items-center gap-2 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                <Lock className="w-4 h-4" />
-                Password
-              </Label>
-              {!showPasswordChange ? (
-                <Button
-                  onClick={() => setShowPasswordChange(true)}
-                  variant="outline"
-                  className={`w-full ${isDark ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : ""}`}
-                >
-                  Change Password
-                </Button>
-              ) : (
-                <div className="space-y-3">
-                  <Input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="New password (min 6 characters)"
-                    className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
-                  />
-                  <Input
-                    type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Confirm new password"
-                    className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleUpdatePassword}
-                      disabled={updatingPassword || !newPassword || !confirmNewPassword}
-                      className={isDark ? "bg-[#e8dcc4] text-[#0a0a0a] hover:bg-[#d4c8b0]" : ""}
-                    >
-                      {updatingPassword ? "Updating..." : "Update Password"}
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setShowPasswordChange(false)
-                        setNewPassword("")
-                        setConfirmNewPassword("")
-                      }}
-                      variant="ghost"
-                      className={isDark ? "text-[#e8dcc4]/70 hover:text-[#e8dcc4]" : ""}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Member Since (readonly) */}
-            <div className={`pt-4 border-t ${isDark ? "border-[#e8dcc4]/20" : "border-gray-200"}`}>
-              <Label className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>Member Since</Label>
-              <p className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                {new Date(user.created_at).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </p>
-            </div>
+          <CardContent>
+            <UserProfile
+              appearance={{
+                baseTheme: isDark ? dark : undefined,
+                elements: {
+                  card: "bg-transparent shadow-none",
+                  navbar: "hidden",
+                  header: "hidden",
+                  rootBox: "w-full",
+                  formFieldInput: isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : undefined,
+                },
+              }}
+            />
           </CardContent>
         </Card>
 
@@ -1096,36 +681,6 @@ export default function SettingsPage() {
                   </Label>
                   <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
                     Reminders for planned meals
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Privacy */}
-        <Card className={isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Shield className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
-              <div>
-                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Privacy & Security</CardTitle>
-                <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                  Control your privacy settings
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                    Public Profile
-                  </Label>
-                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                    Make your recipes visible to others
                   </p>
                 </div>
                 <Switch defaultChecked />

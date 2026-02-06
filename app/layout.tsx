@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { Inter, Playfair_Display } from "next/font/google"
 import Script from "next/script"
 import "./globals.css"
-import { AuthProvider } from "@/contexts/auth-context"
+import { ClerkProvider } from "@clerk/nextjs"
 import { ThemeProvider } from "@/contexts/theme-context"
 import { QueryProvider } from "@/contexts/query-provider"
 import { Header } from "@/components/layout/header"
@@ -49,7 +49,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <ThemeProvider>
             <QueryProvider>
-              <AuthProvider>
+              <ClerkProvider>
                 <TutorialProvider>
                   <ThemeSync />
                   <TutorialOverlay />
@@ -59,7 +59,7 @@ export default function RootLayout({
                   <Toaster />
                   <SpeedInsights />
                 </TutorialProvider>
-              </AuthProvider>
+              </ClerkProvider>
             </QueryProvider>
           </ThemeProvider>
         </ErrorBoundary>
