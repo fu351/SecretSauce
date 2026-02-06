@@ -2,6 +2,32 @@ name: Test Ingredient Queue Resolution (Dry Run)
 
 on:
   workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Number of items to test (max 10 in dry run)'
+        required: false
+        default: '10'
+        type: choice
+        options:
+          - '5'
+          - '10'
+      context:
+        description: 'Standardizer context'
+        required: false
+        default: 'pantry'
+        type: choice
+        options:
+          - 'pantry'
+          - 'recipe'
+      model:
+        description: 'Gemini model to use'
+        required: false
+        default: 'gemini-1.5-flash'
+        type: choice
+        options:
+          - 'gemini-1.5-flash'
+          - 'gemini-1.5-pro'
+          - 'gemini-2.0-flash-exp'
 
 jobs:
   test-queue-resolver:
@@ -29,8 +55,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          QUEUE_BATCH_LIMIT: '10'
-          QUEUE_STANDARDIZER_CONTEXT: 'pantry'
+          GEMINI_MODEL: ${{ inputs.model }}
+          QUEUE_BATCH_LIMIT: ${{ inputs.batch_size }}
+          QUEUE_STANDARDIZER_CONTEXT: ${{ inputs.context }}
           QUEUE_RESOLVER_NAME: 'test-run'
           DRY_RUN: 'true'
           NODE_ENV: production
