@@ -1,0 +1,37 @@
+name: Test Ingredient Queue Resolution (Dry Run)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-queue-resolver:
+    name: Test Queue Resolver (No DB Updates)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install minimal dependencies
+        working-directory: ./scripts
+        run: npm install
+
+      - name: Test ingredient queue resolution
+        working-directory: ./scripts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          QUEUE_BATCH_LIMIT: '10'
+          QUEUE_STANDARDIZER_CONTEXT: 'pantry'
+          QUEUE_RESOLVER_NAME: 'test-run'
+          DRY_RUN: 'true'
+          NODE_ENV: production
+        run: npm run resolve-ingredient-match-queue

@@ -24,21 +24,38 @@ const resolverName = process.env.QUEUE_RESOLVER_NAME || "nightly-gemini"
 const requestedBatchLimit = Number(process.env.QUEUE_BATCH_LIMIT ?? 25)
 const batchLimit = Number.isFinite(requestedBatchLimit) && requestedBatchLimit > 0 ? Math.floor(requestedBatchLimit) : 25
 const standardizerContext = process.env.QUEUE_STANDARDIZER_CONTEXT === "recipe" ? "recipe" : "pantry"
+const dryRun = process.env.DRY_RUN === "true"
 
-async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<{ resolved: number; failed: number }> {
+interface ResolveBatchResult {
+  resolved: number
+  failed: number
+  results?: Array<{
+    rowId: string
+    originalName: string
+    canonicalName: string
+    category: string | null
+    confidence: number
+    status: "success" | "error"
+    error?: string
+  }>
+}
+
+async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<ResolveBatchResult> {
   // Filter out rows without names
   const validRows = rows.filter((row) => {
     const searchTerm = (row.cleaned_name || row.raw_product_name || "").trim()
     if (!searchTerm) {
       console.warn(`[QueueResolver] Row ${row.id} missing a name. Marking as failed.`)
-      ingredientMatchQueueDB.markFailed(row.id, resolverName).catch(console.error)
+      if (!dryRun) {
+        ingredientMatchQueueDB.markFailed(row.id, resolverName).catch(console.error)
+      }
       return false
     }
     return true
   })
 
   if (validRows.length === 0) {
-    return { resolved: 0, failed: rows.length }
+    return { resolved: 0, failed: rows.length, results: dryRun ? [] : undefined }
   }
 
   try {
@@ -67,58 +84,96 @@ async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<{ resolved
           throw new Error("AI returned an empty canonical name")
         }
 
-        const standardized = await standardizedIngredientsDB.getOrCreate(normalizedCanonical, result.category)
-        if (!standardized?.id) {
-          throw new Error("Failed to upsert standardized ingredient")
+        // In dry run, skip database operations
+        let standardizedId: string | undefined
+        if (!dryRun) {
+          const standardized = await standardizedIngredientsDB.getOrCreate(normalizedCanonical, result.category)
+          if (!standardized?.id) {
+            throw new Error("Failed to upsert standardized ingredient")
+          }
+          standardizedId = standardized.id
+
+          const success = await ingredientMatchQueueDB.markResolved({
+            rowId: row.id,
+            canonicalName: normalizedCanonical,
+            resolvedIngredientId: standardized.id,
+            confidence: result.confidence,
+            resolver: resolverName,
+          })
+
+          if (!success) {
+            throw new Error("Failed to mark queue row as resolved")
+          }
+
+          console.log(`[QueueResolver] ${row.id} → ${normalizedCanonical} (${standardized.id})`)
+        } else {
+          console.log(`[QueueResolver] [DRY RUN] ${row.id} → ${normalizedCanonical}`)
         }
 
-        const success = await ingredientMatchQueueDB.markResolved({
+        return {
           rowId: row.id,
+          originalName: row.cleaned_name || row.raw_product_name || "",
           canonicalName: normalizedCanonical,
-          resolvedIngredientId: standardized.id,
+          category: result.category || null,
           confidence: result.confidence,
-          resolver: resolverName,
-        })
-
-        if (!success) {
-          throw new Error("Failed to mark queue row as resolved")
+          standardizedId,
         }
-
-        console.log(`[QueueResolver] ${row.id} → ${normalizedCanonical} (${standardized.id})`)
-        return true
       })
     )
 
     // Count successes and failures
     let resolved = 0
     let failed = 0
+    const detailedResults: ResolveBatchResult["results"] = dryRun ? [] : undefined
 
     results.forEach((result, idx) => {
       if (result.status === "fulfilled") {
         resolved += 1
+        if (dryRun && detailedResults) {
+          detailedResults.push({
+            ...result.value,
+            status: "success",
+          })
+        }
       } else {
         failed += 1
         const row = validRows[idx]
         if (row) {
           console.error(`[QueueResolver] ${row.id} failed to resolve:`, result.reason)
-          ingredientMatchQueueDB.markFailed(row.id, resolverName).catch(console.error)
+          if (!dryRun) {
+            ingredientMatchQueueDB.markFailed(row.id, resolverName).catch(console.error)
+          }
+          if (dryRun && detailedResults) {
+            detailedResults.push({
+              rowId: row.id,
+              originalName: row.cleaned_name || row.raw_product_name || "",
+              canonicalName: "",
+              category: null,
+              confidence: 0,
+              status: "error",
+              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+            })
+          }
         }
       }
     })
 
-    return { resolved, failed: failed + (rows.length - validRows.length) }
+    return { resolved, failed: failed + (rows.length - validRows.length), results: detailedResults }
   } catch (error) {
     console.error(`[QueueResolver] Batch processing failed:`, error)
-    // Mark all rows as failed
-    await Promise.allSettled(
-      validRows.map((row) => ingredientMatchQueueDB.markFailed(row.id, resolverName))
-    )
-    return { resolved: 0, failed: rows.length }
+    // Mark all rows as failed (skip in dry run)
+    if (!dryRun) {
+      await Promise.allSettled(
+        validRows.map((row) => ingredientMatchQueueDB.markFailed(row.id, resolverName))
+      )
+    }
+    return { resolved: 0, failed: rows.length, results: dryRun ? [] : undefined }
   }
 }
 
 async function run(): Promise<void> {
-  console.log(`[QueueResolver] Starting nightly run (limit ${batchLimit})`)
+  const mode = dryRun ? "[DRY RUN]" : ""
+  console.log(`[QueueResolver] ${mode} Starting run (limit ${batchLimit})`)
 
   const pending = await ingredientMatchQueueDB.fetchPending(batchLimit)
   if (!pending.length) {
@@ -129,33 +184,59 @@ async function run(): Promise<void> {
   // Process in smaller chunks (10 items at a time) for better resilience
   const chunkSize = 10
   const chunks: IngredientMatchQueueRow[][] = []
-  for (let i = 0; i < pending.length; i += chunkSize) {
-    chunks.push(pending.slice(i, i + chunkSize))
+
+  // In dry run mode, only process the first chunk
+  const itemsToProcess = dryRun ? pending.slice(0, chunkSize) : pending
+
+  for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
+    chunks.push(itemsToProcess.slice(i, i + chunkSize))
   }
 
-  console.log(`[QueueResolver] Processing ${pending.length} items in ${chunks.length} chunks of ${chunkSize}`)
+  console.log(`[QueueResolver] ${mode} Processing ${itemsToProcess.length} items in ${chunks.length} chunks of ${chunkSize}`)
 
   let totalResolved = 0
   let totalFailed = 0
+  const allResults: any[] = []
 
   for (const [idx, chunk] of chunks.entries()) {
-    console.log(`[QueueResolver] Processing chunk ${idx + 1}/${chunks.length} (${chunk.length} items)`)
+    console.log(`[QueueResolver] ${mode} Processing chunk ${idx + 1}/${chunks.length} (${chunk.length} items)`)
 
-    const claimed = await ingredientMatchQueueDB.markProcessing(chunk.map((row) => row.id), resolverName)
-    if (!claimed) {
-      console.error(`[QueueResolver] Failed to mark chunk ${idx + 1} as processing. Skipping.`)
-      totalFailed += chunk.length
-      continue
+    // Skip marking as processing in dry run
+    if (!dryRun) {
+      const claimed = await ingredientMatchQueueDB.markProcessing(chunk.map((row) => row.id), resolverName)
+      if (!claimed) {
+        console.error(`[QueueResolver] Failed to mark chunk ${idx + 1} as processing. Skipping.`)
+        totalFailed += chunk.length
+        continue
+      }
     }
 
-    const { resolved, failed } = await resolveBatch(chunk)
+    const { resolved, failed, results } = await resolveBatch(chunk)
     totalResolved += resolved
     totalFailed += failed
 
-    console.log(`[QueueResolver] Chunk ${idx + 1} complete (resolved=${resolved}, failed=${failed})`)
+    if (dryRun && results) {
+      allResults.push(...results)
+    }
+
+    console.log(`[QueueResolver] ${mode} Chunk ${idx + 1} complete (resolved=${resolved}, failed=${failed})`)
   }
 
-  console.log(`[QueueResolver] All chunks completed (total_resolved=${totalResolved}, total_failed=${totalFailed})`)
+  console.log(`[QueueResolver] ${mode} All chunks completed (total_resolved=${totalResolved}, total_failed=${totalFailed})`)
+
+  // In dry run mode, output results as JSON
+  if (dryRun) {
+    console.log("\n========== DRY RUN RESULTS ==========")
+    console.log(JSON.stringify({
+      summary: {
+        totalProcessed: itemsToProcess.length,
+        resolved: totalResolved,
+        failed: totalFailed,
+      },
+      results: allResults,
+    }, null, 2))
+    console.log("=====================================\n")
+  }
 }
 
 run().catch((error) => {
