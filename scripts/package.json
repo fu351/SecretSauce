@@ -1,0 +1,14 @@
+{
+  "name": "resolver",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "axios": "latest",
+    "tsx": "^4.21.0"
+  }
+}
