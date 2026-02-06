@@ -56,9 +56,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ inputs.model }}
+          OPENAI_MODEL: ${{ startsWith(inputs.model, 'gpt') && inputs.model || 'gpt-4o-mini' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ inputs.model }}
+          GEMINI_MODEL: ${{ startsWith(inputs.model, 'gemini') && inputs.model || 'gemini-3-flash-preview' }}
           QUEUE_BATCH_LIMIT: ${{ inputs.batch_size }}
           QUEUE_STANDARDIZER_CONTEXT: ${{ inputs.context }}
           QUEUE_RESOLVER_NAME: 'test-run'
