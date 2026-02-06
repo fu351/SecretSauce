@@ -8,7 +8,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST() {
   try {
-    const { userId } = auth();
+    const { userId } = await auth();
+
+    console.log("DEBUG: Checkout Route accessed by userId:", userId);
 
     if (!userId) {
       return NextResponse.json({ error: "You must be signed in to create a checkout session." }, { status: 401 })
