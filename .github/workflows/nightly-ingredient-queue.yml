@@ -1,0 +1,37 @@
+name: Nightly Ingredient Queue Resolution
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  resolve-ingredient-match-queue:
+    name: Resolve Ingredient Match Queue
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve pending ingredient matches
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          QUEUE_BATCH_LIMIT: '40'
+          QUEUE_STANDARDIZER_CONTEXT: 'pantry'
+          QUEUE_RESOLVER_NAME: 'nightly-gemini'
+          NODE_ENV: production
+        run: npm run resolve-ingredient-match-queue

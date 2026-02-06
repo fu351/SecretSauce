@@ -3,6 +3,9 @@ import { standardizedIngredientsDB } from "./database/standardized-ingredients-d
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-pro"
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateText`
 
 /**
  * Standardizer Ingredient Input Type
@@ -40,6 +43,60 @@ async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
   }
   
   return names
+}
+
+async function callOpenAI(prompt: string): Promise<string | null> {
+  if (!OPENAI_API_KEY) return null
+
+  const response = await axios.post(
+    OPENAI_URL,
+    {
+      model: "gpt-4o-mini",
+      temperature: 0.1,
+      max_tokens: 1000,
+      messages: [
+        {
+          role: "system",
+          content: "You standardize ingredient names for a cooking application and always return valid JSON.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    },
+  )
+
+  return response.data?.choices?.[0]?.message?.content?.trim() ?? null
+}
+
+async function callGemini(prompt: string): Promise<string | null> {
+  if (!GEMINI_API_KEY) return null
+
+  const url = `${GEMINI_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`
+  const response = await axios.post(
+    url,
+    {
+      prompt: {
+        text: prompt,
+      },
+      temperature: 0.1,
+      maxOutputTokens: 1000,
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+  )
+
+  return response.data?.candidates?.[0]?.output?.trim() ?? null
 }
 
 function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: string[], context: "recipe" | "pantry") {
@@ -100,46 +157,26 @@ export async function standardizeIngredientsWithAI(
     return []
   }
 
-  if (!OPENAI_API_KEY) {
-    console.warn("[IngredientStandardizer] OPENAI_API_KEY missing; returning fallback mappings")
+  const hasGemini = Boolean(GEMINI_API_KEY)
+  const hasOpenAI = Boolean(OPENAI_API_KEY)
+
+  if (!hasGemini && !hasOpenAI) {
+    console.warn(
+      "[IngredientStandardizer] GEMINI_API_KEY and OPENAI_API_KEY missing; returning fallback mappings"
+    )
     return fallbackResults(inputs)
   }
+
+  const aiProvider: "Gemini" | "OpenAI" = hasGemini ? "Gemini" : "OpenAI"
+  const requestFn = hasGemini ? callGemini : callOpenAI
 
   try {
     const canonicalList = await fetchCanonicalIngredients()
     const prompt = buildPrompt(inputs, canonicalList, context)
+    const content = await withTimeout(requestFn(prompt), 20000)
 
-    const response = await withTimeout(
-      axios.post(
-        OPENAI_URL,
-        {
-          model: "gpt-4o-mini",
-          temperature: 0.1,
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "system",
-              content: "You standardize ingredient names for a cooking application and always return valid JSON.",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-        },
-      ),
-      20000,
-    )
-
-    const content = response.data?.choices?.[0]?.message?.content?.trim()
     if (!content) {
-      console.warn("[IngredientStandardizer] OpenAI returned empty content")
+      console.warn(`[IngredientStandardizer] ${aiProvider} returned empty content`)
       return fallbackResults(inputs)
     }
 
@@ -147,7 +184,7 @@ export async function standardizeIngredientsWithAI(
     const parsed = JSON.parse(cleaned)
 
     if (!Array.isArray(parsed)) {
-      console.warn("[IngredientStandardizer] OpenAI payload was not an array")
+      console.warn(`[IngredientStandardizer] ${aiProvider} payload was not an array`)
       return fallbackResults(inputs)
     }
 
@@ -168,7 +205,7 @@ export async function standardizeIngredientsWithAI(
       })
       .filter((item) => !!item.canonicalName)
   } catch (error) {
-    console.error("[IngredientStandardizer] Failed to call OpenAI:", error)
+    console.error(`[IngredientStandardizer] Failed to call ${aiProvider}:`, error)
     return fallbackResults(inputs)
   }
 }

@@ -510,6 +510,83 @@ export type Database = {
           product_mapping_id?: string | null
         }
       }
+      /**
+       * Supabase schema reference:
+       * create table public.ingredient_match_queue (
+       *   id uuid not null default gen_random_uuid (),
+       *   product_mapping_id uuid not null,
+       *   raw_product_name text not null,
+       *   cleaned_name text not null,
+       *   best_fuzzy_match text null,
+       *   fuzzy_score numeric(4, 3) null,
+       *   status text not null default 'pending'::text,
+       *   resolved_ingredient_id uuid null,
+       *   resolved_by text null,
+       *   created_at timestamp with time zone null default now(),
+       *   resolved_at timestamp with time zone null,
+       *   constraint ingredient_match_queue_pkey primary key (id),
+       *   constraint unique_pending_mapping unique (product_mapping_id),
+       *   constraint ingredient_match_queue_product_mapping_id_fkey foreign KEY (product_mapping_id) references product_mappings (id) on delete CASCADE,
+       *   constraint ingredient_match_queue_resolved_ingredient_id_fkey foreign KEY (resolved_ingredient_id) references standardized_ingredients (id),
+       *   constraint ingredient_match_queue_status_check check (
+       *     (
+       *       status = any (
+       *         array[
+       *           'pending'::text,
+       *           'processing'::text,
+       *           'resolved'::text,
+       *           'failed'::text
+       *         ]
+       *       )
+       *     )
+       *   )
+       * ) TABLESPACE pg_default;
+       *
+       * create index IF not exists idx_match_queue_status on public.ingredient_match_queue using btree (status) TABLESPACE pg_default
+       * where
+       *   (status = 'pending'::text);
+       */
+      ingredient_match_queue: {
+        Row: {
+          id: string
+          product_mapping_id: string
+          raw_product_name: string
+          cleaned_name: string
+          best_fuzzy_match: string | null
+          fuzzy_score: number | null
+          status: "pending" | "processing" | "resolved" | "failed"
+          resolved_ingredient_id: string | null
+          resolved_by: string | null
+          created_at: string | null
+          resolved_at: string | null
+        }
+        Insert: {
+          id?: string
+          product_mapping_id: string
+          raw_product_name: string
+          cleaned_name: string
+          best_fuzzy_match?: string | null
+          fuzzy_score?: number | null
+          status?: "pending" | "processing" | "resolved" | "failed"
+          resolved_ingredient_id?: string | null
+          resolved_by?: string | null
+          created_at?: string | null
+          resolved_at?: string | null
+        }
+        Update: {
+          id?: string
+          product_mapping_id?: string
+          raw_product_name?: string
+          cleaned_name?: string
+          best_fuzzy_match?: string | null
+          fuzzy_score?: number | null
+          status?: "pending" | "processing" | "resolved" | "failed"
+          resolved_ingredient_id?: string | null
+          resolved_by?: string | null
+          created_at?: string | null
+          resolved_at?: string | null
+        }
+      },
       ingredient_mappings: {
         Row: {
           id: string

@@ -10,6 +10,7 @@
     "warm-cache": "tsx scripts/warm-ingredient-cache.ts",
     "warm-cache:top100": "tsx scripts/warm-ingredient-cache.ts --top 100",
     "warm-cache:force": "tsx scripts/warm-ingredient-cache.ts --force-refresh",
+    "resolve-ingredient-match-queue": "tsx scripts/resolve-ingredient-match-queue.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
