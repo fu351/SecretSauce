@@ -1,21 +1,19 @@
-import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import Stripe from "stripe";
+import { NextResponse } from "next/server"
+import Stripe from "stripe"
+import { auth } from "@clerk/nextjs/server"
 
-export async function POST(req: Request) {
-  const { userId } = auth();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-04-10",
+})
 
-  if (!userId) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2024-06-20",
-  });
-
-  const { success_url, cancel_url } = await req.json();
-
+export async function POST() {
   try {
+    const { userId } = auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "You must be signed in to create a checkout session." }, { status: 401 })
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -23,25 +21,25 @@ export async function POST(req: Request) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "Secret Sauce Subscription",
-              description: "Monthly access to premium features",
+              name: "Dummy Product",
+              description: "This is a dummy product for testing purposes.",
             },
             unit_amount: 1000, // $10.00
           },
           quantity: 1,
         },
       ],
-      mode: "payment",
-      success_url: success_url,
-      cancel_url: cancel_url,
+      mode: "subscription",
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/cancel`,
       metadata: {
-        clerkUserId: userId,
+        userId,
       },
-    });
+    })
 
-    return NextResponse.json({ sessionId: session.id, url: session.url });
+    return NextResponse.json({ url: session.url })
   } catch (error) {
-    console.error("Error creating Stripe session:", error);
-    return new Response("Error creating Stripe session", { status: 500 });
+    console.error("Error creating checkout session:", error)
+    return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 })
   }
 }

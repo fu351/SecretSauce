@@ -64,7 +64,6 @@ export default function RecipesPage() {
   const toggleFavoriteMutation = useToggleFavorite()
 
   const totalPages = Math.ceil(totalCount / pageSize)
-  const [displayRecipes, setDisplayRecipes] = useState(recipes)
 
   useEffect(() => {
     const urlSearch = searchParams.get("search") || ""
@@ -88,12 +87,6 @@ export default function RecipesPage() {
     setShowFavoritesOnly(currentFavorites)
     setShowUserOnly(currentMine)
   }, [searchParams])
-
-  useEffect(() => {
-    if (!recipesFetching) {
-      setDisplayRecipes(recipes)
-    }
-  }, [recipes, recipesFetching])
 
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>, resetPage = false) => {
@@ -187,7 +180,7 @@ export default function RecipesPage() {
     showFavoritesOnly ||
     showUserOnly
 
-  if (loading && displayRecipes.length === 0) {
+  if (loading && recipes.length === 0) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto p-6">
@@ -271,7 +264,7 @@ export default function RecipesPage() {
 
           <div>
             <RecipeResultsHeader
-              totalCount={countFetching ? displayRecipes.length : totalCount}
+              totalCount={countFetching ? recipes.length : totalCount}
               page={page}
               pageSize={pageSize}
               totalPages={totalPages}
@@ -283,7 +276,7 @@ export default function RecipesPage() {
               }}
             />
 
-            {displayRecipes.length === 0 && !recipesFetching ? (
+            {recipes.length === 0 && !recipesFetching ? (
               <RecipeEmptyState
                 hasNoRecipes={totalCount === 0 && !hasActiveFilters}
                 searchTerm={searchTerm}
@@ -291,20 +284,20 @@ export default function RecipesPage() {
               />
             ) : viewMode === "tile" ? (
               <RecipeGrid
-                recipes={displayRecipes}
+                recipes={recipes}
                 favorites={favorites}
                 onFavoriteToggle={toggleFavorite}
                 onRecipeClick={(id) => router.push(`/recipes/${id}`)}
               />
             ) : (
               <RecipeListView
-                recipes={displayRecipes}
+                recipes={recipes}
                 favorites={favorites}
                 onFavoriteToggle={toggleFavorite}
               />
             )}
 
-            {totalPages > 1 && displayRecipes.length > 0 && (
+            {totalPages > 1 && recipes.length > 0 && (
               <div className="mt-8">
                 <Pagination
                   currentPage={page}

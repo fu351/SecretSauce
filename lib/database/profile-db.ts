@@ -1,9 +1,17 @@
 
+// TODO: Update the 'profiles' table in the database to include the new Stripe subscription fields.
+
 import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/database/supabase"
 
 // Type aliases for clarity and maintainability
-type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"]
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"] & {
+  subscription_status?: string | null
+  stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
+  stripe_price_id?: string | null
+  stripe_current_period_end?: string | null
+}
 type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"]
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"]
 
@@ -49,7 +57,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       created_at: dbItem.created_at ?? null,
       updated_at: dbItem.updated_at ?? null,
       cuisine_preferences: dbItem.cuisine_preferences ?? [],
-      cooking_time_preference: dbItem.cooking_time_preference ?? null,
+      cooking_time_preference: db_item.cooking_time_preference ?? null,
       zip_code: dbItem.zip_code ?? null,
       grocery_distance_miles: dbItem.grocery_distance_miles ?? 10,
       theme_preference: dbItem.theme_preference ?? "dark",
@@ -65,6 +73,11 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       latitude: dbItem.latitude ?? null,
       longitude: dbItem.longitude ?? null,
       email_verified: dbItem.email_verified ?? null,
+      subscription_status: dbItem.subscription_status ?? null,
+      stripe_customer_id: dbItem.stripe_customer_id ?? null,
+      stripe_subscription_id: dbItem.stripe_subscription_id ?? null,
+      stripe_price_id: dbItem.stripe_price_id ?? null,
+      stripe_current_period_end: dbItem.stripe_current_period_end ?? null,
     }
   }
 

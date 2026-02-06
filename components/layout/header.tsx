@@ -98,6 +98,14 @@ export function Header() {
 
       <div className="flex items-center gap-2 md:gap-3 justify-end">
         <SignedIn>
+            <Button
+              variant="ghost"
+              size={isMobile ? "sm" : "default"}
+              asChild
+              className={isDark ? "text-foreground hover:bg-muted" : "hover:bg-gray-100"}
+            >
+              <Link href="/checkout">Subscribe</Link>
+            </Button>
             <UserButton afterSignOutUrl="/" />
         </SignedIn>
         <SignedOut>
