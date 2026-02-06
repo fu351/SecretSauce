@@ -46,7 +46,7 @@ jobs:
 
       - name: Install minimal dependencies
         working-directory: ./scripts
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Test ingredient queue resolution
         working-directory: ./scripts

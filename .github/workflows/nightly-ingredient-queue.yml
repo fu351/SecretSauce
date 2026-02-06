@@ -22,7 +22,7 @@ jobs:
 
       - name: Install minimal dependencies
         working-directory: ./scripts
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Resolve pending ingredient matches
         working-directory: ./scripts
