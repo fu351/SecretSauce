@@ -45,37 +45,6 @@ async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
   return names
 }
 
-async function callOpenAI(prompt: string): Promise<string | null> {
-  if (!OPENAI_API_KEY) return null
-
-  const response = await axios.post(
-    OPENAI_URL,
-    {
-      model: "gpt-4o-mini",
-      temperature: 0.1,
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "system",
-          content: "You standardize ingredient names for a cooking application and always return valid JSON.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-    },
-  )
-
-  return response.data?.choices?.[0]?.message?.content?.trim() ?? null
-}
-
 async function callGemini(prompt: string): Promise<string | null> {
   if (!GEMINI_API_KEY) return null
 
@@ -83,25 +52,14 @@ async function callGemini(prompt: string): Promise<string | null> {
   const response = await axios.post(
     url,
     {
-      contents: [
-        {
-          parts: [
-            {
-              text: prompt,
-            },
-          ],
-        },
-      ],
+      contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.1,
-        maxOutputTokens: 1000,
+        maxOutputTokens: 2000, // Increased slightly for large batches
+        responseMimeType: "application/json", // This is the "Proper" way
       },
     },
-    {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    },
+    { headers: { "Content-Type": "application/json" } }
   )
 
   return response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null
