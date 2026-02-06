@@ -53,6 +53,37 @@ async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
   return names
 }
 
+async function callOpenAI(prompt: string): Promise<string | null> {
+  if (!OPENAI_API_KEY) return null
+
+  const response = await axios.post(
+    OPENAI_URL,
+    {
+      model: "gpt-4o-mini",
+      temperature: 0.1,
+      max_tokens: 1000,
+      messages: [
+        {
+          role: "system",
+          content: "You standardize ingredient names for a cooking application and always return valid JSON.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    },
+  )
+
+  return response.data?.choices?.[0]?.message?.content?.trim() ?? null
+}
+
 async function callGemini(prompt: string): Promise<string | null> {
   if (!geminiClient) return null
 
@@ -63,6 +94,7 @@ async function callGemini(prompt: string): Promise<string | null> {
       config: {
         temperature: 0.1,
         maxOutputTokens: 1000,
+        responseMimeType: "application/json",
       },
     }),
     20000
@@ -156,8 +188,8 @@ export async function standardizeIngredientsWithAI(
     return fallbackResults(inputs)
   }
 
-  const aiProvider: "Gemini" | "OpenAI" = hasGemini ? "Gemini" : "OpenAI"
-  const requestFn = hasGemini ? callGemini : callOpenAI
+  const aiProvider: "Gemini" | "OpenAI" = hasOpenAI ? "OpenAI" : "Gemini"
+  const requestFn = hasOpenAI ? callOpenAI : callGemini
 
   try {
     const canonicalList = await fetchCanonicalIngredients()
