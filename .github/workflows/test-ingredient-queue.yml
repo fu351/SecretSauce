@@ -44,12 +44,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install minimal dependencies
-        working-directory: ./scripts
+      - name: Install dependencies
         run: npm install --legacy-peer-deps
 
       - name: Test ingredient queue resolution
-        working-directory: ./scripts
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
