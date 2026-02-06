@@ -93,7 +93,11 @@ export default function HomePage() {
     return (
       <div className={`min-h-screen flex items-center justify-center bg-background`}>
         <div className="animate-pulse">
-          <Image src={useDark ? "/logo-dark.png" : "/logo-warm.png"} alt="Secret Sauce" width={120} height={120} />
+          {mounted ? (
+            <Image src={useDark ? "/logo-dark.png" : "/logo-warm.png"} alt="Secret Sauce" width={120} height={120} />
+          ) : (
+            <div style={{ width: 120, height: 120 }} />
+          )}
         </div>
       </div>
     )

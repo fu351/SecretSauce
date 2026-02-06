@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { MessageCircle, X, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -22,6 +22,11 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
   const { theme } = useTheme()
   const { user } = useUser()
   const { toast } = useToast()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const isDark = theme === "dark"
   const positionClass = position === "bottom-left" ? "bottom-6 left-6" : "bottom-6 right-6"
@@ -74,6 +79,10 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
     setIsOpen(false)
     setMessage("")
     setSelectedCategory(null)
+  }
+
+  if (!mounted) {
+    return null
   }
 
   return (
