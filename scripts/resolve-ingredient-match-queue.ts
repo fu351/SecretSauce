@@ -84,6 +84,11 @@ async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<ResolveBat
           throw new Error("AI returned an empty canonical name")
         }
 
+        // Reject non-food items (low confidence and no category)
+        if (result.confidence < 0.3 && !result.category) {
+          throw new Error(`Non-food item detected: "${normalizedCanonical}" (confidence: ${result.confidence})`)
+        }
+
         // In dry run, skip database operations
         let standardizedId: string | undefined
         if (!dryRun) {

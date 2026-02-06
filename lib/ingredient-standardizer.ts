@@ -175,45 +175,111 @@ function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: stri
   }))
 
   return `
-You are an ingredient normalizer for a grocery shopping app. Your job is to map ${context} ingredient names to canonical grocery store items.
+You are an expert ingredient normalizer for a grocery shopping app. Your job is to identify and standardize FOOD ITEMS ONLY from ${context} ingredient lists, mapping them to canonical grocery store items.
 
 EXISTING CANONICAL INGREDIENTS (${canonicalNames.length} total):
 ${canonicalList}
 
-CRITICAL: When an input closely matches an existing canonical ingredient, you MUST use that exact match. Only create new canonical names when no reasonable match exists.
+⚠️ CRITICAL RULE: ONLY process items that are FOOD or BEVERAGES intended for human consumption.
 
-Normalization Rules:
+═══════════════════════════════════════════════════════════════
+REJECT NON-FOOD ITEMS - Set confidence to 0.0-0.2 for:
+═══════════════════════════════════════════════════════════════
+
+❌ Household supplies: paper towels, napkins, plastic wrap, aluminum foil, trash bags, cleaning products
+❌ Personal care: soap, shampoo, toothpaste, deodorant, lotion, cosmetics, vitamins, medicine
+❌ Pet supplies: dog food, cat litter, pet treats
+❌ Baby products: diapers, wipes, formula (unless clearly food-related)
+❌ Kitchen items: pans, utensils, dishes, storage containers
+❌ Other: batteries, light bulbs, magazines, gift cards
+
+✓ ACCEPT: All foods, beverages, cooking ingredients, spices, condiments that humans eat/drink
+
+═══════════════════════════════════════════════════════════════
+NORMALIZATION RULES FOR VALID FOOD ITEMS:
+═══════════════════════════════════════════════════════════════
+
 1. **Match Existing First**: ALWAYS prioritize matching to the canonical list above. Use exact matches when possible.
-2. **Strip Preparation**: Remove preparation methods: chopped, minced, diced, sliced, grated, shredded, crushed, cooked, raw, etc.
-3. **Strip Qualifiers**: Remove descriptors: fresh, dried, large, small, ripe, organic, to taste, optional, divided, etc.
-4. **Remove Brands**: Strip brand names (e.g., "Kraft cheddar cheese" → "cheddar cheese")
-5. **Singular Form**: Use singular, not plural (e.g., "tomatoes" → "tomato")
-6. **Lowercase**: All canonical names must be lowercase
-7. **Keep Specificity**: Maintain enough detail for grocery shopping:
-   ✓ "grated parmesan cheese" → "parmesan cheese" (NOT "cheese")
-   ✓ "dry white wine" → "white wine" (NOT "wine")
-   ✓ "fresh basil leaves" → "basil"
-   ✓ "yellow onion, chopped" → "onion"
-   ✓ "boneless skinless chicken breast" → "chicken breast"
-   ✓ "extra virgin olive oil" → "olive oil"
-   ✓ "kosher salt" → "salt"
-   ✓ "all-purpose flour" → "all-purpose flour" (keep type for baking items)
 
-8. **Compound Ingredients**: For "X and Y", create ONE canonical name if it's a common pairing (e.g., "salt and pepper"), otherwise split into separate matches.
+2. **Strip Preparation Methods**: Remove cooking/prep terms that don't affect what you buy:
+   - Chopped, minced, diced, sliced, grated, shredded, crushed
+   - Cooked, raw, steamed, boiled, roasted, grilled
+   - Example: "chopped yellow onion" → "onion"
 
-9. **Categories**: Assign ONE category from ONLY these options:
-   - produce, dairy, meat & seafood, pantry staples, frozen, beverages, snacks, condiments, baking
+3. **Strip Descriptive Qualifiers**: Remove non-essential adjectives:
+   - Size: large, small, medium, jumbo
+   - Quality: fresh, organic, premium, extra, fancy
+   - Freshness: ripe, unripe, day-old
+   - Optional modifiers: to taste, optional, divided, if needed
+   - Example: "large organic red tomatoes" → "tomato"
+
+4. **Preserve Important Varieties**: Keep distinctions that matter for shopping:
+   - Types of meat: "chicken breast" not just "chicken"
+   - Cheese varieties: "parmesan cheese" not just "cheese"
+   - Wine types: "white wine" not just "wine"
+   - Flour types: "all-purpose flour" vs "bread flour"
+   - Oil types: "olive oil" vs "vegetable oil"
+
+5. **Remove Brand Names**: Strip commercial brands but keep product type:
+   - "Kraft cheddar cheese" → "cheddar cheese"
+   - "Heinz ketchup" → "ketchup"
+   - "Coca-Cola" → "cola" or "soda"
+
+6. **Use Singular Form**: Convert plurals to singular:
+   - "tomatoes" → "tomato"
+   - "apples" → "apple"
+   - Exception: Items typically sold/used plural (e.g., "green beans")
+
+7. **Lowercase Everything**: All canonical names must be lowercase
+
+8. **Handle Compound Items**:
+   - Common pairings: "salt and pepper" → keep as one item
+   - Separate items: "lettuce and tomato" → process separately if they're not typically bundled
+
+9. **Categories**: Assign the MOST SPECIFIC category from these options:
+   - produce: fruits, vegetables, fresh herbs
+   - dairy: milk, cheese, yogurt, butter, eggs
+   - meat_seafood: all meats, poultry, fish, seafood
+   - pantry_staples: flour, sugar, salt, oil, rice, pasta, canned goods
+   - beverages: drinks, juice, soda, coffee, tea (excluding milk)
+   - snacks: chips, crackers, cookies, candy
+   - condiments: sauces, dressings, ketchup, mustard, mayo
+   - baking: baking powder, vanilla extract, chocolate chips
+   - other: items that don't fit above categories
 
 10. **Confidence Scoring**:
     - 0.9-1.0: Exact match to existing canonical ingredient
-    - 0.7-0.9: Close match with minor normalization
-    - 0.5-0.7: New canonical name but clear ingredient
-    - 0.3-0.5: Ambiguous or unclear ingredient
-    - 0.0-0.3: Very uncertain or invalid input
+    - 0.7-0.9: Close match with minor normalization needed
+    - 0.5-0.7: New canonical name but clearly a food ingredient
+    - 0.3-0.5: Ambiguous or unclear ingredient (might be food)
+    - 0.0-0.2: Non-food item or invalid input (REJECT THESE)
 
+═══════════════════════════════════════════════════════════════
+EXAMPLES OF PROPER NORMALIZATION:
+═══════════════════════════════════════════════════════════════
+
+✓ "grated parmesan cheese, divided" → "parmesan cheese" (confidence: 0.85)
+✓ "2 large organic yellow onions, chopped" → "onion" (confidence: 0.90)
+✓ "boneless skinless chicken breast" → "chicken breast" (confidence: 0.88)
+✓ "Kraft extra sharp cheddar cheese" → "cheddar cheese" (confidence: 0.85)
+✓ "fresh basil leaves" → "basil" (confidence: 0.92)
+✓ "kosher salt to taste" → "salt" (confidence: 0.95)
+
+❌ "Bounty paper towels" → "paper towel" (confidence: 0.0, category: null)
+❌ "Dawn dish soap" → "dish soap" (confidence: 0.0, category: null)
+❌ "Charmin toilet paper" → "toilet paper" (confidence: 0.0, category: null)
+
+═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT:
+═══════════════════════════════════════════════════════════════
+
 Return ONLY valid JSON (no markdown, no code blocks) as an array:
 [{"id":"input-id","originalName":"original input","canonicalName":"canonical","category":"category","confidence":0.92}]
+
+For NON-FOOD items, still return them with:
+- canonicalName: lowercase version of input
+- category: null
+- confidence: 0.0 to 0.2
 
 Inputs to process:
 ${JSON.stringify(formattedInputs, null, 2)}
