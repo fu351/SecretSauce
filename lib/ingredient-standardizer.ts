@@ -208,27 +208,71 @@ export async function standardizeIngredientsWithAI(
     const cleaned = content.replace(/```json|```/gi, "").trim()
     const parsed = JSON.parse(cleaned)
 
-    if (!Array.isArray(parsed)) {
-      console.warn(`[IngredientStandardizer] ${aiProvider} payload was not an array`)
+    const resultEntries: any[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.results)
+        ? parsed.results
+        : []
+
+    if (resultEntries.length === 0) {
+      console.warn(`[IngredientStandardizer] ${aiProvider} payload contained no results`)
       return fallbackResults(inputs)
     }
 
-    return parsed
-      .map((item: any, index: number) => {
-        const input = inputs[index]
-        const id = String(item.id ?? input.id ?? index)
-        const originalName = typeof item.originalName === "string" ? item.originalName : input.name
-        const canonicalName =
-          typeof item.canonicalName === "string" && item.canonicalName.trim().length > 0
-            ? item.canonicalName.toLowerCase()
-            : input.name.toLowerCase()
-        const category = typeof item.category === "string" ? item.category : null
-        const confidence =
-          typeof item.confidence === "number" && item.confidence >= 0 && item.confidence <= 1 ? item.confidence : 0.5
+    const entriesById = new Map<string, any>()
+    resultEntries.forEach((entry) => {
+      if (!entry) return
+      const entryId =
+        typeof entry.id === "string"
+          ? entry.id
+          : typeof entry.rowId === "string"
+            ? entry.rowId
+            : undefined
+      if (entryId) {
+        entriesById.set(entryId, entry)
+      }
+    })
 
-        return { id, originalName, canonicalName, category, confidence }
-      })
-      .filter((item) => !!item.canonicalName)
+    const parseConfidence = (value: unknown, fallback: number): number => {
+      const numeric =
+        typeof value === "number"
+          ? value
+          : typeof value === "string"
+            ? parseFloat(value)
+            : NaN
+      return Number.isFinite(numeric) && numeric >= 0 && numeric <= 1 ? numeric : fallback
+    }
+
+    return inputs.map((input, index) => {
+      const entry = entriesById.get(input.id) ?? resultEntries[index]
+      const status = typeof entry?.status === "string" ? entry.status.toLowerCase() : "success"
+      const useEntry = Boolean(entry && status === "success")
+
+      const canonicalSource =
+        useEntry && typeof entry?.canonicalName === "string"
+          ? entry.canonicalName
+          : useEntry && typeof entry?.canonical === "string"
+            ? entry.canonical
+            : undefined
+      const canonicalCandidate = canonicalSource?.trim().toLowerCase()
+      const canonicalName =
+        canonicalCandidate && canonicalCandidate.length > 0 ? canonicalCandidate : input.name.toLowerCase()
+
+      const confidence = useEntry
+        ? parseConfidence(entry?.confidence ?? entry?.confidenceScore, 0.5)
+        : 0.2
+      const category = useEntry && typeof entry?.category === "string" ? entry.category : null
+      const originalName =
+        typeof entry?.originalName === "string" ? entry.originalName : input.name
+
+      return {
+        id: String(entry?.id ?? entry?.rowId ?? input.id ?? index),
+        originalName,
+        canonicalName,
+        category,
+        confidence,
+      }
+    })
   } catch (error) {
     console.error(`[IngredientStandardizer] Failed to call ${aiProvider}:`, error)
     return fallbackResults(inputs)
