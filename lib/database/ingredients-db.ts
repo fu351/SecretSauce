@@ -8,6 +8,16 @@ type IngredientsHistoryRow = Database["public"]["Tables"]["ingredients_history"]
 type IngredientsHistoryInsert = Database["public"]["Tables"]["ingredients_history"]["Insert"]
 type IngredientsRecentRow = Database["public"]["Tables"]["ingredients_recent"]["Row"]
 
+export type PricingGap = {
+  store: string
+  grocery_store_id: string | null
+  zip_code: string | null
+  ingredients: {
+    id: string
+    name: string
+  }[]
+}
+
 class IngredientsHistoryTable extends BaseTable<
   "ingredients_history",
   IngredientsHistoryRow,
@@ -32,9 +42,6 @@ class IngredientsHistoryTable extends BaseTable<
     standardizedIngredientId: string
     store: string
     price: number
-    quantity: number
-    unit: string
-    unitPrice?: number | null
     imageUrl?: string | null
     productName?: string | null
     productId?: string | null
@@ -53,9 +60,9 @@ class IngredientsHistoryTable extends BaseTable<
           standardized_ingredient_id: payload.standardizedIngredientId,
           store: normalizedStore,
           price: payload.price,
-          quantity: payload.quantity,
-          unit: payload.unit,
-          unit_price: payload.unitPrice ?? null,
+        quantity: 1,
+        unit: "unit",
+        unit_price: null,
           image_url: payload.imageUrl ?? null,
           product_name: payload.productName ?? null,
           product_id: payload.productId ?? null,
@@ -85,9 +92,6 @@ class IngredientsHistoryTable extends BaseTable<
       standardizedIngredientId: string
       store: string
       price: number
-      quantity: number
-      unit: string
-      unitPrice?: number | null
       imageUrl?: string | null
       productName?: string | null
       productId?: string | null
@@ -105,9 +109,9 @@ class IngredientsHistoryTable extends BaseTable<
         standardized_ingredient_id: item.standardizedIngredientId,
         store: normalizeStoreName(item.store),
         price: item.price,
-        quantity: item.quantity,
-        unit: item.unit,
-        unit_price: item.unitPrice ?? null,
+        quantity: 1,
+        unit: "unit",
+        unit_price: null,
         image_url: item.imageUrl ?? null,
         product_name: item.productName ?? null,
         product_id: item.productId ?? null,
@@ -159,10 +163,10 @@ class IngredientsHistoryTable extends BaseTable<
       if (!items.length) return 0
 
       const payload = items
-        .filter((i) => i.price > 0 && i.productName)
+        .filter((i) => i.productName)
         .map((item) => ({
           store: normalizeStoreName(item.store),
-          price: item.price,
+          price: item.price ?? 0,
           imageUrl: item.imageUrl ?? null,
           productName: item.productName ?? null,
           productId: item.productId ?? null,
@@ -435,6 +439,24 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
       return Array.isArray(data) ? data : []
     } catch (error) {
       this.handleError(error, "getPricingForUser")
+      return []
+    }
+  }
+
+  async getPricingGaps(userId: string): Promise<PricingGap[]> {
+    try {
+      const { data, error } = await (this.supabase.rpc as any)("get_pricing_gaps", {
+        p_user_id: userId,
+      })
+
+      if (error) {
+        this.handleError(error, "getPricingGaps")
+        return []
+      }
+
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      this.handleError(error, "getPricingGaps")
       return []
     }
   }

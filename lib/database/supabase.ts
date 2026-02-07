@@ -1064,6 +1064,20 @@ export type Database = {
           }[]
         }[]
       }
+      get_pricing_gaps: {
+        Args: {
+          p_user_id: string
+        }
+        Returns: {
+          store: string
+          grocery_store_id: string | null
+          zip_code: string | null
+          ingredients: {
+            id: string
+            name: string
+          }[]
+        }[]
+      }
       recommend_recipes_smart: {
         Args: {
           p_user_id: string

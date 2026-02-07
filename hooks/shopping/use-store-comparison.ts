@@ -5,10 +5,10 @@ import { useToast } from "../ui/use-toast"
 import type { StoreComparison, GroceryItem, ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import { useAuth } from "@/contexts/auth-context"
 import { profileDB } from "@/lib/database/profile-db"
-import { searchGroceryStores } from "@/lib/grocery-scrapers"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName, type PricingResult } from "@/lib/database/ingredients-db"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { type StoreMetadataMap, type StoreMetadata } from "@/lib/utils/store-metadata"
+import { searchGroceryStores } from "@/lib/grocery-scrapers"
 
 async function fetchUserStoreMetadata(
   userId: string | undefined,
@@ -47,6 +47,88 @@ async function fetchUserStoreMetadata(
     console.error("[useStoreComparison] Error fetching store metadata:", error)
     return new Map()
   }
+}
+
+type PricingGap = {
+  store: string
+  grocery_store_id: string | null
+  zip_code: string | null
+  ingredients: {
+    id: string
+    name: string
+  }[]
+}
+
+async function hydratePricingGaps(
+  gaps: PricingGap[],
+  fallbackZip?: string
+): Promise<{ inserted: number }> {
+  if (!gaps.length) return { inserted: 0 }
+
+  const payloads: Array<{
+    store: string
+    price: number
+    imageUrl?: string | null
+    productName?: string | null
+    productId?: string | null
+    zipCode?: string | null
+    groceryStoreId?: string | null
+  }> = []
+
+  for (const gap of gaps) {
+    const gapZip = gap.zip_code || fallbackZip
+    for (const ingredient of gap.ingredients) {
+      const storeResults = await searchGroceryStores(
+        ingredient.name,
+        gapZip || undefined,
+        gap.store,
+        undefined,
+        true
+      )
+
+      if (!storeResults?.length) continue
+
+      const targetStore = storeResults.find(
+        (result) => normalizeStoreName(result.store) === normalizeStoreName(gap.store)
+      ) || storeResults[0]
+
+      if (!targetStore?.items?.length) continue
+
+      const best =
+        targetStore.items.reduce((prev, curr) => (curr.price < (prev?.price ?? Number.POSITIVE_INFINITY) ? curr : prev), targetStore.items[0])
+
+      if (!best) continue
+
+      payloads.push({
+        store: targetStore.store,
+        price: best.price ?? 0,
+        imageUrl: best.image_url || null,
+        productName: best.title || null,
+        productId: best.id || null,
+        zipCode: gapZip ?? null,
+        groceryStoreId: gap.grocery_store_id ?? null,
+      })
+    }
+  }
+
+  if (!payloads.length) return { inserted: 0 }
+
+  console.log("[useStoreComparison] Batch insert payload", { payloadCount: payloads.length })
+
+  let count = await ingredientsHistoryDB.batchInsertPricesRpc(payloads)
+  if (count === 0) {
+    count = await ingredientsHistoryDB.batchInsertPrices(payloads)
+  }
+
+  if (count === 0) {
+    console.warn("[useStoreComparison] Failed to backfill pricing gaps")
+  } else {
+    console.log("[useStoreComparison] Filled pricing gaps", { count, gaps: gaps.length })
+  }
+
+  console.log("[useStoreComparison] Batch insert RPC count", { count, inserted: count })
+
+  return { inserted: count }
 }
 
 export function useStoreComparison(
@@ -158,83 +240,6 @@ export function useStoreComparison(
     return comps
   }, [shoppingList])
 
-  const buildComparisonsFromScrape = useCallback((searchData: Array<{ item: ShoppingListItem; storeResults: any[] }>, storeMetadata: StoreMetadataMap): StoreComparison[] => {
-    const storeMap = new Map<string, StoreComparison>()
-
-    searchData.forEach(({ item, storeResults }) => {
-      const validResults = storeResults.filter(r => r.items && r.items.length > 0)
-
-      validResults.forEach(storeResult => {
-        const storeName = (storeResult.store || "").trim()
-        if (!storeName) return
-
-        if (!storeMap.has(storeName)) {
-          storeMap.set(storeName, {
-            store: storeName,
-            items: [],
-            total: 0,
-            savings: 0,
-            missingItems: false,
-            missingCount: 0,
-            missingIngredients: []
-          })
-        }
-
-        const entry = storeMap.get(storeName)!
-        const bestOption = storeResult.items.reduce((min: any, curr: any) =>
-          curr.price < min.price ? curr : min
-        )
-
-        const qty = Math.max(1, Math.ceil(item.quantity || 1))
-        const totalPrice = (bestOption.price || 0) * qty
-        entry.items.push({
-          ...bestOption,
-          price: totalPrice, // store total cost for the purchased quantity
-          shoppingItemId: item.id,
-          originalName: item.name,
-          quantity: qty
-        })
-        entry.total += totalPrice
-      })
-    })
-
-    const comparisons = Array.from(storeMap.values()).map(comp => {
-      const foundItemIds = new Set<string>()
-      comp.items.forEach(i => {
-        const itemIds = (i as any).shoppingItemIds || [i.shoppingItemId]
-        itemIds.forEach((id: string) => foundItemIds.add(id))
-      })
-      const missingIngredients = shoppingList.filter(item => !foundItemIds.has(item.id))
-
-      // Enrich with coordinates & distance from store metadata
-      const normalizedStore = normalizeStoreName(comp.store)
-      const metadata = storeMetadata.get(normalizedStore)
-      const latitude = metadata?.latitude ?? undefined
-      const longitude = metadata?.longitude ?? undefined
-      const distanceMiles = metadata?.distanceMiles ?? comp.distanceMiles
-
-      return {
-        ...comp,
-        missingCount: missingIngredients.length,
-        missingItems: missingIngredients.length > 0,
-        missingIngredients: missingIngredients,
-        latitude,
-        longitude,
-        distanceMiles,
-        groceryStoreId: metadata?.grocery_store_id ?? null,
-      }
-    })
-
-    if (comparisons.length > 0) {
-      const maxTotal = Math.max(...comparisons.map(c => c.total))
-      comparisons.forEach(c => {
-        c.savings = maxTotal - c.total
-      })
-    }
-
-    return comparisons
-  }, [shoppingList])
-
   // -- Actions --
   const performMassSearch = useCallback(async () => {
     if (!shoppingList || shoppingList.length === 0) {
@@ -249,122 +254,37 @@ export function useStoreComparison(
     try {
       // ----- Fetch user preferred stores metadata via API (uses RPC with fallback) -----
       const storeMetadata = await fetchUserStoreMetadata(user?.id, resolvedZipCode)
+      // ----- Fill cache gaps before pricing -----
+      if (user) {
+        const pricingGaps = await ingredientsRecentDB.getPricingGaps(user.id)
+        if (pricingGaps.length > 0) {
+          console.warn("[useStoreComparison] Filling pricing gaps", { gaps: pricingGaps.length })
+          console.log("[useStoreComparison] Pricing gaps payload", pricingGaps)
+          toast({
+            title: "Pricing gaps detected",
+            description: `Found ${pricingGaps.length} gap(s) before comparison`,
+            variant: "secondary",
+          })
+          const { inserted } = await hydratePricingGaps(pricingGaps, resolvedZipCode)
+          if (inserted > 0) {
+            toast({
+              title: "Pricing gaps backfilled",
+              description: `Inserted ${inserted} rows`,
+              variant: "success",
+            })
+          } else {
+            toast({
+              title: "Pricing gaps still empty",
+              description: "No rows inserted after scraping",
+              variant: "destructive",
+            })
+          }
+        }
+      }
       // ----- Primary: server-side pricing function -----
       const pricingData = user ? await ingredientsRecentDB.getPricingForUser(user.id) : []
       let comparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
       let finalComparisons = comparisons
-
-      // ----- Scrape only missing items, insert into history, then re-run pricing -----
-      const missingItems = shoppingList.filter(item => item.ingredient_id && !comparisons.some(c =>
-        c.items.some(i => (i as any).shoppingItemIds?.includes(item.id) || i.shoppingItemId === item.id)))
-      if (missingItems.length > 0) {
-        // Only scrape stores that we have metadata for (from getUserPreferredStores)
-        const availableStores = Array.from(storeMetadata.entries())
-          .filter(([_, meta]) => meta.zipCode) // Only stores with valid zipcodes
-          .map(([storeName, _]) => storeName)
-
-        const scrapeResults = await Promise.all(
-          missingItems.map(async (item) => {
-            // Scrape all available stores in parallel
-            const storeResults = await Promise.all(
-              availableStores.map(async (storeName) => {
-                const metadata = storeMetadata.get(storeName)!
-                // Use each store's specific zipcode from getUserPreferredStores
-                return searchGroceryStores(
-                  item.name,
-                  metadata.zipCode!,
-                  storeName,
-                  undefined,
-                  true
-                )
-              })
-            )
-            // Flatten the array of arrays
-            const flattenedResults = storeResults.flat()
-            return { item, storeResults: flattenedResults }
-          })
-        )
-
-        let scrapeComparisons = buildComparisonsFromScrape(scrapeResults, storeMetadata)
-
-        const skipLog: Array<{ item: string; store?: string; reason: string }> = []
-
-        const historyPayload = scrapeResults.flatMap(({ item, storeResults }) => {
-          const flattened = storeResults.flatMap(s => s.items.map(it => ({ ...it, store: s.store })))
-          if (!flattened.length) return []
-
-          return flattened.flatMap(best => {
-            if (!item.ingredient_id) {
-              skipLog.push({ item: item.name, store: best.store, reason: "missing ingredient_id" })
-              return []
-            }
-            const unitPriceNumber =
-              typeof best.pricePerUnit === "string"
-                ? Number(String(best.pricePerUnit).replace(/[^0-9.]/g, "")) || null
-                : null
-            const normalizedStore = normalizeStoreName(best.store)
-            const metadata = storeMetadata.get(normalizedStore)
-
-            // Only insert if we have valid metadata with zipcode from getUserPreferredStores
-            if (!metadata || !metadata.zipCode) {
-              console.warn(`[useStoreComparison] Skipping item "${item.name}" for store "${best.store}" - no metadata with zipcode found`)
-              skipLog.push({ item: item.name, store: best.store, reason: "no metadata zip" })
-              return []
-            }
-
-            if (!(best.price > 0)) {
-              skipLog.push({ item: item.name, store: best.store, reason: "non-positive price" })
-              return []
-            }
-
-            const groceryStoreId = metadata.grocery_store_id ?? null
-            const storeZipCode = metadata.zipCode  // Always use store's physical zipcode from RPC
-            return [{
-              standardizedIngredientId: item.ingredient_id,
-              store: normalizedStore,
-              price: best.price,
-              quantity: 1,
-              unit: best.unit || "unit",
-              unitPrice: unitPriceNumber,
-              imageUrl: best.image_url,
-              productName: best.title,
-              productId: best.id,
-              location: best.location || null,
-              zipCode: storeZipCode,
-              groceryStoreId,
-            }]
-          })
-        })
-
-        if (skipLog.length > 0) {
-          console.warn("[useStoreComparison] Skipped history inserts", skipLog)
-        }
-
-        if (historyPayload.length > 0) {
-          let count = await ingredientsHistoryDB.batchInsertPricesRpc(historyPayload)
-          if (count === 0) {
-            count = await ingredientsHistoryDB.batchInsertPrices(historyPayload)
-          }
-          if (count === 0) {
-            console.error("[useStoreComparison] Failed to insert history from scraper")
-          }
-
-          const refreshed = await ingredientsRecentDB.getPricingForUser(user?.id || "")
-          const refreshedComparisons = buildComparisonsFromPricing(refreshed, storeMetadata)
-          if (refreshedComparisons.length > 0) {
-            finalComparisons = refreshedComparisons
-          }
-        }
-
-        // If scraping yielded nothing usable, fall back to any partial comparisons we had
-        if (finalComparisons === comparisons) {
-          if (scrapeComparisons.length > 0) {
-            finalComparisons = scrapeComparisons
-          } else {
-            toast({ title: "No prices found", description: "Try another zip or adjust items.", variant: "destructive" })
-          }
-        }
-      }
 
       // Ensure every preferred store appears, even if no pricing/scrape data
       const normalizedExisting = new Set(
@@ -402,7 +322,7 @@ export function useStoreComparison(
     } finally {
       setLoading(false)
     }
-  }, [shoppingList, resolvedZipCode, toast, user, buildComparisonsFromPricing, buildComparisonsFromScrape])
+  }, [shoppingList, resolvedZipCode, toast, user, buildComparisonsFromPricing])
 
   // -- FIX: IMMUTABLE STATE PATCHER --
   // This ensures price changes trigger a re-render by creating new object references

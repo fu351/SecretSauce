@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import {
   getOrRefreshIngredientPricesForStores,
-  resolveStandardizedIngredientForRecipe,
+  findExistingStandardizedId,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
 import { normalizeZipCode } from "@/lib/utils/zip"
+import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",
@@ -40,6 +40,15 @@ interface IngredientResult {
   cachedStores: number
   failedStores: number
   stores: StoreResult[]
+}
+
+async function findRecipeStandardizedIngredientId(recipeId: string, rawName: string): Promise<string | null> {
+  if (!recipeId) return null
+  const trimmed = rawName?.trim()
+  if (!trimmed) return null
+
+  const entry = await recipeIngredientsDB.findByRecipeIdAndDisplayName(recipeId, trimmed)
+  return entry?.standardized_ingredient_id ?? null
 }
 
 /**
@@ -107,22 +116,14 @@ export async function POST(request: NextRequest) {
         let standardizedIngredientId: string | null = null
 
         if (recipeId) {
-          standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
+          standardizedIngredientId = await findRecipeStandardizedIngredientId(
             recipeId,
             ingredientName
           )
         }
 
         if (!standardizedIngredientId) {
-          const canonical = ingredientName
-            .toLowerCase()
-            .replace(/\(.*?\)/g, " ")
-            .replace(/[^a-z0-9\s]/g, " ")
-            .trim()
-            .replace(/\s+/g, " ")
-
-          const ingredient = await standardizedIngredientsDB.getOrCreate(canonical)
-          standardizedIngredientId = ingredient?.id || null
+          standardizedIngredientId = await findExistingStandardizedId(ingredientName)
         }
 
         if (!standardizedIngredientId) {

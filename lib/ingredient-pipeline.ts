@@ -1,5 +1,4 @@
-import { createServerClient, type Database } from "./database/supabase"
-import { recipeIngredientsDB } from "./database/recipe-ingredients-db"
+import { type Database } from "./database/supabase"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "./database/ingredients-db"
 import { normalizeZipCode } from "./utils/zip"
@@ -116,11 +115,9 @@ async function findStandardizedIngredientViaMapping(
 ): Promise<string | null> {
   const cleanName = originalName.trim();
 
-  // 1. Try an exact match first
   const exactMatch = await standardizedIngredientsDB.findByCanonicalName(cleanName);
   if (exactMatch) return exactMatch.id;
 
-  // 2. Fallback to Full-Text Search (using the new method you wrote)
   const searchResults = await standardizedIngredientsDB.searchByText(cleanName, {
     limit: 1
   });
@@ -135,35 +132,29 @@ async function findStandardizedIngredient(
   const searchValue = normalizedName || fallbackName?.toLowerCase().trim() || ""
   if (!searchValue) return null
 
-  // 1. Exact Match (Clean and fast)
   const exact = await standardizedIngredientsDB.findByCanonicalName(searchValue)
   if (exact) return exact
 
-  // 2. Full-Text Search (Replaces your manual scoring logic)
-  // Your new class uses Postgres 'textSearch' which naturally ranks by relevance
   const fuzzyResults = await standardizedIngredientsDB.searchByText(searchValue, {
     limit: 1
   })
 
-  // Return the top ranked result from the vector search
   return fuzzyResults[0] || null
 }
 
-async function createStandardizedIngredient(
-  canonicalName: string,
-  category?: string | null
-): Promise<string> {
-  // Use the new class method which handles the check-and-insert logic
-  const ingredient = await standardizedIngredientsDB.getOrCreate(
-    canonicalName.trim().toLowerCase(), 
-    category
-  )
+export async function findExistingStandardizedId(
+  query: string
+): Promise<string | null> {
+  if (!query) return null
+  const trimmed = query.trim()
+  if (!trimmed) return null
 
-  if (!ingredient) {
-    throw new Error(`Unable to create or find standardized ingredient: ${canonicalName}`)
-  }
+  const mappedId = await findStandardizedIngredientViaMapping(trimmed)
+  if (mappedId) return mappedId
 
-  return ingredient.id
+  const normalized = normalizeIngredientName(trimmed)
+  const existing = await findStandardizedIngredient(normalized, trimmed)
+  return existing?.id || null
 }
 
 async function loadCanonicalName(
@@ -309,9 +300,6 @@ async function upsertCacheEntry(
     standardizedIngredientId,
     store: normalizedStore,
     price: Number(product.price) || 0,
-    quantity: 1, // Default quantity (extracted by DB from product_name)
-    unit: "unit", // Default unit (extracted by DB from product_name)
-    unitPrice: null,
     imageUrl: product.image_url ?? null,
     productName: product.product_name ?? product.title ?? null,
     productId: product.product_id ? String(product.product_id) : null,
@@ -334,47 +322,6 @@ async function upsertCacheEntry(
   return recents[0] || { ...historyRow, product_id: historyRow.product_id ?? null, location: historyRow.location ?? null }
 }
 
-export async function resolveStandardizedIngredientForRecipe(
-  recipeId: string,
-  rawIngredientName: string
-): Promise<string> {
-  if (!recipeId) throw new Error("recipeId is required")
-  const trimmed = rawIngredientName?.trim()
-  if (!trimmed) throw new Error("rawIngredientName is required")
-
-  // 1. Check for existing mapping stored directly on recipe_ingredients
-  const existingIngredient = await recipeIngredientsDB.findByRecipeIdAndDisplayName(recipeId, trimmed)
-  if (existingIngredient?.standardized_ingredient_id) {
-    return existingIngredient.standardized_ingredient_id
-  }
-
-  // 2. Try to find a match in the Master Ingredient list
-  const normalized = normalizeIngredientName(trimmed)
-  let matchingIngredient = await standardizedIngredientsDB.findByCanonicalName(normalized)
-
-  // 3. Use normalized or trimmed name as canonical (AI standardization runs via cron job)
-  let canonicalName = normalized || trimmed
-
-  // 4. Resolve the ID: Get existing, or create a new standardized entry
-  let standardizedId: string | null = null
-  
-  if (matchingIngredient) {
-    standardizedId = matchingIngredient.id
-  } else {
-    // getOrCreate handles the search-then-insert logic safely
-    const newIngredient = await standardizedIngredientsDB.getOrCreate(canonicalName)
-    standardizedId = newIngredient?.id || null
-  }
-
-  if (!standardizedId) {
-    throw new Error(`Critical failure: Could not resolve or create ID for ${canonicalName}`)
-  }
-
-  // 5. Link this specific recipe name to the standardized ID for next time
-  await recipeIngredientsDB.upsertDisplayNameWithStandardized(recipeId, trimmed, standardizedId)
-
-  return standardizedId
-}
 /**
  * Batch get or refresh ingredient prices for multiple stores at once.
  * Leverages the Singleton DB classes for caching and batching logic.
@@ -596,53 +543,6 @@ export async function getOrRefreshIngredientPrice(
   return result || cached
 }
 
-export async function resolveOrCreateStandardizedId(
-  query: string
-): Promise<string> {
-  const trimmedQuery = query.trim()
-
-  console.log("[ingredient-pipeline] resolveOrCreateStandardizedId", { query: trimmedQuery })
-
-  // STEP 1: Check if this exact string was previously mapped (from ANY recipe)
-  // This leverages historical mappings to improve cache hits
-  const mappedId = await findStandardizedIngredientViaMapping(trimmedQuery)
-  if (mappedId) {
-    console.log("[ingredient-pipeline] Found via historical mapping", { query: trimmedQuery, mappedId })
-    return mappedId
-  }
-
-  // STEP 2: Normalize and look for exact/fuzzy match in standardized_ingredients
-  const normalized = normalizeIngredientName(trimmedQuery)
-  const existing = await findStandardizedIngredient(normalized, trimmedQuery)
-  if (existing?.id) {
-    console.log("[ingredient-pipeline] Found via normalized lookup", { query: trimmedQuery, normalized, id: existing.id })
-    return existing.id
-  }
-
-  // STEP 3: Create new standardized ingredient (AI standardization runs via cron job)
-  const canonicalName = normalized || trimmedQuery
-  console.log("[ingredient-pipeline] Creating new standardized ingredient", { query: trimmedQuery, canonical: canonicalName })
-  return createStandardizedIngredient(canonicalName)
-}
-
-export async function searchOrCreateIngredientAndPrices(
-  query: string,
-  stores: string[],
-  options: StoreLookupOptions = {}
-): Promise<IngredientCacheResult[]> {
-  if (!query) throw new Error("query is required")
-  const standardizedId = await resolveOrCreateStandardizedId(query)
-
-  // Fetch from all stores in parallel for faster response
-  const storePromises = stores.map(async (store) => {
-    return getOrRefreshIngredientPrice(standardizedId, store, options)
-  })
-
-  const storeResults = await Promise.all(storePromises)
-
-  return storeResults.filter((row): row is IngredientCacheResult => row !== null)
-}
-
 /**
  * Pipeline Ingredient Input Type
  *
@@ -655,7 +555,6 @@ export async function searchOrCreateIngredientAndPrices(
 export interface PipelineIngredientInput {
   name: string
   quantity?: number
-  unit?: string
   recipeId?: string | null
   standardizedIngredientId?: string | null
 }
@@ -665,277 +564,3 @@ export interface PipelineIngredientInput {
  * This alias is maintained for backward compatibility during migration.
  */
 export type IngredientInput = PipelineIngredientInput
-
-export interface CostEstimate {
-  total: number
-  priced: PricedIngredient[]
-  missing: PipelineIngredientInput[]
-}
-
-export async function estimateIngredientCostsForStore(
-  items: PipelineIngredientInput[],
-  store: string,
-  options: StoreLookupOptions = {}
-): Promise<CostEstimate> {
-  // Normalize zipCode at entry point
-  const normalizedOptions = {
-    ...options,
-    zipCode: normalizeZipCode(options.zipCode) ?? options.zipCode
-  }
-
-  const priced: PricedIngredient[] = [];
-  const missing: PipelineIngredientInput[] = [];
-  let total = 0;
-
-  const validItems = items.filter(item => item.name?.trim());
-  const invalidItems = items.filter(item => !item.name?.trim());
-  missing.push(...invalidItems);
-
-  // 1. Deduplicate items by normalized name to prevent race conditions
-  const itemsByName = new Map<string, PipelineIngredientInput[]>();
-  validItems.forEach(item => {
-    const key = item.name!.trim().toLowerCase();
-    if (!itemsByName.has(key)) {
-      itemsByName.set(key, []);
-    }
-    itemsByName.get(key)!.push(item);
-  });
-
-  // 2. Resolve unique names only (prevents duplicate creates)
-  const uniqueNames = Array.from(itemsByName.keys());
-  const resolvedIdsMap = new Map<string, string | null>();
-
-  await Promise.all(
-    uniqueNames.map(async name => {
-      const item = itemsByName.get(name)![0];
-      const displayName = item.name!.trim();
-      let standardizedId = item.standardizedIngredientId || null;
-
-      try {
-        if (!standardizedId && item.recipeId) {
-          standardizedId = await resolveStandardizedIngredientForRecipe(item.recipeId, displayName);
-        }
-        if (!standardizedId) {
-          standardizedId = await resolveOrCreateStandardizedId(displayName);
-        }
-        resolvedIdsMap.set(name, standardizedId);
-      } catch (error) {
-        console.warn("[ingredient-pipeline] Failed to resolve standardized ingredient", { name, error });
-        resolvedIdsMap.set(name, null);
-      }
-    })
-  );
-
-  // 3. Map resolved IDs back to all original items
-  const resolvedItems = validItems.map(item => {
-    const key = item.name!.trim().toLowerCase();
-    return {
-      ...item,
-      standardizedIngredientId: resolvedIdsMap.get(key) || null,
-      displayName: item.name!.trim()
-    };
-  });
-
-  const itemsWithIds = resolvedItems.filter(item => item.standardizedIngredientId);
-  const itemsWithoutIds = resolvedItems.filter(item => !item.standardizedIngredientId);
-  missing.push(...itemsWithoutIds.map(i => i as PipelineIngredientInput));
-
-  if (itemsWithIds.length === 0) {
-    return { total: 0, priced, missing };
-  }
-
-  const standardizedIds = [...new Set(itemsWithIds.map(item => item.standardizedIngredientId!))];
-  const normalizedStore = normalizeStoreName(store);
-  const storeMetadata = normalizedOptions.storeMetadata?.get(normalizedStore)
-
-  // 2. Check cache for all items with single bulk query
-  const cachedResults = await ingredientsRecentDB.findByStandardizedIds(
-    standardizedIds,
-    [normalizedStore],
-    normalizedOptions.zipCode
-  );
-  const cachedMap = new Map<string, IngredientRecentRow>();
-  cachedResults.forEach(entry => cachedMap.set(entry.standardized_ingredient_id, entry));
-
-  const itemsToScrape = itemsWithIds.filter(item => !cachedMap.has(item.standardizedIngredientId!));
-  const newCachePayloads: any[] = [];
-
-  // 3. Scrape for missing items if allowed
-  if (itemsToScrape.length > 0 && normalizedOptions.allowRealTimeScraping !== false) {
-    const idsToFetchNames = [...new Set(itemsToScrape.map(item => item.standardizedIngredientId!))];
-    const canonicalNameRows = await standardizedIngredientsDB.fetchByIds(idsToFetchNames);
-    const canonicalNameMap = new Map(canonicalNameRows.map(row => [row.id, row.canonical_name]));
-
-    const scrapePromises = idsToFetchNames.map(async id => {
-      const canonicalName = canonicalNameMap.get(id);
-      if (!canonicalName) return;
-
-      const scraped = await runStoreScraper(store, canonicalName, normalizedOptions);
-      const bestProduct = pickBestScrapedProduct(scraped);
-
-      if (!bestProduct) return;
-
-      const storeZip = storeMetadata?.zipCode ?? normalizedOptions.zipCode
-
-      // Note: standardizedIngredientId is matched by the database based on productName
-      const payload = {
-        store: normalizedStore,
-        price: Number(bestProduct.price) || 0,
-        imageUrl: bestProduct.image_url,
-        productName: bestProduct.product_name || bestProduct.title,
-        productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
-        zipCode: storeZip,
-        groceryStoreId: storeMetadata?.grocery_store_id ?? storeMetadata?.storeId ?? null,
-      };
-
-      newCachePayloads.push(payload);
-    });
-
-    await Promise.all(scrapePromises);
-  }
-
-  // 4. Bulk insert new cache entries
-  if (newCachePayloads.length > 0) {
-    let count = await ingredientsHistoryDB.batchInsertPricesRpc(newCachePayloads);
-    if (count === 0) {
-      count = await ingredientsHistoryDB.batchInsertPrices(newCachePayloads);
-    }
-    if (count > 0) {
-      // Re-fetch the newly cached items from recents to get the latest rows
-      const newIds = newCachePayloads.map(p => p.standardizedIngredientId);
-      const newEntries = await ingredientsRecentDB.findByStandardizedIds(
-        newIds,
-        [normalizedStore],
-        normalizedOptions.zipCode
-      );
-      newEntries.forEach(entry => {
-        if (!cachedMap.has(entry.standardized_ingredient_id)) {
-          cachedMap.set(entry.standardized_ingredient_id, entry);
-        }
-      });
-    }
-  }
-  
-  // 5. Calculate total and build final lists
-  itemsWithIds.forEach(item => {
-    const cacheRow = cachedMap.get(item.standardizedIngredientId!);
-    if (cacheRow) {
-      const quantityMultiplier = Number.isFinite(item.quantity) ? Number(item.quantity) : 1;
-      total += (cacheRow.price || 0) * quantityMultiplier;
-      priced.push({
-        standardizedIngredientId: item.standardizedIngredientId!,
-        name: item.displayName!,
-        cache: cacheRow,
-      });
-    } else {
-      missing.push(item);
-    }
-  });
-
-  return {
-    total: Number(total.toFixed(2)),
-    priced,
-    missing,
-  };
-}
-
-/**
- * @deprecated 
- * This function is legacy logic and may fail or return inaccurate data.
- * DB CHANGE: Shopping list items have been moved from a JSONB column in 'shopping_lists'
- * to the relational 'shopping_list_items' table.
- * * TODO: Migration required to query the 'shopping_list_items' table with a join 
- * or foreign key filter instead of selecting the 'items' column.
- */
-export async function updateShoppingListEstimate(
-  shoppingListId: string,
-  store: string,
-  options: StoreLookupOptions = {}
-): Promise<CostEstimate | null> {
-  const supabaseClient = createServerClient()
-  
-  // WARNING: 'items' column is deprecated and may be null or empty in newer records
-  const { data: shoppingList, error } = await supabaseClient
-    .from("shopping_lists")
-    .select("items")
-    .eq("id", shoppingListId)
-    .maybeSingle()
-
-  if (error || !shoppingList) {
-    console.error("[ingredient-pipeline] [DEPRECATED] Failed to load shopping list", error)
-    return null
-  }
-
-  // Fallback mapping for legacy JSONB data
-  const items: IngredientInput[] = Array.isArray(shoppingList.items)
-    ? shoppingList.items.map((item: any) => ({
-        name: item.name || item.ingredient || "",
-        quantity: item.quantity ?? 1,
-        unit: item.unit,
-        standardizedIngredientId: item.standardized_ingredient_id ?? null,
-        recipeId: item.recipe_id ?? null,
-      }))
-    : []
-
-  const estimate = await estimateIngredientCostsForStore(items, store, options)
-
-  const { error: updateError } = await supabaseClient
-    .from("shopping_lists")
-    .update({ total_estimated_cost: estimate.total })
-    .eq("id", shoppingListId)
-
-  if (updateError) {
-    console.warn("[ingredient-pipeline] [DEPRECATED] Failed to update total", updateError)
-  }
-
-  return estimate
-}
-
-/**
- * @deprecated
- * Reason: Meal plan items are now managed via the 'meal_plan_items' join table.
- * Accessing 'shopping_list' as a JSON field on 'meal_plans' will return stale or 
- * incomplete data for any plans created after the schema migration.
- */
-export async function updateMealPlanBudget(
-  mealPlanId: string,
-  store: string,
-  options: StoreLookupOptions = {}
-): Promise<CostEstimate | null> {
-  const supabaseClient = createServerClient()
-  
-  // WARNING: 'shopping_list' column is slated for removal.
-  const { data: mealPlan, error } = await supabaseClient
-    .from("meal_plans")
-    .select("shopping_list")
-    .eq("id", mealPlanId)
-    .maybeSingle()
-
-  if (error || !mealPlan) {
-    console.error("[ingredient-pipeline] [DEPRECATED] Failed to load meal plan", error)
-    return null
-  }
-
-  const items: IngredientInput[] = Array.isArray(mealPlan.shopping_list)
-    ? mealPlan.shopping_list.map((item: any) => ({
-        name: item.name || item.ingredient || "",
-        quantity: item.quantity ?? 1,
-        unit: item.unit,
-        standardizedIngredientId: item.standardized_ingredient_id ?? null,
-        recipeId: item.recipe_id ?? null,
-      }))
-    : []
-
-  const estimate = await estimateIngredientCostsForStore(items, store, options)
-
-  const { error: updateError } = await supabaseClient
-    .from("meal_plans")
-    .update({ total_budget: estimate.total })
-    .eq("id", mealPlanId)
-
-  if (updateError) {
-    console.warn("[ingredient-pipeline] [DEPRECATED] Failed to update budget", updateError)
-  }
-
-  return estimate
-}

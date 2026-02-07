@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
-import { resolveOrCreateStandardizedId } from "@/lib/ingredient-pipeline"
+import { findExistingStandardizedId } from "@/lib/ingredient-pipeline"
 
 /**
  * Cache User's Manual Product Selection
@@ -32,8 +32,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get or create standardized_ingredient_id for the search term
-    const standardizedIngredientId = await resolveOrCreateStandardizedId(searchTerm)
+    // Look up standardized_ingredient_id for the search term
+    const standardizedIngredientId = await findExistingStandardizedId(searchTerm)
+    if (!standardizedIngredientId) {
+      console.error("[Cache Selection] Failed to resolve standardized ID")
+      return NextResponse.json(
+        { error: "Could not resolve standardized ingredient" },
+        { status: 500 }
+      )
+    }
 
     console.log("[Cache Selection] Resolved standardized ID", {
       searchTerm,
@@ -42,15 +49,6 @@ export async function POST(request: NextRequest) {
       productTitle: product.title,
     })
 
-    // Parse unit price if it's a string like "$2.50/lb"
-    let unitPrice: number | null = null
-    if (product.pricePerUnit) {
-      const match = String(product.pricePerUnit).match(/[\d.]+/)
-      if (match) {
-        unitPrice = Number.parseFloat(match[0])
-      }
-    }
-
     // Save to ingredients_history (triggers sync to ingredients_recent)
     const cached = await ingredientsHistoryDB.insertPrice({
       standardizedIngredientId: standardizedIngredientId!,
@@ -58,9 +56,6 @@ export async function POST(request: NextRequest) {
       productName: product.title,
       productId: product.id,
       price: product.price,
-      quantity: 1,
-      unit: product.unit || "unit",
-      unitPrice: unitPrice,
       imageUrl: product.image_url || null,
       location: product.location || null,
     })

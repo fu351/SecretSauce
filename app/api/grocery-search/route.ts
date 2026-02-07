@@ -1,15 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 import {
   getOrRefreshIngredientPricesForStores,
-  resolveOrCreateStandardizedId,
-  resolveStandardizedIngredientForRecipe,
-  searchOrCreateIngredientAndPrices,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
 import { createServerClient } from "@/lib/database/supabase"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
+import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import type { Database } from "@/lib/database/supabase"
 import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
 import { getUserPreferredStores, type StoreData } from "@/lib/store/user-preferred-stores"
@@ -215,15 +213,25 @@ async function resolveStandardizedIdForTerm(
 ): Promise<string | null> {
   try {
     if (recipeId) {
-      return await resolveStandardizedIngredientForRecipe(recipeId, term)
+      return await findRecipeStandardizedIngredientId(recipeId, term)
     }
 
     // Use the shared pipeline resolver so fuzzy/normalized lookups reuse existing cache rows
-    return await resolveOrCreateStandardizedId(term)
+    console.log("[grocery-search] No recipeId provided; skipping standardized ID resolution on server")
+    return null
   } catch (error) {
     console.error("[grocery-search] resolveStandardizedIdForTerm error", error)
     return null
   }
+}
+
+async function findRecipeStandardizedIngredientId(recipeId: string, rawName: string): Promise<string | null> {
+  if (!recipeId) return null
+  const trimmed = rawName?.trim()
+  if (!trimmed) return null
+
+  const entry = await recipeIngredientsDB.findByRecipeIdAndDisplayName(recipeId, trimmed)
+  return entry?.standardized_ingredient_id ?? null
 }
 
 export async function GET(request: NextRequest) {
@@ -294,7 +302,7 @@ export async function GET(request: NextRequest) {
   const preferredStoreMetadata = buildStoreMetadataFromStoreData(preferredStoresMap)
   const cacheLookupOptions = {
     zipCode: zipToUse,
-    allowRealTimeScraping: false,
+    allowRealTimeScraping: true,
     storeMetadata: preferredStoreMetadata,
   }
 
@@ -332,9 +340,9 @@ export async function GET(request: NextRequest) {
     if (directItems.length > 0) {
       // Resolve standardized ID for caching
       if (recipeId) {
-        standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
+        standardizedIngredientId = await findRecipeStandardizedIngredientId(
           recipeId,
-          sanitizedSearchTerm,
+          sanitizedSearchTerm
         )
       }
       if (!standardizedIngredientId) {
@@ -406,9 +414,9 @@ export async function GET(request: NextRequest) {
 
   try {
     if (recipeId) {
-      standardizedIngredientId = await resolveStandardizedIngredientForRecipe(
+      standardizedIngredientId = await findRecipeStandardizedIngredientId(
         recipeId,
-        sanitizedSearchTerm,
+        sanitizedSearchTerm
       )
       console.log("[grocery-search] Resolved standardized ingredient", { standardizedIngredientId })
     }
@@ -450,23 +458,7 @@ export async function GET(request: NextRequest) {
         })
       }
     } else {
-      console.log("[grocery-search] No standardized ID yet, running searchOrCreate workflow", {
-        searchTerm: sanitizedSearchTerm,
-        stores: storeKeys,
-        zipCode: zipToUse,
-      })
-      cachedRows = await searchOrCreateIngredientAndPrices(sanitizedSearchTerm, storeKeys, cacheLookupOptions)
-
-      console.log("[grocery-search] searchOrCreate workflow completed", {
-        searchTerm: sanitizedSearchTerm,
-        resultsCount: cachedRows.length,
-        storesWithResults: cachedRows.map(r => r.store),
-        storesWithoutResults: storeKeys.filter(s => !cachedRows.some(r => r.store.toLowerCase() === s.toLowerCase()))
-      })
-
-      if (cachedRows.length > 0) {
-        standardizedIngredientId = cachedRows[0].standardized_ingredient_id
-      }
+      console.log("[grocery-search] No standardized ID available; skipping cache pipeline")
     }
   } catch (error) {
     console.error("[grocery-search] Pipeline error", error)

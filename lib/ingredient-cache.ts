@@ -252,9 +252,6 @@ export async function cacheIngredientPrice(
   store: string,
   productName: string | null = null,
   price: number,
-  quantity: number,
-  unit: string,
-  unitPrice: number | null = null,
   imageUrl: string | null = null,
   productUrl: string | null = null,
   productId: string | null = null
@@ -267,9 +264,6 @@ export async function cacheIngredientPrice(
       standardizedIngredientId,
       store,
       price: priceValue,
-      quantity,
-      unit,
-      unitPrice,
       imageUrl,
       productName,
       productId,
@@ -393,9 +387,6 @@ export async function batchCacheIngredientPrices(
     store: string
     productName: string | null
     price: number
-    quantity: number
-    unit: string
-    unitPrice: number | null
     imageUrl: string | null
     productUrl: string | null
     productId: string | null
@@ -404,33 +395,28 @@ export async function batchCacheIngredientPrices(
   if (!items || items.length === 0) return 0
 
   try {
-    const batchItems = items.map(item => ({
-      standardizedIngredientId: item.standardizedIngredientId,
-      store: item.store,
-      price: Number.isFinite(item.price) ? item.price : 0,
-      quantity: item.quantity,
-      unit: item.unit,
-      unitPrice: item.unitPrice,
-      imageUrl: item.imageUrl,
-      productName: item.productName,
-      productId: item.productId,
-      location: null
-    }))
-
-    let count = await ingredientsHistoryDB.batchInsertPricesRpc(
-      batchItems.map((item) => ({
+      const batchItems = items.map(item => ({
         standardizedIngredientId: item.standardizedIngredientId,
         store: item.store,
-        price: item.price,
-        quantity: item.quantity,
-        unit: item.unit,
+        price: Number.isFinite(item.price) ? item.price : 0,
         imageUrl: item.imageUrl,
         productName: item.productName,
         productId: item.productId,
-        location: item.location ?? null,
-        zipCode: null,
+        location: null
       }))
-    )
+
+      let count = await ingredientsHistoryDB.batchInsertPricesRpc(
+        batchItems.map((item) => ({
+          standardizedIngredientId: item.standardizedIngredientId,
+          store: item.store,
+          price: item.price,
+          imageUrl: item.imageUrl,
+          productName: item.productName,
+          productId: item.productId,
+          location: item.location ?? null,
+          zipCode: null,
+        }))
+      )
 
     if (count === 0) {
       count = await ingredientsHistoryDB.batchInsertPrices(batchItems)
@@ -755,9 +741,6 @@ export async function cacheScrapedResults(
       store: string
       productName: string | null
       price: number
-      quantity: number
-      unit: string
-      unitPrice: number | null
       imageUrl: string | null
       productUrl: string | null
       productId: string | null
@@ -812,24 +795,12 @@ export async function cacheScrapedResults(
         continue
       }
 
-      // Parse unit price if available
-      let unitPrice: number | null = null
-      if (item.pricePerUnit) {
-        const priceMatch = item.pricePerUnit.match(/\$?([\d.]+)/)
-        if (priceMatch) {
-          unitPrice = parseFloat(priceMatch[1])
-        }
-      }
-
       // Collect payload for batch insert
       cachePayloads.push({
         standardizedIngredientId: standardizedId,
         store: item.provider,
         productName: item.title,
         price: Number(item.price),
-        quantity: 1,
-        unit: item.unit || "unit",
-        unitPrice,
         imageUrl: item.image_url || null,
         productUrl: item.product_url || null,
         productId: item.product_id || null,

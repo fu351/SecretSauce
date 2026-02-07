@@ -226,19 +226,11 @@ async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: st
         return currentPrice < prevPrice ? current : prev
       })
 
-      // Extract unit and quantity from the scraper response
-      const unit = cheapest.unit || "item"
-      const quantity = cheapest.quantity || 1
-      const unitPrice = cheapest.pricePerUnit ? parseFloat(cheapest.pricePerUnit) : null
-
       // Cache the cheapest item for this ingredient from this store
       const successRow = await ingredientsHistoryDB.insertPrice({
         standardizedIngredientId: ingredientId,
         store,
         price: Number(cheapest.price) || 0,
-        quantity,
-        unit,
-        unitPrice,
         imageUrl: cheapest.image_url ?? null,
         productName: (cheapest.title || cheapest.name || ingredientName) ?? null,
         productId: (cheapest.id || null) ?? null,
