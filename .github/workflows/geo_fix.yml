@@ -1,7 +1,5 @@
 name: Fix Missing Geography
 on:
-  schedule:
-    - cron: '0 6 * * *' # Runs at midnight every day
   workflow_dispatch:
     inputs:
       brands:
