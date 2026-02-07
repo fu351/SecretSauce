@@ -75,7 +75,6 @@ jobs:
           OPENAI_MODEL: 'gpt-4o-mini'
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: 'gemini-3-flash-preview'
-          QUEUE_BATCH_LIMIT: '100'
           QUEUE_STANDARDIZER_CONTEXT: 'pantry'
           QUEUE_RESOLVER_NAME: 'relink-map-run'
           NODE_ENV: production
