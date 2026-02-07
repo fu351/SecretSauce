@@ -55,6 +55,32 @@ jobs:
           CHANGED=$(echo "$RESULT" | jq '[.[] | select(.changed == true)] | length')
           echo "Total: ${TOTAL} | Relinked: ${CHANGED}"
 
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Resolve Ingredient Match Queue
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: 'gpt-4o-mini'
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: 'gemini-3-flash-preview'
+          QUEUE_BATCH_LIMIT: '100'
+          QUEUE_STANDARDIZER_CONTEXT: 'pantry'
+          QUEUE_RESOLVER_NAME: 'relink-map-run'
+          NODE_ENV: production
+        run: npm run resolve-ingredient-match-queue
+
       - name: Queue Summary
         run: |
           echo "=== Queue Status ==="
