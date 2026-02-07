@@ -1,0 +1,66 @@
+name: Relink Ingredient Mappings
+
+on:
+  schedule:
+    # Weekly on Sunday at 3am UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      reset_all:
+        description: 'Reset ALL mappings (ignore age filter)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+jobs:
+  relink:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Relink Recipe Ingredients
+        run: |
+          echo "=== Relinking Recipe Ingredients ==="
+          RESULT=$(curl -sf -X POST \
+            "${SUPABASE_URL}/rest/v1/rpc/fn_relink_recipe_ingredients" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+
+          TOTAL=$(echo "$RESULT" | jq 'length')
+          CHANGED=$(echo "$RESULT" | jq '[.[] | select(.changed == true)] | length')
+          QUEUED=$(echo "$RESULT" | jq '[.[] | select(.ri_match_strategy == "unmatched")] | length')
+          echo "Total: ${TOTAL} | Relinked: ${CHANGED} | Queued for LLM: ${QUEUED}"
+
+      - name: Relink Product Mappings
+        run: |
+          if [ "${{ inputs.reset_all }}" = "true" ]; then
+            BODY='{"p_reset_all": true}'
+          else
+            BODY='{"p_older_than": "1 month"}'
+          fi
+
+          echo "=== Relinking Product Mappings ==="
+          RESULT=$(curl -sf -X POST \
+            "${SUPABASE_URL}/rest/v1/rpc/fn_relink_product_mappings" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+
+          TOTAL=$(echo "$RESULT" | jq 'length')
+          CHANGED=$(echo "$RESULT" | jq '[.[] | select(.changed == true)] | length')
+          echo "Total: ${TOTAL} | Relinked: ${CHANGED}"
+
+      - name: Queue Summary
+        run: |
+          echo "=== Queue Status ==="
+          RESULT=$(curl -sf \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=source,status&limit=10000" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
+
+          echo "$RESULT" | jq 'group_by(.source, .status) | map({source: .[0].source, status: .[0].status, count: length})'
