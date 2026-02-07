@@ -43,3 +43,4 @@ node_modules
 
 # Local helper pages that should stay out of source control
 /app/dev/
+app/api/dev/seed-recipes/route.ts
