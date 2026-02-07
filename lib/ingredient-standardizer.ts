@@ -270,6 +270,13 @@ EXAMPLES OF PROPER NORMALIZATION:
 ❌ "Charmin toilet paper" → "toilet paper" (confidence: 0.0, category: null)
 
 ═══════════════════════════════════════════════════════════════
+NORMALIZATION SAFETY:
+═══════════════════════════════════════════════════════════════
+
+• Never invent “other,” “misc,” “unknown,” or similar catch-all canonicals for clearly edible inputs. Only use those labels when you are certain the item is not meant for human food/beverage (confidence 0.0‑0.2 and category null).
+• When you can’t find a match, return the cleaned ingredient (lowercased, singular, brandless) as the canonical name and give it a confidence of 0.5–0.7 so the resolver can decide whether to upsert a new canonical row.
+
+═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT:
 ═══════════════════════════════════════════════════════════════
 
