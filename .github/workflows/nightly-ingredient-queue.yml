@@ -1,8 +1,7 @@
-name: Nightly Ingredient Queue Resolution
+name: Nightly Ingredient Queue
 
 on:
-  schedule:
-    - cron: '0 5 * * *'
+  workflow_call:
   workflow_dispatch:
 
 jobs:

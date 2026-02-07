@@ -1,0 +1,25 @@
+name: Nightly Workflow
+
+on:
+  schedule:
+    # Runs daily at 11:55 UTC
+    - cron: '55 11 * * *'
+  workflow_dispatch:
+
+jobs:
+  purge:
+    name: Daily Purge
+    uses: ./.github/workflows/daily-purge.yml
+    secrets: inherit
+
+  scraper:
+    name: Daily Scraper Matrix
+    needs: purge
+    uses: ./.github/workflows/daily-scraper-matrix.yml
+    secrets: inherit
+
+  queue:
+    name: Nightly Ingredient Queue
+    needs: scraper
+    uses: ./.github/workflows/nightly-ingredient-queue.yml
+    secrets: inherit
