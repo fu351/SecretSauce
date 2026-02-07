@@ -21,6 +21,12 @@ export interface GroceryItem {
   category?: string
   quantity?: number
   productMappingId?: string
+  packagesToBuy?: number
+  requestedUnit?: string | null
+  productUnit?: string | null
+  productQuantity?: number | null
+  convertedQuantity?: number | null
+  packagePrice?: number | null
 }
 
 /**

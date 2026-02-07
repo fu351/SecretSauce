@@ -71,6 +71,14 @@ function getStoreLogo(storeName: string): string | null {
   return null
 }
 
+const formatMeasure = (value?: number | null): string | null => {
+  if (value === undefined || value === null) return null
+  const numeric = Number(value)
+  if (Number.isNaN(numeric)) return null
+  if (Number.isInteger(numeric)) return numeric.toString()
+  return numeric.toFixed(2).replace(/\.?0+$/, "")
+}
+
 interface StoreComparisonSectionProps {
   comparisonLoading: boolean
   massSearchResults: StoreComparison[]
@@ -339,29 +347,60 @@ export function StoreComparisonSection({
             className="p-0 min-h-[400px] max-h-[600px] overflow-y-auto scroll-smooth"
           >
             <div className="divide-y divide-gray-100 dark:divide-white/5">
-              {displayItems.map((item, i) => (
-                <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
-                  <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === 'dark' ? 'bg-white border-white/10' : 'bg-white border-gray-100'}`}>
-                    {item.image_url ? (
-                      <img src={item.image_url} alt="" className="w-full h-full object-contain" />
-                    ) : (
-                      <ShoppingCart className="h-5 w-5 text-gray-400" />
-                    )}
+        {displayItems.map((item, i) => (
+          <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
+            <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === 'dark' ? 'bg-white border-white/10' : 'bg-white border-gray-100'}`}>
+              {item.image_url ? (
+                <img src={item.image_url} alt="" className="w-full h-full object-contain" />
+              ) : (
+                <ShoppingCart className="h-5 w-5 text-gray-400" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold truncate ${textClass}`}>{item.title}</p>
+              <p className={`text-[11px] ${mutedTextClass}`}>
+                {item.originalName ? `Original: ${item.originalName}` : (item.brand || 'Store Brand')}
+              </p>
+            </div>
+            {(() => {
+              const quantityLabel = formatMeasure(item.quantity)
+              const needText = quantityLabel
+                ? `Need ${quantityLabel} ${item.requestedUnit ?? "units"}`
+                : null
+              const packageSizeLabel = formatMeasure(item.productQuantity)
+              const packageSizeText = packageSizeLabel && item.productUnit
+                ? `Package ${packageSizeLabel} ${item.productUnit}`
+                : null
+              const conversionLabel = formatMeasure(item.convertedQuantity)
+              const conversionText = conversionLabel && item.requestedUnit
+                ? `Covers ${conversionLabel} ${item.requestedUnit}`
+                : null
+              const packagePriceText = item.packagePrice != null
+                ? `Package price: $${Number(item.packagePrice).toFixed(2)}`
+                : null
+              const packagesText =
+                typeof item.packagesToBuy === "number" && item.packagesToBuy > 0
+                  ? `Packages: ${item.packagesToBuy}`
+                  : null
+              const detailClass = `text-[10px] leading-tight ${mutedTextClass}`
+
+              return (
+                <div className="text-right mr-2">
+                  <p className={`text-sm font-bold ${textClass}`}>${Number(item.price || 0).toFixed(2)}</p>
+                  <div className="mt-1 flex flex-col items-end gap-0.5">
+                    {needText && <p className={detailClass}>{needText}</p>}
+                    {packageSizeText && <p className={detailClass}>{packageSizeText}</p>}
+                    {conversionText && <p className={detailClass}>{conversionText}</p>}
+                    {packagePriceText && <p className={detailClass}>{packagePriceText}</p>}
+                    {packagesText && <p className={detailClass}>{packagesText}</p>}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold truncate ${textClass}`}>{item.title}</p>
-                    <p className={`text-[11px] ${mutedTextClass}`}>
-                      {item.originalName ? `Original: ${item.originalName}` : (item.brand || 'Store Brand')}
-                    </p>
-                  </div>
-                  <div className="text-right mr-2">
-                    <p className={`text-sm font-bold ${textClass}`}>${Number(item.price || 0).toFixed(2)}</p>
-                    {(item.quantity || 1) > 1 && <p className={`text-[10px] ${mutedTextClass}`}>{item.quantity || 1} units</p>}
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-9 w-9 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                </div>
+              )
+            })()}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => onReloadItem({
                       term: item.originalName,
                       store: activeStore.store,
