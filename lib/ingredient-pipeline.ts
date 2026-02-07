@@ -1,5 +1,4 @@
 import { createServerClient, type Database } from "./database/supabase"
-import { standardizeIngredientsWithAI } from "./ingredient-standardizer"
 import { recipeIngredientsDB } from "./database/recipe-ingredients-db"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "./database/ingredients-db"
@@ -183,17 +182,28 @@ async function loadCanonicalName(
   return ingredient.canonical_name.toLowerCase();
 }
 
+/**
+ * Raw scraper result format
+ * Scrapers return product data without context like zipCode (comes from database)
+ */
 type ScraperResult = {
-  title?: string
+  /** Primary product name - all scrapers should use this field */
   product_name?: string
+
+  /** Product price */
   price: number
-  quantity?: number
-  unit?: string
-  unit_price?: number
+
+  /** Product image URL */
   image_url?: string | null
+
+  /** Product page URL */
   product_url?: string | null
+
+  /** Store's internal product ID */
   product_id?: string | null
-  location?: string | null
+
+  /** @deprecated Legacy field - use product_name instead */
+  title?: string
 }
 
 type StoreLookupOptions = {
@@ -273,10 +283,8 @@ async function runStoreScraper(
 function pickBestScrapedProduct(items: ScraperResult[]): ScraperResult | null {
   if (!items || items.length === 0) return null
 
+  // Sort by price (lowest first)
   const sorted = [...items].sort((a, b) => {
-    const aUnit = Number.isFinite(a.unit_price) ? Number(a.unit_price) : Number.POSITIVE_INFINITY
-    const bUnit = Number.isFinite(b.unit_price) ? Number(b.unit_price) : Number.POSITIVE_INFINITY
-    if (aUnit !== bUnit) return aUnit - bUnit
     return (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY)
   })
 
@@ -301,13 +309,13 @@ async function upsertCacheEntry(
     standardizedIngredientId,
     store: normalizedStore,
     price: Number(product.price) || 0,
-    quantity: Number(product.quantity) || 1,
-    unit: product.unit || "unit",
-    unitPrice: product.unit_price ?? null,
+    quantity: 1, // Default quantity (extracted by DB from product_name)
+    unit: "unit", // Default unit (extracted by DB from product_name)
+    unitPrice: null,
     imageUrl: product.image_url ?? null,
     productName: product.product_name ?? product.title ?? null,
     productId: product.product_id ? String(product.product_id) : null,
-    location: product.location ?? null,
+    location: null, // Deprecated - zipCode is used instead
     zipCode: zipCode ?? null,
     groceryStoreId: storeMeta?.storeId ?? storeMeta?.grocery_store_id ?? null,
   })
@@ -344,21 +352,8 @@ export async function resolveStandardizedIngredientForRecipe(
   const normalized = normalizeIngredientName(trimmed)
   let matchingIngredient = await standardizedIngredientsDB.findByCanonicalName(normalized)
 
-  // 3. AI Fallback: If no match found, use AI to determine the canonical name
+  // 3. Use normalized or trimmed name as canonical (AI standardization runs via cron job)
   let canonicalName = normalized || trimmed
-  if (!matchingIngredient) {
-    try {
-      const aiStandardized = await standardizeIngredientsWithAI([{ id: "0", name: trimmed }], "recipe")
-      const aiTop = aiStandardized?.[0]
-      if (aiTop?.canonicalName) {
-        canonicalName = aiTop.canonicalName.trim()
-        // Check if the AI's suggested name already exists in our DB
-        matchingIngredient = await standardizedIngredientsDB.findByCanonicalName(canonicalName)
-      }
-    } catch (error) {
-      console.warn("[ingredient-pipeline] AI standardization failed", error)
-    }
-  }
 
   // 4. Resolve the ID: Get existing, or create a new standardized entry
   let standardizedId: string | null = null
@@ -449,20 +444,15 @@ export async function getOrRefreshIngredientPricesForStores(
     const resolvedStoreId = storeMeta?.storeId ?? storeMeta?.grocery_store_id ?? null
     const storeZip = storeMeta?.zipCode ?? normalizedOptions.zipCode
 
-    // Return the specific payload format your batchCachePrices expects
+    // Return the specific payload format for batchInsertPricesRpc
+    // Note: standardizedIngredientId is matched by the database based on productName
     return {
-      standardizedIngredientId,
       store,
       price: Number(bestProduct.price) || 0,
-      quantity: Number(bestProduct.quantity) || 1,
-      unit: bestProduct.unit || "unit",
-      unitPrice: bestProduct.unit_price,
       imageUrl: bestProduct.image_url,
       productName: bestProduct.product_name || bestProduct.title,
       productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
-      location: bestProduct.location,
       zipCode: storeZip,
-      storeId: resolvedStoreId,
       groceryStoreId: storeMeta?.grocery_store_id ?? resolvedStoreId,
     }
   })
@@ -629,24 +619,9 @@ export async function resolveOrCreateStandardizedId(
     return existing.id
   }
 
-  // STEP 3: Use AI to get better canonical name
-  let canonicalName = normalized || trimmedQuery
-  try {
-    const aiStandardized = await standardizeIngredientsWithAI([{ id: "0", name: trimmedQuery }], "recipe")
-    const aiTop = aiStandardized?.[0]
-    canonicalName = aiTop?.canonicalName?.trim() || canonicalName
-    console.log("[ingredient-pipeline] AI suggested canonical", { query: trimmedQuery, canonical: canonicalName })
-  } catch (error) {
-    console.warn("[ingredient-pipeline] AI standardization failed for freeform query, falling back", error)
-  }
-
-  // STEP 4: Try lookup with AI-suggested canonical name
-  const aiExisting = await findStandardizedIngredient(canonicalName, trimmedQuery)
-  if (aiExisting?.id) {
-    console.log("[ingredient-pipeline] Found via AI canonical lookup", { query: trimmedQuery, canonical: canonicalName, id: aiExisting.id })
-    return aiExisting.id
-  }
-
+  // STEP 3: Create new standardized ingredient (AI standardization runs via cron job)
+  const canonicalName = normalized || trimmedQuery
+  console.log("[ingredient-pipeline] Creating new standardized ingredient", { query: trimmedQuery, canonical: canonicalName })
   return createStandardizedIngredient(canonicalName)
 }
 
@@ -802,19 +777,14 @@ export async function estimateIngredientCostsForStore(
 
       const storeZip = storeMetadata?.zipCode ?? normalizedOptions.zipCode
 
+      // Note: standardizedIngredientId is matched by the database based on productName
       const payload = {
-        standardizedIngredientId: id,
         store: normalizedStore,
         price: Number(bestProduct.price) || 0,
-        quantity: Number(bestProduct.quantity) || 1,
-        unit: bestProduct.unit || "unit",
-        unitPrice: bestProduct.unit_price,
         imageUrl: bestProduct.image_url,
         productName: bestProduct.product_name || bestProduct.title,
         productId: bestProduct.product_id ? String(bestProduct.product_id) : null,
-        location: bestProduct.location,
         zipCode: storeZip,
-        storeId: storeMetadata?.storeId ?? storeMetadata?.grocery_store_id ?? null,
         groceryStoreId: storeMetadata?.grocery_store_id ?? storeMetadata?.storeId ?? null,
       };
 

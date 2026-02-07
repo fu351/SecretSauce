@@ -138,20 +138,20 @@ class IngredientsHistoryTable extends BaseTable<
   /**
    * Faster bulk insert via database RPC (uses server-side JSONB processing).
    * Falls back to 0 on error so callers can decide to retry with standard insert.
+   *
+   * Note:
+   * - standardizedIngredientId matching is handled by the database based on product_name
+   * - quantity and unit are extracted by the database from product_name
+   * - location is deprecated (zipCode is used instead)
    */
   async batchInsertPricesRpc(
     items: Array<{
-      standardizedIngredientId: string | null
       store: string
       price: number
-      quantity: number // accepted for compatibility; RPC now ignores and defaults to 1
-      unit: string
       imageUrl?: string | null
       productName?: string | null
       productId?: string | null
-      location?: string | null
       zipCode?: string | null
-      productMappingId?: string | null
       groceryStoreId?: string | null
     }>
   ): Promise<number> {
@@ -159,19 +159,14 @@ class IngredientsHistoryTable extends BaseTable<
       if (!items.length) return 0
 
       const payload = items
-        .filter((i) => i.price > 0)
+        .filter((i) => i.price > 0 && i.productName)
         .map((item) => ({
-          standardizedIngredientId: item.standardizedIngredientId,
           store: normalizeStoreName(item.store),
           price: item.price,
-          // quantity intentionally omitted; DB function defaults to 1
-          unit: item.unit || "unit",
           imageUrl: item.imageUrl ?? null,
           productName: item.productName ?? null,
           productId: item.productId ?? null,
-          location: item.location ?? null,
           zipCode: item.zipCode ?? "",
-          productMappingId: item.productMappingId ?? null,
           store_id: item.groceryStoreId ?? null,
         }))
 
