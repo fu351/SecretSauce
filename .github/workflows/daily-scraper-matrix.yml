@@ -2,18 +2,148 @@ name: Daily Scraper Matrix
 
 on:
   workflow_call:
+    inputs:
+      stores_csv:
+        description: "Comma-separated stores (blank = all)"
+        required: false
+        type: string
+        default: ""
+      ingredient_limit:
+        description: "Limit ingredients scraped (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_limit:
+        description: "Limit store rows queried (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_concurrency:
+        description: "Concurrent store scrapes per ingredient"
+        required: false
+        type: string
+        default: "20"
+      ingredient_delay_ms:
+        description: "Delay between ingredients in milliseconds"
+        required: false
+        type: string
+        default: "1000"
+      insert_batch_size:
+        description: "RPC insert batch size"
+        required: false
+        type: string
+        default: "500"
+      min_expected_rows:
+        description: "Fail verify step if below this row count"
+        required: false
+        type: string
+        default: "100"
   workflow_dispatch:
+    inputs:
+      stores_csv:
+        description: "Comma-separated stores (blank = all)"
+        required: false
+        type: string
+        default: ""
+      ingredient_limit:
+        description: "Limit ingredients scraped (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_limit:
+        description: "Limit store rows queried (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_concurrency:
+        description: "Concurrent store scrapes per ingredient"
+        required: false
+        type: string
+        default: "20"
+      ingredient_delay_ms:
+        description: "Delay between ingredients in milliseconds"
+        required: false
+        type: string
+        default: "1000"
+      insert_batch_size:
+        description: "RPC insert batch size"
+        required: false
+        type: string
+        default: "500"
+      min_expected_rows:
+        description: "Fail verify step if below this row count"
+        required: false
+        type: string
+        default: "100"
 
 jobs:
+  prepare-matrix:
+    name: Prepare Store Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      store_json: ${{ steps.build.outputs.store_json }}
+
+    steps:
+      - name: Build store matrix
+        id: build
+        env:
+          STORES_CSV: ${{ inputs.stores_csv }}
+        run: |
+          set -euo pipefail
+
+          default_stores=(walmart target safeway kroger aldi traderjoes wholefoods andronicos meijer 99ranch)
+
+          if [ -z "${STORES_CSV// }" ]; then
+            selected=("${default_stores[@]}")
+          else
+            normalized=$(echo "$STORES_CSV" | tr '[:upper:]' '[:lower:]' | tr ';' ',' | tr -d ' ')
+            IFS=',' read -r -a requested <<< "$normalized"
+            selected=()
+            declare -A seen=()
+
+            for candidate in "${requested[@]}"; do
+              [ -z "$candidate" ] && continue
+              case "$candidate" in
+                walmart|target|safeway|kroger|aldi|traderjoes|wholefoods|andronicos|meijer|99ranch)
+                  if [ -z "${seen[$candidate]+x}" ]; then
+                    selected+=("$candidate")
+                    seen[$candidate]=1
+                  fi
+                  ;;
+                *)
+                  echo "❌ Unsupported store in stores_csv: $candidate"
+                  echo "Allowed stores: ${default_stores[*]}"
+                  exit 1
+                  ;;
+              esac
+            done
+
+            if [ "${#selected[@]}" -eq 0 ]; then
+              echo "❌ No valid stores found in stores_csv"
+              exit 1
+            fi
+          fi
+
+          json="["
+          for i in "${!selected[@]}"; do
+            [ "$i" -gt 0 ] && json+=","
+            json+="\"${selected[$i]}\""
+          done
+          json+="]"
+
+          echo "store_json=$json" >> "$GITHUB_OUTPUT"
+          echo "Using stores: $json"
+
   scrape-stores:
     name: Scrape ${{ matrix.store }}
+    needs: prepare-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     strategy:
       fail-fast: false
       matrix:
-        store: [walmart, target, safeway, kroger, aldi, traderjoes, wholefoods, andronicos, meijer, "99ranch"]
+        store: ${{ fromJson(needs.prepare-matrix.outputs.store_json) }}
 
     steps:
       - name: Checkout code
@@ -32,6 +162,11 @@ jobs:
           STORE_BRAND: ${{ matrix.store }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INGREDIENT_LIMIT: ${{ inputs.ingredient_limit }}
+          STORE_LIMIT: ${{ inputs.store_limit }}
+          STORE_CONCURRENCY: ${{ inputs.store_concurrency }}
+          INGREDIENT_DELAY_MS: ${{ inputs.ingredient_delay_ms }}
+          INSERT_BATCH_SIZE: ${{ inputs.insert_batch_size }}
         run: |
           echo "🚀 Starting scraper for ${{ matrix.store }}"
           node scripts/daily-scraper.js
@@ -55,12 +190,15 @@ jobs:
       - name: Verify results
         env:
           DB_URL: ${{ secrets.DATABASE_URL }}
+          MIN_EXPECTED_ROWS: ${{ inputs.min_expected_rows }}
         run: |
+          set -euo pipefail
           echo "📊 Checking results..."
           COUNT=$(psql "$DB_URL" -t -A -c "SELECT COUNT(*) FROM public.ingredients_recent;")
           echo "Total rows in ingredients_recent: $COUNT"
+          echo "Minimum expected rows: $MIN_EXPECTED_ROWS"
 
-          if [ "$COUNT" -lt 100 ]; then
+          if [ "$COUNT" -lt "$MIN_EXPECTED_ROWS" ]; then
             echo "⚠️ WARNING: Very few rows inserted ($COUNT)"
             exit 1
           fi

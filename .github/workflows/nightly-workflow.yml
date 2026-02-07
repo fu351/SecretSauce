@@ -5,21 +5,118 @@ on:
     # Runs daily at 11:55 UTC
     - cron: '55 11 * * *'
   workflow_dispatch:
+    inputs:
+      purge_mode:
+        description: "execute or dry-run"
+        required: false
+        type: choice
+        options:
+          - execute
+          - dry-run
+        default: execute
+      stores_csv:
+        description: "Comma-separated stores (blank = all)"
+        required: false
+        type: string
+        default: ""
+      ingredient_limit:
+        description: "Limit ingredients scraped (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_limit:
+        description: "Limit store rows queried (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_concurrency:
+        description: "Concurrent store scrapes per ingredient"
+        required: false
+        type: string
+        default: "20"
+      ingredient_delay_ms:
+        description: "Delay between ingredients in milliseconds"
+        required: false
+        type: string
+        default: "1000"
+      insert_batch_size:
+        description: "RPC insert batch size"
+        required: false
+        type: string
+        default: "500"
+      min_expected_rows:
+        description: "Fail if below this row count"
+        required: false
+        type: string
+        default: "100"
+      queue_batch_limit:
+        description: "Queue batch size"
+        required: false
+        type: string
+        default: "100"
+      queue_context:
+        description: "Queue context"
+        required: false
+        type: choice
+        options:
+          - pantry
+          - recipe
+        default: pantry
+      queue_resolver_name:
+        description: "Queue resolver run name"
+        required: false
+        type: string
+        default: "nightly-openai"
+      queue_dry_run:
+        description: "Dry run queue stage"
+        required: false
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+      openai_model:
+        description: "OpenAI model"
+        required: false
+        type: string
+        default: "gpt-4o-mini"
+      gemini_model:
+        description: "Gemini model"
+        required: false
+        type: string
+        default: "gemini-3-flash-preview"
 
 jobs:
   purge:
     name: Daily Purge
     uses: ./.github/workflows/daily-purge.yml
     secrets: inherit
+    with:
+      purge_mode: ${{ github.event.inputs.purge_mode || 'execute' }}
 
   scraper:
     name: Daily Scraper Matrix
     needs: purge
     uses: ./.github/workflows/daily-scraper-matrix.yml
     secrets: inherit
+    with:
+      stores_csv: ${{ github.event.inputs.stores_csv || '' }}
+      ingredient_limit: ${{ github.event.inputs.ingredient_limit || '0' }}
+      store_limit: ${{ github.event.inputs.store_limit || '0' }}
+      store_concurrency: ${{ github.event.inputs.store_concurrency || '20' }}
+      ingredient_delay_ms: ${{ github.event.inputs.ingredient_delay_ms || '1000' }}
+      insert_batch_size: ${{ github.event.inputs.insert_batch_size || '500' }}
+      min_expected_rows: ${{ github.event.inputs.min_expected_rows || '100' }}
 
   queue:
     name: Nightly Ingredient Queue
     needs: scraper
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
+    with:
+      queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
+      queue_context: ${{ github.event.inputs.queue_context || 'pantry' }}
+      queue_resolver_name: ${{ github.event.inputs.queue_resolver_name || 'nightly-openai' }}
+      queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
+      openai_model: ${{ github.event.inputs.openai_model || 'gpt-4o-mini' }}
+      gemini_model: ${{ github.event.inputs.gemini_model || 'gemini-3-flash-preview' }}

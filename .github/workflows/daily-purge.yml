@@ -2,7 +2,22 @@ name: Daily Purge
 
 on:
   workflow_call:
-  workflow_dispatch: # Allows you to click "Run Workflow" manually
+    inputs:
+      purge_mode:
+        description: "execute or dry-run"
+        required: false
+        type: string
+        default: "execute"
+  workflow_dispatch:
+    inputs:
+      purge_mode:
+        description: "Choose execute to wipe table or dry-run to preview only"
+        required: false
+        type: choice
+        options:
+          - execute
+          - dry-run
+        default: execute
 
 jobs:
   truncate-recent:
@@ -27,12 +42,14 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PURGE_MODE: ${{ inputs.purge_mode || github.event.inputs.purge_mode || 'execute' }}
         run: |
           node - <<'NODE'
           const { createClient } = require('/tmp/supabase-client/node_modules/@supabase/supabase-js')
 
           const supabaseUrl = process.env.SUPABASE_URL
           const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          const purgeMode = String(process.env.PURGE_MODE || "execute").toLowerCase()
 
           if (!supabaseUrl || !supabaseKey) {
             console.error("❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
@@ -42,6 +59,22 @@ jobs:
           const supabase = createClient(supabaseUrl, supabaseKey)
 
           async function wipeRecent() {
+            const isDryRun = purgeMode !== "execute"
+
+            const { count, error: countError } = await supabase
+              .from('ingredients_recent')
+              .select('*', { head: true, count: 'exact' })
+
+            if (countError) {
+              console.error("❌ Error counting rows:", countError)
+              process.exit(1)
+            }
+
+            if (isDryRun) {
+              console.log(`🧪 DRY RUN: would delete approximately ${count ?? 0} rows from ingredients_recent`)
+              return
+            }
+
             console.log("🧹 Attempting to wipe ingredients_recent...")
 
             // Delete all rows; the dummy UUID protects against accidental full-table delete guardrails
@@ -55,7 +88,7 @@ jobs:
               process.exit(1)
             }
 
-            console.log("✅ ingredients_recent table is now empty.")
+            console.log(`✅ ingredients_recent table is now empty (deleted approximately ${count ?? 0} rows).`)
           }
 
           wipeRecent()

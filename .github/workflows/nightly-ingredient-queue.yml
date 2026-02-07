@@ -2,7 +2,75 @@ name: Nightly Ingredient Queue
 
 on:
   workflow_call:
+    inputs:
+      queue_batch_limit:
+        description: "Queue batch size"
+        required: false
+        type: string
+        default: "100"
+      queue_context:
+        description: "Standardizer context"
+        required: false
+        type: string
+        default: "pantry"
+      queue_resolver_name:
+        description: "Resolver run name"
+        required: false
+        type: string
+        default: "nightly-openai"
+      queue_dry_run:
+        description: "true/false dry run"
+        required: false
+        type: string
+        default: "false"
+      openai_model:
+        description: "OpenAI model"
+        required: false
+        type: string
+        default: "gpt-4o-mini"
+      gemini_model:
+        description: "Gemini model"
+        required: false
+        type: string
+        default: "gemini-3-flash-preview"
   workflow_dispatch:
+    inputs:
+      queue_batch_limit:
+        description: "Queue batch size"
+        required: false
+        type: string
+        default: "100"
+      queue_context:
+        description: "Standardizer context"
+        required: false
+        type: choice
+        options:
+          - pantry
+          - recipe
+        default: pantry
+      queue_resolver_name:
+        description: "Resolver run name"
+        required: false
+        type: string
+        default: "nightly-openai"
+      queue_dry_run:
+        description: "Dry run mode"
+        required: false
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+      openai_model:
+        description: "OpenAI model"
+        required: false
+        type: string
+        default: "gpt-4o-mini"
+      gemini_model:
+        description: "Gemini model"
+        required: false
+        type: string
+        default: "gemini-3-flash-preview"
 
 jobs:
   resolve-ingredient-match-queue:
@@ -28,11 +96,12 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: 'gpt-4o-mini'
+          OPENAI_MODEL: ${{ inputs.openai_model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: 'gemini-3-flash-preview'
-          QUEUE_BATCH_LIMIT: '100'
-          QUEUE_STANDARDIZER_CONTEXT: 'pantry'
-          QUEUE_RESOLVER_NAME: 'nightly-openai'
+          GEMINI_MODEL: ${{ inputs.gemini_model }}
+          QUEUE_BATCH_LIMIT: ${{ inputs.queue_batch_limit }}
+          QUEUE_STANDARDIZER_CONTEXT: ${{ inputs.queue_context }}
+          QUEUE_RESOLVER_NAME: ${{ inputs.queue_resolver_name }}
+          DRY_RUN: ${{ inputs.queue_dry_run }}
           NODE_ENV: production
         run: npm run resolve-ingredient-match-queue
