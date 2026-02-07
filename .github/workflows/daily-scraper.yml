@@ -1,14 +1,9 @@
-name: Daily Ingredient Scraper
+name: Daily Scraper (Legacy)
 
 on:
   schedule:
     - cron: '0 12 * * *'
   workflow_dispatch:
-    inputs:
-      zip_code:
-        description: 'Zip code for scraping'
-        required: false
-        default: '94704'
 
 jobs:
   scrape-ingredients:
@@ -25,6 +20,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Database Maintenance (Pre-Scrape Reset)
         env:
           DB_URL: ${{ secrets.DATABASE_URL }}
@@ -37,11 +35,8 @@ jobs:
 
       - name: Run Daily Scraper
         env:
-          VERCEL_URL: ${{ secrets.VERCEL_URL || 'https://the-secret-sauce.vercel.app' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          ZIP_CODE: ${{ github.event.inputs.zip_code || '94704' }}
         run: |
           echo "🚀 Starting Daily Ingredient Scraper"
           node scripts/daily-scraper.js
