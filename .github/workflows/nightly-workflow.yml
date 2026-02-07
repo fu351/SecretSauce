@@ -85,6 +85,16 @@ on:
         required: false
         type: string
         default: "gemini-3-flash-preview"
+      queue_max_batches:
+        description: "Maximum queue batch cycles"
+        required: false
+        type: string
+        default: "10"
+      queue_batch_delay_seconds:
+        description: "Delay between queue batches in seconds"
+        required: false
+        type: string
+        default: "2"
 
 jobs:
   purge:
@@ -120,3 +130,5 @@ jobs:
       queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
       openai_model: ${{ github.event.inputs.openai_model || 'gpt-4o-mini' }}
       gemini_model: ${{ github.event.inputs.gemini_model || 'gemini-3-flash-preview' }}
+      queue_max_batches: ${{ github.event.inputs.queue_max_batches || '10' }}
+      queue_batch_delay_seconds: ${{ github.event.inputs.queue_batch_delay_seconds || '2' }}

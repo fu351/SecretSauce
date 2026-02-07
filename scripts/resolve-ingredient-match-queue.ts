@@ -23,6 +23,8 @@ if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
 const resolverName = process.env.QUEUE_RESOLVER_NAME || "nightly-gemini"
 const requestedBatchLimit = Number(process.env.QUEUE_BATCH_LIMIT ?? 25)
 const batchLimit = Number.isFinite(requestedBatchLimit) && requestedBatchLimit > 0 ? Math.floor(requestedBatchLimit) : 25
+const requestedMaxCycles = Number(process.env.QUEUE_MAX_CYCLES ?? 0)
+const maxCycles = Number.isFinite(requestedMaxCycles) && requestedMaxCycles > 0 ? Math.floor(requestedMaxCycles) : 0
 const standardizerContext = process.env.QUEUE_STANDARDIZER_CONTEXT === "recipe" ? "recipe" : "pantry"
 const dryRun = process.env.DRY_RUN === "true"
 
@@ -186,6 +188,11 @@ async function run(): Promise<void> {
   const allResults: any[] = []
 
   while (true) {
+    if (maxCycles > 0 && cycle >= maxCycles) {
+      console.log(`[QueueResolver] ${mode} Reached max cycle limit (${maxCycles})`)
+      break
+    }
+
     console.log(`[QueueResolver] ${mode} Fetch cycle ${cycle + 1} (limit ${batchLimit})`)
     const pending = await ingredientMatchQueueDB.fetchPending(batchLimit)
 

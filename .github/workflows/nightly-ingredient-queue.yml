@@ -33,6 +33,16 @@ on:
         required: false
         type: string
         default: "gemini-3-flash-preview"
+      queue_max_batches:
+        description: "Maximum batch cycles to run"
+        required: false
+        type: string
+        default: "10"
+      queue_batch_delay_seconds:
+        description: "Delay between batches in seconds"
+        required: false
+        type: string
+        default: "2"
   workflow_dispatch:
     inputs:
       queue_batch_limit:
@@ -71,12 +81,33 @@ on:
         required: false
         type: string
         default: "gemini-3-flash-preview"
+      queue_max_batches:
+        description: "Maximum batch cycles to run"
+        required: false
+        type: string
+        default: "10"
+      queue_batch_delay_seconds:
+        description: "Delay between batches in seconds"
+        required: false
+        type: string
+        default: "2"
 
 jobs:
   resolve-ingredient-match-queue:
     name: Resolve Ingredient Match Queue
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      QUEUE_BATCH_LIMIT: ${{ inputs.queue_batch_limit }}
+      QUEUE_STANDARDIZER_CONTEXT: ${{ inputs.queue_context }}
+      QUEUE_RESOLVER_NAME_BASE: ${{ inputs.queue_resolver_name }}
+      DRY_RUN: ${{ inputs.queue_dry_run }}
+      OPENAI_MODEL: ${{ inputs.openai_model }}
+      GEMINI_MODEL: ${{ inputs.gemini_model }}
+      QUEUE_MAX_BATCHES: ${{ inputs.queue_max_batches }}
+      QUEUE_BATCH_DELAY_SECONDS: ${{ inputs.queue_batch_delay_seconds }}
 
     steps:
       - name: Checkout source
@@ -90,18 +121,84 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Resolve pending ingredient matches
+      - name: Queue Summary (Before)
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "=== Queue Status (Before) ==="
+          RESULT=$(curl -sf \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=source,status&limit=10000" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
+
+          echo "$RESULT" | jq 'group_by(.source, .status) | map({source: .[0].source, status: .[0].status, count: length})'
+          PENDING=$(echo "$RESULT" | jq '[.[] | select(.status == "pending")] | length')
+          echo "Pending rows (sampled <= 10k): $PENDING"
+
+      - name: Resolve pending ingredient matches (Batched)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ inputs.openai_model }}
+          OPENAI_MODEL: ${{ env.OPENAI_MODEL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ inputs.gemini_model }}
-          QUEUE_BATCH_LIMIT: ${{ inputs.queue_batch_limit }}
-          QUEUE_STANDARDIZER_CONTEXT: ${{ inputs.queue_context }}
-          QUEUE_RESOLVER_NAME: ${{ inputs.queue_resolver_name }}
-          DRY_RUN: ${{ inputs.queue_dry_run }}
+          GEMINI_MODEL: ${{ env.GEMINI_MODEL }}
+          QUEUE_BATCH_LIMIT: ${{ env.QUEUE_BATCH_LIMIT }}
+          QUEUE_STANDARDIZER_CONTEXT: ${{ env.QUEUE_STANDARDIZER_CONTEXT }}
+          DRY_RUN: ${{ env.DRY_RUN }}
           NODE_ENV: production
-        run: npm run resolve-ingredient-match-queue
+          SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+          QUEUE_MAX_BATCHES: ${{ env.QUEUE_MAX_BATCHES }}
+          QUEUE_BATCH_DELAY_SECONDS: ${{ env.QUEUE_BATCH_DELAY_SECONDS }}
+          QUEUE_RESOLVER_NAME_BASE: ${{ env.QUEUE_RESOLVER_NAME_BASE }}
+        run: |
+          set -euo pipefail
+
+          max_batches="$QUEUE_MAX_BATCHES"
+          delay_seconds="$QUEUE_BATCH_DELAY_SECONDS"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY_RUN=true -> forcing max_batches=1"
+            max_batches="1"
+          fi
+
+          for batch in $(seq 1 "$max_batches"); do
+            resolver_name="${QUEUE_RESOLVER_NAME_BASE}-b${batch}"
+            echo "=== Queue Batch ${batch}/${max_batches} (resolver=${resolver_name}) ==="
+
+            QUEUE_RESOLVER_NAME="$resolver_name" QUEUE_MAX_CYCLES="1" npm run resolve-ingredient-match-queue
+
+            PENDING_RESULT=$(curl -sf \
+              "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status&status=eq.pending&limit=10000" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
+            PENDING_COUNT=$(echo "$PENDING_RESULT" | jq 'length')
+            echo "Pending rows after batch ${batch} (sampled <= 10k): ${PENDING_COUNT}"
+
+            if [ "$PENDING_COUNT" -eq 0 ]; then
+              echo "Queue drained. Stopping early."
+              break
+            fi
+
+            if [ "$batch" -lt "$max_batches" ]; then
+              sleep "$delay_seconds"
+            fi
+          done
+
+      - name: Queue Summary (After)
+        env:
+          SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "=== Queue Status (After) ==="
+          RESULT=$(curl -sf \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=source,status&limit=10000" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
+
+          echo "$RESULT" | jq 'group_by(.source, .status) | map({source: .[0].source, status: .[0].status, count: length})'
+          PENDING=$(echo "$RESULT" | jq '[.[] | select(.status == "pending")] | length')
+          echo "Pending rows (sampled <= 10k): $PENDING"
