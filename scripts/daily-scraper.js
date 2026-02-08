@@ -147,6 +147,7 @@ function getSupabase() {
 
 async function fetchCaliforniaStores(storeBrand = null) {
   console.log('📍 Fetching grocery stores for scraper...')
+  console.log('⚠️  TEMPORARY: Limited to SF Bay Area ZIP codes only (94000-95000)')
 
   const allStores = []
   let offset = 0
@@ -157,8 +158,10 @@ async function fetchCaliforniaStores(storeBrand = null) {
       .from('grocery_stores')
       .select('id, store_enum, zip_code, address, name')
       .not('zip_code', 'is', null)
-      .gte('zip_code', '90000')
-      .lte('zip_code', '96199')
+      // TEMPORARY: SF Bay Area only (San Francisco, Oakland, Berkeley, etc.)
+      // Original CA range: .gte('zip_code', '90000').lte('zip_code', '96199')
+      .gte('zip_code', '94000')
+      .lte('zip_code', '95000')
       .eq('is_active', true)
       .order('store_enum', { ascending: true })
       .order('zip_code', { ascending: true })
