@@ -118,9 +118,39 @@ jobs:
       insert_batch_size: ${{ github.event.inputs.insert_batch_size || '500' }}
       min_expected_rows: ${{ github.event.inputs.min_expected_rows || '100' }}
 
+  update-unit-estimates:
+    name: Update Unit Weight Estimates
+    needs: scraper
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update unit weight estimates
+        run: |
+          echo "Updating unit weight estimates based on latest product data..."
+          
+          # Call Supabase function to recalculate estimates
+          curl -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/scheduled_update_unit_estimates" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json"
+          
+          echo "✅ Unit weight estimates updated successfully"
+      
+      - name: Verify estimates
+        run: |
+          echo "Checking estimate coverage..."
+          
+          # Query to get estimate stats
+          RESPONSE=$(curl -s -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/check_pricing_health" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json")
+          
+          echo "Health check results:"
+          echo "$RESPONSE" | jq '.'
+
   queue:
     name: Nightly Ingredient Queue
-    needs: scraper
+    needs: update-unit-estimates
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:
