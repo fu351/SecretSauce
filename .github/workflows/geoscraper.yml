@@ -1,4 +1,4 @@
-name: Real-time GeoScraper
+name: GeoScraper (Store Selectable)
 on:
   workflow_dispatch:
     inputs:
