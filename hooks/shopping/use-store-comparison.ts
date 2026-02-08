@@ -21,6 +21,27 @@ function normalizeUnitValue(value: unknown): string | null {
   return normalized.length > 0 ? normalized : null
 }
 
+function parseNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function parsePositiveNumber(value: unknown): number | undefined {
+  const parsed = parseNumber(value)
+  return parsed !== undefined && parsed > 0 ? parsed : undefined
+}
+
+function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === "true") return true
+    if (normalized === "false") return false
+  }
+  return undefined
+}
+
 async function fetchUserStoreMetadata(
   userId: string | undefined,
   fallbackZip: string | undefined
@@ -196,27 +217,22 @@ export function useStoreComparison(
         const requestedAmount = requestedAmountRaw > 0 ? requestedAmountRaw : 1
         const totalQty = Math.max(1, Math.ceil(requestedAmount))
         const requestedUnit = entry?.requested_unit ?? null
-        const totalPrice = offer?.total_price != null ? Number(offer.total_price) : 0
-        const distance = typeof offer?.distance === "number" ? offer.distance : undefined
+        const totalPrice = parseNumber(offer?.total_price) ?? 0
+        const distance = parseNumber(offer?.distance)
         const productUnit = offer?.product_unit ?? null
-        const conversionError = Boolean(offer?.conversion_error)
+        const conversionError = parseBoolean(offer?.conversion_error) ?? false
+        const usedEstimate = parseBoolean(offer?.used_estimate) ?? false
         const requestedUnitNormalized = normalizeUnitValue(requestedUnit)
         const productUnitNormalized = normalizeUnitValue(productUnit)
-        const packagesFromOffer =
-          typeof offer?.packages_to_buy === "number" && offer.packages_to_buy > 0
-            ? offer.packages_to_buy
-            : undefined
+        const packagesFromOffer = parsePositiveNumber(offer?.packages_to_buy)
         const packagesToBuy =
           packagesFromOffer ??
           (!conversionError && requestedUnitNormalized && productUnitNormalized && requestedUnitNormalized === productUnitNormalized
             ? totalQty
             : undefined)
-        const productQuantity =
-          typeof offer?.product_quantity === "number" ? offer.product_quantity : undefined
-        const convertedQuantity =
-          typeof offer?.converted_quantity === "number" ? offer.converted_quantity : undefined
-        const packagePrice =
-          offer?.package_price != null ? Number(offer.package_price) : undefined
+        const productQuantity = parseNumber(offer?.product_quantity)
+        const convertedQuantity = parseNumber(offer?.converted_quantity)
+        const packagePrice = parseNumber(offer?.package_price)
 
           comp.items.push({
             id: `${storeKey}-${itemIds[0] || Math.random()}`,
@@ -241,6 +257,7 @@ export function useStoreComparison(
             convertedQuantity,
             packagePrice,
             conversionError,
+            usedEstimate,
           })
 
         comp.total += totalPrice

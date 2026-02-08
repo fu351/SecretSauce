@@ -506,6 +506,7 @@ export type PricingResult = {
     converted_quantity?: number | null
     packages_to_buy?: number | null
     conversion_error?: boolean | null
+    used_estimate?: boolean | null
   }[]
 }
 
