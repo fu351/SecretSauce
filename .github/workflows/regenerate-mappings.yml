@@ -11,6 +11,16 @@ on:
         required: false
         type: boolean
         default: false
+      run_recipe_relink:
+        description: 'Run recipe ingredient relink step'
+        required: false
+        type: boolean
+        default: true
+      run_product_relink:
+        description: 'Run product mapping relink step'
+        required: false
+        type: boolean
+        default: true
 
 env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -21,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Relink Recipe Ingredients
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_recipe_relink }}
         run: |
           echo "=== Relinking Recipe Ingredients ==="
           RESULT=$(curl -sf -X POST \
@@ -36,6 +47,7 @@ jobs:
           echo "Total: ${TOTAL} | Relinked: ${CHANGED} | Queued for LLM: ${QUEUED}"
 
       - name: Relink Product Mappings
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_product_relink }}
         run: |
           if [ "${{ inputs.reset_all }}" = "true" ]; then
             BODY='{"p_reset_all": true}'
