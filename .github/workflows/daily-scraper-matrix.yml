@@ -38,6 +38,16 @@ on:
         required: false
         type: string
         default: "100"
+      request_timeout_ms:
+        description: "Per-request scraper timeout in milliseconds"
+        required: false
+        type: string
+        default: "20000"
+      scraper_timeout_minutes:
+        description: "Hard timeout per store job (minutes)"
+        required: false
+        type: string
+        default: "40"
   workflow_dispatch:
     inputs:
       stores_csv:
@@ -75,11 +85,27 @@ on:
         required: false
         type: string
         default: "100"
+      request_timeout_ms:
+        description: "Per-request scraper timeout in milliseconds"
+        required: false
+        type: string
+        default: "20000"
+      scraper_timeout_minutes:
+        description: "Hard timeout per store job (minutes)"
+        required: false
+        type: string
+        default: "40"
+
+concurrency:
+  # Dedupes overlapping runs for the same ref+store selection while allowing queued execution.
+  group: daily-scraper-matrix-${{ github.ref }}-${{ inputs.stores_csv || 'all' }}
+  cancel-in-progress: false
 
 jobs:
   prepare-matrix:
     name: Prepare Store Matrix
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       store_json: ${{ steps.build.outputs.store_json }}
 
@@ -101,6 +127,7 @@ jobs:
             IFS=',' read -r -a requested <<< "$normalized"
             selected=()
             declare -A seen=()
+            duplicate_count=0
 
             for candidate in "${requested[@]}"; do
               [ -z "$candidate" ] && continue
@@ -109,6 +136,8 @@ jobs:
                   if [ -z "${seen[$candidate]+x}" ]; then
                     selected+=("$candidate")
                     seen[$candidate]=1
+                  else
+                    duplicate_count=$((duplicate_count + 1))
                   fi
                   ;;
                 *)
@@ -122,6 +151,10 @@ jobs:
             if [ "${#selected[@]}" -eq 0 ]; then
               echo "❌ No valid stores found in stores_csv"
               exit 1
+            fi
+
+            if [ "$duplicate_count" -gt 0 ]; then
+              echo "⚠️ Deduped $duplicate_count duplicate store entries from stores_csv"
             fi
           fi
 
@@ -139,10 +172,11 @@ jobs:
     name: Scrape ${{ matrix.store }}
     needs: prepare-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         store: ${{ fromJson(needs.prepare-matrix.outputs.store_json) }}
 
@@ -156,9 +190,11 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
+        timeout-minutes: 15
         run: npm install --legacy-peer-deps
 
       - name: Scrape ${{ matrix.store }}
+        timeout-minutes: 42
         env:
           STORE_BRAND: ${{ matrix.store }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -169,27 +205,91 @@ jobs:
           STORE_CONCURRENCY: ${{ inputs.store_concurrency }}
           INGREDIENT_DELAY_MS: ${{ inputs.ingredient_delay_ms }}
           INSERT_BATCH_SIZE: ${{ inputs.insert_batch_size }}
+          SCRAPER_TIMEOUT_MS: ${{ inputs.request_timeout_ms }}
+          SCRAPER_TIMEOUT_MINUTES: ${{ inputs.scraper_timeout_minutes }}
         run: |
+          set -euo pipefail
+
+          # Clamp configurable timeouts to keep runs safe from unbounded values.
+          if ! [[ "${SCRAPER_TIMEOUT_MS:-}" =~ ^[0-9]+$ ]]; then SCRAPER_TIMEOUT_MS=20000; fi
+          if [ "$SCRAPER_TIMEOUT_MS" -lt 5000 ]; then SCRAPER_TIMEOUT_MS=5000; fi
+          if [ "$SCRAPER_TIMEOUT_MS" -gt 60000 ]; then SCRAPER_TIMEOUT_MS=60000; fi
+
+          if ! [[ "${SCRAPER_TIMEOUT_MINUTES:-}" =~ ^[0-9]+$ ]]; then SCRAPER_TIMEOUT_MINUTES=40; fi
+          if [ "$SCRAPER_TIMEOUT_MINUTES" -lt 10 ]; then SCRAPER_TIMEOUT_MINUTES=10; fi
+          if [ "$SCRAPER_TIMEOUT_MINUTES" -gt 44 ]; then SCRAPER_TIMEOUT_MINUTES=44; fi
+
+          export SCRAPER_TIMEOUT_MS
+
           echo "🚀 Starting scraper for ${{ matrix.store }}"
-          node scripts/daily-scraper.js
+          echo "   Request timeout (ms): $SCRAPER_TIMEOUT_MS"
+          echo "   Job hard timeout (m): $SCRAPER_TIMEOUT_MINUTES"
+
+          set +e
+          timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node scripts/daily-scraper.js
+          status=$?
+          set -e
+
+          if [ "$status" -eq 124 ]; then
+            echo "❌ Scraper timed out after ${SCRAPER_TIMEOUT_MINUTES} minutes for ${{ matrix.store }}"
+          fi
+
+          exit "$status"
 
   optimize-database:
     name: Optimize Database
     needs: scrape-stores
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     if: always()
 
     steps:
       - name: Run ANALYZE
+        timeout-minutes: 6
         env:
           DB_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          set -euo pipefail
           echo "📈 Updating database statistics..."
           psql "$DB_URL" -c "ANALYZE public.ingredients_history;"
           psql "$DB_URL" -c "ANALYZE public.ingredients_recent;"
 
+      - name: Verify no duplicate recent keys
+        timeout-minutes: 6
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          echo "🔎 Checking ingredients_recent for duplicate keys..."
+
+          DUPLICATE_KEYS=$(psql "$DB_URL" -t -A -c "
+            SELECT COUNT(*) FROM (
+              SELECT standardized_ingredient_id, store, COALESCE(zip_code, '')
+              FROM public.ingredients_recent
+              GROUP BY standardized_ingredient_id, store, COALESCE(zip_code, '')
+              HAVING COUNT(*) > 1
+            ) dupes;
+          ")
+
+          echo "Duplicate key groups: ${DUPLICATE_KEYS:-0}"
+
+          if [ "${DUPLICATE_KEYS:-0}" -gt 0 ]; then
+            echo "❌ Duplicate rows detected in ingredients_recent"
+            psql "$DB_URL" -c "
+              SELECT standardized_ingredient_id, store, COALESCE(zip_code, '') AS zip_code, COUNT(*) AS row_count
+              FROM public.ingredients_recent
+              GROUP BY standardized_ingredient_id, store, COALESCE(zip_code, '')
+              HAVING COUNT(*) > 1
+              ORDER BY row_count DESC
+              LIMIT 20;
+            "
+            exit 1
+          fi
+
+          echo "✅ No duplicate key groups found in ingredients_recent"
+
       - name: Verify results
+        timeout-minutes: 6
         env:
           DB_URL: ${{ secrets.DATABASE_URL }}
           MIN_EXPECTED_ROWS: ${{ inputs.min_expected_rows }}
