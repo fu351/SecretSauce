@@ -163,6 +163,7 @@ jobs:
           STORE_BRAND: ${{ matrix.store }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           INGREDIENT_LIMIT: ${{ inputs.ingredient_limit }}
           STORE_LIMIT: ${{ inputs.store_limit }}
           STORE_CONCURRENCY: ${{ inputs.store_concurrency }}
