@@ -158,6 +158,7 @@ jobs:
   queue:
     name: Nightly Ingredient Queue
     needs: update-unit-estimates
+    if: ${{ always() }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:
