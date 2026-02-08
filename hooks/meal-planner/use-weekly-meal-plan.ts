@@ -42,6 +42,37 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
     async (recipe: Recipe, mealType: MealTypeTag, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
+      if (options.reload) {
+        try {
+          const result = await mealPlannerDB.addMealToSchedule(
+            userId,
+            recipe.id,
+            date,
+            mealType
+          )
+          if (result) await loadWeeklyMealPlan()
+        } catch (error) {
+          console.error("[useWeeklyMealPlan] Error adding meal:", error)
+          throw error
+        }
+        return
+      }
+
+      // Optimistic add: show the tile in the new slot immediately, then sync with DB
+      const tempId = `opt-${recipe.id}-${date}-${mealType}`
+      const syntheticRow: MealScheduleRow = {
+        id: tempId,
+        user_id: userId,
+        recipe_id: recipe.id,
+        date,
+        meal_type: mealType,
+        created_at: null,
+        updated_at: null,
+        week_index: null,
+      }
+      setMeals((prev) => [...prev, syntheticRow])
+      setRecipesById((prev) => ({ ...prev, [recipe.id]: recipe }))
+
       try {
         const result = await mealPlannerDB.addMealToSchedule(
           userId,
@@ -49,12 +80,16 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
           date,
           mealType
         )
-
-        if (result && options.reload) {
-          // Reload data to reflect changes
-          await loadWeeklyMealPlan()
+        if (result) {
+          // Replace synthetic row with real row from DB
+          setMeals((prev) =>
+            prev.map((m) => (m.id === tempId ? result : m))
+          )
+        } else {
+          setMeals((prev) => prev.filter((m) => m.id !== tempId))
         }
       } catch (error) {
+        setMeals((prev) => prev.filter((m) => m.id !== tempId))
         console.error("[useWeeklyMealPlan] Error adding meal:", error)
         throw error
       }
@@ -66,18 +101,26 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
     async (mealType: MealTypeTag, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
-      try {
-        const success = await mealPlannerDB.removeMealSlot(
-          userId,
-          date,
-          mealType
-        )
-
-        if (success && options.reload) {
-          // Reload data to reflect changes
-          await loadWeeklyMealPlan()
+      if (options.reload) {
+        try {
+          const success = await mealPlannerDB.removeMealSlot(userId, date, mealType)
+          if (success) await loadWeeklyMealPlan()
+        } catch (error) {
+          console.error("[useWeeklyMealPlan] Error removing meal:", error)
+          throw error
         }
+        return
+      }
+
+      // Optimistic remove: clear the slot in UI immediately, then sync with DB
+      setMeals((prev) =>
+        prev.filter((m) => !(m.date === date && m.meal_type === mealType))
+      )
+
+      try {
+        await mealPlannerDB.removeMealSlot(userId, date, mealType)
       } catch (error) {
+        await loadWeeklyMealPlan()
         console.error("[useWeeklyMealPlan] Error removing meal:", error)
         throw error
       }

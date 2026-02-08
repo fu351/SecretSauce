@@ -2,24 +2,28 @@ import Image from "next/image"
 import { Recipe } from "@/lib/types"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 
+/**
+ * Matches the meal planner slot tile: same size and style so the drag
+ * preview looks like the tile in the grid, not a larger/transparent card.
+ */
 export function DragPreviewCard({ recipe }: { recipe: Recipe }) {
+  const imageUrl = recipe?.image_url ?? recipe?.content?.image_url
+
   return (
-    <div className="w-64 rounded-lg overflow-hidden bg-card border border-border/20">
-      <div className="relative w-full h-40 bg-muted overflow-hidden">
+    <div className="w-[140px] h-[120px] rounded-lg overflow-hidden shadow-sm bg-card pointer-events-none">
+      <div className="relative w-full h-full">
         <Image
-          src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
+          src={getRecipeImageUrl(imageUrl) || "/placeholder.svg"}
           alt={recipe.title}
           fill
-          sizes="256px"
+          sizes="140px"
           className="object-cover"
-          loading="lazy"
         />
-      </div>
-
-      <div className="p-3">
-        <h3 className="font-semibold text-sm line-clamp-2 text-foreground">
-          {recipe.title}
-        </h3>
+        <div className="absolute inset-x-0 bottom-0 flex items-end p-2.5 bg-gradient-to-t from-black/80 to-transparent">
+          <h4 className="font-semibold text-sm line-clamp-2 text-white w-full">
+            {recipe.title}
+          </h4>
+        </div>
       </div>
     </div>
   )

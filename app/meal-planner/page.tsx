@@ -89,15 +89,40 @@ export default function MealPlannerPage() {
     reload: reloadWeeklyPlan,
   }), [addToMealPlan, removeFromMealPlan, reloadWeeklyPlan])
 
+  // 2. MEMOIZE DATA CALCULATIONS (needed for getNextEmptySlotAfter and nutrition)
+  const weekDates = useMemo(() => getDatesForWeek(weekIndex), [weekIndex])
+  const weekDateStrings = useMemo(() =>
+    weekDates.map((d) => d.toISOString().split("T")[0]),
+    [weekDates]
+  )
+
+  const MEAL_TYPES_ORDER = useMemo(() => ["breakfast", "lunch", "dinner"] as const, [])
+
+  const getNextEmptySlotAfter = useCallback(
+    (justFilledMealType: string, justFilledDate: string) => {
+      const slots = weekDateStrings.flatMap((date) =>
+        MEAL_TYPES_ORDER.map((mealType) => ({ date, mealType }))
+      )
+      const filled = new Set(meals.map((m) => `${m.date}-${m.meal_type}`))
+      filled.add(`${justFilledDate}-${justFilledMealType}`)
+      const filledIndex = slots.findIndex(
+        (s) => s.date === justFilledDate && s.mealType === justFilledMealType
+      )
+      if (filledIndex < 0) return null
+      for (let i = filledIndex + 1; i < slots.length; i++) {
+        const s = slots[i]
+        if (!filled.has(`${s.date}-${s.mealType}`))
+          return { date: s.date, mealType: s.mealType }
+      }
+      return null
+    },
+    [weekDateStrings, meals, MEAL_TYPES_ORDER]
+  )
+
   const dnd = useMealPlannerDragDrop({
     mealPlanner: mealPlannerHandlers,
+    getNextEmptySlotAfter,
   })
-
-  // 2. MEMOIZE DATA CALCULATIONS
-  const weekDates = useMemo(() => getDatesForWeek(weekIndex), [weekIndex])
-  const weekDateStrings = useMemo(() => 
-    weekDates.map((d) => d.toISOString().split("T")[0]), 
-  [weekDates])
 
   const nutrition = useMealPlannerNutrition(meals, weekDateStrings, recipesById)
 
@@ -200,16 +225,26 @@ export default function MealPlannerPage() {
     }
   }, [user, clearWeek, toast])
 
-  const openRecipeSelector = useCallback((mealType: string, date: string) => {
-    setFocusMode({ mealType, date })
-  }, [])
+  const openRecipeSelector = useCallback(
+    (mealType: string, date: string) => {
+      setFocusMode({ mealType, date })
+      dnd.setHighlightSlot(mealType, date)
+    },
+    [dnd.setHighlightSlot]
+  )
 
-  const handleRecipeSelection = useCallback(async (recipe: Recipe) => {
-    if (focusMode) {
-      await addToMealPlan(recipe, focusMode.mealType, focusMode.date)
-      if (isMobile) setShowRecipeSidebar(false)
-    }
-  }, [focusMode, addToMealPlan, isMobile])
+  const handleRecipeSelection = useCallback(
+    async (recipe: Recipe) => {
+      if (focusMode) {
+        await addToMealPlan(recipe, focusMode.mealType, focusMode.date)
+        dnd.highlightNextEmptySlotAfter(focusMode.mealType, focusMode.date)
+        const next = getNextEmptySlotAfter(focusMode.mealType, focusMode.date)
+        if (next) setFocusMode(next)
+        if (isMobile) setShowRecipeSidebar(false)
+      }
+    },
+    [focusMode, addToMealPlan, isMobile, dnd.highlightNextEmptySlotAfter, getNextEmptySlotAfter]
+  )
 
   const handleRecipeClick = useCallback((id: string) => setSelectedRecipeId(id), [])
   const handleCloseRecipeModal = useCallback(() => setSelectedRecipeId(null), [])
@@ -298,6 +333,7 @@ export default function MealPlannerPage() {
                   meals={meals}
                   recipesById={recipesById}
                   onAdd={openRecipeSelector}
+                  onSlotSelect={openRecipeSelector}
                   onRemove={removeFromMealPlan}
                   onRecipeClick={handleRecipeClick}
                   getDraggableProps={dnd.getDraggableProps}
@@ -364,9 +400,7 @@ export default function MealPlannerPage() {
 
       <DragOverlay dropAnimation={null}>
         {dnd.activeDragData ? (
-          <div className="opacity-80 scale-105 transition-transform pointer-events-none">
-             <DragPreviewCard recipe={dnd.activeDragData.recipe} />
-          </div>
+          <DragPreviewCard recipe={dnd.activeDragData.recipe} />
         ) : null}
       </DragOverlay>
     </DndContext>

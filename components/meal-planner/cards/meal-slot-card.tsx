@@ -1,6 +1,6 @@
 "use client"
 
-import { memo } from "react"
+import { memo, useRef, useEffect } from "react"
 import Image from "next/image"
 import { X, Plus } from "lucide-react"
 import type { Recipe } from "@/lib/types"
@@ -20,6 +20,7 @@ interface MealSlotCardProps {
   date: string
   onRemove: (mealType: string, date: string) => void
   onAdd?: (mealType: string, date: string) => void
+  onSlotSelect?: (mealType: string, date: string) => void
   onRecipeClick?: (recipeId: string) => void
   getDraggableProps: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
   getDroppableProps: (mealType: string, date: string, recipe?: Recipe | null) => { droppableId: string; data: { mealType: string; date: string; hasRecipe?: boolean; existingRecipe?: Recipe } }
@@ -33,6 +34,7 @@ function MealSlotCardComponent({
   date,
   onRemove,
   onAdd,
+  onSlotSelect,
   onRecipeClick,
   getDraggableProps,
   getDroppableProps,
@@ -40,6 +42,38 @@ function MealSlotCardComponent({
   activeDropTarget,
 }: MealSlotCardProps) {
   const recipeImageUrl = recipe?.image_url ?? recipe?.content?.image_url
+  const lastTapRef = useRef(0)
+  const singleClickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (singleClickTimeoutRef.current) clearTimeout(singleClickTimeoutRef.current)
+    }
+  }, [])
+
+  const handleSlotClick = (e: React.MouseEvent) => {
+    if (!recipe) return
+    const now = Date.now()
+    const isDoubleClick = e.detail === 2
+    const isDoubleTap = now - lastTapRef.current < 400
+
+    if (isDoubleClick || isDoubleTap) {
+      lastTapRef.current = 0
+      if (singleClickTimeoutRef.current) {
+        clearTimeout(singleClickTimeoutRef.current)
+        singleClickTimeoutRef.current = null
+      }
+      onRecipeClick?.(recipe.id)
+      return
+    }
+
+    lastTapRef.current = now
+    if (singleClickTimeoutRef.current) clearTimeout(singleClickTimeoutRef.current)
+    singleClickTimeoutRef.current = setTimeout(() => {
+      singleClickTimeoutRef.current = null
+      onSlotSelect?.(mealType, date)
+    }, 100)
+  }
 
   // Make slot droppable
   const droppableProps = getDroppableProps(mealType, date, recipe)
@@ -78,11 +112,11 @@ function MealSlotCardComponent({
           ref={setDragRef}
           className={`relative h-full w-full overflow-hidden rounded-lg shadow-sm hover:shadow-md transition-opacity ${isDragging ? "opacity-0 pointer-events-none" : ""} ${isDropTarget ? "brightness-75" : ""}`}
         >
-          {/* Draggable area - image */}
+          {/* Draggable area - image: single click = select slot, double click = recipe overlay */}
           <div
             {...attributes}
             {...listeners}
-            onClick={() => onRecipeClick?.(recipe.id)}
+            onClick={handleSlotClick}
             className="cursor-grab active:cursor-grabbing w-full h-full"
           >
           <Image
@@ -108,17 +142,15 @@ function MealSlotCardComponent({
             </button>
           </div>
 
-          {/* Static Title Overlay (always visible) - also draggable */}
-          {!isDropTarget && (
-            <div
-              {...attributes}
-              {...listeners}
-              onClick={() => onRecipeClick?.(recipe.id)}
-              className="absolute inset-x-0 bottom-0 flex items-end p-2.5 z-10 cursor-grab active:cursor-grabbing bg-gradient-to-t from-black/80 to-transparent"
-            >
-              <h4 className={`font-semibold text-sm line-clamp-2 text-white w-full pointer-events-none`}>{recipe.title}</h4>
-            </div>
-          )}
+          {/* Static Title Overlay (always visible) - also draggable; single click = select slot, double click = recipe overlay */}
+          <div
+            {...attributes}
+            {...listeners}
+            onClick={handleSlotClick}
+            className="absolute inset-x-0 bottom-0 flex items-end p-2.5 z-10 cursor-grab active:cursor-grabbing bg-gradient-to-t from-black/80 to-transparent"
+          >
+            <h4 className={`font-semibold text-sm line-clamp-2 text-white w-full pointer-events-none`}>{recipe.title}</h4>
+          </div>
         </div>
       ) : (
         // Empty state

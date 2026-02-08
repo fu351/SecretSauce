@@ -87,13 +87,23 @@ export default function HomePage() {
   }
 
   if (loading) {
-    const domDark =
-      typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : null
-    const useDark = domDark ?? theme === "dark"
     return (
       <div className={`min-h-screen flex items-center justify-center bg-background`}>
-        <div className="animate-pulse">
-          <Image src={useDark ? "/logo-dark.png" : "/logo-warm.png"} alt="Secret Sauce" width={120} height={120} />
+        <div className="animate-pulse relative size-[120px]">
+          <Image
+            src="/logo-warm.png"
+            alt="Secret Sauce"
+            width={120}
+            height={120}
+            className="dark:hidden block object-contain"
+          />
+          <Image
+            src="/logo-dark.png"
+            alt="Secret Sauce"
+            width={120}
+            height={120}
+            className="hidden dark:block object-contain"
+          />
         </div>
       </div>
     )
