@@ -229,6 +229,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
 
       - name: Install dependencies
         timeout-minutes: 15
@@ -304,86 +306,3 @@ jobs:
           fi
 
           exit "$status"
-
-  optimize-database:
-    name: Optimize Database
-    needs: scrape-stores
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    if: always()
-
-    steps:
-      - name: Run ANALYZE
-        timeout-minutes: 6
-        env:
-          DB_URL: ${{ secrets.SUPABASE_URL }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DB_URL:-}" ] || ! [[ "$DB_URL" =~ ^postgres(ql)?:// ]]; then
-            echo "❌ SUPABASE_URL is missing or not a Postgres connection string."
-            exit 1
-          fi
-          echo "📈 Updating database statistics..."
-          psql "$DB_URL" -c "ANALYZE public.ingredients_history;"
-          psql "$DB_URL" -c "ANALYZE public.ingredients_recent;"
-
-      - name: Verify no duplicate recent keys
-        timeout-minutes: 6
-        env:
-          DB_URL: ${{ secrets.SUPABASE_URL }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DB_URL:-}" ] || ! [[ "$DB_URL" =~ ^postgres(ql)?:// ]]; then
-            echo "❌ SUPABASE_URL is missing or not a Postgres connection string."
-            exit 1
-          fi
-          echo "🔎 Checking ingredients_recent for duplicate keys..."
-
-          DUPLICATE_KEYS=$(psql "$DB_URL" -t -A -c "
-            SELECT COUNT(*) FROM (
-              SELECT standardized_ingredient_id, store, COALESCE(zip_code, '')
-              FROM public.ingredients_recent
-              GROUP BY standardized_ingredient_id, store, COALESCE(zip_code, '')
-              HAVING COUNT(*) > 1
-            ) dupes;
-          ")
-
-          echo "Duplicate key groups: ${DUPLICATE_KEYS:-0}"
-
-          if [ "${DUPLICATE_KEYS:-0}" -gt 0 ]; then
-            echo "❌ Duplicate rows detected in ingredients_recent"
-            psql "$DB_URL" -c "
-              SELECT standardized_ingredient_id, store, COALESCE(zip_code, '') AS zip_code, COUNT(*) AS row_count
-              FROM public.ingredients_recent
-              GROUP BY standardized_ingredient_id, store, COALESCE(zip_code, '')
-              HAVING COUNT(*) > 1
-              ORDER BY row_count DESC
-              LIMIT 20;
-            "
-            exit 1
-          fi
-
-          echo "✅ No duplicate key groups found in ingredients_recent"
-
-      - name: Verify results
-        timeout-minutes: 6
-        env:
-          DB_URL: ${{ secrets.SUPABASE_URL }}
-          MIN_EXPECTED_ROWS: ${{ inputs.min_expected_rows }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DB_URL:-}" ] || ! [[ "$DB_URL" =~ ^postgres(ql)?:// ]]; then
-            echo "❌ SUPABASE_URL is missing or not a Postgres connection string."
-            exit 1
-          fi
-          echo "📊 Checking results..."
-          COUNT=$(psql "$DB_URL" -t -A -c "SELECT COUNT(*) FROM public.ingredients_recent;")
-          echo "Total rows in ingredients_recent: $COUNT"
-          echo "Minimum expected rows: $MIN_EXPECTED_ROWS"
-
-          if [ "$COUNT" -lt "$MIN_EXPECTED_ROWS" ]; then
-            echo "⚠️ WARNING: Very few rows inserted ($COUNT)"
-            exit 1
-          fi
-
-          echo "✅ Scraping complete with $COUNT total results"
