@@ -159,7 +159,8 @@ jobs:
 
           # Temporarily disable Safeway from nightly matrix runs.
           # Whole Foods temporarily disabled.
-          default_stores=(walmart target kroger aldi traderjoes andronicos meijer 99ranch)
+          # Walmart temporarily disabled - hitting CAPTCHA challenges despite rate limiting, retry logic, and User-Agent rotation.
+          default_stores=(target kroger aldi traderjoes andronicos meijer 99ranch)
 
           if [ -z "${STORES_CSV// }" ]; then
             selected=("${default_stores[@]}")
