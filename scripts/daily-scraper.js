@@ -26,6 +26,8 @@ dotenv.config({ path: path.join(__dirname, '../.env') })
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const STORE_BRAND = process.env.STORE_BRAND || null
+const STORE_CITY = process.env.STORE_CITY || null
+const STORE_STATE = process.env.STORE_STATE || null
 
 function getIntEnv(name, fallback, minValue = 0) {
   const parsed = Number.parseInt(process.env[name] || '', 10)
@@ -74,6 +76,12 @@ function sleep(ms) {
 
 function normalizeStoreEnum(storeValue) {
   return String(storeValue || '').trim().toLowerCase()
+}
+
+function normalizeZipCode(value) {
+  const raw = String(value || '').trim()
+  const match = raw.match(/^\d{5}/)
+  return match ? match[0] : ''
 }
 
 function toPriceNumber(value) {
@@ -138,10 +146,11 @@ function getSupabase() {
 }
 
 async function fetchCaliforniaStores(storeBrand = null) {
-  console.log('📍 Fetching California grocery stores...')
+  console.log('📍 Fetching grocery stores for scraper...')
 
   const allStores = []
   let offset = 0
+  const normalizedBrand = storeBrand ? normalizeStoreEnum(storeBrand) : null
 
   while (true) {
     let query = getSupabase()
@@ -150,14 +159,21 @@ async function fetchCaliforniaStores(storeBrand = null) {
       .not('zip_code', 'is', null)
       .gte('zip_code', '90000')
       .lte('zip_code', '96199')
-      .eq('city', 'Berkeley')
       .eq('is_active', true)
       .order('store_enum', { ascending: true })
       .order('zip_code', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1)
 
-    if (storeBrand) {
-      query = query.eq('store_enum', normalizeStoreEnum(storeBrand))
+    if (normalizedBrand) {
+      query = query.eq('store_enum', normalizedBrand)
+    }
+
+    if (STORE_STATE) {
+      query = query.eq('state', STORE_STATE)
+    }
+
+    if (STORE_CITY) {
+      query = query.eq('city', STORE_CITY)
     }
 
     const { data, error } = await query
@@ -176,8 +192,15 @@ async function fetchCaliforniaStores(storeBrand = null) {
     offset += PAGE_SIZE
   }
 
-  const stores = STORE_LIMIT > 0 ? allStores.slice(0, STORE_LIMIT) : allStores
-  console.log(`✅ Found ${stores.length} California stores`)
+  const normalizedStores = allStores
+    .map(store => ({
+      ...store,
+      zip_code: normalizeZipCode(store.zip_code),
+    }))
+    .filter(store => store.zip_code)
+
+  const stores = STORE_LIMIT > 0 ? normalizedStores.slice(0, STORE_LIMIT) : normalizedStores
+  console.log(`✅ Found ${stores.length} stores with valid ZIP codes`)
   return stores
 }
 
@@ -313,8 +336,13 @@ async function scrapeIngredientsBatched(ingredients, stores) {
   for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
     const store = stores[storeIndex]
     const storeEnum = normalizeStoreEnum(store.store_enum)
-    const zipCode = String(store.zip_code || '').trim()
+    const zipCode = normalizeZipCode(store.zip_code)
     const { batchSize, batchConcurrency } = getStoreBatchConfig(storeEnum)
+
+    if (!zipCode) {
+      console.warn(`⚠️ Skipping store ${storeEnum} (${store.id || 'unknown-id'}) due to invalid zip_code`)
+      continue
+    }
 
     console.log(`\n🏬 Store ${storeIndex + 1}/${stores.length}: ${storeEnum} (${zipCode || 'no-zip'})`)
     console.log(`   ⚙️ Batch size: ${batchSize}, concurrency: ${batchConcurrency}`)
@@ -367,15 +395,22 @@ async function bulkInsertIngredientHistory(items) {
     return 0
   }
 
-  const payload = items.map(item => ({
-    store: normalizeStoreEnum(item.store),
-    price: item.price ?? 0,
-    imageUrl: item.imageUrl ?? null,
-    productName: item.productName ?? null,
-    productId: item.productId ?? null,
-    zipCode: item.zipCode ?? '',
-    store_id: item.store_id ?? null
-  }))
+  const payload = items
+    .map(item => ({
+      store: normalizeStoreEnum(item.store),
+      price: toPriceNumber(item.price),
+      imageUrl: item.imageUrl ?? null,
+      productName: (item.productName || '').toString().trim() || null,
+      productId: item.productId == null ? null : String(item.productId),
+      zipCode: normalizeZipCode(item.zipCode),
+      store_id: item.store_id ?? null
+    }))
+    .filter(item => item.price !== null && item.price > 0 && item.productName && item.zipCode)
+
+  if (!payload.length) {
+    console.warn('⚠️  No valid payload rows after normalization')
+    return 0
+  }
 
   console.log(`💾 Inserting ${payload.length} items via RPC...`)
 
