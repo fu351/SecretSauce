@@ -23,6 +23,8 @@ if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
 const resolverName = process.env.QUEUE_RESOLVER_NAME || "nightly-gemini"
 const requestedBatchLimit = Number(process.env.QUEUE_BATCH_LIMIT ?? 25)
 const batchLimit = Number.isFinite(requestedBatchLimit) && requestedBatchLimit > 0 ? Math.floor(requestedBatchLimit) : 25
+const requestedMaxCycles = Number(process.env.QUEUE_MAX_CYCLES ?? 0)
+const maxCycles = Number.isFinite(requestedMaxCycles) && requestedMaxCycles > 0 ? Math.floor(requestedMaxCycles) : 0
 const standardizerContext = process.env.QUEUE_STANDARDIZER_CONTEXT === "recipe" ? "recipe" : "pantry"
 const dryRun = process.env.DRY_RUN === "true"
 
@@ -180,61 +182,88 @@ async function run(): Promise<void> {
   const mode = dryRun ? "[DRY RUN]" : ""
   console.log(`[QueueResolver] ${mode} Starting run (limit ${batchLimit})`)
 
-  const pending = await ingredientMatchQueueDB.fetchPending(batchLimit)
-  if (!pending.length) {
-    console.log("[QueueResolver] No pending matches")
-    return
-  }
-
-  // Process in smaller chunks (10 items at a time) for better resilience
-  const chunkSize = 10
-  const chunks: IngredientMatchQueueRow[][] = []
-
-  // In dry run mode, only process the first chunk
-  const itemsToProcess = dryRun ? pending.slice(0, chunkSize) : pending
-
-  for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
-    chunks.push(itemsToProcess.slice(i, i + chunkSize))
-  }
-
-  console.log(`[QueueResolver] ${mode} Processing ${itemsToProcess.length} items in ${chunks.length} chunks of ${chunkSize}`)
-
+  let cycle = 0
   let totalResolved = 0
   let totalFailed = 0
   const allResults: any[] = []
 
-  for (const [idx, chunk] of chunks.entries()) {
-    console.log(`[QueueResolver] ${mode} Processing chunk ${idx + 1}/${chunks.length} (${chunk.length} items)`)
+  while (true) {
+    if (maxCycles > 0 && cycle >= maxCycles) {
+      console.log(`[QueueResolver] ${mode} Reached max cycle limit (${maxCycles})`)
+      break
+    }
 
-    // Skip marking as processing in dry run
-    if (!dryRun) {
-      const claimed = await ingredientMatchQueueDB.markProcessing(chunk.map((row) => row.id), resolverName)
-      if (!claimed) {
-        console.error(`[QueueResolver] Failed to mark chunk ${idx + 1} as processing. Skipping.`)
-        totalFailed += chunk.length
-        continue
+    console.log(`[QueueResolver] ${mode} Fetch cycle ${cycle + 1} (limit ${batchLimit})`)
+    const pending = await ingredientMatchQueueDB.fetchPending(batchLimit)
+
+    if (!pending.length) {
+      if (cycle === 0) {
+        console.log(`[QueueResolver] ${mode} No pending matches`)
+      } else {
+        console.log(`[QueueResolver] ${mode} Queue drained after ${cycle} cycle(s)`)
       }
+      break
     }
 
-    const { resolved, failed, results } = await resolveBatch(chunk)
-    totalResolved += resolved
-    totalFailed += failed
+    cycle += 1
 
-    if (dryRun && results) {
-      allResults.push(...results)
+    const chunkSize = 10
+    const chunks: IngredientMatchQueueRow[][] = []
+    const itemsToProcess = dryRun ? pending.slice(0, chunkSize) : pending
+
+    for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
+      chunks.push(itemsToProcess.slice(i, i + chunkSize))
     }
 
-    console.log(`[QueueResolver] ${mode} Chunk ${idx + 1} complete (resolved=${resolved}, failed=${failed})`)
+    console.log(`[QueueResolver] ${mode} Processing ${itemsToProcess.length} items in ${chunks.length} chunks of ${chunkSize}`)
+
+    let cycleResolved = 0
+    let cycleFailed = 0
+
+    for (const [idx, chunk] of chunks.entries()) {
+      console.log(`[QueueResolver] ${mode} Processing chunk ${idx + 1}/${chunks.length} (${chunk.length} items)`)
+
+      // Skip marking as processing in dry run
+      if (!dryRun) {
+        const claimed = await ingredientMatchQueueDB.markProcessing(chunk.map((row) => row.id), resolverName)
+        if (!claimed) {
+          console.error(`[QueueResolver] Failed to mark chunk ${idx + 1} as processing. Skipping.`)
+          cycleFailed += chunk.length
+          continue
+        }
+      }
+
+      const { resolved, failed, results } = await resolveBatch(chunk)
+      cycleResolved += resolved
+      cycleFailed += failed
+
+      if (dryRun && results) {
+        allResults.push(...results)
+      }
+
+      console.log(`[QueueResolver] ${mode} Chunk ${idx + 1} complete (resolved=${resolved}, failed=${failed})`)
+    }
+
+    totalResolved += cycleResolved
+    totalFailed += cycleFailed
+
+    console.log(`[QueueResolver] ${mode} Cycle ${cycle} complete (resolved=${cycleResolved}, failed=${cycleFailed})`)
+
+    if (dryRun) {
+      console.log(`[QueueResolver] ${mode} Dry run stopping after one cycle before clearing the rest of the queue.`)
+      break
+    }
   }
 
-  console.log(`[QueueResolver] ${mode} All chunks completed (total_resolved=${totalResolved}, total_failed=${totalFailed})`)
+  if (cycle > 0) {
+    console.log(`[QueueResolver] ${mode} Completed ${cycle} cycle(s) (total_resolved=${totalResolved}, total_failed=${totalFailed})`)
+  }
 
-  // In dry run mode, output results as JSON
-  if (dryRun) {
+  if (dryRun && cycle > 0) {
     console.log("\n========== DRY RUN RESULTS ==========")
     console.log(JSON.stringify({
       summary: {
-        totalProcessed: itemsToProcess.length,
+        totalProcessed: totalResolved + totalFailed,
         resolved: totalResolved,
         failed: totalFailed,
       },

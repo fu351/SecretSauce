@@ -464,7 +464,8 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
 
 export type PricingResult = {
   standardized_ingredient_id: string
-  total_quantity: number
+  total_amount: number
+  requested_unit: string | null
   item_ids: string[]
   offers: {
     store: string
@@ -472,11 +473,16 @@ export type PricingResult = {
     store_name?: string | null
     product_mapping_id?: string | null
     unit_price: number | null
+    package_price: number | null
     total_price: number | null
     product_name?: string | null
     image_url?: string | null
     zip_code?: string | null
     distance?: number | null
+    product_unit?: string | null
+    product_quantity?: number | null
+    converted_quantity?: number | null
+    packages_to_buy?: number | null
   }[]
 }
 
