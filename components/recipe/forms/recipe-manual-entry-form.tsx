@@ -74,13 +74,17 @@ export function RecipeManualEntryForm({
   // Ingredients state
   const [ingredients, setIngredients] = useState<IngredientFormInput[]>(
     initialData?.ingredients?.length
-      ? initialData.ingredients.map((ing) => ({
-          name: ing.name,
-          amount: ing.quantity?.toString() || "",
-          unit: ing.unit || "",
-          standardizedIngredientId: ing.standardizedIngredientId,
-          standardizedName: ing.standardizedName,
-        }))
+      ? initialData.ingredients.map((ing) => {
+          // Handle both Python API format (amount as string) and DB format (quantity as number)
+          const amountStr = (ing as any).amount ?? (ing.quantity?.toString() ?? "")
+          return {
+            name: ing.name,
+            amount: amountStr,
+            unit: ing.unit || "",
+            standardizedIngredientId: ing.standardizedIngredientId,
+            standardizedName: ing.standardizedName,
+          }
+        })
       : [{ name: "", amount: "", unit: "" }]
   )
 
@@ -116,13 +120,17 @@ export function RecipeManualEntryForm({
     setImagePreview(resolveInitialImageUrl(initialData))
     setIngredients(
       initialData.ingredients?.length
-        ? initialData.ingredients.map((ing) => ({
-            name: ing.name,
-            amount: ing.quantity?.toString() || "",
-            unit: ing.unit || "",
-            standardizedIngredientId: ing.standardizedIngredientId,
-            standardizedName: ing.standardizedName,
-          }))
+        ? initialData.ingredients.map((ing) => {
+            // Handle both Python API format (amount as string) and DB format (quantity as number)
+            const amountStr = (ing as any).amount ?? (ing.quantity?.toString() ?? "")
+            return {
+              name: ing.name,
+              amount: amountStr,
+              unit: ing.unit || "",
+              standardizedIngredientId: ing.standardizedIngredientId,
+              standardizedName: ing.standardizedName,
+            }
+          })
         : [{ name: "", amount: "", unit: "" }],
     )
     setInstructions(initialData.instructions?.length ? initialData.instructions : [{ step: 1, description: "" }])

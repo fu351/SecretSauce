@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import clsx from "clsx"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
@@ -24,9 +24,19 @@ export default function UploadRecipePage() {
 
   const { mutateAsync: standardizeRecipeIngredients } = useStandardizeRecipeIngredients()
 
+  const searchParams = useSearchParams()
   const [mainTab, setMainTab] = useState<"manual" | "import">("manual")
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<RecipeSubmissionData | null>(null)
+
+  const shareImport = searchParams.get("import")
+  const shareUrl = searchParams.get("url") ?? ""
+
+  useEffect(() => {
+    if (shareImport === "instagram" && shareUrl.trim()) {
+      setMainTab("import")
+    }
+  }, [shareImport, shareUrl])
 
   const pageBackgroundClass = isDark ? "bg-background" : "bg-gradient-to-br from-orange-50 to-yellow-50"
 
@@ -146,7 +156,11 @@ export default function UploadRecipePage() {
           </TabsList>
 
           <TabsContent value="import" className="space-y-12">
-            <RecipeImportTabs onImportSuccess={populateFormFromRecipe} />
+            <RecipeImportTabs
+              onImportSuccess={populateFormFromRecipe}
+              initialImportTab={shareImport === "instagram" ? "instagram" : undefined}
+              initialInstagramUrl={shareImport === "instagram" && shareUrl.trim() ? shareUrl.trim() : undefined}
+            />
           </TabsContent>
 
           <TabsContent value="manual" className="space-y-12">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlertCircle, Link2, ImageIcon, Instagram } from "lucide-react"
@@ -11,10 +11,18 @@ import type { ImportedRecipe } from "@/lib/types"
 
 interface RecipeImportTabsProps {
   onImportSuccess: (recipe: ImportedRecipe) => void
+  /** Open this tab when e.g. user arrives via share link (e.g. /upload-recipe?import=instagram&url=...) */
+  initialImportTab?: "url" | "image" | "instagram"
+  /** Pre-fill Instagram URL when opening the Instagram tab from a share link */
+  initialInstagramUrl?: string
 }
 
-export function RecipeImportTabs({ onImportSuccess }: RecipeImportTabsProps) {
-  const [activeTab, setActiveTab] = useState("url")
+export function RecipeImportTabs({ onImportSuccess, initialImportTab, initialInstagramUrl }: RecipeImportTabsProps) {
+  const [activeTab, setActiveTab] = useState(initialImportTab ?? "url")
+
+  useEffect(() => {
+    if (initialImportTab) setActiveTab(initialImportTab)
+  }, [initialImportTab])
   const [importError, setImportError] = useState<string | null>(null)
 
   return (
@@ -66,6 +74,7 @@ export function RecipeImportTabs({ onImportSuccess }: RecipeImportTabsProps) {
                 setImportError(null)
                 onImportSuccess(recipe)
               }}
+              initialUrl={initialInstagramUrl}
             />
           </TabsContent>
         </Tabs>

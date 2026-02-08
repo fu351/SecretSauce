@@ -1,25 +1,34 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks"
 import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types"
 
 interface RecipeImportInstagramProps {
   onImportSuccess: (recipe: ImportedRecipe) => void
   disabled?: boolean
+  /** Pre-fill URL when opened via share link (e.g. /upload-recipe?import=instagram&url=...) */
+  initialUrl?: string
 }
 
-export function RecipeImportInstagram({ onImportSuccess, disabled }: RecipeImportInstagramProps) {
-  const [url, setUrl] = useState("")
+export function RecipeImportInstagram({ onImportSuccess, disabled, initialUrl }: RecipeImportInstagramProps) {
+  const [url, setUrl] = useState(initialUrl ?? "")
   const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (initialUrl != null && initialUrl.trim()) setUrl(initialUrl.trim())
+  }, [initialUrl])
 
   const handleImport = async () => {
     if (!url.trim()) {
+      setErrorMessage("Please enter an Instagram URL.")
       toast({
         title: "Missing information",
         description: "Please enter an Instagram URL.",
@@ -29,20 +38,34 @@ export function RecipeImportInstagram({ onImportSuccess, disabled }: RecipeImpor
     }
 
     setLoading(true)
+    setErrorMessage(null)
 
     try {
       const response = await fetch("/api/recipe-import/instagram", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: url.trim() }),
       })
 
-      const data: RecipeImportResponse = await response.json()
+      const data: RecipeImportResponse = await response.json().catch(() => ({
+        success: false,
+        error: "Invalid response from server. Please try again.",
+      }))
 
       if (!data.success || !data.recipe) {
-        throw new Error(data.error || "Failed to import from Instagram")
+        const message =
+          data.error ||
+          (response.status === 500 ? "Import service error. Please try again later." : "Failed to import from Instagram.")
+        setErrorMessage(message)
+        toast({
+          title: "Import failed",
+          description: message,
+          variant: "destructive",
+        })
+        return
       }
 
+      setErrorMessage(null)
       toast({
         title: "Recipe imported from Instagram",
         description: "Review the details below and save when ready.",
@@ -50,7 +73,9 @@ export function RecipeImportInstagram({ onImportSuccess, disabled }: RecipeImpor
 
       onImportSuccess(data.recipe)
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to import from Instagram"
+      const message =
+        error instanceof Error ? error.message : "Failed to import from Instagram. Please try again."
+      setErrorMessage(message)
       toast({
         title: "Import failed",
         description: message,
@@ -69,14 +94,26 @@ export function RecipeImportInstagram({ onImportSuccess, disabled }: RecipeImpor
           id="instagram-url"
           placeholder="https://www.instagram.com/p/..."
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value)
+            setErrorMessage(null)
+          }}
           disabled={loading || disabled}
         />
         <p className="text-sm text-muted-foreground mt-1">
-          Paste a link to an Instagram post, reel, or video with a recipe in the caption
+          Paste a link to a <strong>public</strong> post, reel, or video whose caption contains the
+          full recipe (ingredients and instructions).
         </p>
       </div>
-      <Button onClick={handleImport} disabled={loading || !url || disabled}>
+
+      {errorMessage && (
+        <Alert variant="destructive" className="flex gap-2">
+          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button onClick={handleImport} disabled={loading || !url.trim() || disabled}>
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

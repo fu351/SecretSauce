@@ -9,7 +9,7 @@ import logging
 import tempfile
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import httpx
 from recipe_scrapers import scrape_html
 from openai import OpenAI
@@ -365,11 +365,22 @@ async def parse_recipe_with_ai(text: str, source_type: str = "text") -> Imported
 Return a JSON object with these fields:
 - title: string (the recipe name)
 - description: string or null (brief description if present)
-- ingredients: array of objects with {{name, amount, unit}} - parse quantities carefully
+- ingredients: array of objects with {{name, amount, unit}}
 - instructions: array of objects with {{step, description}} - number steps starting from 1
 - servings: number or null
 - prep_time: number in minutes or null
 - cook_time: number in minutes or null
+
+For ingredients, extract:
+- amount: ONLY the numeric quantity (e.g., "1", "1/2", "2-3", "" if none). NEVER include units here.
+- unit: ONLY the measurement unit (e.g., "cup", "tablespoon", "oz", "lb", "" if none). NEVER include the number.
+- name: the ingredient name with preparation notes (e.g., "garlic, minced", "chicken breast, diced")
+
+CRITICAL: Separate amount and unit. Examples:
+- "1 cup flour" → amount="1", unit="cup", name="flour"
+- "2 tablespoons olive oil" → amount="2", unit="tablespoons", name="olive oil"
+- "1/2 tsp salt" → amount="1/2", unit="tsp", name="salt"
+- "Salt to taste" → amount="", unit="", name="salt to taste"
 
 Recipe text:
 {text}
@@ -389,15 +400,71 @@ Return ONLY valid JSON, no markdown or explanation."""
 
         result = json.loads(response.choices[0].message.content)
 
-        # Build the recipe object
-        ingredients = [
-            Ingredient(
-                name=ing.get("name", ""),
-                amount=str(ing.get("amount", "")),
-                unit=ing.get("unit", "")
-            )
-            for ing in result.get("ingredients", [])
-        ]
+        # Build the recipe object with post-processing to fix common parsing mistakes
+        raw_ingredients = result.get("ingredients", [])
+        ingredients = []
+        # Common units (sorted by length desc to match longer units first like "tablespoon" before "tbsp")
+        unit_words = ["tablespoons", "tablespoon", "teaspoons", "teaspoon", "fluid ounces", "fluid ounce",
+                     "milliliters", "milliliter", "kilograms", "kilogram", "gallons", "gallon", "quarts", "quart",
+                     "packages", "package", "bunches", "bunch", "cloves", "clove", "pieces", "piece", "slices", "slice",
+                     "cups", "cup", "pounds", "pound", "ounces", "ounce", "pints", "pint", "grams", "gram",
+                     "liters", "liter", "cans", "can", "heads", "head",
+                     "tbsp", "tsp", "oz", "lb", "lbs", "g", "kg", "ml", "l", "pt", "qt", "gal", "fl oz"]
+        
+        for ing in raw_ingredients:
+            # Handle None values from JSON null - convert to empty string before str()
+            amount = str(ing.get("amount") or "").strip()
+            unit = str(ing.get("unit") or "").strip()
+            name = str(ing.get("name") or "").strip()
+            
+            # Fix: if amount contains a unit word but unit is empty, try to split it
+            if amount and not unit:
+                amount_lower = amount.lower()
+                for uword in unit_words:
+                    uword_lower = uword.lower()
+                    # Case 1: "1 cup" (space-separated)
+                    if f" {uword_lower}" in amount_lower or amount_lower.startswith(uword_lower + " "):
+                        parts = amount.split(maxsplit=1)
+                        if len(parts) == 2:
+                            if parts[1].lower() == uword_lower or parts[0].lower() == uword_lower:
+                                amount = parts[0] if parts[1].lower() == uword_lower else parts[1]
+                                unit = uword
+                                break
+                    # Case 2: "1cup" or "cup1" (no space, unit at end/start)
+                    elif amount_lower.endswith(uword_lower) and len(amount) > len(uword):
+                        potential_num = amount[:-len(uword)].strip()
+                        if potential_num and (potential_num[0].isdigit() or potential_num[0] in ".-/"):
+                            amount = potential_num
+                            unit = uword
+                            break
+                    elif amount_lower.startswith(uword_lower) and len(amount) > len(uword):
+                        potential_num = amount[len(uword):].strip()
+                        if potential_num and (potential_num[0].isdigit() or potential_num[0] in ".-/"):
+                            amount = potential_num
+                            unit = uword
+                            break
+            
+            # Fix: if unit is in name instead (e.g., name="1 cup flour"), try to extract it
+            # Only do this if unit is missing (regardless of amount length, since amounts like "2-3" or "1/2" are valid)
+            if not unit and name:
+                name_lower = name.lower()
+                for uword in unit_words:
+                    uword_lower = uword.lower()
+                    # Pattern: "1 cup flour" or "1cup flour" or "2-3 cups flour" or "1/2 tsp salt" at the start of name
+                    pattern = rf'^(\d+(?:\.\d+)?(?:/\d+)?(?:-\d+)?)\s*{re.escape(uword_lower)}\s+(.+)'
+                    match = re.match(pattern, name_lower)
+                    if match:
+                        if not amount:
+                            amount = match.group(1)
+                        unit = uword
+                        name = match.group(2).strip()
+                        break
+            
+            ingredients.append(Ingredient(
+                name=name,
+                amount=amount,
+                unit=unit
+            ))
 
         instructions = [
             Instruction(
@@ -439,15 +506,17 @@ async def parse_ingredients_with_ai(raw_ingredients: List[str]) -> List[Ingredie
 
     prompt = f"""Parse these ingredient strings into structured data.
 For each ingredient, extract:
-- amount: the quantity (e.g., "1", "1/2", "2-3", "" if none)
-- unit: the measurement unit (e.g., "cup", "tablespoon", "oz", "lb", "" if none)
+- amount: ONLY the numeric quantity (e.g., "1", "1/2", "2-3", "" if none). NEVER include units here.
+- unit: ONLY the measurement unit (e.g., "cup", "tablespoon", "oz", "lb", "" if none). NEVER include the number.
 - name: the ingredient name with any preparation notes (e.g., "garlic, minced", "chicken breast, diced")
 
-Important rules:
-- For "1 (14 oz) can diced tomatoes": amount="1", unit="can (14 oz)", name="diced tomatoes"
-- For "Salt and pepper to taste": amount="", unit="", name="salt and pepper to taste"
-- For "2 large eggs": amount="2", unit="large", name="eggs"
-- For "1/2 cup all-purpose flour": amount="1/2", unit="cup", name="all-purpose flour"
+CRITICAL: Separate amount and unit. Examples:
+- "1 cup flour" → amount="1", unit="cup", name="flour"
+- "2 tablespoons olive oil" → amount="2", unit="tablespoons", name="olive oil"
+- "1/2 tsp salt" → amount="1/2", unit="tsp", name="salt"
+- "1 (14 oz) can diced tomatoes" → amount="1", unit="can (14 oz)", name="diced tomatoes"
+- "Salt and pepper to taste" → amount="", unit="", name="salt and pepper to taste"
+- "2 large eggs" → amount="2", unit="large", name="eggs"
 - Keep preparation instructions with the name (minced, diced, chopped, etc.)
 
 Ingredients:
@@ -469,14 +538,73 @@ Return ONLY valid JSON, no markdown or explanation."""
 
         result = json.loads(response.choices[0].message.content)
 
-        return [
-            Ingredient(
-                name=ing.get("name", ""),
-                amount=str(ing.get("amount", "")),
-                unit=ing.get("unit", "")
-            )
-            for ing in result.get("ingredients", [])
-        ]
+        # Post-processing to fix common parsing mistakes
+        raw_ingredients = result.get("ingredients", [])
+        ingredients = []
+        # Common units (sorted by length desc to match longer units first)
+        unit_words = ["tablespoons", "tablespoon", "teaspoons", "teaspoon", "fluid ounces", "fluid ounce",
+                     "milliliters", "milliliter", "kilograms", "kilogram", "gallons", "gallon", "quarts", "quart",
+                     "packages", "package", "bunches", "bunch", "cloves", "clove", "pieces", "piece", "slices", "slice",
+                     "cups", "cup", "pounds", "pound", "ounces", "ounce", "pints", "pint", "grams", "gram",
+                     "liters", "liter", "cans", "can", "heads", "head",
+                     "tbsp", "tsp", "oz", "lb", "lbs", "g", "kg", "ml", "l", "pt", "qt", "gal", "fl oz"]
+        
+        for ing in raw_ingredients:
+            # Handle None values from JSON null - convert to empty string before str()
+            amount = str(ing.get("amount") or "").strip()
+            unit = str(ing.get("unit") or "").strip()
+            name = str(ing.get("name") or "").strip()
+            
+            # Fix: if amount contains a unit word but unit is empty, try to split it
+            if amount and not unit:
+                amount_lower = amount.lower()
+                for uword in unit_words:
+                    uword_lower = uword.lower()
+                    # Case 1: "1 cup" (space-separated)
+                    if f" {uword_lower}" in amount_lower or amount_lower.startswith(uword_lower + " "):
+                        parts = amount.split(maxsplit=1)
+                        if len(parts) == 2:
+                            if parts[1].lower() == uword_lower or parts[0].lower() == uword_lower:
+                                amount = parts[0] if parts[1].lower() == uword_lower else parts[1]
+                                unit = uword
+                                break
+                    # Case 2: "1cup" or "cup1" (no space, unit at end/start)
+                    elif amount_lower.endswith(uword_lower) and len(amount) > len(uword):
+                        potential_num = amount[:-len(uword)].strip()
+                        if potential_num and (potential_num[0].isdigit() or potential_num[0] in ".-/"):
+                            amount = potential_num
+                            unit = uword
+                            break
+                    elif amount_lower.startswith(uword_lower) and len(amount) > len(uword):
+                        potential_num = amount[len(uword):].strip()
+                        if potential_num and (potential_num[0].isdigit() or potential_num[0] in ".-/"):
+                            amount = potential_num
+                            unit = uword
+                            break
+            
+            # Fix: if unit is in name instead (e.g., name="1 cup flour"), try to extract it
+            # Only do this if unit is missing (regardless of amount length, since amounts like "2-3" or "1/2" are valid)
+            if not unit and name:
+                name_lower = name.lower()
+                for uword in unit_words:
+                    uword_lower = uword.lower()
+                    # Pattern: "1 cup flour" or "1cup flour" or "2-3 cups flour" or "1/2 tsp salt" at the start of name
+                    pattern = rf'^(\d+(?:\.\d+)?(?:/\d+)?(?:-\d+)?)\s*{re.escape(uword_lower)}\s+(.+)'
+                    match = re.match(pattern, name_lower)
+                    if match:
+                        if not amount:
+                            amount = match.group(1)
+                        unit = uword
+                        name = match.group(2).strip()
+                        break
+            
+            ingredients.append(Ingredient(
+                name=name,
+                amount=amount,
+                unit=unit
+            ))
+        
+        return ingredients
 
     except Exception as e:
         logger.warning(f"AI ingredient parsing failed, using fallback: {e}")
@@ -645,28 +773,40 @@ async def import_recipe_from_url(request: URLImportRequest):
         return RecipeImportResponse(success=False, error=error_msg)
 
 
+def _normalize_instagram_url(url: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return (normalized_url, shortcode) or (None, error_message)."""
+    if not url or not isinstance(url, str):
+        return None, "Instagram URL is required."
+    raw = url.strip()
+    if not raw:
+        return None, "Instagram URL is required."
+    first_line = raw.split()[0] if raw else ""
+    normalized = first_line.split("?")[0].split("#")[0]
+    if "instagram.com" not in normalized:
+        return None, "Please provide a valid Instagram URL (post, reel, or video)."
+    match = re.search(r'instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]{5,})', normalized, re.IGNORECASE)
+    if not match:
+        return None, "Invalid Instagram URL. Please use a link to a post, reel, or video (e.g. .../p/ABC123/ or .../reel/ABC123/)."
+    shortcode = match.group(1).strip()
+    if len(shortcode) < 5 or len(shortcode) > 30:
+        return None, "Invalid Instagram link: could not read post ID."
+    return f"https://www.instagram.com/p/{shortcode}/", shortcode
+
+
 @app.post("/recipe-import/instagram", response_model=RecipeImportResponse)
 async def import_recipe_from_instagram(request: InstagramImportRequest):
     """
     Import a recipe from an Instagram post URL.
     Extracts the caption and image, then uses AI to parse the recipe.
     """
-    url = request.url
-    logger.info(f"Importing recipe from Instagram: {url}")
+    url = getattr(request, "url", None) or ""
+    normalized_url, shortcode = _normalize_instagram_url(url) if url else (None, None)
+    if not normalized_url or not shortcode:
+        return RecipeImportResponse(success=False, error=shortcode or "Invalid URL.")
+
+    logger.info(f"Importing recipe from Instagram: {normalized_url} (shortcode={shortcode})")
 
     try:
-        # Extract shortcode from Instagram URL
-        # URLs can be like: https://www.instagram.com/p/ABC123/ or /reel/ABC123/
-        match = re.search(r'instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)', url)
-        if not match:
-            return RecipeImportResponse(
-                success=False,
-                error="Invalid Instagram URL. Please provide a link to a post, reel, or video."
-            )
-
-        shortcode = match.group(1)
-        logger.info(f"Extracted shortcode: {shortcode}")
-
         # Initialize Instaloader
         L = instaloader.Instaloader(
             download_pictures=False,
@@ -674,7 +814,9 @@ async def import_recipe_from_instagram(request: InstagramImportRequest):
             download_video_thumbnails=False,
             download_geotags=False,
             download_comments=False,
-            save_metadata=False
+            save_metadata=False,
+            request_timeout=30.0,
+            max_connection_attempts=2,
         )
 
         # Try to load session if available
@@ -686,39 +828,106 @@ async def import_recipe_from_instagram(request: InstagramImportRequest):
             except Exception as e:
                 logger.warning(f"Could not load Instagram session: {e}")
 
-        # Fetch the post
-        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        # Fetch the post (run in thread to avoid blocking; Instaloader is sync)
+        loop = asyncio.get_event_loop()
+        try:
+            post = await asyncio.wait_for(
+                loop.run_in_executor(None, lambda: instaloader.Post.from_shortcode(L.context, shortcode)),
+                timeout=35.0,
+            )
+        except asyncio.TimeoutError:
+            return RecipeImportResponse(
+                success=False,
+                error="The post took too long to load. Instagram may be slow or the post may be unavailable. Try again later.",
+            )
 
-        caption = post.caption or ""
-        image_url = post.url  # Direct image URL
-        username = post.owner_username
+        caption = (post.caption or "").strip()
+        image_url = getattr(post, "url", None) or (post.video_url if getattr(post, "is_video", False) else None)
+        username = getattr(post, "owner_username", "") or ""
 
         if not caption:
             return RecipeImportResponse(
                 success=False,
-                error="Instagram post has no caption. Cannot extract recipe."
+                error="This post has no caption. We need the caption text to extract a recipe. Try a post where the recipe is written in the caption."
+            )
+        if len(caption) < 80:
+            return RecipeImportResponse(
+                success=False,
+                error="The caption is too short to contain a full recipe. Please use a post where the full recipe (ingredients and instructions) is in the caption."
             )
 
         logger.info(f"Retrieved Instagram post from @{username}, caption length: {len(caption)}")
 
         # Parse caption with AI
-        recipe = await parse_recipe_with_ai(caption, source_type="instagram")
+        try:
+            recipe = await parse_recipe_with_ai(caption, source_type="instagram")
+        except HTTPException as e:
+            return RecipeImportResponse(success=False, error=e.detail)
+
+        # Require at least some instructions for a valid recipe
+        if not recipe.instructions or all(not (i.description or "").strip() for i in recipe.instructions):
+            return RecipeImportResponse(
+                success=False,
+                error="This post doesn't appear to have recipe instructions in the caption. Try a post where the full recipe steps are written in the caption."
+            )
 
         # Add Instagram-specific fields
-        recipe.image_url = image_url
-        recipe.source_url = url
+        if image_url:
+            recipe.image_url = image_url
+        recipe.source_url = normalized_url
 
         return RecipeImportResponse(success=True, recipe=recipe)
 
+    except instaloader.exceptions.LoginRequiredException:
+        return RecipeImportResponse(
+            success=False,
+            error="Instagram requires login to view this post. The import service cannot access it. Try a public post or a different link."
+        )
+    except instaloader.exceptions.PrivateProfileNotFollowedException:
+        return RecipeImportResponse(
+            success=False,
+            error="This post is from a private account we don't have access to. Use a public post instead."
+        )
+    except instaloader.exceptions.QueryReturnedForbiddenException:
+        return RecipeImportResponse(
+            success=False,
+            error="Instagram is blocking access to this post (often due to rate limits or login requirements). Try again later or use a different post."
+        )
+    except instaloader.exceptions.ConnectionException as e:
+        return RecipeImportResponse(
+            success=False,
+            error=f"Could not reach Instagram: {str(e)}. Check your connection and try again."
+        )
     except instaloader.exceptions.InstaloaderException as e:
-        error_msg = f"Instagram error: {str(e)}"
-        logger.error(error_msg)
-        return RecipeImportResponse(success=False, error=error_msg)
+        err_lower = str(e).lower()
+        if "login" in err_lower or "session" in err_lower:
+            return RecipeImportResponse(
+                success=False,
+                error="Instagram requires login to view this content. Try a public post or ensure the import service is configured with a valid session."
+            )
+        if "not found" in err_lower or "404" in err_lower:
+            return RecipeImportResponse(
+                success=False,
+                error="Post not found. The link may be broken, the post may have been removed, or it may be private."
+            )
+        logger.error(f"Instagram error: {e}")
+        return RecipeImportResponse(
+            success=False,
+            error=f"Instagram error: {str(e)}. Try a different post or try again later."
+        )
 
     except Exception as e:
-        error_msg = f"Failed to import from Instagram: {str(e)}"
-        logger.error(error_msg)
-        return RecipeImportResponse(success=False, error=error_msg)
+        error_msg = str(e)
+        logger.error(f"Failed to import from Instagram: {e}")
+        if "fetch" in error_msg.lower() or "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+            return RecipeImportResponse(
+                success=False,
+                error="Could not load the Instagram post. Check your connection or try again later."
+            )
+        return RecipeImportResponse(
+            success=False,
+            error=f"Failed to import from Instagram: {error_msg}"
+        )
 
 
 @app.post("/recipe-import/text", response_model=RecipeImportResponse)
