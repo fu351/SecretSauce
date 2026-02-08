@@ -55,7 +55,7 @@ class IngredientMappingsTable extends BaseTable<
 
   /**
    * Get all mappings for a recipe
-   * Used by recipe-pricing.ts and ingredient-cache.ts
+   * Used by recipe-level pricing and ingredient lookup flows
    */
   async findByRecipeId(recipeId: string): Promise<IngredientMappingRow[]> {
     try {
