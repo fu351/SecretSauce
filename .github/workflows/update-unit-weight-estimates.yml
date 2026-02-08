@@ -1,0 +1,45 @@
+name: Update Unit Weight Estimates
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  update-unit-estimates:
+    name: Update Unit Weight Estimates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update unit weight estimates
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "Updating unit weight estimates based on latest product data..."
+
+          curl -sfS -X POST "${SUPABASE_URL}/rest/v1/rpc/scheduled_update_unit_estimates" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+
+          echo "✅ Unit weight estimates updated successfully"
+
+      - name: Verify estimates
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "Checking estimate coverage..."
+
+          RESPONSE=$(curl -sfS -X POST "${SUPABASE_URL}/rest/v1/rpc/check_pricing_health" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+
+          echo "Health check results:"
+          echo "$RESPONSE" | jq '.'
