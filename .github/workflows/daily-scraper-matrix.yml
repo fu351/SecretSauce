@@ -158,7 +158,8 @@ jobs:
           set -euo pipefail
 
           # Temporarily disable Safeway from nightly matrix runs.
-          default_stores=(walmart target kroger aldi traderjoes wholefoods andronicos meijer 99ranch)
+          # Whole Foods temporarily disabled.
+          default_stores=(walmart target kroger aldi traderjoes andronicos meijer 99ranch)
 
           if [ -z "${STORES_CSV// }" ]; then
             selected=("${default_stores[@]}")
@@ -172,7 +173,7 @@ jobs:
             for candidate in "${requested[@]}"; do
               [ -z "$candidate" ] && continue
               case "$candidate" in
-                walmart|target|kroger|aldi|traderjoes|wholefoods|andronicos|meijer|99ranch)
+                walmart|target|kroger|aldi|traderjoes|andronicos|meijer|99ranch)
                   if [ -z "${seen[$candidate]+x}" ]; then
                     selected+=("$candidate")
                     seen[$candidate]=1
