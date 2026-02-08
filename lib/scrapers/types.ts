@@ -24,10 +24,10 @@ export interface ScraperResult {
  */
 export function normalizeScraperResult(result: any): ScraperResult {
   return {
-    product_name: result.product_name || result.title || "",
+    product_name: result.product_name || result.title || result.name || "",
     price: Number(result.price) || 0,
     image_url: result.image_url ?? null,
-    product_id: result.product_id ?? null,
+    product_id: result.product_id ?? (result.id != null ? String(result.id) : null),
   }
 }
 

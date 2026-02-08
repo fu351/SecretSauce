@@ -1,5 +1,6 @@
 import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/database/supabase"
+import { standardizedIngredientsDB } from "./standardized-ingredients-db"
 
 const normalizeStoreName = (store: string): string =>
   store.toLowerCase().replace(/\s+/g, "").replace(/[']/g, "").trim()
@@ -230,6 +231,27 @@ class IngredientsHistoryTable extends BaseTable<
     } catch (error) {
       this.handleError(error, "previewStandardization")
       return new Map()
+    }
+  }
+
+  /**
+   * Resolve a single freeform ingredient name to an existing standardized ingredient ID.
+   * Uses exact canonical-name match first, then database fuzzy matching RPC.
+   */
+  async resolveStandardizedIngredientId(query: string): Promise<string | null> {
+    try {
+      const trimmed = query?.trim()
+      if (!trimmed) return null
+
+      const canonical = trimmed.toLowerCase()
+      const exact = await standardizedIngredientsDB.findByCanonicalName(canonical)
+      if (exact?.id) return exact.id
+
+      const preview = await this.previewStandardization([{ productName: trimmed }])
+      return preview.get(trimmed) ?? null
+    } catch (error) {
+      this.handleError(error, "resolveStandardizedIngredientId")
+      return null
     }
   }
 

@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
-import { findExistingStandardizedId } from "@/lib/ingredient-pipeline"
 
 /**
  * Cache User's Manual Product Selection
@@ -33,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Look up standardized_ingredient_id for the search term
-    const standardizedIngredientId = await findExistingStandardizedId(searchTerm)
+    const standardizedIngredientId = await ingredientsHistoryDB.resolveStandardizedIngredientId(searchTerm)
     if (!standardizedIngredientId) {
       console.error("[Cache Selection] Failed to resolve standardized ID")
       return NextResponse.json(
