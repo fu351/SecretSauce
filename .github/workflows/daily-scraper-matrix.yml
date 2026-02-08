@@ -48,6 +48,26 @@ on:
         required: false
         type: string
         default: "40"
+      scraper_batch_size:
+        description: "Default ingredient chunk size for all stores"
+        required: false
+        type: string
+        default: "20"
+      scraper_batch_concurrency:
+        description: "Default batch worker concurrency for all stores"
+        required: false
+        type: string
+        default: "4"
+      traderjoes_batch_size:
+        description: "Trader Joe's ingredient chunk size"
+        required: false
+        type: string
+        default: "20"
+      traderjoes_batch_concurrency:
+        description: "Trader Joe's batch worker concurrency"
+        required: false
+        type: string
+        default: "2"
   workflow_dispatch:
     inputs:
       stores_csv:
@@ -95,6 +115,26 @@ on:
         required: false
         type: string
         default: "40"
+      scraper_batch_size:
+        description: "Default ingredient chunk size for all stores"
+        required: false
+        type: string
+        default: "20"
+      scraper_batch_concurrency:
+        description: "Default batch worker concurrency for all stores"
+        required: false
+        type: string
+        default: "4"
+      traderjoes_batch_size:
+        description: "Trader Joe's ingredient chunk size"
+        required: false
+        type: string
+        default: "20"
+      traderjoes_batch_concurrency:
+        description: "Trader Joe's batch worker concurrency"
+        required: false
+        type: string
+        default: "2"
 
 concurrency:
   # Dedupes overlapping runs for the same ref+store selection while allowing queued execution.
@@ -207,6 +247,10 @@ jobs:
           INSERT_BATCH_SIZE: ${{ inputs.insert_batch_size }}
           SCRAPER_TIMEOUT_MS: ${{ inputs.request_timeout_ms }}
           SCRAPER_TIMEOUT_MINUTES: ${{ inputs.scraper_timeout_minutes }}
+          SCRAPER_BATCH_SIZE: ${{ inputs.scraper_batch_size }}
+          SCRAPER_BATCH_CONCURRENCY: ${{ inputs.scraper_batch_concurrency }}
+          TRADERJOES_BATCH_SIZE: ${{ inputs.traderjoes_batch_size }}
+          TRADERJOES_BATCH_CONCURRENCY: ${{ inputs.traderjoes_batch_concurrency }}
         run: |
           set -euo pipefail
 
@@ -219,11 +263,35 @@ jobs:
           if [ "$SCRAPER_TIMEOUT_MINUTES" -lt 10 ]; then SCRAPER_TIMEOUT_MINUTES=10; fi
           if [ "$SCRAPER_TIMEOUT_MINUTES" -gt 44 ]; then SCRAPER_TIMEOUT_MINUTES=44; fi
 
+          if ! [[ "${SCRAPER_BATCH_SIZE:-}" =~ ^[0-9]+$ ]]; then SCRAPER_BATCH_SIZE=20; fi
+          if [ "$SCRAPER_BATCH_SIZE" -lt 1 ]; then SCRAPER_BATCH_SIZE=1; fi
+          if [ "$SCRAPER_BATCH_SIZE" -gt 200 ]; then SCRAPER_BATCH_SIZE=200; fi
+
+          if ! [[ "${SCRAPER_BATCH_CONCURRENCY:-}" =~ ^[0-9]+$ ]]; then SCRAPER_BATCH_CONCURRENCY=4; fi
+          if [ "$SCRAPER_BATCH_CONCURRENCY" -lt 1 ]; then SCRAPER_BATCH_CONCURRENCY=1; fi
+          if [ "$SCRAPER_BATCH_CONCURRENCY" -gt 20 ]; then SCRAPER_BATCH_CONCURRENCY=20; fi
+
+          if ! [[ "${TRADERJOES_BATCH_SIZE:-}" =~ ^[0-9]+$ ]]; then TRADERJOES_BATCH_SIZE=20; fi
+          if [ "$TRADERJOES_BATCH_SIZE" -lt 1 ]; then TRADERJOES_BATCH_SIZE=1; fi
+          if [ "$TRADERJOES_BATCH_SIZE" -gt 200 ]; then TRADERJOES_BATCH_SIZE=200; fi
+
+          if ! [[ "${TRADERJOES_BATCH_CONCURRENCY:-}" =~ ^[0-9]+$ ]]; then TRADERJOES_BATCH_CONCURRENCY=2; fi
+          if [ "$TRADERJOES_BATCH_CONCURRENCY" -lt 1 ]; then TRADERJOES_BATCH_CONCURRENCY=1; fi
+          if [ "$TRADERJOES_BATCH_CONCURRENCY" -gt 10 ]; then TRADERJOES_BATCH_CONCURRENCY=10; fi
+
           export SCRAPER_TIMEOUT_MS
+          export SCRAPER_BATCH_SIZE
+          export SCRAPER_BATCH_CONCURRENCY
+          export TRADERJOES_BATCH_SIZE
+          export TRADERJOES_BATCH_CONCURRENCY
 
           echo "🚀 Starting scraper for ${{ matrix.store }}"
           echo "   Request timeout (ms): $SCRAPER_TIMEOUT_MS"
           echo "   Job hard timeout (m): $SCRAPER_TIMEOUT_MINUTES"
+          echo "   Default batch size: $SCRAPER_BATCH_SIZE"
+          echo "   Default batch concurrency: $SCRAPER_BATCH_CONCURRENCY"
+          echo "   Trader Joe's batch size: $TRADERJOES_BATCH_SIZE"
+          echo "   Trader Joe's batch concurrency: $TRADERJOES_BATCH_CONCURRENCY"
 
           set +e
           timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node scripts/daily-scraper.js

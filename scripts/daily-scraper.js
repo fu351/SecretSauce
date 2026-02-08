@@ -40,6 +40,10 @@ const STORE_LIMIT = getIntEnv('STORE_LIMIT', 0, 0)
 const STORE_CONCURRENCY = getIntEnv('STORE_CONCURRENCY', 20, 1)
 const INGREDIENT_DELAY_MS = getIntEnv('INGREDIENT_DELAY_MS', 1000, 0)
 const INSERT_BATCH_SIZE = getIntEnv('INSERT_BATCH_SIZE', 500, 1)
+const SCRAPER_BATCH_SIZE = getIntEnv('SCRAPER_BATCH_SIZE', 20, 1)
+const SCRAPER_BATCH_CONCURRENCY = getIntEnv('SCRAPER_BATCH_CONCURRENCY', STORE_CONCURRENCY, 1)
+const TRADERJOES_BATCH_SIZE = getIntEnv('TRADERJOES_BATCH_SIZE', 20, 1)
+const TRADERJOES_BATCH_CONCURRENCY = getIntEnv('TRADERJOES_BATCH_CONCURRENCY', 2, 1)
 
 const PAGE_SIZE = 1000
 
@@ -56,6 +60,10 @@ const SCRAPER_MAP = {
   target: (query, zip) => scrapers.getTargetProducts(query, null, zip),
   ranch99: scrapers.search99Ranch,
   '99ranch': scrapers.search99Ranch,
+}
+
+const STORE_BATCH_SCRAPER_MAP = {
+  traderjoes: scrapers.searchTraderJoesBatch,
 }
 
 let supabase = null
@@ -237,63 +245,116 @@ async function mapWithConcurrency(items, concurrency, mapper) {
   return output
 }
 
-async function scrapeIngredientAtStore(ingredientName, store) {
-  const storeEnum = normalizeStoreEnum(store.store_enum)
-  const scraper = SCRAPER_MAP[storeEnum]
-
-  if (!scraper) {
-    console.warn(`⚠️  No scraper configured for "${storeEnum}"`)
-    return null
+function getStoreBatchConfig(storeEnum) {
+  if (storeEnum === 'traderjoes') {
+    return {
+      batchSize: TRADERJOES_BATCH_SIZE,
+      batchConcurrency: TRADERJOES_BATCH_CONCURRENCY,
+    }
   }
 
-  try {
-    const rawResults = await scraper(ingredientName, store.zip_code)
-    const results = normalizeResultsShape(rawResults)
-
-    if (!results.length) {
-      return null
-    }
-
-    const best = pickBestResult(results)
-    if (!best) {
-      return null
-    }
-
-    return {
-      store: storeEnum,
-      price: best._price,
-      imageUrl: best.image_url || best.imageUrl || null,
-      productName: getProductName(best, ingredientName),
-      productId: best.product_id || best.id || null,
-      zipCode: String(store.zip_code || ''),
-      store_id: store.id || null
-    }
-  } catch (error) {
-    console.error(`❌ Scraper failed for ${storeEnum} (${store.zip_code}): ${error.message}`)
-    return null
+  return {
+    batchSize: SCRAPER_BATCH_SIZE,
+    batchConcurrency: SCRAPER_BATCH_CONCURRENCY,
   }
 }
 
-async function scrapeIngredientsAcrossStores(ingredients, stores) {
+function emptyBatchResults(size) {
+  return Array.from({ length: size }, () => [])
+}
+
+function normalizeBatchResultsShape(rawBatchResults, expectedLength) {
+  if (!Array.isArray(rawBatchResults)) {
+    return emptyBatchResults(expectedLength)
+  }
+
+  return Array.from({ length: expectedLength }, (_, index) => normalizeResultsShape(rawBatchResults[index]))
+}
+
+async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, batchConcurrency) {
+  const nativeBatchScraper = STORE_BATCH_SCRAPER_MAP[storeEnum]
+
+  if (typeof nativeBatchScraper === 'function') {
+    try {
+      const nativeResults = await nativeBatchScraper(ingredientChunk, zipCode, {
+        concurrency: batchConcurrency,
+      })
+      return normalizeBatchResultsShape(nativeResults, ingredientChunk.length)
+    } catch (error) {
+      console.warn(`⚠️ Native batch scraper failed for ${storeEnum}: ${error.message}. Falling back to chunked single calls.`)
+    }
+  }
+
+  const singleScraper = SCRAPER_MAP[storeEnum]
+  if (typeof singleScraper !== 'function') {
+    console.warn(`⚠️ No scraper configured for "${storeEnum}"`)
+    return emptyBatchResults(ingredientChunk.length)
+  }
+
+  const chunkResults = await mapWithConcurrency(
+    ingredientChunk,
+    batchConcurrency,
+    async ingredientName => {
+      try {
+        return await singleScraper(ingredientName, zipCode)
+      } catch (error) {
+        console.error(`❌ Scraper failed for ${storeEnum} (${zipCode}) ingredient "${ingredientName}": ${error.message}`)
+        return []
+      }
+    }
+  )
+
+  return chunkResults.map(normalizeResultsShape)
+}
+
+async function scrapeIngredientsBatched(ingredients, stores) {
   const allResults = []
 
-  for (let i = 0; i < ingredients.length; i += 1) {
-    const ingredient = ingredients[i]
-    console.log(`\n📦 Processing ${i + 1}/${ingredients.length}: ${ingredient}`)
+  for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
+    const store = stores[storeIndex]
+    const storeEnum = normalizeStoreEnum(store.store_enum)
+    const zipCode = String(store.zip_code || '').trim()
+    const { batchSize, batchConcurrency } = getStoreBatchConfig(storeEnum)
 
-    const storeResults = await mapWithConcurrency(
-      stores,
-      STORE_CONCURRENCY,
-      store => scrapeIngredientAtStore(ingredient, store)
-    )
+    console.log(`\n🏬 Store ${storeIndex + 1}/${stores.length}: ${storeEnum} (${zipCode || 'no-zip'})`)
+    console.log(`   ⚙️ Batch size: ${batchSize}, concurrency: ${batchConcurrency}`)
 
-    const validResults = storeResults.filter(Boolean)
-    allResults.push(...validResults)
+    for (let i = 0; i < ingredients.length; i += batchSize) {
+      const chunk = ingredients.slice(i, i + batchSize)
+      const chunkLabel = `${i + 1}-${Math.min(i + chunk.length, ingredients.length)}`
+      console.log(`   📦 Batched ingredients ${chunkLabel}/${ingredients.length}`)
 
-    console.log(`   ✅ Found ${validResults.length}/${stores.length} prices`)
+      const chunkResultsByIngredient = await runBatchedScraperForStore(
+        storeEnum,
+        chunk,
+        zipCode,
+        batchConcurrency
+      )
 
-    if (i < ingredients.length - 1 && INGREDIENT_DELAY_MS > 0) {
-      await sleep(INGREDIENT_DELAY_MS)
+      let chunkHits = 0
+      for (let idx = 0; idx < chunk.length; idx += 1) {
+        const ingredientName = chunk[idx]
+        const best = pickBestResult(chunkResultsByIngredient[idx] || [])
+        if (!best) continue
+
+        allResults.push({
+          store: storeEnum,
+          price: best._price,
+          imageUrl: best.image_url || best.imageUrl || null,
+          productName: getProductName(best, ingredientName),
+          productId: best.product_id || best.id || null,
+          zipCode,
+          store_id: store.id || null
+        })
+
+        chunkHits += 1
+      }
+
+      console.log(`   ✅ Found ${chunkHits}/${chunk.length} prices in chunk`)
+
+      if (i + batchSize < ingredients.length && INGREDIENT_DELAY_MS > 0) {
+        await sleep(INGREDIENT_DELAY_MS)
+      }
     }
   }
 
@@ -358,8 +419,10 @@ async function main() {
 
   console.log('🚀 Daily Ingredient Scraper Starting...')
   console.log(`   Store Brand: ${STORE_BRAND || 'ALL'}`)
-  console.log(`   Strategy: Direct RPC + CA stores`)
+  console.log(`   Strategy: Direct RPC + store-batched scraping`)
   console.log(`   Store Concurrency: ${STORE_CONCURRENCY}`)
+  console.log(`   Default Batch Size: ${SCRAPER_BATCH_SIZE}`)
+  console.log(`   Default Batch Concurrency: ${SCRAPER_BATCH_CONCURRENCY}`)
   console.log(`   Insert Batch Size: ${INSERT_BATCH_SIZE}`)
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
@@ -384,7 +447,7 @@ async function main() {
     process.exit(1)
   }
 
-  const results = await scrapeIngredientsAcrossStores(ingredients, stores)
+  const results = await scrapeIngredientsBatched(ingredients, stores)
   console.log(`\n✅ Scraped ${results.length} total products`)
 
   const inserted = await insertInBatches(results)
