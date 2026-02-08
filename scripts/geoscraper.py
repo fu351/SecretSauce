@@ -118,7 +118,8 @@ def fetch_features_with_fallback(session: requests.Session, spider_name: str, ti
     Raises HTTPError only after all candidates are exhausted.
     """
     attempted_urls: list[str] = []
-    last_404: requests.exceptions.HTTPError | None = None
+    status_by_url: list[tuple[str, int]] = []
+    request_errors: list[tuple[str, str]] = []
 
     for candidate in build_spider_candidates(spider_name):
         for base_url in ALLTHEPLACES_OUTPUT_BASES:
@@ -126,27 +127,30 @@ def fetch_features_with_fallback(session: requests.Session, spider_name: str, ti
             attempted_urls.append(url)
             try:
                 with session.get(url, timeout=timeout) as response:
-                    if response.status_code == 404:
+                    if response.status_code != 200:
+                        status_by_url.append((url, response.status_code))
                         continue
-                    response.raise_for_status()
                     features = ijson.items(io.BytesIO(response.content), "features.item")
                     return candidate, url, features
-            except requests.exceptions.HTTPError as error:
-                if error.response is not None and error.response.status_code == 404:
-                    last_404 = error
-                    continue
-                raise
+            except requests.exceptions.RequestException as error:
+                request_errors.append((url, f"{type(error).__name__}: {error}"))
+                continue
 
     attempted = "\n".join(f"      - {url}" for url in attempted_urls)
-    if last_404:
-        message = (
-            f"404 for spider '{spider_name}' after trying aliases and mirrors:\n"
-            f"{attempted}"
-        )
-        raise requests.exceptions.HTTPError(message, response=last_404.response)
+    status_lines = "\n".join(f"      - {url} -> HTTP {status}" for url, status in status_by_url)
+    request_error_lines = "\n".join(f"      - {url} -> {message}" for url, message in request_errors)
+
+    details = [
+        f"Unable to fetch spider '{spider_name}'. URLs attempted:",
+        attempted,
+    ]
+    if status_lines:
+        details.extend(["HTTP results:", status_lines])
+    if request_error_lines:
+        details.extend(["Request errors:", request_error_lines])
 
     raise requests.exceptions.RequestException(
-        f"Unable to fetch spider '{spider_name}'. URLs attempted:\n{attempted}"
+        "\n".join(details)
     )
 
 
