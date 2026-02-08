@@ -17,11 +17,8 @@ on:
       skip_purge:
         description: "Skip purge step (manual runs only)"
         required: false
-        type: choice
-        options:
-          - "false"
-          - "true"
-        default: "false"
+        type: boolean
+        default: false
       stores_csv:
         description: "Comma-separated stores (blank = all)"
         required: false
@@ -127,7 +124,7 @@ on:
 jobs:
   purge:
     name: Daily Purge
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.skip_purge != 'true' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_purge }}
     uses: ./.github/workflows/daily-purge.yml
     secrets: inherit
     with:
