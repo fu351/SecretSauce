@@ -142,6 +142,7 @@ async function fetchCaliforniaStores(storeBrand = null) {
       .not('zip_code', 'is', null)
       .gte('zip_code', '90000')
       .lte('zip_code', '96199')
+      .eq('city', 'Berkeley')
       .eq('is_active', true)
       .order('store_enum', { ascending: true })
       .order('zip_code', { ascending: true })
