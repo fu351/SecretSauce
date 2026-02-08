@@ -14,6 +14,11 @@ on:
           - execute
           - dry-run
         default: execute
+      skip_purge:
+        description: "Skip purge step (manual runs only)"
+        required: false
+        type: boolean
+        default: false
       stores_csv:
         description: "Comma-separated stores (blank = all)"
         required: false
@@ -49,6 +54,26 @@ on:
         required: false
         type: string
         default: "100"
+      scraper_batch_size:
+        description: "Default ingredient chunk size for all stores"
+        required: false
+        type: string
+        default: "20"
+      scraper_batch_concurrency:
+        description: "Default batch worker concurrency for all stores"
+        required: false
+        type: string
+        default: "4"
+      traderjoes_batch_size:
+        description: "Trader Joe's ingredient chunk size"
+        required: false
+        type: string
+        default: "20"
+      traderjoes_batch_concurrency:
+        description: "Trader Joe's batch worker concurrency"
+        required: false
+        type: string
+        default: "2"
       queue_batch_limit:
         description: "Queue batch size"
         required: false
@@ -99,6 +124,7 @@ on:
 jobs:
   purge:
     name: Daily Purge
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_purge }}
     uses: ./.github/workflows/daily-purge.yml
     secrets: inherit
     with:
@@ -107,6 +133,7 @@ jobs:
   scraper:
     name: Daily Scraper Matrix
     needs: purge
+    if: ${{ always() && (needs.purge.result == 'success' || needs.purge.result == 'skipped') }}
     uses: ./.github/workflows/daily-scraper-matrix.yml
     secrets: inherit
     with:
@@ -117,10 +144,21 @@ jobs:
       ingredient_delay_ms: ${{ github.event.inputs.ingredient_delay_ms || '1000' }}
       insert_batch_size: ${{ github.event.inputs.insert_batch_size || '500' }}
       min_expected_rows: ${{ github.event.inputs.min_expected_rows || '100' }}
+      scraper_batch_size: ${{ github.event.inputs.scraper_batch_size || '20' }}
+      scraper_batch_concurrency: ${{ github.event.inputs.scraper_batch_concurrency || '4' }}
+      traderjoes_batch_size: ${{ github.event.inputs.traderjoes_batch_size || '20' }}
+      traderjoes_batch_concurrency: ${{ github.event.inputs.traderjoes_batch_concurrency || '2' }}
+
+  update-unit-estimates:
+    name: Update Unit Weight Estimates
+    needs: scraper
+    uses: ./.github/workflows/update-unit-weight-estimates.yml
+    secrets: inherit
 
   queue:
     name: Nightly Ingredient Queue
-    needs: scraper
+    needs: update-unit-estimates
+    if: ${{ always() }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:

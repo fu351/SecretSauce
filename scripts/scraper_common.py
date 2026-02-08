@@ -39,7 +39,7 @@ def get_supabase_client() -> Client:
 
 # Mapping your Enum values to the All the Places Spider names
 ENUM_TO_SPIDER = {
-    "aldi": "aldi_sud_us",
+    "aldi": "aldi_us",
     "kroger": "kroger_us",
     "safeway": "safeway",
     "meijer": "meijer_us",

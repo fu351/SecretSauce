@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import {
   getOrRefreshIngredientPricesForStores,
-  findExistingStandardizedId,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
+import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (!standardizedIngredientId) {
-          standardizedIngredientId = await findExistingStandardizedId(ingredientName)
+          standardizedIngredientId = await ingredientsHistoryDB.resolveStandardizedIngredientId(ingredientName)
         }
 
         if (!standardizedIngredientId) {

@@ -3,6 +3,7 @@
 # dependencies
 /node_modules
 package-lock.json
+!scripts/package-lock.json
 
 # next.js
 /.next/
@@ -44,3 +45,7 @@ node_modules
 # Local helper pages that should stay out of source control
 /app/dev/
 app/api/dev/seed-recipes/route.ts
+
+*__pycache__
+lib/scrapers/test-target-rate-limit.js
+lib/scrapers/test-walmart-rate-limit.js

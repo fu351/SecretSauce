@@ -3,6 +3,10 @@ name: Backfill Scraped ZIP Codes
 on:
   workflow_dispatch:
     inputs:
+      zip_codes:
+        description: "Optional ZIP list (comma-separated); blank = any missing ZIPs"
+        required: false
+        default: ""
       limit:
         description: "How many ZIP codes to fetch per batch"
         required: false
@@ -35,6 +39,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKFILL_ZIP_CODES: ${{ github.event.inputs.zip_codes || '' }}
       BACKFILL_LIMIT: ${{ github.event.inputs.limit || '100' }}
       BACKFILL_DELAY: ${{ github.event.inputs.delay || '0.1' }}
       BACKFILL_LOOP: ${{ github.event.inputs.loop || 'false' }}
@@ -55,11 +60,14 @@ jobs:
       - name: Run backfill
         run: |
           set -euo pipefail
-          args="--limit $BACKFILL_LIMIT --delay $BACKFILL_DELAY --max-batches $BACKFILL_MAX_BATCHES"
+          args=(--limit "$BACKFILL_LIMIT" --delay "$BACKFILL_DELAY" --max-batches "$BACKFILL_MAX_BATCHES")
+          if [ -n "${BACKFILL_ZIP_CODES// }" ]; then
+            args+=(--zipcodes "$BACKFILL_ZIP_CODES")
+          fi
           if [ "${BACKFILL_LOOP,,}" = "true" ]; then
-            args="$args --loop"
+            args+=(--loop)
           fi
           if [ "${BACKFILL_DRY_RUN,,}" = "true" ]; then
-            args="$args --dry-run"
+            args+=(--dry-run)
           fi
-          python scripts/backfill_scraped_zipcodes.py $args
+          python scripts/backfill_scraped_zipcodes.py "${args[@]}"

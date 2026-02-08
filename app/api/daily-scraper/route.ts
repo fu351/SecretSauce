@@ -217,24 +217,39 @@ async function scrapeAndCacheIngredient(ingredientId: string, ingredientName: st
       }
     }
 
-    // If we got results, cache the cheapest one from this store
+    // If we got results, cache the cheapest valid-priced one from this store
     if (scrapedItems && scrapedItems.length > 0) {
+      const pricedItems = scrapedItems.filter((item) => {
+        const numericPrice = Number(item?.price)
+        return Number.isFinite(numericPrice) && numericPrice > 0
+      })
+
+      if (pricedItems.length === 0) {
+        console.warn(`No valid priced results found for ${ingredientName} from ${store}`)
+        return
+      }
+
       // Find the cheapest item
-      const cheapest = scrapedItems.reduce((prev, current) => {
-        const prevPrice = Number(prev.price) || 0
-        const currentPrice = Number(current.price) || 0
+      const cheapest = pricedItems.reduce((prev, current) => {
+        const prevPrice = Number(prev.price)
+        const currentPrice = Number(current.price)
         return currentPrice < prevPrice ? current : prev
       })
+
+      const productName =
+        (cheapest.product_name || cheapest.title || cheapest.name || ingredientName)?.toString().trim() || null
+      const productIdRaw = cheapest.product_id ?? cheapest.id ?? null
+      const productId = productIdRaw == null ? null : String(productIdRaw)
 
       // Cache the cheapest item for this ingredient from this store
       const successRow = await ingredientsHistoryDB.insertPrice({
         standardizedIngredientId: ingredientId,
         store,
-        price: Number(cheapest.price) || 0,
+        price: Number(cheapest.price),
         imageUrl: cheapest.image_url ?? null,
-        productName: (cheapest.title || cheapest.name || ingredientName) ?? null,
-        productId: (cheapest.id || null) ?? null,
-        location: null,
+        productName,
+        productId,
+        location: cheapest.location ?? null,
         zipCode,
       })
 

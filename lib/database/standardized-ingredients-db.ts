@@ -27,7 +27,6 @@ class StandardizedIngredientsTable extends BaseTable<
 
   /**
    * Search by canonical name (exact match)
-   * Used by ingredient-cache.ts
    */
   async findByCanonicalName(canonicalName: string): Promise<StandardizedIngredientRow | null> {
     try {
@@ -113,7 +112,6 @@ class StandardizedIngredientsTable extends BaseTable<
 
   /**
    * Get or create standardized ingredient (upsert pattern)
-   * Used extensively by ingredient-cache.ts
    */
   async getOrCreate(
     canonicalName: string,
@@ -219,7 +217,6 @@ class StandardizedIngredientsTable extends BaseTable<
 
   /**
    * Batch fetch by IDs
-   * Used by ingredient-cache.ts for metadata lookups
    */
   async fetchByIds(ids: string[]): Promise<StandardizedIngredientRow[]> {
     try {

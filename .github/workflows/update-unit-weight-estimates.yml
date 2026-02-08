@@ -1,0 +1,57 @@
+name: Update Unit Weight Estimates
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  update-unit-estimates:
+    name: Update Unit Weight Estimates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update unit weight estimates
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "Updating unit weight estimates based on latest product data..."
+
+          API_KEY="${SUPABASE_ANON_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${API_KEY:-}" ]; then
+            echo "❌ Missing required Supabase secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, or API key fallback)."
+            exit 1
+          fi
+
+          curl -sfS -X POST "${SUPABASE_URL}/rest/v1/rpc/scheduled_update_unit_estimates" \
+            -H "apikey: ${API_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+
+          echo "✅ Unit weight estimates updated successfully"
+
+      - name: Verify estimates
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "Checking estimate coverage..."
+
+          API_KEY="${SUPABASE_ANON_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${API_KEY:-}" ]; then
+            echo "❌ Missing required Supabase secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, or API key fallback)."
+            exit 1
+          fi
+
+          RESPONSE=$(curl -sfS -X POST "${SUPABASE_URL}/rest/v1/rpc/check_pricing_health" \
+            -H "apikey: ${API_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+
+          echo "Health check results:"
+          echo "$RESPONSE" | jq '.'

@@ -28,14 +28,43 @@ from scraper_common import create_retry_session, get_supabase_client
 ZIPPOTAM_BASE_URL = "https://api.zippopotam.us/us"
 
 
-def gather_missing_zipcodes(supabase: Client, limit: int) -> list[dict]:
+def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str] | None:
+    """
+    Collect ZIP codes from repeated --zip and --zipcodes input.
+    """
+    raw_values: list[str] = []
+    raw_values.extend(args.zip or [])
+    if args.zipcodes:
+        raw_values.append(args.zipcodes)
+
+    expanded: list[str] = []
+    for raw in raw_values:
+        if not raw:
+            continue
+        for part in raw.replace(",", " ").split():
+            candidate = part.strip()
+            if candidate:
+                expanded.append(candidate)
+
+    return set(expanded) if expanded else None
+
+
+def gather_missing_zipcodes(
+    supabase: Client,
+    limit: int,
+    zip_filter: set[str] | None = None,
+) -> list[dict]:
     """
     Retrieve ZIP codes that still need city/state or geography populating.
     """
     query = supabase.table("scraped_zipcodes") \
         .select("zip_code, city, state, latitude, longitude, geom") \
-        .or_("geom.is.null,city.is.null") \
-        .limit(limit)
+        .or_("geom.is.null,city.is.null")
+
+    if zip_filter:
+        query = query.in_("zip_code", list(zip_filter))
+
+    query = query.limit(limit)
 
     response = query.execute()
     return response.data or []
@@ -151,6 +180,7 @@ def run_backfill(
     loop: bool,
     max_batches: int | None,
     concurrency: int,
+    zip_filter: set[str] | None = None,
 ) -> None:
     """
     Drive the backfill process, optionally looping until the table is healthy.
@@ -161,7 +191,7 @@ def run_backfill(
 
     while True:
         batch_number += 1
-        rows = gather_missing_zipcodes(supabase, limit)
+        rows = gather_missing_zipcodes(supabase, limit, zip_filter=zip_filter)
         if not rows:
             if batch_number == 1:
                 print("✅ All ZIP codes already have metadata.")
@@ -188,6 +218,16 @@ def run_backfill(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Backfill scraped_zipcodes metadata from Zippopotam")
+    parser.add_argument(
+        "--zip",
+        "-z",
+        action="append",
+        help="Specific ZIP code(s) to backfill (comma or space separated; can be repeated)"
+    )
+    parser.add_argument(
+        "--zipcodes",
+        help="Comma or space-separated ZIP code list to backfill"
+    )
     parser.add_argument(
         "--limit",
         "-l",
@@ -232,6 +272,7 @@ def main():
     args = _parse_args()
     max_batches = args.max_batches if args.max_batches > 0 else None
     concurrency = max(1, args.concurrency)
+    zip_filter = gather_zipcodes_from_args(args)
     run_backfill(
         limit=args.limit,
         delay=args.delay,
@@ -239,6 +280,7 @@ def main():
         loop=args.loop,
         max_batches=max_batches,
         concurrency=concurrency,
+        zip_filter=zip_filter,
     )
 
 

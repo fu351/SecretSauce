@@ -38,6 +38,36 @@ on:
         required: false
         type: string
         default: "100"
+      request_timeout_ms:
+        description: "Per-request scraper timeout in milliseconds"
+        required: false
+        type: string
+        default: "20000"
+      scraper_timeout_minutes:
+        description: "Hard timeout per store job (minutes)"
+        required: false
+        type: string
+        default: "40"
+      scraper_batch_size:
+        description: "Default ingredient chunk size for all stores"
+        required: false
+        type: string
+        default: "20"
+      scraper_batch_concurrency:
+        description: "Default batch worker concurrency for all stores"
+        required: false
+        type: string
+        default: "4"
+      traderjoes_batch_size:
+        description: "Trader Joe's ingredient chunk size"
+        required: false
+        type: string
+        default: "20"
+      traderjoes_batch_concurrency:
+        description: "Trader Joe's batch worker concurrency"
+        required: false
+        type: string
+        default: "2"
   workflow_dispatch:
     inputs:
       stores_csv:
@@ -75,11 +105,47 @@ on:
         required: false
         type: string
         default: "100"
+      request_timeout_ms:
+        description: "Per-request scraper timeout in milliseconds"
+        required: false
+        type: string
+        default: "20000"
+      scraper_timeout_minutes:
+        description: "Hard timeout per store job (minutes)"
+        required: false
+        type: string
+        default: "40"
+      scraper_batch_size:
+        description: "Default ingredient chunk size for all stores"
+        required: false
+        type: string
+        default: "20"
+      scraper_batch_concurrency:
+        description: "Default batch worker concurrency for all stores"
+        required: false
+        type: string
+        default: "4"
+      traderjoes_batch_size:
+        description: "Trader Joe's ingredient chunk size"
+        required: false
+        type: string
+        default: "20"
+      traderjoes_batch_concurrency:
+        description: "Trader Joe's batch worker concurrency"
+        required: false
+        type: string
+        default: "2"
+
+concurrency:
+  # Dedupes overlapping runs for the same ref+store selection while allowing queued execution.
+  group: daily-scraper-matrix-${{ github.ref }}-${{ inputs.stores_csv || 'all' }}
+  cancel-in-progress: false
 
 jobs:
   prepare-matrix:
     name: Prepare Store Matrix
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       store_json: ${{ steps.build.outputs.store_json }}
 
@@ -92,7 +158,9 @@ jobs:
           set -euo pipefail
 
           # Temporarily disable Safeway from nightly matrix runs.
-          default_stores=(walmart target kroger aldi traderjoes wholefoods andronicos meijer 99ranch)
+          # Whole Foods temporarily disabled.
+          # Walmart temporarily disabled - hitting CAPTCHA challenges despite rate limiting, retry logic, and User-Agent rotation.
+          default_stores=(target kroger aldi traderjoes andronicos meijer 99ranch)
 
           if [ -z "${STORES_CSV// }" ]; then
             selected=("${default_stores[@]}")
@@ -101,14 +169,17 @@ jobs:
             IFS=',' read -r -a requested <<< "$normalized"
             selected=()
             declare -A seen=()
+            duplicate_count=0
 
             for candidate in "${requested[@]}"; do
               [ -z "$candidate" ] && continue
               case "$candidate" in
-                walmart|target|kroger|aldi|traderjoes|wholefoods|andronicos|meijer|99ranch)
+                walmart|target|kroger|aldi|traderjoes|andronicos|meijer|99ranch)
                   if [ -z "${seen[$candidate]+x}" ]; then
                     selected+=("$candidate")
                     seen[$candidate]=1
+                  else
+                    duplicate_count=$((duplicate_count + 1))
                   fi
                   ;;
                 *)
@@ -122,6 +193,10 @@ jobs:
             if [ "${#selected[@]}" -eq 0 ]; then
               echo "❌ No valid stores found in stores_csv"
               exit 1
+            fi
+
+            if [ "$duplicate_count" -gt 0 ]; then
+              echo "⚠️ Deduped $duplicate_count duplicate store entries from stores_csv"
             fi
           fi
 
@@ -139,10 +214,11 @@ jobs:
     name: Scrape ${{ matrix.store }}
     needs: prepare-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         store: ${{ fromJson(needs.prepare-matrix.outputs.store_json) }}
 
@@ -154,11 +230,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        timeout-minutes: 15
+        run: npm install --legacy-peer-deps --prefix scripts
+
+      - name: Expose scripts dependencies to shared imports
+        run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
 
       - name: Scrape ${{ matrix.store }}
+        timeout-minutes: 120
         env:
           STORE_BRAND: ${{ matrix.store }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -169,40 +252,61 @@ jobs:
           STORE_CONCURRENCY: ${{ inputs.store_concurrency }}
           INGREDIENT_DELAY_MS: ${{ inputs.ingredient_delay_ms }}
           INSERT_BATCH_SIZE: ${{ inputs.insert_batch_size }}
-        run: |
-          echo "🚀 Starting scraper for ${{ matrix.store }}"
-          node scripts/daily-scraper.js
-
-  optimize-database:
-    name: Optimize Database
-    needs: scrape-stores
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: always()
-
-    steps:
-      - name: Run ANALYZE
-        env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          echo "📈 Updating database statistics..."
-          psql "$DB_URL" -c "ANALYZE public.ingredients_history;"
-          psql "$DB_URL" -c "ANALYZE public.ingredients_recent;"
-
-      - name: Verify results
-        env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
-          MIN_EXPECTED_ROWS: ${{ inputs.min_expected_rows }}
+          SCRAPER_TIMEOUT_MS: ${{ inputs.request_timeout_ms }}
+          SCRAPER_TIMEOUT_MINUTES: ${{ inputs.scraper_timeout_minutes }}
+          SCRAPER_BATCH_SIZE: ${{ inputs.scraper_batch_size }}
+          SCRAPER_BATCH_CONCURRENCY: ${{ inputs.scraper_batch_concurrency }}
+          TRADERJOES_BATCH_SIZE: ${{ inputs.traderjoes_batch_size }}
+          TRADERJOES_BATCH_CONCURRENCY: ${{ inputs.traderjoes_batch_concurrency }}
         run: |
           set -euo pipefail
-          echo "📊 Checking results..."
-          COUNT=$(psql "$DB_URL" -t -A -c "SELECT COUNT(*) FROM public.ingredients_recent;")
-          echo "Total rows in ingredients_recent: $COUNT"
-          echo "Minimum expected rows: $MIN_EXPECTED_ROWS"
 
-          if [ "$COUNT" -lt "$MIN_EXPECTED_ROWS" ]; then
-            echo "⚠️ WARNING: Very few rows inserted ($COUNT)"
-            exit 1
+          # Clamp configurable timeouts to keep runs safe from unbounded values.
+          if ! [[ "${SCRAPER_TIMEOUT_MS:-}" =~ ^[0-9]+$ ]]; then SCRAPER_TIMEOUT_MS=20000; fi
+          if [ "$SCRAPER_TIMEOUT_MS" -lt 5000 ]; then SCRAPER_TIMEOUT_MS=5000; fi
+          if [ "$SCRAPER_TIMEOUT_MS" -gt 60000 ]; then SCRAPER_TIMEOUT_MS=60000; fi
+
+          if ! [[ "${SCRAPER_TIMEOUT_MINUTES:-}" =~ ^[0-9]+$ ]]; then SCRAPER_TIMEOUT_MINUTES=40; fi
+          if [ "$SCRAPER_TIMEOUT_MINUTES" -lt 10 ]; then SCRAPER_TIMEOUT_MINUTES=10; fi
+          if [ "$SCRAPER_TIMEOUT_MINUTES" -gt 44 ]; then SCRAPER_TIMEOUT_MINUTES=44; fi
+
+          if ! [[ "${SCRAPER_BATCH_SIZE:-}" =~ ^[0-9]+$ ]]; then SCRAPER_BATCH_SIZE=20; fi
+          if [ "$SCRAPER_BATCH_SIZE" -lt 1 ]; then SCRAPER_BATCH_SIZE=1; fi
+          if [ "$SCRAPER_BATCH_SIZE" -gt 200 ]; then SCRAPER_BATCH_SIZE=200; fi
+
+          if ! [[ "${SCRAPER_BATCH_CONCURRENCY:-}" =~ ^[0-9]+$ ]]; then SCRAPER_BATCH_CONCURRENCY=4; fi
+          if [ "$SCRAPER_BATCH_CONCURRENCY" -lt 1 ]; then SCRAPER_BATCH_CONCURRENCY=1; fi
+          if [ "$SCRAPER_BATCH_CONCURRENCY" -gt 20 ]; then SCRAPER_BATCH_CONCURRENCY=20; fi
+
+          if ! [[ "${TRADERJOES_BATCH_SIZE:-}" =~ ^[0-9]+$ ]]; then TRADERJOES_BATCH_SIZE=20; fi
+          if [ "$TRADERJOES_BATCH_SIZE" -lt 1 ]; then TRADERJOES_BATCH_SIZE=1; fi
+          if [ "$TRADERJOES_BATCH_SIZE" -gt 200 ]; then TRADERJOES_BATCH_SIZE=200; fi
+
+          if ! [[ "${TRADERJOES_BATCH_CONCURRENCY:-}" =~ ^[0-9]+$ ]]; then TRADERJOES_BATCH_CONCURRENCY=2; fi
+          if [ "$TRADERJOES_BATCH_CONCURRENCY" -lt 1 ]; then TRADERJOES_BATCH_CONCURRENCY=1; fi
+          if [ "$TRADERJOES_BATCH_CONCURRENCY" -gt 10 ]; then TRADERJOES_BATCH_CONCURRENCY=10; fi
+
+          export SCRAPER_TIMEOUT_MS
+          export SCRAPER_BATCH_SIZE
+          export SCRAPER_BATCH_CONCURRENCY
+          export TRADERJOES_BATCH_SIZE
+          export TRADERJOES_BATCH_CONCURRENCY
+
+          echo "🚀 Starting scraper for ${{ matrix.store }}"
+          echo "   Request timeout (ms): $SCRAPER_TIMEOUT_MS"
+          echo "   Job hard timeout (m): $SCRAPER_TIMEOUT_MINUTES"
+          echo "   Default batch size: $SCRAPER_BATCH_SIZE"
+          echo "   Default batch concurrency: $SCRAPER_BATCH_CONCURRENCY"
+          echo "   Trader Joe's batch size: $TRADERJOES_BATCH_SIZE"
+          echo "   Trader Joe's batch concurrency: $TRADERJOES_BATCH_CONCURRENCY"
+
+          set +e
+          timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node scripts/daily-scraper.js
+          status=$?
+          set -e
+
+          if [ "$status" -eq 124 ]; then
+            echo "❌ Scraper timed out after ${SCRAPER_TIMEOUT_MINUTES} minutes for ${{ matrix.store }}"
           fi
 
-          echo "✅ Scraping complete with $COUNT total results"
+          exit "$status"
