@@ -5,18 +5,89 @@ on:
       zip_code:
         description: 'ZIP(s) that triggered this scrape (for tracking only)'
         required: false
+      stores_csv:
+        description: 'Comma-separated stores to run (blank = all)'
+        required: false
       brand:
-        description: 'Optional Brand filter'
+        description: 'Optional single brand filter (legacy; use stores_csv)'
         required: false
 
 jobs:
-  # Scrape stores in parallel across all brands
+  prepare-matrix:
+    name: Prepare Store Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      store_json: ${{ steps.build.outputs.store_json }}
+    steps:
+      - name: Build store matrix
+        id: build
+        env:
+          STORES_CSV: ${{ github.event.inputs.stores_csv }}
+          LEGACY_BRAND: ${{ github.event.inputs.brand }}
+        run: |
+          set -euo pipefail
+
+          default_stores=(aldi kroger safeway meijer target traderjoes 99ranch walmart wholefoods)
+          requested_input="${STORES_CSV:-}"
+
+          # Backwards compatibility for old single-brand dispatches.
+          if [ -z "${requested_input// }" ] && [ -n "${LEGACY_BRAND// }" ]; then
+            requested_input="${LEGACY_BRAND}"
+          fi
+
+          if [ -z "${requested_input// }" ]; then
+            selected=("${default_stores[@]}")
+          else
+            normalized=$(echo "$requested_input" | tr '[:upper:]' '[:lower:]' | tr ';' ',' | tr -d ' ')
+            IFS=',' read -r -a requested <<< "$normalized"
+            selected=()
+            declare -A seen=()
+
+            for candidate in "${requested[@]}"; do
+              [ -z "$candidate" ] && continue
+              case "$candidate" in
+                all)
+                  selected=("${default_stores[@]}")
+                  break
+                  ;;
+                aldi|kroger|safeway|meijer|target|traderjoes|99ranch|walmart|wholefoods)
+                  if [ -z "${seen[$candidate]+x}" ]; then
+                    selected+=("$candidate")
+                    seen[$candidate]=1
+                  fi
+                  ;;
+                *)
+                  echo "❌ Unsupported store in stores_csv: $candidate"
+                  echo "Allowed stores: ${default_stores[*]} or all"
+                  exit 1
+                  ;;
+              esac
+            done
+
+            if [ "${#selected[@]}" -eq 0 ]; then
+              echo "❌ No valid stores found in stores_csv"
+              exit 1
+            fi
+          fi
+
+          json="["
+          for i in "${!selected[@]}"; do
+            [ "$i" -gt 0 ] && json+=","
+            json+="\"${selected[$i]}\""
+          done
+          json+="]"
+
+          echo "store_json=$json" >> "$GITHUB_OUTPUT"
+          echo "Using stores: $json"
+
+  # Scrape selected stores in parallel (defaults to all brands)
   scrape:
+    needs: prepare-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false  # Continue other brands even if one fails
       matrix:
-        brand: [aldi, kroger, safeway, meijer, target, traderjoes, 99ranch, walmart, wholefoods]
+        brand: ${{ fromJson(needs.prepare-matrix.outputs.store_json) }}
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
