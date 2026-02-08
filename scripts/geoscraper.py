@@ -39,6 +39,31 @@ supabase: Client = get_supabase_client()
 DELAY_BETWEEN_SPIDERS = 10
 MAX_BATCH_SIZE = 100
 
+# Primary + fallback output locations for AllThePlaces data.
+# You can override/add the primary URL with ALLTHEPLACES_OUTPUT_BASE.
+ALLTHEPLACES_OUTPUT_BASES = [
+    os.environ.get("ALLTHEPLACES_OUTPUT_BASE"),
+    "https://data.alltheplaces.xyz/runs/latest/output",
+    "https://alltheplaces-data.openaddresses.io/runs/latest/output",
+]
+ALLTHEPLACES_OUTPUT_BASES = [
+    base.rstrip("/")
+    for base in ALLTHEPLACES_OUTPUT_BASES
+    if base
+]
+
+# Known spider aliases in case a *_us name is missing from a particular run.
+SPIDER_ALIASES: dict[str, list[str]] = {
+    "aldi_us": ["aldi"],
+    "kroger_us": ["kroger"],
+    "meijer_us": ["meijer"],
+    "target_us": ["target"],
+    "walmart_us": ["walmart"],
+    "trader_joes_us": ["trader_joes"],
+    "99_ranch_market_us": ["99_ranch_market"],
+    "whole_foods": ["whole_foods_us"],
+}
+
 
 def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str]:
     """Collect ZIP codes from CLI, comma-separated strings, or an env var."""
@@ -63,6 +88,66 @@ def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str]:
                 expanded.append(candidate)
 
     return set(expanded) if expanded else set()
+
+
+def build_spider_candidates(spider_name: str) -> list[str]:
+    """Return spider-name candidates in priority order, deduped."""
+    candidates: list[str] = [spider_name]
+    candidates.extend(SPIDER_ALIASES.get(spider_name, []))
+
+    # Generic fallback for naming drift.
+    if spider_name.endswith("_us"):
+        candidates.append(spider_name[:-3])
+    else:
+        candidates.append(f"{spider_name}_us")
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        cleaned = candidate.strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        deduped.append(cleaned)
+    return deduped
+
+
+def fetch_features_with_fallback(session: requests.Session, spider_name: str, timeout: int = 90):
+    """
+    Fetch GeoJSON features trying multiple spider aliases and base URLs.
+    Raises HTTPError only after all candidates are exhausted.
+    """
+    attempted_urls: list[str] = []
+    last_404: requests.exceptions.HTTPError | None = None
+
+    for candidate in build_spider_candidates(spider_name):
+        for base_url in ALLTHEPLACES_OUTPUT_BASES:
+            url = f"{base_url}/{candidate}.geojson"
+            attempted_urls.append(url)
+            try:
+                with session.get(url, timeout=timeout) as response:
+                    if response.status_code == 404:
+                        continue
+                    response.raise_for_status()
+                    features = ijson.items(io.BytesIO(response.content), "features.item")
+                    return candidate, url, features
+            except requests.exceptions.HTTPError as error:
+                if error.response is not None and error.response.status_code == 404:
+                    last_404 = error
+                    continue
+                raise
+
+    attempted = "\n".join(f"      - {url}" for url in attempted_urls)
+    if last_404:
+        message = (
+            f"404 for spider '{spider_name}' after trying aliases and mirrors:\n"
+            f"{attempted}"
+        )
+        raise requests.exceptions.HTTPError(message, response=last_404.response)
+
+    raise requests.exceptions.RequestException(
+        f"Unable to fetch spider '{spider_name}'. URLs attempted:\n{attempted}"
+    )
 
 
 def run_geoscraper(target_zipcodes: set[str] | None, brand_filter: set[str] | None, *,
@@ -95,56 +180,56 @@ def run_geoscraper(target_zipcodes: set[str] | None, brand_filter: set[str] | No
             continue
 
         print(f"\n📂 [{spider_count}/{total_spiders}] {brand_enum} → {spider_name}")
-        url = f"https://data.alltheplaces.xyz/runs/latest/output/{spider_name}.geojson"
-        print(f"   URL: {url}")
 
         try:
             session = create_retry_session(retries=3, backoff_factor=2)
-            with session.get(url, timeout=90) as r:
-                r.raise_for_status()
-                features = ijson.items(io.BytesIO(r.content), "features.item")
-                store_count = 0
+            resolved_spider, resolved_url, features = fetch_features_with_fallback(session, spider_name, timeout=90)
+            print(f"   URL: {resolved_url}")
+            if resolved_spider != spider_name:
+                print(f"   ℹ️  Using alias spider '{resolved_spider}' for '{spider_name}'")
 
-                for feature in features:
-                    # Parse the feature into a store record
-                    store_record = parse_store_from_feature(feature, brand_enum)
+            store_count = 0
+            for feature in features:
+                # Parse the feature into a store record
+                store_record = parse_store_from_feature(feature, brand_enum)
 
-                    # Skip if parsing failed (no name, zip, or geometry)
-                    if not store_record:
-                        stats["no_geometry"] += 1
-                        continue
+                # Skip if parsing failed (no name, zip, or geometry)
+                if not store_record:
+                    stats["no_geometry"] += 1
+                    continue
 
-                    zip_code = store_record["zip_code"]
+                zip_code = store_record["zip_code"]
 
-                    store_key = build_store_key(brand_enum, store_record["name"], zip_code)
-                    if store_key in existing_stores:
-                        stats["duplicates_skipped"] += 1
-                        continue
+                store_key = build_store_key(brand_enum, store_record["name"], zip_code)
+                if store_key in existing_stores:
+                    stats["duplicates_skipped"] += 1
+                    continue
 
-                    # If we don't have a street address, only insert one per brand+ZIP to satisfy the partial unique index.
-                    street_address = store_record["address"]
-                    null_address_pair = (brand_enum, zip_code)
-                    if not street_address and null_address_pair in existing_null_address_pairs:
-                        stats["duplicates_skipped"] += 1
-                        continue
+                # If we don't have a street address, only insert one per brand+ZIP to satisfy the partial unique index.
+                street_address = store_record["address"]
+                null_address_pair = (brand_enum, zip_code)
+                if not street_address and null_address_pair in existing_null_address_pairs:
+                    stats["duplicates_skipped"] += 1
+                    continue
 
-                    if not street_address:
-                        existing_null_address_pairs.add(null_address_pair)
+                if not street_address:
+                    existing_null_address_pairs.add(null_address_pair)
 
-                    stores_to_insert.append(store_record)
-                    existing_stores.add(store_key)
-                    store_count += 1
+                stores_to_insert.append(store_record)
+                existing_stores.add(store_key)
+                store_count += 1
 
-                    if len(stores_to_insert) >= MAX_BATCH_SIZE:
-                        insert_store_batch(supabase, stores_to_insert, zips_with_stores, stats, dry_run)
-                        stores_to_insert = []
+                if len(stores_to_insert) >= MAX_BATCH_SIZE:
+                    insert_store_batch(supabase, stores_to_insert, zips_with_stores, stats, dry_run)
+                    stores_to_insert = []
 
-                print(f"   📊 Matched {store_count} stores in target ZIPs")
+            print(f"   📊 Matched {store_count} stores in target ZIPs")
 
         except requests.exceptions.HTTPError as e:
             stats["errors"] += 1
-            print(f"   ❌ HTTP {e.response.status_code} for {spider_name}: {e}")
-            if e.response.status_code >= 500:
+            status_code = e.response.status_code if e.response is not None else "unknown"
+            print(f"   ❌ HTTP {status_code} for {spider_name}: {e}")
+            if isinstance(status_code, int) and status_code >= 500:
                 print(f"   ⏳ Waiting {DELAY_BETWEEN_SPIDERS}s (server error)")
                 time.sleep(DELAY_BETWEEN_SPIDERS)
         except requests.exceptions.RequestException as e:
