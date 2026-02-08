@@ -234,7 +234,10 @@ jobs:
 
       - name: Install dependencies
         timeout-minutes: 15
-        run: npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps --prefix scripts
+
+      - name: Expose scripts dependencies to shared imports
+        run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
 
       - name: Scrape ${{ matrix.store }}
         timeout-minutes: 42

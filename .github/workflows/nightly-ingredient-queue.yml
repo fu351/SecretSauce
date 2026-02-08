@@ -121,7 +121,10 @@ jobs:
           cache-dependency-path: scripts/package-lock.json
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps --prefix scripts
+
+      - name: Expose scripts dependencies to shared imports
+        run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
 
       - name: Queue Summary (Before)
         env:
@@ -171,7 +174,7 @@ jobs:
             resolver_name="${QUEUE_RESOLVER_NAME_BASE}-b${batch}"
             echo "=== Queue Batch ${batch}/${max_batches} (resolver=${resolver_name}) ==="
 
-            QUEUE_RESOLVER_NAME="$resolver_name" QUEUE_MAX_CYCLES="1" npm run resolve-ingredient-match-queue
+            QUEUE_RESOLVER_NAME="$resolver_name" QUEUE_MAX_CYCLES="1" npm --prefix scripts run resolve-ingredient-match-queue
 
             PENDING_RESULT=$(curl -sf \
               "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status&status=eq.pending&limit=10000" \

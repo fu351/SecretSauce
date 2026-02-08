@@ -7,8 +7,13 @@
     "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts"
   },
   "dependencies": {
+    "@google/genai": "latest",
+    "@sparticuz/chromium": "latest",
     "@supabase/supabase-js": "latest",
     "axios": "latest",
+    "dotenv": "latest",
+    "he": "latest",
+    "playwright-core": "latest",
     "tsx": "^4.21.0"
   }
 }
