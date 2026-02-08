@@ -9,12 +9,19 @@
  * - Inserts results through fn_bulk_insert_ingredient_history RPC
  */
 
-const path = require('path')
-const { createClient } = require('@supabase/supabase-js')
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
+import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const require = createRequire(import.meta.url)
 const scrapers = require('../lib/scrapers')
 
-require('dotenv').config({ path: path.join(__dirname, '../.env.local') })
-require('dotenv').config({ path: path.join(__dirname, '../.env') })
+dotenv.config({ path: path.join(__dirname, '../.env.local') })
+dotenv.config({ path: path.join(__dirname, '../.env') })
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
