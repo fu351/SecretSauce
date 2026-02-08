@@ -46,6 +46,7 @@ export default function ShoppingPage() {
     standardizedIngredientId?: string | null;
     groceryStoreId?: string | null;
   } | null>(null)
+  const isDev = process.env.NODE_ENV !== "production"
   
   const {
     items: shoppingList,
@@ -126,12 +127,12 @@ export default function ShoppingPage() {
     await addRecipeToCart(id, servings)
   }
 
-  const handleCompareClick = async () => {
+  const handleCompareClick = async (skipPricingGaps: boolean = false) => {
     if (shoppingList.length === 0) return
     // Save all pending changes before showing comparison
     await saveChanges()
     setShowComparison(true)
-    await performMassSearch()
+    await performMassSearch({ skipPricingGaps })
     // Scroll to comparison section after a brief delay to ensure it's rendered
     setTimeout(() => {
       document.querySelector("[data-comparison]")?.scrollIntoView({ behavior: "smooth" })
@@ -264,7 +265,7 @@ export default function ShoppingPage() {
 
                 <div className="flex items-center gap-2">
                   <Button
-                    onClick={handleCompareClick}
+                    onClick={() => handleCompareClick()}
                     disabled={shoppingList.length === 0 || comparisonLoading}
                     className={styles.buttonClass}
                     data-tutorial="store-compare"
@@ -275,6 +276,15 @@ export default function ShoppingPage() {
                       <> Compare Prices <ArrowRight className="ml-2 h-4 w-4" /> </>
                     )}
                   </Button>
+                  {isDev && (
+                    <Button
+                      onClick={() => handleCompareClick(true)}
+                      disabled={shoppingList.length === 0 || comparisonLoading}
+                      className={styles.buttonOutlineClass}
+                    >
+                      Dev Compare (No Gaps)
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
 

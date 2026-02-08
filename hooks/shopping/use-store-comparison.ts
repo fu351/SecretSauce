@@ -10,6 +10,17 @@ import { normalizeZipCode } from "@/lib/utils/zip"
 import { type StoreMetadataMap, type StoreMetadata } from "@/lib/utils/store-metadata"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 
+function normalizeShoppingItemId(value: unknown): string {
+  if (value === null || value === undefined) return ""
+  return String(value).trim()
+}
+
+function normalizeUnitValue(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const normalized = value.trim().toLowerCase()
+  return normalized.length > 0 ? normalized : null
+}
+
 async function fetchUserStoreMetadata(
   userId: string | undefined,
   fallbackZip: string | undefined
@@ -131,6 +142,10 @@ async function hydratePricingGaps(
   return { inserted: count }
 }
 
+type PerformMassSearchOptions = {
+  skipPricingGaps?: boolean
+}
+
 export function useStoreComparison(
   shoppingList: ShoppingListItem[],
   zipCode: string,
@@ -148,10 +163,14 @@ export function useStoreComparison(
 
   const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[], storeMetadata: StoreMetadataMap): StoreComparison[] => {
     const storeMap = new Map<string, StoreComparison>()
-    const itemsById = new Map(shoppingList.map(item => [item.id, item]))
+    const itemsById = new Map(shoppingList.map(item => [normalizeShoppingItemId(item.id), item]))
 
     pricingData.forEach((entry: any) => {
-      const itemIds: string[] = entry?.item_ids ?? []
+      const itemIds = Array.isArray(entry?.item_ids)
+        ? entry.item_ids
+            .map((itemId: unknown) => normalizeShoppingItemId(itemId))
+            .filter((itemId: string) => itemId.length > 0)
+        : []
       const offers: any[] = entry?.offers ?? []
       const representativeItem = itemsById.get(itemIds[0] || "")
       const fallbackName = representativeItem?.name || "Item"
@@ -179,11 +198,19 @@ export function useStoreComparison(
         const requestedUnit = entry?.requested_unit ?? null
         const totalPrice = offer?.total_price != null ? Number(offer.total_price) : 0
         const distance = typeof offer?.distance === "number" ? offer.distance : undefined
-        const packagesToBuy =
+        const productUnit = offer?.product_unit ?? null
+        const conversionError = Boolean(offer?.conversion_error)
+        const requestedUnitNormalized = normalizeUnitValue(requestedUnit)
+        const productUnitNormalized = normalizeUnitValue(productUnit)
+        const packagesFromOffer =
           typeof offer?.packages_to_buy === "number" && offer.packages_to_buy > 0
             ? offer.packages_to_buy
-            : totalQty
-        const productUnit = offer?.product_unit ?? null
+            : undefined
+        const packagesToBuy =
+          packagesFromOffer ??
+          (!conversionError && requestedUnitNormalized && productUnitNormalized && requestedUnitNormalized === productUnitNormalized
+            ? totalQty
+            : undefined)
         const productQuantity =
           typeof offer?.product_quantity === "number" ? offer.product_quantity : undefined
         const convertedQuantity =
@@ -213,6 +240,7 @@ export function useStoreComparison(
             productQuantity,
             convertedQuantity,
             packagePrice,
+            conversionError,
           })
 
         comp.total += totalPrice
@@ -226,9 +254,9 @@ export function useStoreComparison(
       const foundItemIds = new Set<string>()
       comp.items.forEach(i => {
         const itemIds = (i as any).shoppingItemIds || [i.shoppingItemId]
-        itemIds.forEach((id: string) => foundItemIds.add(id))
+        itemIds.forEach((id: string) => foundItemIds.add(normalizeShoppingItemId(id)))
       })
-      const missingIngredients = shoppingList.filter(item => !foundItemIds.has(item.id))
+      const missingIngredients = shoppingList.filter(item => !foundItemIds.has(normalizeShoppingItemId(item.id)))
 
       // Get coordinates from store metadata (from getUserPreferredStores)
       const normalizedStore = normalizeStoreName(comp.store)
@@ -261,7 +289,7 @@ export function useStoreComparison(
   }, [shoppingList])
 
   // -- Actions --
-  const performMassSearch = useCallback(async () => {
+  const performMassSearch = useCallback(async (options?: PerformMassSearchOptions) => {
     if (!shoppingList || shoppingList.length === 0) {
       toast({ title: "Empty List", description: "Add items first.", variant: "destructive" })
       return
@@ -275,7 +303,7 @@ export function useStoreComparison(
       // ----- Fetch user preferred stores metadata via API (uses RPC with fallback) -----
       const storeMetadata = await fetchUserStoreMetadata(user?.id, resolvedZipCode)
       // ----- Fill cache gaps before pricing -----
-      if (user) {
+      if (user && !options?.skipPricingGaps) {
         const pricingGaps = await ingredientsRecentDB.getPricingGaps(user.id)
         if (pricingGaps.length > 0) {
           console.warn("[useStoreComparison] Filling pricing gaps", { gaps: pricingGaps.length })

@@ -382,6 +382,9 @@ export function StoreComparisonSection({
                 typeof item.packagesToBuy === "number" && item.packagesToBuy > 0
                   ? `Packages: ${item.packagesToBuy}`
                   : null
+              const conversionWarningText = item.conversionError
+                ? "Conversion unavailable for requested unit"
+                : null
               const detailClass = `text-[10px] leading-tight ${mutedTextClass}`
 
               return (
@@ -393,6 +396,9 @@ export function StoreComparisonSection({
                     {conversionText && <p className={detailClass}>{conversionText}</p>}
                     {packagePriceText && <p className={detailClass}>{packagePriceText}</p>}
                     {packagesText && <p className={detailClass}>{packagesText}</p>}
+                    {conversionWarningText && (
+                      <p className="text-[10px] leading-tight text-amber-500">{conversionWarningText}</p>
+                    )}
                   </div>
                 </div>
               )

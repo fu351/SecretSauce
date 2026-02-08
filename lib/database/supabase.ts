@@ -1050,7 +1050,7 @@ export type Database = {
           standardized_ingredient_id: string
           total_amount: number
           requested_unit: string | null
-          item_ids: string[]
+          item_ids: Array<string | number>
           offers: {
             store: string
             store_id?: string | null
@@ -1067,6 +1067,7 @@ export type Database = {
             product_quantity?: number | null
             converted_quantity?: number | null
             packages_to_buy?: number | null
+            conversion_error?: boolean | null
           }[]
         }[]
       }
