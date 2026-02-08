@@ -14,6 +14,14 @@ on:
           - execute
           - dry-run
         default: execute
+      skip_purge:
+        description: "Skip purge step (manual runs only)"
+        required: false
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
       stores_csv:
         description: "Comma-separated stores (blank = all)"
         required: false
@@ -119,6 +127,7 @@ on:
 jobs:
   purge:
     name: Daily Purge
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.skip_purge != 'true' }}
     uses: ./.github/workflows/daily-purge.yml
     secrets: inherit
     with:
@@ -127,6 +136,7 @@ jobs:
   scraper:
     name: Daily Scraper Matrix
     needs: purge
+    if: ${{ always() && (needs.purge.result == 'success' || needs.purge.result == 'skipped') }}
     uses: ./.github/workflows/daily-scraper-matrix.yml
     secrets: inherit
     with:
