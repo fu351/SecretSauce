@@ -315,9 +315,13 @@ jobs:
       - name: Run ANALYZE
         timeout-minutes: 6
         env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
+          DB_URL: ${{ secrets.SUPABASE_URL }}
         run: |
           set -euo pipefail
+          if [ -z "${DB_URL:-}" ] || ! [[ "$DB_URL" =~ ^postgres(ql)?:// ]]; then
+            echo "❌ SUPABASE_URL is missing or not a Postgres connection string."
+            exit 1
+          fi
           echo "📈 Updating database statistics..."
           psql "$DB_URL" -c "ANALYZE public.ingredients_history;"
           psql "$DB_URL" -c "ANALYZE public.ingredients_recent;"
@@ -325,9 +329,13 @@ jobs:
       - name: Verify no duplicate recent keys
         timeout-minutes: 6
         env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
+          DB_URL: ${{ secrets.SUPABASE_URL }}
         run: |
           set -euo pipefail
+          if [ -z "${DB_URL:-}" ] || ! [[ "$DB_URL" =~ ^postgres(ql)?:// ]]; then
+            echo "❌ SUPABASE_URL is missing or not a Postgres connection string."
+            exit 1
+          fi
           echo "🔎 Checking ingredients_recent for duplicate keys..."
 
           DUPLICATE_KEYS=$(psql "$DB_URL" -t -A -c "
@@ -359,10 +367,14 @@ jobs:
       - name: Verify results
         timeout-minutes: 6
         env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
+          DB_URL: ${{ secrets.SUPABASE_URL }}
           MIN_EXPECTED_ROWS: ${{ inputs.min_expected_rows }}
         run: |
           set -euo pipefail
+          if [ -z "${DB_URL:-}" ] || ! [[ "$DB_URL" =~ ^postgres(ql)?:// ]]; then
+            echo "❌ SUPABASE_URL is missing or not a Postgres connection string."
+            exit 1
+          fi
           echo "📊 Checking results..."
           COUNT=$(psql "$DB_URL" -t -A -c "SELECT COUNT(*) FROM public.ingredients_recent;")
           echo "Total rows in ingredients_recent: $COUNT"
