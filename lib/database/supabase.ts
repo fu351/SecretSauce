@@ -12,8 +12,12 @@ type Json =
 // Set to true to enable per-query [v0] logging from the Supabase client wrapper
 export let DB_DEBUG = false
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const browserSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const browserSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const serverSupabaseUrl = process.env.SUPABASE_URL || browserSupabaseUrl
+const serverSupabaseServiceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY
 
 const createMonitoredClient = (url: string, key: string, options: any) => {
   const client = createClient(url, key, options)
@@ -83,7 +87,7 @@ const createMissingEnvProxy = (message: string) => {
 }
 
 const missingEnvMessage =
-  "Supabase client is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
+  "Supabase client is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, or SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
 
 const browserClientOptions = {
   auth: {
@@ -98,16 +102,47 @@ const browserClientOptions = {
   },
 }
 
+const serverClientOptions = {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+  global: {
+    fetch: fetch.bind(globalThis),
+  },
+}
+
+const createServiceRoleServerClient = () => {
+  if (!serverSupabaseServiceKey) {
+    throw new Error("Missing Supabase service credentials. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY.")
+  }
+
+  if (!serverSupabaseUrl) {
+    throw new Error("Missing Supabase URL environment variable. Set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL.")
+  }
+
+  return createMonitoredClient(serverSupabaseUrl, serverSupabaseServiceKey, serverClientOptions)
+}
+
 export const createBrowserClient = () => {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!browserSupabaseUrl || !browserSupabaseAnonKey) {
     throw new Error(missingEnvMessage)
   }
 
-  return createMonitoredClient(supabaseUrl, supabaseAnonKey, browserClientOptions)
+  return createMonitoredClient(browserSupabaseUrl, browserSupabaseAnonKey, browserClientOptions)
 }
 
-export const supabase =
-  supabaseUrl && supabaseAnonKey ? createBrowserClient() : createMissingEnvProxy(missingEnvMessage)
+export const supabase = (() => {
+  if (browserSupabaseUrl && browserSupabaseAnonKey) {
+    return createBrowserClient()
+  }
+
+  if (typeof window === "undefined" && serverSupabaseUrl && serverSupabaseServiceKey) {
+    return createServiceRoleServerClient()
+  }
+
+  return createMissingEnvProxy(missingEnvMessage)
+})()
 
 // Server-side client for admin operations
 export const createServerClient = () => {
@@ -115,27 +150,7 @@ export const createServerClient = () => {
     throw new Error("createServerClient is server-only; do not call from the browser.")
   }
 
-  const supabaseServiceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY
-
-  if (!supabaseServiceKey) {
-    throw new Error("Missing Supabase service credentials. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY.")
-  }
-
-  if (!supabaseUrl) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.")
-  }
-
-  return createMonitoredClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-    global: {
-      fetch: fetch.bind(globalThis),
-    },
-  })
+  return createServiceRoleServerClient()
 }
 
 export type Database = {

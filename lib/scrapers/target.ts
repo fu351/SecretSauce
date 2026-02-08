@@ -1,6 +1,10 @@
-const axios = require('axios');
-const he = require('he');
-const { createScraperLogger } = require('./logger');
+import axios from 'axios';
+import he from 'he';
+import { createScraperLogger } from './logger';
+
+// Database module - will be lazy loaded when needed
+let groceryStoresDB: any = null;
+type StoreWithDistance = any;
 
 // Environment variables for configuration
 const TARGET_TIMEOUT_MS = Number(process.env.TARGET_TIMEOUT_MS || 10000);
@@ -15,7 +19,7 @@ const TARGET_REQUESTS_PER_SECOND = Number(process.env.TARGET_REQUESTS_PER_SECOND
 const TARGET_MIN_REQUEST_INTERVAL_MS = Number(process.env.TARGET_MIN_REQUEST_INTERVAL_MS || 500);
 const TARGET_ENABLE_JITTER = process.env.TARGET_ENABLE_JITTER !== 'false'; // Enabled by default
 
-function targetDebug(...args) {
+function targetDebug(...args: any[]): void {
     if (TARGET_DEBUG) log.debug(...args);
 }
 
@@ -81,15 +85,25 @@ async function enforceRateLimit() {
 }
 
 // Utility function to handle timeouts
-const withTimeout = (promise, ms) => {
-    const timeout = new Promise((_, reject) =>
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+    const timeout = new Promise<T>((_, reject) =>
         setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), ms)
     );
     return Promise.race([promise, timeout]);
 };
 
 // Utility function for exponential backoff retry
-async function withRetry(fn, options = {}) {
+async function withRetry<T>(
+    fn: (timeout: number, attempt: number) => Promise<T>,
+    options: {
+        maxRetries?: number;
+        baseDelay?: number;
+        maxDelay?: number;
+        timeoutMultiplier?: number;
+        initialTimeout?: number;
+        retryOn404?: boolean;
+    } = {}
+): Promise<T> {
     const {
         maxRetries = TARGET_MAX_RETRIES,
         baseDelay = TARGET_RETRY_DELAY_MS,
@@ -112,7 +126,7 @@ async function withRetry(fn, options = {}) {
             targetDebug(`[target] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
 
             return await fn(currentTimeout, attempt);
-        } catch (error) {
+        } catch (error: any) {
             lastError = error;
 
             // Check if we should skip retrying based on error type
@@ -151,17 +165,17 @@ async function withRetry(fn, options = {}) {
 }
 
 // Normalize keyword for consistent cache keys
-function normalizeKeyword(keyword) {
+function normalizeKeyword(keyword: string): string {
     return String(keyword || "").trim().toLowerCase();
 }
 
 // Build cache key from keyword and zipCode
-function buildCacheKey(keyword, zipCode) {
+function buildCacheKey(keyword: string, zipCode: string): string {
     return `${normalizeKeyword(keyword)}::${String(zipCode || "").trim()}`;
 }
 
 // Get cached result if available and not expired
-function getCachedResult(cacheKey) {
+function getCachedResult(cacheKey: string): any[] | null {
     const cached = targetResultCache.get(cacheKey);
     if (!cached) return null;
 
@@ -177,7 +191,7 @@ function getCachedResult(cacheKey) {
 }
 
 // Store result in cache
-function setCachedResult(cacheKey, results) {
+function setCachedResult(cacheKey: string, results: any[]): void {
     targetResultCache.set(cacheKey, {
         fetchedAt: Date.now(),
         results,
@@ -185,14 +199,142 @@ function setCachedResult(cacheKey, results) {
     targetDebug(`[target] Cached ${results.length} results for key: ${cacheKey}`);
 }
 
-async function getNearestStore(zipCode) {
-    // Check cache first to avoid redundant API calls
-    if (storeCache.has(zipCode)) {
-        const cachedStore = storeCache.get(zipCode);
-        targetDebug(`[target] Using cached store ${cachedStore.id} for ZIP ${zipCode}`);
+/**
+ * Get nearest Target store using geospatial database
+ * Supports lat/lng coordinates or ZIP code lookup
+ */
+async function getNearestStore(
+    location: string | { lat: number; lng: number },
+    radiusMiles: number = 20
+): Promise<{
+    id: string;
+    name: string;
+    address: { line1: string; city: string; state: string; postalCode: string };
+    fullAddress: string;
+    facetedValue?: string;
+    metadata?: any;
+    distance_miles?: number;
+} | null> {
+    const cacheKey = typeof location === 'string'
+        ? location
+        : `${location.lat},${location.lng}`;
+
+    // Check cache first
+    if (storeCache.has(cacheKey)) {
+        const cachedStore = storeCache.get(cacheKey);
+        targetDebug(`[target] Using cached store ${cachedStore.id} for location ${cacheKey}`);
         return cachedStore;
     }
 
+    try {
+        // Lazy load database module if not already loaded
+        if (!groceryStoresDB) {
+            try {
+                const dbModule = await import('../database/grocery-stores-db.js');
+                groceryStoresDB = dbModule.groceryStoresDB;
+                targetDebug('[target] Database module loaded successfully');
+            } catch (error: any) {
+                targetDebug(`[target] Database module not available: ${error.message}`);
+                // Fall back to API for all requests
+                if (typeof location === 'string') {
+                    return await getNearestStoreFromTargetAPI(location);
+                }
+                return null;
+            }
+        }
+
+        let store: StoreWithDistance | null = null;
+
+        // Case 1: Lat/Lng provided - use spatial query
+        if (typeof location === 'object' && 'lat' in location && 'lng' in location) {
+            targetDebug(`[target] Finding nearest store using coordinates: ${location.lat}, ${location.lng}`);
+            store = await groceryStoresDB.findClosest(
+                location.lat,
+                location.lng,
+                'target',
+                radiusMiles
+            );
+        }
+        // Case 2: ZIP code provided - find by ZIP or nearby
+        else if (typeof location === 'string') {
+            const zipCode = location;
+            targetDebug(`[target] Finding nearest store using ZIP code: ${zipCode}`);
+
+            // Try exact ZIP match first
+            const storesByZip = await groceryStoresDB.findByStoreAndZip('target', zipCode);
+            if (storesByZip.length > 0) {
+                // Convert to StoreWithDistance format (distance = 0 for exact match)
+                const exactMatch = storesByZip[0];
+                store = {
+                    ...exactMatch,
+                    lat: 0, // These would need geocoding in production
+                    lng: 0,
+                    distance_meters: 0,
+                    distance_miles: 0,
+                } as StoreWithDistance;
+            } else {
+                // No exact match - try spatial search using ZIP code as location
+                // This requires geocoding the ZIP to lat/lng first
+                // For now, we'll fall back to Target's API
+                targetDebug(`[target] No exact ZIP match, falling back to Target API for ZIP ${zipCode}`);
+                return await getNearestStoreFromTargetAPI(zipCode);
+            }
+        }
+
+        if (!store) {
+            log.warn(`[target] No Target stores found in database within ${radiusMiles} miles`);
+            return null;
+        }
+
+        // Extract store information
+        const storeId = store.metadata?.targetStoreId || store.id;
+        const facetedValue = store.metadata?.facetedValue;
+
+        const storeInfo = {
+            id: storeId,
+            name: store.name,
+            address: {
+                line1: store.address || '',
+                city: '',
+                state: '',
+                postalCode: store.zip_code,
+            },
+            fullAddress: store.address || '',
+            facetedValue,
+            metadata: store.metadata,
+            distance_miles: store.distance_miles,
+        };
+
+        targetDebug(`[target] Found store from database:`, {
+            id: storeId,
+            name: store.name,
+            facetedValue,
+            distance_miles: store.distance_miles,
+        });
+
+        // Cache the result
+        storeCache.set(cacheKey, storeInfo);
+
+        return storeInfo;
+
+    } catch (error: any) {
+        log.error(`[target] Error querying store database: ${error.message}`);
+
+        // Fallback to Target API if database query fails
+        if (typeof location === 'string') {
+            targetDebug(`[target] Falling back to Target API for ZIP ${location}`);
+            return await getNearestStoreFromTargetAPI(location);
+        }
+
+        return null;
+    }
+}
+
+/**
+ * Fallback function to get store from Target's API
+ * Used when database query fails or no stores found
+ */
+async function getNearestStoreFromTargetAPI(zipCode: string) {
     const baseUrl = "https://redsky.target.com/redsky_aggregations/v1/web/nearby_stores_v1";
     const params = {
         key: "9f36aeafbe60771e321a7cc95a78140772ab3e96",
@@ -212,8 +354,8 @@ async function getNearestStore(zipCode) {
     };
 
     try {
-        const response = await withRetry(async (currentTimeout, attempt) => {
-            targetDebug(`[target] Fetching nearest store for ZIP ${zipCode} (attempt ${attempt + 1})`);
+        const response = await withRetry(async (currentTimeout: number, attempt: number) => {
+            targetDebug(`[target] Fetching nearest store from API for ZIP ${zipCode} (attempt ${attempt + 1})`);
 
             // Enforce rate limiting before making request
             await enforceRateLimit();
@@ -248,10 +390,10 @@ async function getNearestStore(zipCode) {
         const state = address?.region || address?.state || address?.state_code || "";
         const postalCode = address?.postal_code || address?.zip || address?.zipCode || zipCode;
 
-        // Build full address string for geocoding
+        // Build full address string
         const fullAddress = [line1, city, state, postalCode].filter(Boolean).join(", ");
 
-        targetDebug(`[target] Successfully found store ${storeId} for ZIP ${zipCode}`);
+        targetDebug(`[target] Successfully found store ${storeId} from API for ZIP ${zipCode}`);
 
         const storeInfo = {
             id: storeId,
@@ -263,31 +405,29 @@ async function getNearestStore(zipCode) {
                 postalCode,
             },
             fullAddress,
-            raw: store,
         };
 
-        // Cache the result for future requests
+        // Cache the result
         storeCache.set(zipCode, storeInfo);
-        targetDebug(`[target] Cached store ${storeId} for ZIP ${zipCode}`);
 
         return storeInfo;
 
-    } catch (error) {
+    } catch (error: any) {
         if (error.response) {
-            log.error(`[target] Error fetching store ID (HTTP ${error.response.status}) for ZIP ${zipCode}: ${error.message}`);
+            log.error(`[target] Error fetching store ID from API (HTTP ${error.response.status}) for ZIP ${zipCode}: ${error.message}`);
             if (TARGET_DEBUG && error.response.data) {
                 log.error(`[target] Store response excerpt:`, JSON.stringify(error.response.data).substring(0, 500));
             }
         } else if (error.request) {
-            log.error(`[target] Error fetching store ID (no response) for ZIP ${zipCode}: ${error.message}`);
+            log.error(`[target] Error fetching store ID from API (no response) for ZIP ${zipCode}: ${error.message}`);
         } else {
-            log.error(`[target] Error fetching store ID for ZIP ${zipCode}: ${error.message}`);
+            log.error(`[target] Error fetching store ID from API for ZIP ${zipCode}: ${error.message}`);
         }
         return null;
     }
 }
 
-function formatTargetStoreLocation(storeInfo, fallbackZip) {
+function formatTargetStoreLocation(storeInfo: any, fallbackZip?: string): string {
     if (!storeInfo) {
         return fallbackZip ? `Target (${fallbackZip})` : "Target Grocery";
     }
@@ -311,9 +451,14 @@ function formatTargetStoreLocation(storeInfo, fallbackZip) {
 }
 
 // Function to fetch products from Target API
-async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "price") {
+async function getTargetProducts(
+    keyword: string,
+    storeMetadata?: any,
+    zipCode?: string,
+    sortBy: string = "price"
+): Promise<any[]> {
     // Build cache key for result caching
-    const cacheKey = buildCacheKey(keyword, zipCode);
+    const cacheKey = buildCacheKey(keyword, zipCode || '');
 
     // Check cache first
     const cachedResult = getCachedResult(cacheKey);
@@ -356,30 +501,46 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                 return [];
             }
 
-            targetDebug("[target] Store resolved", { storeId, zipCode, storeName: resolvedStoreInfo?.name, fullAddress: resolvedStoreInfo?.fullAddress });
+            // Use facetedValue if available for more accurate location filtering
+            const facetedValue = resolvedStoreInfo?.facetedValue;
+
+            targetDebug("[target] Store resolved", {
+                storeId,
+                zipCode,
+                storeName: resolvedStoreInfo?.name,
+                fullAddress: resolvedStoreInfo?.fullAddress,
+                facetedValue,
+                hasFacetedValue: !!facetedValue
+            });
 
             const baseUrl = "https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2";
-            const params = {
-        key: "9f36aeafbe60771e321a7cc95a78140772ab3e96",
-        channel: "WEB",
-        count: 10,
-        default_purchasability_filter: "true",
-        include_dmc_dmr: "true",
-        include_sponsored: "true",
-        include_review_summarization: "false",
-        keyword,
-        new_search: "true",
-        offset: 0,
-        page: `/s/${encodeURIComponent(keyword)}`,
-        platform: "desktop",
-        pricing_store_id: storeId,
-        spellcheck: "true",
-        store_ids: storeId,
-        useragent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-        visitor_id: "019669F54C3102019409F15469E30DAF",
-        zip: zipCode,
+            const params: any = {
+                key: "9f36aeafbe60771e321a7cc95a78140772ab3e96",
+                channel: "WEB",
+                count: 10,
+                default_purchasability_filter: "true",
+                include_dmc_dmr: "true",
+                include_sponsored: "true",
+                include_review_summarization: "false",
+                keyword,
+                new_search: "true",
+                offset: 0,
+                page: `/s/${encodeURIComponent(keyword)}`,
+                platform: "desktop",
+                pricing_store_id: storeId,
+                spellcheck: "true",
+                store_ids: storeId,
+                useragent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+                visitor_id: "019669F54C3102019409F15469E30DAF",
+                zip: zipCode,
                 is_bot: "false",
             };
+
+            // Add facetedValue if available (provides more accurate store-specific results)
+            if (facetedValue) {
+                params.facetedValue = facetedValue;
+                targetDebug(`[target] Using facetedValue: ${facetedValue} for enhanced location filtering`);
+            }
 
             const headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
@@ -498,9 +659,12 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
             targetDebug(`[target] Successfully fetched ${filteredProducts.length} products with prices`);
             return filteredProducts;
 
-        } catch (error) {
+        } catch (error: any) {
+            const errorStoreId = (storeMetadata as any)?.id || 'unknown';
+            const errorZip = zipCode || 'unknown';
+
             if (error.response) {
-                log.error(`[target] HTTP ${error.response.status} fetching "${keyword}" at store ${storeId} (${zipCode}): ${error.message}`);
+                log.error(`[target] HTTP ${error.response.status} fetching "${keyword}" at store ${errorStoreId} (${errorZip}): ${error.message}`);
 
                 // Log response data for debugging
                 if (TARGET_DEBUG && error.response.data) {
@@ -510,11 +674,11 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                     log.error(`[target] Response excerpt:`, dataStr.substring(0, 500));
                 }
             } else if (error.request) {
-                log.error(`[target] No response from Target API for "${keyword}" at store ${storeId} (${zipCode}): ${error.message}`);
+                log.error(`[target] No response from Target API for "${keyword}" at store ${errorStoreId} (${errorZip}): ${error.message}`);
             } else if (error.message?.includes('timeout')) {
-                log.error(`[target] Request timed out after ${TARGET_TIMEOUT_MS}ms for "${keyword}" at store ${storeId} (${zipCode}): ${error.message}`);
+                log.error(`[target] Request timed out after ${TARGET_TIMEOUT_MS}ms for "${keyword}" at store ${errorStoreId} (${errorZip}): ${error.message}`);
             } else {
-                log.error(`[target] Unexpected error fetching "${keyword}" at store ${storeId} (${zipCode}): ${error.message}`);
+                log.error(`[target] Unexpected error fetching "${keyword}" at store ${errorStoreId} (${errorZip}): ${error.message}`);
             }
 
             return [];
@@ -566,7 +730,12 @@ async function main() {
 }
 
 // Export for use as a module
-module.exports = { getTargetProducts };
+export { getTargetProducts, getNearestStore, getNearestStoreFromTargetAPI };
+
+// CommonJS compatibility for existing code
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { getTargetProducts, getNearestStore, getNearestStoreFromTargetAPI };
+}
 
 // Run if called directly
 if (require.main === module) {
