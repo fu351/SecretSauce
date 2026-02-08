@@ -84,9 +84,7 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
         className={clsx(
           "fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 cursor-pointer",
           positionClass,
-          isDark
-            ? "bg-blue-600 text-white hover:bg-blue-700"
-            : "bg-blue-500 text-white hover:bg-blue-600"
+          "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
         )}
         title="Send us feedback"
       >

@@ -15,6 +15,8 @@ import type { Recipe } from '@/lib/types'
 
 interface UseMealPlannerDragDropParams {
   mealPlanner: any // ReturnType<typeof useMealPlanner>
+  /** Called after adding a recipe from the sidebar; return the next empty slot to highlight with the gold border. */
+  getNextEmptySlotAfter?: (mealType: string, date: string) => { mealType: string; date: string } | null
 }
 
 interface DragData {
@@ -48,6 +50,12 @@ interface UseMealPlannerDragDropReturn {
   // Current drop target for visual feedback
   activeDropTarget: { mealType: string; date: string } | null
 
+  /** Call after adding a recipe by click (not drag) to highlight the next empty slot. */
+  highlightNextEmptySlotAfter: (mealType: string, date: string) => void
+
+  /** Set the highlighted slot (e.g. when user clicks a slot to select it). */
+  setHighlightSlot: (mealType: string, date: string) => void
+
   // Sensors configuration
   sensors: ReturnType<typeof useSensors>
 
@@ -60,6 +68,7 @@ interface UseMealPlannerDragDropReturn {
 
 export function useMealPlannerDragDrop({
   mealPlanner,
+  getNextEmptySlotAfter,
 }: UseMealPlannerDragDropParams): UseMealPlannerDragDropReturn {
   // Track active drag and drop state
   const [activeDragData, setActiveDragData] = useState<DragData | null>(null)
@@ -136,8 +145,11 @@ export function useMealPlannerDragDrop({
 
       try {
         if (source === 'modal') {
-          // Add from modal to slot
+          // Add from modal/sidebar to slot
           await mealPlanner.addToMealPlan(recipe, targetMealType, targetDate)
+          // Highlight the next available slot so the next drag goes there instead of replacing this one
+          const next = getNextEmptySlotAfter?.(targetMealType, targetDate)
+          if (next) setActiveDropTarget(next)
         } else if (source === 'slot') {
           // Move or swap between slots
           if (sourceMealType === targetMealType && sourceDate === targetDate) {
@@ -183,10 +195,7 @@ export function useMealPlannerDragDrop({
                 throw e
               }
 
-              toast({
-                title: 'Recipes swapped',
-                description: 'The recipes have been swapped successfully.',
-              })
+              console.log('[MealPlanner] Recipes swapped successfully')
             } catch (swapError) {
               console.error('Failed to swap recipes:', swapError)
               toast({
@@ -194,8 +203,6 @@ export function useMealPlannerDragDrop({
                 description: 'Failed to swap recipes. Restoring original state.',
                 variant: 'destructive',
               })
-            } finally {
-              // Always reload to sync with the database state
               await mealPlanner.reload()
             }
           } else {
@@ -217,8 +224,6 @@ export function useMealPlannerDragDrop({
                 description: 'Failed to move meal. Please try again.',
                 variant: 'destructive',
               })
-            } finally {
-              // Always reload to sync with the database state
               await mealPlanner.reload()
             }
           }
@@ -236,7 +241,7 @@ export function useMealPlannerDragDrop({
         setActiveDragData(null)
       }
     },
-    [mealPlanner, toast]
+    [mealPlanner, toast, getNextEmptySlotAfter]
   )
 
   // Generate draggable properties
@@ -264,11 +269,22 @@ export function useMealPlannerDragDrop({
     },
   }), [])
 
+  const highlightNextEmptySlotAfter = useCallback((mealType: string, date: string) => {
+    const next = getNextEmptySlotAfter?.(mealType, date)
+    if (next) setActiveDropTarget(next)
+  }, [getNextEmptySlotAfter])
+
+  const setHighlightSlot = useCallback((mealType: string, date: string) => {
+    setActiveDropTarget({ mealType, date })
+  }, [])
+
   return {
     activeDragData,
     getDraggableProps,
     getDroppableProps,
     activeDropTarget,
+    highlightNextEmptySlotAfter,
+    setHighlightSlot,
     sensors,
     handleDragStart,
     handleDragOver,

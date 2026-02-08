@@ -36,16 +36,18 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   console.log("--- LAYOUT STARTING ---")
+  const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <head>
-        {/* Google Maps API */}
-        <Script
-          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-          strategy="lazyOnload"
-        />
-      </head>
       <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
+        {/* Google Maps API - in body so layout chunk load isn't blocked */}
+        {googleMapsKey && (
+          <Script
+            src={`https://maps.googleapis.com/maps/api/js?key=${googleMapsKey}&libraries=places`}
+            strategy="lazyOnload"
+          />
+        )}
         <ErrorBoundary>
           <ThemeProvider>
             <QueryProvider>
