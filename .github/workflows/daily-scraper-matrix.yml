@@ -240,7 +240,7 @@ jobs:
         run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
 
       - name: Scrape ${{ matrix.store }}
-        timeout-minutes: 42
+        timeout-minutes: 120
         env:
           STORE_BRAND: ${{ matrix.store }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
