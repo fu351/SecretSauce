@@ -48,3 +48,4 @@ app/api/dev/seed-recipes/route.ts
 
 *__pycache__
 lib/scrapers/test-target-rate-limit.js
+lib/scrapers/test-walmart-rate-limit.js
