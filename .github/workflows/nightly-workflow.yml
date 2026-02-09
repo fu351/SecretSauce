@@ -24,6 +24,26 @@ on:
         required: false
         type: string
         default: ""
+      scraper_state:
+        description: "2-letter state code filter (e.g., CA, AZ)"
+        required: false
+        type: string
+        default: "CA"
+      scraper_cities_csv:
+        description: "Comma-separated Title Case cities (blank = all)"
+        required: false
+        type: string
+        default: "San Francisco,Oakland,Berkeley"
+      scraper_zip_min:
+        description: "Minimum ZIP filter (blank = no lower bound)"
+        required: false
+        type: string
+        default: ""
+      scraper_zip_max:
+        description: "Maximum ZIP filter (blank = no upper bound)"
+        required: false
+        type: string
+        default: ""
       ingredient_limit:
         description: "Limit ingredients scraped (0 = all)"
         required: false
@@ -143,6 +163,10 @@ jobs:
     secrets: inherit
     with:
       stores_csv: ${{ github.event.inputs.stores_csv || '' }}
+      scraper_state: ${{ github.event.inputs.scraper_state || 'CA' }}
+      scraper_cities_csv: ${{ github.event.inputs.scraper_cities_csv || 'San Francisco,Oakland,Berkeley' }}
+      scraper_zip_min: ${{ github.event.inputs.scraper_zip_min || '' }}
+      scraper_zip_max: ${{ github.event.inputs.scraper_zip_max || '' }}
       ingredient_limit: ${{ github.event.inputs.ingredient_limit || '0' }}
       store_limit: ${{ github.event.inputs.store_limit || '0' }}
       store_concurrency: ${{ github.event.inputs.store_concurrency || '20' }}

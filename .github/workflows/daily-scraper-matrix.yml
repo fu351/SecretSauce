@@ -8,6 +8,26 @@ on:
         required: false
         type: string
         default: ""
+      scraper_state:
+        description: "2-letter state code filter (e.g., CA, AZ)"
+        required: false
+        type: string
+        default: "CA"
+      scraper_cities_csv:
+        description: "Comma-separated Title Case cities (blank = all)"
+        required: false
+        type: string
+        default: "San Francisco,Oakland,Berkeley"
+      scraper_zip_min:
+        description: "Minimum ZIP filter (blank = no lower bound)"
+        required: false
+        type: string
+        default: ""
+      scraper_zip_max:
+        description: "Maximum ZIP filter (blank = no upper bound)"
+        required: false
+        type: string
+        default: ""
       ingredient_limit:
         description: "Limit ingredients scraped (0 = all)"
         required: false
@@ -72,6 +92,26 @@ on:
     inputs:
       stores_csv:
         description: "Comma-separated stores (blank = all)"
+        required: false
+        type: string
+        default: ""
+      scraper_state:
+        description: "2-letter state code filter (e.g., CA, AZ)"
+        required: false
+        type: string
+        default: "CA"
+      scraper_cities_csv:
+        description: "Comma-separated Title Case cities (blank = all)"
+        required: false
+        type: string
+        default: "San Francisco,Oakland,Berkeley"
+      scraper_zip_min:
+        description: "Minimum ZIP filter (blank = no lower bound)"
+        required: false
+        type: string
+        default: ""
+      scraper_zip_max:
+        description: "Maximum ZIP filter (blank = no upper bound)"
         required: false
         type: string
         default: ""
@@ -161,6 +201,7 @@ jobs:
           # Whole Foods temporarily disabled.
           # Walmart temporarily disabled - hitting CAPTCHA challenges despite rate limiting, retry logic, and User-Agent rotation.
           default_stores=(target kroger aldi traderjoes andronicos meijer 99ranch)
+          allowed_stores=(aldi kroger safeway meijer target traderjoes 99ranch walmart andronicos wholefoods)
 
           if [ -z "${STORES_CSV// }" ]; then
             selected=("${default_stores[@]}")
@@ -174,7 +215,7 @@ jobs:
             for candidate in "${requested[@]}"; do
               [ -z "$candidate" ] && continue
               case "$candidate" in
-                walmart|target|kroger|aldi|traderjoes|andronicos|meijer|99ranch)
+                aldi|kroger|safeway|meijer|target|traderjoes|99ranch|walmart|andronicos|wholefoods)
                   if [ -z "${seen[$candidate]+x}" ]; then
                     selected+=("$candidate")
                     seen[$candidate]=1
@@ -184,7 +225,7 @@ jobs:
                   ;;
                 *)
                   echo "❌ Unsupported store in stores_csv: $candidate"
-                  echo "Allowed stores: ${default_stores[*]}"
+                  echo "Allowed stores: ${allowed_stores[*]}"
                   exit 1
                   ;;
               esac
@@ -244,6 +285,10 @@ jobs:
         timeout-minutes: 120
         env:
           STORE_BRAND: ${{ matrix.store }}
+          STORE_STATE: ${{ inputs.scraper_state }}
+          STORE_CITIES_CSV: ${{ inputs.scraper_cities_csv }}
+          STORE_ZIP_MIN: ${{ inputs.scraper_zip_min }}
+          STORE_ZIP_MAX: ${{ inputs.scraper_zip_max }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -286,6 +331,15 @@ jobs:
           if [ "$TRADERJOES_BATCH_CONCURRENCY" -lt 1 ]; then TRADERJOES_BATCH_CONCURRENCY=1; fi
           if [ "$TRADERJOES_BATCH_CONCURRENCY" -gt 10 ]; then TRADERJOES_BATCH_CONCURRENCY=10; fi
 
+          if [ -n "${STORE_STATE:-}" ]; then
+            STORE_STATE=$(echo "$STORE_STATE" | tr '[:lower:]' '[:upper:]' | tr -d ' ')
+            if ! [[ "$STORE_STATE" =~ ^[A-Z]{2}$ ]]; then
+              echo "❌ STORE_STATE must be a 2-letter abbreviation (got: $STORE_STATE)"
+              exit 1
+            fi
+            export STORE_STATE
+          fi
+
           export SCRAPER_TIMEOUT_MS
           export SCRAPER_BATCH_SIZE
           export SCRAPER_BATCH_CONCURRENCY
@@ -299,6 +353,9 @@ jobs:
           echo "   Default batch concurrency: $SCRAPER_BATCH_CONCURRENCY"
           echo "   Trader Joe's batch size: $TRADERJOES_BATCH_SIZE"
           echo "   Trader Joe's batch concurrency: $TRADERJOES_BATCH_CONCURRENCY"
+          echo "   State filter: ${STORE_STATE:-<none>}"
+          echo "   City filter: ${STORE_CITIES_CSV:-<none>}"
+          echo "   ZIP min/max: ${STORE_ZIP_MIN:-<none>} / ${STORE_ZIP_MAX:-<none>}"
 
           set +e
           timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node scripts/daily-scraper.js

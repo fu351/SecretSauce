@@ -4,7 +4,7 @@
  * Daily Ingredient Scraper (Direct RPC mode)
  *
  * - Fetches canonical ingredients from standardized_ingredients
- * - Fetches CA grocery store locations from grocery_stores
+ * - Fetches grocery store locations from grocery_stores
  * - Runs scrapers directly (no /api/batch-scraper hop)
  * - Inserts results through fn_bulk_insert_ingredient_history RPC
  */
@@ -14,6 +14,24 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
+import {
+  applyStoreRangeFilters,
+  buildStoreFilterContext,
+  emptyBatchResults,
+  formatStoreFilterSummary,
+  getIntEnv,
+  getProductName,
+  hasStoreRangeFilters,
+  mapWithConcurrency,
+  normalizeBatchResultsShape,
+  normalizeResultsShape,
+  normalizeStoreEnum,
+  normalizeZipCode,
+  pickBestResult,
+  sleep,
+  toPriceNumber,
+  truncateText,
+} from './utils/daily-scraper-utils.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -28,14 +46,9 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const STORE_BRAND = process.env.STORE_BRAND || null
 const STORE_CITY = process.env.STORE_CITY || null
 const STORE_STATE = process.env.STORE_STATE || null
-
-function getIntEnv(name, fallback, minValue = 0) {
-  const parsed = Number.parseInt(process.env[name] || '', 10)
-  if (Number.isFinite(parsed) && parsed >= minValue) {
-    return parsed
-  }
-  return fallback
-}
+const STORE_CITIES_CSV = process.env.STORE_CITIES_CSV || null
+const STORE_ZIP_MIN = process.env.STORE_ZIP_MIN || null
+const STORE_ZIP_MAX = process.env.STORE_ZIP_MAX || null
 
 const INGREDIENT_LIMIT = getIntEnv('INGREDIENT_LIMIT', 0, 0)
 const STORE_LIMIT = getIntEnv('STORE_LIMIT', 0, 0)
@@ -44,9 +57,14 @@ const INGREDIENT_DELAY_MS = getIntEnv('INGREDIENT_DELAY_MS', 1000, 0)
 const INSERT_BATCH_SIZE = getIntEnv('INSERT_BATCH_SIZE', 500, 1)
 const SCRAPER_BATCH_SIZE = getIntEnv('SCRAPER_BATCH_SIZE', 20, 1)
 const SCRAPER_BATCH_CONCURRENCY = getIntEnv('SCRAPER_BATCH_CONCURRENCY', STORE_CONCURRENCY, 1)
-const TRADERJOES_BATCH_SIZE = getIntEnv('TRADERJOES_BATCH_SIZE', 20, 1)
-const TRADERJOES_BATCH_CONCURRENCY = getIntEnv('TRADERJOES_BATCH_CONCURRENCY', 2, 1)
 const MAX_CONSECUTIVE_STORE_ERRORS = getIntEnv('MAX_CONSECUTIVE_STORE_ERRORS', 10, 0)
+const STORE_FILTER_CONTEXT = buildStoreFilterContext({
+  storeState: STORE_STATE,
+  storeCity: STORE_CITY,
+  storeCitiesCsv: STORE_CITIES_CSV,
+  storeZipMin: STORE_ZIP_MIN,
+  storeZipMax: STORE_ZIP_MAX,
+})
 
 const PAGE_SIZE = 1000
 
@@ -70,80 +88,6 @@ const STORE_BATCH_SCRAPER_MAP = {
 }
 
 let supabase = null
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-function normalizeStoreEnum(storeValue) {
-  return String(storeValue || '').trim().toLowerCase()
-}
-
-function normalizeZipCode(value) {
-  const raw = String(value || '').trim()
-  const match = raw.match(/^\d{5}/)
-  return match ? match[0] : ''
-}
-
-function truncateText(value, maxLength = 320) {
-  if (!value) return ''
-  const normalized = String(value).trim().replace(/\s+/g, ' ')
-  if (normalized.length <= maxLength) return normalized
-  return `${normalized.slice(0, maxLength - 3)}...`
-}
-
-function toPriceNumber(value) {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null
-  }
-
-  if (typeof value === 'string') {
-    const stripped = value.replace(/[^0-9.-]/g, '')
-    const parsed = Number.parseFloat(stripped)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-
-  return null
-}
-
-function normalizeResultsShape(rawResults) {
-  if (Array.isArray(rawResults)) {
-    return rawResults
-  }
-
-  if (Array.isArray(rawResults?.items)) {
-    return rawResults.items
-  }
-
-  return []
-}
-
-function pickBestResult(results) {
-  const withPrice = results
-    .map(item => ({
-      ...item,
-      _price: toPriceNumber(item?.price)
-    }))
-    .filter(item => item._price !== null && item._price >= 0)
-
-  if (withPrice.length === 0) {
-    return null
-  }
-
-  withPrice.sort((a, b) => a._price - b._price)
-  return withPrice[0]
-}
-
-function getProductName(result, fallbackIngredient) {
-  return (
-    result?.product_name ||
-    result?.title ||
-    result?.name ||
-    result?.description ||
-    fallbackIngredient ||
-    null
-  )
-}
 
 function getSupabase() {
   if (!supabase) {
@@ -218,16 +162,7 @@ async function appendBrandFailureMetadata(storeEnum, details) {
     .select('id, store_enum, zip_code')
     .eq('store_enum', storeEnum)
     .eq('is_active', true)
-    .gte('zip_code', '94000')
-    .lte('zip_code', '95000')
-
-  if (STORE_STATE) {
-    query = query.eq('state', STORE_STATE)
-  }
-
-  if (STORE_CITY) {
-    query = query.eq('city', STORE_CITY)
-  }
+  query = applyStoreRangeFilters(query, STORE_FILTER_CONTEXT)
 
   const { data, error } = await query
   if (error) {
@@ -241,9 +176,11 @@ async function appendBrandFailureMetadata(storeEnum, details) {
   }
 }
 
-async function fetchCaliforniaStores(storeBrand = null) {
+async function fetchStores(storeBrand = null) {
   console.log('📍 Fetching grocery stores for scraper...')
-  console.log('⚠️  TEMPORARY: Limited to SF Bay Area ZIP codes only (94000-95000)')
+  if (hasStoreRangeFilters(STORE_FILTER_CONTEXT)) {
+    console.log(`🔎 Store filters: ${formatStoreFilterSummary(STORE_FILTER_CONTEXT)}`)
+  }
 
   const allStores = []
   let offset = 0
@@ -254,10 +191,6 @@ async function fetchCaliforniaStores(storeBrand = null) {
       .from('grocery_stores')
       .select('id, store_enum, zip_code, address, name')
       .not('zip_code', 'is', null)
-      // TEMPORARY: SF Bay Area only (San Francisco, Oakland, Berkeley, etc.)
-      // Original CA range: .gte('zip_code', '90000').lte('zip_code', '96199')
-      .gte('zip_code', '94000')
-      .lte('zip_code', '95000')
       .eq('is_active', true)
       .order('store_enum', { ascending: true })
       .order('zip_code', { ascending: true })
@@ -267,13 +200,7 @@ async function fetchCaliforniaStores(storeBrand = null) {
       query = query.eq('store_enum', normalizedBrand)
     }
 
-    if (STORE_STATE) {
-      query = query.eq('state', STORE_STATE)
-    }
-
-    if (STORE_CITY) {
-      query = query.eq('city', STORE_CITY)
-    }
+    query = applyStoreRangeFilters(query, STORE_FILTER_CONTEXT)
 
     const { data, error } = await query
     if (error) {
@@ -342,57 +269,6 @@ async function fetchAllCanonicalIngredients() {
   return ingredients
 }
 
-async function mapWithConcurrency(items, concurrency, mapper) {
-  if (!items.length) return []
-
-  const limit = Math.max(1, Math.min(concurrency, items.length))
-  const output = new Array(items.length)
-  let cursor = 0
-
-  async function worker() {
-    while (true) {
-      const index = cursor
-      cursor += 1
-
-      if (index >= items.length) {
-        return
-      }
-
-      output[index] = await mapper(items[index], index)
-    }
-  }
-
-  const workers = Array.from({ length: limit }, () => worker())
-  await Promise.all(workers)
-  return output
-}
-
-function getStoreBatchConfig(storeEnum) {
-  if (storeEnum === 'traderjoes') {
-    return {
-      batchSize: TRADERJOES_BATCH_SIZE,
-      batchConcurrency: TRADERJOES_BATCH_CONCURRENCY,
-    }
-  }
-
-  return {
-    batchSize: SCRAPER_BATCH_SIZE,
-    batchConcurrency: SCRAPER_BATCH_CONCURRENCY,
-  }
-}
-
-function emptyBatchResults(size) {
-  return Array.from({ length: size }, () => [])
-}
-
-function normalizeBatchResultsShape(rawBatchResults, expectedLength) {
-  if (!Array.isArray(rawBatchResults)) {
-    return emptyBatchResults(expectedLength)
-  }
-
-  return Array.from({ length: expectedLength }, (_, index) => normalizeResultsShape(rawBatchResults[index]))
-}
-
 async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, batchConcurrency) {
   const nativeBatchScraper = STORE_BATCH_SCRAPER_MAP[storeEnum]
 
@@ -458,7 +334,8 @@ async function scrapeIngredientsBatched(ingredients, stores) {
     const store = stores[storeIndex]
     const storeEnum = normalizeStoreEnum(store.store_enum)
     const zipCode = normalizeZipCode(store.zip_code)
-    const { batchSize, batchConcurrency } = getStoreBatchConfig(storeEnum)
+    const batchSize = SCRAPER_BATCH_SIZE
+    const batchConcurrency = SCRAPER_BATCH_CONCURRENCY
     let consecutiveStoreErrors = 0
     let totalStoreErrors = 0
     let skippedForErrors = false
@@ -631,10 +508,10 @@ async function main() {
     process.exit(1)
   }
 
-  const stores = await fetchCaliforniaStores(STORE_BRAND)
+  const stores = await fetchStores(STORE_BRAND)
   if (!stores.length) {
     if (STORE_BRAND) {
-      console.warn(`⚠️  No California stores found for "${STORE_BRAND}", skipping job`)
+      console.warn(`⚠️  No stores found for "${STORE_BRAND}" with current filters, skipping job`)
       return
     }
 
