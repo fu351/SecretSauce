@@ -85,6 +85,13 @@ function normalizeZipCode(value) {
   return match ? match[0] : ''
 }
 
+function truncateText(value, maxLength = 320) {
+  if (!value) return ''
+  const normalized = String(value).trim().replace(/\s+/g, ' ')
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, maxLength - 3)}...`
+}
+
 function toPriceNumber(value) {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : null
@@ -144,6 +151,94 @@ function getSupabase() {
   }
 
   return supabase
+}
+
+async function appendStoreFailureMetadata(store, details) {
+  if (!store?.id) return
+
+  const nowIso = new Date().toISOString()
+  const storeEnum = normalizeStoreEnum(store.store_enum)
+  const zipCode = normalizeZipCode(store.zip_code)
+  const failureType = details.errorType || (details.skippedForErrors ? 'consecutive_errors' : 'ingredient_errors')
+  const failureStatus = details.status || (details.skippedForErrors ? 'skipped_after_errors' : 'completed_with_errors')
+  const summary = {
+    at: nowIso,
+    type: failureType,
+    error_count: details.errorCount || 0,
+    consecutive_error_count: details.consecutiveErrors || 0,
+    threshold: MAX_CONSECUTIVE_STORE_ERRORS,
+    message: truncateText(details.lastErrorMessage || 'Unknown scraper error'),
+    store_enum: storeEnum || null,
+    zip_code: zipCode || null,
+    run_id: process.env.GITHUB_RUN_ID || null,
+    run_attempt: process.env.GITHUB_RUN_ATTEMPT || null,
+    workflow: process.env.GITHUB_WORKFLOW || null,
+  }
+
+  const failedScrapePayload = {
+    store: {
+      id: store.id,
+      store_enum: storeEnum || null,
+      zip_code: zipCode || null,
+    },
+    failure: summary,
+    details: {
+      status: failureStatus,
+      error_type: failureType,
+      store_city: STORE_CITY || null,
+      store_state: STORE_STATE || null,
+      store_limit: STORE_LIMIT,
+      ingredient_limit: INGREDIENT_LIMIT,
+    },
+  }
+
+  const { error: logInsertError } = await getSupabase()
+    .from('failed_scrapes_log')
+    .insert({
+      raw_payload: failedScrapePayload,
+      error_code: failureType,
+      error_detail: summary.message,
+    })
+
+  if (logInsertError) {
+    console.error(`❌ Failed inserting failed_scrapes_log row for store ${store.id}: ${logInsertError.message}`)
+    return
+  }
+
+  console.log(`   📝 Logged failed scrape row for store ${storeEnum} (${zipCode || 'no-zip'}) id=${store.id}`)
+}
+
+async function appendBrandFailureMetadata(storeEnum, details) {
+  if (!storeEnum) return
+
+  console.warn(`⚠️ Recording fatal scraper failure logs for brand "${storeEnum}"...`)
+
+  let query = getSupabase()
+    .from('grocery_stores')
+    .select('id, store_enum, zip_code')
+    .eq('store_enum', storeEnum)
+    .eq('is_active', true)
+    .gte('zip_code', '94000')
+    .lte('zip_code', '95000')
+
+  if (STORE_STATE) {
+    query = query.eq('state', STORE_STATE)
+  }
+
+  if (STORE_CITY) {
+    query = query.eq('city', STORE_CITY)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error(`❌ Failed to fetch stores for fatal failure-log update (${storeEnum}): ${error.message}`)
+    return
+  }
+
+  const storesToMark = (data || []).slice(0, STORE_LIMIT > 0 ? STORE_LIMIT : undefined)
+  for (const store of storesToMark) {
+    await appendStoreFailureMetadata(store, details)
+  }
 }
 
 async function fetchCaliforniaStores(storeBrand = null) {
@@ -309,6 +404,7 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
       return {
         resultsByIngredient: normalizeBatchResultsShape(nativeResults, ingredientChunk.length),
         errorFlags: Array.from({ length: ingredientChunk.length }, () => false),
+        errorMessages: Array.from({ length: ingredientChunk.length }, () => ''),
       }
     } catch (error) {
       console.warn(`⚠️ Native batch scraper failed for ${storeEnum}: ${error.message}. Falling back to chunked single calls.`)
@@ -321,6 +417,7 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
     return {
       resultsByIngredient: emptyBatchResults(ingredientChunk.length),
       errorFlags: Array.from({ length: ingredientChunk.length }, () => true),
+      errorMessages: Array.from({ length: ingredientChunk.length }, () => `No scraper configured for ${storeEnum}`),
     }
   }
 
@@ -332,12 +429,15 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
         return {
           results: await singleScraper(ingredientName, zipCode),
           hadError: false,
+          errorMessage: '',
         }
       } catch (error) {
-        console.error(`❌ Scraper failed for ${storeEnum} (${zipCode}) ingredient "${ingredientName}": ${error.message}`)
+        const message = error?.message || String(error)
+        console.error(`❌ Scraper failed for ${storeEnum} (${zipCode}) ingredient "${ingredientName}": ${message}`)
         return {
           results: [],
           hadError: true,
+          errorMessage: message,
         }
       }
     }
@@ -346,6 +446,7 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
   return {
     resultsByIngredient: chunkResults.map(entry => normalizeResultsShape(entry?.results)),
     errorFlags: chunkResults.map(entry => Boolean(entry?.hadError)),
+    errorMessages: chunkResults.map(entry => truncateText(entry?.errorMessage || '')),
   }
 }
 
@@ -359,7 +460,9 @@ async function scrapeIngredientsBatched(ingredients, stores) {
     const zipCode = normalizeZipCode(store.zip_code)
     const { batchSize, batchConcurrency } = getStoreBatchConfig(storeEnum)
     let consecutiveStoreErrors = 0
+    let totalStoreErrors = 0
     let skippedForErrors = false
+    let lastErrorMessage = ''
 
     if (!zipCode) {
       console.warn(`⚠️ Skipping store ${storeEnum} (${store.id || 'unknown-id'}) due to invalid zip_code`)
@@ -374,7 +477,7 @@ async function scrapeIngredientsBatched(ingredients, stores) {
       const chunkLabel = `${i + 1}-${Math.min(i + chunk.length, ingredients.length)}`
       console.log(`   📦 Batched ingredients ${chunkLabel}/${ingredients.length}`)
 
-      const { resultsByIngredient, errorFlags } = await runBatchedScraperForStore(
+      const { resultsByIngredient, errorFlags, errorMessages } = await runBatchedScraperForStore(
         storeEnum,
         chunk,
         zipCode,
@@ -387,6 +490,10 @@ async function scrapeIngredientsBatched(ingredients, stores) {
 
         if (errorFlags[idx]) {
           consecutiveStoreErrors += 1
+          totalStoreErrors += 1
+          if (errorMessages[idx]) {
+            lastErrorMessage = errorMessages[idx]
+          }
 
           if (MAX_CONSECUTIVE_STORE_ERRORS > 0 && consecutiveStoreErrors > MAX_CONSECUTIVE_STORE_ERRORS) {
             skippedForErrors = true
@@ -428,6 +535,15 @@ async function scrapeIngredientsBatched(ingredients, stores) {
       if (i + batchSize < ingredients.length && INGREDIENT_DELAY_MS > 0) {
         await sleep(INGREDIENT_DELAY_MS)
       }
+    }
+
+    if (totalStoreErrors > 0) {
+      await appendStoreFailureMetadata(store, {
+        errorCount: totalStoreErrors,
+        consecutiveErrors: consecutiveStoreErrors,
+        skippedForErrors,
+        lastErrorMessage,
+      })
     }
   }
 
@@ -559,7 +675,52 @@ async function main() {
   }
 }
 
-main().catch(error => {
+let shutdownSignalHandled = false
+
+async function handleTerminationSignal(signal) {
+  if (shutdownSignalHandled) return
+  shutdownSignalHandled = true
+
+  console.error(`\n⚠️ Received ${signal}; recording scraper failure logs before exit...`)
+
+  const normalizedBrand = normalizeStoreEnum(STORE_BRAND)
+  if (normalizedBrand && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+    await appendBrandFailureMetadata(normalizedBrand, {
+      errorCount: 1,
+      consecutiveErrors: 1,
+      skippedForErrors: false,
+      lastErrorMessage: `Process terminated by ${signal}`,
+      errorType: 'process_terminated',
+      status: 'run_failed',
+    })
+  }
+
+  process.exit(1)
+}
+
+process.on('SIGTERM', () => {
+  void handleTerminationSignal('SIGTERM')
+})
+
+process.on('SIGINT', () => {
+  void handleTerminationSignal('SIGINT')
+})
+
+main().catch(async error => {
   console.error('\n💥 Fatal error:', error)
+
+  const fatalMessage = error?.message || String(error)
+  const normalizedBrand = normalizeStoreEnum(STORE_BRAND)
+  if (normalizedBrand) {
+    await appendBrandFailureMetadata(normalizedBrand, {
+      errorCount: 1,
+      consecutiveErrors: 1,
+      skippedForErrors: false,
+      lastErrorMessage: fatalMessage,
+      errorType: 'run_failure',
+      status: 'run_failed',
+    })
+  }
+
   process.exit(1)
 })
