@@ -27,6 +27,25 @@ const requestedMaxCycles = Number(process.env.QUEUE_MAX_CYCLES ?? 0)
 const maxCycles = Number.isFinite(requestedMaxCycles) && requestedMaxCycles > 0 ? Math.floor(requestedMaxCycles) : 0
 const standardizerContext = process.env.QUEUE_STANDARDIZER_CONTEXT === "recipe" ? "recipe" : "pantry"
 const dryRun = process.env.DRY_RUN === "true"
+const requestedDoubleCheckMinConfidence = Number(process.env.LLM_DOUBLE_CHECK_MIN_CONFIDENCE ?? 0.85)
+const doubleCheckMinConfidence =
+  Number.isFinite(requestedDoubleCheckMinConfidence) &&
+  requestedDoubleCheckMinConfidence >= 0 &&
+  requestedDoubleCheckMinConfidence <= 1
+    ? requestedDoubleCheckMinConfidence
+    : 0.85
+const requestedDoubleCheckMinSimilarity = Number(process.env.LLM_DOUBLE_CHECK_MIN_SIMILARITY ?? 0.96)
+const doubleCheckMinSimilarity =
+  Number.isFinite(requestedDoubleCheckMinSimilarity) &&
+  requestedDoubleCheckMinSimilarity >= 0 &&
+  requestedDoubleCheckMinSimilarity <= 1
+    ? requestedDoubleCheckMinSimilarity
+    : 0.96
+
+interface CanonicalCandidate {
+  canonicalName: string
+  category: string | null
+}
 
 interface ResolveBatchResult {
   resolved: number
@@ -40,6 +59,164 @@ interface ResolveBatchResult {
     status: "success" | "error"
     error?: string
   }>
+}
+
+function normalizeCanonicalName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function singularizeWord(word: string): string {
+  if (word.length <= 3) return word
+  if (word.endsWith("ies") && word.length > 4) return `${word.slice(0, -3)}y`
+  if (word.endsWith("oes") && word.length > 4) return word.slice(0, -2)
+  if (word.endsWith("sses") || word.endsWith("shes") || word.endsWith("ches") || word.endsWith("xes") || word.endsWith("zes")) {
+    return word.slice(0, -2)
+  }
+  if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1)
+  return word
+}
+
+function singularizeCanonicalName(value: string): string {
+  return normalizeCanonicalName(value)
+    .split(" ")
+    .filter(Boolean)
+    .map(singularizeWord)
+    .join(" ")
+}
+
+function tokenSet(value: string): Set<string> {
+  return new Set(
+    normalizeCanonicalName(value)
+      .split(" ")
+      .filter(Boolean)
+  )
+}
+
+function tokenJaccard(a: string, b: string): number {
+  const aTokens = tokenSet(a)
+  const bTokens = tokenSet(b)
+  if (aTokens.size === 0 || bTokens.size === 0) return 0
+
+  let intersection = 0
+  for (const token of aTokens) {
+    if (bTokens.has(token)) intersection += 1
+  }
+  const union = aTokens.size + bTokens.size - intersection
+  return union === 0 ? 0 : intersection / union
+}
+
+function bigramSet(value: string): Set<string> {
+  const normalized = normalizeCanonicalName(value).replace(/\s/g, "")
+  if (normalized.length < 2) return new Set([normalized])
+
+  const output = new Set<string>()
+  for (let index = 0; index < normalized.length - 1; index += 1) {
+    output.add(normalized.slice(index, index + 2))
+  }
+  return output
+}
+
+function diceSimilarity(a: string, b: string): number {
+  const aBigrams = bigramSet(a)
+  const bBigrams = bigramSet(b)
+  if (aBigrams.size === 0 || bBigrams.size === 0) return 0
+
+  let overlap = 0
+  for (const bg of aBigrams) {
+    if (bBigrams.has(bg)) overlap += 1
+  }
+  return (2 * overlap) / (aBigrams.size + bBigrams.size)
+}
+
+function scoreCanonicalSimilarity(candidate: string, existing: string): number {
+  const normalizedCandidate = normalizeCanonicalName(candidate)
+  const normalizedExisting = normalizeCanonicalName(existing)
+  if (!normalizedCandidate || !normalizedExisting) return 0
+  if (normalizedCandidate === normalizedExisting) return 1
+
+  const singularCandidate = singularizeCanonicalName(normalizedCandidate)
+  const singularExisting = singularizeCanonicalName(normalizedExisting)
+  if (singularCandidate === singularExisting) return 0.995
+
+  const tokenScore = tokenJaccard(normalizedCandidate, normalizedExisting)
+  const charScore = diceSimilarity(normalizedCandidate, normalizedExisting)
+  return (tokenScore * 0.45) + (charScore * 0.55)
+}
+
+async function resolveCanonicalWithDoubleCheck(
+  canonicalName: string,
+  category: string | null | undefined,
+  confidence: number
+): Promise<string> {
+  const normalizedCanonical = normalizeCanonicalName(canonicalName)
+  if (!normalizedCanonical) return ""
+
+  if (confidence < doubleCheckMinConfidence) {
+    return normalizedCanonical
+  }
+
+  const exact = await standardizedIngredientsDB.findByCanonicalName(normalizedCanonical)
+  if (exact?.canonical_name) {
+    return exact.canonical_name
+  }
+
+  const singular = singularizeCanonicalName(normalizedCanonical)
+  const queryTerms = Array.from(new Set([normalizedCanonical, singular].filter(Boolean)))
+  const collected = new Map<string, CanonicalCandidate>()
+
+  for (const term of queryTerms) {
+    const [textMatches, variantMatches] = await Promise.all([
+      standardizedIngredientsDB.searchByText(term, { limit: 12 }),
+      standardizedIngredientsDB.searchByVariants([term]),
+    ])
+
+    for (const row of [...textMatches, ...variantMatches]) {
+      const candidateName = normalizeCanonicalName(row.canonical_name || "")
+      if (!candidateName) continue
+      if (!collected.has(candidateName)) {
+        collected.set(candidateName, {
+          canonicalName: candidateName,
+          category: row.category ?? null,
+        })
+      }
+    }
+  }
+
+  if (collected.size === 0) {
+    return normalizedCanonical
+  }
+
+  let bestMatch: CanonicalCandidate | null = null
+  let bestScore = 0
+
+  for (const candidate of collected.values()) {
+    let score = scoreCanonicalSimilarity(normalizedCanonical, candidate.canonicalName)
+
+    if (category && candidate.category && category !== candidate.category) {
+      score -= 0.05
+    }
+
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = candidate
+    }
+  }
+
+  if (bestMatch && bestScore >= doubleCheckMinSimilarity) {
+    if (bestMatch.canonicalName !== normalizedCanonical) {
+      console.log(
+        `[QueueResolver] High-confidence canonical double-check remapped "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
+          `(ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)})`
+      )
+    }
+    return bestMatch.canonicalName
+  }
+
+  return normalizedCanonical
 }
 
 async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<ResolveBatchResult> {
@@ -81,7 +258,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<ResolveBat
           throw new Error("AI returned no canonical name")
         }
 
-        const normalizedCanonical = result.canonicalName.trim().toLowerCase()
+        const normalizedCanonical = normalizeCanonicalName(result.canonicalName)
         if (!normalizedCanonical) {
           throw new Error("AI returned an empty canonical name")
         }
@@ -93,8 +270,18 @@ async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<ResolveBat
 
         // In dry run, skip database operations
         let standardizedId: string | undefined
+        const canonicalForWrite = await resolveCanonicalWithDoubleCheck(
+          normalizedCanonical,
+          result.category,
+          result.confidence
+        )
+
+        if (!canonicalForWrite) {
+          throw new Error("Canonical name became empty after double-check")
+        }
+
         if (!dryRun) {
-          const standardized = await standardizedIngredientsDB.getOrCreate(normalizedCanonical, result.category)
+          const standardized = await standardizedIngredientsDB.getOrCreate(canonicalForWrite, result.category)
           if (!standardized?.id) {
             throw new Error("Failed to upsert standardized ingredient")
           }
@@ -102,7 +289,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<ResolveBat
 
           const success = await ingredientMatchQueueDB.markResolved({
             rowId: row.id,
-            canonicalName: normalizedCanonical,
+            canonicalName: canonicalForWrite,
             resolvedIngredientId: standardized.id,
             confidence: result.confidence,
             resolver: resolverName,
@@ -112,15 +299,15 @@ async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<ResolveBat
             throw new Error("Failed to mark queue row as resolved")
           }
 
-          console.log(`[QueueResolver] ${row.id} → ${normalizedCanonical} (${standardized.id})`)
+          console.log(`[QueueResolver] ${row.id} → ${canonicalForWrite} (${standardized.id})`)
         } else {
-          console.log(`[QueueResolver] [DRY RUN] ${row.id} → ${normalizedCanonical}`)
+          console.log(`[QueueResolver] [DRY RUN] ${row.id} → ${canonicalForWrite}`)
         }
 
         return {
           rowId: row.id,
           originalName: row.cleaned_name || row.raw_product_name || "",
-          canonicalName: normalizedCanonical,
+          canonicalName: canonicalForWrite,
           category: result.category || null,
           confidence: result.confidence,
           standardizedId,
@@ -181,6 +368,9 @@ async function resolveBatch(rows: IngredientMatchQueueRow[]): Promise<ResolveBat
 async function run(): Promise<void> {
   const mode = dryRun ? "[DRY RUN]" : ""
   console.log(`[QueueResolver] ${mode} Starting run (limit ${batchLimit})`)
+  console.log(
+    `[QueueResolver] ${mode} Canonical double-check: enabled (min_confidence=${doubleCheckMinConfidence}, min_similarity=${doubleCheckMinSimilarity})`
+  )
 
   let cycle = 0
   let totalResolved = 0
