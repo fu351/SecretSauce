@@ -51,7 +51,13 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     setLoading(true)
     try {
       // 1. Scrape — show raw results immediately
-      const res = await searchGroceryStores(searchTerm, zipCode, target?.store, undefined, true)
+      const res = await searchGroceryStores(
+        searchTerm,
+        zipCode,
+        target?.store,
+        true,
+        target?.standardizedIngredientId || null
+      )
       const flatResults = res.flatMap(r => r.items || [])
       setResults(flatResults)
 
@@ -87,7 +93,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         )
         const targetStore = normalizeStoreName(target?.store || "")
         const dbItems: GroceryItem[] = dbOffers
-          .filter(offer => offer.store === targetStore && offer.productMappingId)
+          .filter(offer => normalizeStoreName(offer.store) === targetStore && offer.productMappingId)
           .map(offer => ({
             id: offer.productMappingId!,
             title: offer.productName || "Unknown",
@@ -95,7 +101,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
             price: offer.totalPrice || 0,
             pricePerUnit: offer.unitPrice != null ? String(offer.unitPrice) : undefined,
             image_url: offer.imageUrl || "",
-            provider: offer.store,
+            provider: target?.store || offer.store,
             productMappingId: offer.productMappingId || undefined,
           }))
 
@@ -184,6 +190,9 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                           exchange_delta: 1,
                         }).then(mappingId => {
                           onSelect({ ...item, productMappingId: mappingId || undefined })
+                        }).catch((error) => {
+                          console.error("[ItemReplacementModal] Failed to increment mapping counts", error)
+                          onSelect(item)
                         })
                       }
                     }}
