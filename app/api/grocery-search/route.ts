@@ -27,6 +27,24 @@ const DEFAULT_STORE_KEYS = [
 
 const FALLBACK_ZIP_CODE = normalizeZipCode(process.env.ZIP_CODE ?? process.env.DEFAULT_ZIP_CODE)
 
+type ScraperRuntimeConfig = {
+  liveActivation?: boolean
+  bypassTimeouts?: boolean
+  timeoutMultiplier?: number
+  timeoutFloorMs?: number
+}
+
+async function withScraperRuntimeContext<T>(
+  runtimeConfig: ScraperRuntimeConfig | null,
+  fn: () => Promise<T>
+): Promise<T> {
+  if (!runtimeConfig) return fn()
+
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { runWithScraperRuntimeConfig } = require("@/lib/scrapers/runtime-config")
+  return runWithScraperRuntimeConfig(runtimeConfig, fn)
+}
+
 function extractSupabaseAccessToken(request: NextRequest): string | null {
   const headerToken = request.headers
     .get("authorization")
@@ -251,6 +269,11 @@ export async function GET(request: NextRequest) {
   const storeKey = resolveStoreKey(rawStoreParam)
   const storeKeys = storeKey ? [storeKey] : DEFAULT_STORE_KEYS
   const forceRefresh = searchParams.get("forceRefresh") === "true"
+  const liveActivation =
+    searchParams.get("liveActivation") === "true" || forceRefresh
+  const scraperRuntimeConfig: ScraperRuntimeConfig | null = liveActivation
+    ? { liveActivation: true }
+    : null
 
   if (rawStoreParam) {
     console.log(`[grocery-search] Store mapping: "${rawStoreParam}" -> "${storeKey}"`)
@@ -316,13 +339,16 @@ export async function GET(request: NextRequest) {
     recipeId,
     stores: storeKeys,
     forceRefresh,
+    liveActivation,
   })
 
   // If forceRefresh is true, skip cache and go directly to scrapers
   if (forceRefresh) {
     console.log("[grocery-search] Force refresh requested, bypassing cache and scraping directly")
 
-    const directItems = await scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, null, preferredStoresMap)
+    const directItems = await withScraperRuntimeContext(scraperRuntimeConfig, () =>
+      scrapeDirectFallback(sanitizedSearchTerm, storeKeys, zipToUse, null, preferredStoresMap)
+    )
     if (directItems.length === 0) {
       console.warn("[grocery-search] Force refresh produced 0 items", {
         term: sanitizedSearchTerm,
@@ -422,17 +448,20 @@ export async function GET(request: NextRequest) {
     }
 
     if (standardizedIngredientId) {
+      const standardizedIdForLookup = standardizedIngredientId
       // OPTIMIZED: Single batched call for all stores instead of one per store
       console.log("[grocery-search] Fetching cache/scrape for all stores (batched)", {
         stores: storeKeys,
-        standardizedIngredientId,
+        standardizedIngredientId: standardizedIdForLookup,
         zipToUse
       })
 
-      cachedRows = await getOrRefreshIngredientPricesForStores(
-        standardizedIngredientId,
-        storeKeys,
-        cacheLookupOptions,
+      cachedRows = await withScraperRuntimeContext(scraperRuntimeConfig, () =>
+        getOrRefreshIngredientPricesForStores(
+          standardizedIdForLookup,
+          storeKeys,
+          cacheLookupOptions,
+        )
       )
 
       const cacheHitStores = cachedRows.map(r => r.store)
@@ -478,12 +507,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Use the preferred store metadata we already fetched
-    const directItems = await scrapeDirectFallback(
-      sanitizedSearchTerm,
-      storeKeys,
-      zipToUse,
-      standardizedIngredientId,
-      preferredStoresMap
+    const directItems = await withScraperRuntimeContext(scraperRuntimeConfig, () =>
+      scrapeDirectFallback(
+        sanitizedSearchTerm,
+        storeKeys,
+        zipToUse,
+        standardizedIngredientId,
+        preferredStoresMap
+      )
     )
     if (directItems.length > 0) {
       // Fire-and-forget cache write so the user gets results immediately

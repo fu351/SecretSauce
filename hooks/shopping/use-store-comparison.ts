@@ -131,6 +131,7 @@ async function hydratePricingGaps(
   if (!gaps.length) return { inserted: 0 }
 
   const payloads: Array<{
+    standardizedIngredientId: string
     store: string
     price: number
     imageUrl?: string | null
@@ -165,6 +166,7 @@ async function hydratePricingGaps(
       if (!best) continue
 
       payloads.push({
+        standardizedIngredientId: ingredient.id,
         store: targetStore.store,
         price: best.price ?? 0,
         imageUrl: best.image_url || null,
@@ -435,6 +437,11 @@ export function useStoreComparison(
         if (pricingGaps.length > 0) {
           console.warn("[useStoreComparison] Filling pricing gaps", { gaps: pricingGaps.length })
           console.log("[useStoreComparison] Pricing gaps payload", pricingGaps)
+          const { inserted } = await hydratePricingGaps(pricingGaps, resolvedZipCode)
+          devPricingLog("hydratePricingGaps completed", {
+            gaps: pricingGaps.length,
+            inserted,
+          })
         }
       }
       // ----- Primary: server-side pricing function -----
