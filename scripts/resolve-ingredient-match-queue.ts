@@ -3,6 +3,13 @@
 import { ingredientMatchQueueDB, type IngredientMatchQueueRow } from "../lib/database/ingredient-match-queue-db"
 import { standardizedIngredientsDB } from "../lib/database/standardized-ingredients-db"
 import { standardizeIngredientsWithAI } from "../lib/ingredient-standardizer"
+import { resolveIngredientStandardizerContext } from "../lib/utils/ingredient-standardizer-context"
+import {
+  buildCanonicalQueryTerms,
+  type CanonicalCandidate,
+  normalizeCanonicalName,
+  scoreCanonicalSimilarity,
+} from "./utils/canonical-matching"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey =
@@ -25,7 +32,7 @@ const requestedBatchLimit = Number(process.env.QUEUE_BATCH_LIMIT ?? 25)
 const batchLimit = Number.isFinite(requestedBatchLimit) && requestedBatchLimit > 0 ? Math.floor(requestedBatchLimit) : 25
 const requestedMaxCycles = Number(process.env.QUEUE_MAX_CYCLES ?? 0)
 const maxCycles = Number.isFinite(requestedMaxCycles) && requestedMaxCycles > 0 ? Math.floor(requestedMaxCycles) : 0
-const standardizerContext = process.env.QUEUE_STANDARDIZER_CONTEXT === "recipe" ? "recipe" : "pantry"
+const standardizerContext = resolveIngredientStandardizerContext(process.env.QUEUE_STANDARDIZER_CONTEXT)
 const dryRun = process.env.DRY_RUN === "true"
 const requestedDoubleCheckMinConfidence = Number(process.env.LLM_DOUBLE_CHECK_MIN_CONFIDENCE ?? 0.85)
 const doubleCheckMinConfidence =
@@ -42,11 +49,6 @@ const doubleCheckMinSimilarity =
     ? requestedDoubleCheckMinSimilarity
     : 0.96
 
-interface CanonicalCandidate {
-  canonicalName: string
-  category: string | null
-}
-
 interface ResolveBatchResult {
   resolved: number
   failed: number
@@ -59,92 +61,6 @@ interface ResolveBatchResult {
     status: "success" | "error"
     error?: string
   }>
-}
-
-function normalizeCanonicalName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-function singularizeWord(word: string): string {
-  if (word.length <= 3) return word
-  if (word.endsWith("ies") && word.length > 4) return `${word.slice(0, -3)}y`
-  if (word.endsWith("oes") && word.length > 4) return word.slice(0, -2)
-  if (word.endsWith("sses") || word.endsWith("shes") || word.endsWith("ches") || word.endsWith("xes") || word.endsWith("zes")) {
-    return word.slice(0, -2)
-  }
-  if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1)
-  return word
-}
-
-function singularizeCanonicalName(value: string): string {
-  return normalizeCanonicalName(value)
-    .split(" ")
-    .filter(Boolean)
-    .map(singularizeWord)
-    .join(" ")
-}
-
-function tokenSet(value: string): Set<string> {
-  return new Set(
-    normalizeCanonicalName(value)
-      .split(" ")
-      .filter(Boolean)
-  )
-}
-
-function tokenJaccard(a: string, b: string): number {
-  const aTokens = tokenSet(a)
-  const bTokens = tokenSet(b)
-  if (aTokens.size === 0 || bTokens.size === 0) return 0
-
-  let intersection = 0
-  for (const token of aTokens) {
-    if (bTokens.has(token)) intersection += 1
-  }
-  const union = aTokens.size + bTokens.size - intersection
-  return union === 0 ? 0 : intersection / union
-}
-
-function bigramSet(value: string): Set<string> {
-  const normalized = normalizeCanonicalName(value).replace(/\s/g, "")
-  if (normalized.length < 2) return new Set([normalized])
-
-  const output = new Set<string>()
-  for (let index = 0; index < normalized.length - 1; index += 1) {
-    output.add(normalized.slice(index, index + 2))
-  }
-  return output
-}
-
-function diceSimilarity(a: string, b: string): number {
-  const aBigrams = bigramSet(a)
-  const bBigrams = bigramSet(b)
-  if (aBigrams.size === 0 || bBigrams.size === 0) return 0
-
-  let overlap = 0
-  for (const bg of aBigrams) {
-    if (bBigrams.has(bg)) overlap += 1
-  }
-  return (2 * overlap) / (aBigrams.size + bBigrams.size)
-}
-
-function scoreCanonicalSimilarity(candidate: string, existing: string): number {
-  const normalizedCandidate = normalizeCanonicalName(candidate)
-  const normalizedExisting = normalizeCanonicalName(existing)
-  if (!normalizedCandidate || !normalizedExisting) return 0
-  if (normalizedCandidate === normalizedExisting) return 1
-
-  const singularCandidate = singularizeCanonicalName(normalizedCandidate)
-  const singularExisting = singularizeCanonicalName(normalizedExisting)
-  if (singularCandidate === singularExisting) return 0.995
-
-  const tokenScore = tokenJaccard(normalizedCandidate, normalizedExisting)
-  const charScore = diceSimilarity(normalizedCandidate, normalizedExisting)
-  return (tokenScore * 0.45) + (charScore * 0.55)
 }
 
 async function resolveCanonicalWithDoubleCheck(
@@ -164,8 +80,7 @@ async function resolveCanonicalWithDoubleCheck(
     return exact.canonical_name
   }
 
-  const singular = singularizeCanonicalName(normalizedCanonical)
-  const queryTerms = Array.from(new Set([normalizedCanonical, singular].filter(Boolean)))
+  const queryTerms = buildCanonicalQueryTerms(normalizedCanonical)
   const collected = new Map<string, CanonicalCandidate>()
 
   for (const term of queryTerms) {
