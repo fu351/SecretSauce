@@ -1,6 +1,6 @@
 "use client"
 
-import { LogOut, Menu, Settings, User } from "lucide-react"
+import { LogOut, Menu, Plus, Settings, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -131,6 +131,20 @@ export function Header() {
         >
           Shopping
         </Link>
+        <Button
+          size="sm"
+          asChild
+          className={
+            isDark
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"
+          }
+        >
+          <Link href="/upload-recipe" className="flex items-center gap-1.5">
+            <Plus className="h-4 w-4" />
+            Add Recipe
+          </Link>
+        </Button>
       </nav>
 
       <div className="flex items-center gap-2 md:gap-3 min-w-[200px] justify-end">
@@ -192,6 +206,12 @@ export function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/shopping">Shopping</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/upload-recipe" className="flex items-center gap-2 font-medium">
+                    <Plus className="h-4 w-4" />
+                    Add Recipe
+                  </Link>
                 </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

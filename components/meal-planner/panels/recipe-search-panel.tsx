@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useMemo, useEffect, useCallback, memo } from "react"
-import { X, Search, Heart, SlidersHorizontal, RotateCcw, Utensils } from "lucide-react"
+import { X, Search, Heart, SlidersHorizontal, RotateCcw, Utensils, Check } from "lucide-react"
 import { RecipeCardCompact } from "@/components/recipe/cards/recipe-card-compact"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +38,16 @@ interface RecipeSearchPanelProps {
   getDraggableProps: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
   activeDragData?: DragData | null
   onToggleCollapse?: () => void
+  /** Mobile only: ids of recipes selected in current session (show overlay + tick) */
+  sessionSelectedIds?: Set<string>
+  /** Mobile only: confirm selections and close */
+  onConfirmSelections?: () => void
+  /** Mobile only: cancel and remove session selections from meal plan */
+  onCancelSelections?: () => void
+  /** Mobile only: number of recipes selected this session */
+  selectionCount?: number
+  /** Mobile only: whether to show confirm/cancel bar and selection overlay */
+  isMobileMode?: boolean
 }
 
 // Memoize the entire panel to prevent parent re-renders from affecting it
@@ -46,6 +56,11 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   getDraggableProps,
   activeDragData,
   onToggleCollapse,
+  sessionSelectedIds,
+  onConfirmSelections,
+  onCancelSelections,
+  selectionCount = 0,
+  isMobileMode = false,
 }: RecipeSearchPanelProps) {
   const { user } = useAuth()
 
@@ -218,22 +233,56 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
           </div>
         ) : displayRecipes.length > 0 ? (
-          <div className="p-4 grid grid-cols-2 gap-4 auto-rows-max">
-            {displayRecipes.map((recipe) => (
-              <div key={recipe.id} onClick={() => onSelect(recipe)} className="group cursor-pointer">
-                <RecipeCardCompact
-                  {...recipe}
-                  difficulty={recipe.difficulty as any}
-                  isDragging={activeDragData?.recipe.id === recipe.id}
-                  getDraggableProps={getDraggableProps}
-                />
-              </div>
-            ))}
+          <div className={cn("p-4 grid grid-cols-2 gap-4 auto-rows-max", isMobileMode && selectionCount > 0 && "pb-20")}>
+            {displayRecipes.map((recipe) => {
+              const isSelected = isMobileMode && sessionSelectedIds?.has(recipe.id)
+              return (
+                <div key={recipe.id} onClick={() => onSelect(recipe)} className="group cursor-pointer relative">
+                  <RecipeCardCompact
+                    {...recipe}
+                    difficulty={recipe.difficulty as any}
+                    isDragging={activeDragData?.recipe.id === recipe.id}
+                    getDraggableProps={getDraggableProps}
+                  />
+                  {isSelected && (
+                    <div className="absolute inset-0 rounded-lg bg-black/40 ring-2 ring-primary/60 flex items-center justify-center z-10 pointer-events-none">
+                      <div className="rounded-full bg-primary p-2">
+                        <Check className="h-6 w-6 text-primary-foreground" strokeWidth={3} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         ) : (
           <EmptyState onClear={handleClearFilters} />
         )}
       </div>
+
+      {isMobileMode && selectionCount > 0 && (onConfirmSelections || onCancelSelections) && (
+        <div className="md:hidden sticky bottom-0 left-0 right-0 flex items-center gap-2 p-4 bg-card border-t border-border">
+          {onCancelSelections && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground shrink-0"
+              onClick={onCancelSelections}
+            >
+              Cancel
+            </Button>
+          )}
+          {onConfirmSelections && (
+            <Button
+              size="sm"
+              className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={onConfirmSelections}
+            >
+              Confirm selected {selectionCount > 0 ? `(${selectionCount})` : ""}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 })

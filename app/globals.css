@@ -231,9 +231,11 @@
   -ms-overflow-style: none;
 }
 
-/* Smooth scroll behavior */
+/* Smooth scroll behavior + center mobile view when viewport is wider (e.g. Cursor browser) */
 html {
   scroll-behavior: smooth;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Optimize image loading */
