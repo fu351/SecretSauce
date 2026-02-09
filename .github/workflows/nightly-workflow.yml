@@ -125,16 +125,6 @@ on:
           - "false"
           - "true"
         default: "false"
-      openai_model:
-        description: "OpenAI model"
-        required: false
-        type: string
-        default: "gpt-4o-mini"
-      gemini_model:
-        description: "Gemini model"
-        required: false
-        type: string
-        default: "gemini-3-flash-preview"
       queue_max_batches:
         description: "Maximum queue batch cycles"
         required: false
