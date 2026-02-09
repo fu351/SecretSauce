@@ -46,6 +46,7 @@ const SCRAPER_BATCH_SIZE = getIntEnv('SCRAPER_BATCH_SIZE', 20, 1)
 const SCRAPER_BATCH_CONCURRENCY = getIntEnv('SCRAPER_BATCH_CONCURRENCY', STORE_CONCURRENCY, 1)
 const TRADERJOES_BATCH_SIZE = getIntEnv('TRADERJOES_BATCH_SIZE', 20, 1)
 const TRADERJOES_BATCH_CONCURRENCY = getIntEnv('TRADERJOES_BATCH_CONCURRENCY', 2, 1)
+const MAX_CONSECUTIVE_STORE_ERRORS = getIntEnv('MAX_CONSECUTIVE_STORE_ERRORS', 10, 0)
 
 const PAGE_SIZE = 1000
 
@@ -305,7 +306,10 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
       const nativeResults = await nativeBatchScraper(ingredientChunk, zipCode, {
         concurrency: batchConcurrency,
       })
-      return normalizeBatchResultsShape(nativeResults, ingredientChunk.length)
+      return {
+        resultsByIngredient: normalizeBatchResultsShape(nativeResults, ingredientChunk.length),
+        errorFlags: Array.from({ length: ingredientChunk.length }, () => false),
+      }
     } catch (error) {
       console.warn(`⚠️ Native batch scraper failed for ${storeEnum}: ${error.message}. Falling back to chunked single calls.`)
     }
@@ -314,7 +318,10 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
   const singleScraper = SCRAPER_MAP[storeEnum]
   if (typeof singleScraper !== 'function') {
     console.warn(`⚠️ No scraper configured for "${storeEnum}"`)
-    return emptyBatchResults(ingredientChunk.length)
+    return {
+      resultsByIngredient: emptyBatchResults(ingredientChunk.length),
+      errorFlags: Array.from({ length: ingredientChunk.length }, () => true),
+    }
   }
 
   const chunkResults = await mapWithConcurrency(
@@ -322,25 +329,37 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
     batchConcurrency,
     async ingredientName => {
       try {
-        return await singleScraper(ingredientName, zipCode)
+        return {
+          results: await singleScraper(ingredientName, zipCode),
+          hadError: false,
+        }
       } catch (error) {
         console.error(`❌ Scraper failed for ${storeEnum} (${zipCode}) ingredient "${ingredientName}": ${error.message}`)
-        return []
+        return {
+          results: [],
+          hadError: true,
+        }
       }
     }
   )
 
-  return chunkResults.map(normalizeResultsShape)
+  return {
+    resultsByIngredient: chunkResults.map(entry => normalizeResultsShape(entry?.results)),
+    errorFlags: chunkResults.map(entry => Boolean(entry?.hadError)),
+  }
 }
 
 async function scrapeIngredientsBatched(ingredients, stores) {
   const allResults = []
+  let skippedStoreCount = 0
 
   for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
     const store = stores[storeIndex]
     const storeEnum = normalizeStoreEnum(store.store_enum)
     const zipCode = normalizeZipCode(store.zip_code)
     const { batchSize, batchConcurrency } = getStoreBatchConfig(storeEnum)
+    let consecutiveStoreErrors = 0
+    let skippedForErrors = false
 
     if (!zipCode) {
       console.warn(`⚠️ Skipping store ${storeEnum} (${store.id || 'unknown-id'}) due to invalid zip_code`)
@@ -355,7 +374,7 @@ async function scrapeIngredientsBatched(ingredients, stores) {
       const chunkLabel = `${i + 1}-${Math.min(i + chunk.length, ingredients.length)}`
       console.log(`   📦 Batched ingredients ${chunkLabel}/${ingredients.length}`)
 
-      const chunkResultsByIngredient = await runBatchedScraperForStore(
+      const { resultsByIngredient, errorFlags } = await runBatchedScraperForStore(
         storeEnum,
         chunk,
         zipCode,
@@ -365,7 +384,21 @@ async function scrapeIngredientsBatched(ingredients, stores) {
       let chunkHits = 0
       for (let idx = 0; idx < chunk.length; idx += 1) {
         const ingredientName = chunk[idx]
-        const best = pickBestResult(chunkResultsByIngredient[idx] || [])
+
+        if (errorFlags[idx]) {
+          consecutiveStoreErrors += 1
+
+          if (MAX_CONSECUTIVE_STORE_ERRORS > 0 && consecutiveStoreErrors > MAX_CONSECUTIVE_STORE_ERRORS) {
+            skippedForErrors = true
+            break
+          }
+
+          continue
+        }
+
+        consecutiveStoreErrors = 0
+
+        const best = pickBestResult(resultsByIngredient[idx] || [])
         if (!best) continue
 
         allResults.push({
@@ -383,10 +416,23 @@ async function scrapeIngredientsBatched(ingredients, stores) {
 
       console.log(`   ✅ Found ${chunkHits}/${chunk.length} prices in chunk`)
 
+      if (skippedForErrors) {
+        skippedStoreCount += 1
+        console.warn(
+          `   ⏭️ Skipping remaining ingredients for ${storeEnum} (${zipCode}) after ` +
+          `${consecutiveStoreErrors} consecutive scraper errors (threshold: ${MAX_CONSECUTIVE_STORE_ERRORS}).`
+        )
+        break
+      }
+
       if (i + batchSize < ingredients.length && INGREDIENT_DELAY_MS > 0) {
         await sleep(INGREDIENT_DELAY_MS)
       }
     }
+  }
+
+  if (skippedStoreCount > 0) {
+    console.warn(`\n⚠️ Skipped ${skippedStoreCount} store location(s) due to repeated scraper errors.`)
   }
 
   return allResults
@@ -461,6 +507,7 @@ async function main() {
   console.log(`   Store Concurrency: ${STORE_CONCURRENCY}`)
   console.log(`   Default Batch Size: ${SCRAPER_BATCH_SIZE}`)
   console.log(`   Default Batch Concurrency: ${SCRAPER_BATCH_CONCURRENCY}`)
+  console.log(`   Max Consecutive Store Errors: ${MAX_CONSECUTIVE_STORE_ERRORS > 0 ? MAX_CONSECUTIVE_STORE_ERRORS : 'disabled'}`)
   console.log(`   Insert Batch Size: ${INSERT_BATCH_SIZE}`)
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
