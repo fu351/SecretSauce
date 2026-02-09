@@ -64,6 +64,11 @@ on:
         required: false
         type: string
         default: "4"
+      scraper_timeout_minutes:
+        description: "Hard timeout per store job (minutes)"
+        required: false
+        type: string
+        default: "120"
       traderjoes_batch_size:
         description: "Trader Joe's ingredient chunk size"
         required: false
@@ -146,6 +151,7 @@ jobs:
       min_expected_rows: ${{ github.event.inputs.min_expected_rows || '100' }}
       scraper_batch_size: ${{ github.event.inputs.scraper_batch_size || '20' }}
       scraper_batch_concurrency: ${{ github.event.inputs.scraper_batch_concurrency || '4' }}
+      scraper_timeout_minutes: ${{ github.event.inputs.scraper_timeout_minutes || '44' }}
       traderjoes_batch_size: ${{ github.event.inputs.traderjoes_batch_size || '20' }}
       traderjoes_batch_concurrency: ${{ github.event.inputs.traderjoes_batch_concurrency || '2' }}
 
