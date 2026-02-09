@@ -55,7 +55,7 @@ function DayCardComponent({
 
   return (
     <div
-      className={`bg-card rounded-lg md:rounded-2xl p-2 md:p-4 flex flex-row md:flex-col gap-2 md:gap-3 w-full border-2 items-center ${
+      className={`bg-card rounded-lg md:rounded-2xl p-2 md:px-1.5 md:py-1.5 flex flex-row md:flex-col gap-2 md:gap-1 w-full border-2 items-center md:items-stretch md:min-h-[360px] ${
         isToday
           ? "border-accent bg-accent/5"
           : "border-transparent"
@@ -76,12 +76,12 @@ function DayCardComponent({
         </h2>
       </div>
 
-      <div className="flex flex-1 md:flex-none flex-row md:flex-col gap-1.5 md:gap-2.5 min-w-0">
+      <div className="flex flex-1 md:flex-1 md:w-full md:min-w-0 flex-row md:flex-col gap-1 md:gap-1 min-w-0">
         {mealTypes.map((mealType) => {
           const meal = meals?.[mealType.key]
           const recipe = meal?.recipe ?? null
           return (
-            <div key={mealType.key} className="flex-1 min-w-0 md:flex-none md:w-full">
+            <div key={mealType.key} className="flex-1 min-w-0 md:flex-1 md:w-full md:min-h-[100px]">
               <MealSlotCard
                 recipe={recipe}
                 mealType={mealType.key}

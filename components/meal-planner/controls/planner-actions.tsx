@@ -68,7 +68,7 @@ export function PlannerActions({
           </Button>
         </div>
         <Button
-          className="shrink-0 md:flex-1 md:min-w-0 h-8 w-8 md:h-10 md:w-auto md:px-3 md:px-4 text-sm !bg-gradient-to-r !from-purple-600 !to-blue-600 !text-white hover:!from-purple-700 hover:!to-blue-700 shadow-sm"
+          className="shrink-0 h-8 w-8 md:h-10 md:w-auto md:px-3 md:px-4 md:max-w-[220px] text-sm !bg-gradient-to-r !from-purple-600 !to-blue-600 !text-white hover:!from-purple-700 hover:!to-blue-700 shadow-sm"
           onClick={onHeuristicPlan}
           disabled={heuristicLoading}
           data-tutorial="planner-smart"

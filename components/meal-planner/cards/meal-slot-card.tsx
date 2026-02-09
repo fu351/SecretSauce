@@ -104,32 +104,32 @@ function MealSlotCardComponent({
       ref={setDropRef}
       id={droppableProps.droppableId}
       data-droppable-id={droppableProps.droppableId}
-      className={`relative rounded-lg group w-full min-w-0 aspect-square md:aspect-auto md:h-[120px] ${isDropTarget ? "ring-2 ring-primary" : ""}`}
+      className="relative rounded-lg group w-full min-w-0 aspect-square md:aspect-auto md:h-full md:min-h-[100px] overflow-hidden"
     >
       {recipe ? (
-        // Filled state
+        // Filled state - border matches highlight for consistent selection/hover
         <div
           ref={setDragRef}
-          className={`relative h-full w-full overflow-hidden rounded-lg shadow-sm hover:shadow-md transition-opacity ${isDragging ? "opacity-0 pointer-events-none" : ""} ${isDropTarget ? "brightness-75" : ""}`}
+          className={`relative h-full w-full min-h-[80px] overflow-hidden rounded-lg shadow-sm transition-all border-2 ${isDragging ? "opacity-0 pointer-events-none" : ""} ${isDropTarget ? "border-accent brightness-90" : "border-transparent hover:border-accent/60 hover:brightness-95"}`}
         >
           {/* Draggable area - image: single click = select slot, double click = recipe overlay */}
           <div
             {...attributes}
             {...listeners}
             onClick={handleSlotClick}
-            className="cursor-grab active:cursor-grabbing w-full h-full"
+            className="absolute inset-0 cursor-grab active:cursor-grabbing z-[1]"
           >
           <Image
               src={getRecipeImageUrl(recipeImageUrl)}
               alt={recipe.title}
               fill
               sizes="(max-width: 768px) 120px, 260px"
-              className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110 pointer-events-none"
+              className="object-cover transition-transform duration-200 group-hover:scale-110 pointer-events-none"
             />
           </div>
 
           {/* Remove button - not draggable */}
-          <div className="absolute top-1 right-1 md:top-2 md:right-2 flex gap-1 z-20">
+          <div className="absolute top-1 right-1 md:top-2 md:right-2 flex gap-1 z-[3]">
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -153,9 +153,9 @@ function MealSlotCardComponent({
           </div>
         </div>
       ) : (
-        // Empty state
+        // Empty state - highlight and border on same element so they align; Plus centered in circle
         <div
-          className={`relative h-full w-full flex items-center justify-center rounded-lg cursor-pointer transition-colors ${isDropTarget ? "bg-primary/10" : "hover:bg-accent/5"}`}
+          className={`relative h-full w-full min-h-[80px] flex items-center justify-center rounded-lg cursor-pointer transition-colors border-2 ${isDropTarget ? "border-accent bg-accent/10" : "border-transparent hover:border-accent/60 hover:bg-accent/5"}`}
           data-draggable="true"
           onClick={() => onAdd?.(mealType, date)}
           role="button"
@@ -167,8 +167,8 @@ function MealSlotCardComponent({
           }}
           aria-label={`Add recipe to ${mealType} on ${date}`}
         >
-          <div className={`rounded-full border-2 p-1.5 md:p-3 transition-colors ${isDropTarget ? "border-primary text-primary" : "border-accent/60 text-accent"}`}>
-            <Plus className="h-4 w-4 md:h-6 md:w-6" />
+          <div className={`rounded-full border-2 flex items-center justify-center w-10 h-10 md:w-12 md:h-12 shrink-0 transition-colors ${isDropTarget ? "border-accent text-accent" : "border-accent/60 text-accent"}`}>
+            <Plus className="h-4 w-4 md:h-5 md:w-5 shrink-0" strokeWidth={2.5} />
           </div>
         </div>
       )}

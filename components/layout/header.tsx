@@ -1,13 +1,7 @@
 "use client"
 
-import { LogOut, Menu, Plus, Settings, User } from "lucide-react"
+import { BookOpen, Calendar, LogOut, Plus, Settings, ShoppingCart, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogClose,
@@ -63,6 +57,22 @@ export function Header() {
     return null
   }
 
+  // Page-specific title and subtext for navbar (lg+ shows both, below lg shows title only)
+  const pageTitles: Record<string, { title: string; subtext: string }> = {
+    "/recipes": { title: "Recipes", subtext: "Discover and share amazing recipes" },
+    "/meal-planner": { title: "Meal Planner", subtext: "Plan your weekly meals and track nutrition" },
+    "/shopping": { title: "Shopping", subtext: "Manage your grocery list" },
+    "/dashboard": { title: "Dashboard", subtext: "Your cooking overview" },
+    "/settings": { title: "Settings", subtext: "Manage your account preferences" },
+    "/pantry": { title: "My Pantry", subtext: "Keep track of your ingredients and reduce food waste" },
+    "/upload-recipe": { title: "Add Recipe", subtext: "Create a new recipe manually or import from a URL" },
+  }
+
+  const pageInfo = pathname === "/" ? null : pageTitles[pathname] ?? 
+    (pathname.startsWith("/recipes/") ? pageTitles["/recipes"] :
+     pathname.startsWith("/edit-recipe/") ? { title: "Edit Recipe", subtext: "Update your recipe details" } :
+     pathname.startsWith("/upload-recipe") ? pageTitles["/upload-recipe"] : null)
+
   const handleSignOut = async () => {
     setSignOutModalOpen(false)
     console.log("[v0] Sign out button clicked")
@@ -88,23 +98,69 @@ export function Header() {
     }
   }
 
+  const navIconClass = (path: string) =>
+    `p-2 rounded-md transition-opacity hover:opacity-80 ${
+      pathname === path ? "opacity-100" : isDark ? "text-muted-foreground" : "text-gray-700"
+    }`
+
   return (
     <header
       className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b sticky top-0 z-40 ${
         isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
       }`}
     >
-      <div className="flex items-center">
-        <Link href="/">
+      {/* Left: nav icons on mobile, logo+title on desktop */}
+      <div className="flex min-w-0 flex-1 items-center justify-start gap-2 md:flex-initial md:flex-none md:gap-4 lg:gap-6">
+        {/* Mobile: nav icon links */}
+        <nav className="flex md:hidden items-center gap-0.5">
+          <Button variant="ghost" size="icon" className={navIconClass("/recipes")} asChild>
+            <Link href="/recipes" aria-label="Recipes">
+              <BookOpen className="h-5 w-5" />
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" className={navIconClass("/meal-planner")} asChild>
+            <Link href="/meal-planner" aria-label="Meal Planner">
+              <Calendar className="h-5 w-5" />
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" className={navIconClass("/shopping")} asChild>
+            <Link href="/shopping" aria-label="Shopping">
+              <ShoppingCart className="h-5 w-5" />
+            </Link>
+          </Button>
+        </nav>
+        {/* Desktop: logo + title */}
+        <Link href="/" className="hidden md:block flex-shrink-0">
           <Image
             src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
             alt="Secret Sauce"
-            width={isMobile ? 32 : 40}
-            height={isMobile ? 32 : 40}
+            width={40}
+            height={40}
             className="cursor-pointer"
           />
         </Link>
+        {pageInfo && (
+          <div className="hidden md:flex flex-col w-[380px] min-w-[380px] shrink-0">
+            <span className={`text-lg font-serif font-light ${pathname === "/" ? "" : isDark ? "text-foreground" : "text-gray-900"}`}>
+              {pageInfo.title}
+            </span>
+            <span className="hidden lg:block text-sm text-muted-foreground mt-0.5 leading-tight">
+              {pageInfo.subtext}
+            </span>
+          </div>
+        )}
       </div>
+
+      {/* Center: logo on mobile only (centered between nav and account) */}
+      <Link href="/" className="flex-shrink-0 md:hidden">
+        <Image
+          src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
+          alt="Secret Sauce"
+          width={32}
+          height={32}
+          className="cursor-pointer"
+        />
+      </Link>
 
       <nav className="hidden md:flex items-center gap-6">
         <Link
@@ -147,7 +203,7 @@ export function Header() {
         </Button>
       </nav>
 
-      <div className="flex items-center gap-2 md:gap-3 min-w-[200px] justify-end">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:flex-initial md:gap-3 md:min-w-[200px]">
         {user ? (
           <>
             {/* Account action buttons */}
@@ -187,35 +243,7 @@ export function Header() {
               </Button>
             </div>
 
-            {/* Mobile Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild className="md:hidden">
-                <Button variant="ghost" size="icon" className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}>
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className={isDark ? "bg-card border-border text-card-foreground" : ""}
-              >
-                <DropdownMenuItem asChild>
-                  <Link href="/recipes">Recipes</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/meal-planner">Meal Planner</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/shopping">Shopping</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/upload-recipe" className="flex items-center gap-2 font-medium">
-                    <Plus className="h-4 w-4" />
-                    Add Recipe
-                  </Link>
-                </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Dialog open={signOutModalOpen} onOpenChange={setSignOutModalOpen}>
+            <Dialog open={signOutModalOpen} onOpenChange={setSignOutModalOpen}>
                 <DialogContent className={isDark ? "bg-card border-border text-card-foreground" : ""}>
                   <DialogHeader>
                     <DialogTitle>Sign out</DialogTitle>

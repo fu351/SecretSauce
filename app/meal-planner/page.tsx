@@ -328,17 +328,8 @@ export default function MealPlannerPage() {
           */}
           <main className="flex-1 overflow-y-auto p-2 md:p-6 transform-gpu backface-hidden scroll-smooth">
             <div className="max-w-7xl mx-auto will-change-transform min-w-0">
-              {/* Header - compact on mobile */}
+              {/* Header - title/subtext moved to navbar */}
               <div className="flex flex-col gap-2 md:gap-4 mb-3 md:mb-6">
-                <div>
-                  <h1 className="text-lg md:text-3xl font-bold tracking-tight text-foreground">
-                    Meal Planner
-                  </h1>
-                  <p className="text-[11px] md:text-sm text-muted-foreground mt-0.5 md:mt-1">
-                    Plan your weekly meals and track nutrition
-                  </p>
-                </div>
-
                 <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
                 <PlannerActions
                   onHeuristicPlan={handleGenerateHeuristicPlan}
@@ -432,7 +423,10 @@ export default function MealPlannerPage() {
         />
       </div>
 
-      <DragOverlay dropAnimation={null}>
+      <DragOverlay
+        dropAnimation={null}
+        className={!dnd.activeDragData ? "pointer-events-none" : ""}
+      >
         {dnd.activeDragData ? (
           <DragPreviewCard recipe={dnd.activeDragData.recipe} />
         ) : null}
