@@ -148,8 +148,8 @@ async function hydratePricingGaps(
         ingredient.name,
         gapZip || undefined,
         gap.store,
-        undefined,
-        true
+        true,
+        ingredient.id
       )
 
       if (!storeResults?.length) continue

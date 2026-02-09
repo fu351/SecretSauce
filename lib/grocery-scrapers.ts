@@ -23,17 +23,19 @@ export async function searchGroceryStores(
   searchTerm: string,
   zipCode?: string,
   store?: string,
-  recipeId?: string,
-  forceRefresh?: boolean
+  forceRefresh?: boolean,
+  standardizedIngredientId?: string | null
 ): Promise<StoreResults[]> {
   try {
     const normalizedZip = normalizeZipCode(zipCode)
     const storeQuery = store ? `&store=${encodeURIComponent(store)}` : ""
-    const recipeQuery = recipeId ? `&recipeId=${encodeURIComponent(recipeId)}` : ""
     const forceRefreshQuery = forceRefresh ? "&forceRefresh=true" : ""
     const liveActivationQuery = forceRefresh ? "&liveActivation=true" : ""
+    const standardizedIngredientIdQuery = standardizedIngredientId
+      ? `&standardizedIngredientId=${encodeURIComponent(standardizedIngredientId)}`
+      : ""
     const zipQuery = normalizedZip ? `&zipCode=${normalizedZip}` : ""
-    const url = `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}${zipQuery}${storeQuery}${recipeQuery}${forceRefreshQuery}${liveActivationQuery}`
+    const url = `/api/grocery-search?searchTerm=${encodeURIComponent(searchTerm)}${zipQuery}${storeQuery}${forceRefreshQuery}${liveActivationQuery}${standardizedIngredientIdQuery}`
 
     // Use the local API route which can access the scrapers
     const controller = new AbortController()

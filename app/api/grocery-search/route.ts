@@ -7,7 +7,6 @@ import { createServerClient } from "@/lib/database/supabase"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
-import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import type { Database } from "@/lib/database/supabase"
 import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
 import { getUserPreferredStores, type StoreData } from "@/lib/store/user-preferred-stores"
@@ -224,34 +223,6 @@ async function scrapeDirectFallback(
   }
 }
 
-async function resolveStandardizedIdForTerm(
-  supabaseClient: ReturnType<typeof createServerClient>,
-  term: string,
-  recipeId?: string | null,
-): Promise<string | null> {
-  try {
-    if (recipeId) {
-      return await findRecipeStandardizedIngredientId(recipeId, term)
-    }
-
-    // Use the shared pipeline resolver so fuzzy/normalized lookups reuse existing cache rows
-    console.log("[grocery-search] No recipeId provided; skipping standardized ID resolution on server")
-    return null
-  } catch (error) {
-    console.error("[grocery-search] resolveStandardizedIdForTerm error", error)
-    return null
-  }
-}
-
-async function findRecipeStandardizedIngredientId(recipeId: string, rawName: string): Promise<string | null> {
-  if (!recipeId) return null
-  const trimmed = rawName?.trim()
-  if (!trimmed) return null
-
-  const entry = await recipeIngredientsDB.findByRecipeIdAndDisplayName(recipeId, trimmed)
-  return entry?.standardized_ingredient_id ?? null
-}
-
 export async function GET(request: NextRequest) {
   const requestStart = Date.now()
   // Debug logging version: 2025-11-23-v3
@@ -264,7 +235,7 @@ export async function GET(request: NextRequest) {
   const sanitizedSearchTerm = (rawSearchTerm.split(",")[0] || "").trim() || rawSearchTerm.trim()
   const zipParam = searchParams.get("zipCode") || ""
   let zipToUse = normalizeZipCode(zipParam)
-  const recipeId = searchParams.get("recipeId")
+  const standardizedIngredientIdParam = searchParams.get("standardizedIngredientId")?.trim() || null
   const rawStoreParam = (searchParams.get("store") || "").trim()
   const storeKey = resolveStoreKey(rawStoreParam)
   const storeKeys = storeKey ? [storeKey] : DEFAULT_STORE_KEYS
@@ -329,14 +300,14 @@ export async function GET(request: NextRequest) {
     storeMetadata: preferredStoreMetadata,
   }
 
-  let standardizedIngredientId: string | null = null
+  let standardizedIngredientId: string | null = standardizedIngredientIdParam
   let cachedRows: IngredientCacheResult[] = []
 
   console.log("[grocery-search] Incoming request", {
     searchTerm: sanitizedSearchTerm,
     zipParam,
     zipToUse,
-    recipeId,
+    standardizedIngredientId,
     stores: storeKeys,
     forceRefresh,
     liveActivation,
@@ -364,17 +335,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (directItems.length > 0) {
-      // Resolve standardized ID for caching
-      if (recipeId) {
-        standardizedIngredientId = await findRecipeStandardizedIngredientId(
-          recipeId,
-          sanitizedSearchTerm
-        )
-      }
-      if (!standardizedIngredientId) {
-        standardizedIngredientId = await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId)
-      }
-
       // Fire-and-forget batch cache write
       if (standardizedIngredientId) {
         Promise.resolve()
@@ -439,14 +399,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    if (recipeId) {
-      standardizedIngredientId = await findRecipeStandardizedIngredientId(
-        recipeId,
-        sanitizedSearchTerm
-      )
-      console.log("[grocery-search] Resolved standardized ingredient", { standardizedIngredientId })
-    }
-
     if (standardizedIngredientId) {
       const standardizedIdForLookup = standardizedIngredientId
       // OPTIMIZED: Single batched call for all stores instead of one per store
@@ -501,11 +453,6 @@ export async function GET(request: NextRequest) {
       stores: storeKeys,
     })
 
-    // Ensure we have a standardized ID so the fallback can reuse cache rows before scraping
-    if (!standardizedIngredientId) {
-      standardizedIngredientId = await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId)
-    }
-
     // Use the preferred store metadata we already fetched
     const directItems = await withScraperRuntimeContext(scraperRuntimeConfig, () =>
       scrapeDirectFallback(
@@ -525,8 +472,7 @@ export async function GET(request: NextRequest) {
             searchTerm: sanitizedSearchTerm,
           })
 
-          const standardizedId =
-            standardizedIngredientId || (await resolveStandardizedIdForTerm(supabaseClient, sanitizedSearchTerm, recipeId))
+          const standardizedId = standardizedIngredientId
 
           if (!standardizedId) {
             console.warn("[grocery-search] Could not resolve standardized ID for caching", { searchTerm: sanitizedSearchTerm })
