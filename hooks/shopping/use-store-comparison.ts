@@ -94,13 +94,16 @@ async function fetchUserStoreMetadata(
     const metadataMap = new Map<string, StoreMetadata>()
     metadata.forEach((item: any) => {
       const normalizedName = normalizeStoreName(item.storeName)
+      const latitude = parseNumber(item.latitude)
+      const longitude = parseNumber(item.longitude)
+      const distanceMiles = parseNumber(item.distanceMiles ?? item.distance_miles)
       metadataMap.set(normalizedName, {
         storeId: item.storeId,
         grocery_store_id: item.grocery_store_id,
         zipCode: item.zipCode,
-        latitude: item.latitude ?? null,
-        longitude: item.longitude ?? null,
-        distanceMiles: item.distanceMiles ?? item.distance_miles ?? null,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
+        distanceMiles: distanceMiles ?? null,
       })
     })
 
@@ -432,25 +435,6 @@ export function useStoreComparison(
         if (pricingGaps.length > 0) {
           console.warn("[useStoreComparison] Filling pricing gaps", { gaps: pricingGaps.length })
           console.log("[useStoreComparison] Pricing gaps payload", pricingGaps)
-          toast({
-            title: "Pricing gaps detected",
-            description: `Found ${pricingGaps.length} gap(s) before comparison`,
-            variant: "secondary",
-          })
-          const { inserted } = await hydratePricingGaps(pricingGaps, resolvedZipCode)
-          if (inserted > 0) {
-            toast({
-              title: "Pricing gaps backfilled",
-              description: `Inserted ${inserted} rows`,
-              variant: "success",
-            })
-          } else {
-            toast({
-              title: "Pricing gaps still empty",
-              description: "No rows inserted after scraping",
-              variant: "destructive",
-            })
-          }
         }
       }
       // ----- Primary: server-side pricing function -----

@@ -1,5 +1,11 @@
 import { normalizeStoreName } from "@/lib/database/ingredients-db"
 
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 /**
  * Store metadata containing IDs and location information
  */
@@ -38,13 +44,16 @@ export function buildStoreMetadataFromRows(
 
   rows.forEach(row => {
     const normalizedStore = normalizeStoreName(row.store_enum)
+    const latitude = toNullableNumber(row.latitude)
+    const longitude = toNullableNumber(row.longitude)
+    const distanceMiles = toNullableNumber(row.distance_miles)
     metadata.set(normalizedStore, {
       storeId: row.grocery_store_id,
       grocery_store_id: row.grocery_store_id,
       zipCode: row.zip_code ?? null,
-      latitude: row.latitude ?? null,
-      longitude: row.longitude ?? null,
-      distanceMiles: row.distance_miles ?? null,
+      latitude,
+      longitude,
+      distanceMiles,
     })
   })
 
@@ -72,13 +81,16 @@ export function buildStoreMetadataFromStoreData(
   const metadata = new Map<string, StoreMetadata>()
 
   stores.forEach((store, key) => {
+    const latitude = toNullableNumber(store.latitude)
+    const longitude = toNullableNumber(store.longitude)
+    const distanceMiles = toNullableNumber(store.distance_miles)
     metadata.set(key, {
       storeId: store.storeId ?? store.id,
       grocery_store_id: store.grocery_store_id ?? store.storeId ?? store.id,
       zipCode: store.zip_code ?? null,
-      latitude: store.latitude ?? null,
-      longitude: store.longitude ?? null,
-      distanceMiles: store.distance_miles ?? null,
+      latitude,
+      longitude,
+      distanceMiles,
     })
   })
 

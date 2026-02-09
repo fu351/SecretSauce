@@ -90,6 +90,12 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c
 }
 
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 /**
  * Generate a small offset around an origin so we can place markers even when
  * we don't have precise coordinates. Keeps stores visible on the map.
@@ -340,6 +346,7 @@ export function StoreMap({
       const brandName = comparison.store?.trim() ?? ""
       const requestedAlias = comparison.providerAliases?.[0]?.trim() || brandName
       const displayName = resolvedName || requestedAlias || brandName || "Store"
+      const distanceMiles = toNumberOrNull(comparison.distanceMiles)
 
       return `
         <div style="min-width:220px;background:${bgColor};color:${textColor};padding:12px;border-radius:12px;font-family:'Inter',system-ui,sans-serif;">
@@ -356,8 +363,8 @@ export function StoreMap({
               : `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">Best price!</div>`
           }
           ${
-            typeof comparison.distanceMiles === "number"
-              ? `<div style="margin-top:6px;font-size:13px;color:${mutedColor};">Distance: ${comparison.distanceMiles.toFixed(1)} mi</div>`
+            distanceMiles !== null
+              ? `<div style="margin-top:6px;font-size:13px;color:${mutedColor};">Distance: ${distanceMiles.toFixed(1)} mi</div>`
               : ""
           }
           ${

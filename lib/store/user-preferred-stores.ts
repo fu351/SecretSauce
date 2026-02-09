@@ -2,6 +2,12 @@ import { createServerClient, type Database } from "@/lib/database/supabase"
 import { groceryStoresDB } from "@/lib/database/grocery-stores-db"
 import { normalizeStoreName } from "@/lib/database/ingredients-db"
 
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export type StoreData = {
   id: string
   name: string
@@ -52,6 +58,9 @@ export async function getUserPreferredStores(
           if (storeKeys.includes(row.store_brand)) {
             const storeKey = normalizeStoreName(row.store_brand)
             console.log(`[getUserPreferredStores] Mapping store_brand "${row.store_brand}" -> normalized "${storeKey}"`)
+            const latitude = toNullableNumber((row as any).latitude)
+            const longitude = toNullableNumber((row as any).longitude)
+            const distanceMiles = toNullableNumber((row as any).distance_miles)
             storeMap.set(storeKey, {
               id: row.store_id,
               name: row.store_name,
@@ -62,9 +71,9 @@ export async function getUserPreferredStores(
               store_enum: row.store_brand,
               grocery_store_id: row.grocery_store_id ?? row.store_id,
               storeId: row.store_id,
-              latitude: row.latitude,
-              longitude: row.longitude,
-              distance_miles: row.distance_miles,
+              latitude: latitude ?? undefined,
+              longitude: longitude ?? undefined,
+              distance_miles: distanceMiles ?? undefined,
             })
           }
         }
