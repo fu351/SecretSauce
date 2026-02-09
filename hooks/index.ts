@@ -26,6 +26,7 @@ export {
 export { useShoppingList } from "./shopping/use-shopping-list"
 export { useStoreComparison } from "./shopping/use-store-comparison"
 export { useClosestStore } from "./shopping/use-closest-store"
+export { useRealTimePricing } from "./shopping/use-real-time-pricing"
 
 // Delivery Hooks
 export { useDeliveryOrders, type DeliveryOrder, type GroupedDelivery } from "./delivery/use-delivery-orders"
