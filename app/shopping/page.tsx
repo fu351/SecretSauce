@@ -186,16 +186,36 @@ export default function ShoppingPage() {
     try {
       toast({ title: "Processing...", description: "Creating your delivery order" })
 
-      const eligible = bestStore.items.filter(item => item.productMappingId)
+      const deliverySelections = bestStore.items
+        .flatMap(item => {
+          if (!item.productMappingId) return []
+          const sourceIds = item.shoppingItemIds?.length ? item.shoppingItemIds : [item.shoppingItemId]
+          const normalizedIds = sourceIds
+            .map((id) => String(id || "").trim())
+            .filter((id) => id.length > 0)
 
-      if (eligible.length === 0) {
+          return normalizedIds.map((shoppingItemId) => ({
+            shoppingItemId,
+            productMappingId: item.productMappingId!,
+          }))
+        })
+        .filter(
+          (selection, index, arr) =>
+            arr.findIndex(
+              (candidate) =>
+                candidate.shoppingItemId === selection.shoppingItemId &&
+                candidate.productMappingId === selection.productMappingId
+            ) === index
+        )
+
+      if (deliverySelections.length === 0) {
         throw new Error("No items were added to delivery log")
       }
 
       // order_id is assigned automatically by DB trigger — safe to run in parallel
       const results = await Promise.all(
-        eligible.map(item =>
-          storeListHistoryDB.addToDeliveryLog(item.shoppingItemId, item.productMappingId!)
+        deliverySelections.map(selection =>
+          storeListHistoryDB.addToDeliveryLog(selection.shoppingItemId, selection.productMappingId)
         )
       )
 

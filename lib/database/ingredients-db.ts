@@ -458,7 +458,58 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
         return []
       }
 
-      return Array.isArray(data) ? data : []
+      const isDev = process.env.NODE_ENV !== "production"
+      if (isDev) {
+        console.log("[IngredientsRecentTable][dev] get_pricing raw", {
+          type: Array.isArray(data) ? "array" : typeof data,
+          isArray: Array.isArray(data),
+          topLevelKeys: data && typeof data === "object" && !Array.isArray(data)
+            ? Object.keys(data as Record<string, unknown>)
+            : [],
+        })
+      }
+
+      const parseMaybeJson = (value: unknown): unknown => {
+        let current = value
+        for (let i = 0; i < 3; i += 1) {
+          if (typeof current !== "string") break
+          try {
+            current = JSON.parse(current)
+          } catch {
+            break
+          }
+        }
+        return current
+      }
+
+      const normalizePricingPayload = (value: unknown): PricingResult[] => {
+        const parsed = parseMaybeJson(value)
+
+        if (Array.isArray(parsed)) {
+          return parsed.flatMap((item) => normalizePricingPayload(item))
+        }
+
+        if (parsed && typeof parsed === "object") {
+          const record = parsed as Record<string, unknown>
+          const wrapped = record.get_pricing ?? record.result ?? record.data
+          if (wrapped !== undefined) return normalizePricingPayload(wrapped)
+
+          // Base case: a single pricing row object
+          return [record as unknown as PricingResult]
+        }
+
+        return []
+      }
+
+      const normalized = normalizePricingPayload(data)
+      if (isDev) {
+        console.log("[IngredientsRecentTable][dev] get_pricing normalized", {
+          entries: normalized.length,
+          sampleTypes: normalized.slice(0, 3).map((entry) => typeof entry),
+        })
+      }
+
+      return normalized
     } catch (error) {
       this.handleError(error, "getPricingForUser")
       return []
@@ -476,7 +527,16 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
         return []
       }
 
-      return Array.isArray(data) ? data : []
+      if (Array.isArray(data)) return data
+      if (typeof data === "string") {
+        try {
+          const parsed = JSON.parse(data)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      }
+      return []
     } catch (error) {
       this.handleError(error, "getPricingGaps")
       return []

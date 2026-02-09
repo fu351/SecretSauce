@@ -10,6 +10,17 @@ import { normalizeZipCode } from "@/lib/utils/zip"
 import { type StoreMetadataMap, type StoreMetadata } from "@/lib/utils/store-metadata"
 import { searchGroceryStores } from "@/lib/grocery-scrapers"
 
+const ENABLE_DEV_PRICING_LOGS = process.env.NODE_ENV !== "production"
+
+function devPricingLog(message: string, payload?: unknown) {
+  if (!ENABLE_DEV_PRICING_LOGS) return
+  if (payload === undefined) {
+    console.log(`[useStoreComparison][dev] ${message}`)
+    return
+  }
+  console.log(`[useStoreComparison][dev] ${message}`, payload)
+}
+
 function normalizeShoppingItemId(value: unknown): string {
   if (value === null || value === undefined) return ""
   return String(value).trim()
@@ -19,6 +30,14 @@ function normalizeUnitValue(value: unknown): string | null {
   if (typeof value !== "string") return null
   const normalized = value.trim().toLowerCase()
   return normalized.length > 0 ? normalized : null
+}
+
+function canonicalizeUnit(value: string | null): string | null {
+  if (!value) return null
+  if (["each", "ea", "unit", "units", "piece", "pieces", "item", "items"].includes(value)) {
+    return "unit"
+  }
+  return value
 }
 
 function parseNumber(value: unknown): number | undefined {
@@ -40,6 +59,17 @@ function parseBoolean(value: unknown): boolean | undefined {
     if (normalized === "false") return false
   }
   return undefined
+}
+
+function parseJsonArray<T = unknown>(value: unknown): T[] | null {
+  if (Array.isArray(value)) return value as T[]
+  if (typeof value !== "string") return null
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? (parsed as T[]) : null
+  } catch {
+    return null
+  }
 }
 
 async function fetchUserStoreMetadata(
@@ -185,15 +215,68 @@ export function useStoreComparison(
   const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[], storeMetadata: StoreMetadataMap): StoreComparison[] => {
     const storeMap = new Map<string, StoreComparison>()
     const itemsById = new Map(shoppingList.map(item => [normalizeShoppingItemId(item.id), item]))
+    const itemsByIngredientId = new Map<string, ShoppingListItem[]>()
+    const diagnostics: Array<{
+      standardizedIngredientId: string
+      rpcItemIds: string[]
+      matchedShoppingItemIds: string[]
+      resolvedShoppingItemIds: string[]
+      offersCount: number
+      offerStores: string[]
+      rawEntryKeys: string[]
+      rawOffersType: string
+    }> = []
+    let entriesWithNoOffers = 0
+    let entriesWithNoResolvedIds = 0
+
+    shoppingList.forEach((item) => {
+      const ingredientId = normalizeShoppingItemId(item.ingredient_id ?? item.standardizedIngredientId)
+      if (!ingredientId) return
+      const existing = itemsByIngredientId.get(ingredientId) ?? []
+      existing.push(item)
+      itemsByIngredientId.set(ingredientId, existing)
+    })
 
     pricingData.forEach((entry: any) => {
-      const itemIds = Array.isArray(entry?.item_ids)
-        ? entry.item_ids
-            .map((itemId: unknown) => normalizeShoppingItemId(itemId))
-            .filter((itemId: string) => itemId.length > 0)
+      const rawItemIds =
+        parseJsonArray(entry?.item_ids) ??
+        parseJsonArray(entry?.itemIds) ??
+        []
+      const rpcItemIds: string[] = rawItemIds
+        .map((itemId: unknown) => normalizeShoppingItemId(itemId))
+        .filter((itemId: string) => itemId.length > 0)
+      const standardizedIngredientId = normalizeShoppingItemId(entry?.standardized_ingredient_id)
+      const ingredientMatchedItems = standardizedIngredientId
+        ? (itemsByIngredientId.get(standardizedIngredientId) ?? [])
         : []
-      const offers: any[] = entry?.offers ?? []
-      const representativeItem = itemsById.get(itemIds[0] || "")
+      const idMatchedItems = rpcItemIds
+        .map((itemId: string) => itemsById.get(itemId))
+        .filter((item: ShoppingListItem | undefined): item is ShoppingListItem => Boolean(item))
+      const matchedItems = [...ingredientMatchedItems, ...idMatchedItems].filter(
+        (item, idx, arr) => arr.findIndex((candidate) => candidate.id === item.id) === idx
+      )
+      const matchedShoppingItemIds = matchedItems
+        .map((item) => normalizeShoppingItemId(item.id))
+        .filter((itemId): itemId is string => itemId.length > 0)
+      const shoppingItemIds = [...new Set([...matchedShoppingItemIds, ...rpcItemIds])]
+      const representativeItem = matchedItems[0] ?? itemsById.get(rpcItemIds[0] || "")
+      const offers: any[] =
+        parseJsonArray(entry?.offers) ??
+        parseJsonArray(entry?.store_offers) ??
+        parseJsonArray(entry?.pricing_offers) ??
+        []
+      if (offers.length === 0) entriesWithNoOffers += 1
+      if (shoppingItemIds.length === 0) entriesWithNoResolvedIds += 1
+      diagnostics.push({
+        standardizedIngredientId,
+        rpcItemIds,
+        matchedShoppingItemIds,
+        resolvedShoppingItemIds: shoppingItemIds,
+        offersCount: offers.length,
+        offerStores: offers.map((offer: any) => String(offer?.store || offer?.store_name || "unknown")),
+        rawEntryKeys: Object.keys(entry || {}),
+        rawOffersType: typeof entry?.offers,
+      })
       const fallbackName = representativeItem?.name || "Item"
 
       offers.forEach(offer => {
@@ -222,8 +305,8 @@ export function useStoreComparison(
         const productUnit = offer?.product_unit ?? null
         const conversionError = parseBoolean(offer?.conversion_error) ?? false
         const usedEstimate = parseBoolean(offer?.used_estimate) ?? false
-        const requestedUnitNormalized = normalizeUnitValue(requestedUnit)
-        const productUnitNormalized = normalizeUnitValue(productUnit)
+        const requestedUnitNormalized = canonicalizeUnit(normalizeUnitValue(requestedUnit))
+        const productUnitNormalized = canonicalizeUnit(normalizeUnitValue(productUnit))
         const packagesFromOffer = parsePositiveNumber(offer?.packages_to_buy)
         const packagesToBuy =
           packagesFromOffer ??
@@ -233,9 +316,11 @@ export function useStoreComparison(
         const productQuantity = parseNumber(offer?.product_quantity)
         const convertedQuantity = parseNumber(offer?.converted_quantity)
         const packagePrice = parseNumber(offer?.package_price)
+        const primaryShoppingItemId = shoppingItemIds[0] || ""
+        const stableItemKey = primaryShoppingItemId || standardizedIngredientId || rpcItemIds[0] || String(comp.items.length)
 
           comp.items.push({
-            id: `${storeKey}-${itemIds[0] || Math.random()}`,
+            id: `${storeKey}-${stableItemKey}`,
             title: offer?.product_name || fallbackName,
             brand: "",
             price: totalPrice,
@@ -246,9 +331,9 @@ export function useStoreComparison(
             location: offer?.zip_code ? `${storeName} (${offer.zip_code})` : storeName,
             category: "other",
             quantity: requestedAmount,
-            shoppingItemId: itemIds[0] || "",
+            shoppingItemId: primaryShoppingItemId,
             originalName: fallbackName,
-            shoppingItemIds: itemIds,
+            shoppingItemIds,
             productMappingId: offer?.product_mapping_id || undefined,
             packagesToBuy,
             requestedUnit,
@@ -302,6 +387,17 @@ export function useStoreComparison(
         c.savings = maxTotal - c.total
       })
     }
+
+    devPricingLog("buildComparisonsFromPricing summary", {
+      shoppingListCount: shoppingList.length,
+      pricingEntryCount: pricingData.length,
+      storesBuiltFromOffers: storeMap.size,
+      comparisonsCount: comps.length,
+      entriesWithNoOffers,
+      entriesWithNoResolvedIds,
+    })
+    devPricingLog("buildComparisonsFromPricing sample", diagnostics.slice(0, 12))
+
     return comps
   }, [shoppingList])
 
@@ -317,8 +413,19 @@ export function useStoreComparison(
     setActiveStoreIndex(0)
 
     try {
+      devPricingLog("performMassSearch start", {
+        skipPricingGaps: Boolean(options?.skipPricingGaps),
+        shoppingListCount: shoppingList.length,
+        resolvedZipCode: resolvedZipCode || null,
+        userId: user?.id ?? null,
+      })
+
       // ----- Fetch user preferred stores metadata via API (uses RPC with fallback) -----
       const storeMetadata = await fetchUserStoreMetadata(user?.id, resolvedZipCode)
+      devPricingLog("store metadata", {
+        count: storeMetadata.size,
+        stores: Array.from(storeMetadata.keys()),
+      })
       // ----- Fill cache gaps before pricing -----
       if (user && !options?.skipPricingGaps) {
         const pricingGaps = await ingredientsRecentDB.getPricingGaps(user.id)
@@ -348,33 +455,69 @@ export function useStoreComparison(
       }
       // ----- Primary: server-side pricing function -----
       const pricingData = user ? await ingredientsRecentDB.getPricingForUser(user.id) : []
+      devPricingLog("getPricingForUser result", {
+        entries: pricingData.length,
+        sample: pricingData.slice(0, 3).map((entry) => ({
+          keys: Object.keys((entry as Record<string, unknown>) || {}),
+          standardized_ingredient_id: entry.standardized_ingredient_id,
+          item_ids: entry.item_ids,
+          offersType: typeof (entry as Record<string, unknown>).offers,
+          offers: Array.isArray(entry.offers) ? entry.offers.length : 0,
+          stores: Array.isArray(entry.offers) ? entry.offers.map((offer) => offer.store || offer.store_name || "unknown") : [],
+        })),
+      })
       let comparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
       let finalComparisons = comparisons
 
-      // Ensure every preferred store appears, even if no pricing/scrape data
-      const normalizedExisting = new Set(
-        finalComparisons.map((c) => normalizeStoreName(c.store))
-      )
-
-      storeMetadata.forEach((meta, storeKey) => {
-        if (normalizedExisting.has(storeKey)) return
-        // Only include stores we can place on the map (have zip or coords)
-        if (!meta.zipCode && !meta.latitude && !meta.longitude) return
-
-        finalComparisons.push({
-          store: storeKey,
-          items: [],
-          total: 0,
-          savings: 0,
-          missingItems: true,
-          missingCount: shoppingList.length,
-          missingIngredients: shoppingList,
-          latitude: meta.latitude ?? undefined,
-          longitude: meta.longitude ?? undefined,
-          distanceMiles: meta.distanceMiles ?? undefined,
-          groceryStoreId: meta.grocery_store_id ?? null,
-          locationHint: meta.zipCode ? `${storeKey} (${meta.zipCode})` : undefined,
+      if (options?.skipPricingGaps && pricingData.length === 0) {
+        toast({
+          title: "No cached pricing in dev mode",
+          description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
         })
+      }
+
+      const shouldIncludePlaceholderStores = finalComparisons.length > 0 || !options?.skipPricingGaps
+      let placeholderStoresAdded = 0
+
+      if (shouldIncludePlaceholderStores) {
+        // Ensure every preferred store appears, even if no pricing/scrape data
+        const normalizedExisting = new Set(
+          finalComparisons.map((c) => normalizeStoreName(c.store))
+        )
+
+        storeMetadata.forEach((meta, storeKey) => {
+          if (normalizedExisting.has(storeKey)) return
+          // Only include stores we can place on the map (have zip or coords)
+          if (!meta.zipCode && !meta.latitude && !meta.longitude) return
+
+          finalComparisons.push({
+            store: storeKey,
+            items: [],
+            total: 0,
+            savings: 0,
+            missingItems: true,
+            missingCount: shoppingList.length,
+            missingIngredients: shoppingList,
+            latitude: meta.latitude ?? undefined,
+            longitude: meta.longitude ?? undefined,
+            distanceMiles: meta.distanceMiles ?? undefined,
+            groceryStoreId: meta.grocery_store_id ?? null,
+            locationHint: meta.zipCode ? `${storeKey} (${meta.zipCode})` : undefined,
+          })
+          placeholderStoresAdded += 1
+        })
+      }
+
+      devPricingLog("final comparison set", {
+        totalStores: finalComparisons.length,
+        storesWithItems: finalComparisons.filter((store) => store.items.length > 0).length,
+        placeholderStoresAdded,
+        stores: finalComparisons.map((store) => ({
+          store: store.store,
+          itemCount: store.items.length,
+          missingCount: store.missingCount ?? 0,
+          total: store.total,
+        })),
       })
 
       setResults(finalComparisons)
@@ -471,6 +614,10 @@ export function useStoreComparison(
   const sortedResults = useMemo(() => {
     const sorted = [...results]
     sorted.sort((a, b) => {
+      const aHasItems = a.items.length > 0 ? 0 : 1
+      const bHasItems = b.items.length > 0 ? 0 : 1
+      if (aHasItems !== bHasItems) return aHasItems - bHasItems
+
       const aMissing = a.missingCount || 0
       const bMissing = b.missingCount || 0
       if (aMissing !== bMissing) return aMissing - bMissing
