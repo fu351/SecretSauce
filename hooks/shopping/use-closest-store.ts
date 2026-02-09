@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react"
 import { useMapsLibrary } from "@vis.gl/react-google-maps"
 import type { StoreComparison } from "@/lib/types/store"
-import { canonicalizeStoreName, geocodeMultipleStores } from "@/lib/geocoding-adapter"
 
 interface ClosestStoreResult {
   closestIndex: number | null
@@ -29,48 +28,14 @@ export function useClosestStore(): ClosestStoreResult {
     setIsLoading(true)
 
     try {
-      // Step 1: Use PostGIS to geocode stores and get distances
-      // This is much faster and cheaper than Google Distance Matrix
-      const storeNames = comparisons.map(c => c.store)
-      const geocodedStores = await geocodeMultipleStores(storeNames, undefined, userLocation, 20)
-
-      // Find closest store by PostGIS straight-line distance
-      let minDistanceMiles = Infinity
-      let closestIdx = -1
-
-      comparisons.forEach((comparison, idx) => {
-        const canonical = canonicalizeStoreName(comparison.store)
-        const geocoded = geocodedStores.get(canonical)
-
-        if (geocoded) {
-          // Calculate straight-line distance using Haversine
-          const distance = calculateHaversineDistance(
-            userLocation.lat,
-            userLocation.lng,
-            geocoded.lat,
-            geocoded.lng
-          )
-
-          if (distance < minDistanceMiles) {
-            minDistanceMiles = distance
-            closestIdx = idx
-          }
-        }
-      })
-
-      setClosestIndex(closestIdx !== -1 ? closestIdx : null)
-
-      // Step 2: Use Google Distance Matrix for driving times and distances
-      // This provides user-friendly travel information (duration, route distance)
+      // Use Google Distance Matrix for travel times and distances.
       const service = new google.maps.DistanceMatrixService()
 
       const destinations = comparisons.map(c => {
-        const canonical = canonicalizeStoreName(c.store)
-        const geocoded = geocodedStores.get(canonical)
-
-        // Use geocoded coordinates if available, otherwise fallback to location hint
-        if (geocoded) {
-          return { lat: geocoded.lat, lng: geocoded.lng }
+        const lat = Number(c.latitude)
+        const lng = Number(c.longitude)
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          return { lat, lng }
         }
         return c.locationHint || c.store
       })
@@ -83,6 +48,8 @@ export function useClosestStore(): ClosestStoreResult {
       })
 
       const resultsMap = new Map<number, { distance: string; duration: string }>()
+      let minDistanceMiles = Infinity
+      let closestIdx = -1
 
       if (response.rows[0]) {
         response.rows[0].elements.forEach((element, idx) => {
@@ -91,10 +58,34 @@ export function useClosestStore(): ClosestStoreResult {
               distance: element.distance.text,
               duration: element.duration.text
             })
+
+            const meters = element.distance?.value
+            if (typeof meters === "number" && Number.isFinite(meters)) {
+              const miles = meters / 1609.344
+              if (miles < minDistanceMiles) {
+                minDistanceMiles = miles
+                closestIdx = idx
+              }
+            }
           }
         })
       }
 
+      if (closestIdx === -1) {
+        comparisons.forEach((comparison, idx) => {
+          const lat = Number(comparison.latitude)
+          const lng = Number(comparison.longitude)
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+
+          const distance = calculateHaversineDistance(userLocation.lat, userLocation.lng, lat, lng)
+          if (distance < minDistanceMiles) {
+            minDistanceMiles = distance
+            closestIdx = idx
+          }
+        })
+      }
+
+      setClosestIndex(closestIdx !== -1 ? closestIdx : null)
       setTravelData(resultsMap)
 
     } catch (error) {

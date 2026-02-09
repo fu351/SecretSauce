@@ -14,7 +14,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { useTheme } from "@/contexts/theme-context"
-import { geocodePostalCode, getUserLocation } from "@/lib/geocoding-adapter"
+import { geocodePostalCode, getUserLocation } from "@/lib/location-client"
 import { RoutingControl } from "@/components/map/leaflet/leaflet-routing-control"
 import type { RouteResult, TravelMode, LatLng } from "@/lib/routing/types"
 import { Loader2, MapPin, AlertCircle, Navigation, Footprints, Car, Search } from "lucide-react"
@@ -279,7 +279,10 @@ export function StoreMap({
 
         // Calculate map bounds to fit all markers
         if (userCoords && locations.size > 0) {
-          const bounds = L.latLngBounds([userCoords.lat, userCoords.lng])
+          const bounds = L.latLngBounds(
+            L.latLng(userCoords.lat, userCoords.lng),
+            L.latLng(userCoords.lat, userCoords.lng)
+          )
           locations.forEach((loc) => {
             bounds.extend([loc.lat, loc.lng])
           })

@@ -20,7 +20,7 @@ import {
 
 import type { StoreComparison } from "@/lib/types/store"
 import { useClosestStore } from "@/hooks" // Ensure this path is correct
-import { getUserLocation } from "@/lib/geocoding-adapter"
+import { getUserLocation } from "@/lib/location-client"
 import Image from "next/image"
 
 // Dynamically import StoreMap to prevent SSR issues with Leaflet
