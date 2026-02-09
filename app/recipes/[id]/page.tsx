@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import clsx from "clsx"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils, Pencil } from "lucide-react"
+import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils, Pencil, ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
@@ -33,6 +33,8 @@ export default function RecipeDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [isFloating, setIsFloating] = useState(false)
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
+  const [cookingMode, setCookingMode] = useState(false)
+  const [cookingStep, setCookingStep] = useState(0)
   const { theme } = useTheme()
   const isDark = theme === "dark"
 
@@ -201,6 +203,28 @@ export default function RecipeDetailPage() {
 
   const getTotalTime = () => {
     return (recipe?.prep_time || 0) + (recipe?.cook_time || 0)
+  }
+
+  const instructions = recipe?.content?.instructions || []
+  const getInstructionText = (instruction: unknown): string => {
+    if (typeof instruction === "string") return instruction
+    if (instruction && typeof instruction === "object" && "description" in instruction) return (instruction as any).description
+    if (instruction && typeof instruction === "object" && "step" in instruction) return (instruction as any).step
+    return "Step description not available"
+  }
+
+  const handleStartCooking = () => {
+    setCookingStep(0)
+    setCookingMode(true)
+  }
+
+  const handleCookingNext = () => {
+    if (cookingStep < instructions.length - 1) setCookingStep((s) => s + 1)
+    else setCookingMode(false)
+  }
+
+  const handleCookingBack = () => {
+    if (cookingStep > 0) setCookingStep((s) => s - 1)
   }
 
   if (loading) {
@@ -438,8 +462,69 @@ export default function RecipeDetailPage() {
                   </div>
                 ))}
               </div>
+              {instructions.length > 0 && (
+                <Button
+                  onClick={handleStartCooking}
+                  className={`${primaryButtonClass} w-full md:hidden mt-4`}
+                  size="lg"
+                >
+                  <ChefHat className="w-5 h-5 mr-2" />
+                  Start Cooking
+                </Button>
+              )}
             </CardContent>
           </Card>
+
+          {/* Mobile: Interactive Cooking Mode Overlay */}
+          {cookingMode && instructions.length > 0 && (
+            <div className="fixed inset-0 z-[100] md:hidden flex flex-col bg-background">
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <Button variant="ghost" size="icon" onClick={() => setCookingMode(false)} aria-label="Exit cooking mode">
+                  <X className="h-5 w-5" />
+                </Button>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Step {cookingStep + 1} of {instructions.length}
+                </span>
+                <div className="w-10" />
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 pb-8 flex flex-col justify-end items-center">
+                <div
+                  className={clsx(
+                    "text-xl sm:text-2xl leading-relaxed max-w-lg w-full text-center mb-4",
+                    isDark ? "text-foreground" : "text-gray-800",
+                  )}
+                >
+                  {getInstructionText(instructions[cookingStep])}
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-4 p-4 border-t border-border bg-card/50">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={handleCookingBack}
+                  disabled={cookingStep === 0}
+                  className="flex-1"
+                >
+                  <ChevronLeft className="h-5 w-5 mr-1" />
+                  Back
+                </Button>
+                <Button
+                  onClick={handleCookingNext}
+                  size="lg"
+                  className={`${primaryButtonClass} flex-1`}
+                >
+                  {cookingStep === instructions.length - 1 ? (
+                    "Done"
+                  ) : (
+                    <>
+                      Next
+                      <ChevronRight className="h-5 w-5 ml-1" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="w-full">
             <RecipeReviews recipeId={recipe.id} />

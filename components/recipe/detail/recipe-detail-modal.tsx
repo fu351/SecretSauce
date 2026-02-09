@@ -89,9 +89,12 @@ export function RecipeDetailModal({
       <DialogContent className={`max-w-4xl max-h-[90vh] p-0 overflow-hidden border-none ${cardBgClass}`}>
         <div className="flex flex-col md:flex-row h-full">
           {isLoading || !recipe ? (
-            <div className={`flex items-center justify-center py-24 w-full ${cardBgClass}`}>
-              <div className={`h-8 w-8 animate-spin rounded-full border-2 ${theme === "dark" ? "border-[#e8dcc4]" : "border-orange-500"} border-t-transparent`} />
-            </div>
+            <>
+              <DialogTitle className="sr-only">Recipe details</DialogTitle>
+              <div className={`flex items-center justify-center py-24 w-full ${cardBgClass}`}>
+                <div className={`h-8 w-8 animate-spin rounded-full border-2 ${theme === "dark" ? "border-[#e8dcc4]" : "border-orange-500"} border-t-transparent`} />
+              </div>
+            </>
           ) : (
             <>
               {/* Hero Image Section */}

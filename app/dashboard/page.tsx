@@ -177,11 +177,11 @@ export default function DashboardPage() {
 
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto p-4 md:p-6">
-          <div className="mb-8">
-            <h2 className="text-3xl font-serif font-light mb-2 text-foreground">
+          <div className="mb-4 md:mb-8">
+            <h2 className="text-xl md:text-3xl font-serif font-light mb-1 md:mb-2 text-foreground">
               Welcome back, {user?.email?.split("@")[0]}!
             </h2>
-            <p className="text-muted-foreground">Here's what's cooking in your kitchen</p>
+            <p className="text-sm md:text-base text-muted-foreground">Here's what's cooking in your kitchen</p>
           </div>
 
           {/* Prominent Tutorial Prompt - Only shows if tutorial not completed */}
@@ -263,55 +263,55 @@ export default function DashboardPage() {
           ) : null}
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8"   data-tutorial="dashboard-stats">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">
             <Link href="/recipes?mine=true" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <ChefHat className="h-8 w-8 text-primary" />
-                    <span className="text-xs text-muted-foreground">Your Recipes</span>
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <ChefHat className="h-5 w-5 md:h-8 md:w-8 text-primary" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Your Recipes</span>
                   </div>
-                  <p className="text-3xl font-bold text-foreground">{stats.totalRecipes}</p>
-                  <p className="text-sm mt-1 text-muted-foreground">Recipes created</p>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.totalRecipes}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Recipes created</p>
                 </CardContent>
               </Card>
             </Link>
 
             <Link href="/recipes?favorites=true" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card" data-tutorial="dashboard-actions">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <Heart className="h-8 w-8 text-red-500" />
-                    <span className="text-xs text-muted-foreground">Favorites</span>
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <Heart className="h-5 w-5 md:h-8 md:w-8 text-red-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Favorites</span>
                   </div>
-                  <p className="text-3xl font-bold text-foreground">{stats.favoriteRecipes}</p>
-                  <p className="text-sm mt-1 text-muted-foreground">Saved recipes</p>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.favoriteRecipes}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Saved recipes</p>
                 </CardContent>
               </Card>
             </Link>
 
             <Link href="/meal-planner" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card" data-tutorial="dashboard-recents">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <Calendar className="h-8 w-8 text-blue-500" />
-                    <span className="text-xs text-muted-foreground">Meal Plan</span>
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <Calendar className="h-5 w-5 md:h-8 md:w-8 text-blue-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Meal Plan</span>
                   </div>
-                  <p className="text-3xl font-bold text-foreground">{stats.plannedMeals}</p>
-                  <p className="text-sm mt-1 text-muted-foreground">Meals this week</p>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.plannedMeals}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Meals this week</p>
                 </CardContent>
               </Card>
             </Link>
 
             <Link href="/shopping" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <ShoppingCart className="h-8 w-8 text-green-500" />
-                    <span className="text-xs text-muted-foreground">Shopping List</span>
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <ShoppingCart className="h-5 w-5 md:h-8 md:w-8 text-green-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Shopping List</span>
                   </div>
-                  <p className="text-3xl font-bold text-foreground">{stats.shoppingItems}</p>
-                  <p className="text-sm mt-1 text-muted-foreground">Items to buy</p>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.shoppingItems}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Items to buy</p>
                 </CardContent>
               </Card>
             </Link>

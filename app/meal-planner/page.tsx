@@ -20,7 +20,7 @@ import { NutritionSummaryCard } from "@/components/meal-planner/cards/nutrition-
 import { WeeklyView } from "@/components/meal-planner/views/weekly-view"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
 import { RecipeDetailModal } from "@/components/recipe/detail/recipe-detail-modal"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 
 import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
@@ -65,6 +65,8 @@ export default function MealPlannerPage() {
   // State
   const [focusMode, setFocusMode] = useState<{ date: string; mealType: string } | null>(null)
   const [showRecipeSidebar, setShowRecipeSidebar] = useState(false)
+  // Mobile: track recipes selected in overlay (batch add on confirm, nothing added until then)
+  const [sessionSelections, setSessionSelections] = useState<Array<{ recipe: Recipe; mealType: string; date: string }>>([])
   const [weekIndex, setWeekIndex] = useState(getCurrentWeekIndex())
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
   const [heuristicPlanLoading, setHeuristicPlanLoading] = useState(false)
@@ -99,12 +101,13 @@ export default function MealPlannerPage() {
   const MEAL_TYPES_ORDER = useMemo(() => ["breakfast", "lunch", "dinner"] as const, [])
 
   const getNextEmptySlotAfter = useCallback(
-    (justFilledMealType: string, justFilledDate: string) => {
+    (justFilledMealType: string, justFilledDate: string, extraFilled?: Array<{ date: string; mealType: string }>) => {
       const slots = weekDateStrings.flatMap((date) =>
         MEAL_TYPES_ORDER.map((mealType) => ({ date, mealType }))
       )
       const filled = new Set(meals.map((m) => `${m.date}-${m.meal_type}`))
       filled.add(`${justFilledDate}-${justFilledMealType}`)
+      extraFilled?.forEach((f) => filled.add(`${f.date}-${f.mealType}`))
       const filledIndex = slots.findIndex(
         (s) => s.date === justFilledDate && s.mealType === justFilledMealType
       )
@@ -229,22 +232,45 @@ export default function MealPlannerPage() {
     (mealType: string, date: string) => {
       setFocusMode({ mealType, date })
       dnd.setHighlightSlot(mealType, date)
+      if (isMobile) setSessionSelections([])
     },
-    [dnd.setHighlightSlot]
+    [dnd.setHighlightSlot, isMobile]
   )
 
   const handleRecipeSelection = useCallback(
     async (recipe: Recipe) => {
       if (focusMode) {
-        await addToMealPlan(recipe, focusMode.mealType, focusMode.date)
-        dnd.highlightNextEmptySlotAfter(focusMode.mealType, focusMode.date)
-        const next = getNextEmptySlotAfter(focusMode.mealType, focusMode.date)
-        if (next) setFocusMode(next)
-        if (isMobile) setShowRecipeSidebar(false)
+        if (isMobile) {
+          setSessionSelections((prev) => [...prev, { recipe, mealType: focusMode.mealType, date: focusMode.date }])
+          const nextFilled = [...sessionSelections, { recipe, mealType: focusMode.mealType, date: focusMode.date }].map((s) => ({ date: s.date, mealType: s.mealType }))
+          dnd.highlightNextEmptySlotAfter(focusMode.mealType, focusMode.date)
+          const next = getNextEmptySlotAfter(focusMode.mealType, focusMode.date, nextFilled)
+          if (next) setFocusMode(next)
+        } else {
+          await addToMealPlan(recipe, focusMode.mealType, focusMode.date)
+          dnd.highlightNextEmptySlotAfter(focusMode.mealType, focusMode.date)
+          const next = getNextEmptySlotAfter(focusMode.mealType, focusMode.date)
+          if (next) setFocusMode(next)
+        }
       }
     },
     [focusMode, addToMealPlan, isMobile, dnd.highlightNextEmptySlotAfter, getNextEmptySlotAfter]
   )
+
+  const handleConfirmSelections = useCallback(async () => {
+    const toAdd = [...sessionSelections]
+    setSessionSelections([])
+    setShowRecipeSidebar(false)
+    for (const sel of toAdd) {
+      await addToMealPlan(sel.recipe, sel.mealType as "breakfast" | "lunch" | "dinner", sel.date, { reload: false })
+    }
+    if (toAdd.length > 0) await reloadWeeklyPlan()
+  }, [sessionSelections, addToMealPlan, reloadWeeklyPlan])
+
+  const handleCancelSelections = useCallback(() => {
+    setSessionSelections([])
+    setShowRecipeSidebar(false)
+  }, [])
 
   const handleRecipeClick = useCallback((id: string) => setSelectedRecipeId(id), [])
   const handleCloseRecipeModal = useCallback(() => setSelectedRecipeId(null), [])
@@ -300,20 +326,20 @@ export default function MealPlannerPage() {
             1. transform-gpu forces layer compositing.
             2. backface-hidden reduces paint flashing.
           */}
-          <main className="flex-1 overflow-y-auto p-3 md:p-6 transform-gpu backface-hidden scroll-smooth">
-            <div className="max-w-7xl mx-auto will-change-transform">
-              {/* Header */}
-              <div className="flex flex-col gap-4 mb-6">
+          <main className="flex-1 overflow-y-auto p-2 md:p-6 transform-gpu backface-hidden scroll-smooth">
+            <div className="max-w-7xl mx-auto will-change-transform min-w-0">
+              {/* Header - compact on mobile */}
+              <div className="flex flex-col gap-2 md:gap-4 mb-3 md:mb-6">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+                  <h1 className="text-lg md:text-3xl font-bold tracking-tight text-foreground">
                     Meal Planner
                   </h1>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-[11px] md:text-sm text-muted-foreground mt-0.5 md:mt-1">
                     Plan your weekly meals and track nutrition
                   </p>
                 </div>
 
-                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
                 <PlannerActions
                   onHeuristicPlan={handleGenerateHeuristicPlan}
                   onAddToCart={handleAddToShoppingList}
@@ -326,8 +352,8 @@ export default function MealPlannerPage() {
                 </div>
               </div>
 
-              {/* Weekly Grid with Content Visibility Optimization */}
-              <div className="mb-6 [content-visibility:auto] contain-intrinsic-size-[1000px]">
+              {/* Weekly Grid - horizontal scroll on mobile, grid on desktop */}
+              <div className="mb-3 md:mb-6 [content-visibility:auto] contain-intrinsic-size-[1000px]">
                 <MemoizedWeeklyView
                   weekIndex={weekIndex}
                   meals={meals}
@@ -343,9 +369,9 @@ export default function MealPlannerPage() {
                 />
               </div>
 
-              {/* Nutrition Summary */}
+              {/* Nutrition Summary - extra bottom padding on mobile so content isn't cut off */}
               {weekDates.length > 0 && (
-                <div className="pb-20">
+                <div className="pb-24 md:pb-20">
                   <MemoizedNutritionSummary
                     weeklyTotals={nutrition.weeklyNutritionSummary.totals}
                     weeklyAverages={nutrition.weeklyNutritionSummary.averages}
@@ -376,17 +402,25 @@ export default function MealPlannerPage() {
           </aside>
         </div>
 
-        {/* Mobile Sidebar */}
-        <Sheet open={showRecipeSidebar && isMobile} onOpenChange={setShowRecipeSidebar}>
-          <SheetContent side="right" className="w-full p-0">
+        {/* Mobile Sidebar - displayClass overrides default so content shows on mobile */}
+        <Sheet open={showRecipeSidebar && isMobile} onOpenChange={(open) => {
+          if (!open) {
+            setSessionSelections([])
+            setShowRecipeSidebar(false)
+          }
+        }}>
+          <SheetContent side="right" className="w-full p-0 flex flex-col" displayClass="flex fixed">
+            <SheetTitle className="sr-only">Select recipe for meal slot</SheetTitle>
             <RecipeSearchPanel
-              onSelect={(recipe) => {
-                handleRecipeSelection(recipe)
-                setShowRecipeSidebar(false)
-              }}
+              onSelect={handleRecipeSelection}
               getDraggableProps={dnd.getDraggableProps}
               activeDragData={dnd.activeDragData}
               onToggleCollapse={() => setShowRecipeSidebar(false)}
+              isMobileMode={isMobile}
+              sessionSelectedIds={new Set(sessionSelections.map((s) => s.recipe.id))}
+              onConfirmSelections={handleConfirmSelections}
+              onCancelSelections={handleCancelSelections}
+              selectionCount={sessionSelections.length}
             />
           </SheetContent>
         </Sheet>

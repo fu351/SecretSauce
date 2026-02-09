@@ -55,7 +55,7 @@ function MealSlotCardComponent({
     if (!recipe) return
     const now = Date.now()
     const isDoubleClick = e.detail === 2
-    const isDoubleTap = now - lastTapRef.current < 400
+    const isDoubleTap = now - lastTapRef.current < 500
 
     if (isDoubleClick || isDoubleTap) {
       lastTapRef.current = 0
@@ -72,7 +72,7 @@ function MealSlotCardComponent({
     singleClickTimeoutRef.current = setTimeout(() => {
       singleClickTimeoutRef.current = null
       onSlotSelect?.(mealType, date)
-    }, 100)
+    }, 350)
   }
 
   // Make slot droppable
@@ -104,7 +104,7 @@ function MealSlotCardComponent({
       ref={setDropRef}
       id={droppableProps.droppableId}
       data-droppable-id={droppableProps.droppableId}
-      className={`relative rounded-lg group w-full h-[120px] ${isDropTarget ? "ring-2 ring-primary" : ""}`}
+      className={`relative rounded-lg group w-full min-w-0 aspect-square md:aspect-auto md:h-[120px] ${isDropTarget ? "ring-2 ring-primary" : ""}`}
     >
       {recipe ? (
         // Filled state
@@ -123,19 +123,19 @@ function MealSlotCardComponent({
               src={getRecipeImageUrl(recipeImageUrl)}
               alt={recipe.title}
               fill
-              sizes="260px"
+              sizes="(max-width: 768px) 120px, 260px"
               className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110 pointer-events-none"
             />
           </div>
 
           {/* Remove button - not draggable */}
-          <div className="absolute top-2 right-2 flex gap-1 z-20">
+          <div className="absolute top-1 right-1 md:top-2 md:right-2 flex gap-1 z-20">
             <button
               onClick={(e) => {
                 e.stopPropagation()
                 onRemove(mealType, date)
               }}
-              className="bg-destructive text-destructive-foreground rounded-full p-1 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+              className="bg-destructive text-destructive-foreground rounded-full p-1 shadow-md hover:shadow-lg transition-shadow cursor-pointer touch-manipulation flex items-center justify-center min-w-[24px] min-h-[24px] md:min-w-0 md:min-h-0"
               aria-label={`Remove ${recipe.title}`}
             >
               <X className="h-3 w-3" />
@@ -147,9 +147,9 @@ function MealSlotCardComponent({
             {...attributes}
             {...listeners}
             onClick={handleSlotClick}
-            className="absolute inset-x-0 bottom-0 flex items-end p-2.5 z-10 cursor-grab active:cursor-grabbing bg-gradient-to-t from-black/80 to-transparent"
+            className="absolute inset-x-0 bottom-0 flex items-end p-1 md:p-2.5 z-10 cursor-grab active:cursor-grabbing bg-gradient-to-t from-black/80 to-transparent"
           >
-            <h4 className={`font-semibold text-sm line-clamp-2 text-white w-full pointer-events-none`}>{recipe.title}</h4>
+            <h4 className="font-semibold text-[10px] md:text-sm line-clamp-1 md:line-clamp-2 text-white w-full pointer-events-none truncate">{recipe.title}</h4>
           </div>
         </div>
       ) : (
@@ -167,8 +167,8 @@ function MealSlotCardComponent({
           }}
           aria-label={`Add recipe to ${mealType} on ${date}`}
         >
-          <div className={`rounded-full border-2 p-3 transition-colors ${isDropTarget ? "border-primary text-primary" : "border-accent/60 text-accent"}`}>
-            <Plus className="h-6 w-6" />
+          <div className={`rounded-full border-2 p-1.5 md:p-3 transition-colors ${isDropTarget ? "border-primary text-primary" : "border-accent/60 text-accent"}`}>
+            <Plus className="h-4 w-4 md:h-6 md:w-6" />
           </div>
         </div>
       )}

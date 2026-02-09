@@ -74,14 +74,14 @@ export function WeeklyView({
   }, [meals, recipesById, dateStrings])
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+    <div className="flex flex-col md:grid gap-2 md:grid-cols-7 md:gap-4">
       {weekDates.map((date, index) => {
         const dateStr = dateStrings[index]
         const dayMeals = mealsByDate[dateStr]
 
         return (
+          <div key={dateStr} className="md:w-auto">
           <DayCard
-            key={dateStr}
             date={date}
             meals={dayMeals}
             onRemove={onRemove}
@@ -93,6 +93,7 @@ export function WeeklyView({
             activeDragData={activeDragData}
             activeDropTarget={activeDropTarget}
           />
+          </div>
         )
       })}
     </div>

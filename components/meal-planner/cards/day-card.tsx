@@ -55,15 +55,15 @@ function DayCardComponent({
 
   return (
     <div
-      className={`bg-card rounded-2xl p-4 flex flex-col gap-3 w-full border-2 ${
+      className={`bg-card rounded-lg md:rounded-2xl p-2 md:p-4 flex flex-row md:flex-col gap-2 md:gap-3 w-full border-2 items-center ${
         isToday
           ? "border-accent bg-accent/5"
           : "border-transparent"
       }`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 md:gap-2 shrink-0 w-12 md:w-auto">
         <div
-          className={`rounded-full w-9 h-9 flex items-center justify-center font-semibold text-sm ring-offset-background flex-shrink-0 ${
+          className={`rounded-full w-6 h-6 md:w-9 md:h-9 flex items-center justify-center font-semibold text-[10px] md:text-sm ring-offset-background flex-shrink-0 ${
             isToday
               ? "bg-accent text-accent-foreground ring-2 ring-accent ring-offset-1"
               : "bg-muted text-muted-foreground"
@@ -71,17 +71,17 @@ function DayCardComponent({
         >
           {dayNumber}
         </div>
-        <h2 className="text-lg font-semibold text-foreground">
+        <h2 className="text-xs md:text-lg font-semibold text-foreground">
           {weekdays[dayIndex]}
         </h2>
       </div>
 
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-1 md:flex-none flex-row md:flex-col gap-1.5 md:gap-2.5 min-w-0">
         {mealTypes.map((mealType) => {
           const meal = meals?.[mealType.key]
           const recipe = meal?.recipe ?? null
           return (
-            <div key={mealType.key} className="flex flex-col">
+            <div key={mealType.key} className="flex-1 min-w-0 md:flex-none md:w-full">
               <MealSlotCard
                 recipe={recipe}
                 mealType={mealType.key}
