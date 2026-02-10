@@ -33,7 +33,7 @@ on:
         description: "Comma-separated Title Case cities (blank = all)"
         required: false
         type: string
-        default: "San Francisco,Oakland,Berkeley"
+        default: "Alameda,Albany,American Canyon,Antioch,Atherton,Belmont,Belvedere,Benicia,Berkeley,Brentwood,Brisbane,Burlingame,Calistoga,Campbell,Clayton,Cloverdale,Colma,Concord,Corte Madera,Cotati,Cupertino,Daly City,Danville,Dixon,Dublin,East Palo Alto,El Cerrito,Emeryville,Fairfax,Fairfield,Foster City,Fremont,Gilroy,Half Moon Bay,Hayward,Healdsburg,Hercules,Hillsborough,Lafayette,Larkspur,Livermore,Los Altos,Los Altos Hills,Los Gatos,Martinez,Menlo Park,Mill Valley,Millbrae,Milpitas,Monte Sereno,Moraga,Morgan Hill,Mountain View,Napa,Newark,Novato,Oakland,Oakley,Orinda,Pacifica,Palo Alto,Petaluma,Piedmont,Pinole,Pittsburg,Pleasant Hill,Pleasanton,Portola Valley,Redwood City,Richmond,Rio Vista,Rohnert Park,Ross,San Anselmo,San Bruno,San Carlos,San Francisco,San Jose,San Leandro,San Mateo,San Pablo,San Rafael,San Ramon,Santa Clara,Santa Rosa,Saratoga,Sausalito,Sebastopol,Sonoma,South San Francisco,Suisun City,Sunnyvale,Tiburon,Union City,Vacaville,Vallejo,Walnut Creek,Windsor,Woodside,Yountville,St. Helena,Saint Helena"
       scraper_zip_min:
         description: "Minimum ZIP filter (blank = no lower bound)"
         required: false
@@ -238,7 +238,7 @@ jobs:
     with:
       stores_csv: ${{ github.event.inputs.stores_csv || '' }}
       scraper_state: ${{ github.event.inputs.scraper_state || 'CA' }}
-      scraper_cities_csv: ${{ github.event.inputs.scraper_cities_csv || 'San Francisco,Oakland,Berkeley' }}
+      scraper_cities_csv: ${{ github.event.inputs.scraper_cities_csv || 'Alameda,Albany,American Canyon,Antioch,Atherton,Belmont,Belvedere,Benicia,Berkeley,Brentwood,Brisbane,Burlingame,Calistoga,Campbell,Clayton,Cloverdale,Colma,Concord,Corte Madera,Cotati,Cupertino,Daly City,Danville,Dixon,Dublin,East Palo Alto,El Cerrito,Emeryville,Fairfax,Fairfield,Foster City,Fremont,Gilroy,Half Moon Bay,Hayward,Healdsburg,Hercules,Hillsborough,Lafayette,Larkspur,Livermore,Los Altos,Los Altos Hills,Los Gatos,Martinez,Menlo Park,Mill Valley,Millbrae,Milpitas,Monte Sereno,Moraga,Morgan Hill,Mountain View,Napa,Newark,Novato,Oakland,Oakley,Orinda,Pacifica,Palo Alto,Petaluma,Piedmont,Pinole,Pittsburg,Pleasant Hill,Pleasanton,Portola Valley,Redwood City,Richmond,Rio Vista,Rohnert Park,Ross,San Anselmo,San Bruno,San Carlos,San Francisco,San Jose,San Leandro,San Mateo,San Pablo,San Rafael,San Ramon,Santa Clara,Santa Rosa,Saratoga,Sausalito,Sebastopol,Sonoma,South San Francisco,Suisun City,Sunnyvale,Tiburon,Union City,Vacaville,Vallejo,Walnut Creek,Windsor,Woodside,Yountville,St. Helena,Saint Helena' }}
       scraper_zip_min: ${{ github.event.inputs.scraper_zip_min || '' }}
       scraper_zip_max: ${{ github.event.inputs.scraper_zip_max || '' }}
       ingredient_limit: ${{ github.event.inputs.ingredient_limit || '0' }}
