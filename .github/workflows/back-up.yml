@@ -28,6 +28,9 @@ jobs:
     name: "${{ inputs.action }}"
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - name: Validate inputs
         run: |
@@ -48,17 +51,11 @@ jobs:
           echo "✅ Validated: $ACTION"
 
       - name: "Run: ${{ inputs.action }}"
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
 
           ACTION="${{ inputs.action }}"
           SUFFIX="${{ inputs.restore_suffix }}"
-
-          API_KEY="${SUPABASE_ANON_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
 
           if [[ "$ACTION" == "restore" ]]; then
             PAYLOAD="{\"p_action\": \"${ACTION}\", \"p_restore_suffix\": \"${SUFFIX}\"}"
@@ -69,7 +66,7 @@ jobs:
           echo "🚀 Calling fn_ingredient_ecosystem with action: $ACTION"
 
           RESPONSE=$(curl -sfS -X POST "${SUPABASE_URL}/rest/v1/rpc/fn_ingredient_ecosystem" \
-            -H "apikey: ${API_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD")
