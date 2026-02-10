@@ -50,32 +50,72 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     if (!searchTerm) return
     setLoading(true)
     try {
-      // 1. Scrape — show raw results immediately
-      const res = await searchGroceryStores(
-        searchTerm,
-        zipCode,
-        target?.store,
-        true,
-        target?.standardizedIngredientId || null
-      )
-      const flatResults = res.flatMap(r => r.items || [])
+      // 1. Preferred source: RPC replacement options for this user/store.
+      const replacementOptions =
+        userId && target?.store
+          ? await ingredientsRecentDB.getReplacement(userId, target.store, searchTerm)
+          : []
+
+      const rpcIngredientByItemId = new Map<string, string>()
+      const rpcResults: GroceryItem[] = replacementOptions.flatMap((option, optionIdx) => {
+        const offers = Array.isArray(option.offers) ? option.offers : []
+        return offers.map((offer, offerIdx) => {
+          const stableKey = `${target?.store || ""}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
+          const stableId = `replacement-${stableKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `${optionIdx}-${offerIdx}`}`
+          rpcIngredientByItemId.set(stableId, option.ingredient_id)
+          return {
+            id: stableId,
+            title: offer.product_name || option.canonical_name || searchTerm,
+            brand: "",
+            price: Number(offer.price) || 0,
+            pricePerUnit:
+              offer.unit_price != null
+                ? `$${Number(offer.unit_price).toFixed(2)}${offer.unit ? `/${offer.unit}` : ""}`
+                : undefined,
+            unit: offer.unit || undefined,
+            image_url: offer.image_url || "",
+            provider: target?.store || "",
+            category: option.category || undefined,
+          } satisfies GroceryItem
+        })
+      })
+
+      // 2. Fallback source: live scrape if RPC has no candidates.
+      const flatResults = rpcResults.length > 0
+        ? rpcResults
+        : (await searchGroceryStores(
+            searchTerm,
+            zipCode,
+            target?.store,
+            true,
+            target?.standardizedIngredientId || null
+          )).flatMap(r => r.items || [])
+
       setResults(flatResults)
 
       const validResults = flatResults.filter(item => typeof item.price === "number" && item.price > 0)
       if (validResults.length === 0) return
 
-      // 2. Resolve ingredient IDs via preview (manual if available, else fuzzy)
+      // 3. Resolve ingredient IDs via preview (manual if available, else fuzzy)
       const ingredientMap = await ingredientsHistoryDB.previewStandardization(
         validResults.map(item => ({
           productName: item.title,
           standardizedIngredientId: target?.standardizedIngredientId || null,
         }))
       )
-      const resolvedIngredientId = ingredientMap.values().next().value || target?.standardizedIngredientId
+      const resolvedIngredientId =
+        target?.standardizedIngredientId ||
+        replacementOptions[0]?.ingredient_id ||
+        ingredientMap.values().next().value
 
-      // 3. Persist + create product_mappings via fn_bulk_standardize_and_match
+      // 4. Persist + create product_mappings via fn_bulk_standardize_and_match
       const payload = validResults.map(item => ({
-        standardizedIngredientId: ingredientMap.get(item.title) || resolvedIngredientId || null,
+        standardizedIngredientId:
+          target?.standardizedIngredientId ||
+          rpcIngredientByItemId.get(item.id) ||
+          ingredientMap.get(item.title) ||
+          resolvedIngredientId ||
+          null,
         store: item.provider?.toLowerCase?.() || target?.store || "unknown",
         price: item.price,
         productName: item.title,
@@ -85,7 +125,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
       }))
       await ingredientsHistoryDB.batchStandardizeAndMatch(payload)
 
-      // 4. Query back via get_ingredient_price_details — results include product_mapping_id
+      // 5. Query back via get_ingredient_price_details — results include product_mapping_id
       if (userId && resolvedIngredientId) {
         const dbOffers = await ingredientsRecentDB.getIngredientPriceDetails(
           userId,

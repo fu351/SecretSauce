@@ -5,6 +5,24 @@ import { standardizedIngredientsDB } from "./standardized-ingredients-db"
 const normalizeStoreName = (store: string): string =>
   store.toLowerCase().replace(/\s+/g, "").replace(/[']/g, "").trim()
 
+function resolveGroceryStoreEnum(
+  store: string | null | undefined
+): Database["public"]["Enums"]["grocery_store"] | null {
+  if (!store) return null
+  const value = normalizeStoreName(store)
+  if (value.includes("target")) return "target"
+  if (value.includes("kroger")) return "kroger"
+  if (value.includes("meijer")) return "meijer"
+  if (value.includes("99") || value.includes("ranch")) return "99ranch"
+  if (value.includes("walmart")) return "walmart"
+  if (value.includes("trader")) return "traderjoes"
+  if (value.includes("aldi")) return "aldi"
+  if (value.includes("andronico")) return "andronicos"
+  if (value.includes("safeway")) return "safeway"
+  if (value.includes("whole")) return "wholefoods"
+  return null
+}
+
 type IngredientsHistoryRow = Database["public"]["Tables"]["ingredients_history"]["Row"]
 type IngredientsHistoryInsert = Database["public"]["Tables"]["ingredients_history"]["Insert"]
 type IngredientsRecentRow = Database["public"]["Tables"]["ingredients_recent"]["Row"]
@@ -17,6 +35,23 @@ export type PricingGap = {
     id: string
     name: string
   }[]
+}
+
+export type ReplacementOffer = {
+  product_name: string | null
+  price: number | null
+  unit_price: number | null
+  quantity: number | null
+  unit: string | null
+  image_url: string | null
+  is_standard_unit: boolean
+}
+
+export type ReplacementOption = {
+  ingredient_id: string
+  canonical_name: string
+  category: string | null
+  offers: ReplacementOffer[]
 }
 
 class IngredientsHistoryTable extends BaseTable<
@@ -443,6 +478,73 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
       )
     } catch (error) {
       this.handleError(error, "getIngredientPriceDetails")
+      return []
+    }
+  }
+
+  async getReplacement(
+    userId: string,
+    storeBrand: string,
+    rawIngredientName: string
+  ): Promise<ReplacementOption[]> {
+    try {
+      const trimmedName = rawIngredientName?.trim()
+      if (!userId || !trimmedName) return []
+
+      const storeEnum = resolveGroceryStoreEnum(storeBrand)
+      if (!storeEnum) {
+        console.warn("[IngredientsRecentTable] Unable to resolve store enum for getReplacement", { storeBrand })
+        return []
+      }
+
+      const { data, error } = await (this.supabase.rpc as any)("get_replacement", {
+        p_user_id: userId,
+        p_store_brand: storeEnum,
+        p_raw_ingredient_name: trimmedName,
+      })
+
+      if (error) {
+        this.handleError(error, "getReplacement")
+        return []
+      }
+
+      const replacementBlob = Array.isArray(data)
+        ? data[0]?.replacement_results
+        : (data as any)?.replacement_results
+
+      const parsed = typeof replacementBlob === "string"
+        ? JSON.parse(replacementBlob)
+        : replacementBlob
+
+      if (!Array.isArray(parsed)) return []
+
+      return parsed
+        .map((entry: any): ReplacementOption | null => {
+          const ingredientId = entry?.ingredient_id ? String(entry.ingredient_id) : null
+          const canonicalName = entry?.canonical_name ? String(entry.canonical_name) : null
+          if (!ingredientId || !canonicalName) return null
+
+          const offersRaw = Array.isArray(entry?.offers) ? entry.offers : []
+          const offers: ReplacementOffer[] = offersRaw.map((offer: any) => ({
+            product_name: offer?.product_name ? String(offer.product_name) : null,
+            price: offer?.price != null ? Number(offer.price) : null,
+            unit_price: offer?.unit_price != null ? Number(offer.unit_price) : null,
+            quantity: offer?.quantity != null ? Number(offer.quantity) : null,
+            unit: offer?.unit ? String(offer.unit) : null,
+            image_url: offer?.image_url ? String(offer.image_url) : null,
+            is_standard_unit: Boolean(offer?.is_standard_unit),
+          }))
+
+          return {
+            ingredient_id: ingredientId,
+            canonical_name: canonicalName,
+            category: entry?.category ? String(entry.category) : null,
+            offers,
+          }
+        })
+        .filter((entry: ReplacementOption | null): entry is ReplacementOption => entry !== null)
+    } catch (error) {
+      this.handleError(error, "getReplacement")
       return []
     }
   }
