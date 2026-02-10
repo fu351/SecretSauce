@@ -211,7 +211,7 @@ jobs:
 
             const { error: insertError } = await supabase
               .from('standardized_ingredients')
-              .insert({ canonical_name: placeholderName, category: 'placeholder' })
+              .insert({ canonical_name: placeholderName, category: 'other' })
 
             if (insertError) {
               console.error('❌ Failed inserting placeholder canonical ingredient:', insertError)
