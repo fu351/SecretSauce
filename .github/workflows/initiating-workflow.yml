@@ -1,0 +1,423 @@
+name: Initiating Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed_author_id:
+        description: "Author profile UUID for mock recipe seeding (blank = auto-resolve)"
+        required: false
+        type: string
+        default: ""
+      stores_csv:
+        description: "Comma-separated stores (blank = all)"
+        required: false
+        type: string
+        default: ""
+      scraper_state:
+        description: "2-letter state code filter (e.g., CA, AZ)"
+        required: false
+        type: string
+        default: "CA"
+      scraper_cities_csv:
+        description: "Comma-separated Title Case cities (blank = all)"
+        required: false
+        type: string
+        default: "San Francisco,Oakland,Berkeley"
+      scraper_zip_min:
+        description: "Minimum ZIP filter (blank = no lower bound)"
+        required: false
+        type: string
+        default: ""
+      scraper_zip_max:
+        description: "Maximum ZIP filter (blank = no upper bound)"
+        required: false
+        type: string
+        default: ""
+      ingredient_limit:
+        description: "Limit ingredients scraped (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_limit:
+        description: "Limit store rows queried (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_concurrency:
+        description: "Concurrent store scrapes per ingredient"
+        required: false
+        type: string
+        default: "20"
+      ingredient_delay_ms:
+        description: "Delay between ingredients in milliseconds"
+        required: false
+        type: string
+        default: "1000"
+      insert_batch_size:
+        description: "RPC insert batch size"
+        required: false
+        type: string
+        default: "500"
+      min_expected_rows:
+        description: "Fail if below this row count"
+        required: false
+        type: string
+        default: "100"
+      scraper_batch_size:
+        description: "Default ingredient chunk size for all stores"
+        required: false
+        type: string
+        default: "20"
+      scraper_batch_concurrency:
+        description: "Default batch worker concurrency for all stores"
+        required: false
+        type: string
+        default: "4"
+      scraper_timeout_minutes:
+        description: "Hard timeout per store job (minutes)"
+        required: false
+        type: string
+        default: "120"
+      traderjoes_batch_size:
+        description: "Trader Joe's ingredient chunk size"
+        required: false
+        type: string
+        default: "20"
+      traderjoes_batch_concurrency:
+        description: "Trader Joe's batch worker concurrency"
+        required: false
+        type: string
+        default: "2"
+      queue_batch_limit:
+        description: "Queue batch size"
+        required: false
+        type: string
+        default: "100"
+      pre_queue_context:
+        description: "Queue context before scraping"
+        required: false
+        type: choice
+        options:
+          - recipe
+          - pantry
+        default: recipe
+      post_queue_context:
+        description: "Queue context after scraping"
+        required: false
+        type: choice
+        options:
+          - pantry
+          - recipe
+        default: pantry
+      queue_resolver_name:
+        description: "Queue resolver base name"
+        required: false
+        type: string
+        default: "initiating-openai"
+      queue_dry_run:
+        description: "Dry run queue stage"
+        required: false
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+      openai_model:
+        description: "OpenAI model for queue resolver"
+        required: false
+        type: string
+        default: "gpt-4o-mini"
+      gemini_model:
+        description: "Gemini model for queue resolver"
+        required: false
+        type: string
+        default: "gemini-3-flash-preview"
+      queue_max_batches:
+        description: "Maximum queue batch cycles"
+        required: false
+        type: string
+        default: "10"
+      queue_batch_delay_seconds:
+        description: "Delay between queue batches in seconds"
+        required: false
+        type: string
+        default: "2"
+
+jobs:
+  seed-mock-recipes:
+    name: Seed Mock Recipes
+    runs-on: ubuntu-latest
+    outputs:
+      seed_author_id: ${{ steps.resolve-author.outputs.author_id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install dependencies
+        timeout-minutes: 15
+        run: npm install --legacy-peer-deps --prefix scripts
+
+      - name: Expose scripts dependencies to shared imports
+        run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
+
+      - name: Resolve seed author id
+        id: resolve-author
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INPUT_SEED_AUTHOR_ID: ${{ github.event.inputs.seed_author_id || '' }}
+          SECRET_SEED_AUTHOR_ID: ${{ secrets.SUPABASE_SEED_AUTHOR_ID }}
+        run: |
+          set -euo pipefail
+
+          AUTHOR_ID="${INPUT_SEED_AUTHOR_ID// /}"
+
+          if [ -z "$AUTHOR_ID" ] && [ -n "${SECRET_SEED_AUTHOR_ID:-}" ]; then
+            AUTHOR_ID="${SECRET_SEED_AUTHOR_ID// /}"
+            echo "Using SUPABASE_SEED_AUTHOR_ID from secrets"
+          fi
+
+          if [ -z "$AUTHOR_ID" ]; then
+            echo "No author id provided. Querying earliest profile id..."
+            RESPONSE=$(curl -sfS \
+              "${SUPABASE_URL}/rest/v1/profiles?select=id&order=created_at.asc&limit=1" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")
+
+            AUTHOR_ID=$(echo "$RESPONSE" | jq -r '.[0].id // empty')
+          fi
+
+          if [ -z "$AUTHOR_ID" ]; then
+            echo "❌ Could not resolve a seed author id. Provide seed_author_id input or SUPABASE_SEED_AUTHOR_ID secret."
+            exit 1
+          fi
+
+          echo "author_id=$AUTHOR_ID" >> "$GITHUB_OUTPUT"
+          echo "✅ Using seed author id: $AUTHOR_ID"
+
+      - name: Seed mock recipes
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SEED_AUTHOR_ID: ${{ steps.resolve-author.outputs.author_id }}
+        run: |
+          set -euo pipefail
+          ./scripts/node_modules/.bin/tsx scripts/seed-mock-recipes.ts
+
+  pre-queue:
+    name: Pre-Scrape Ingredient Queue
+    needs: seed-mock-recipes
+    uses: ./.github/workflows/nightly-ingredient-queue.yml
+    secrets: inherit
+    with:
+      queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
+      queue_context: ${{ github.event.inputs.pre_queue_context || 'recipe' }}
+      queue_resolver_name: ${{ format('{0}-pre', github.event.inputs.queue_resolver_name || 'initiating-openai') }}
+      queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
+      openai_model: ${{ github.event.inputs.openai_model || 'gpt-4o-mini' }}
+      gemini_model: ${{ github.event.inputs.gemini_model || 'gemini-3-flash-preview' }}
+      queue_max_batches: ${{ github.event.inputs.queue_max_batches || '10' }}
+      queue_batch_delay_seconds: ${{ github.event.inputs.queue_batch_delay_seconds || '2' }}
+
+  seed-canonical-placeholder:
+    name: Seed Canonical Placeholder
+    needs: pre-queue
+    if: ${{ always() && needs['pre-queue'].result == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      seeded: ${{ steps.seed.outputs.seeded }}
+      placeholder_name: ${{ steps.seed.outputs.placeholder_name }}
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Supabase client (isolated)
+        run: |
+          mkdir -p /tmp/supabase-client
+          npm install --no-save --no-package-lock --legacy-peer-deps --prefix /tmp/supabase-client @supabase/supabase-js
+
+      - name: Seed placeholder canonical ingredient if empty
+        id: seed
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PLACEHOLDER_NAME: __initiating_workflow_placeholder_${{ github.run_id }}
+        run: |
+          node - <<'NODE'
+          const { createClient } = require('/tmp/supabase-client/node_modules/@supabase/supabase-js')
+          const fs = require('fs')
+
+          const supabaseUrl = process.env.SUPABASE_URL
+          const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          const placeholderName = process.env.PLACEHOLDER_NAME
+          const githubOutput = process.env.GITHUB_OUTPUT
+
+          if (!supabaseUrl || !supabaseKey) {
+            console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+            process.exit(1)
+          }
+
+          if (!placeholderName) {
+            console.error('❌ Missing PLACEHOLDER_NAME')
+            process.exit(1)
+          }
+
+          const supabase = createClient(supabaseUrl, supabaseKey)
+
+          async function run() {
+            const { count, error: countError } = await supabase
+              .from('standardized_ingredients')
+              .select('id', { head: true, count: 'exact' })
+
+            if (countError) {
+              console.error('❌ Failed counting standardized_ingredients rows:', countError)
+              process.exit(1)
+            }
+
+            if ((count ?? 0) > 0) {
+              console.log(`✅ standardized_ingredients has ${count} row(s); no placeholder needed`)
+              fs.appendFileSync(githubOutput, 'seeded=false\n')
+              fs.appendFileSync(githubOutput, 'placeholder_name=\n')
+              return
+            }
+
+            const { error: insertError } = await supabase
+              .from('standardized_ingredients')
+              .insert({ canonical_name: placeholderName, category: 'other' })
+
+            if (insertError) {
+              console.error('❌ Failed inserting placeholder canonical ingredient:', insertError)
+              process.exit(1)
+            }
+
+            console.log(`🧩 Inserted placeholder canonical ingredient: ${placeholderName}`)
+            fs.appendFileSync(githubOutput, 'seeded=true\n')
+            fs.appendFileSync(githubOutput, `placeholder_name=${placeholderName}\n`)
+          }
+
+          run().catch(error => {
+            console.error('❌ Unexpected seed error:', error)
+            process.exit(1)
+          })
+          NODE
+
+  scraper:
+    name: Daily Scraper Matrix
+    needs: seed-canonical-placeholder
+    if: ${{ always() && needs['seed-canonical-placeholder'].result == 'success' }}
+    uses: ./.github/workflows/daily-scraper-matrix.yml
+    secrets: inherit
+    with:
+      stores_csv: ${{ github.event.inputs.stores_csv || '' }}
+      scraper_state: ${{ github.event.inputs.scraper_state || 'CA' }}
+      scraper_cities_csv: ${{ github.event.inputs.scraper_cities_csv || 'San Francisco,Oakland,Berkeley' }}
+      scraper_zip_min: ${{ github.event.inputs.scraper_zip_min || '' }}
+      scraper_zip_max: ${{ github.event.inputs.scraper_zip_max || '' }}
+      ingredient_limit: ${{ github.event.inputs.ingredient_limit || '0' }}
+      store_limit: ${{ github.event.inputs.store_limit || '0' }}
+      store_concurrency: ${{ github.event.inputs.store_concurrency || '20' }}
+      ingredient_delay_ms: ${{ github.event.inputs.ingredient_delay_ms || '1000' }}
+      insert_batch_size: ${{ github.event.inputs.insert_batch_size || '500' }}
+      min_expected_rows: ${{ github.event.inputs.min_expected_rows || '100' }}
+      scraper_batch_size: ${{ github.event.inputs.scraper_batch_size || '20' }}
+      scraper_batch_concurrency: ${{ github.event.inputs.scraper_batch_concurrency || '4' }}
+      scraper_timeout_minutes: ${{ github.event.inputs.scraper_timeout_minutes || '44' }}
+      traderjoes_batch_size: ${{ github.event.inputs.traderjoes_batch_size || '20' }}
+      traderjoes_batch_concurrency: ${{ github.event.inputs.traderjoes_batch_concurrency || '2' }}
+
+  post-queue:
+    name: Post-Scrape Ingredient Queue
+    needs: scraper
+    if: ${{ always() }}
+    uses: ./.github/workflows/nightly-ingredient-queue.yml
+    secrets: inherit
+    with:
+      queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
+      queue_context: ${{ github.event.inputs.post_queue_context || 'pantry' }}
+      queue_resolver_name: ${{ format('{0}-post', github.event.inputs.queue_resolver_name || 'initiating-openai') }}
+      queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
+      openai_model: ${{ github.event.inputs.openai_model || 'gpt-4o-mini' }}
+      gemini_model: ${{ github.event.inputs.gemini_model || 'gemini-3-flash-preview' }}
+      queue_max_batches: ${{ github.event.inputs.queue_max_batches || '10' }}
+      queue_batch_delay_seconds: ${{ github.event.inputs.queue_batch_delay_seconds || '2' }}
+
+  update-unit-estimates:
+    name: Update Unit Weight Estimates
+    needs: post-queue
+    if: ${{ always() }}
+    uses: ./.github/workflows/update-unit-weight-estimates.yml
+    secrets: inherit
+
+  cleanup-canonical-placeholder:
+    name: Cleanup Canonical Placeholder
+    needs:
+      - seed-canonical-placeholder
+      - update-unit-estimates
+    if: ${{ always() && needs['seed-canonical-placeholder'].result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Supabase client (isolated)
+        run: |
+          mkdir -p /tmp/supabase-client
+          npm install --no-save --no-package-lock --legacy-peer-deps --prefix /tmp/supabase-client @supabase/supabase-js
+
+      - name: Delete placeholder canonical ingredient
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SEEDED: ${{ needs['seed-canonical-placeholder'].outputs.seeded }}
+          PLACEHOLDER_NAME: ${{ needs['seed-canonical-placeholder'].outputs.placeholder_name }}
+        run: |
+          node - <<'NODE'
+          const { createClient } = require('/tmp/supabase-client/node_modules/@supabase/supabase-js')
+
+          const supabaseUrl = process.env.SUPABASE_URL
+          const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          const seeded = String(process.env.SEEDED || '').toLowerCase() === 'true'
+          const placeholderName = process.env.PLACEHOLDER_NAME
+
+          if (!seeded || !placeholderName) {
+            console.log('✅ No placeholder inserted in this run; skipping cleanup')
+            process.exit(0)
+          }
+
+          if (!supabaseUrl || !supabaseKey) {
+            console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+            process.exit(1)
+          }
+
+          const supabase = createClient(supabaseUrl, supabaseKey)
+
+          async function run() {
+            const { error } = await supabase
+              .from('standardized_ingredients')
+              .delete()
+              .eq('canonical_name', placeholderName)
+
+            if (error) {
+              console.error('❌ Failed deleting placeholder canonical ingredient:', error)
+              process.exit(1)
+            }
+
+            console.log(`🧹 Deleted placeholder canonical ingredient: ${placeholderName}`)
+          }
+
+          run().catch(error => {
+            console.error('❌ Unexpected cleanup error:', error)
+            process.exit(1)
+          })
+          NODE
