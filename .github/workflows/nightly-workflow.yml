@@ -135,11 +135,22 @@ on:
         required: false
         type: string
         default: "2"
+      run_mode:
+        description: "Execution control mode"
+        required: false
+        type: choice
+        options:
+          - normal
+          - stop_after_purge
+          - stop_after_scraper
+          - stop_after_update
+          - emergency_stop
+        default: normal
 
 jobs:
   purge:
     name: Daily Purge
-    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_purge }}
+    if: ${{ (github.event.inputs.run_mode || 'normal') != 'emergency_stop' && (github.event_name != 'workflow_dispatch' || !inputs.skip_purge) }}
     uses: ./.github/workflows/daily-purge.yml
     secrets: inherit
     with:
@@ -148,7 +159,7 @@ jobs:
   seed-canonical-placeholder:
     name: Seed Canonical Placeholder
     needs: purge
-    if: ${{ always() && (needs.purge.result == 'success' || needs.purge.result == 'skipped') }}
+    if: ${{ always() && (needs.purge.result == 'success' || needs.purge.result == 'skipped') && !contains(fromJson('["emergency_stop","stop_after_purge"]'), github.event.inputs.run_mode || 'normal') }}
     runs-on: ubuntu-latest
     outputs:
       seeded: ${{ steps.seed.outputs.seeded }}
@@ -232,7 +243,7 @@ jobs:
   scraper:
     name: Daily Scraper Matrix
     needs: seed-canonical-placeholder
-    if: ${{ always() && needs['seed-canonical-placeholder'].result == 'success' }}
+    if: ${{ always() && needs['seed-canonical-placeholder'].result == 'success' && !contains(fromJson('["emergency_stop","stop_after_purge"]'), github.event.inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/daily-scraper-matrix.yml
     secrets: inherit
     with:
@@ -256,13 +267,14 @@ jobs:
   update-unit-estimates:
     name: Update Unit Weight Estimates
     needs: scraper
+    if: ${{ always() && needs.scraper.result == 'success' && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper"]'), github.event.inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/update-unit-weight-estimates.yml
     secrets: inherit
 
   queue:
     name: Nightly Ingredient Queue
     needs: update-unit-estimates
-    if: ${{ always() }}
+    if: ${{ always() && needs['update-unit-estimates'].result == 'success' && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update"]'), github.event.inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:

@@ -122,16 +122,6 @@ on:
           - "false"
           - "true"
         default: "false"
-      openai_model:
-        description: "OpenAI model for queue resolver"
-        required: false
-        type: string
-        default: "gpt-4o-mini"
-      gemini_model:
-        description: "Gemini model for queue resolver"
-        required: false
-        type: string
-        default: "gemini-3-flash-preview"
       queue_max_batches:
         description: "Maximum queue batch cycles"
         required: false
@@ -221,8 +211,8 @@ jobs:
       queue_context: ${{ github.event.inputs.pre_queue_context || 'recipe' }}
       queue_resolver_name: ${{ format('{0}-pre', github.event.inputs.queue_resolver_name || 'initiating-openai') }}
       queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
-      openai_model: ${{ github.event.inputs.openai_model || 'gpt-4o-mini' }}
-      gemini_model: ${{ github.event.inputs.gemini_model || 'gemini-3-flash-preview' }}
+      openai_model: gpt-4o-mini
+      gemini_model: gemini-3-flash-preview
       queue_max_batches: ${{ github.event.inputs.queue_max_batches || '10' }}
       queue_batch_delay_seconds: ${{ github.event.inputs.queue_batch_delay_seconds || '2' }}
 
@@ -345,8 +335,8 @@ jobs:
       queue_context: ${{ github.event.inputs.post_queue_context || 'pantry' }}
       queue_resolver_name: ${{ format('{0}-post', github.event.inputs.queue_resolver_name || 'initiating-openai') }}
       queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
-      openai_model: ${{ github.event.inputs.openai_model || 'gpt-4o-mini' }}
-      gemini_model: ${{ github.event.inputs.gemini_model || 'gemini-3-flash-preview' }}
+      openai_model: gpt-4o-mini
+      gemini_model: gemini-3-flash-preview
       queue_max_batches: ${{ github.event.inputs.queue_max_batches || '10' }}
       queue_batch_delay_seconds: ${{ github.event.inputs.queue_batch_delay_seconds || '2' }}
 
