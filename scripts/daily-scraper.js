@@ -283,7 +283,27 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
         errorMessages: Array.from({ length: ingredientChunk.length }, () => ''),
       }
     } catch (error) {
-      console.warn(`⚠️ Native batch scraper failed for ${storeEnum}: ${error.message}. Falling back to chunked single calls.`)
+      const message = error?.message || String(error)
+      const code = String(error?.code || '')
+      const isRateLimitFailure =
+        code.toLowerCase().includes('rate_limit') ||
+        code.toLowerCase().includes('429') ||
+        message.toLowerCase().includes('429') ||
+        message.toLowerCase().includes('rate limit')
+
+      if (isRateLimitFailure) {
+        console.warn(
+          `⚠️ Native batch scraper rate-limited for ${storeEnum}: ${message}. ` +
+          'Marking chunk as errors to avoid retry storms.'
+        )
+        return {
+          resultsByIngredient: emptyBatchResults(ingredientChunk.length),
+          errorFlags: Array.from({ length: ingredientChunk.length }, () => true),
+          errorMessages: Array.from({ length: ingredientChunk.length }, () => message),
+        }
+      }
+
+      console.warn(`⚠️ Native batch scraper failed for ${storeEnum}: ${message}. Falling back to chunked single calls.`)
     }
   }
 

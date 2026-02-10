@@ -256,6 +256,11 @@ jobs:
     needs: prepare-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    concurrency:
+      # Ensure Jina-backed scrapers never run at the same time within a run,
+      # while allowing non-Jina stores to run in parallel.
+      group: ${{ contains(fromJson('["aldi","traderjoes"]'), matrix.store) && format('daily-scraper-jina-{0}', github.run_id) || format('daily-scraper-store-{0}-{1}', github.run_id, matrix.store) }}
+      cancel-in-progress: false
 
     strategy:
       fail-fast: false
@@ -292,6 +297,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
           INGREDIENT_LIMIT: ${{ inputs.ingredient_limit }}
           STORE_LIMIT: ${{ inputs.store_limit }}
           STORE_CONCURRENCY: ${{ inputs.store_concurrency }}
