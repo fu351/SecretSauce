@@ -329,6 +329,23 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
         }
       } catch (error) {
         const message = error?.message || String(error)
+        const status = error?.status ?? error?.response?.status
+        const code = String(error?.code || '').toUpperCase()
+        const isTarget404 = storeEnum === 'target' && (status === 404 || code === 'TARGET_HTTP_404')
+
+        // Target returns 404 for some keyword/store combinations; treat these as empty-result misses,
+        // not hard scraper failures, so they do not trip consecutive-error store skipping.
+        if (isTarget404) {
+          console.warn(
+            `⚠️ Target 404 for ${storeEnum} (${zipCode}) ingredient "${ingredientName}" - treating as empty result`
+          )
+          return {
+            results: [],
+            hadError: false,
+            errorMessage: '',
+          }
+        }
+
         console.error(`❌ Scraper failed for ${storeEnum} (${zipCode}) ingredient "${ingredientName}": ${message}`)
         return {
           results: [],
