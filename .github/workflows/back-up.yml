@@ -1,0 +1,87 @@
+name: Backup & Reset Ingredient Ecosystem
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        options:
+          - backup-only
+          - backup-and-reset
+          - restore
+        default: backup-only
+      restore_suffix:
+        description: "Backup suffix to restore (e.g., 20260209_150000)"
+        required: false
+        type: string
+        default: ""
+      confirm_reset:
+        description: "Type RESET to confirm destructive action"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  run:
+    name: "${{ inputs.action }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate inputs
+        run: |
+          ACTION="${{ inputs.action }}"
+          CONFIRM="${{ inputs.confirm_reset }}"
+          SUFFIX="${{ inputs.restore_suffix }}"
+
+          if [[ "$ACTION" != "backup-only" && "$CONFIRM" != "RESET" ]]; then
+            echo "❌ Type RESET in the confirm field for destructive actions."
+            exit 1
+          fi
+
+          if [[ "$ACTION" == "restore" && -z "$SUFFIX" ]]; then
+            echo "❌ Provide a backup suffix for restore."
+            exit 1
+          fi
+
+          echo "✅ Validated: $ACTION"
+
+      - name: "Run: ${{ inputs.action }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+
+          ACTION="${{ inputs.action }}"
+          SUFFIX="${{ inputs.restore_suffix }}"
+
+          if [[ "$ACTION" == "restore" ]]; then
+            PAYLOAD="{\"p_action\": \"${ACTION}\", \"p_restore_suffix\": \"${SUFFIX}\"}"
+          else
+            PAYLOAD="{\"p_action\": \"${ACTION}\"}"
+          fi
+
+          echo "🚀 Calling fn_ingredient_ecosystem with action: $ACTION"
+
+          RESPONSE=$(curl -sfS -X POST "${SUPABASE_URL}/rest/v1/rpc/fn_ingredient_ecosystem" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
+
+          ACTION_RESULT=$(echo "$RESPONSE" | jq -r '.action' 2>/dev/null)
+          if [[ "$ACTION_RESULT" != "$ACTION" ]]; then
+            echo "❌ Unexpected response"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ $ACTION complete"
+          SUFFIX_OUT=$(echo "$RESPONSE" | jq -r '.suffix // empty' 2>/dev/null)
+          if [[ -n "$SUFFIX_OUT" ]]; then
+            echo "📦 Backup suffix: $SUFFIX_OUT"
+          fi
