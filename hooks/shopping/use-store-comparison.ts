@@ -200,6 +200,7 @@ async function hydratePricingGaps(
 
 type PerformMassSearchOptions = {
   skipPricingGaps?: boolean
+  showCachedFirst?: boolean
 }
 
 export function useStoreComparison(
@@ -420,6 +421,7 @@ export function useStoreComparison(
     try {
       devPricingLog("performMassSearch start", {
         skipPricingGaps: Boolean(options?.skipPricingGaps),
+        showCachedFirst: Boolean(options?.showCachedFirst),
         shoppingListCount: shoppingList.length,
         resolvedZipCode: resolvedZipCode || null,
         userId: user?.id ?? null,
@@ -431,88 +433,127 @@ export function useStoreComparison(
         count: storeMetadata.size,
         stores: Array.from(storeMetadata.keys()),
       })
-      // ----- Fill cache gaps before pricing -----
+
+      const logPricingData = (phase: "initial" | "final", pricingData: PricingResult[]) => {
+        devPricingLog(`getPricingForUser ${phase} result`, {
+          entries: pricingData.length,
+          sample: pricingData.slice(0, 3).map((entry) => ({
+            keys: Object.keys((entry as Record<string, unknown>) || {}),
+            standardized_ingredient_id: entry.standardized_ingredient_id,
+            item_ids: entry.item_ids,
+            offersType: typeof (entry as Record<string, unknown>).offers,
+            offers: Array.isArray(entry.offers) ? entry.offers.length : 0,
+            stores: Array.isArray(entry.offers) ? entry.offers.map((offer) => offer.store || offer.store_name || "unknown") : [],
+          })),
+        })
+      }
+
+      const buildFinalComparisons = (pricingData: PricingResult[], phase: "initial" | "final"): StoreComparison[] => {
+        let finalComparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
+        const shouldIncludePlaceholderStores = finalComparisons.length > 0 || !options?.skipPricingGaps
+        let placeholderStoresAdded = 0
+
+        if (shouldIncludePlaceholderStores) {
+          // Ensure every preferred store appears, even if no pricing/scrape data
+          const normalizedExisting = new Set(
+            finalComparisons.map((comparison) => normalizeStoreName(comparison.store))
+          )
+
+          storeMetadata.forEach((meta, storeKey) => {
+            if (normalizedExisting.has(storeKey)) return
+            // Only include stores we can place on the map (have zip or coords)
+            if (!meta.zipCode && !meta.latitude && !meta.longitude) return
+
+            finalComparisons.push({
+              store: storeKey,
+              items: [],
+              total: 0,
+              savings: 0,
+              missingItems: true,
+              missingCount: shoppingList.length,
+              missingIngredients: shoppingList,
+              latitude: meta.latitude ?? undefined,
+              longitude: meta.longitude ?? undefined,
+              distanceMiles: meta.distanceMiles ?? undefined,
+              groceryStoreId: meta.grocery_store_id ?? null,
+              locationHint: meta.zipCode ? `${storeKey} (${meta.zipCode})` : undefined,
+            })
+            placeholderStoresAdded += 1
+          })
+        }
+
+        devPricingLog(`comparison set ${phase}`, {
+          totalStores: finalComparisons.length,
+          storesWithItems: finalComparisons.filter((store) => store.items.length > 0).length,
+          placeholderStoresAdded,
+          stores: finalComparisons.map((store) => ({
+            store: store.store,
+            itemCount: store.items.length,
+            missingCount: store.missingCount ?? 0,
+            total: store.total,
+          })),
+        })
+
+        return finalComparisons
+      }
+
+      let cachedPricingData: PricingResult[] = []
+      let renderedCachedPricing = false
+
+      if (options?.showCachedFirst) {
+        cachedPricingData = user ? await ingredientsRecentDB.getPricingForUser(user.id) : []
+        logPricingData("initial", cachedPricingData)
+        const initialComparisons = buildFinalComparisons(cachedPricingData, "initial")
+        setResults(initialComparisons)
+        setActiveStoreIndex(0)
+        setHasFetched(true)
+        renderedCachedPricing = true
+
+        if (options?.skipPricingGaps && cachedPricingData.length === 0) {
+          toast({
+            title: "No cached pricing in dev mode",
+            description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
+          })
+        }
+      }
+
+      let insertedFromGapHydration = 0
+      // ----- Fill cache gaps -----
       if (user && !options?.skipPricingGaps) {
         const pricingGaps = await ingredientsRecentDB.getPricingGaps(user.id)
         if (pricingGaps.length > 0) {
           console.warn("[useStoreComparison] Filling pricing gaps", { gaps: pricingGaps.length })
           console.log("[useStoreComparison] Pricing gaps payload", pricingGaps)
           const { inserted } = await hydratePricingGaps(pricingGaps, resolvedZipCode)
+          insertedFromGapHydration = inserted
           devPricingLog("hydratePricingGaps completed", {
             gaps: pricingGaps.length,
             inserted,
           })
         }
       }
-      // ----- Primary: server-side pricing function -----
-      const pricingData = user ? await ingredientsRecentDB.getPricingForUser(user.id) : []
-      devPricingLog("getPricingForUser result", {
-        entries: pricingData.length,
-        sample: pricingData.slice(0, 3).map((entry) => ({
-          keys: Object.keys((entry as Record<string, unknown>) || {}),
-          standardized_ingredient_id: entry.standardized_ingredient_id,
-          item_ids: entry.item_ids,
-          offersType: typeof (entry as Record<string, unknown>).offers,
-          offers: Array.isArray(entry.offers) ? entry.offers.length : 0,
-          stores: Array.isArray(entry.offers) ? entry.offers.map((offer) => offer.store || offer.store_name || "unknown") : [],
-        })),
-      })
-      let comparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
-      let finalComparisons = comparisons
 
-      if (options?.skipPricingGaps && pricingData.length === 0) {
-        toast({
-          title: "No cached pricing in dev mode",
-          description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
-        })
-      }
+      const shouldRefreshPricing =
+        !options?.showCachedFirst ||
+        insertedFromGapHydration > 0 ||
+        !renderedCachedPricing
 
-      const shouldIncludePlaceholderStores = finalComparisons.length > 0 || !options?.skipPricingGaps
-      let placeholderStoresAdded = 0
+      if (shouldRefreshPricing) {
+        const pricingData = user ? await ingredientsRecentDB.getPricingForUser(user.id) : []
+        logPricingData("final", pricingData)
 
-      if (shouldIncludePlaceholderStores) {
-        // Ensure every preferred store appears, even if no pricing/scrape data
-        const normalizedExisting = new Set(
-          finalComparisons.map((c) => normalizeStoreName(c.store))
-        )
-
-        storeMetadata.forEach((meta, storeKey) => {
-          if (normalizedExisting.has(storeKey)) return
-          // Only include stores we can place on the map (have zip or coords)
-          if (!meta.zipCode && !meta.latitude && !meta.longitude) return
-
-          finalComparisons.push({
-            store: storeKey,
-            items: [],
-            total: 0,
-            savings: 0,
-            missingItems: true,
-            missingCount: shoppingList.length,
-            missingIngredients: shoppingList,
-            latitude: meta.latitude ?? undefined,
-            longitude: meta.longitude ?? undefined,
-            distanceMiles: meta.distanceMiles ?? undefined,
-            groceryStoreId: meta.grocery_store_id ?? null,
-            locationHint: meta.zipCode ? `${storeKey} (${meta.zipCode})` : undefined,
+        if (options?.skipPricingGaps && pricingData.length === 0 && !renderedCachedPricing) {
+          toast({
+            title: "No cached pricing in dev mode",
+            description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
           })
-          placeholderStoresAdded += 1
-        })
+        }
+
+        const finalComparisons = buildFinalComparisons(pricingData, "final")
+        setResults(finalComparisons)
+        setActiveStoreIndex(0)
       }
 
-      devPricingLog("final comparison set", {
-        totalStores: finalComparisons.length,
-        storesWithItems: finalComparisons.filter((store) => store.items.length > 0).length,
-        placeholderStoresAdded,
-        stores: finalComparisons.map((store) => ({
-          store: store.store,
-          itemCount: store.items.length,
-          missingCount: store.missingCount ?? 0,
-          total: store.total,
-        })),
-      })
-
-      setResults(finalComparisons)
-      setActiveStoreIndex(0)
       setHasFetched(true)
     } catch (error) {
       console.error("Mass search error:", error)

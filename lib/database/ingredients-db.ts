@@ -593,7 +593,16 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
 
         if (parsed && typeof parsed === "object") {
           const record = parsed as Record<string, unknown>
-          const wrapped = record.get_pricing ?? record.result ?? record.data
+
+          // RPC wrappers can vary by PostgREST/Supabase shape.
+          // Support direct `pricing_summary` from RETURNS TABLE(pricing_summary JSONB),
+          // plus common envelope keys.
+          const wrapped =
+            record.pricing_summary ??
+            record.pricingSummary ??
+            record.get_pricing ??
+            record.result ??
+            record.data
           if (wrapped !== undefined) return normalizePricingPayload(wrapped)
 
           // Base case: a single pricing row object
@@ -648,8 +657,8 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
 
 export type PricingResult = {
   standardized_ingredient_id: string
-  total_amount: number
-  requested_unit: string | null
+  total_amount?: number
+  requested_unit?: string | null
   item_ids: Array<string | number>
   offers: {
     store: string
@@ -657,7 +666,7 @@ export type PricingResult = {
     store_name?: string | null
     product_mapping_id?: string | null
     unit_price: number | null
-    package_price: number | null
+    package_price?: number | null
     total_price: number | null
     product_name?: string | null
     image_url?: string | null

@@ -83,7 +83,7 @@ export default function ShoppingReceiptPage() {
     const runAutoCompare = async () => {
       await saveChanges()
       if (cancelled) return
-      await performMassSearch()
+      await performMassSearch({ showCachedFirst: true })
     }
 
     void runAutoCompare()
@@ -108,7 +108,7 @@ export default function ShoppingReceiptPage() {
 
   const handleRefresh = useCallback(async () => {
     await saveChanges()
-    await performMassSearch()
+    await performMassSearch({ showCachedFirst: true })
   }, [saveChanges, performMassSearch])
 
   const handleSwapRequest = useCallback((itemId: string) => {
