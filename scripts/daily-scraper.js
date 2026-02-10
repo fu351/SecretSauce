@@ -346,9 +346,33 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
   }
 }
 
-async function scrapeIngredientsBatched(ingredients, stores) {
-  const allResults = []
+async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
+  const pendingResults = []
+  let totalScrapedCount = 0
+  let totalInsertedCount = 0
   let skippedStoreCount = 0
+
+  async function flushPendingResults(force = false, reason = 'buffer checkpoint') {
+    if (!pendingResults.length) return
+
+    if (!force && pendingResults.length < INSERT_BATCH_SIZE) {
+      return
+    }
+
+    while (pendingResults.length >= INSERT_BATCH_SIZE || (force && pendingResults.length > 0)) {
+      const take = pendingResults.length >= INSERT_BATCH_SIZE
+        ? INSERT_BATCH_SIZE
+        : pendingResults.length
+      const batch = pendingResults.splice(0, take)
+      console.log(`💾 Flushing ${batch.length} buffered items (${reason})`)
+      const inserted = await bulkInsertIngredientHistory(batch)
+      totalInsertedCount += inserted
+
+      if (pendingResults.length > 0) {
+        await sleep(1000)
+      }
+    }
+  }
 
   for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
     const store = stores[storeIndex]
@@ -405,7 +429,7 @@ async function scrapeIngredientsBatched(ingredients, stores) {
         const best = pickBestResult(resultsByIngredient[idx] || [])
         if (!best) continue
 
-        allResults.push({
+        pendingResults.push({
           store: storeEnum,
           price: best._price,
           imageUrl: best.image_url || best.imageUrl || null,
@@ -415,10 +439,12 @@ async function scrapeIngredientsBatched(ingredients, stores) {
           store_id: store.id || null
         })
 
+        totalScrapedCount += 1
         chunkHits += 1
       }
 
       console.log(`   ✅ Found ${chunkHits}/${chunk.length} prices in chunk`)
+      await flushPendingResults(false, `threshold reached at ${storeEnum} (${zipCode})`)
 
       if (skippedForErrors) {
         skippedStoreCount += 1
@@ -442,13 +468,20 @@ async function scrapeIngredientsBatched(ingredients, stores) {
         lastErrorMessage,
       })
     }
+
+    await flushPendingResults(true, `store completed: ${storeEnum} (${zipCode})`)
   }
 
   if (skippedStoreCount > 0) {
     console.warn(`\n⚠️ Skipped ${skippedStoreCount} store location(s) due to repeated scraper errors.`)
   }
 
-  return allResults
+  await flushPendingResults(true, 'final run completion')
+
+  return {
+    scrapedCount: totalScrapedCount,
+    insertedCount: totalInsertedCount,
+  }
 }
 
 async function bulkInsertIngredientHistory(items) {
@@ -493,24 +526,6 @@ async function bulkInsertIngredientHistory(items) {
   return insertedCount
 }
 
-async function insertInBatches(items, batchSize = INSERT_BATCH_SIZE) {
-  let totalInserted = 0
-
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize)
-    console.log(`📦 Batch ${Math.floor(i / batchSize) + 1}: ${batch.length} items`)
-
-    const inserted = await bulkInsertIngredientHistory(batch)
-    totalInserted += inserted
-
-    if (i + batchSize < items.length) {
-      await sleep(1000)
-    }
-  }
-
-  return totalInserted
-}
-
 async function main() {
   const startTime = Date.now()
 
@@ -545,14 +560,13 @@ async function main() {
     process.exit(1)
   }
 
-  const results = await scrapeIngredientsBatched(ingredients, stores)
-  console.log(`\n✅ Scraped ${results.length} total products`)
-
-  const inserted = await insertInBatches(results)
+  const { scrapedCount, insertedCount } = await scrapeIngredientsAndInsertBatched(ingredients, stores)
+  console.log(`\n✅ Scraped ${scrapedCount} total products`)
+  const inserted = insertedCount
   console.log(`\n✅ Inserted ${inserted} rows to database`)
 
   const duration = (Date.now() - startTime) / 1000
-  const successRate = results.length > 0 ? (inserted / results.length) * 100 : 0
+  const successRate = scrapedCount > 0 ? (inserted / scrapedCount) * 100 : 0
 
   console.log('\n' + '='.repeat(60))
   console.log('📊 SCRAPER SUMMARY')
@@ -560,13 +574,13 @@ async function main() {
   console.log(`Store Brand: ${STORE_BRAND || 'ALL'}`)
   console.log(`Stores: ${stores.length}`)
   console.log(`Ingredients: ${ingredients.length}`)
-  console.log(`Scraped: ${results.length}`)
+  console.log(`Scraped: ${scrapedCount}`)
   console.log(`Inserted: ${inserted}`)
   console.log(`Success Rate: ${successRate.toFixed(1)}%`)
   console.log(`Duration: ${duration.toFixed(1)}s`)
   console.log('='.repeat(60))
 
-  if (inserted < results.length * 0.2) {
+  if (inserted < scrapedCount * 0.2) {
     console.error('\n❌ CRITICAL: <20% insertion success rate')
     process.exit(1)
   }
