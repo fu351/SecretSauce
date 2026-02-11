@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
@@ -12,6 +12,35 @@ import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import type { GroceryItem } from "@/lib/types/store"
+
+function buildListIdentitySignature(items: Array<{
+  id: string
+  name?: string
+  unit?: string | null
+  ingredient_id?: string | null
+  standardizedIngredientId?: string | null
+  source_type?: string
+  recipe_id?: string | null
+}>): string {
+  return items
+    .map((item) => [
+      item.id,
+      item.name || "",
+      item.unit || "",
+      item.ingredient_id || item.standardizedIngredientId || "",
+      item.source_type || "",
+      item.recipe_id || "",
+    ].join("|"))
+    .sort()
+    .join("||")
+}
+
+function buildListQuantitySignature(items: Array<{ id: string; quantity?: number | null }>): string {
+  return items
+    .map((item) => `${item.id}:${Math.max(1, Number(item.quantity) || 1)}`)
+    .sort()
+    .join("|")
+}
 
 export default function ShoppingReceiptPage() {
   const router = useRouter()
@@ -29,6 +58,7 @@ export default function ShoppingReceiptPage() {
     standardizedIngredientId?: string | null
     groceryStoreId?: string | null
   } | null>(null)
+  const previousListSignaturesRef = useRef<{ identity: string; quantity: string } | null>(null)
 
   // Shopping list management
   const {
@@ -50,6 +80,8 @@ export default function ShoppingReceiptPage() {
     scrollToStore,
     replaceItemForStore
   } = useStoreComparison(shoppingList, zipCode, null)
+  const listIdentitySignature = useMemo(() => buildListIdentitySignature(shoppingList), [shoppingList])
+  const listQuantitySignature = useMemo(() => buildListQuantitySignature(shoppingList), [shoppingList])
 
   // Hydration handling
   useEffect(() => {
@@ -73,10 +105,39 @@ export default function ShoppingReceiptPage() {
     loadUserZip()
   }, [user])
 
-  // Auto-run comparison on load and when list inputs change (equivalent to Compare button flow)
+  // Auto-run comparison on load and when non-quantity list inputs change.
+  // Quantity updates should stay local and should not trigger scrapers.
   useEffect(() => {
     if (!mounted || listLoading) return
-    if (shoppingList.length === 0) return
+    if (shoppingList.length === 0) {
+      previousListSignaturesRef.current = null
+      return
+    }
+
+    const currentSignatures = {
+      identity: listIdentitySignature,
+      quantity: listQuantitySignature,
+    }
+    const previousSignatures = previousListSignaturesRef.current
+    previousListSignaturesRef.current = currentSignatures
+
+    if (
+      previousSignatures &&
+      previousSignatures.identity === currentSignatures.identity &&
+      previousSignatures.quantity === currentSignatures.quantity
+    ) {
+      return
+    }
+
+    const quantityOnlyChange = Boolean(
+      previousSignatures &&
+      previousSignatures.identity === currentSignatures.identity &&
+      previousSignatures.quantity !== currentSignatures.quantity
+    )
+
+    if (quantityOnlyChange && comparisonFetched) {
+      return
+    }
 
     let cancelled = false
 
@@ -91,7 +152,16 @@ export default function ShoppingReceiptPage() {
     return () => {
       cancelled = true
     }
-  }, [mounted, listLoading, shoppingList, saveChanges, performMassSearch])
+  }, [
+    mounted,
+    listLoading,
+    shoppingList.length,
+    listIdentitySignature,
+    listQuantitySignature,
+    comparisonFetched,
+    saveChanges,
+    performMassSearch,
+  ])
 
   const selectedStore = storeComparisons[carouselIndex]?.store ?? null
 

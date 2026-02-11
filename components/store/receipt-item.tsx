@@ -39,8 +39,12 @@ export function ReceiptItem({
   const unit = item.unit || ""
   const isAvailable = pricing !== null
   const lineTotal = pricing ? pricing.price * quantity : null
-  const packageQuantityDisplay = pricing?.packagesToBuy
-    ? formatMeasure(pricing.packagesToBuy)
+  const pricingBaselineQuantity = Math.max(1, Number(pricing?.quantity) || 1)
+  const adjustedPackagesToBuy = pricing?.packagesToBuy
+    ? (pricing.packagesToBuy / pricingBaselineQuantity) * quantity
+    : null
+  const packageQuantityDisplay = adjustedPackagesToBuy !== null
+    ? formatMeasure(adjustedPackagesToBuy)
     : quantityDisplay
 
   const rawItemName = typeof item.name === "string" ? item.name.trim() : ""
@@ -49,8 +53,8 @@ export function ReceiptItem({
   const showMatchedProductInline = Boolean(matchedProductName && matchedProductName !== displayName)
 
   const cartQuantitySummary = `${quantityDisplay}${unit ? ` ${unit}` : ""}`
-  const purchaseQuantitySummary = pricing?.packagesToBuy
-    ? `${formatMeasure(pricing.packagesToBuy)} ${pricing.packagesToBuy === 1 ? "package" : "packages"}`
+  const purchaseQuantitySummary = adjustedPackagesToBuy !== null
+    ? `${formatMeasure(adjustedPackagesToBuy)} ${Math.abs(adjustedPackagesToBuy - 1) < 0.0001 ? "package" : "packages"}`
     : cartQuantitySummary
 
   const textPrimaryClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"

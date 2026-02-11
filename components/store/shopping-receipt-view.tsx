@@ -57,14 +57,53 @@ export function ShoppingReceiptView({
   className = ""
 }: ShoppingReceiptViewProps) {
   const [showMap, setShowMap] = useState(false)
+  const quantityByItemId = useMemo(() => {
+    const map = new Map<string, number>()
+    shoppingList.forEach((item) => {
+      map.set(item.id, Math.max(1, Number(item.quantity) || 1))
+    })
+    return map
+  }, [shoppingList])
+
+  const storeComparisonsWithLocalTotals = useMemo(() => {
+    if (storeComparisons.length === 0) return storeComparisons
+
+    const updatedComparisons = storeComparisons.map((store) => {
+      const localTotal = store.items.reduce((sum, pricedItem) => {
+        const itemIds = pricedItem.shoppingItemIds?.filter(Boolean) || [pricedItem.shoppingItemId]
+        let effectiveQty = 0
+
+        itemIds.forEach((id) => {
+          effectiveQty += quantityByItemId.get(id) ?? 0
+        })
+
+        if (effectiveQty <= 0) {
+          effectiveQty = Math.max(1, Number(pricedItem.quantity) || 1)
+        }
+
+        return sum + (Number(pricedItem.price) || 0) * effectiveQty
+      }, 0)
+
+      return {
+        ...store,
+        total: localTotal,
+      }
+    })
+
+    const maxTotal = Math.max(...updatedComparisons.map((store) => store.total), 0)
+    return updatedComparisons.map((store) => ({
+      ...store,
+      savings: maxTotal - store.total,
+    }))
+  }, [storeComparisons, quantityByItemId])
 
   // Get the selected store's data
   const selectedStoreData = useMemo(() => {
-    if (!selectedStore && storeComparisons.length > 0) {
-      return storeComparisons[0] // Default to first (cheapest)
+    if (!selectedStore && storeComparisonsWithLocalTotals.length > 0) {
+      return storeComparisonsWithLocalTotals[0] // Default to first (cheapest)
     }
-    return storeComparisons.find(s => s.store === selectedStore) || storeComparisons[0]
-  }, [storeComparisons, selectedStore])
+    return storeComparisonsWithLocalTotals.find(s => s.store === selectedStore) || storeComparisonsWithLocalTotals[0]
+  }, [storeComparisonsWithLocalTotals, selectedStore])
 
   // Create a map of item ID to pricing data for easy lookup
   const pricingMap = useMemo(() => {
@@ -81,16 +120,16 @@ export function ShoppingReceiptView({
   }, [selectedStoreData])
 
   const selectedStoreIndex = useMemo(() => {
-    if (!selectedStore && storeComparisons.length > 0) return 0
-    const index = storeComparisons.findIndex((store) => store.store === selectedStore)
+    if (!selectedStore && storeComparisonsWithLocalTotals.length > 0) return 0
+    const index = storeComparisonsWithLocalTotals.findIndex((store) => store.store === selectedStore)
     return index >= 0 ? index : 0
-  }, [storeComparisons, selectedStore])
+  }, [storeComparisonsWithLocalTotals, selectedStore])
 
   const handleMapStoreSelect = useCallback((storeIndex: number) => {
-    const selectedFromMap = storeComparisons[storeIndex]
+    const selectedFromMap = storeComparisonsWithLocalTotals[storeIndex]
     if (!selectedFromMap) return
     onStoreChange(selectedFromMap.store)
-  }, [storeComparisons, onStoreChange])
+  }, [storeComparisonsWithLocalTotals, onStoreChange])
 
   // Calculate totals
   const subtotal = selectedStoreData?.total || 0
@@ -147,11 +186,11 @@ export function ShoppingReceiptView({
           )}
         </div>
 
-        {storeComparisons.length > 0 ? (
+        {storeComparisonsWithLocalTotals.length > 0 ? (
           <>
             <div className="flex items-start gap-2">
               <StoreSelector
-                stores={storeComparisons}
+                stores={storeComparisonsWithLocalTotals}
                 selectedStore={selectedStore}
                 onStoreChange={onStoreChange}
                 theme={theme}
@@ -175,7 +214,7 @@ export function ShoppingReceiptView({
                 theme === "dark" ? "border-white/10 bg-[#1f1e1a]" : "border-gray-200 bg-white"
               }`}>
                 <StoreMap
-                  comparisons={storeComparisons}
+                  comparisons={storeComparisonsWithLocalTotals}
                   onStoreSelected={handleMapStoreSelect}
                   userPostalCode={userPostalCode}
                   selectedStoreIndex={selectedStoreIndex}
