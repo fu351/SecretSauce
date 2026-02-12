@@ -197,6 +197,8 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                 resolvedIngredientId: standardized.id,
                 confidence: result.confidence,
                 resolver: config.resolverName,
+                // Unit resolver pass can provide resolvedUnit/resolvedQuantity and
+                // unitConfidence/quantityConfidence via this same write path.
                 clearIngredientReviewFlag: true,
                 clearUnitReviewFlag: true,
               })

@@ -29,6 +29,8 @@ Current database integration:
   - `source` (`scraper`/`recipe`)
   - `recipe_ingredient_id`
   - review flags + unit fields (`needs_ingredient_review`, `needs_unit_review`, `raw_unit`, `resolved_unit`, `resolved_quantity`)
+  - confidence fields (`fuzzy_score`, `unit_confidence`, `quantity_confidence`)
+  - confidence sync trigger to product mappings: `trg_queue_resolved_confidence_backfill`
 
 Observed behavior in current implementation:
 - Nightly workflow still runs in bounded batches and remains the rollout fallback.
@@ -140,6 +142,8 @@ Status: Implemented in app code; DB migration apply pending.
    - `processing_lease_expires_at timestamptz`
    - `attempt_count integer default 0`
    - `last_error text`
+   - `unit_confidence numeric(4,3)`
+   - `quantity_confidence numeric(4,3)`
 3. Add RPC/function `claim_ingredient_match_queue(limit, resolver, lease_seconds, review_mode, source)`:
    - selects eligible rows (`pending` or expired lease)
    - marks them `processing`

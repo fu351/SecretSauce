@@ -182,6 +182,8 @@ class IngredientMatchQueueTable extends BaseTable<
     bestFuzzyMatch?: string
     resolvedUnit?: Database["public"]["Enums"]["unit_label"] | null
     resolvedQuantity?: number | null
+    unitConfidence?: number | null
+    quantityConfidence?: number | null
     clearIngredientReviewFlag?: boolean
     clearUnitReviewFlag?: boolean
   }): Promise<boolean> {
@@ -194,6 +196,8 @@ class IngredientMatchQueueTable extends BaseTable<
       bestFuzzyMatch,
       resolvedUnit,
       resolvedQuantity,
+      unitConfidence,
+      quantityConfidence,
       clearIngredientReviewFlag = true,
       clearUnitReviewFlag = true,
     } = params
@@ -219,6 +223,14 @@ class IngredientMatchQueueTable extends BaseTable<
 
     if (resolvedQuantity !== undefined) {
       payload.resolved_quantity = resolvedQuantity
+    }
+
+    if (unitConfidence !== undefined) {
+      payload.unit_confidence = unitConfidence
+    }
+
+    if (quantityConfidence !== undefined) {
+      payload.quantity_confidence = quantityConfidence
     }
 
     if (clearIngredientReviewFlag) {

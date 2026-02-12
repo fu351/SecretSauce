@@ -440,6 +440,7 @@ export type Database = {
           standardized_unit: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity: number | null
           unit_confidence: number | null
+          quantity_confidence: number | null
           manual_override: boolean | null
           last_seen_at: string | null
           modal_opened_count: number | null
@@ -456,6 +457,7 @@ export type Database = {
           standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity?: number | null
           unit_confidence?: number | null
+          quantity_confidence?: number | null
           manual_override?: boolean | null
           last_seen_at?: string | null
           modal_opened_count?: number | null
@@ -472,6 +474,7 @@ export type Database = {
           standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity?: number | null
           unit_confidence?: number | null
+          quantity_confidence?: number | null
           manual_override?: boolean | null
           last_seen_at?: string | null
           modal_opened_count?: number | null
@@ -578,6 +581,8 @@ export type Database = {
           resolved_ingredient_id: string | null
           resolved_unit: Database["public"]["Enums"]["unit_label"] | null
           resolved_quantity: number | null
+          unit_confidence: number | null
+          quantity_confidence: number | null
           resolved_by: string | null
           processing_started_at: string | null
           processing_lease_expires_at: string | null
@@ -602,6 +607,8 @@ export type Database = {
           resolved_ingredient_id?: string | null
           resolved_unit?: Database["public"]["Enums"]["unit_label"] | null
           resolved_quantity?: number | null
+          unit_confidence?: number | null
+          quantity_confidence?: number | null
           resolved_by?: string | null
           processing_started_at?: string | null
           processing_lease_expires_at?: string | null
@@ -626,6 +633,8 @@ export type Database = {
           resolved_ingredient_id?: string | null
           resolved_unit?: Database["public"]["Enums"]["unit_label"] | null
           resolved_quantity?: number | null
+          unit_confidence?: number | null
+          quantity_confidence?: number | null
           resolved_by?: string | null
           processing_started_at?: string | null
           processing_lease_expires_at?: string | null

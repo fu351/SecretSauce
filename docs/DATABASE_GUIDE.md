@@ -28,6 +28,8 @@ LLM Queue Processor (external)
   → Resolves ingredient and/or unit
   → Sets status = 'resolved' → trigger fn_backfill_resolved_ingredient fires
     → Updates product_mappings.standardized_ingredient_id / unit / quantity
+  → trigger fn_backfill_resolved_confidence fires
+    → Updates product_mappings.unit_confidence / quantity_confidence from queue confidences
 ```
 
 ### Key Design Principles
@@ -59,6 +61,7 @@ LLM Queue Processor (external)
 | `standardized_unit` | unit_label FK | YES | | → unit_canonical.standard_unit |
 | `standardized_quantity` | numeric | YES | | Package quantity in standardized unit |
 | `unit_confidence` | numeric | YES | 0.0 | Unit mapping confidence (0–1) |
+| `quantity_confidence` | numeric | YES | | Quantity extraction confidence (0–1) |
 | `manual_override` | boolean | YES | false | If true, LLM/fuzzy matching skipped |
 | `last_seen_at` | timestamptz | YES | now() | Last time scraper encountered this product |
 | `modal_opened_count` | integer | YES | 1 | UI analytics |
@@ -118,6 +121,8 @@ LLM Queue Processor (external)
 | `resolved_ingredient_id` | uuid FK | YES | | → standardized_ingredients.id |
 | `resolved_unit` | unit_label | YES | | LLM-resolved standard unit |
 | `resolved_quantity` | numeric | YES | | LLM-resolved quantity |
+| `unit_confidence` | numeric(4,3) | YES | | Unit resolution confidence (0–1) |
+| `quantity_confidence` | numeric(4,3) | YES | | Quantity resolution confidence (0–1) |
 | `resolved_by` | text | YES | | Who/what resolved |
 | `resolved_at` | timestamptz | YES | | When resolved |
 | `processing_started_at` | timestamptz | YES | | Lease start |
@@ -416,6 +421,7 @@ LLM Queue Processor (external)
 |----------|-------------|
 | `fn_relink_product_mappings(boolean, interval)` | Re-runs ingredient matching on product_mappings. Queues low-confidence results. |
 | `fn_backfill_resolved_ingredient()` | Trigger on ingredient_match_queue. Cascades resolved ingredient/unit to product_mappings. |
+| `fn_backfill_resolved_confidence()` | Trigger on ingredient_match_queue. Cascades resolved unit/quantity confidence to product_mappings. |
 | `fn_ingredient_ecosystem(text)` | Backup/restore/reset all ingredient-related tables. |
 | `check_pricing_health()` | Diagnostic: unit conversion coverage, data quality, shopping list coverage. |
 
@@ -440,6 +446,7 @@ LLM Queue Processor (external)
 | Trigger | Function | Event |
 |---------|----------|-------|
 | `trg_queue_resolved_backfill` | fn_backfill_resolved_ingredient | UPDATE (status → 'resolved') |
+| `trg_queue_resolved_confidence_backfill` | fn_backfill_resolved_confidence | UPDATE (status = 'resolved') |
 
 ### shopping_list_items
 | Trigger | Function | Event |
