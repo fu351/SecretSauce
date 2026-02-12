@@ -174,7 +174,7 @@ export function buildComparisonsFromPricing(
         price: totalPrice,
         pricePerUnit: undefined,
         unit: undefined,
-        image_url: offer?.image_url || undefined,
+        image_url: offer?.image_url || offer?.imageUrl || undefined,
         provider: storeName,
         location: offer?.zip_code ? `${storeName} (${offer.zip_code})` : storeName,
         category: "other",

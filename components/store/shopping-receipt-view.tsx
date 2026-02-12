@@ -119,6 +119,23 @@ export function ShoppingReceiptView({
     return map
   }, [selectedStoreData])
 
+  const orderedShoppingList = useMemo(() => {
+    if (shoppingList.length <= 1) return shoppingList
+
+    const availableItems: ShoppingListItem[] = []
+    const missingItems: ShoppingListItem[] = []
+
+    shoppingList.forEach((item) => {
+      if (pricingMap.has(item.id)) {
+        availableItems.push(item)
+      } else {
+        missingItems.push(item)
+      }
+    })
+
+    return [...availableItems, ...missingItems]
+  }, [shoppingList, pricingMap])
+
   const selectedStoreIndex = useMemo(() => {
     if (!selectedStore && storeComparisonsWithLocalTotals.length > 0) return 0
     const index = storeComparisonsWithLocalTotals.findIndex((store) => store.store === selectedStore)
@@ -188,7 +205,7 @@ export function ShoppingReceiptView({
 
         {storeComparisonsWithLocalTotals.length > 0 ? (
           <>
-            <div className="flex items-start gap-2">
+            <div className="flex items-start md:items-stretch gap-2">
               <StoreSelector
                 stores={storeComparisonsWithLocalTotals}
                 selectedStore={selectedStore}
@@ -203,7 +220,7 @@ export function ShoppingReceiptView({
                 onClick={() => setShowMap((prev) => !prev)}
                 aria-label={showMap ? "Hide store map" : "Show store map"}
                 title={showMap ? "Hide map" : "Show map"}
-                className="h-14 w-14 flex-shrink-0"
+                className="h-14 w-14 md:h-auto md:self-stretch md:min-h-14 flex-shrink-0"
               >
                 {showMap ? <List className="h-5 w-5" /> : <MapIcon className="h-5 w-5" />}
               </Button>
@@ -257,7 +274,7 @@ export function ShoppingReceiptView({
               </div>
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-white/5">
-                {shoppingList.map((item) => (
+                {orderedShoppingList.map((item) => (
                   <ReceiptItem
                     key={item.id}
                     item={item}
@@ -339,6 +356,7 @@ export function ShoppingReceiptView({
             )}
           </Button>
         )}
+
       </div>
     </div>
   )

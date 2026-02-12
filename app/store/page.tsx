@@ -9,6 +9,7 @@ import { useShoppingList } from "@/hooks/shopping/use-shopping-list"
 import { useStoreComparison } from "@/hooks/shopping/use-store-comparison"
 import { ShoppingReceiptView } from "@/components/store/shopping-receipt-view"
 import { ItemReplacementModal } from "@/components/store/store-replacement"
+import { MobileQuickAddPanel } from "@/components/store/mobile-quick-add-panel"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import type { GroceryItem } from "@/lib/types/store"
@@ -65,6 +66,7 @@ export default function ShoppingReceiptPage() {
     items: shoppingList,
     loading: listLoading,
     addItem,
+    addRecipeToCart,
     removeItem,
     updateQuantity,
     saveChanges
@@ -180,6 +182,26 @@ export default function ShoppingReceiptPage() {
     await saveChanges()
     await performMassSearch({ showCachedFirst: true })
   }, [saveChanges, performMassSearch])
+
+  const handleMobileAddItem = useCallback(async (name: string) => {
+    const itemName = name.trim()
+    if (!itemName) return
+
+    const added = await addItem(itemName, 1, "piece")
+    if (added) {
+      toast({ title: "Item Added", description: `Added ${itemName} to your shopping list` })
+    }
+  }, [addItem, toast])
+
+  const handleMobileAddRecipe = useCallback(async (recipeId: string, _title: string, servings?: number) => {
+    await addRecipeToCart(recipeId, servings)
+  }, [addRecipeToCart])
+
+  const handleMobileRemoveRecipe = useCallback((recipeId: string) => {
+    // Remove all items that belong to this recipe
+    const itemsToRemove = shoppingList.filter(item => item.recipe_id === recipeId)
+    itemsToRemove.forEach(item => removeItem(item.id))
+  }, [shoppingList, removeItem])
 
   const handleSwapRequest = useCallback((itemId: string) => {
     const item = shoppingList.find((shoppingItem) => shoppingItem.id === itemId)
@@ -320,22 +342,37 @@ export default function ShoppingReceiptPage() {
 
           {/* Right - Receipt View */}
           <div className="lg:col-span-2">
-            <ShoppingReceiptView
-              shoppingList={shoppingList}
-              storeComparisons={storeComparisons}
-              selectedStore={selectedStore}
-              onStoreChange={handleStoreChange}
-              onQuantityChange={updateQuantity}
-              onRemoveItem={removeItem}
-              onSwapItem={handleSwapRequest}
-              onCheckout={handleCheckout}
-              onRefresh={handleRefresh}
-              loading={listLoading || comparisonLoading || (shoppingList.length > 0 && !comparisonFetched)}
-              error={null}
-              userPostalCode={zipCode}
-              theme={styles.theme}
-              className="h-[calc(100vh-12rem)]"
-            />
+            {/* Mobile: Quick add at top for easy access, receipt below */}
+            {/* Desktop: Receipt takes full available height */}
+            <div className="flex flex-col h-[calc(100vh-2rem)] lg:h-[calc(100vh-12rem)] gap-3">
+              <MobileQuickAddPanel
+                shoppingList={shoppingList}
+                onAddItem={handleMobileAddItem}
+                onAddRecipe={handleMobileAddRecipe}
+                onRemoveRecipe={handleMobileRemoveRecipe}
+                theme={styles.theme}
+                textClass={styles.textClass}
+                mutedTextClass={styles.mutedTextClass}
+                cardBgClass={styles.cardBgClass}
+              />
+
+              <ShoppingReceiptView
+                shoppingList={shoppingList}
+                storeComparisons={storeComparisons}
+                selectedStore={selectedStore}
+                onStoreChange={handleStoreChange}
+                onQuantityChange={updateQuantity}
+                onRemoveItem={removeItem}
+                onSwapItem={handleSwapRequest}
+                onCheckout={handleCheckout}
+                onRefresh={handleRefresh}
+                loading={listLoading || comparisonLoading || (shoppingList.length > 0 && !comparisonFetched)}
+                error={null}
+                userPostalCode={zipCode}
+                theme={styles.theme}
+                className="flex-1 min-h-[500px]"
+              />
+            </div>
           </div>
         </div>
       </div>

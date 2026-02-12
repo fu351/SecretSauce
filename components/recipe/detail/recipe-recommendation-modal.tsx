@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ChefHat, Search, X } from "lucide-react"
-import { CompactRecipeCard } from "../cards/compact-recipe-card"
+import { ChefHat, Search, X, Loader2 } from "lucide-react"
+import { MobileRecipeCard } from "../cards/mobile-recipe-card"
 import { RecipeDetailModal } from "./recipe-detail-modal"
 import { useRecipes, useFavorites } from "@/hooks"
 import { Recipe } from "@/lib/types"
@@ -35,6 +35,10 @@ export function RecipeSearchModal({
   const { user } = useAuth()
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [displayCount, setDisplayCount] = useState(10) // Start with 10 items
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   // Fetch top-rated recipes using existing hook (same as recipe page)
   const { data: allRecipes = [], isLoading } = useRecipes("rating_avg")
@@ -74,7 +78,7 @@ export function RecipeSearchModal({
   }, [allRecipes, user, favoriteIds])
 
   // Filter out recipes already in shopping list and apply search
-  const recommendations = useMemo(() => {
+  const allRecommendations = useMemo(() => {
     const shoppingRecipeIds = new Set(
       shoppingItems
         .filter((item) => item.recipe_id)
@@ -103,6 +107,53 @@ export function RecipeSearchModal({
     return results
   }, [scoredRecipes, shoppingItems, searchQuery])
 
+  // Slice recommendations based on display count
+  const recommendations = useMemo(() => {
+    return allRecommendations.slice(0, displayCount)
+  }, [allRecommendations, displayCount])
+
+  const hasMore = displayCount < allRecommendations.length
+
+  // Reset display count when search changes
+  useEffect(() => {
+    setDisplayCount(10)
+  }, [searchQuery])
+
+  // Load more function
+  const loadMore = useCallback(() => {
+    if (isLoadingMore || !hasMore) return
+
+    setIsLoadingMore(true)
+    // Simulate loading delay for smooth UX
+    setTimeout(() => {
+      setDisplayCount(prev => Math.min(prev + 10, allRecommendations.length))
+      setIsLoadingMore(false)
+    }, 300)
+  }, [isLoadingMore, hasMore, allRecommendations.length])
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMore) return
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0]
+        if (first.isIntersecting && !isLoadingMore) {
+          loadMore()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    observerRef.current.observe(loadMoreRef.current)
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [hasMore, isLoadingMore, loadMore])
+
   const handleAddRecipe = async (recipe: Recipe) => {
     await onAddRecipe(recipe.id, recipe.title)
   }
@@ -110,8 +161,8 @@ export function RecipeSearchModal({
   const content = (
     <>
       {/* Header */}
-      <DialogHeader className="space-y-3">
-        <DialogTitle className={`flex items-center gap-2 text-lg ${textClass}`}>
+      <DialogHeader className="space-y-2 sm:space-y-3 pb-3 flex-shrink-0">
+        <DialogTitle className={`flex items-center gap-2 text-base sm:text-lg ${textClass}`}>
           <ChefHat className="h-5 w-5 opacity-70" />
           Recipe Suggestions
         </DialogTitle>
@@ -123,7 +174,7 @@ export function RecipeSearchModal({
             placeholder="Search recipes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={`pl-9 pr-9 h-8 text-sm ${
+            className={`pl-9 pr-9 h-10 sm:h-8 text-sm ${
               theme === "dark"
                 ? "bg-[#281f1a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder-[#e8dcc4]/50"
                 : "bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-500"
@@ -141,30 +192,50 @@ export function RecipeSearchModal({
       </DialogHeader>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto space-y-3 pr-6 -mr-6">
+      <div className="flex-1 overflow-y-auto space-y-2 overscroll-contain -mx-4 px-4 sm:-mr-6 sm:pr-6 sm:mx-0">
         {isLoading && recommendations.length === 0 ? (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => (
               <div
                 key={i}
-                className={`h-24 rounded-lg animate-pulse ${
+                className={`h-[140px] rounded-xl animate-pulse ${
                   theme === "dark" ? "bg-[#2a2924]" : "bg-gray-200"
                 }`}
               ></div>
             ))}
           </div>
         ) : recommendations.length > 0 ? (
-          recommendations.map((recipe) => (
-            <CompactRecipeCard
-              key={recipe.id}
-              recipe={recipe}
-              onAdd={handleAddRecipe}
-              textClass={textClass}
-              mutedTextClass={mutedTextClass}
-              cardBgClass={theme === "dark" ? "bg-[#2a2924]" : "bg-gray-50"}
-              theme={theme}
-            />
-          ))
+          <>
+            {recommendations.map((recipe) => (
+              <MobileRecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                onAdd={handleAddRecipe}
+                textClass={textClass}
+                mutedTextClass={mutedTextClass}
+                cardBgClass={theme === "dark" ? "bg-[#2a2924]" : "bg-gray-50"}
+                theme={theme}
+              />
+            ))}
+
+            {/* Load more trigger */}
+            {hasMore && (
+              <div ref={loadMoreRef} className="py-4 flex justify-center">
+                {isLoadingMore && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Loader2 className={`h-4 w-4 animate-spin ${mutedTextClass}`} />
+                    <span className={mutedTextClass}>Loading more recipes...</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!hasMore && allRecommendations.length > 10 && (
+              <div className={`text-center py-4 text-xs ${mutedTextClass}`}>
+                All recipes loaded ({allRecommendations.length} total)
+              </div>
+            )}
+          </>
         ) : (
           <div className={`text-center py-8 ${mutedTextClass}`}>
             <ChefHat className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -234,30 +305,50 @@ export function RecipeSearchModal({
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
           {isLoading && recommendations.length === 0 ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className={`h-24 rounded-lg animate-pulse ${
+                  className={`h-[140px] rounded-xl animate-pulse ${
                     theme === "dark" ? "bg-[#2a2924]" : "bg-gray-200"
                   }`}
                 ></div>
               ))}
             </div>
           ) : recommendations.length > 0 ? (
-            recommendations.map((recipe) => (
-              <CompactRecipeCard
-                key={recipe.id}
-                recipe={recipe}
-                onAdd={handleAddRecipe}
-                textClass={textClass}
-                mutedTextClass={mutedTextClass}
-                cardBgClass={theme === "dark" ? "bg-[#2a2924]" : "bg-gray-50"}
-                theme={theme}
-              />
-            ))
+            <>
+              {recommendations.map((recipe) => (
+                <MobileRecipeCard
+                  key={recipe.id}
+                  recipe={recipe}
+                  onAdd={handleAddRecipe}
+                  textClass={textClass}
+                  mutedTextClass={mutedTextClass}
+                  cardBgClass={theme === "dark" ? "bg-[#2a2924]" : "bg-gray-50"}
+                  theme={theme}
+                />
+              ))}
+
+              {/* Load more trigger */}
+              {hasMore && (
+                <div ref={loadMoreRef} className="py-4 flex justify-center">
+                  {isLoadingMore && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Loader2 className={`h-4 w-4 animate-spin ${mutedTextClass}`} />
+                      <span className={mutedTextClass}>Loading more recipes...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!hasMore && allRecommendations.length > 10 && (
+                <div className={`text-center py-4 text-xs ${mutedTextClass}`}>
+                  All recipes loaded ({allRecommendations.length} total)
+                </div>
+              )}
+            </>
           ) : (
             <div className={`text-center py-8 ${mutedTextClass}`}>
               <ChefHat className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -293,7 +384,7 @@ export function RecipeSearchModal({
   // If using as modal (isOpen prop provided), render as dialog
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`${cardBgClass} border-0 max-w-2xl max-h-[80vh] flex flex-col`}>
+      <DialogContent className={`${cardBgClass} border-0 w-[calc(100vw-2rem)] max-w-2xl h-[85vh] sm:max-h-[80vh] flex flex-col p-4 sm:p-6`}>
         {content}
       </DialogContent>
     </Dialog>

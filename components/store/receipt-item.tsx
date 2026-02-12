@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useState } from "react"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Minus, Plus, X, ArrowLeftRight, ShoppingCart, ChevronDown, ChevronUp } from "lucide-react"
@@ -50,6 +49,11 @@ export function ReceiptItem({
   const rawItemName = typeof item.name === "string" ? item.name.trim() : ""
   const displayName = rawItemName || pricing?.originalName?.trim() || pricing?.title?.trim() || "Unnamed item"
   const matchedProductName = pricing?.title?.trim() || ""
+  const imageSourceRaw = (pricing as { image_url?: unknown; imageUrl?: unknown } | null)?.image_url
+    ?? (pricing as { image_url?: unknown; imageUrl?: unknown } | null)?.imageUrl
+  const imageSource = typeof imageSourceRaw === "string" && imageSourceRaw.trim().length > 0
+    ? imageSourceRaw.trim()
+    : null
   const showMatchedProductInline = Boolean(matchedProductName && matchedProductName !== displayName)
 
   const cartQuantitySummary = `${quantityDisplay}${unit ? ` ${unit}` : ""}`
@@ -100,13 +104,13 @@ export function ReceiptItem({
     <div className={`p-3 md:p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${className}`}>
       <div className="flex items-start gap-3">
         <div className="h-10 w-10 md:h-12 md:w-12 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center flex-shrink-0 overflow-hidden">
-          {pricing?.image_url ? (
-            <Image
-              src={pricing.image_url}
+          {imageSource ? (
+            <img
+              src={imageSource}
               alt={displayName}
-              width={48}
-              height={48}
-              className="object-cover"
+              loading="lazy"
+              className="h-full w-full object-cover"
+              referrerPolicy="no-referrer"
             />
           ) : (
             <ShoppingCart className="h-5 w-5 md:h-6 md:w-6 text-gray-400" />
@@ -121,7 +125,7 @@ export function ReceiptItem({
               </p>
               {showMatchedProductInline && (
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
-                  Store match: {matchedProductName}
+                  {matchedProductName}
                 </p>
               )}
               {!isAvailable && (

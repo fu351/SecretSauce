@@ -105,7 +105,7 @@ export function useShoppingList() {
 
     setHasChanges(false)
     hasChangesRef.current = false
-    toast({ title: "Saved", description: "Shopping list synced." })
+    // Toast removed to prevent blocking user interaction
   }, [user, toast])
 
   // Schedule an auto-save after inactivity

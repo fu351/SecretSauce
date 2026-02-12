@@ -332,7 +332,7 @@ export function useStoreComparison(
             price: totalPrice,
             pricePerUnit: undefined, // DB totals are already whole-item; no unit price displayed
             unit: undefined,
-            image_url: offer?.image_url || undefined,
+            image_url: offer?.image_url || offer?.imageUrl || undefined,
             provider: storeName,
             location: offer?.zip_code ? `${storeName} (${offer.zip_code})` : storeName,
             category: "other",

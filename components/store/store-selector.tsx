@@ -202,7 +202,9 @@ export function StoreSelector({
               )}
             </div>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent
+            className="max-h-[50vh]"
+          >
             {stores.map((store, idx) => {
               const isCheapest = idx === cheapestIndex
               const isBest = idx === bestValueIndex

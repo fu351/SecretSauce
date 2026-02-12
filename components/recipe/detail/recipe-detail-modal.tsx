@@ -20,17 +20,27 @@ interface RecipeDetailModalProps {
   recipeId: string | null
   onClose: () => void
   onAddToCart: (recipe: Recipe, servings: number) => Promise<void>
+  textClass?: string
+  mutedTextClass?: string
+  buttonClass?: string
+  theme?: string
+  bgClass?: string
 }
 
 export function RecipeDetailModal({
   recipeId,
   onClose,
   onAddToCart,
+  textClass: propTextClass,
+  mutedTextClass: propMutedTextClass,
+  buttonClass: propButtonClass,
+  theme: propTheme,
+  bgClass: propBgClass,
 }: RecipeDetailModalProps) {
   const [servings, setServings] = useState(1)
   const [isAdding, setIsAdding] = useState(false)
   const { data: recipe, isLoading } = useRecipe(recipeId)
-  const { theme } = useTheme()
+  const { theme: contextTheme } = useTheme()
 
   const imageConfig = useResponsiveImage({
     mobile: { width: 400, height: 250 },
@@ -39,6 +49,9 @@ export function RecipeDetailModal({
   })
 
   const isOpen = !!recipeId
+
+  // Use passed theme or fallback to context theme
+  const theme = propTheme || contextTheme
 
   // Fixed servings: Always sync with the recipe's default
   useEffect(() => {
@@ -73,12 +86,12 @@ export function RecipeDetailModal({
 
   const totalTime = recipe ? (recipe.prep_time || 0) + (recipe.cook_time || 0) : 0
 
-  // Theme-aware classes
-  const bgClass = theme === "dark" ? "bg-[#181813]" : "bg-gradient-to-br from-orange-50 to-yellow-50"
-  const textClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
-  const mutedTextClass = theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600"
+  // Use passed classes or derive from theme
+  const bgClass = propBgClass || (theme === "dark" ? "bg-[#181813]" : "bg-gradient-to-br from-orange-50 to-yellow-50")
+  const textClass = propTextClass || (theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900")
+  const mutedTextClass = propMutedTextClass || (theme === "dark" ? "text-[#e8dcc4]/70" : "text-gray-600")
   const cardBgClass = theme === "dark" ? "bg-[#1f1e1a] border-[#e8dcc4]/20" : "bg-white/80"
-  const buttonClass = theme === "dark" ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 hover:bg-orange-600 text-white"
+  const buttonClass = propButtonClass || (theme === "dark" ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 hover:bg-orange-600 text-white")
   const borderClass = theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"
   const iconClass = theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"
 
@@ -87,7 +100,7 @@ export function RecipeDetailModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={`max-w-4xl max-h-[90vh] p-0 overflow-hidden border-none ${cardBgClass}`}>
-        <div className="flex flex-col md:flex-row h-full">
+        <div className="flex flex-col md:flex-row max-h-[90vh]">
           {isLoading || !recipe ? (
             <>
               <DialogTitle className="sr-only">Recipe details</DialogTitle>
@@ -98,7 +111,7 @@ export function RecipeDetailModal({
           ) : (
             <>
               {/* Hero Image Section */}
-              <div className="relative w-full h-56 md:w-80 md:h-auto flex-shrink-0">
+              <div className="relative w-full h-40 md:w-80 md:h-auto flex-shrink-0">
                 <Image
                   src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
                   alt={recipe.title}
@@ -110,8 +123,8 @@ export function RecipeDetailModal({
               </div>
 
               {/* Content Area */}
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 -webkit-overflow-scrolling-touch">
                   {/* Title & Description */}
                   <header className="space-y-3">
                     <DialogTitle className={`text-2xl md:text-3xl font-serif font-light ${textClass}`}>
