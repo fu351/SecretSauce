@@ -11,7 +11,7 @@
  */
 
 import type React from "react"
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useRef, Suspense } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useAuth } from "./auth-context"
 import { AnalyticsClient, SessionManager, EventQueue } from "@/lib/analytics"
@@ -37,15 +37,33 @@ interface AnalyticsContextType {
 
 const AnalyticsContext = createContext<AnalyticsContextType | undefined>(undefined)
 
-export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
-  const { user, profile } = useAuth()
+function AnalyticsRouteTracker({ onRouteChange }: { onRouteChange: (url: string) => void }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const queryString = searchParams.toString()
+  const currentUrl = pathname ? `${pathname}${queryString ? `?${queryString}` : ""}` : ""
+
+  useEffect(() => {
+    onRouteChange(currentUrl)
+  }, [currentUrl, onRouteChange])
+
+  return null
+}
+
+export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
+  const { user, profile } = useAuth()
   const [sessionId, setSessionId] = useState<string>("")
   const previousUrl = useRef<string>("")
   const mounted = useRef(true)
-  const queryString = searchParams.toString()
-  const currentUrl = pathname ? `${pathname}${queryString ? `?${queryString}` : ""}` : ""
+
+  const handleRouteChange = useCallback((url: string) => {
+    if (!url || url === previousUrl.current) {
+      return
+    }
+
+    previousUrl.current = url
+    AnalyticsClient.trackPageView(url, typeof document !== "undefined" ? document.title : undefined)
+  }, [])
 
   // Initialize analytics client and session on mount
   useEffect(() => {
@@ -65,16 +83,6 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
       mounted.current = false
     }
   }, [])
-
-  // Track page views on route and query change
-  useEffect(() => {
-    if (currentUrl && currentUrl !== previousUrl.current) {
-      previousUrl.current = currentUrl
-
-      // Track page view
-      AnalyticsClient.trackPageView(currentUrl, typeof document !== "undefined" ? document.title : undefined)
-    }
-  }, [currentUrl])
 
   // Identify user when authenticated
   useEffect(() => {
@@ -150,7 +158,14 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
     reset,
   }
 
-  return <AnalyticsContext.Provider value={value}>{children}</AnalyticsContext.Provider>
+  return (
+    <AnalyticsContext.Provider value={value}>
+      <Suspense fallback={null}>
+        <AnalyticsRouteTracker onRouteChange={handleRouteChange} />
+      </Suspense>
+      {children}
+    </AnalyticsContext.Provider>
+  )
 }
 
 /**
