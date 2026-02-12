@@ -25,15 +25,20 @@ class StandardizedIngredientsTable extends BaseTable<
     return StandardizedIngredientsTable.instance
   }
 
+  private normalizeCanonicalName(value: string): string {
+    return value.trim().toLowerCase().replace(/\s+/g, " ")
+  }
+
   /**
    * Search by canonical name (exact match)
    */
   async findByCanonicalName(canonicalName: string): Promise<StandardizedIngredientRow | null> {
     try {
+      const normalized = this.normalizeCanonicalName(canonicalName)
       const { data, error } = await this.supabase
         .from(this.tableName)
         .select('*')
-        .eq('canonical_name', canonicalName)
+        .eq('canonical_name', normalized)
         .maybeSingle()
 
       if (error) {
@@ -118,20 +123,27 @@ class StandardizedIngredientsTable extends BaseTable<
     category?: string | null
   ): Promise<StandardizedIngredientRow | null> {
     try {
-      console.log(`[StandardizedIngredientsTable] Get or create: ${canonicalName}`)
+      const normalizedCanonicalName = this.normalizeCanonicalName(canonicalName)
+      console.log(`[StandardizedIngredientsTable] Get or create: ${normalizedCanonicalName}`)
 
       // Try to find existing
-      const existing = await this.findByCanonicalName(canonicalName)
+      const existing = await this.findByCanonicalName(normalizedCanonicalName)
       if (existing) return existing
 
       // Create new
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .insert({ canonical_name: canonicalName, category })
+        .insert({ canonical_name: normalizedCanonicalName, category })
         .select()
         .single()
 
       if (error) {
+        // Concurrent insert race or normalization-driven collision:
+        // another writer already created this canonical row.
+        if ((error as any)?.code === "23505") {
+          const conflicted = await this.findByCanonicalName(normalizedCanonicalName)
+          if (conflicted) return conflicted
+        }
         this.handleError(error, 'getOrCreate')
         return null
       }
@@ -157,11 +169,22 @@ class StandardizedIngredientsTable extends BaseTable<
 
       if (items.length === 0) return result
 
-      // Prepare insert data
-      const insertData = items.map(item => ({
-        canonical_name: item.canonicalName,
-        category: item.category
-      }))
+      // Normalize + de-duplicate canonical names to avoid avoidable conflicts.
+      const deduped = new Map<string, { canonical_name: string; category: string | null }>()
+      for (const item of items) {
+        const normalized = this.normalizeCanonicalName(item.canonicalName)
+        if (!normalized) continue
+        if (!deduped.has(normalized)) {
+          deduped.set(normalized, {
+            canonical_name: normalized,
+            category: item.category,
+          })
+        }
+      }
+
+      if (!deduped.size) return result
+
+      const insertData = Array.from(deduped.values())
 
       // Upsert all items (on conflict, do nothing - just return existing)
       const { data, error } = await this.supabase
@@ -177,11 +200,19 @@ class StandardizedIngredientsTable extends BaseTable<
         return result
       }
 
-      // Build map of canonical_name -> id
-      if (data) {
-        for (const row of data) {
-          result.set(row.canonical_name, row.id)
-        }
+      const names = insertData.map((item) => item.canonical_name)
+      const { data: resolvedRows, error: resolveError } = await this.supabase
+        .from(this.tableName)
+        .select("id, canonical_name")
+        .in("canonical_name", names)
+
+      if (resolveError) {
+        this.handleError(resolveError, "batchGetOrCreate.resolve")
+        return result
+      }
+
+      for (const row of resolvedRows || []) {
+        result.set(row.canonical_name, row.id)
       }
 
       return result
