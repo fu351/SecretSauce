@@ -49,20 +49,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "pantryItemId and userId are required" }, { status: 400 })
     }
 
-    const normalizedInputs: NormalizedIngredientInput[] = ingredients
-      .map((ingredient, index) => {
-        const trimmedName = ingredient.name?.trim()
-        if (!trimmedName) return null
+    const normalizedInputs = ingredients.reduce<NormalizedIngredientInput[]>((acc, ingredient, index) => {
+      const trimmedName = ingredient.name?.trim()
+      if (!trimmedName) return acc
 
-        return {
-          id: String(ingredient.id ?? index),
-          name: trimmedName,
-          amount: ingredient.amount ?? String(ingredient.quantity ?? ""),
-          unit: ingredient.unit ?? "",
-          originalIndex: index,
-        }
+      const rawAmount = ingredient.amount ?? ingredient.quantity
+      const normalizedAmount =
+        rawAmount === undefined || rawAmount === null ? undefined : String(rawAmount).trim()
+      const normalizedUnit = ingredient.unit?.trim()
+
+      acc.push({
+        id: String(ingredient.id ?? index),
+        name: trimmedName,
+        amount: normalizedAmount && normalizedAmount.length > 0 ? normalizedAmount : undefined,
+        unit: normalizedUnit && normalizedUnit.length > 0 ? normalizedUnit : undefined,
+        originalIndex: index,
       })
-      .filter((input): input is NormalizedIngredientInput => input !== null)
+
+      return acc
+    }, [])
 
     if (normalizedInputs.length === 0) {
       return NextResponse.json({ error: "All ingredients were blank" }, { status: 400 })

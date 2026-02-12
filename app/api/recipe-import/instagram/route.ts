@@ -109,10 +109,12 @@ export async function POST(request: NextRequest) {
     const contentType = response.headers.get('content-type') ?? ''
     const isJson = contentType.includes('application/json')
     const text = await response.text()
+    let parsedData: unknown
     let data: RecipeImportResponse
 
     try {
-      data = isJson && text ? (JSON.parse(text) as RecipeImportResponse) : { success: false, error: text || 'No response from import service.' }
+      parsedData = isJson && text ? JSON.parse(text) : { success: false, error: text || 'No response from import service.' }
+      data = parsedData as RecipeImportResponse
     } catch {
       return NextResponse.json(
         {
@@ -126,9 +128,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (!response.ok) {
+      const detailMessage =
+        parsedData &&
+        typeof parsedData === 'object' &&
+        'detail' in parsedData &&
+        typeof (parsedData as Record<string, unknown>).detail === 'string'
+          ? ((parsedData as Record<string, unknown>).detail as string)
+          : null
+
       const message =
         data?.error ||
-        (typeof (data as { detail?: string }).detail === 'string' ? (data as { detail: string }).detail : null) ||
+        detailMessage ||
         text ||
         'Import service unavailable. Please try again later.'
       return NextResponse.json(
