@@ -83,8 +83,6 @@ LLM Queue Processor (external)
 | `price` | numeric | YES | | Scraped sticker price |
 | `created_at` | timestamptz | YES | now() | When scraped |
 
-**No triggers.** All processing happens in `fn_bulk_insert_ingredient_history`.
-
 ---
 
 #### `ingredients_recent` — Current price snapshot (806 rows)
@@ -98,8 +96,6 @@ LLM Queue Processor (external)
 | `unit_price` | numeric | YES | | price / converted qty in base imperial unit |
 | `created_at` | timestamptz | YES | now() | |
 | `updated_at` | timestamptz | YES | now() | |
-
-**Triggers:** `trg_auto_update_unit_estimates` → recalculates weight estimates when new data arrives
 
 ---
 
@@ -133,7 +129,6 @@ LLM Queue Processor (external)
 | `created_at` | timestamptz | YES | now() | |
 
 **Unique indexes:** One row per product_mapping_id, one row per recipe_ingredient_id
-**Trigger:** `trg_queue_resolved_backfill` → fn_backfill_resolved_ingredient (cascades resolution to product_mappings)
 **Status constraint:** pending / processing / resolved / failed
 
 ---
@@ -156,15 +151,13 @@ LLM Queue Processor (external)
 | `created_at` | timestamptz | YES | now() | |
 | `updated_at` | timestamptz | YES | now() | |
 
-**Triggers:** `trg_normalize_canonical_name`, `trg_standardized_ingredients_updated_at`
-
 ---
 
 #### `unit_canonical` — Valid units (20 rows)
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `standard_unit` | unit_label (enum) PK | oz, lb, fl oz, ml, gal, ct, each, bunch, gram, unit, g, tsp, tbsp, cup, kg, quart, pint, liter, mg, dozen |
+| `standard_unit` | unit_label (enum) PK | See `unit_label` in Enums section |
 | `category` | unit_category (enum) | weight / volume / count / other |
 
 #### `unit_conversions` — Conversion factors (75 rows)
@@ -264,11 +257,9 @@ LLM Queue Processor (external)
 | `cooking_time_preference` | text | 'any' |
 | `grocery_distance_miles` | integer | 10 |
 | `theme_preference` | text | 'dark' |
-| `subscription_tier` | subscription_tier | free / premium |
+| `subscription_tier` | subscription_tier | See `subscription_tier` in Enums section |
 | `stripe_customer_id` / `stripe_subscription_id` | text | |
 | `tutorial_completed` | boolean | |
-
-**Triggers:** `trg_location_hierarchy_sync`, `trg_refresh_preferred_stores`
 
 #### `recipes` (34 rows)
 
@@ -303,8 +294,6 @@ LLM Queue Processor (external)
 | `units` | text | |
 | `deleted_at` | timestamptz | Soft delete |
 
-**Trigger:** `trg_recipe_ingredients_autolink` → auto-links to standardized_ingredient on insert
-
 #### `shopping_list_items` (25 rows)
 
 | Column | Type | Description |
@@ -321,8 +310,6 @@ LLM Queue Processor (external)
 | `category` | item_category_enum | |
 | `checked` | boolean | false |
 | `servings` | numeric | |
-
-**Triggers:** `a_standardize_manual`, `b_merge_manual`, `c_merge_recipes`, `trigger_sync_shopping_item_category`, `trigger_track_manual_shopping`
 
 ---
 
@@ -421,8 +408,8 @@ LLM Queue Processor (external)
 | Function | Description |
 |----------|-------------|
 | `fn_relink_product_mappings(boolean, interval)` | Re-runs ingredient matching on product_mappings. Queues low-confidence results. |
-| `fn_backfill_resolved_ingredient()` | Trigger on ingredient_match_queue. Cascades resolved ingredient/unit to product_mappings. |
-| `fn_backfill_resolved_confidence()` | Trigger on ingredient_match_queue. Cascades resolved unit/quantity confidence to product_mappings. |
+| `fn_backfill_resolved_ingredient()` | Backfills resolved ingredient/unit values to `product_mappings`. |
+| `fn_backfill_resolved_confidence()` | Backfills resolved unit/quantity confidence values to `product_mappings`. |
 | `fn_ingredient_ecosystem(text)` | Backup/restore/reset all ingredient-related tables. |
 | `check_pricing_health()` | Diagnostic: unit conversion coverage, data quality, shopping list coverage. |
 

@@ -41,9 +41,9 @@ It intentionally lists only active, non-redundant docs.
 - `lib/database/`: Supabase data layer + typed access. Analytics DB in `lib/database/analytics-db.ts`.
 - `scripts/`: Backfills, validations, and data maintenance scripts.
 - `supabase/` and `migrations/`: Database migrations and schema evolution.
-  - `migrations/create-track-event-wrapper.sql`: Public wrapper for `ab_testing.track_event` (enables client-side RPC calls).
   - `migrations/create-get-user-tier-function.sql`: Helper function to retrieve user subscription tier.
-  - `migrations/create-general-analytics-experiment.sql`: Reserved experiment/variant (UUID `00000000-0000-0000-0000-000000000000`) for general analytics tracking.
+  - `migrations/create-track-event-wrapper.sql`: Public wrapper for client-side analytics event RPC.
+  - `migrations/create-general-analytics-experiment.sql`: Reserved experiment/variant for general analytics tracking.
 
 ## Where To Start By Task
 
@@ -55,8 +55,7 @@ It intentionally lists only active, non-redundant docs.
   Read `docs/SUBSCRIPTION_QUICK_REFERENCE.md`, then inspect `hooks/use-subscription.ts` and `lib/auth/subscription.ts`.
 - Analytics/user behavior tracking:
   Read `docs/ANALYTICS_GUIDE.md`, then inspect `lib/analytics/`, `hooks/use-analytics.ts`, and `contexts/analytics-context.tsx`.
-  The analytics system uses the `ab_testing` schema with a reserved experiment (UUID `00000000-0000-0000-0000-000000000000`) for general tracking.
-  Client-side tracking goes through `public.track_event` RPC wrapper → `ab_testing.track_event` → `ab_testing.events` table.
+  For analytics migration identifiers and wrapper details, use the `migrations/` entries listed above.
 - A/B testing changes:
   Read `docs/AB_TESTING_GUIDE.md`, then inspect `app/dev/experiments/`, `app/dev/feature-flags/`, and `lib/dev/helpers.ts`.
 - Target pricing/geospatial/store matching:
@@ -66,7 +65,7 @@ It intentionally lists only active, non-redundant docs.
 
 ## Agent Checklist Before Shipping
 
-- Confirm tier logic only uses `free` and `premium`.
+- Confirm tier logic stays aligned with canonical tier policy in `docs/AGENT_CANONICAL_CONTEXT.md`.
 - Prefer server-side enforcement (`requireAuth`, `requireTier`) for route protection.
 - Keep docs and examples aligned with actual code paths.
 - If touching scraper logic, verify related validation scripts still match expectations.
