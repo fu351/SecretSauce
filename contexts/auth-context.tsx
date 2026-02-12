@@ -4,7 +4,6 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { Session, User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/database/supabase"
-import { performanceMonitor } from "@/lib/performance-monitor"
 import { profileDB } from "@/lib/database/profile-db"
 
 interface AuthContextType {
@@ -111,14 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await bootstrapSession()
     })()
 
-    const memoryInterval = setInterval(() => {
-      performanceMonitor.logMemoryUsage()
-    }, 60000) // Every minute
-
     return () => {
       mounted.current = false
       authSubscription?.unsubscribe()
-      clearInterval(memoryInterval)
     }
   }, []) // Empty dependency array is correct
 
