@@ -41,11 +41,3 @@ export interface ImportRecipeFormData {
   carbs: string
   fat: string
 }
-
-/**
- * @deprecated Use ImportRecipeFormData instead
- *
- * This type alias is maintained for backward compatibility during migration.
- * All new code should use ImportRecipeFormData.
- */
-export type RecipeFormData = ImportRecipeFormData

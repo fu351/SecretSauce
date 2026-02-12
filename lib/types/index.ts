@@ -36,7 +36,7 @@ export type {
   RecipeImportSource,
   RecipeImportResponse,
 } from './recipe-import/imported-recipe'
-export type { ImportRecipeFormData, RecipeFormData } from './recipe-import/import-form'
+export type { ImportRecipeFormData } from './recipe-import/import-form'
 export type { OCRResult, InstagramPostData } from './recipe-import/import-types'
 
 // ============================================================================

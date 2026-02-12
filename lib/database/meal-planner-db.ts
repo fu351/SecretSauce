@@ -2,7 +2,7 @@
 import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/database/supabase"
 import { Recipe, MealTypeTag } from "@/lib/types"
-import { getMealPlannerCache } from "./meal-planner-cache"
+import { mealPlannerCache } from "./meal-planner-cache"
 import { getWeek, getYear, eachDayOfInterval, parseISO } from "date-fns"
 
 export type MealScheduleRow = Database["public"]["Tables"]["meal_schedule"]["Row"]
@@ -45,7 +45,7 @@ class MealPlannerTable extends BaseTable<
 > {
   private static instance: MealPlannerTable | null = null
   readonly tableName = "meal_schedule" as const
-  private cache = getMealPlannerCache()
+  private cache = mealPlannerCache
 
   private constructor() {
     super()
