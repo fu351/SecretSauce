@@ -25,6 +25,7 @@ It intentionally lists only active, non-redundant docs.
 | `docs/ANALYTICS_GUIDE.md` | Analytics & Tracking | User behavior tracking, event definitions, analytics API | High |
 | `docs/AB_TESTING_GUIDE.md` | Experimentation | A/B architecture, targeting, events, experiment setup | High |
 | `docs/target-geospatial-integration.md` | Scraping & Geospatial | How Target scraper uses geospatial lookup + Target store IDs | High |
+| `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md` | Queue Processing | Real-time ingredient queue migration plan (local LLM + worker + rollout) | High |
 
 ## Repository Map (Agent-Oriented)
 
@@ -59,6 +60,8 @@ It intentionally lists only active, non-redundant docs.
   Read `docs/AB_TESTING_GUIDE.md`, then inspect `app/dev/experiments/`, `app/dev/feature-flags/`, and `lib/dev/helpers.ts`.
 - Target pricing/geospatial/store matching:
   Read `docs/target-geospatial-integration.md`, then inspect `lib/scrapers/target.js`, `lib/database/grocery-stores-db.ts`, and related scripts in `scripts/`.
+- Ingredient queue real-time migration:
+  Read `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`, then inspect `queue/` (target structure), `scripts/resolve-ingredient-match-queue.ts` (legacy shim during migration), `lib/ingredient-standardizer.ts`, and `lib/database/ingredient-match-queue-db.ts`.
 
 ## Agent Checklist Before Shipping
 
