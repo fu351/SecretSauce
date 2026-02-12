@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Calendar, LogOut, Plus, Settings, ShoppingCart, User } from "lucide-react"
+import { BookOpen, Calendar, LogOut, Plus, Settings, ShoppingCart, User, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useIsMobile } from "@/hooks"
+import { useIsAdmin } from "@/hooks/use-admin"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
@@ -24,6 +25,7 @@ export function Header() {
   const { user, signOut } = useAuth()
   const { theme } = useTheme()
   const isMobile = useIsMobile()
+  const { isAdmin } = useIsAdmin()
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
@@ -231,6 +233,26 @@ export function Header() {
                   <span className="sr-only">Settings</span>
                 </Link>
               </Button>
+
+              {/* Admin Dev Tools Link */}
+              {isAdmin && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className={`${isDark ? "hover:bg-muted" : "hover:bg-gray-100"} ${
+                    pathname.startsWith("/dev")
+                      ? "bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400"
+                      : ""
+                  }`}
+                  title="Admin Dev Tools"
+                >
+                  <Link href="/dev">
+                    <Wrench className="h-5 w-5" />
+                    <span className="sr-only">Dev Tools</span>
+                  </Link>
+                </Button>
+              )}
 
               <Button
                 variant="ghost"

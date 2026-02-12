@@ -170,6 +170,11 @@ export type Database = {
           latitude: number | null
           longitude: number | null
           email_verified: boolean | null
+          subscription_tier: Database["public"]["Enums"]["subscription_tier"] | null
+          subscription_started_at: string | null
+          subscription_expires_at: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
         }
         Insert: {
           id: string
@@ -199,6 +204,11 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           email_verified?: boolean | null
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
+          subscription_started_at?: string | null
+          subscription_expires_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
         }
         Update: {
           id?: string
@@ -228,6 +238,11 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           email_verified?: boolean | null
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
+          subscription_started_at?: string | null
+          subscription_expires_at?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
         }
       }
       recipes: {
@@ -1145,6 +1160,331 @@ export type Database = {
       grocery_store: "aldi" | "kroger" | "safeway" | "meijer" | "target" | "traderjoes" | "99ranch" | "walmart" | "andronicos" | "wholefoods"
       unit_category: "weight" | "volume" | "count" | "other"
       unit_label: "oz" | "lb" | "fl oz" | "ml" | "gal" | "ct" | "each" | "bunch" | "gram" | "unit"
+      subscription_tier: "free" | "premium" | "enterprise"
+      admin_role: "admin" | "analyst"
+      experiment_status: "draft" | "scheduled" | "active" | "paused" | "completed" | "archived"
+      allocation_method: "random" | "weighted" | "deterministic"
+      ab_event_type: "exposure" | "click" | "conversion" | "signup" | "subscribe" | "custom"
     }
+  }
+  ab_testing: {
+    Tables: {
+      admin_roles: {
+        Row: {
+          id: string
+          user_id: string
+          role: Database["public"]["Enums"]["admin_role"]
+          granted_by: string | null
+          granted_at: string | null
+          revoked_at: string | null
+          notes: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          role?: Database["public"]["Enums"]["admin_role"]
+          granted_by?: string | null
+          granted_at?: string | null
+          revoked_at?: string | null
+          notes?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          role?: Database["public"]["Enums"]["admin_role"]
+          granted_by?: string | null
+          granted_at?: string | null
+          revoked_at?: string | null
+          notes?: string | null
+          metadata?: Json | null
+        }
+      }
+      experiments: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          hypothesis: string | null
+          status: Database["public"]["Enums"]["experiment_status"]
+          start_date: string | null
+          end_date: string | null
+          allocation_method: Database["public"]["Enums"]["allocation_method"]
+          target_sample_size: number | null
+          traffic_percentage: number | null
+          target_user_tiers: Database["public"]["Enums"]["subscription_tier"][] | null
+          target_anonymous: boolean | null
+          targeting_rules: Json | null
+          created_by: string
+          created_at: string | null
+          updated_at: string | null
+          archived_at: string | null
+          primary_metric: string | null
+          secondary_metrics: string[] | null
+          minimum_detectable_effect: number | null
+          results: Json | null
+          winner_variant_id: string | null
+          statistical_significance: number | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          hypothesis?: string | null
+          status?: Database["public"]["Enums"]["experiment_status"]
+          start_date?: string | null
+          end_date?: string | null
+          allocation_method?: Database["public"]["Enums"]["allocation_method"]
+          target_sample_size?: number | null
+          traffic_percentage?: number | null
+          target_user_tiers?: Database["public"]["Enums"]["subscription_tier"][] | null
+          target_anonymous?: boolean | null
+          targeting_rules?: Json | null
+          created_by: string
+          created_at?: string | null
+          updated_at?: string | null
+          archived_at?: string | null
+          primary_metric?: string | null
+          secondary_metrics?: string[] | null
+          minimum_detectable_effect?: number | null
+          results?: Json | null
+          winner_variant_id?: string | null
+          statistical_significance?: number | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          hypothesis?: string | null
+          status?: Database["public"]["Enums"]["experiment_status"]
+          start_date?: string | null
+          end_date?: string | null
+          allocation_method?: Database["public"]["Enums"]["allocation_method"]
+          target_sample_size?: number | null
+          traffic_percentage?: number | null
+          target_user_tiers?: Database["public"]["Enums"]["subscription_tier"][] | null
+          target_anonymous?: boolean | null
+          targeting_rules?: Json | null
+          created_by?: string
+          created_at?: string | null
+          updated_at?: string | null
+          archived_at?: string | null
+          primary_metric?: string | null
+          secondary_metrics?: string[] | null
+          minimum_detectable_effect?: number | null
+          results?: Json | null
+          winner_variant_id?: string | null
+          statistical_significance?: number | null
+        }
+      }
+      variants: {
+        Row: {
+          id: string
+          experiment_id: string
+          name: string
+          description: string | null
+          is_control: boolean | null
+          weight: number | null
+          config: Json
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          experiment_id: string
+          name: string
+          description?: string | null
+          is_control?: boolean | null
+          weight?: number | null
+          config?: Json
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          experiment_id?: string
+          name?: string
+          description?: string | null
+          is_control?: boolean | null
+          weight?: number | null
+          config?: Json
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      user_assignments: {
+        Row: {
+          id: string
+          experiment_id: string
+          user_id: string | null
+          variant_id: string
+          session_id: string | null
+          device_id: string | null
+          user_tier: Database["public"]["Enums"]["subscription_tier"] | null
+          was_anonymous: boolean | null
+          assigned_at: string | null
+          first_exposure_at: string | null
+          user_agent: string | null
+          ip_address: string | null
+          metadata: Json | null
+        }
+        Insert: {
+          id?: string
+          experiment_id: string
+          user_id?: string | null
+          variant_id: string
+          session_id?: string | null
+          device_id?: string | null
+          user_tier?: Database["public"]["Enums"]["subscription_tier"] | null
+          was_anonymous?: boolean | null
+          assigned_at?: string | null
+          first_exposure_at?: string | null
+          user_agent?: string | null
+          ip_address?: string | null
+          metadata?: Json | null
+        }
+        Update: {
+          id?: string
+          experiment_id?: string
+          user_id?: string | null
+          variant_id?: string
+          session_id?: string | null
+          device_id?: string | null
+          user_tier?: Database["public"]["Enums"]["subscription_tier"] | null
+          was_anonymous?: boolean | null
+          assigned_at?: string | null
+          first_exposure_at?: string | null
+          user_agent?: string | null
+          ip_address?: string | null
+          metadata?: Json | null
+        }
+      }
+      events: {
+        Row: {
+          id: string
+          experiment_id: string
+          variant_id: string
+          assignment_id: string | null
+          user_id: string | null
+          session_id: string | null
+          device_id: string | null
+          event_type: Database["public"]["Enums"]["ab_event_type"]
+          event_name: string
+          event_value: number | null
+          page_url: string | null
+          referrer: string | null
+          user_tier: Database["public"]["Enums"]["subscription_tier"] | null
+          properties: Json | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          experiment_id: string
+          variant_id: string
+          assignment_id?: string | null
+          user_id?: string | null
+          session_id?: string | null
+          device_id?: string | null
+          event_type: Database["public"]["Enums"]["ab_event_type"]
+          event_name: string
+          event_value?: number | null
+          page_url?: string | null
+          referrer?: string | null
+          user_tier?: Database["public"]["Enums"]["subscription_tier"] | null
+          properties?: Json | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          experiment_id?: string
+          variant_id?: string
+          assignment_id?: string | null
+          user_id?: string | null
+          session_id?: string | null
+          device_id?: string | null
+          event_type?: Database["public"]["Enums"]["ab_event_type"]
+          event_name?: string
+          event_value?: number | null
+          page_url?: string | null
+          referrer?: string | null
+          user_tier?: Database["public"]["Enums"]["subscription_tier"] | null
+          properties?: Json | null
+          created_at?: string | null
+        }
+      }
+    }
+    Functions: {
+      is_admin: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
+      can_view_analytics: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
+      get_user_tier: {
+        Args: { p_user_id: string }
+        Returns: Database["public"]["Enums"]["subscription_tier"]
+      }
+      assign_user_to_variant: {
+        Args: {
+          p_experiment_id: string
+          p_user_id?: string
+          p_session_id?: string
+          p_device_id?: string
+        }
+        Returns: string
+      }
+      track_event: {
+        Args: {
+          p_experiment_id: string
+          p_variant_id: string
+          p_event_type: Database["public"]["Enums"]["ab_event_type"]
+          p_event_name: string
+          p_user_id?: string
+          p_session_id?: string
+          p_device_id?: string
+          p_event_value?: number
+          p_page_url?: string
+          p_referrer?: string
+          p_properties?: Json
+        }
+        Returns: string
+      }
+      get_active_experiments: {
+        Args: {
+          p_user_id?: string
+          p_session_id?: string
+          p_device_id?: string
+        }
+        Returns: {
+          experiment_id: string
+          experiment_name: string
+          variant_id: string
+          variant_name: string
+          variant_config: Json
+          is_control: boolean
+        }[]
+      }
+      get_experiment_results: {
+        Args: { p_experiment_id: string }
+        Returns: {
+          variant_id: string
+          variant_name: string
+          is_control: boolean
+          user_tier: Database["public"]["Enums"]["subscription_tier"]
+          total_assignments: number
+          total_exposures: number
+          total_clicks: number
+          total_conversions: number
+          total_signups: number
+          total_subscriptions: number
+          conversion_rate: number
+          avg_event_value: number
+        }[]
+      }
+    }
+    Enums: {}
   }
 }

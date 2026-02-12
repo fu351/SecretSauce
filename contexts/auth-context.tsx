@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
-import type { User } from "@supabase/supabase-js"
+import type { Session, User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/database/supabase"
 import { performanceMonitor } from "@/lib/performance-monitor"
 import { profileDB } from "@/lib/database/profile-db"
@@ -19,7 +19,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {  const [user, setUser] = useState<User | null>(null)
+const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
+
+function syncSessionCookies(session: Session | null) {
+  if (typeof document === "undefined") return
+
+  const secureFlag = window.location.protocol === "https:" ? "; Secure" : ""
+  const baseFlags = `; Path=/; SameSite=Lax${secureFlag}`
+
+  if (session?.access_token) {
+    document.cookie = `sb-access-token=${encodeURIComponent(session.access_token)}${baseFlags}; Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`
+  } else {
+    document.cookie = `sb-access-token=${baseFlags}; Max-Age=0`
+  }
+
+  if (session?.refresh_token) {
+    document.cookie = `sb-refresh-token=${encodeURIComponent(session.refresh_token)}${baseFlags}; Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`
+  } else {
+    document.cookie = `sb-refresh-token=${baseFlags}; Max-Age=0`
+  }
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const mounted = useRef(true)
@@ -66,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {  con
 
         if (!mounted.current) return
 
+        syncSessionCookies(data.session ?? null)
         applySession(data.session?.user ?? null)
       } catch (error) {
         console.error("[v0] Error retrieving initial session:", error)
@@ -76,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {  con
             data: { subscription },
           } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
+            syncSessionCookies(session)
             applySession(session?.user ?? null)
           })
           authSubscription = subscription
@@ -165,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {  con
         return { data: null, error }
       }
 
+      syncSessionCookies(data.session ?? null)
       console.log("[v0] Sign in successful:", data.user?.email)
       return { data, error: null }
     } catch (error) {
@@ -238,6 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {  con
         throw error
       }
 
+      syncSessionCookies(null)
       console.log("[v0] Sign out successful")
 
       if (mounted.current) {
