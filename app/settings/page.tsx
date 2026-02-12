@@ -9,13 +9,13 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useTutorial } from "@/contexts/tutorial-context"
-import { useRouter } from "next/navigation"
 import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen, Camera, Mail, Lock, UserCircle } from "lucide-react"
 import { supabase } from "@/lib/database/supabase"
 import { profileDB, type Profile } from "@/lib/database/profile-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import { useToast } from "@/hooks"
+import { AuthGate } from "@/components/auth/tier-gate"
 import Image from "next/image"
 import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
@@ -23,10 +23,17 @@ import { formatDietaryTag } from "@/lib/tag-formatter"
 type ProfileUpdates = Partial<Profile>
 
 export default function SettingsPage() {
+  return (
+    <AuthGate>
+      <SettingsPageContent />
+    </AuthGate>
+  )
+}
+
+function SettingsPageContent() {
   const { user, updateProfile } = useAuth()
   const { theme, setTheme } = useTheme()
   const { tutorialCompleted: contextTutorialCompleted, tutorialCompletedAt: contextTutorialCompletedAt } = useTutorial()
-  const router = useRouter()
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
 
@@ -114,12 +121,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true)
-    if (!user) {
-      router.push("/auth/signin")
-    } else {
-      fetchUserPreferences()
-    }
-  }, [user, router])
+    fetchUserPreferences()
+  }, [user])
 
   // Sync selectedTheme when theme context changes
   useEffect(() => {

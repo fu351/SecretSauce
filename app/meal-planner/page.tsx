@@ -14,7 +14,7 @@ import {
 } from "@/hooks"
 import { getCurrentWeekIndex, getDatesForWeek } from "@/lib/date-utils"
 import { DndContext, DragOverlay } from "@dnd-kit/core"
-import { SignInNotification } from "@/components/shared/signin-notification"
+import { AuthGate } from "@/components/auth/tier-gate"
 import { PlannerActions } from "@/components/meal-planner/controls/planner-actions"
 import { NutritionSummaryCard } from "@/components/meal-planner/cards/nutrition-summary-card"
 import { WeeklyView } from "@/components/meal-planner/views/weekly-view"
@@ -56,6 +56,14 @@ const RecipeSearchPanel = dynamic(
 )
 
 export default function MealPlannerPage() {
+  return (
+    <AuthGate>
+      <MealPlannerPageContent />
+    </AuthGate>
+  )
+}
+
+function MealPlannerPageContent() {
   const { user } = useAuth()
   const isMobile = useIsMobile()
   const { toast } = useToast()
@@ -298,14 +306,6 @@ export default function MealPlannerPage() {
   useEffect(() => {
     if (focusMode) setShowRecipeSidebar(true)
   }, [focusMode])
-
-  if (!user) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <SignInNotification featureName="Meal Planner" />
-      </div>
-    )
-  }
 
   return (
     <DndContext

@@ -1,28 +1,31 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useAuth } from "@/contexts/auth-context"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
+import { AuthGate } from "@/components/auth/tier-gate"
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react"
 
 export default function WelcomePage() {
-  const { user, profile, loading } = useAuth()
+  return (
+    <AuthGate>
+      <WelcomePageContent />
+    </AuthGate>
+  )
+}
+
+function WelcomePageContent() {
+  const { profile, loading } = useAuth()
   const { startTutorial, skipTutorial, isActive } = useTutorial()
   const { theme } = useTheme()
   const router = useRouter()
   const [isStarting, setIsStarting] = useState(false)
 
   const isDark = theme === "dark"
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/auth/signin")
-    }
-  }, [user, loading, router])
 
   const handleStartTutorial = () => {
     console.log('[Welcome] handleStartTutorial called', {
