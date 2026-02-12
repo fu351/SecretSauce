@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/database/supabase"
+
 type LatLng = { lat: number; lng: number }
 
 type GoogleGeocodeResult = {
@@ -67,4 +69,67 @@ export async function getUserLocation(): Promise<LatLng | null> {
       }
     )
   })
+}
+
+export type UpdateLocationResult = {
+  success: boolean
+  location: LatLng | null
+  error?: string
+}
+
+/**
+ * Update the user's profile coordinates from browser geolocation
+ * and refresh user_preferred_stores for pricing RPCs.
+ */
+export async function updateLocation(userId: string): Promise<UpdateLocationResult> {
+  const resolvedUserId = String(userId || "").trim()
+  if (!resolvedUserId) {
+    return {
+      success: false,
+      location: null,
+      error: "Missing user id.",
+    }
+  }
+
+  const location = await getUserLocation()
+  if (!location) {
+    return {
+      success: false,
+      location: null,
+      error: "Unable to read browser location.",
+    }
+  }
+
+  const { error: profileError } = await (supabase.from("profiles") as any)
+    .update({
+      latitude: location.lat,
+      longitude: location.lng,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", resolvedUserId)
+
+  if (profileError) {
+    return {
+      success: false,
+      location,
+      error: `Failed to update profile coordinates: ${profileError.message}`,
+    }
+  }
+
+  const { error: syncError } = await (supabase.rpc as any)("fn_sync_user_closest_stores", {
+    p_user_id: resolvedUserId,
+  })
+
+  if (syncError) {
+    return {
+      success: false,
+      location,
+      error: `Failed to sync preferred stores: ${syncError.message}`,
+    }
+  }
+
+  return {
+    success: true,
+    location,
+  }
 }

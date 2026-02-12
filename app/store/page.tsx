@@ -7,6 +7,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { useShoppingList } from "@/hooks/shopping/use-shopping-list"
 import { useStoreComparison } from "@/hooks/shopping/use-store-comparison"
+import { updateLocation } from "@/lib/location-client"
 import { ShoppingReceiptView } from "@/components/store/shopping-receipt-view"
 import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { MobileQuickAddPanel } from "@/components/store/mobile-quick-add-panel"
@@ -188,9 +189,15 @@ export default function ShoppingReceiptPage() {
   }, [scrollToStore, storeComparisons])
 
   const handleRefresh = useCallback(async () => {
+    if (user?.id) {
+      const locationUpdate = await updateLocation(user.id)
+      if (!locationUpdate.success && locationUpdate.error) {
+        console.warn("[store] updateLocation failed:", locationUpdate.error)
+      }
+    }
     await saveChanges()
     await performMassSearch({ showCachedFirst: true, skipPricingGaps: false })
-  }, [saveChanges, performMassSearch])
+  }, [user?.id, saveChanges, performMassSearch])
 
   const handleMobileAddItem = useCallback(async (name: string) => {
     const itemName = name.trim()
