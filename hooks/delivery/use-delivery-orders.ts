@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/database/supabase"
+import {
+  storeListHistoryDB,
+  type StoreListHistoryWithJoins,
+} from "@/lib/database/store-list-history-db"
 
 export interface DeliveryOrder {
   id: string
@@ -35,11 +38,11 @@ export interface GroupedDelivery {
 /**
  * Helper function to group delivery items by date and store
  */
-function groupByDateAndStore(data: any[]): GroupedDelivery[] {
+function groupByDateAndStore(data: StoreListHistoryWithJoins[]): GroupedDelivery[] {
   if (!data || data.length === 0) return []
 
   // Group by order_id first, then by delivery_date if no order_id
-  const orderGroups: Record<string, any[]> = {}
+  const orderGroups: Record<string, StoreListHistoryWithJoins[]> = {}
 
   data.forEach((item) => {
     // Use order_id if available, otherwise use delivery_date as fallback
@@ -51,9 +54,9 @@ function groupByDateAndStore(data: any[]): GroupedDelivery[] {
   })
 
   // Transform groups into structured format
-  const grouped: GroupedDelivery[] = Object.entries(orderGroups).map(([key, items]) => {
+  const grouped: GroupedDelivery[] = Object.entries(orderGroups).map(([_, items]) => {
     // Group items within this order by store
-    const storeGroups: Record<string, any[]> = {}
+    const storeGroups: Record<string, StoreListHistoryWithJoins[]> = {}
     items.forEach((item) => {
       const storeId = item.grocery_store_id
       if (!storeGroups[storeId]) {
@@ -127,23 +130,10 @@ export function useDeliveryOrders() {
 
     setLoading(true)
     try {
-      // Use Supabase JOIN query for efficiency
-      const { data, error } = await supabase
-        .from("store_list_history")
-        .select(
-          `
-          *,
-          grocery_stores!inner(id, name, address),
-          standardized_ingredients!inner(canonical_name)
-        `
-        )
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
+      const data = await storeListHistoryDB.findByUserIdWithJoins(user.id)
 
       // Group and separate current vs past
-      const grouped = groupByDateAndStore(data || [])
+      const grouped = groupByDateAndStore(data)
 
       setCurrentOrders(grouped.filter((g) => !g.isConfirmed))
       setPastOrders(grouped.filter((g) => g.isConfirmed))

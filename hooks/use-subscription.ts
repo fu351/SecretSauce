@@ -1,7 +1,7 @@
 "use client"
 
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/database/supabase"
+import { profileDB } from "@/lib/database/profile-db"
 import { useEffect, useState } from "react"
 
 export type SubscriptionTier = "free" | "premium"
@@ -28,6 +28,8 @@ export function useSubscription() {
 
   useEffect(() => {
     async function fetchSubscription() {
+      setLoading(true)
+
       if (!user) {
         setSubscription(null)
         setLoading(false)
@@ -35,16 +37,21 @@ export function useSubscription() {
       }
 
       try {
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select(
-            "subscription_tier, subscription_started_at, subscription_expires_at, stripe_customer_id, stripe_subscription_id"
-          )
-          .eq("id", user.id)
-          .single()
+        const profile = await profileDB.fetchProfileFields<
+          | "subscription_tier"
+          | "subscription_started_at"
+          | "subscription_expires_at"
+          | "stripe_customer_id"
+          | "stripe_subscription_id"
+        >(user.id, [
+          "subscription_tier",
+          "subscription_started_at",
+          "subscription_expires_at",
+          "stripe_customer_id",
+          "stripe_subscription_id",
+        ])
 
-        if (error) {
-          console.error("Error fetching subscription:", error)
+        if (!profile) {
           setSubscription(null)
         } else {
           // Check if subscription is active (not expired)

@@ -7,6 +7,16 @@ import type { Database } from "./supabase"
 type StoreListHistoryRow = Database["public"]["Tables"]["store_list_history"]["Row"]
 type StoreListHistoryInsert = Database["public"]["Tables"]["store_list_history"]["Insert"]
 type StoreListHistoryUpdate = Database["public"]["Tables"]["store_list_history"]["Update"]
+export type StoreListHistoryWithJoins = StoreListHistoryRow & {
+  grocery_stores: { id: string; name: string; address: string | null }
+  standardized_ingredients: { canonical_name: string }
+}
+
+const WITH_JOINS_SELECT = `
+  *,
+  grocery_stores!inner(id, name, address),
+  standardized_ingredients!inner(canonical_name)
+`
 
 /**
  * Database operations for store_list_history
@@ -112,6 +122,25 @@ class StoreListHistoryTable extends BaseTable<
     }
 
     return (data || []).map((d) => this.map(d))
+  }
+
+  /**
+   * Get delivery log entries for a user with joined store and ingredient details.
+   * Used by delivery hooks to avoid direct Supabase table access.
+   */
+  async findByUserIdWithJoins(userId: string): Promise<StoreListHistoryWithJoins[]> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select(WITH_JOINS_SELECT)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      this.handleError(error, `findByUserIdWithJoins(${userId})`)
+      return []
+    }
+
+    return (data || []) as StoreListHistoryWithJoins[]
   }
 
   /**
@@ -276,17 +305,10 @@ class StoreListHistoryTable extends BaseTable<
   async findByOrderIdWithJoins(
     orderId: string,
     userId: string
-  ): Promise<(StoreListHistoryRow & {
-    grocery_stores: { id: string; name: string; address: string | null }
-    standardized_ingredients: { canonical_name: string }
-  })[]> {
+  ): Promise<StoreListHistoryWithJoins[]> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select(`
-        *,
-        grocery_stores!inner(id, name, address),
-        standardized_ingredients!inner(canonical_name)
-      `)
+      .select(WITH_JOINS_SELECT)
       .eq("order_id", orderId)
       .eq("user_id", userId)
 
@@ -295,7 +317,7 @@ class StoreListHistoryTable extends BaseTable<
       return []
     }
 
-    return (data || []) as any
+    return (data || []) as StoreListHistoryWithJoins[]
   }
 
   /**

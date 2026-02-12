@@ -3,7 +3,7 @@
  */
 
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/database/supabase"
+import { adminRolesDB } from "@/lib/database/admin-roles-db"
 import { useEffect, useState } from "react"
 
 export function useIsAdmin() {
@@ -12,55 +12,41 @@ export function useIsAdmin() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function checkAdmin() {
-      console.log("[useIsAdmin] Starting admin check", {
-        hasUser: !!user,
-        userId: user?.id,
-        userEmail: user?.email,
-      })
+    let cancelled = false
+    setLoading(true)
 
+    async function checkAdmin() {
       if (!user) {
-        console.log("[useIsAdmin] No user found, setting isAdmin to false")
-        setIsAdmin(false)
-        setLoading(false)
+        if (!cancelled) {
+          setIsAdmin(false)
+          setLoading(false)
+        }
         return
       }
 
       try {
-        console.log("[useIsAdmin] Calling RPC function ab_testing.is_admin for user:", user.id)
-
-        // Use RPC function to check admin role (handles schema properly)
-        const { data, error } = await supabase.rpc("is_admin", {
-          p_user_id: user.id,
-        })
-
-        console.log("[useIsAdmin] RPC result:", {
-          data,
-          error,
-          isAdmin: data === true,
-        })
-
-        if (error) {
-          console.error("[useIsAdmin] Error checking admin status:", error)
-          setIsAdmin(false)
-        } else {
-          const isAdminUser = data === true
-          console.log("[useIsAdmin] Setting isAdmin to:", isAdminUser)
-          setIsAdmin(isAdminUser)
+        const hasAdminAccess = await adminRolesDB.isAdmin(user.id)
+        if (!cancelled) {
+          setIsAdmin(hasAdminAccess)
         }
       } catch (error) {
         console.error("[useIsAdmin] Exception checking admin status:", error)
-        setIsAdmin(false)
+        if (!cancelled) {
+          setIsAdmin(false)
+        }
       } finally {
-        console.log("[useIsAdmin] Completed check, loading set to false")
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     checkAdmin()
-  }, [user])
 
-  console.log("[useIsAdmin] Current state:", { isAdmin, loading, hasUser: !!user })
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   return { isAdmin, loading }
 }
@@ -71,54 +57,41 @@ export function useCanViewAnalytics() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function checkAccess() {
-      console.log("[useCanViewAnalytics] Starting analytics access check", {
-        hasUser: !!user,
-        userId: user?.id,
-      })
+    let cancelled = false
+    setLoading(true)
 
+    async function checkAccess() {
       if (!user) {
-        console.log("[useCanViewAnalytics] No user found, setting canView to false")
-        setCanView(false)
-        setLoading(false)
+        if (!cancelled) {
+          setCanView(false)
+          setLoading(false)
+        }
         return
       }
 
       try {
-        console.log("[useCanViewAnalytics] Calling RPC function can_view_analytics for user:", user.id)
-
-        // Use RPC function to check analytics access (handles schema properly)
-        const { data, error } = await supabase.rpc("can_view_analytics", {
-          p_user_id: user.id,
-        })
-
-        console.log("[useCanViewAnalytics] RPC result:", {
-          data,
-          error,
-          canView: data === true,
-        })
-
-        if (error) {
-          console.error("[useCanViewAnalytics] Error checking analytics access:", error)
-          setCanView(false)
-        } else {
-          const hasAccess = data === true
-          console.log("[useCanViewAnalytics] Setting canView to:", hasAccess)
-          setCanView(hasAccess)
+        const hasAnalyticsAccess = await adminRolesDB.canViewAnalytics(user.id)
+        if (!cancelled) {
+          setCanView(hasAnalyticsAccess)
         }
       } catch (error) {
         console.error("[useCanViewAnalytics] Exception checking analytics access:", error)
-        setCanView(false)
+        if (!cancelled) {
+          setCanView(false)
+        }
       } finally {
-        console.log("[useCanViewAnalytics] Completed check, loading set to false")
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     checkAccess()
-  }, [user])
 
-  console.log("[useCanViewAnalytics] Current state:", { canView, loading, hasUser: !!user })
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   return { canView, loading }
 }
