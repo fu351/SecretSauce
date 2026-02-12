@@ -12,7 +12,7 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useAuth } from "./auth-context"
 import { AnalyticsClient, SessionManager, EventQueue } from "@/lib/analytics"
 import type { AnalyticsEventName, EventProperties } from "@/lib/analytics"
@@ -40,9 +40,12 @@ const AnalyticsContext = createContext<AnalyticsContextType | undefined>(undefin
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   const { user, profile } = useAuth()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [sessionId, setSessionId] = useState<string>("")
-  const previousPath = useRef<string>("")
+  const previousUrl = useRef<string>("")
   const mounted = useRef(true)
+  const queryString = searchParams.toString()
+  const currentUrl = pathname ? `${pathname}${queryString ? `?${queryString}` : ""}` : ""
 
   // Initialize analytics client and session on mount
   useEffect(() => {
@@ -63,15 +66,15 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Track page views on route change
+  // Track page views on route and query change
   useEffect(() => {
-    if (pathname && pathname !== previousPath.current) {
-      previousPath.current = pathname
+    if (currentUrl && currentUrl !== previousUrl.current) {
+      previousUrl.current = currentUrl
 
       // Track page view
-      AnalyticsClient.trackPageView(pathname, typeof document !== "undefined" ? document.title : undefined)
+      AnalyticsClient.trackPageView(currentUrl, typeof document !== "undefined" ? document.title : undefined)
     }
-  }, [pathname])
+  }, [currentUrl])
 
   // Identify user when authenticated
   useEffect(() => {

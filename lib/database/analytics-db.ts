@@ -6,7 +6,6 @@
  */
 
 import { supabase } from "./supabase"
-import type { Database } from "./supabase"
 import type { ABEventType } from "@/lib/analytics/event-types"
 
 // Reserved UUID for general analytics (not part of an A/B test)
@@ -45,7 +44,7 @@ export class AnalyticsDB {
    */
   static async trackEvent(params: TrackEventParams): Promise<TrackEventResult> {
     try {
-      const { data, error } = await supabase.rpc("ab_testing.track_event", {
+      const { data, error } = await supabase.rpc("track_event", {
         p_experiment_id: params.experimentId || NULL_EXPERIMENT_ID,
         p_variant_id: params.variantId || NULL_VARIANT_ID,
         p_event_type: params.eventType,
@@ -107,7 +106,7 @@ export class AnalyticsDB {
    */
   static async isAvailable(): Promise<boolean> {
     try {
-      const { error } = await supabase.rpc("ab_testing.track_event", {
+      const { error } = await supabase.rpc("track_event", {
         p_experiment_id: NULL_EXPERIMENT_ID,
         p_variant_id: NULL_VARIANT_ID,
         p_event_type: "custom",

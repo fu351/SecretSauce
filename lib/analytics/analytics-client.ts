@@ -176,7 +176,7 @@ export class AnalyticsClient {
     }
 
     return {
-      page_url: window.location.pathname,
+      page_url: `${window.location.pathname}${window.location.search}`,
       referrer: document.referrer || undefined,
     }
   }

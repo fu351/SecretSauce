@@ -12,7 +12,6 @@ It intentionally lists only active, non-redundant docs.
 ## Canonical Product Truths
 
 - Subscription tiers are only `free` and `premium`.
-- `enterprise` is deprecated legacy context and must not be used for new logic.
 - Primary source for tier policy: `docs/AGENT_CANONICAL_CONTEXT.md`.
 
 ## Docs Catalog (Key Files In `/docs`)
@@ -40,6 +39,9 @@ It intentionally lists only active, non-redundant docs.
 - `lib/database/`: Supabase data layer + typed access. Analytics DB in `lib/database/analytics-db.ts`.
 - `scripts/`: Backfills, validations, and data maintenance scripts.
 - `supabase/` and `migrations/`: Database migrations and schema evolution.
+  - `migrations/create-track-event-wrapper.sql`: Public wrapper for `ab_testing.track_event` (enables client-side RPC calls).
+  - `migrations/create-get-user-tier-function.sql`: Helper function to retrieve user subscription tier.
+  - `migrations/create-general-analytics-experiment.sql`: Reserved experiment/variant (UUID `00000000-0000-0000-0000-000000000000`) for general analytics tracking.
 
 ## Where To Start By Task
 
