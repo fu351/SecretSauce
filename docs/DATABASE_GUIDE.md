@@ -25,7 +25,8 @@ Scraper (GitHub Actions, nightly)
 
 LLM Queue Processor (external)
   → Reads ingredient_match_queue WHERE status = 'pending'
-  → Resolves ingredient and/or unit
+  → Resolves ingredient and/or unit (separate ingredient/unit prompts)
+    → Unit writes only when worker unit resolution is enabled and above confidence threshold
   → Sets status = 'resolved' → trigger fn_backfill_resolved_ingredient fires
     → Updates product_mappings.standardized_ingredient_id / unit / quantity
   → trigger fn_backfill_resolved_confidence fires

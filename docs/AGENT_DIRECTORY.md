@@ -26,6 +26,7 @@ It intentionally lists only active, non-redundant docs.
 | `docs/AB_TESTING_GUIDE.md` | Experimentation | A/B architecture, targeting, events, experiment setup | High |
 | `docs/target-geospatial-integration.md` | Scraping & Geospatial | How Target scraper uses geospatial lookup + Target store IDs | High |
 | `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md` | Queue Processing | Real-time ingredient queue migration plan (local LLM + worker + rollout) | High |
+| `docs/PROMPT_MAINTENANCE_GUIDE.md` | Prompting | Where to update ingredient/unit queue prompts and rollout flags | High |
 
 ## Repository Map (Agent-Oriented)
 

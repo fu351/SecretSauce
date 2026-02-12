@@ -16,6 +16,9 @@ export interface QueueWorkerConfig {
   queueSource: IngredientMatchQueueSource | "any"
   doubleCheckMinConfidence: number
   doubleCheckMinSimilarity: number
+  enableUnitResolution: boolean
+  unitDryRun: boolean
+  unitMinConfidence: number
 }
 
 function readPositiveInt(value: string | undefined, fallback: number): number {
@@ -28,6 +31,15 @@ function readBoundedFloat(value: string | undefined, fallback: number, min: numb
   const parsed = Number(value ?? "")
   if (!Number.isFinite(parsed) || parsed < min || parsed > max) return fallback
   return parsed
+}
+
+function readBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback
+
+  const normalized = value.trim().toLowerCase()
+  if (["1", "true", "yes", "on"].includes(normalized)) return true
+  if (["0", "false", "no", "off"].includes(normalized)) return false
+  return fallback
 }
 
 function resolveReviewMode(value: string | undefined): IngredientMatchQueueReviewMode {
@@ -57,6 +69,9 @@ export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfi
     queueSource: resolveQueueSource(process.env.QUEUE_SOURCE),
     doubleCheckMinConfidence: readBoundedFloat(process.env.LLM_DOUBLE_CHECK_MIN_CONFIDENCE, 0.85, 0, 1),
     doubleCheckMinSimilarity: readBoundedFloat(process.env.LLM_DOUBLE_CHECK_MIN_SIMILARITY, 0.96, 0, 1),
+    enableUnitResolution: readBoolean(process.env.QUEUE_ENABLE_UNIT_RESOLUTION, false),
+    unitDryRun: readBoolean(process.env.QUEUE_UNIT_DRY_RUN, true),
+    unitMinConfidence: readBoundedFloat(process.env.QUEUE_UNIT_MIN_CONFIDENCE, 0.75, 0, 1),
     ...overrides,
   }
 }

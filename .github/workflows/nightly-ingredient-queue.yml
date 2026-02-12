@@ -33,6 +33,21 @@ on:
         required: false
         type: string
         default: "false"
+      queue_enable_unit_resolution:
+        description: "Enable unit resolver writes"
+        required: false
+        type: string
+        default: "false"
+      queue_unit_dry_run:
+        description: "Unit resolver dry-run mode"
+        required: false
+        type: string
+        default: "true"
+      queue_unit_min_confidence:
+        description: "Minimum confidence required for unit writes"
+        required: false
+        type: string
+        default: "0.75"
       openai_model:
         description: "OpenAI model"
         required: false
@@ -88,6 +103,7 @@ on:
         type: choice
         options:
           - ingredient
+          - unit
           - any
         default: ingredient
       queue_dry_run:
@@ -98,6 +114,27 @@ on:
           - "false"
           - "true"
         default: "false"
+      queue_enable_unit_resolution:
+        description: "Enable unit resolver writes"
+        required: false
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+      queue_unit_dry_run:
+        description: "Unit resolver dry-run mode"
+        required: false
+        type: choice
+        options:
+          - "true"
+          - "false"
+        default: "true"
+      queue_unit_min_confidence:
+        description: "Minimum confidence required for unit writes"
+        required: false
+        type: string
+        default: "0.75"
       openai_model:
         description: "OpenAI model"
         required: false
@@ -133,6 +170,9 @@ jobs:
       QUEUE_SOURCE: ${{ inputs.queue_source }}
       QUEUE_REVIEW_MODE: ${{ inputs.queue_review_mode }}
       DRY_RUN: ${{ inputs.queue_dry_run }}
+      QUEUE_ENABLE_UNIT_RESOLUTION: ${{ inputs.queue_enable_unit_resolution }}
+      QUEUE_UNIT_DRY_RUN: ${{ inputs.queue_unit_dry_run }}
+      QUEUE_UNIT_MIN_CONFIDENCE: ${{ inputs.queue_unit_min_confidence }}
       OPENAI_MODEL: ${{ inputs.openai_model }}
       GEMINI_MODEL: ${{ inputs.gemini_model }}
       QUEUE_MAX_BATCHES: ${{ inputs.queue_max_batches }}
@@ -184,6 +224,9 @@ jobs:
           DRY_RUN: ${{ env.DRY_RUN }}
           QUEUE_SOURCE: ${{ env.QUEUE_SOURCE }}
           QUEUE_REVIEW_MODE: ${{ env.QUEUE_REVIEW_MODE }}
+          QUEUE_ENABLE_UNIT_RESOLUTION: ${{ env.QUEUE_ENABLE_UNIT_RESOLUTION }}
+          QUEUE_UNIT_DRY_RUN: ${{ env.QUEUE_UNIT_DRY_RUN }}
+          QUEUE_UNIT_MIN_CONFIDENCE: ${{ env.QUEUE_UNIT_MIN_CONFIDENCE }}
           NODE_ENV: production
           SUPABASE_URL: ${{ env.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}

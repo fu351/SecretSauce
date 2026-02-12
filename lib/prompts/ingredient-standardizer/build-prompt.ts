@@ -7,6 +7,7 @@ import {
   NORMALIZATION_RULES_SECTION,
   OUTPUT_FORMAT_SECTION,
 } from "./sections"
+import { formatPromptInputJson, stringifyPromptList } from "../shared/json-output"
 
 export interface IngredientStandardizerPromptInput {
   id: string
@@ -28,8 +29,7 @@ export function buildIngredientStandardizerPrompt({
   context,
   contextRules,
 }: BuildIngredientStandardizerPromptParams): string {
-  const canonicalList =
-    canonicalNames.length > 0 ? canonicalNames.slice(0, 200).join(", ") : "No canonical list provided"
+  const canonicalList = stringifyPromptList(canonicalNames, 200, "No canonical list provided")
 
   const formattedInputs = inputs.map((item, index) => ({
     id: item.id || String(index),
@@ -40,6 +40,7 @@ export function buildIngredientStandardizerPrompt({
 
   return `
 You are an expert ingredient normalizer for a grocery price comparison system. Your job is to map ingredient names to canonical forms that enable accurate price tracking across stores and recipes.
+Prompt version: ingredient-v2.
 
 **DATABASE CONTEXT:**
 - You're standardizing to match entries in the 'standardized_ingredients' table
@@ -102,6 +103,6 @@ ${OUTPUT_FORMAT_SECTION}
 INPUTS TO PROCESS (Context: ${context}):
 ===============================================================
 
-${JSON.stringify(formattedInputs, null, 2)}
+${formatPromptInputJson(formattedInputs)}
 `
 }

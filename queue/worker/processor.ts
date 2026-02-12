@@ -1,6 +1,7 @@
 import { ingredientMatchQueueDB, type IngredientMatchQueueRow } from "../../lib/database/ingredient-match-queue-db"
 import { standardizedIngredientsDB } from "../../lib/database/standardized-ingredients-db"
-import { standardizeIngredientsWithAI } from "../../lib/ingredient-standardizer"
+import { standardizeIngredientsWithAI, type IngredientStandardizationResult } from "../../lib/ingredient-standardizer"
+import { standardizeUnitsWithAI, type UnitStandardizationResult } from "../../lib/unit-standardizer"
 import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"
 import {
@@ -19,6 +20,10 @@ interface ResolveBatchResult {
     canonicalName: string
     category: string | null
     confidence: number
+    resolvedUnit?: string | null
+    resolvedQuantity?: number | null
+    unitConfidence?: number | null
+    quantityConfidence?: number | null
     status: "success" | "error"
     error?: string
   }>
@@ -29,6 +34,20 @@ export interface QueueRunSummary {
   totalResolved: number
   totalFailed: number
   dryRunResults?: ResolveBatchResult["results"]
+}
+
+function getSearchTerm(row: IngredientMatchQueueRow): string {
+  return (row.cleaned_name || row.raw_product_name || "").trim()
+}
+
+function getCanonicalFallback(row: IngredientMatchQueueRow): string {
+  const fallback = row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "unknown ingredient"
+  return normalizeCanonicalName(fallback) || "unknown ingredient"
+}
+
+function normalizeConfidence(value: number | null | undefined, fallback = 0.5): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) return fallback
+  return value
 }
 
 async function resolveCanonicalWithDoubleCheck(
@@ -70,7 +89,7 @@ async function resolveCanonicalWithDoubleCheck(
     }
   }
 
-  if (collected.size === 0) {
+  if (!collected.size) {
     return normalizedCanonical
   }
 
@@ -103,11 +122,103 @@ async function resolveCanonicalWithDoubleCheck(
   return normalizedCanonical
 }
 
+async function resolveIngredientCandidates(
+  rows: IngredientMatchQueueRow[],
+  config: QueueWorkerConfig
+): Promise<Map<string, IngredientStandardizationResult>> {
+  const targetRows = rows.filter((row) => row.needs_ingredient_review)
+  if (!targetRows.length) return new Map()
+
+  const uniqueInputByKey = new Map<string, { id: string; name: string }>()
+  const rowToInputKey = new Map<string, string>()
+
+  for (const row of targetRows) {
+    const searchTerm = getSearchTerm(row)
+    const dedupeKey = searchTerm.toLowerCase()
+
+    if (!uniqueInputByKey.has(dedupeKey)) {
+      uniqueInputByKey.set(dedupeKey, { id: dedupeKey, name: searchTerm })
+    }
+
+    rowToInputKey.set(row.id, dedupeKey)
+  }
+
+  const aiResults = await standardizeIngredientsWithAI(
+    Array.from(uniqueInputByKey.values()),
+    config.standardizerContext
+  )
+  const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
+
+  const byRowId = new Map<string, IngredientStandardizationResult>()
+  for (const row of targetRows) {
+    const inputKey = rowToInputKey.get(row.id)
+    if (!inputKey) continue
+    const result = aiResultByKey.get(inputKey)
+    if (result) {
+      byRowId.set(row.id, result)
+    }
+  }
+
+  return byRowId
+}
+
+async function resolveUnitCandidates(
+  rows: IngredientMatchQueueRow[],
+  ingredientByRowId: Map<string, IngredientStandardizationResult>,
+  config: QueueWorkerConfig
+): Promise<Map<string, UnitStandardizationResult>> {
+  if (!config.enableUnitResolution) return new Map()
+
+  const targetRows = rows.filter((row) => row.needs_unit_review)
+  if (!targetRows.length) return new Map()
+
+  const uniqueInputByKey = new Map<string, Parameters<typeof standardizeUnitsWithAI>[0][number]>()
+  const rowToInputKey = new Map<string, string>()
+
+  for (const row of targetRows) {
+    const ingredientCanonical =
+      ingredientByRowId.get(row.id)?.canonicalName ?? row.best_fuzzy_match ?? undefined
+    const dedupeKey = [
+      getSearchTerm(row).toLowerCase(),
+      (row.raw_unit ?? "").trim().toLowerCase(),
+      row.source,
+      (ingredientCanonical ?? "").trim().toLowerCase(),
+    ].join("|")
+
+    if (!uniqueInputByKey.has(dedupeKey)) {
+      uniqueInputByKey.set(dedupeKey, {
+        id: dedupeKey,
+        rawProductName: row.raw_product_name,
+        cleanedName: row.cleaned_name,
+        rawUnit: row.raw_unit,
+        source: row.source,
+        knownIngredientCanonicalName: ingredientCanonical,
+      })
+    }
+
+    rowToInputKey.set(row.id, dedupeKey)
+  }
+
+  const aiResults = await standardizeUnitsWithAI(Array.from(uniqueInputByKey.values()))
+  const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
+
+  const byRowId = new Map<string, UnitStandardizationResult>()
+  for (const row of targetRows) {
+    const inputKey = rowToInputKey.get(row.id)
+    if (!inputKey) continue
+    const result = aiResultByKey.get(inputKey)
+    if (result) {
+      byRowId.set(row.id, result)
+    }
+  }
+
+  return byRowId
+}
+
 async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorkerConfig): Promise<ResolveBatchResult> {
   const detailedResults: ResolveBatchResult["results"] = config.dryRun ? [] : undefined
-
   const validRows = rows.filter((row) => {
-    const searchTerm = (row.cleaned_name || row.raw_product_name || "").trim()
+    const searchTerm = getSearchTerm(row)
     if (!searchTerm) {
       const reason = "Row missing a canonicalizable ingredient name"
       console.warn(`[QueueResolver] Row ${row.id} ${reason}.`)
@@ -116,114 +227,205 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       }
       return false
     }
-
     return true
   })
 
-  if (validRows.length === 0) {
+  if (!validRows.length) {
     return { resolved: 0, failed: rows.length, results: detailedResults }
   }
 
   try {
-    const uniqueInputByKey = new Map<string, { id: string; name: string }>()
-    const rowToInputKey = new Map<string, string>()
-
-    for (const row of validRows) {
-      const searchTerm = (row.cleaned_name || row.raw_product_name || "").trim()
-      const dedupeKey = searchTerm.toLowerCase()
-
-      if (!uniqueInputByKey.has(dedupeKey)) {
-        uniqueInputByKey.set(dedupeKey, { id: dedupeKey, name: searchTerm })
-      }
-
-      rowToInputKey.set(row.id, dedupeKey)
-    }
-
-    const aiResults = await standardizeIngredientsWithAI(
-      Array.from(uniqueInputByKey.values()),
-      config.standardizerContext
-    )
-    const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
+    const ingredientByRowId = await resolveIngredientCandidates(validRows, config)
+    const unitByRowId = await resolveUnitCandidates(validRows, ingredientByRowId, config)
 
     const results = await Promise.allSettled(
       validRows.map(async (row) => {
-        const inputKey = rowToInputKey.get(row.id)
-        if (!inputKey) {
-          throw new Error("Queue row missing dedupe key")
+        const needsIngredient = row.needs_ingredient_review === true
+        const needsUnit = row.needs_unit_review === true
+
+        if (!needsIngredient && !needsUnit) {
+          throw new Error("Queue row has no active review flags")
         }
 
-        const result = aiResultByKey.get(inputKey)
-        if (!result || !result.canonicalName) {
-          throw new Error("AI returned no canonical name")
+        let canonicalForWrite = getCanonicalFallback(row)
+        let ingredientCategory: string | null = null
+        let ingredientConfidence = normalizeConfidence(row.fuzzy_score, 0.5)
+
+        if (needsIngredient) {
+          const ingredientResult = ingredientByRowId.get(row.id)
+          if (!ingredientResult || !ingredientResult.canonicalName) {
+            throw new Error("AI returned no canonical name")
+          }
+
+          const normalizedCanonical = normalizeCanonicalName(ingredientResult.canonicalName)
+          if (!normalizedCanonical) {
+            throw new Error("AI returned an empty canonical name")
+          }
+
+          if (ingredientResult.confidence < 0.3 && !ingredientResult.category) {
+            throw new Error(
+              `Non-food item detected: "${normalizedCanonical}" (confidence: ${ingredientResult.confidence})`
+            )
+          }
+
+          canonicalForWrite = await resolveCanonicalWithDoubleCheck(
+            normalizedCanonical,
+            ingredientResult.category,
+            ingredientResult.confidence,
+            config
+          )
+          if (!canonicalForWrite) {
+            throw new Error("Canonical name became empty after double-check")
+          }
+
+          ingredientCategory = ingredientResult.category || null
+          ingredientConfidence = normalizeConfidence(ingredientResult.confidence, 0.5)
         }
 
-        const normalizedCanonical = normalizeCanonicalName(result.canonicalName)
-        if (!normalizedCanonical) {
-          throw new Error("AI returned an empty canonical name")
-        }
+        const unitResult = needsUnit ? unitByRowId.get(row.id) : undefined
+        const unitConfidence = normalizeConfidence(unitResult?.confidence, 0)
+        const shouldWriteUnit = config.enableUnitResolution && !config.unitDryRun
+        const unitLowConfidence =
+          needsUnit &&
+          shouldWriteUnit &&
+          unitResult?.status === "success" &&
+          unitConfidence < config.unitMinConfidence
 
-        if (result.confidence < 0.3 && !result.category) {
-          throw new Error(`Non-food item detected: "${normalizedCanonical}" (confidence: ${result.confidence})`)
-        }
-
-        const canonicalForWrite = await resolveCanonicalWithDoubleCheck(
-          normalizedCanonical,
-          result.category,
-          result.confidence,
-          config
-        )
-
-        if (!canonicalForWrite) {
-          throw new Error("Canonical name became empty after double-check")
+        if (needsUnit && shouldWriteUnit) {
+          if (!unitResult) {
+            throw new Error("AI returned no unit result")
+          }
+          if (unitResult.status !== "success") {
+            throw new Error(unitResult.error || "Unit resolver returned error")
+          }
+          if (unitResult.confidence < config.unitMinConfidence) {
+            throw new Error(
+              `Unit confidence ${unitResult.confidence.toFixed(3)} below threshold ${config.unitMinConfidence.toFixed(3)}`
+            )
+          }
+          if (!unitResult.resolvedUnit || !unitResult.resolvedQuantity) {
+            throw new Error("Unit resolver returned incomplete resolution payload")
+          }
         }
 
         if (!config.dryRun) {
-          const standardized = await standardizedIngredientsDB.getOrCreate(canonicalForWrite, result.category)
-          if (!standardized?.id) {
-            throw new Error("Failed to upsert standardized ingredient")
-          }
+          if (needsIngredient) {
+            const standardized = await standardizedIngredientsDB.getOrCreate(canonicalForWrite, ingredientCategory)
+            if (!standardized?.id) {
+              throw new Error("Failed to upsert standardized ingredient")
+            }
 
-          const success = row.needs_unit_review
-            ? await ingredientMatchQueueDB.markIngredientResolvedPendingUnit({
+            if (needsUnit && shouldWriteUnit && unitResult?.status === "success") {
+              const success = await ingredientMatchQueueDB.markResolved({
                 rowId: row.id,
                 canonicalName: canonicalForWrite,
                 resolvedIngredientId: standardized.id,
-                confidence: result.confidence,
+                confidence: ingredientConfidence,
                 resolver: config.resolverName,
-              })
-            : await ingredientMatchQueueDB.markResolved({
-                rowId: row.id,
-                canonicalName: canonicalForWrite,
-                resolvedIngredientId: standardized.id,
-                confidence: result.confidence,
-                resolver: config.resolverName,
-                // Unit resolver pass can provide resolvedUnit/resolvedQuantity and
-                // unitConfidence/quantityConfidence via this same write path.
+                resolvedUnit: unitResult.resolvedUnit,
+                resolvedQuantity: unitResult.resolvedQuantity,
+                unitConfidence: unitResult.confidence,
+                quantityConfidence: unitResult.confidence,
                 clearIngredientReviewFlag: true,
                 clearUnitReviewFlag: true,
               })
 
-          if (!success) {
-            throw new Error("Failed to persist queue resolution status")
-          }
+              if (!success) {
+                throw new Error("Failed to persist queue resolution status")
+              }
 
-          if (row.needs_unit_review) {
+              console.log(
+                `[QueueResolver] ${row.id} -> ${canonicalForWrite} (${standardized.id}) + unit ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit}`
+              )
+            } else if (needsUnit) {
+              const success = await ingredientMatchQueueDB.markIngredientResolvedPendingUnit({
+                rowId: row.id,
+                canonicalName: canonicalForWrite,
+                resolvedIngredientId: standardized.id,
+                confidence: ingredientConfidence,
+                resolver: config.resolverName,
+              })
+
+              if (!success) {
+                throw new Error("Failed to persist ingredient-only resolution")
+              }
+
+              if (config.enableUnitResolution && config.unitDryRun && unitResult?.status === "success") {
+                console.log(
+                  `[QueueResolver] [UNIT DRY RUN] ${row.id} candidate ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit} ` +
+                    `(confidence=${unitResult.confidence.toFixed(3)})`
+                )
+              }
+
+              console.log(
+                `[QueueResolver] ${row.id} ingredient resolved (${standardized.id}); left pending for unit review`
+              )
+            } else {
+              const success = await ingredientMatchQueueDB.markResolved({
+                rowId: row.id,
+                canonicalName: canonicalForWrite,
+                resolvedIngredientId: standardized.id,
+                confidence: ingredientConfidence,
+                resolver: config.resolverName,
+                clearIngredientReviewFlag: true,
+                clearUnitReviewFlag: true,
+              })
+
+              if (!success) {
+                throw new Error("Failed to persist queue resolution status")
+              }
+
+              console.log(`[QueueResolver] ${row.id} -> ${canonicalForWrite} (${standardized.id})`)
+            }
+          } else if (needsUnit && shouldWriteUnit && unitResult?.status === "success") {
+            const success = await ingredientMatchQueueDB.markResolved({
+              rowId: row.id,
+              canonicalName: canonicalForWrite,
+              confidence: ingredientConfidence,
+              resolver: config.resolverName,
+              resolvedUnit: unitResult.resolvedUnit,
+              resolvedQuantity: unitResult.resolvedQuantity,
+              unitConfidence: unitResult.confidence,
+              quantityConfidence: unitResult.confidence,
+              clearIngredientReviewFlag: true,
+              clearUnitReviewFlag: true,
+            })
+
+            if (!success) {
+              throw new Error("Failed to persist unit-only queue resolution")
+            }
+
             console.log(
-              `[QueueResolver] ${row.id} ingredient resolved (${standardized.id}); left pending for unit review`
+              `[QueueResolver] ${row.id} unit resolved -> ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit}`
             )
-          } else {
-            console.log(`[QueueResolver] ${row.id} -> ${canonicalForWrite} (${standardized.id})`)
+          } else if (needsUnit && config.enableUnitResolution && config.unitDryRun) {
+            throw new Error("Unit dry run cannot be used for unit-only rows")
+          } else if (needsUnit) {
+            throw new Error("Unit resolution is disabled for a unit-review row")
           }
         } else {
-          console.log(`[QueueResolver] [DRY RUN] ${row.id} -> ${canonicalForWrite}`)
+          if (needsUnit && config.enableUnitResolution && unitResult?.status === "success") {
+            const lowConfidenceNote = unitLowConfidence ? " [LOW CONFIDENCE]" : ""
+            console.log(
+              `[QueueResolver] [DRY RUN] ${row.id} unit candidate -> ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit} ` +
+                `(confidence=${unitResult.confidence.toFixed(3)})${lowConfidenceNote}`
+            )
+          }
+          if (needsIngredient) {
+            console.log(`[QueueResolver] [DRY RUN] ${row.id} -> ${canonicalForWrite}`)
+          }
         }
 
         return {
           rowId: row.id,
           originalName: row.cleaned_name || row.raw_product_name || "",
           canonicalName: canonicalForWrite,
-          category: result.category || null,
-          confidence: result.confidence,
+          category: ingredientCategory,
+          confidence: ingredientConfidence,
+          resolvedUnit: unitResult?.status === "success" ? unitResult.resolvedUnit : null,
+          resolvedQuantity: unitResult?.status === "success" ? unitResult.resolvedQuantity : null,
+          unitConfidence: unitResult?.status === "success" ? unitResult.confidence : null,
+          quantityConfidence: unitResult?.status === "success" ? unitResult.confidence : null,
         }
       })
     )
@@ -284,14 +486,25 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 }
 
 export async function runIngredientQueueResolver(config: QueueWorkerConfig): Promise<QueueRunSummary> {
-  if (config.reviewMode === "unit") {
-    throw new Error("QUEUE_REVIEW_MODE=unit is not implemented yet. Use ingredient or any until the unit resolver is added.")
+  if (!config.enableUnitResolution && config.reviewMode !== "ingredient") {
+    throw new Error(
+      "QUEUE_REVIEW_MODE=unit|any requires QUEUE_ENABLE_UNIT_RESOLUTION=true. Default ingredient mode remains unchanged."
+    )
+  }
+
+  if (config.unitDryRun && config.reviewMode !== "ingredient") {
+    throw new Error(
+      "QUEUE_UNIT_DRY_RUN=true only supports QUEUE_REVIEW_MODE=ingredient to avoid claiming unit-only rows."
+    )
   }
 
   const mode = config.dryRun ? "[DRY RUN]" : ""
   console.log(`[QueueResolver] ${mode} Starting run (limit ${config.batchLimit})`)
   console.log(
     `[QueueResolver] ${mode} Canonical double-check: enabled (min_confidence=${config.doubleCheckMinConfidence}, min_similarity=${config.doubleCheckMinSimilarity})`
+  )
+  console.log(
+    `[QueueResolver] ${mode} Unit resolver: enabled=${config.enableUnitResolution}, unit_dry_run=${config.unitDryRun}, unit_min_confidence=${config.unitMinConfidence}`
   )
 
   let cycle = 0

@@ -18,7 +18,12 @@ Current runtime path:
 - Legacy shim entrypoint: `scripts/resolve-ingredient-match-queue.ts` (delegates to `queue/`)
 - Queue runtime module: `queue/config.ts`, `queue/index.ts`, `queue/worker/processor.ts`, `queue/worker/batching.ts`, `queue/worker/runner.ts`
 - Queue DB wrapper: `lib/database/ingredient-match-queue-db.ts`
-- LLM normalizer: `lib/ingredient-standardizer.ts`
+- Ingredient normalizer: `lib/ingredient-standardizer.ts`
+- Unit normalizer: `lib/unit-standardizer.ts`
+- Prompt modules:
+  - `lib/prompts/ingredient-standardizer/*`
+  - `lib/prompts/unit-standardizer/*`
+  - `lib/prompts/shared/*`
 
 Current database integration:
 - Additive queue migration prepared: `supabase/migrations/0011_queue_realtime_foundation.sql`
@@ -40,6 +45,10 @@ Observed behavior in current implementation:
 - Worker defaults are source/review scoped for safety:
   - `QUEUE_SOURCE=scraper` (default)
   - `QUEUE_REVIEW_MODE=ingredient` (default)
+- Unit resolution rollout is env-gated:
+  - `QUEUE_ENABLE_UNIT_RESOLUTION=false` (default)
+  - `QUEUE_UNIT_DRY_RUN=true` (default)
+  - `QUEUE_UNIT_MIN_CONFIDENCE=0.75` (default)
 
 ## Target Architecture
 
