@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts"
+    "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts",
+    "queue-worker": "tsx ../queue/worker/runner.ts"
   },
   "dependencies": {
     "@google/genai": "latest",

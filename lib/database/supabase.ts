@@ -564,40 +564,73 @@ export type Database = {
       ingredient_match_queue: {
         Row: {
           id: string
-          product_mapping_id: string
+          product_mapping_id: string | null
           raw_product_name: string
           cleaned_name: string
           best_fuzzy_match: string | null
           fuzzy_score: number | null
           status: "pending" | "processing" | "resolved" | "failed"
+          source: "scraper" | "recipe"
+          recipe_ingredient_id: string | null
+          needs_ingredient_review: boolean
+          needs_unit_review: boolean
+          raw_unit: string | null
           resolved_ingredient_id: string | null
+          resolved_unit: Database["public"]["Enums"]["unit_label"] | null
+          resolved_quantity: number | null
           resolved_by: string | null
+          processing_started_at: string | null
+          processing_lease_expires_at: string | null
+          attempt_count: number
+          last_error: string | null
           created_at: string | null
           resolved_at: string | null
         }
         Insert: {
           id?: string
-          product_mapping_id: string
+          product_mapping_id?: string | null
           raw_product_name: string
           cleaned_name: string
           best_fuzzy_match?: string | null
           fuzzy_score?: number | null
           status?: "pending" | "processing" | "resolved" | "failed"
+          source?: "scraper" | "recipe"
+          recipe_ingredient_id?: string | null
+          needs_ingredient_review?: boolean
+          needs_unit_review?: boolean
+          raw_unit?: string | null
           resolved_ingredient_id?: string | null
+          resolved_unit?: Database["public"]["Enums"]["unit_label"] | null
+          resolved_quantity?: number | null
           resolved_by?: string | null
+          processing_started_at?: string | null
+          processing_lease_expires_at?: string | null
+          attempt_count?: number
+          last_error?: string | null
           created_at?: string | null
           resolved_at?: string | null
         }
         Update: {
           id?: string
-          product_mapping_id?: string
+          product_mapping_id?: string | null
           raw_product_name?: string
           cleaned_name?: string
           best_fuzzy_match?: string | null
           fuzzy_score?: number | null
           status?: "pending" | "processing" | "resolved" | "failed"
+          source?: "scraper" | "recipe"
+          recipe_ingredient_id?: string | null
+          needs_ingredient_review?: boolean
+          needs_unit_review?: boolean
+          raw_unit?: string | null
           resolved_ingredient_id?: string | null
+          resolved_unit?: Database["public"]["Enums"]["unit_label"] | null
+          resolved_quantity?: number | null
           resolved_by?: string | null
+          processing_started_at?: string | null
+          processing_lease_expires_at?: string | null
+          attempt_count?: number
+          last_error?: string | null
           created_at?: string | null
           resolved_at?: string | null
         }
@@ -1015,6 +1048,16 @@ export type Database = {
           ingredients: Record<string, number>
         }
       }
+      claim_ingredient_match_queue: {
+        Args: {
+          p_limit?: number
+          p_resolver?: string | null
+          p_lease_seconds?: number
+          p_review_mode?: string
+          p_source?: string | null
+        }
+        Returns: Database["public"]["Tables"]["ingredient_match_queue"]["Row"][]
+      }
       fn_add_to_delivery_log: {
         Args: {
           p_shopping_list_item_id: string
@@ -1022,6 +1065,13 @@ export type Database = {
           p_delivery_date: string | null
         }
         Returns: string
+      }
+      requeue_expired_ingredient_match_queue: {
+        Args: {
+          p_limit?: number
+          p_error?: string | null
+        }
+        Returns: number
       }
       fn_upsert_recipe_with_ingredients: {
         Args: {

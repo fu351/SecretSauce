@@ -18,6 +18,16 @@ on:
         required: false
         type: string
         default: "nightly-openai"
+      queue_source:
+        description: "Queue source filter (scraper|recipe|any)"
+        required: false
+        type: string
+        default: "scraper"
+      queue_review_mode:
+        description: "Queue review mode (ingredient|any)"
+        required: false
+        type: string
+        default: "ingredient"
       queue_dry_run:
         description: "true/false dry run"
         required: false
@@ -63,6 +73,23 @@ on:
         required: false
         type: string
         default: "nightly-openai"
+      queue_source:
+        description: "Queue source filter"
+        required: false
+        type: choice
+        options:
+          - scraper
+          - recipe
+          - any
+        default: scraper
+      queue_review_mode:
+        description: "Queue review mode"
+        required: false
+        type: choice
+        options:
+          - ingredient
+          - any
+        default: ingredient
       queue_dry_run:
         description: "Dry run mode"
         required: false
@@ -103,6 +130,8 @@ jobs:
       QUEUE_BATCH_LIMIT: ${{ inputs.queue_batch_limit }}
       QUEUE_STANDARDIZER_CONTEXT: ${{ inputs.queue_context }}
       QUEUE_RESOLVER_NAME_BASE: ${{ inputs.queue_resolver_name }}
+      QUEUE_SOURCE: ${{ inputs.queue_source }}
+      QUEUE_REVIEW_MODE: ${{ inputs.queue_review_mode }}
       DRY_RUN: ${{ inputs.queue_dry_run }}
       OPENAI_MODEL: ${{ inputs.openai_model }}
       GEMINI_MODEL: ${{ inputs.gemini_model }}
@@ -153,6 +182,8 @@ jobs:
           QUEUE_BATCH_LIMIT: ${{ env.QUEUE_BATCH_LIMIT }}
           QUEUE_STANDARDIZER_CONTEXT: ${{ env.QUEUE_STANDARDIZER_CONTEXT }}
           DRY_RUN: ${{ env.DRY_RUN }}
+          QUEUE_SOURCE: ${{ env.QUEUE_SOURCE }}
+          QUEUE_REVIEW_MODE: ${{ env.QUEUE_REVIEW_MODE }}
           NODE_ENV: production
           SUPABASE_URL: ${{ env.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
@@ -176,12 +207,19 @@ jobs:
 
             QUEUE_RESOLVER_NAME="$resolver_name" QUEUE_MAX_CYCLES="1" npm --prefix scripts run resolve-ingredient-match-queue
 
-            PENDING_RESULT=$(curl -sf \
-              "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status&status=eq.pending&limit=10000" \
-              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
+            if [ "${QUEUE_SOURCE}" = "any" ]; then
+              PENDING_RESULT=$(curl -sf \
+                "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status&status=eq.pending&limit=10000" \
+                -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+                -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
+            else
+              PENDING_RESULT=$(curl -sf \
+                "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status,source&status=eq.pending&source=eq.${QUEUE_SOURCE}&limit=10000" \
+                -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+                -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
+            fi
             PENDING_COUNT=$(echo "$PENDING_RESULT" | jq 'length')
-            echo "Pending rows after batch ${batch} (sampled <= 10k): ${PENDING_COUNT}"
+            echo "Pending rows after batch ${batch} (source=${QUEUE_SOURCE}, sampled <= 10k): ${PENDING_COUNT}"
 
             if [ "$PENDING_COUNT" -eq 0 ]; then
               echo "Queue drained. Stopping early."

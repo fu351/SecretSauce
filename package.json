@@ -16,7 +16,8 @@
     "test:hooks": "vitest run hooks/",
     "test:lib": "vitest run lib/",
     "test:components": "vitest run components/",
-    "test:api": "vitest run app/api/"
+    "test:api": "vitest run app/api/",
+    "queue-worker": "tsx queue/worker/runner.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.31.1",

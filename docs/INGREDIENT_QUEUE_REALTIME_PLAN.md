@@ -11,18 +11,33 @@ This plan migrates the current nightly batch queue flow to a near-real-time queu
 - Reliability: failed item rate under `2%` excluding known invalid/non-food inputs.
 - Safety: no duplicate processing for the same queue row while status is `processing`.
 
-## Current State (Baseline)
+## Current State (Implemented)
 
-Current processing path:
-- Workflow driver: `.github/workflows/nightly-ingredient-queue.yml`
-- Worker script: `scripts/resolve-ingredient-match-queue.ts`
+Current runtime path:
+- Workflow fallback driver: `.github/workflows/nightly-ingredient-queue.yml`
+- Legacy shim entrypoint: `scripts/resolve-ingredient-match-queue.ts` (delegates to `queue/`)
+- Queue runtime module: `queue/config.ts`, `queue/index.ts`, `queue/worker/processor.ts`, `queue/worker/batching.ts`, `queue/worker/runner.ts`
 - Queue DB wrapper: `lib/database/ingredient-match-queue-db.ts`
 - LLM normalizer: `lib/ingredient-standardizer.ts`
 
-Observed behavior:
-- Nightly/batch workflow pulls pending rows and drains in bounded loops.
-- Chunk size is fixed at `10` per LLM call, processed sequentially within cycle.
-- Claiming is currently non-atomic (`fetchPending` then `markProcessing`), which can race with multiple workers.
+Current database integration:
+- Additive queue migration prepared: `supabase/migrations/0011_queue_realtime_foundation.sql`
+- Claim/requeue RPCs expected by worker:
+  - `claim_ingredient_match_queue(p_limit, p_resolver, p_lease_seconds, p_review_mode, p_source)`
+  - `requeue_expired_ingredient_match_queue(p_limit, p_error)`
+- Queue row model now includes source-aware fields:
+  - `source` (`scraper`/`recipe`)
+  - `recipe_ingredient_id`
+  - review flags + unit fields (`needs_ingredient_review`, `needs_unit_review`, `raw_unit`, `resolved_unit`, `resolved_quantity`)
+
+Observed behavior in current implementation:
+- Nightly workflow still runs in bounded batches and remains the rollout fallback.
+- Worker uses atomic claim RPC when available and falls back to legacy fetch+mark if migration is not yet applied.
+- Expired leases are requeued each cycle before claim.
+- Chunk processing supports configurable concurrency (`QUEUE_CHUNK_CONCURRENCY`) and deduplicates identical names per batch.
+- Worker defaults are source/review scoped for safety:
+  - `QUEUE_SOURCE=scraper` (default)
+  - `QUEUE_REVIEW_MODE=ingredient` (default)
 
 ## Target Architecture
 
@@ -36,16 +51,25 @@ Observed behavior:
 
 ## Code Organization Change (`queue/` Directory)
 
-Target structure should move queue runtime code out of `scripts/` and into a dedicated top-level `queue/` module.
+Current structure:
 
-Proposed structure:
+```text
+queue/
+  config.ts
+  index.ts
+  worker/
+    batching.ts
+    processor.ts
+    runner.ts
+scripts/
+  resolve-ingredient-match-queue.ts   # transitional shim/delegate during rollout
+```
+
+Planned additions (not implemented yet):
 
 ```text
 queue/
   worker/
-    runner.ts
-    processor.ts
-    batching.ts
     lease.ts
   providers/
     local-llm.ts
@@ -53,10 +77,6 @@ queue/
     gemini.ts
   metrics/
     queue-metrics.ts
-  config.ts
-  index.ts
-scripts/
-  resolve-ingredient-match-queue.ts   # transitional shim/delegate during rollout
 ```
 
 Rationale:
@@ -112,13 +132,15 @@ Definition of done:
 
 ### Phase 3: Atomic Claiming and Lease Semantics
 
+Status: Implemented in app code; DB migration apply pending.
+
 1. Introduce DB-level claiming to remove fetch/mark race.
 2. Add queue metadata columns (if missing):
    - `processing_started_at timestamptz`
    - `processing_lease_expires_at timestamptz`
    - `attempt_count integer default 0`
    - `last_error text`
-3. Add RPC/function `claim_ingredient_match_queue(limit, resolver, lease_seconds)`:
+3. Add RPC/function `claim_ingredient_match_queue(limit, resolver, lease_seconds, review_mode, source)`:
    - selects eligible rows (`pending` or expired lease)
    - marks them `processing`
    - sets lease timestamps and resolver
@@ -133,6 +155,8 @@ Files to touch:
 - `queue/worker/processor.ts`
 
 ### Phase 4: Batching and Concurrency Optimization
+
+Status: Partially implemented.
 
 1. Replace fixed chunking (`10`) with adaptive chunking:
    - target token budget per request
@@ -150,6 +174,8 @@ Files to touch:
 - optional new cache helper under `lib/`
 
 ### Phase 5: Runtime Orchestration (Every 5 Minutes)
+
+Status: Partially implemented.
 
 1. Create a persistent runner script:
    - `queue/worker/runner.ts`
@@ -214,16 +240,16 @@ Rollback plan:
 | File | Change |
 |---|---|
 | `lib/ingredient-standardizer.ts` | Add local provider client, provider routing, metrics logs, fallback order |
-| `queue/worker/processor.ts` | Atomic claim usage, adaptive batching, bounded concurrency, timing logs |
-| `queue/worker/batching.ts` | Token-budget batch packing and chunk policies |
-| `queue/worker/runner.ts` | Persistent scheduler/runner with overlap protection |
-| `queue/index.ts` | Public queue worker entrypoint |
+| `queue/worker/processor.ts` | Atomic claim usage, lease requeue integration, bounded concurrency, per-batch dedupe |
+| `queue/worker/batching.ts` | Generic chunking and bounded concurrency helpers |
+| `queue/worker/runner.ts` | Persistent scheduler loop (implemented, overlap protection pending) |
+| `queue/index.ts` | Public queue worker entrypoint (implemented) |
 | `queue/metrics/queue-metrics.ts` | Structured metrics/log emitters for queue runs |
-| `lib/database/ingredient-match-queue-db.ts` | Add `claimPending` RPC wrapper, lease-aware requeue helper |
-| `scripts/resolve-ingredient-match-queue.ts` | Transitional shim delegating to new `queue/` entrypoint |
-| `package.json` and/or `scripts/package.json` | Add worker command pointing to `queue/worker/runner.ts` |
-| `supabase/migrations/<new>.sql` | Queue lease columns, claim RPC, indexes, optional metrics table |
-| `.github/workflows/nightly-ingredient-queue.yml` | Keep as fallback initially; later reduce scope/manual dispatch only |
+| `lib/database/ingredient-match-queue-db.ts` | `claimPending` RPC wrapper (+ legacy fallback), lease-aware `requeueExpired`, source/review filtering |
+| `scripts/resolve-ingredient-match-queue.ts` | Transitional shim delegating to new `queue/` entrypoint (implemented) |
+| `package.json` and/or `scripts/package.json` | Add worker command pointing to `queue/worker/runner.ts` (implemented) |
+| `supabase/migrations/0011_queue_realtime_foundation.sql` | Queue lease columns, claim/requeue RPCs, indexes, source/review-mode claim support |
+| `.github/workflows/nightly-ingredient-queue.yml` | Fallback remains active; now source/review-mode aware for safe nightly draining |
 
 ## Proposed Configuration (Initial)
 
@@ -278,7 +304,10 @@ Target requirement (`50 / 5 min`) should fit with operational headroom if queue 
 - [ ] Baseline metrics captured
 - [ ] Local LLM endpoint validated
 - [ ] Provider routing merged
-- [ ] Atomic claim migration applied
+- [x] Queue runtime moved to `queue/` with shimmed legacy entrypoint
+- [x] Atomic claim/requeue logic implemented in app code
+- [ ] Atomic claim migration applied to database
+- [x] Nightly workflow updated and preserved as fallback
 - [ ] Worker runner deployed locally
 - [ ] Observability dashboards/alerts active
 - [ ] Stage A/B/C rollout complete
