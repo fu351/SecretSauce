@@ -260,16 +260,13 @@ Expected output:
 **Symptom:** Products returned but no facetedValue in metadata
 
 **Solution:**
-1. Run the backfill script to discover faceted values:
-   ```bash
-   node scripts/backfill-target-faceted-values.js
-   ```
-2. Verify metadata structure:
+1. Verify metadata structure:
    ```sql
    SELECT metadata->>'facetedValue'
    FROM grocery_stores
    WHERE store_enum = 'target' AND id = 'your-store-id';
    ```
+2. If missing, follow `docs/target-faceted-values.md` to manually set faceted values in `grocery_stores.metadata`.
 
 ### TypeScript errors
 
@@ -312,8 +309,6 @@ const products = await getTargetProducts('eggs', null, '94704');
 ## Related Documentation
 
 - [Target Faceted Values Setup](./target-faceted-values.md) - Manual setup guide
-- [Backfill Script](./backfill-target-faceted-values.md) - Automated discovery
-- [Technical Details](./backfill-script-technical-details.md) - Deep dive
 - [Grocery Stores DB](../lib/database/grocery-stores-db.ts) - Database layer API
 
 ## Future Enhancements

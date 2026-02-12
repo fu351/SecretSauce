@@ -3,6 +3,7 @@
 ## Purpose
 
 This document helps AI agents quickly understand the repository and choose the right docs/files before making changes.
+It intentionally lists only active, non-redundant docs.
 
 ## First Read
 
@@ -21,15 +22,19 @@ This document helps AI agents quickly understand the repository and choose the r
 | `docs/REPOSITORY_FUNCTIONALITY_OVERVIEW.md` | Repository Overview | Broad functionality map across routes, APIs, data, and automation | Highest |
 | `docs/AGENT_CANONICAL_CONTEXT.md` | Agent Policy | Canonical tier rules and agent guardrails | Highest |
 | `docs/AUTH_GATES_COMPLETE_GUIDE.md` | Auth & Access | AuthGate/TierGate/ShowWhen usage patterns | High |
-| `docs/SUBSCRIPTION_GUIDE.md` | Auth & Access | End-to-end subscription patterns and examples | High |
 | `docs/SUBSCRIPTION_QUICK_REFERENCE.md` | Auth & Access | Fast copy/paste API + hook usage | High |
-| `docs/TIER_CHANGES_SUMMARY.md` | Auth & Access (Migration) | Historical migration context and rationale | Medium |
 | `docs/AB_TESTING_GUIDE.md` | Experimentation | A/B architecture, targeting, events, experiment setup | High |
 | `docs/target-geospatial-integration.md` | Scraping & Geospatial | How Target scraper uses geospatial lookup + faceted value | High |
-| `docs/GEOSPATIAL_INTEGRATION_SUMMARY.md` | Scraping & Geospatial | High-level summary of geospatial integration outcomes | Medium |
 | `docs/target-faceted-values.md` | Scraping & Geospatial | Manual faceted value setup flow | Medium |
-| `docs/backfill-target-faceted-values.md` | Scraping & Geospatial | Operational backfill process for faceted values | Medium |
-| `docs/backfill-script-technical-details.md` | Scraping & Geospatial (Deep Dive) | Internals of discovery logic, error handling, and recovery | Medium |
+
+## Removed Redundant Docs
+
+The following files were removed as duplicates or overly verbose versions of covered material:
+- `docs/SUBSCRIPTION_GUIDE.md`
+- `docs/TIER_CHANGES_SUMMARY.md`
+- `docs/GEOSPATIAL_INTEGRATION_SUMMARY.md`
+- `docs/backfill-script-technical-details.md`
+- `docs/backfill-target-faceted-values.md`
 
 ## Repository Map (Agent-Oriented)
 
@@ -50,15 +55,15 @@ This document helps AI agents quickly understand the repository and choose the r
 - Auth/login/paywall behavior:  
   Read `docs/AGENT_CANONICAL_CONTEXT.md`, then `docs/AUTH_GATES_COMPLETE_GUIDE.md`, then inspect `lib/auth/subscription.ts` and `components/auth/tier-gate.tsx`.
 - Subscription/tier UI logic:  
-  Read `docs/SUBSCRIPTION_QUICK_REFERENCE.md`, then `docs/SUBSCRIPTION_GUIDE.md`, then inspect `hooks/use-subscription.ts`.
+  Read `docs/SUBSCRIPTION_QUICK_REFERENCE.md`, then inspect `hooks/use-subscription.ts` and `lib/auth/subscription.ts`.
 - A/B testing changes:  
   Read `docs/AB_TESTING_GUIDE.md`, then inspect `app/dev/experiments/`, `app/dev/feature-flags/`, and `lib/dev/helpers.ts`.
 - Target pricing/geospatial/store matching:  
-  Read `docs/target-geospatial-integration.md`, then `docs/backfill-target-faceted-values.md`, then inspect `lib/scrapers/target.js` and related scripts in `scripts/`.
+  Read `docs/target-geospatial-integration.md`, then `docs/target-faceted-values.md`, then inspect `lib/scrapers/target.js` and related scripts in `scripts/`.
 
 ## Agent Checklist Before Shipping
 
 - Confirm tier logic only uses `free` and `premium`.
 - Prefer server-side enforcement (`requireAuth`, `requireTier`) for route protection.
 - Keep docs and examples aligned with actual code paths.
-- If touching scraper logic, verify related backfill/validation scripts still match expectations.
+- If touching scraper logic, verify related validation scripts still match expectations.

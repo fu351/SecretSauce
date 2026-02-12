@@ -37,28 +37,23 @@ For each Target store in your database, you need to find its `facetedValue`:
 
 The faceted value is typically a short alphanumeric code (5-6 characters).
 
-### 3. Update the Script with Your Values
+### 3. Update Store Metadata In SQL
 
-Edit `scripts/update-target-faceted-values.ts` and add your store mappings:
+Use SQL to write faceted values directly:
 
-```typescript
-const TARGET_FACETED_VALUES: Record<string, string> = {
-  "3202": "5zkty",   // Berkeley Central Target
-  "1407": "xxxxx",   // Your store - replace with actual faceted value
-  // Add more stores as needed
-}
+```sql
+UPDATE grocery_stores
+SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+  'facetedValue', '5zkty',
+  'targetStoreId', metadata->>'targetStoreId',
+  'lastUpdated', NOW()::text
+)
+WHERE store_enum = 'target'
+  AND is_active = true
+  AND metadata->>'targetStoreId' = '3202';
 ```
 
-### 4. Run the Update Script
-
-```bash
-npx ts-node scripts/update-target-faceted-values.ts
-```
-
-This will:
-- Find all Target stores in your database
-- Update their `metadata` field with the `facetedValue`
-- Show a summary of updated/skipped stores
+For multiple stores, run additional updates or use a `CASE` expression.
 
 ## Verification
 
@@ -82,7 +77,7 @@ AND is_active = true;
 The updated Target scraper will automatically use `facetedValue` if available:
 
 ```javascript
-// In target.js or test-target-rate-limit.js
+// In target.js
 const storeInfo = await getNearestStore(zipCode);
 
 // If metadata includes facetedValue, it will be used:
@@ -128,29 +123,28 @@ After migration, the `grocery_stores` table will have:
 - The URL should change and include `facetedValue` parameter
 - If not visible, check browser devtools > Network tab for the API request
 
-### Script says "No faceted value defined"
-- You haven't added that store's faceted value to `TARGET_FACETED_VALUES`
-- Find the faceted value using the steps above and add it to the script
+### Faceted value still missing
+- Confirm you're updating the correct store (`metadata->>'targetStoreId'`)
+- Re-run the verification query and validate `metadata->>'facetedValue'` is populated
 
 ### Scraper still using storeId
 - Check if the faceted value is actually in the database:
   ```sql
   SELECT metadata FROM grocery_stores WHERE id = 'your-store-id';
   ```
-- Make sure you ran the update script successfully
+- Confirm the store used by the scraper matches the store row you updated
 
 ## Next Steps
 
 1. ✅ Run migration to add `metadata` column
 2. ✅ Find faceted values for your Target stores
-3. ✅ Update the script with your values
-4. ✅ Run the update script
-5. ✅ Verify the values in your database
-6. ✅ Test the scraper with a search
+3. ✅ Update `grocery_stores.metadata` in SQL
+4. ✅ Verify the values in your database
+5. ✅ Test the scraper with a search
 
 ## Maintainence
 
-- Add new Target stores to the script as you discover them
+- Add new Target store faceted values directly in database metadata as you discover them
 - Faceted values appear to be stable (don't change frequently)
 - If a store's faceted value changes, just update the database:
   ```sql

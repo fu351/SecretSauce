@@ -15,7 +15,7 @@ This document provides a broad, implementation-grounded map of what this reposit
   - `15` API routes (`app/api/**/route.ts`)
   - `21` database module files (`lib/database`)
   - `18` scraper modules (`lib/scrapers`)
-  - `18` top-level maintenance scripts (`scripts/`)
+  - `16` top-level maintenance scripts (`scripts/`)
 
 ## System Architecture
 
@@ -124,7 +124,7 @@ This document provides a broad, implementation-grounded map of what this reposit
 - User-preferred store resolution with RPC + zip fallback in `lib/store/user-preferred-stores.ts`.
 - Store scrapers for major chains in `lib/scrapers/*.js`.
 - Ingredient pipeline does cache-first retrieval and selective scraper refresh.
-- Target-specific faceted value logic/backfill is present in docs/scripts.
+- Target faceted value usage is driven by store metadata in `grocery_stores`.
 
 ## API Surface (By Domain)
 
@@ -176,10 +176,9 @@ This document provides a broad, implementation-grounded map of what this reposit
 
 - `scripts/` contains data engineering and scraper operations:
   - daily scraper orchestration
-  - Target faceted-value backfills
   - geoscraper/import scripts for store data
   - queue/mapping maintenance scripts
-- `.github/workflows/` contains scheduled and manual pipelines for scraping, backfills, cleanup, and mapping regeneration.
+- `.github/workflows/` contains scheduled and manual pipelines for scraping, cleanup, and mapping regeneration.
 - `python-api/main.py` provides FastAPI endpoints consumed by Next API routes for import parsing tasks.
 
 ## Testing And Quality Infrastructure
