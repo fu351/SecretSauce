@@ -303,7 +303,7 @@ export default function DashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/shopping" className="block">
+            <Link href="/store" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-3 md:p-6">
                   <div className="flex items-center justify-between mb-2 md:mb-4">

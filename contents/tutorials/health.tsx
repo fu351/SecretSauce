@@ -53,7 +53,7 @@ export const healthPath: TutorialPath = {
       id: 3,
       title: "Organized Nutrition",
       description: "Keep your grocery list as healthy as your plan.",
-      page: "/shopping",
+      page: "/store",
       highlightSelector: "[data-tutorial='store-overview']",
       action: "highlight",
       substeps: [

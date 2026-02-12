@@ -53,7 +53,7 @@ export const budgetingPath: TutorialPath = {
       id: 3,
       title: "Retail Comparison",
       description: "Pick the best store for your specific list.",
-      page: "/shopping",
+      page: "/store",
       highlightSelector: "[data-tutorial='store-overview']",
       action: "highlight",
       substeps: [

@@ -167,7 +167,7 @@ function MealPlannerPageContent() {
         title: "Added to shopping list",
         description: `Added ${addedCount} recipes (${meals.length} meals) to cart.`,
       })
-      router.push("/shopping?expandList=true")
+      router.push("/store?expandList=true")
     } catch (error) {
       toast({ title: "Error", variant: "destructive" })
     }

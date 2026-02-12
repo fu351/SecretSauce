@@ -63,7 +63,7 @@ export function Header() {
   const pageTitles: Record<string, { title: string; subtext: string }> = {
     "/recipes": { title: "Recipes", subtext: "Discover and share amazing recipes" },
     "/meal-planner": { title: "Meal Planner", subtext: "Plan your weekly meals and track nutrition" },
-    "/shopping": { title: "Shopping", subtext: "Manage your grocery list" },
+    "/store": { title: "Shopping", subtext: "Manage your grocery list" },
     "/dashboard": { title: "Dashboard", subtext: "Your cooking overview" },
     "/settings": { title: "Settings", subtext: "Manage your account preferences" },
     "/pantry": { title: "My Pantry", subtext: "Keep track of your ingredients and reduce food waste" },
@@ -125,8 +125,8 @@ export function Header() {
               <Calendar className="h-5 w-5" />
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" className={navIconClass("/shopping")} asChild>
-            <Link href="/shopping" aria-label="Shopping">
+          <Button variant="ghost" size="icon" className={navIconClass("/store")} asChild>
+            <Link href="/store" aria-label="Shopping">
               <ShoppingCart className="h-5 w-5" />
             </Link>
           </Button>
@@ -182,9 +182,9 @@ export function Header() {
           Meal Planner
         </Link>
         <Link
-          href="/shopping"
+          href="/store"
           className={`hover:opacity-80 transition-opacity ${
-            pathname === "/shopping" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+            pathname === "/store" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
         >
           Shopping

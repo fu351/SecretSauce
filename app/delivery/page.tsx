@@ -104,10 +104,10 @@ export default function DeliveryPage() {
                       Start shopping to create your first delivery order
                     </p>
                     <Button
-                      onClick={() => router.push("/shopping")}
+                      onClick={() => router.push("/store")}
                       className={styles.buttonClass}
                     >
-                      Go to Shopping
+                      Go to Store
                     </Button>
                   </CardContent>
                 </Card>
