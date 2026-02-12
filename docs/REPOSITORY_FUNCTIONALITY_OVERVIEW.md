@@ -124,7 +124,7 @@ This document provides a broad, implementation-grounded map of what this reposit
 - User-preferred store resolution with RPC + zip fallback in `lib/store/user-preferred-stores.ts`.
 - Store scrapers for major chains in `lib/scrapers/*.js`.
 - Ingredient pipeline does cache-first retrieval and selective scraper refresh.
-- Target faceted value usage is driven by store metadata in `grocery_stores`.
+- Target scraper store routing is driven by `targetStoreId`/`store_id` metadata and ZIP fallback.
 
 ## API Surface (By Domain)
 

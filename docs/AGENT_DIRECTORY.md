@@ -24,8 +24,7 @@ It intentionally lists only active, non-redundant docs.
 | `docs/AUTH_GATES_COMPLETE_GUIDE.md` | Auth & Access | AuthGate/TierGate/ShowWhen usage patterns | High |
 | `docs/SUBSCRIPTION_QUICK_REFERENCE.md` | Auth & Access | Fast copy/paste API + hook usage | High |
 | `docs/AB_TESTING_GUIDE.md` | Experimentation | A/B architecture, targeting, events, experiment setup | High |
-| `docs/target-geospatial-integration.md` | Scraping & Geospatial | How Target scraper uses geospatial lookup + faceted value | High |
-| `docs/target-faceted-values.md` | Scraping & Geospatial | Manual faceted value setup flow | Medium |
+| `docs/target-geospatial-integration.md` | Scraping & Geospatial | How Target scraper uses geospatial lookup + Target store IDs | High |
 
 ## Removed Redundant Docs
 
@@ -35,6 +34,7 @@ The following files were removed as duplicates or overly verbose versions of cov
 - `docs/GEOSPATIAL_INTEGRATION_SUMMARY.md`
 - `docs/backfill-script-technical-details.md`
 - `docs/backfill-target-faceted-values.md`
+- `docs/target-faceted-values.md`
 
 ## Repository Map (Agent-Oriented)
 
@@ -59,7 +59,7 @@ The following files were removed as duplicates or overly verbose versions of cov
 - A/B testing changes:  
   Read `docs/AB_TESTING_GUIDE.md`, then inspect `app/dev/experiments/`, `app/dev/feature-flags/`, and `lib/dev/helpers.ts`.
 - Target pricing/geospatial/store matching:  
-  Read `docs/target-geospatial-integration.md`, then `docs/target-faceted-values.md`, then inspect `lib/scrapers/target.js` and related scripts in `scripts/`.
+  Read `docs/target-geospatial-integration.md`, then inspect `lib/scrapers/target.js`, `lib/database/grocery-stores-db.ts`, and related scripts in `scripts/`.
 
 ## Agent Checklist Before Shipping
 
