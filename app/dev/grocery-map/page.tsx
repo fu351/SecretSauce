@@ -1,5 +1,5 @@
 import StorePointMap, { type StorePoint } from "./store-map"
-import { createServerClient, type Database } from "lib/database/supabase"
+import { createServerClient, type Database } from "@/lib/database/supabase"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
