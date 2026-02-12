@@ -53,6 +53,8 @@ It intentionally lists only active, non-redundant docs.
   Read `docs/SUBSCRIPTION_QUICK_REFERENCE.md`, then inspect `hooks/use-subscription.ts` and `lib/auth/subscription.ts`.
 - Analytics/user behavior tracking:
   Read `docs/ANALYTICS_GUIDE.md`, then inspect `lib/analytics/`, `hooks/use-analytics.ts`, and `contexts/analytics-context.tsx`.
+  The analytics system uses the `ab_testing` schema with a reserved experiment (UUID `00000000-0000-0000-0000-000000000000`) for general tracking.
+  Client-side tracking goes through `public.track_event` RPC wrapper → `ab_testing.track_event` → `ab_testing.events` table.
 - A/B testing changes:
   Read `docs/AB_TESTING_GUIDE.md`, then inspect `app/dev/experiments/`, `app/dev/feature-flags/`, and `lib/dev/helpers.ts`.
 - Target pricing/geospatial/store matching:
