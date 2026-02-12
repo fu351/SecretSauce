@@ -59,7 +59,7 @@ export async function revokeAdminRole(userId: string, role: "admin" | "analyst" 
  */
 export async function updateUserTier(
   userId: string,
-  tier: "free" | "premium" | "enterprise",
+  tier: "free" | "premium",
   durationDays?: number
 ) {
   const supabase = createServerClient()
@@ -94,7 +94,7 @@ export async function updateUserTier(
 export async function createFeatureFlag(params: {
   name: string
   description?: string
-  targetTiers: ("free" | "premium" | "enterprise")[]
+  targetTiers: ("free" | "premium")[]
   targetAnonymous?: boolean
   config: Record<string, any>
   createdBy: string
@@ -146,7 +146,7 @@ export async function createFeatureFlag(params: {
 /**
  * Get all users with a specific subscription tier
  */
-export async function getUsersByTier(tier: "free" | "premium" | "enterprise") {
+export async function getUsersByTier(tier: "free" | "premium") {
   const supabase = createServerClient()
 
   const { data, error } = await supabase

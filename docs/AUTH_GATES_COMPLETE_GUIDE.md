@@ -1,5 +1,7 @@
 # Complete Authentication & Tier Gates Guide
 
+> Canonical tier model for agents: only `free` and `premium` are valid subscription tiers. Do not use `enterprise`.
+
 ## 🎯 All Available Components
 
 ### 1. `<ShowWhenLoggedIn>` - Show content only to logged-in users
@@ -231,14 +233,14 @@ export function Dashboard() {
 ### Run This Migration
 
 ```bash
-# Apply the migration to remove enterprise tier
+# Apply the migration to enforce the current two-tier model
 npx supabase db push
 ```
 
 This will:
-- Remove "enterprise" from the tier enum
+- Remove the legacy third tier from the enum
 - Keep only "free" and "premium"
-- Convert any existing enterprise users to premium
+- Convert any legacy-tier users to premium
 - Update all related tables
 
 ## 🎯 Available Tiers

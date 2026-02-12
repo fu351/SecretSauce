@@ -1160,7 +1160,7 @@ export type Database = {
       grocery_store: "aldi" | "kroger" | "safeway" | "meijer" | "target" | "traderjoes" | "99ranch" | "walmart" | "andronicos" | "wholefoods"
       unit_category: "weight" | "volume" | "count" | "other"
       unit_label: "oz" | "lb" | "fl oz" | "ml" | "gal" | "ct" | "each" | "bunch" | "gram" | "unit"
-      subscription_tier: "free" | "premium" | "enterprise"
+      subscription_tier: "free" | "premium"
       admin_role: "admin" | "analyst"
       experiment_status: "draft" | "scheduled" | "active" | "paused" | "completed" | "archived"
       allocation_method: "random" | "weighted" | "deterministic"

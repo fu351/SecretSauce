@@ -38,7 +38,8 @@ CLAUDE.md
 .vscode/*
 
 *.md
-!docs/AUTH_GATES_COMPLETE_GUIDE.md
+!docs/
+!docs/**
 .env*.local
 node_modules
 .DS_Store

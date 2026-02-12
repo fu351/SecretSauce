@@ -57,7 +57,7 @@ export default function NewExperimentPage() {
     }
   }
 
-  const tierOptions = ["free", "premium", "enterprise"]
+  const tierOptions = ["free", "premium"]
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">

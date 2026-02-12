@@ -205,7 +205,7 @@ export default async function FeatureFlagsPage() {
             <div>
               <strong>1. Create a feature flag as an experiment:</strong>
               <code className="ml-2 rounded bg-gray-100 px-2 py-1 text-xs">
-                target_user_tiers = ['premium', 'enterprise']
+                target_user_tiers = ['premium']
               </code>
             </div>
             <div>
