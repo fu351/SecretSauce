@@ -67,9 +67,12 @@ export default async function ExperimentsPage() {
               Manage experiments and view analytics
             </p>
           </div>
-          <button className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+          <Link
+            href="/dev/experiments/new"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          >
             + New Experiment
-          </button>
+          </Link>
         </div>
 
         {/* Experiments List */}
@@ -77,9 +80,12 @@ export default async function ExperimentsPage() {
           {experiments.length === 0 ? (
             <div className="rounded-lg bg-white p-12 text-center shadow">
               <p className="text-gray-500">No experiments yet</p>
-              <button className="mt-4 text-blue-600 hover:text-blue-700">
+              <Link
+                href="/dev/experiments/new"
+                className="mt-4 inline-block text-blue-600 hover:text-blue-700"
+              >
                 Create your first experiment
-              </button>
+              </Link>
             </div>
           ) : (
             experiments.map((experiment) => (
