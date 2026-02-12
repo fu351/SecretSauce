@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import {
   ShoppingCart,
   Sparkles,
+  Lock,
   Loader2,
   CalendarDays,
   ChevronLeft,
@@ -14,22 +15,28 @@ import { useIsMobile } from "@/hooks"
 
 interface PlannerActionsProps {
   onHeuristicPlan: () => void
+  onUpgradeForSmartPlanner: () => void
   onAddToCart: () => void
   onGoToToday: () => void
   onPreviousWeek: () => void
   onNextWeek: () => void
   onClearWeek: () => void
   heuristicLoading: boolean
+  smartPlannerLocked: boolean
+  smartPlannerLoading: boolean
 }
 
 export function PlannerActions({
   onHeuristicPlan,
+  onUpgradeForSmartPlanner,
   onAddToCart,
   onGoToToday,
   onPreviousWeek,
   onNextWeek,
   onClearWeek,
   heuristicLoading,
+  smartPlannerLocked,
+  smartPlannerLoading,
 }: PlannerActionsProps) {
   const isMobile = useIsMobile()
 
@@ -69,17 +76,24 @@ export function PlannerActions({
         </div>
         <Button
           className="shrink-0 h-8 w-8 md:h-10 md:w-auto md:px-3 md:px-4 md:max-w-[220px] text-sm !bg-gradient-to-r !from-purple-600 !to-blue-600 !text-white hover:!from-purple-700 hover:!to-blue-700 shadow-sm"
-          onClick={onHeuristicPlan}
-          disabled={heuristicLoading}
+          onClick={smartPlannerLocked ? onUpgradeForSmartPlanner : onHeuristicPlan}
+          disabled={heuristicLoading || smartPlannerLoading}
           data-tutorial="planner-smart"
-          aria-label={isMobile ? "Smart Plan" : undefined}
+          aria-label={isMobile ? (smartPlannerLocked ? "Smart Plan Premium Locked" : "Smart Plan") : undefined}
+          title={smartPlannerLocked ? "Premium feature" : undefined}
         >
-          {heuristicLoading ? (
+          {smartPlannerLoading ? (
             <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2 shrink-0 animate-spin" />
+          ) : heuristicLoading ? (
+            <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2 shrink-0 animate-spin" />
+          ) : smartPlannerLocked ? (
+            <Lock className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2 shrink-0" />
           ) : (
             <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2 shrink-0" />
           )}
-          <span className="hidden md:inline truncate">Smart Weekly Planner</span>
+          <span className="hidden md:inline truncate">
+            {smartPlannerLocked ? "Smart Weekly Planner (Premium)" : "Smart Weekly Planner"}
+          </span>
         </Button>
         <Button
           size={isMobile ? "icon" : "default"}

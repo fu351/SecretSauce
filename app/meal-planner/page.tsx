@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, memo } from "react"
 import dynamic from "next/dynamic"
 import { useAuth } from "@/contexts/auth-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
+import { useHasAccess } from "@/hooks/use-subscription"
 import { useRouter } from "next/navigation"
 import {
   useMealPlannerRecipes,
@@ -69,6 +70,7 @@ function MealPlannerPageContent() {
   const { toast } = useToast()
   const shoppingList = useShoppingList()
   const router = useRouter()
+  const { hasAccess: hasSmartPlannerAccess, loading: smartPlannerAccessLoading } = useHasAccess("premium")
 
   // State
   const [focusMode, setFocusMode] = useState<{ date: string; mealType: string } | null>(null)
@@ -173,6 +175,14 @@ function MealPlannerPageContent() {
 
   const handleGenerateHeuristicPlan = useCallback(async () => {
     if (!user?.id) return
+    if (!hasSmartPlannerAccess) {
+      toast({
+        title: "Premium feature",
+        description: "Upgrade to Premium to use Smart Weekly Planner.",
+      })
+      router.push("/pricing?required=premium")
+      return
+    }
     setHeuristicPlanLoading(true)
 
     try {
@@ -215,7 +225,15 @@ function MealPlannerPageContent() {
     } finally {
       setHeuristicPlanLoading(false)
     }
-  }, [user?.id, weekIndex, addToMealPlan, reloadWeeklyPlan, toast])
+  }, [user?.id, hasSmartPlannerAccess, weekIndex, addToMealPlan, reloadWeeklyPlan, toast, router])
+
+  const handleUpgradeForSmartPlanner = useCallback(() => {
+    toast({
+      title: "Premium feature",
+      description: "Upgrade to Premium to use Smart Weekly Planner.",
+    })
+    router.push("/pricing?required=premium")
+  }, [toast, router])
 
   const handleClearWeek = useCallback(async () => {
     if (!user) return
@@ -333,12 +351,15 @@ function MealPlannerPageContent() {
                 <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
                 <PlannerActions
                   onHeuristicPlan={handleGenerateHeuristicPlan}
+                  onUpgradeForSmartPlanner={handleUpgradeForSmartPlanner}
                   onAddToCart={handleAddToShoppingList}
                   onGoToToday={handleGoToToday}
                   onPreviousWeek={handlePreviousWeek}
                   onNextWeek={handleNextWeek}
                   onClearWeek={handleClearWeek}
                   heuristicLoading={heuristicPlanLoading}
+                  smartPlannerLocked={!hasSmartPlannerAccess}
+                  smartPlannerLoading={smartPlannerAccessLoading}
                 />
                 </div>
               </div>
