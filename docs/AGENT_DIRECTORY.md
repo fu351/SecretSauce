@@ -26,16 +26,6 @@ It intentionally lists only active, non-redundant docs.
 | `docs/AB_TESTING_GUIDE.md` | Experimentation | A/B architecture, targeting, events, experiment setup | High |
 | `docs/target-geospatial-integration.md` | Scraping & Geospatial | How Target scraper uses geospatial lookup + Target store IDs | High |
 
-## Removed Redundant Docs
-
-The following files were removed as duplicates or overly verbose versions of covered material:
-- `docs/SUBSCRIPTION_GUIDE.md`
-- `docs/TIER_CHANGES_SUMMARY.md`
-- `docs/GEOSPATIAL_INTEGRATION_SUMMARY.md`
-- `docs/backfill-script-technical-details.md`
-- `docs/backfill-target-faceted-values.md`
-- `docs/target-faceted-values.md`
-
 ## Repository Map (Agent-Oriented)
 
 - `app/`: Next.js routes (UI pages + API routes).
