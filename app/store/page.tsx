@@ -50,6 +50,7 @@ export default function ShoppingReceiptPage() {
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
   const [zipCode, setZipCode] = useState("")
+  const [zipReady, setZipReady] = useState(false)
   const [reloadModalOpen, setReloadModalOpen] = useState(false)
   const [reloadTarget, setReloadTarget] = useState<{
     term: string
@@ -102,15 +103,22 @@ export default function ShoppingReceiptPage() {
         }
       } catch (error) {
         console.error("Failed to load user zip:", error)
+      } finally {
+        setZipReady(true)
       }
     }
+    if (!user) {
+      setZipReady(true)
+      return
+    }
+    setZipReady(false)
     loadUserZip()
   }, [user])
 
   // Auto-run comparison on load and when non-quantity list inputs change.
-  // Quantity updates should stay local and should not trigger scrapers.
+  // Keep this cache-only; explicit refresh triggers scraper activation.
   useEffect(() => {
-    if (!mounted || listLoading) return
+    if (!mounted || !zipReady || listLoading) return
     if (shoppingList.length === 0) {
       previousListSignaturesRef.current = null
       return
@@ -146,7 +154,7 @@ export default function ShoppingReceiptPage() {
     const runAutoCompare = async () => {
       await saveChanges()
       if (cancelled) return
-      await performMassSearch({ showCachedFirst: true })
+      await performMassSearch({ showCachedFirst: true, skipPricingGaps: true })
     }
 
     void runAutoCompare()
@@ -156,6 +164,7 @@ export default function ShoppingReceiptPage() {
     }
   }, [
     mounted,
+    zipReady,
     listLoading,
     shoppingList.length,
     listIdentitySignature,
@@ -180,7 +189,7 @@ export default function ShoppingReceiptPage() {
 
   const handleRefresh = useCallback(async () => {
     await saveChanges()
-    await performMassSearch({ showCachedFirst: true })
+    await performMassSearch({ showCachedFirst: true, skipPricingGaps: false })
   }, [saveChanges, performMassSearch])
 
   const handleMobileAddItem = useCallback(async (name: string) => {
@@ -367,6 +376,7 @@ export default function ShoppingReceiptPage() {
                 onCheckout={handleCheckout}
                 onRefresh={handleRefresh}
                 loading={listLoading || comparisonLoading || (shoppingList.length > 0 && !comparisonFetched)}
+                isStale={comparisonFetched}
                 error={null}
                 userPostalCode={zipCode}
                 theme={styles.theme}
