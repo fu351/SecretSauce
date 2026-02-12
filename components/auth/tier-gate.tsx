@@ -2,6 +2,7 @@
 
 import { useHasAccess, SubscriptionTier } from "@/hooks/use-subscription"
 import { useAuth } from "@/contexts/auth-context"
+import { useAnalytics } from "@/hooks/use-analytics"
 import Link from "next/link"
 import { Lock, Loader2, LogIn } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -25,6 +26,17 @@ export function TierGate({
 }: TierGateProps) {
   const { user } = useAuth()
   const { hasAccess, loading } = useHasAccess(requiredTier)
+  const { trackEvent } = useAnalytics()
+
+  // Track when tier gate blocks access
+  useEffect(() => {
+    if (!loading && !hasAccess) {
+      trackEvent("tier_gate_shown", {
+        required_tier: requiredTier,
+        page_url: window.location.pathname,
+      })
+    }
+  }, [loading, hasAccess, requiredTier, trackEvent])
 
   if (loading) {
     return (
@@ -87,6 +99,8 @@ function FullPageGateShell({ children }: { children: React.ReactNode }) {
  * Paywall component shown when user lacks required tier
  */
 function Paywall({ requiredTier }: { requiredTier: SubscriptionTier }) {
+  const { trackEvent } = useAnalytics()
+
   const tierNames: Record<SubscriptionTier, string> = {
     free: "Free",
     premium: "Premium",
@@ -95,6 +109,13 @@ function Paywall({ requiredTier }: { requiredTier: SubscriptionTier }) {
   const tierDescriptions: Record<SubscriptionTier, string> = {
     free: "Create an account to access this feature",
     premium: "Upgrade to Premium to unlock this feature",
+  }
+
+  const handleUpgradeClick = () => {
+    trackEvent("upgrade_button_clicked", {
+      source: "tier_gate",
+      required_tier: requiredTier,
+    })
   }
 
   return (
@@ -125,6 +146,7 @@ function Paywall({ requiredTier }: { requiredTier: SubscriptionTier }) {
           </p>
           <Link
             href={`/pricing?required=${requiredTier}`}
+            onClick={handleUpgradeClick}
             className="inline-flex items-center rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Upgrade to {tierNames[requiredTier]}
@@ -139,6 +161,14 @@ function Paywall({ requiredTier }: { requiredTier: SubscriptionTier }) {
  * Sign-in prompt for unauthenticated users
  */
 function SignInPrompt() {
+  const { trackEvent } = useAnalytics()
+
+  const handleSignInClick = () => {
+    trackEvent("signin_button_clicked", {
+      source: "auth_gate",
+    })
+  }
+
   return (
     <FullPageGateShell>
       <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card p-8 text-center md:p-12">
@@ -167,6 +197,7 @@ function SignInPrompt() {
           </p>
           <Link
             href="/auth/signin"
+            onClick={handleSignInClick}
             className="inline-flex items-center rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Sign In
@@ -189,6 +220,16 @@ export function AuthGate({
   fallback?: React.ReactNode
 }) {
   const { user, loading } = useAuth()
+  const { trackEvent } = useAnalytics()
+
+  // Track when auth gate blocks access
+  useEffect(() => {
+    if (!loading && !user) {
+      trackEvent("auth_gate_shown", {
+        page_url: window.location.pathname,
+      })
+    }
+  }, [loading, user, trackEvent])
 
   if (loading) {
     return (
