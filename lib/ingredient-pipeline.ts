@@ -1,6 +1,7 @@
 import { type Database } from "./database/supabase"
 import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "./database/ingredients-db"
+import { normalizeScraperResults, type ScraperResult } from "./scrapers/types"
 import { normalizeZipCode } from "./utils/zip"
 import type { StoreMetadataMap } from "./utils/store-metadata"
 
@@ -19,44 +20,6 @@ export type {
   StoreMetadata,
   StoreMetadataMap
 } from "@/lib/utils/store-metadata"
-
-/**
- * Raw scraper result format
- * Scrapers return product data without context like zipCode (comes from database)
- */
-type ScraperResult = {
-  /** Primary product name - all scrapers should use this field */
-  product_name?: string
-
-  /** Product price */
-  price: number
-
-  /** Product image URL */
-  image_url?: string | null
-
-  /** Store's internal product ID */
-  product_id?: string | null
-
-  /** @deprecated Legacy field - use product_id instead */
-  id?: string | number | null
-
-  /** @deprecated Legacy field - use product_name instead */
-  title?: string
-}
-
-function getScraperProductName(product: ScraperResult): string | null {
-  const value = product.product_name ?? product.title ?? null
-  if (!value) return null
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : null
-}
-
-function getScraperProductId(product: ScraperResult): string | null {
-  const value = product.product_id ?? product.id ?? null
-  if (value === null || value === undefined) return null
-  const trimmed = String(value).trim()
-  return trimmed.length > 0 ? trimmed : null
-}
 
 type StoreLookupOptions = {
   zipCode?: string | null
@@ -79,7 +42,7 @@ async function runStoreScraper(
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const scrapers = require("./scrapers");
 
-    type ScraperFunction = (query: string, zip?: string | null) => Promise<ScraperResult[] | any>;
+    type ScraperFunction = (query: string, zip?: string | null) => Promise<unknown>;
 
     const scraperMap: Record<string, ScraperFunction> = {
       walmart: scrapers.searchWalmartAPI,
@@ -102,22 +65,31 @@ async function runStoreScraper(
       return [];
     }
 
-    const results = await scraper(canonicalName, zip);
+    const rawResults = await scraper(canonicalName, zip);
 
-    if (!results) {
+    if (!rawResults) {
       console.warn("[ingredient-pipeline] Scraper returned no results", { store: normalizedStore, canonicalName, zip });
       return [];
     }
-    if (Array.isArray(results)) {
-      console.log("[ingredient-pipeline] Scraper results", { store: normalizedStore, count: results.length });
-      return results;
+
+    const rawItems = Array.isArray(rawResults)
+      ? rawResults
+      : rawResults && typeof rawResults === "object" && Array.isArray((rawResults as any).items)
+        ? (rawResults as any).items
+        : null
+
+    if (!rawItems) {
+      console.warn("[ingredient-pipeline] Scraper results not in expected format", { store: normalizedStore, canonicalName, zip });
+      return []
     }
-    if (results?.items && Array.isArray(results.items)) {
-      console.log("[ingredient-pipeline] Scraper results (items field)", { store: normalizedStore, count: results.items.length });
-      return results.items;
-    }
-    console.warn("[ingredient-pipeline] Scraper results not in expected format", { store: normalizedStore, canonicalName, zip });
-    return [];
+
+    const normalizedResults = normalizeScraperResults(rawItems)
+    console.log("[ingredient-pipeline] Scraper results", {
+      store: normalizedStore,
+      rawCount: rawItems.length,
+      normalizedCount: normalizedResults.length,
+    })
+    return normalizedResults
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
@@ -207,8 +179,6 @@ export async function getOrRefreshIngredientPricesForStores(
     const bestProduct = pickBestScrapedProduct(scraped)
 
     if (!bestProduct) return null
-    const productName = getScraperProductName(bestProduct)
-    if (!productName) return null
 
     const storeMeta = normalizedOptions.storeMetadata?.get(store)
     const resolvedStoreId = storeMeta?.storeId ?? storeMeta?.grocery_store_id ?? null
@@ -219,8 +189,8 @@ export async function getOrRefreshIngredientPricesForStores(
       store,
       price: Number(bestProduct.price) || 0,
       imageUrl: bestProduct.image_url,
-      productName,
-      productId: getScraperProductId(bestProduct),
+      productName: bestProduct.product_name,
+      productId: bestProduct.product_id ?? null,
       zipCode: storeZip,
       groceryStoreId: storeMeta?.grocery_store_id ?? resolvedStoreId,
     }

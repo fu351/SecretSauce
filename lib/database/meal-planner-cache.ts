@@ -13,7 +13,6 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 class MealPlannerCache {
   private mealScheduleCache = new Map<string, CacheEntry<MealScheduleRow[]>>()
   private recipesCache = new Map<string, CacheEntry<Recipe[]>>()
-  private favoriteRecipesCache = new Map<string, CacheEntry<Recipe[]>>()
   private suggestedRecipesCache: CacheEntry<Recipe[]> | null = null
 
   /**
@@ -122,33 +121,6 @@ class MealPlannerCache {
   }
 
   /**
-   * Get or set favorite recipes cache
-   */
-  getFavoriteRecipesCache(userId: string): Recipe[] | null {
-    const cached = this.favoriteRecipesCache.get(userId)
-
-    if (cached && this.isValid(cached)) {
-      return cached.data
-    }
-
-    return null
-  }
-
-  /**
-   * Set favorite recipes cache
-   */
-  setFavoriteRecipesCache(userId: string, data: Recipe[]): void {
-    const now = Date.now()
-
-    this.favoriteRecipesCache.set(userId, {
-      data,
-      timestamp: now,
-      expiresAt: now + CACHE_DURATION,
-    })
-
-  }
-
-  /**
    * Get or set suggested recipes cache
    */
   getSuggestedRecipesCache(): Recipe[] | null {
@@ -179,7 +151,6 @@ class MealPlannerCache {
   clearAll(): void {
     this.mealScheduleCache.clear()
     this.recipesCache.clear()
-    this.favoriteRecipesCache.clear()
     this.suggestedRecipesCache = null
   }
 }
