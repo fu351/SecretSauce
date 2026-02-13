@@ -7,6 +7,7 @@ import { supabase } from "@/lib/database/supabase"
 
 export default function NewExperimentPage() {
   const router = useRouter()
+  const createdByUserId = process.env.NEXT_PUBLIC_DEV_EXPERIMENT_CREATED_BY_UUID
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
@@ -30,6 +31,10 @@ export default function NewExperimentPage() {
         alert("You must be logged in to create an experiment")
         return
       }
+      if (!createdByUserId) {
+        alert("Missing NEXT_PUBLIC_DEV_EXPERIMENT_CREATED_BY_UUID in environment")
+        return
+      }
 
       // Create experiment via RPC or direct insert
       // For now, we'll use a simple approach - you can enhance this later
@@ -40,7 +45,7 @@ export default function NewExperimentPage() {
         p_target_user_tiers: formData.target_user_tiers.length > 0 ? formData.target_user_tiers : null,
         p_target_anonymous: formData.target_anonymous,
         p_traffic_percentage: formData.traffic_percentage,
-        p_created_by: user.id,
+        p_created_by: createdByUserId,
       })
 
       if (error) {

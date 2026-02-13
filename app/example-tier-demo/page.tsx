@@ -74,7 +74,7 @@ export default async function TierDemoPage() {
                 🎉 You have premium access!
               </p>
               <p className="text-orange-700 text-sm mt-2">
-                This content is only visible to Premium and Enterprise users.
+                This content is only visible to Premium users.
               </p>
             </div>
           </TierGate>

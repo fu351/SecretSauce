@@ -66,7 +66,7 @@ export default async function FeatureFlagsPage() {
                 Premium users get advanced filtering options
               </p>
               <div className="mt-2 text-xs text-gray-500">
-                Target: Premium, Enterprise
+                Target: Premium
               </div>
             </div>
             <div className="rounded bg-white p-4">
@@ -74,7 +74,7 @@ export default async function FeatureFlagsPage() {
               <p className="mt-1 text-sm text-gray-600">
                 AI-powered weekly meal plans
               </p>
-              <div className="mt-2 text-xs text-gray-500">Target: Premium+</div>
+              <div className="mt-2 text-xs text-gray-500">Target: Premium</div>
             </div>
             <div className="rounded bg-white p-4">
               <h3 className="font-medium text-gray-900">Unlimited Favorites</h3>
