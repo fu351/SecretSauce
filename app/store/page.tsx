@@ -303,7 +303,7 @@ export default function ShoppingReceiptPage() {
                   <label className={`text-sm font-medium mb-2 block ${styles.textClass}`}>
                     Add Custom Item
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" data-tutorial="store-add">
                     <input
                       type="text"
                       placeholder="Item name..."

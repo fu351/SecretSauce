@@ -239,6 +239,7 @@ export function ReceiptItem({
                   type="button"
                   onClick={() => onSwap(item.id)}
                   className="h-7 px-2 text-[11px]"
+                  data-tutorial="store-replace"
                 >
                   <ArrowLeftRight className="h-3 w-3" />
                   <span className="hidden sm:inline ml-1">Replace</span>

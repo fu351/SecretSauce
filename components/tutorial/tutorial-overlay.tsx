@@ -220,7 +220,13 @@ export function TutorialOverlay() {
       return;
     }
 
-    const element = document.querySelector(selector) as HTMLElement;
+    const candidates = Array.from(document.querySelectorAll(selector)) as HTMLElement[]
+    const element = candidates.find((candidate) => {
+      const style = window.getComputedStyle(candidate)
+      if (style.display === "none" || style.visibility === "hidden") return false
+      const rect = candidate.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    }) || candidates[0] || null
 
     if (!element) {
       // Retry Logic: Try to find the element again with exponential backoff

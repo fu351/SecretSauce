@@ -11,7 +11,6 @@ It intentionally lists only active, non-redundant docs.
 
 ## Canonical Product Truths
 
-- Subscription tiers are only `free` and `premium`.
 - Primary source for tier policy: `docs/AGENT_CANONICAL_CONTEXT.md`.
 
 ## Docs Catalog (Key Files In `/docs`)
@@ -24,6 +23,7 @@ It intentionally lists only active, non-redundant docs.
 | `docs/SUBSCRIPTION_QUICK_REFERENCE.md` | Auth & Access | Fast copy/paste API + hook usage | High |
 | `docs/ANALYTICS_GUIDE.md` | Analytics & Tracking | User behavior tracking, event definitions, analytics API | High |
 | `docs/AB_TESTING_GUIDE.md` | Experimentation | A/B architecture, targeting, events, experiment setup | High |
+| `docs/TUTORIAL_CURRENT_STATE.md` | Tutorials & Onboarding | Canonical tutorial flow, selector map, and roadmap | High |
 | `docs/target-geospatial-integration.md` | Scraping & Geospatial | How Target scraper uses geospatial lookup + Target store IDs | High |
 | `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md` | Queue Processing | Real-time ingredient queue migration plan (local LLM + worker + rollout) | High |
 | `docs/PROMPT_MAINTENANCE_GUIDE.md` | Prompting | Where to update ingredient/unit queue prompts and rollout flags | High |
@@ -33,12 +33,14 @@ It intentionally lists only active, non-redundant docs.
 - `app/`: Next.js routes (UI pages + API routes).
 - `components/`: UI components. Auth gates live in `components/auth/tier-gate.tsx`.
 - `hooks/`: Client logic/hooks. Tier hooks live in `hooks/use-subscription.ts`, analytics in `hooks/use-analytics.ts`.
-- `contexts/`: React contexts. Auth in `contexts/auth-context.tsx`, analytics in `contexts/analytics-context.tsx`.
+- `contexts/`: React contexts. Auth in `contexts/auth-context.tsx`, analytics in `contexts/analytics-context.tsx`, tutorials in `contexts/tutorial-context.tsx`.
 - `lib/`: Core logic and data access.
 - `lib/auth/subscription.ts`: Server-side auth/tier enforcement.
 - `lib/analytics/`: Analytics tracking system (event types, queue, session management).
 - `lib/scrapers/target.js`: Target scraper logic.
 - `lib/database/`: Supabase data layer + typed access. Analytics DB in `lib/database/analytics-db.ts`.
+- `contents/tutorials/`: Tutorial path definitions and per-step selector targets.
+- `components/tutorial/`: Tutorial overlay runtime and highlight behavior.
 - `scripts/`: Backfills, validations, and data maintenance scripts.
 - `supabase/` and `migrations/`: Database migrations and schema evolution.
   - `migrations/create-get-user-tier-function.sql`: Helper function to retrieve user subscription tier.
@@ -58,6 +60,8 @@ It intentionally lists only active, non-redundant docs.
   For analytics migration identifiers and wrapper details, use the `migrations/` entries listed above.
 - A/B testing changes:
   Read `docs/AB_TESTING_GUIDE.md`, then inspect `app/dev/experiments/`, `app/dev/feature-flags/`, and `lib/dev/helpers.ts`.
+- Tutorial/onboarding behavior:
+  Read `docs/TUTORIAL_CURRENT_STATE.md`, then inspect `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/`, and active route anchors in `app/meal-planner/page.tsx` and `components/store/shopping-receipt-view.tsx`.
 - Target pricing/geospatial/store matching:
   Read `docs/target-geospatial-integration.md`, then inspect `lib/scrapers/target.js`, `lib/database/grocery-stores-db.ts`, and related scripts in `scripts/`.
 - Ingredient queue real-time migration:

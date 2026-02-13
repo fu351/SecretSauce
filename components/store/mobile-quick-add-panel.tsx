@@ -200,6 +200,7 @@ export function MobileQuickAddPanel({
                 : "border-gray-300 bg-gray-50 text-gray-700"
             }`}
             aria-label="Open recipe suggestions"
+            data-tutorial="store-add-recipe"
           >
             <Plus className="h-6 w-6" />
             <p className="text-[10px] font-semibold">Add Recipe</p>
@@ -207,7 +208,7 @@ export function MobileQuickAddPanel({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-tutorial="store-add">
         <div className="relative flex-1">
           <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${mutedTextClass}`} />
           <Input

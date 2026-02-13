@@ -165,7 +165,7 @@ export function StoreSelector({
   // Mobile view: Select dropdown
   if (isMobile) {
     return (
-      <div className={`w-full ${className}`}>
+      <div className={`w-full ${className}`} data-tutorial="store-selector">
         <Select
           value={selectedStore || stores[0]?.store}
           onValueChange={(value) => onStoreChange(value === "best-overall" ? null : value)}
@@ -266,7 +266,7 @@ export function StoreSelector({
 
   // Desktop view: Horizontal carousel
   return (
-    <div className={`w-full ${className}`}>
+    <div className={`w-full ${className}`} data-tutorial="store-selector">
       <div className="relative">
         <div
           ref={scrollContainerRef}

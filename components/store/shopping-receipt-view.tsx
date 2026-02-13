@@ -172,7 +172,7 @@ export function ShoppingReceiptView({
   }
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <div className={`flex flex-col h-full ${className}`} data-tutorial="store-overview">
       {/* Store Selector - Sticky Header */}
       <div className={`sticky top-0 z-10 ${
         theme === 'dark' ? 'bg-[#181813]' : 'bg-gray-50'
@@ -192,6 +192,7 @@ export function ShoppingReceiptView({
               onClick={onRefresh}
               disabled={loading}
               className="text-xs"
+              data-tutorial="store-refresh"
             >
               {loading ? (
                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -221,6 +222,7 @@ export function ShoppingReceiptView({
                 aria-label={showMap ? "Hide store map" : "Show store map"}
                 title={showMap ? "Hide map" : "Show map"}
                 className="h-14 w-14 md:h-auto md:self-stretch md:min-h-14 flex-shrink-0"
+                data-tutorial="store-map-toggle"
               >
                 {showMap ? <List className="h-5 w-5" /> : <MapIcon className="h-5 w-5" />}
               </Button>
@@ -229,7 +231,7 @@ export function ShoppingReceiptView({
             {showMap && (
               <div className={`mt-3 rounded-lg overflow-hidden border ${
                 theme === "dark" ? "border-white/10 bg-[#1f1e1a]" : "border-gray-200 bg-white"
-              }`}>
+              }`} data-tutorial="store-map">
                 <StoreMap
                   comparisons={storeComparisonsWithLocalTotals}
                   onStoreSelected={handleMapStoreSelect}
@@ -273,7 +275,7 @@ export function ShoppingReceiptView({
                 <p className="text-sm text-muted-foreground">Loading your shopping list...</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100 dark:divide-white/5">
+              <div className="divide-y divide-gray-100 dark:divide-white/5" data-tutorial="store-items">
                 {orderedShoppingList.map((item) => (
                   <ReceiptItem
                     key={item.id}
@@ -290,7 +292,7 @@ export function ShoppingReceiptView({
 
             {/* Missing Items Notice */}
             {missingCount > 0 && !loading && (
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border-t border-amber-200 dark:border-amber-800/30">
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border-t border-amber-200 dark:border-amber-800/30" data-tutorial="store-missing">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
                   <div>
@@ -323,7 +325,7 @@ export function ShoppingReceiptView({
         </div>
 
         {/* Total */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4" data-tutorial="store-total">
           <span className={`text-base font-bold ${
             theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'
           }`}>
@@ -342,6 +344,7 @@ export function ShoppingReceiptView({
             onClick={onCheckout}
             disabled={shoppingList.length === 0 || loading}
             className="w-full h-12 text-base font-semibold"
+            data-tutorial="store-checkout"
           >
             {loading ? (
               <>

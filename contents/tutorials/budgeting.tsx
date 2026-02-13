@@ -44,7 +44,7 @@ export const budgetingPath: TutorialPath = {
         {
           id: 2,
           instruction: "Generate a plan optimized specifically for low local prices.",
-          highlightSelector: "[data-tutorial='planner-ai']",
+          highlightSelector: "[data-tutorial='planner-smart']",
           action: "highlight",
         }
       ]
@@ -72,7 +72,7 @@ export const budgetingPath: TutorialPath = {
         {
           id: 3,
           instruction: "Compare the total cost of your items across different local stores.",
-          highlightSelector: "[data-tutorial='store-compare']",
+          highlightSelector: "[data-tutorial='store-selector']",
           action: "highlight",
         }
       ]

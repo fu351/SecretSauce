@@ -365,7 +365,7 @@ function MealPlannerPageContent() {
               </div>
 
               {/* Weekly Grid - horizontal scroll on mobile, grid on desktop */}
-              <div className="mb-3 md:mb-6 [content-visibility:auto] contain-intrinsic-size-[1000px]">
+              <div className="mb-3 md:mb-6 [content-visibility:auto] contain-intrinsic-size-[1000px]" data-tutorial="planner-overview">
                 <MemoizedWeeklyView
                   weekIndex={weekIndex}
                   meals={meals}
@@ -399,6 +399,7 @@ function MealPlannerPageContent() {
               "hidden md:flex flex-col bg-background border-l border-border transition-[width] duration-300 ease-in-out overflow-hidden h-full",
               showRecipeSidebar ? "w-[380px]" : "w-0"
             )}
+            data-tutorial="planner-sidebar"
             style={{ contain: 'layout paint size' }}
           >
             {showRecipeSidebar && (

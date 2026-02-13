@@ -38,7 +38,7 @@ export const healthPath: TutorialPath = {
         {
           id: 2,
           instruction: "Let the AI recommend a week of meals based on your health goals.",
-          highlightSelector: "[data-tutorial='planner-ai']",
+          highlightSelector: "[data-tutorial='planner-smart']",
           action: "highlight",
         },
         {
@@ -65,8 +65,8 @@ export const healthPath: TutorialPath = {
         },
         {
           id: 2,
-          instruction: "Group your ingredients by recipe to stay organized in the aisles.",
-          highlightSelector: "[data-tutorial='store-sort']",
+          instruction: "Switch stores to review availability and nutrition-friendly options before checkout.",
+          highlightSelector: "[data-tutorial='store-selector']",
           action: "highlight",
         }
       ]

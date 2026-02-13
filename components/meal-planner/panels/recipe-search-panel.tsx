@@ -134,7 +134,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   }, [])
 
   return (
-    <div className="flex flex-col h-full bg-card overflow-hidden">
+    <div className="flex flex-col h-full bg-card overflow-hidden" data-tutorial="planner-sidebar">
       <div className="flex flex-col bg-card/80 backdrop-blur-md sticky top-0 z-10 border-b border-border">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
