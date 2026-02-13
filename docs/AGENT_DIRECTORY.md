@@ -1,5 +1,8 @@
 # Agent Directory
 
+Owner: Application Engineering  
+Last reviewed: 2026-02-13
+
 ## Purpose
 
 Quick routing for agents: which docs and code to read first for each change. Please update to keep consistency for future agents.
@@ -32,11 +35,12 @@ Quick routing for agents: which docs and code to read first for each change. Ple
 | Tutorial and onboarding | `docs/TUTORIAL_CURRENT_STATE.md` | `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/` |
 | Ingredient queue worker and prompts | `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`, `docs/PROMPT_MAINTENANCE_GUIDE.md` | `queue/`, `scripts/resolve-ingredient-match-queue.ts`, `lib/ingredient-standardizer.ts`, `lib/unit-standardizer.ts`, `lib/database/ingredient-match-queue-db.ts` |
 | Scraper implementation and runtime behavior | `docs/SCRAPERS_DIRECTORY.md` | `lib/scrapers/`, `lib/ingredient-pipeline.ts`, `app/api/grocery-search/route.ts`, `scripts/daily-scraper.js` |
+| API routes, request contracts, and endpoint ownership | `docs/API_ENTRYPOINTS_DIRECTORY.md` | `app/api/`, `lib/ingredient-pipeline.ts`, `lib/database/`, `lib/store/` |
 | Database schema/functions | `docs/DATABASE_GUIDE.md` | `lib/database/`, `supabase/migrations/`, `migrations/` |
 | Operational scripts and maintenance workflows | `docs/SCRIPTS_DIRECTORY.md` | `scripts/`, `.github/workflows/` |
 | GitHub Actions orchestration and runbooks | `docs/WORKFLOWS_DIRECTORY.md` | `.github/workflows/`, reusable workflow call graph |
 
-## Docs Catalog (All Files Under `/docs`)
+## Key Docs
 
 - `docs/REPOSITORY_FUNCTIONALITY_OVERVIEW.md`: full repository and subsystem map.
 - `docs/AGENT_CANONICAL_CONTEXT.md`: canonical tier and guardrail policy.
@@ -49,17 +53,13 @@ Quick routing for agents: which docs and code to read first for each change. Ple
 - `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`: queue migration plan and rollout state.
 - `docs/PROMPT_MAINTENANCE_GUIDE.md`: queue prompt files, contracts, rollout flags.
 - `docs/SCRAPERS_DIRECTORY.md`: scraper inventory, runtime behavior, and diagnostics.
+- `docs/API_ENTRYPOINTS_DIRECTORY.md`: API route inventory, contracts, auth notes, and dependencies.
 - `docs/DATABASE_GUIDE.md`: practical Supabase schema, functions, triggers.
 - `docs/SCRIPTS_DIRECTORY.md`: script routing, operational commands, and workflow mapping.
 - `docs/WORKFLOWS_DIRECTORY.md`: workflow triggers, composition graph, and operational workflow map.
+- `docs/ROADMAP.md`: planned work and active future initiatives.
 
 ## Current State Notes
 
 - Tutorial system status and roadmap are actively tracked in `docs/TUTORIAL_CURRENT_STATE.md` (last updated `2026-02-13`).
 - Queue runtime is partially migrated to `queue/`; nightly workflow remains fallback until full cutover (`docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`).
-
-## Future Plans
-- Shift scraper related files into own directory for simplicity
-- Utilize analytical logging to create charts for premium users
-- Fix store page not displaying and merging items (database side)
-- Implement Stripe and Clerk (currently on another branch)
