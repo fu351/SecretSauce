@@ -155,7 +155,6 @@ This document provides a broad, implementation-grounded map of what this reposit
 - `POST /api/grocery-search/cache-selection`
 - `POST /api/shopping/comparison`
 - `GET /api/recipe-pricing`
-- `GET|POST /api/daily-scraper`
 - `GET|POST /api/batch-scraper`
 
 ## Recipe Import And Parsing

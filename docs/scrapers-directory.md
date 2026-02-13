@@ -27,7 +27,6 @@ Quick routing for `lib/scrapers/`: scraper entry points, store coverage, runtime
   - `scripts/daily-scraper.js`
   - `lib/ingredient-pipeline.ts`
   - `app/api/grocery-search/route.ts`
-  - `app/api/daily-scraper/route.ts` (legacy route path)
 
 ## Result Contract (Practical)
 

@@ -24,7 +24,6 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
 
 - `CRON_SECRET` protected endpoints:
   - `POST /api/batch-scraper` (required)
-  - `GET|POST /api/daily-scraper` (required in production when `CRON_SECRET` is set)
 - Session-auth endpoint:
   - `POST /api/tutorial/complete` (requires logged-in Supabase user from cookies)
 - Service-role Supabase access must use `lib/database/supabase-server.ts` (`createServerClient`, `server-only`).
@@ -38,7 +37,6 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
 | Route | Method(s) | Auth | Primary Responsibility | Key Dependencies |
 |---|---|---|---|---|
 | `/api/batch-scraper` | `POST`, `GET` | `POST` requires `Authorization: Bearer $CRON_SECRET`; `GET` is health check | Batch scrape many ingredients across stores; returns per-ingredient/per-store success stats | `lib/ingredient-pipeline`, `lib/database/recipe-ingredients-db.ts`, `lib/database/ingredients-db.ts` |
-| `/api/daily-scraper` | `GET`, `POST` | Cron secret in production (when configured) | Legacy daily scraper loop over all standardized ingredients and stores; caches cheapest results | `lib/database/standardized-ingredients-db.ts`, `lib/database/ingredients-db.ts`, `lib/scrapers/` |
 | `/api/grocery-search` | `GET` | Optional Supabase token/cookies used for user zip + preferred stores | Search ingredient prices using cache-first pipeline with live scraper fallback | `lib/ingredient-pipeline`, `lib/database/supabase-server.ts`, `lib/database/ingredients-db.ts`, `lib/store/user-preferred-stores`, `lib/scrapers/` |
 | `/api/grocery-search/cache-selection` | `POST` | None in-route | Persist user-selected replacement into ingredient history/product mappings for future cache-first retrieval | `lib/database/ingredients-db.ts`, `components/store/store-replacement.tsx` |
 | `/api/ingredients/standardize` | `POST` | None in-route | Normalize ingredient inputs, run AI standardization, and update recipe/pantry links | `lib/ingredient-standardizer.ts`, `lib/database/standardized-ingredients-db.ts`, `lib/database/recipe-ingredients-db.ts`, `lib/database/pantry-items-db.ts` |
@@ -94,7 +92,7 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
   - `docs/scrapers-directory.md`
 - Scheduled scraping and cron auth:
   - `app/api/batch-scraper/route.ts`
-  - `app/api/daily-scraper/route.ts`
+  - `scripts/daily-scraper.js`
   - `docs/scripts-directory.md`
 - Ingredient standardization and canonical IDs:
   - `app/api/ingredients/standardize/route.ts`
