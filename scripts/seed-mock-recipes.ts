@@ -1,10 +1,24 @@
 #!/usr/bin/env tsx
 
-import { createServerClient } from "../lib/database/supabase-server"
+import { createClient } from "@supabase/supabase-js"
 import { buildMockRecipePayload, MOCK_RECIPES, RPC_NAME } from "../lib/dev/mock-recipes"
 
+const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SERVICE_KEY
 const SUPABASE_SEED_AUTHOR_ID = process.env.SUPABASE_SEED_AUTHOR_ID
 const DRY_RUN = process.argv.includes("--dry-run")
+
+if (!NEXT_PUBLIC_SUPABASE_URL) {
+  console.error("Missing NEXT_PUBLIC_SUPABASE_URL.")
+  process.exit(1)
+}
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("Missing SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY.")
+  process.exit(1)
+}
 
 if (!SUPABASE_SEED_AUTHOR_ID) {
   console.error("Missing SUPABASE_SEED_AUTHOR_ID. Set it to a valid profiles.id before running this script.")
@@ -17,7 +31,15 @@ async function main(): Promise<void> {
     throw new Error("Missing SUPABASE_SEED_AUTHOR_ID.")
   }
 
-  const supabase = createServerClient()
+  const supabase = createClient(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+    global: {
+      fetch: fetch.bind(globalThis),
+    },
+  })
   let succeeded = 0
 
   for (const recipe of MOCK_RECIPES) {
