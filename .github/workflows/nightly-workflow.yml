@@ -260,7 +260,7 @@ jobs:
       min_expected_rows: ${{ github.event.inputs.min_expected_rows || '100' }}
       scraper_batch_size: ${{ github.event.inputs.scraper_batch_size || '20' }}
       scraper_batch_concurrency: ${{ github.event.inputs.scraper_batch_concurrency || '4' }}
-      scraper_timeout_minutes: ${{ github.event.inputs.scraper_timeout_minutes || '44' }}
+      scraper_timeout_minutes: ${{ github.event.inputs.scraper_timeout_minutes || '120' }}
       traderjoes_batch_size: ${{ github.event.inputs.traderjoes_batch_size || '20' }}
       traderjoes_batch_concurrency: ${{ github.event.inputs.traderjoes_batch_concurrency || '2' }}
 
@@ -274,7 +274,7 @@ jobs:
   queue:
     name: Nightly Ingredient Queue
     needs: update-unit-estimates
-    if: ${{ always() && needs['update-unit-estimates'].result == 'success' && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update"]'), github.event.inputs.run_mode || 'normal') }}
+    if: ${{ always() && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update"]'), github.event.inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:
