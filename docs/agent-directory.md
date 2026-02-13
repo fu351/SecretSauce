@@ -60,9 +60,9 @@ Quick routing for agents: which docs and code to read first for each change. Ple
 For changes related to the manual bootstrap flow (`.github/workflows/initiating-workflow.yml`), treat this as the canonical execution order:
 
 1. Seed mock recipes (`scripts/seed-mock-recipes.ts`).
-2. Run pre-scrape ingredient queue pass (`nightly-ingredient-queue.yml`).
+2. Run pre-scrape ingredient queue pass (`nightly-ingredient-queue.yml`, `queue_source=recipe`).
 3. Run scraper matrix (`daily-scraper-matrix.yml`).
-4. Run post-scrape ingredient queue pass (`nightly-ingredient-queue.yml`).
+4. Run post-scrape ingredient queue pass (`nightly-ingredient-queue.yml`, `queue_source=scraper`).
 5. Update unit-weight estimates (`update-unit-weight-estimates.yml`).
 
 Use this process when validating workflow edits, diagnosing bootstrap failures, or updating bootstrap runbooks.

@@ -38,9 +38,9 @@ Schedule: daily at `11:55 UTC` (`55 11 * * *`).
 `initiating-workflow.yml` runs a bootstrap flow:
 
 1. seed mock recipes (`scripts/seed-mock-recipes.ts`)
-2. pre-scrape queue pass (`nightly-ingredient-queue.yml`)
+2. pre-scrape queue pass (`nightly-ingredient-queue.yml`, `queue_source=recipe`)
 3. scraper matrix (`daily-scraper-matrix.yml`)
-4. post-scrape queue pass (`nightly-ingredient-queue.yml`)
+4. post-scrape queue pass (`nightly-ingredient-queue.yml`, `queue_source=scraper`)
 5. update unit estimates (`update-unit-weight-estimates.yml`)
 
 Trigger: manual (`workflow_dispatch`) only.

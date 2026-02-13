@@ -101,6 +101,15 @@ on:
           - recipe
           - pantry
         default: recipe
+      pre_queue_source:
+        description: "Queue source filter before scraping"
+        required: false
+        type: choice
+        options:
+          - recipe
+          - scraper
+          - any
+        default: recipe
       post_queue_context:
         description: "Queue context after scraping"
         required: false
@@ -109,6 +118,15 @@ on:
           - pantry
           - recipe
         default: pantry
+      post_queue_source:
+        description: "Queue source filter after scraping"
+        required: false
+        type: choice
+        options:
+          - scraper
+          - recipe
+          - any
+        default: scraper
       queue_resolver_name:
         description: "Queue resolver base name"
         required: false
@@ -209,6 +227,7 @@ jobs:
     with:
       queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
       queue_context: ${{ github.event.inputs.pre_queue_context || 'recipe' }}
+      queue_source: ${{ github.event.inputs.pre_queue_source || 'recipe' }}
       queue_resolver_name: ${{ format('{0}-pre', github.event.inputs.queue_resolver_name || 'initiating-openai') }}
       queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
       openai_model: gpt-4o-mini
@@ -249,6 +268,7 @@ jobs:
     with:
       queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
       queue_context: ${{ github.event.inputs.post_queue_context || 'pantry' }}
+      queue_source: ${{ github.event.inputs.post_queue_source || 'scraper' }}
       queue_resolver_name: ${{ format('{0}-post', github.event.inputs.queue_resolver_name || 'initiating-openai') }}
       queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
       openai_model: gpt-4o-mini
