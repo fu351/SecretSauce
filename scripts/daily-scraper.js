@@ -213,6 +213,57 @@ async function appendStoreFailureMetadata(store, details) {
   console.log(`   📝 Logged failed scrape row for store ${storeEnum} (${zipCode || 'no-zip'}) id=${store.id}`)
 }
 
+async function appendStoreHttp404Metadata(store, details) {
+  if (!store?.id) return
+
+  const nowIso = new Date().toISOString()
+  const storeEnum = normalizeStoreEnum(store.store_enum)
+  const zipCode = normalizeZipCode(store.zip_code)
+  const existingMetadata = parseMetadataObject(store.metadata)
+  const existingScraperRuntime = parseMetadataObject(existingMetadata.scraper_runtime)
+  const existing404Events = Array.isArray(existingScraperRuntime.http_404_events)
+    ? existingScraperRuntime.http_404_events
+    : []
+
+  const event = {
+    at: nowIso,
+    store_enum: storeEnum || null,
+    zip_code: zipCode || null,
+    ingredient: toNonEmptyString(details.ingredientName),
+    error_code: toNonEmptyString(details.errorCode) || 'HTTP_404',
+    message: truncateText(details.message || 'Scraper returned HTTP 404'),
+    run_id: process.env.GITHUB_RUN_ID || null,
+    run_attempt: process.env.GITHUB_RUN_ATTEMPT || null,
+    workflow: process.env.GITHUB_WORKFLOW || null,
+  }
+
+  const nextMetadata = {
+    ...existingMetadata,
+    scraper_runtime: {
+      ...existingScraperRuntime,
+      last_http_404: event,
+      // Keep recent history bounded to avoid unbounded metadata growth.
+      http_404_events: [event, ...existing404Events].slice(0, 10),
+      stop_reason: 'http_404',
+      stop_at: nowIso,
+    },
+  }
+
+  const { error } = await getSupabase()
+    .from('grocery_stores')
+    .update({ metadata: nextMetadata })
+    .eq('id', store.id)
+
+  if (error) {
+    console.error(`❌ Failed to persist HTTP 404 metadata for store ${store.id}: ${error.message}`)
+    return
+  }
+
+  // Keep in-memory copy aligned in case this store object is reused.
+  store.metadata = nextMetadata
+  console.log(`   📝 Updated grocery_stores.metadata with HTTP 404 event for ${storeEnum} (${zipCode || 'no-zip'})`)
+}
+
 async function appendBrandFailureMetadata(storeEnum, details) {
   if (!storeEnum) return
 
@@ -344,6 +395,8 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
         resultsByIngredient: normalizeBatchResultsShape(nativeResults, ingredientChunk.length),
         errorFlags: Array.from({ length: ingredientChunk.length }, () => false),
         errorMessages: Array.from({ length: ingredientChunk.length }, () => ''),
+        http404Flags: Array.from({ length: ingredientChunk.length }, () => false),
+        errorCodes: Array.from({ length: ingredientChunk.length }, () => ''),
       }
     } catch (error) {
       const message = error?.message || String(error)
@@ -363,6 +416,8 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
           resultsByIngredient: emptyBatchResults(ingredientChunk.length),
           errorFlags: Array.from({ length: ingredientChunk.length }, () => true),
           errorMessages: Array.from({ length: ingredientChunk.length }, () => message),
+          http404Flags: Array.from({ length: ingredientChunk.length }, () => false),
+          errorCodes: Array.from({ length: ingredientChunk.length }, () => code.toUpperCase()),
         }
       }
 
@@ -377,6 +432,8 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
       resultsByIngredient: emptyBatchResults(ingredientChunk.length),
       errorFlags: Array.from({ length: ingredientChunk.length }, () => true),
       errorMessages: Array.from({ length: ingredientChunk.length }, () => `No scraper configured for ${storeEnum}`),
+      http404Flags: Array.from({ length: ingredientChunk.length }, () => false),
+      errorCodes: Array.from({ length: ingredientChunk.length }, () => 'SCRAPER_NOT_CONFIGURED'),
     }
   }
 
@@ -401,29 +458,34 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
           results: results,
           hadError: false,
           errorMessage: '',
+          isHttp404: false,
+          errorCode: '',
         }
       } catch (error) {
         const message = error?.message || String(error)
         const status = error?.status ?? error?.response?.status
         const code = String(error?.code || '').toUpperCase()
         const isTarget404 = storeEnum === 'target' && (status === 404 || code === 'TARGET_HTTP_404')
+        const isHttp404 = status === 404 || code.includes('404')
 
-        // Target returns 404 for some keyword/store combinations; treat these as empty-result misses,
-        // not hard scraper failures, so they do not trip consecutive-error store skipping.
         if (isTarget404) {
           console.warn(
-            `⚠️ Target 404 for ${storeEnum} (${zipCode}) ingredient "${ingredientName}" - treating as empty result`
+            `⚠️ Target 404 for ${storeEnum} (${zipCode}) ingredient "${ingredientName}" - stopping this store scrape`
           )
 
           // Track for summary
           if (scrapeStats && scrapeStats.target404s) {
             scrapeStats.target404s.push({ storeEnum, zipCode, ingredientName, timestamp: new Date().toISOString() })
           }
+        }
 
+        if (isHttp404) {
           return {
             results: [],
-            hadError: false,
-            errorMessage: '',
+            hadError: true,
+            errorMessage: message,
+            isHttp404: true,
+            errorCode: code || 'HTTP_404',
           }
         }
 
@@ -432,6 +494,8 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
           results: [],
           hadError: true,
           errorMessage: message,
+          isHttp404: false,
+          errorCode: code || '',
         }
       }
     }
@@ -441,6 +505,8 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
     resultsByIngredient: chunkResults.map(entry => normalizeResultsShape(entry?.results)),
     errorFlags: chunkResults.map(entry => Boolean(entry?.hadError)),
     errorMessages: chunkResults.map(entry => truncateText(entry?.errorMessage || '')),
+    http404Flags: chunkResults.map(entry => Boolean(entry?.isHttp404)),
+    errorCodes: chunkResults.map(entry => truncateText(entry?.errorCode || '')),
   }
 }
 
@@ -484,6 +550,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
     let consecutiveStoreErrors = 0
     let totalStoreErrors = 0
     let skippedForErrors = false
+    let stopReason = ''
     let lastErrorMessage = ''
 
     if (!zipCode) {
@@ -505,7 +572,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
         console.log(`[DEBUG] Calling runBatchedScraperForStore with metadata:`, JSON.stringify(normalizedTargetMetadata))
       }
 
-      const { resultsByIngredient, errorFlags, errorMessages } = await runBatchedScraperForStore(
+      const { resultsByIngredient, errorFlags, errorMessages, http404Flags, errorCodes } = await runBatchedScraperForStore(
         storeEnum,
         chunk,
         zipCode,
@@ -518,6 +585,21 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
       for (let idx = 0; idx < chunk.length; idx += 1) {
         const ingredientName = chunk[idx]
 
+        if (http404Flags[idx]) {
+          totalStoreErrors += 1
+          consecutiveStoreErrors += 1
+          stopReason = 'http_404'
+          lastErrorMessage = errorMessages[idx] || `HTTP 404 for ${storeEnum} (${zipCode}) ingredient "${ingredientName}"`
+          skippedForErrors = true
+
+          await appendStoreHttp404Metadata(store, {
+            ingredientName,
+            errorCode: errorCodes[idx],
+            message: lastErrorMessage,
+          })
+          break
+        }
+
         if (errorFlags[idx]) {
           consecutiveStoreErrors += 1
           totalStoreErrors += 1
@@ -527,6 +609,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
 
           if (MAX_CONSECUTIVE_STORE_ERRORS > 0 && consecutiveStoreErrors > MAX_CONSECUTIVE_STORE_ERRORS) {
             skippedForErrors = true
+            stopReason = 'consecutive_errors'
             break
           }
 
@@ -557,10 +640,17 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
 
       if (skippedForErrors) {
         skippedStoreCount += 1
-        console.warn(
-          `   ⏭️ Skipping remaining ingredients for ${storeEnum} (${zipCode}) after ` +
-          `${consecutiveStoreErrors} consecutive scraper errors (threshold: ${MAX_CONSECUTIVE_STORE_ERRORS}).`
-        )
+        if (stopReason === 'http_404') {
+          console.warn(
+            `   ⏭️ Stopping scrape for ${storeEnum} (${zipCode}) immediately after HTTP 404 ` +
+            `and skipping remaining ingredients for this store.`
+          )
+        } else {
+          console.warn(
+            `   ⏭️ Skipping remaining ingredients for ${storeEnum} (${zipCode}) after ` +
+            `${consecutiveStoreErrors} consecutive scraper errors (threshold: ${MAX_CONSECUTIVE_STORE_ERRORS}).`
+          )
+        }
         break
       }
 
@@ -575,6 +665,8 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
         consecutiveErrors: consecutiveStoreErrors,
         skippedForErrors,
         lastErrorMessage,
+        errorType: stopReason === 'http_404' ? 'http_404' : undefined,
+        status: stopReason === 'http_404' ? 'skipped_after_http_404' : undefined,
       })
     }
 
@@ -582,7 +674,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
   }
 
   if (skippedStoreCount > 0) {
-    console.warn(`\n⚠️ Skipped ${skippedStoreCount} store location(s) due to repeated scraper errors.`)
+    console.warn(`\n⚠️ Skipped ${skippedStoreCount} store location(s) due to scraper stop conditions.`)
   }
 
   await flushPendingResults(true, 'final run completion')
