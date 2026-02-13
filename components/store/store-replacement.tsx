@@ -46,6 +46,44 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     }
   }, [isOpen, target])
 
+  const persistManualSelection = async (item: GroceryItem) => {
+    if (!target?.store) return
+    try {
+      const response = await fetch("/api/grocery-search/cache-selection", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          searchTerm: target.term || term || item.title,
+          standardizedIngredientId: target.standardizedIngredientId || null,
+          store: target.store,
+          zipCode: zipCode || null,
+          groceryStoreId: target.groceryStoreId ?? null,
+          product: {
+            id: item.id,
+            title: item.title,
+            price: item.price,
+            unit: item.unit,
+            pricePerUnit: item.pricePerUnit,
+            image_url: item.image_url,
+            location: item.provider || null,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null)
+        console.warn("[ItemReplacementModal] Failed to cache manual selection", {
+          status: response.status,
+          error: errorBody,
+        })
+      }
+    } catch (error) {
+      console.warn("[ItemReplacementModal] Failed to call cache-selection endpoint", error)
+    }
+  }
+
   const performSearch = async (searchTerm: string) => {
     if (!searchTerm) return
     setLoading(true)
@@ -215,11 +253,14 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                   </div>
                   <Button
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       if (item.productMappingId) {
                         // DB-sourced item — mapping ID already set
                         onSelect(item)
                       } else {
+                        // Persist the user-selected scraper result as a cached candidate.
+                        await persistManualSelection(item)
+
                         // Scraper-sourced fallback — look up/create mapping
                         productMappingsDB.incrementCounts({
                           external_product_id: item.id,

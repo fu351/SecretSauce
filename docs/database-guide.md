@@ -400,7 +400,8 @@ LLM Queue Processor (external)
 |----------|-------------|
 | `get_pricing(uuid)` | Returns price options for a user's shopping list, grouped by ingredient with per-store offers. |
 | `get_ingredient_price_details(uuid, uuid, numeric)` | Detailed pricing for a specific ingredient at user's preferred stores. |
-| `get_replacement(text, grocery_store)` | Finds replacement products by fuzzy name match at a store. |
+| `get_replacement(uuid, grocery_store, text)` | Primary replacement lookup used by manual replacement UI; returns store-scoped offers grouped by matched ingredient. |
+| `get_replacement(text, grocery_store)` | Backward-compatible overload for replacement lookup (delegates to 3-arg form). |
 | `get_pricing_gaps(uuid)` | Identifies missing ingredient coverage per store. |
 
 ### Cost Calculation

@@ -39,7 +39,7 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
 | `/api/batch-scraper` | `POST`, `GET` | `POST` requires `Authorization: Bearer $CRON_SECRET`; `GET` is health check | Batch scrape many ingredients across stores; returns per-ingredient/per-store success stats | `lib/ingredient-pipeline`, `lib/database/recipe-ingredients-db.ts`, `lib/database/ingredients-db.ts` |
 | `/api/daily-scraper` | `GET`, `POST` | Cron secret in production (when configured) | Legacy daily scraper loop over all standardized ingredients and stores; caches cheapest results | `lib/database/standardized-ingredients-db.ts`, `lib/database/ingredients-db.ts`, `lib/scrapers/` |
 | `/api/grocery-search` | `GET` | Optional Supabase token/cookies used for user zip + preferred stores | Search ingredient prices using cache-first pipeline with live scraper fallback | `lib/ingredient-pipeline`, `lib/database/ingredients-db.ts`, `lib/store/user-preferred-stores`, `lib/scrapers/` |
-| `/api/grocery-search/cache-selection` | `POST` | None in-route | Persist user-selected product as cached ingredient/store price | `lib/database/ingredients-db.ts` |
+| `/api/grocery-search/cache-selection` | `POST` | None in-route | Persist user-selected replacement into ingredient history/product mappings for future cache-first retrieval | `lib/database/ingredients-db.ts`, `components/store/store-replacement.tsx` |
 | `/api/ingredients/standardize` | `POST` | None in-route | Normalize ingredient inputs, run AI standardization, and update recipe/pantry links | `lib/ingredient-standardizer.ts`, `lib/database/standardized-ingredients-db.ts`, `lib/database/recipe-ingredients-db.ts`, `lib/database/pantry-items-db.ts` |
 | `/api/maps` | `POST` | None in-route (server API key required) | Proxy Google Maps geocode/places/routes requests | Google Maps HTTP APIs via `fetch` |
 | `/api/product-mappings/metrics` | `POST` | None in-route | Increment product mapping interaction metrics (shown/exchanged counts) | `lib/database/product-mappings-db.ts` |
@@ -58,6 +58,11 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
   - required: `searchTerm`
   - zip resolution order: `zipCode` query -> user profile zip -> `ZIP_CODE`/`DEFAULT_ZIP_CODE`
   - optional controls: `store`, `standardizedIngredientId`, `forceRefresh=true`, `liveActivation=true`
+- `/api/grocery-search/cache-selection` (`POST`):
+  - required: `store`, `product`, and one of `searchTerm` or `standardizedIngredientId`
+  - `product` requires: `id`, `title`, and positive `price`
+  - optional context: `zipCode`, `groceryStoreId`
+  - write behavior: prefers `fn_bulk_standardize_and_match`; falls back to direct `ingredients_history` insert
 - `/api/recipe-pricing` (`GET`):
   - required: `recipeId`
   - optional: `zipCode`, `stores` (CSV), `servings` (defaults to `2`)

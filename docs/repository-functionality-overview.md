@@ -106,7 +106,10 @@ This document provides a broad, implementation-grounded map of what this reposit
   - `/api/grocery-search`
   - `hooks/shopping/use-store-comparison.ts`
   - `/api/shopping/comparison`
-- Supports manual item replacement and caching of user-selected products (`/api/grocery-search/cache-selection`).
+- Manual replacement flow:
+  - `get_replacement` RPC returns cached replacement candidates (store-scoped).
+  - Falls back to live scraper search when no replacement candidates are available.
+  - User-selected scraper items are persisted via `POST /api/grocery-search/cache-selection`, which writes through `fn_bulk_standardize_and_match` (with direct insert fallback).
 - Store metadata (store IDs, location, distance, zip) is hydrated via `/api/user-store-metadata`.
 
 ## 8. Delivery And Order Logging
