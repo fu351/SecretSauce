@@ -53,6 +53,19 @@ Quick routing for agents: which docs and code to read first for each change. Ple
 | Documentation standards and structure | `docs/documentation-conventions.md` | `docs/`, `docs/agent-canonical-context.md`, `docs/agent-directory.md` |
 | Operational scripts and maintenance workflows | `docs/scripts-directory.md` | `scripts/`, `.github/workflows/` |
 | GitHub Actions orchestration and runbooks | `docs/workflows-directory.md` | `.github/workflows/`, reusable workflow call graph |
+| Initiating bootstrap process (`workflow_dispatch`) | `docs/workflows-directory.md`, `docs/scripts-directory.md` | `.github/workflows/initiating-workflow.yml`, `.github/workflows/nightly-ingredient-queue.yml`, `.github/workflows/daily-scraper-matrix.yml`, `scripts/seed-mock-recipes.ts` |
+
+## Initiating Process (Manual Bootstrap)
+
+For changes related to the manual bootstrap flow (`.github/workflows/initiating-workflow.yml`), treat this as the canonical execution order:
+
+1. Seed mock recipes (`scripts/seed-mock-recipes.ts`).
+2. Run pre-scrape ingredient queue pass (`nightly-ingredient-queue.yml`).
+3. Run scraper matrix (`daily-scraper-matrix.yml`).
+4. Run post-scrape ingredient queue pass (`nightly-ingredient-queue.yml`).
+5. Update unit-weight estimates (`update-unit-weight-estimates.yml`).
+
+Use this process when validating workflow edits, diagnosing bootstrap failures, or updating bootstrap runbooks.
 
 ## Key Docs
 

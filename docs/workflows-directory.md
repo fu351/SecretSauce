@@ -27,11 +27,9 @@ Quick routing for `.github/workflows/`: what runs, when it runs, and how workflo
 `nightly-workflow.yml` orchestrates the main scheduled pipeline:
 
 1. `daily-purge.yml` (wipe `ingredients_recent`, supports dry-run)
-2. seed temporary canonical placeholder (only if `standardized_ingredients` is empty)
-3. `daily-scraper-matrix.yml` (per-store scraping)
-4. `update-unit-weight-estimates.yml`
-5. `nightly-ingredient-queue.yml`
-6. cleanup temporary canonical placeholder
+2. `daily-scraper-matrix.yml` (per-store scraping)
+3. `update-unit-weight-estimates.yml`
+4. `nightly-ingredient-queue.yml`
 
 Schedule: daily at `11:55 UTC` (`55 11 * * *`).
 
@@ -41,11 +39,9 @@ Schedule: daily at `11:55 UTC` (`55 11 * * *`).
 
 1. seed mock recipes (`scripts/seed-mock-recipes.ts`)
 2. pre-scrape queue pass (`nightly-ingredient-queue.yml`)
-3. seed temporary canonical placeholder if needed
-4. scraper matrix (`daily-scraper-matrix.yml`)
-5. post-scrape queue pass (`nightly-ingredient-queue.yml`)
-6. update unit estimates (`update-unit-weight-estimates.yml`)
-7. cleanup temporary canonical placeholder
+3. scraper matrix (`daily-scraper-matrix.yml`)
+4. post-scrape queue pass (`nightly-ingredient-queue.yml`)
+5. update unit estimates (`update-unit-weight-estimates.yml`)
 
 Trigger: manual (`workflow_dispatch`) only.
 
