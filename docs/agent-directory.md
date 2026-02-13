@@ -49,6 +49,7 @@ Quick routing for agents: which docs and code to read first for each change. Ple
 | Scraper implementation and runtime behavior | `docs/scrapers-directory.md` | `lib/scrapers/`, `lib/ingredient-pipeline.ts`, `app/api/grocery-search/route.ts`, `scripts/daily-scraper.js` |
 | API routes, request contracts, and endpoint ownership | `docs/api-entrypoints-directory.md` | `app/api/`, `lib/ingredient-pipeline.ts`, `lib/database/`, `lib/store/` |
 | Database schema/functions | `docs/database-guide.md` | `lib/database/`, `supabase/migrations/`, `migrations/` |
+| Theming, dark/light mode, and visual style conventions | `docs/theming-style-guide.md`, `docs/documentation-conventions.md` | `app/globals.css`, `contexts/theme-context.tsx`, `components/providers/theme-sync.tsx`, `app/layout.tsx`, `tailwind.config.ts` |
 | Documentation standards and structure | `docs/documentation-conventions.md` | `docs/`, `docs/agent-canonical-context.md`, `docs/agent-directory.md` |
 | Operational scripts and maintenance workflows | `docs/scripts-directory.md` | `scripts/`, `.github/workflows/` |
 | GitHub Actions orchestration and runbooks | `docs/workflows-directory.md` | `.github/workflows/`, reusable workflow call graph |
@@ -68,6 +69,7 @@ Quick routing for agents: which docs and code to read first for each change. Ple
 - `docs/scrapers-directory.md`: scraper inventory, runtime behavior, and diagnostics.
 - `docs/api-entrypoints-directory.md`: API route inventory, contracts, auth notes, and dependencies.
 - `docs/database-guide.md`: practical Supabase schema, functions, triggers.
+- `docs/theming-style-guide.md`: implementation-backed theme architecture, tokens, and UI styling conventions.
 - `docs/documentation-conventions.md`: required structure and trust model for docs under `docs/`.
 - `docs/scripts-directory.md`: script routing, operational commands, and workflow mapping.
 - `docs/workflows-directory.md`: workflow triggers, composition graph, and operational workflow map.
