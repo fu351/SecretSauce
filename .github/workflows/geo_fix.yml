@@ -11,60 +11,13 @@ on:
         default: "2"
 
 jobs:
-  # Job for scheduled runs - processes all brands in parallel batches
-  fix-geo-scheduled:
-    # Only run on scheduled events (not manual workflow_dispatch)
-    if: github.event_name == 'schedule'
+  fix-geo:
+    name: Fix Missing Geography (Manual)
     runs-on: ubuntu-latest
-    timeout-minutes: 45 # Reduced since each job processes fewer brands
-    strategy:
-      # Process brands in parallel to reduce load per job and total runtime
-      # fail-fast: false ensures other brand groups continue even if one fails
-      fail-fast: false
-      matrix:
-        # Split brands into groups of 2-3 for parallel processing
-        # This significantly reduces load on All the Places API per job
-        brand_group:
-          - "aldi,kroger"
-          - "safeway,meijer"
-          - "target,traderjoes"
-          - "99ranch,walmart"
-          - "wholefoods"
+    timeout-minutes: 90
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        # We need ijson for memory-efficient parsing
-        run: |
-          pip install requests supabase ijson
-
-      - name: Run Geo Fixer (${{ matrix.brand_group }})
-        # Note: Requires increment_geocoding_failures() function in database
-        # See scripts/create_increment_failures_function.sql for setup
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-          BRAND_FILTER: ${{ matrix.brand_group }}
-          MAX_SPIDERS_PER_RUN: "2"
-        run: python scripts/fix_missing_geo.py
-        continue-on-error: false # Fail the job if geocoding fails (other matrix jobs continue)
-
-  # Job for manual runs - processes custom brands or all brands
-  fix-geo-manual:
-    # Only run on manual workflow_dispatch events
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 90 # Longer timeout for manual runs (may process all brands)
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4

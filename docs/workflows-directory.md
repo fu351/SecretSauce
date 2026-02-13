@@ -70,17 +70,13 @@ Trigger: manual (`workflow_dispatch`) only.
 | `.github/workflows/backfill-scraped-zipcodes.yml` | `schedule`, `workflow_dispatch` | Backfill `scraped_zipcodes` city/state/geom | `python scripts/backfill_scraped_zipcodes.py` |
 | `.github/workflows/import_stores.yml` | `workflow_dispatch` | Refresh target ZIP priorities and import stores | `python scripts/update_target_zipcodes.py`; `python scripts/import_new_stores.py` |
 | `.github/workflows/geoscraper.yml` | `workflow_dispatch` | Matrix geoscrape by selected stores; mark events complete | `python scripts/geoscraper.py` |
-| `.github/workflows/geoscraper-sequential.yml` | `workflow_dispatch` | Sequential ZIP-based geoscrape (legacy path) | `python scripts/geoscraper.py --zip ...` |
 | `.github/workflows/geo_fix.yml` | `workflow_dispatch` | Backfill missing store geometry in `grocery_stores` | `python scripts/fix_missing_geo.py` |
-| `.github/workflows/daily-scraper.yml` | `workflow_dispatch` | Legacy non-matrix scraper flow | `node scripts/daily-scraper.js` |
 | `.github/workflows/test-ingredient-queue.yml` | `workflow_dispatch` | Dry-run queue resolver smoke test | `npm run resolve-ingredient-match-queue` |
 | `.github/workflows/back-up.yml` | `workflow_dispatch` | Backup/reset/restore ingredient ecosystem via RPC | RPC `fn_ingredient_ecosystem` |
-| `.github/workflows/main.yml` | `push` on `main`, `workflow_dispatch` | Actor-gated CI bump/log append flow | append `.github/ci-bump.log` + push |
 
 ## Operational Notes
 
-- `daily-scraper.yml`, `geoscraper-sequential.yml` are legacy/special-case workflows; prefer matrix/composed flows unless you need narrow manual control.
-- `import_stores.yml` and `geo_fix.yml` contain “scheduled/manual” job split comments, but current triggers are manual-only (`workflow_dispatch`).
+- `import_stores.yml` and `geo_fix.yml` are manual-only maintenance workflows (`workflow_dispatch`).
 - Queue workflow defaults are source/review constrained (`queue_source=scraper`, `queue_review_mode=ingredient`) and unit writes are opt-in.
 
 ## Where To Start By Task

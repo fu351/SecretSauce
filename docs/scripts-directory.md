@@ -93,9 +93,9 @@ node scripts/backfill-target-store-ids.js --dry-run --limit 20
 
 These scripts are actively used by CI workflows:
 
-- `scripts/daily-scraper.js`: `.github/workflows/daily-scraper.yml`, `.github/workflows/daily-scraper-matrix.yml`
+- `scripts/daily-scraper.js`: `.github/workflows/daily-scraper-matrix.yml`
 - `scripts/resolve-ingredient-match-queue.ts`: `.github/workflows/nightly-ingredient-queue.yml`, `.github/workflows/test-ingredient-queue.yml`, `.github/workflows/regenerate-mappings.yml`
-- `scripts/geoscraper.py`: `.github/workflows/geoscraper.yml`, `.github/workflows/geoscraper-sequential.yml`
+- `scripts/geoscraper.py`: `.github/workflows/geoscraper.yml`
 - `scripts/import_new_stores.py` + `scripts/update_target_zipcodes.py`: `.github/workflows/import_stores.yml`
 - `scripts/backfill_scraped_zipcodes.py`: `.github/workflows/backfill-scraped-zipcodes.yml`
 - `scripts/fix_missing_geo.py`: `.github/workflows/geo_fix.yml`
