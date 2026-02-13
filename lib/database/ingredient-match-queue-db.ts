@@ -110,6 +110,12 @@ class IngredientMatchQueueTable extends BaseTable<
     const source = params?.source ?? "any"
     const allowFallback = params?.allowFallback ?? true
 
+    // Legacy recipe rows can remain pending with ingredient review disabled.
+    // Normalize flags so ingredient-mode workers can claim and standardize them.
+    if (reviewMode === "ingredient" && (source === "recipe" || source === "any")) {
+      await this.backfillRecipeIngredientReviewFlags()
+    }
+
     const { data, error } = await (this.supabase.rpc as any)("claim_ingredient_match_queue", {
       p_limit: limit,
       p_resolver: resolver ?? null,
@@ -136,6 +142,26 @@ class IngredientMatchQueueTable extends BaseTable<
     }
 
     return (data as IngredientMatchQueueRow[]) || []
+  }
+
+  async backfillRecipeIngredientReviewFlags(): Promise<number> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .update({
+        needs_ingredient_review: true,
+      } as IngredientMatchQueueUpdate)
+      .eq("status", "pending")
+      .eq("source", "recipe")
+      .is("resolved_ingredient_id", null)
+      .eq("needs_ingredient_review", false)
+      .select("id")
+
+    if (error) {
+      this.handleError(error, "backfillRecipeIngredientReviewFlags")
+      return 0
+    }
+
+    return (data || []).length
   }
 
   async markProcessing(

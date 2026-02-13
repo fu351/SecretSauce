@@ -304,19 +304,26 @@ jobs:
 
             QUEUE_RESOLVER_NAME="$resolver_name" QUEUE_MAX_CYCLES="1" npm --prefix scripts run resolve-ingredient-match-queue
 
+            CLAIM_FILTER=""
+            if [ "${QUEUE_REVIEW_MODE}" = "ingredient" ]; then
+              CLAIM_FILTER="&needs_ingredient_review=is.true"
+            elif [ "${QUEUE_REVIEW_MODE}" = "unit" ]; then
+              CLAIM_FILTER="&needs_unit_review=is.true"
+            fi
+
             if [ "${QUEUE_SOURCE}" = "any" ]; then
               PENDING_RESULT=$(curl -sf \
-                "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status&status=eq.pending&limit=10000" \
+                "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status&status=eq.pending${CLAIM_FILTER}&limit=10000" \
                 -H "apikey: ${SUPABASE_SERVICE_KEY}" \
                 -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
             else
               PENDING_RESULT=$(curl -sf \
-                "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status,source&status=eq.pending&source=eq.${QUEUE_SOURCE}&limit=10000" \
+                "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id,status,source&status=eq.pending&source=eq.${QUEUE_SOURCE}${CLAIM_FILTER}&limit=10000" \
                 -H "apikey: ${SUPABASE_SERVICE_KEY}" \
                 -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
             fi
             PENDING_COUNT=$(echo "$PENDING_RESULT" | jq 'length')
-            echo "Pending rows after batch ${batch} (source=${QUEUE_SOURCE}, sampled <= 10k): ${PENDING_COUNT}"
+            echo "Pending claimable rows after batch ${batch} (source=${QUEUE_SOURCE}, review_mode=${QUEUE_REVIEW_MODE}, sampled <= 10k): ${PENDING_COUNT}"
 
             if [ "$PENDING_COUNT" -eq 0 ]; then
               echo "Queue drained. Stopping early."
