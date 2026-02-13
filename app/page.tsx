@@ -12,6 +12,7 @@ import Image from "next/image"
 import { ArrowRight, Search, Clock, Users } from "lucide-react"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 import { Recipe } from "@/lib/types"
+import { LandingPage } from "@/components/landing/landing-page"
 
 // Type for home page recipe cards
 type HomePageRecipe = Recipe
@@ -110,89 +111,7 @@ export default function HomePage() {
   }
 
   if (visitChecked && visitStatus === true && !user) {
-    return (
-      <main
-        className={`min-h-screen flex items-center justify-center px-4 md:px-6 relative overflow-hidden bg-background text-foreground`}
-      >
-        <div className="absolute inset-0 opacity-[0.015]">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage:
-                "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E\")",
-            }}
-          />
-        </div>
-
-        <div
-          className={`relative z-10 max-w-2xl mx-auto text-center transition-all duration-1000 ${
-            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-          }`}
-        >
-          <div className="mb-8 md:mb-12 flex justify-center mt-6 md:mt-0">
-            <Image
-              src={theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"}
-              alt="Secret Sauce"
-              width={isMobile ? 100 : 120}
-              height={isMobile ? 100 : 120}
-              className="opacity-90"
-              priority
-            />
-          </div>
-
-          <h1 className="text-3xl md:text-4xl lg:text-6xl font-serif mb-4 md:mb-6 tracking-tight font-light leading-tight">
-            The secret to better meals
-          </h1>
-
-          <p
-            className={`text-sm md:text-base lg:text-lg mb-8 md:mb-12 font-light tracking-wide ${
-              theme === "dark" ? "text-foreground/40" : "text-muted-foreground"
-            }`}
-          >
-            Save your health, money, and time
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center items-center">
-            <Button
-              size={isMobile ? "default" : "lg"}
-              className={`w-full sm:w-auto px-8 md:px-10 py-4 md:py-6 text-sm md:text-base font-normal transition-all duration-300 ${
-                theme === "dark"
-                  ? "bg-foreground text-background hover:bg-foreground/90 shadow-lg shadow-background/10"
-                  : "bg-primary text-primary-foreground hover:bg-primary/90"
-              }`}
-              asChild
-            >
-              <Link href="/auth/signup">
-                Discover the Secret
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-            <Button
-              size={isMobile ? "default" : "lg"}
-              variant="ghost"
-              className={`w-full sm:w-auto px-8 md:px-10 py-4 md:py-6 text-sm md:text-base font-light transition-all duration-300 ${
-                theme === "dark"
-                  ? "text-foreground/60 hover:text-foreground hover:bg-transparent border border-background/20 hover:border-background/30"
-                  : "text-muted-foreground hover:text-foreground border border-border hover:border-foreground/30"
-              }`}
-              asChild
-            >
-              <Link href="/auth/signin">Sign In</Link>
-            </Button>
-          </div>
-        </div>
-
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-          <p
-            className={`text-xs font-light tracking-[0.2em] ${
-              theme === "dark" ? "text-foreground/20" : "text-muted-foreground/30"
-            }`}
-          >
-            SECRET SAUCE
-          </p>
-        </div>
-      </main>
-    )
+    return <LandingPage />
   }
 
   return (

@@ -355,3 +355,34 @@ html:not(.dark) .tutorial-highlight {
 [data-tutorial-overlay] {
   z-index: 9998 !important;
 }
+
+/* ───────── Landing Page Animations ───────── */
+
+/* Scroll indicator pulse */
+@keyframes landing-scroll-pulse {
+  0%, 100% { opacity: 0.4; transform: scaleY(1); }
+  50% { opacity: 0.1; transform: scaleY(0.6); }
+}
+
+.landing-scroll-pulse {
+  animation: landing-scroll-pulse 2s ease-in-out infinite;
+  transform-origin: top;
+}
+
+/* Floating price tags */
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0) rotate(var(--tag-rotate, 0deg)); }
+  50% { transform: translateY(-8px) rotate(var(--tag-rotate, 0deg)); }
+}
+
+.landing-float-tag {
+  animation: landing-float 3s ease-in-out infinite;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .landing-scroll-pulse,
+  .landing-float-tag {
+    animation: none !important;
+  }
+}
