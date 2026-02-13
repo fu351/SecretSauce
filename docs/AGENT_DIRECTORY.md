@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Quick routing for agents: which docs and code to read first for each change.
+Quick routing for agents: which docs and code to read first for each change. Please update to keep consistency for future agents.
 
 ## Canonical Invariants
 
