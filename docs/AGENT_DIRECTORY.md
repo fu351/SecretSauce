@@ -57,3 +57,9 @@ Quick routing for agents: which docs and code to read first for each change.
 
 - Tutorial system status and roadmap are actively tracked in `docs/TUTORIAL_CURRENT_STATE.md` (last updated `2026-02-13`).
 - Queue runtime is partially migrated to `queue/`; nightly workflow remains fallback until full cutover (`docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`).
+
+## Future Plans
+- Shift scraper related files into own directory for simplicity
+- Utilize analytical logging to create charts for premium users
+- Fix store page not displaying and merging items (database side)
+- Implement Stripe and Clerk (currently on another branch)
