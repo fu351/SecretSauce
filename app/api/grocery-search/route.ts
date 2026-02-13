@@ -3,7 +3,7 @@ import {
   getOrRefreshIngredientPricesForStores,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
-import { createServerClient } from "@/lib/database/supabase"
+import { createServerClient } from "@/lib/database/supabase-server"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"

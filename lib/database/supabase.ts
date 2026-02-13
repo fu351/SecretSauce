@@ -15,7 +15,7 @@ export let DB_DEBUG = false
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-const createMonitoredClient = (url: string, key: string, options: any) => {
+export const createMonitoredClient = (url: string, key: string, options: any) => {
   const client = createClient(url, key, options)
 
   // Wrap the from method to add monitoring
@@ -108,35 +108,6 @@ export const createBrowserClient = () => {
 
 export const supabase =
   supabaseUrl && supabaseAnonKey ? createBrowserClient() : createMissingEnvProxy(missingEnvMessage)
-
-// Server-side client for admin operations
-export const createServerClient = () => {
-  if (typeof window !== "undefined") {
-    throw new Error("createServerClient is server-only; do not call from the browser.")
-  }
-
-  const supabaseServiceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY
-
-  if (!supabaseServiceKey) {
-    throw new Error("Missing Supabase service credentials. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY.")
-  }
-
-  if (!supabaseUrl) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.")
-  }
-
-  return createMonitoredClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-    global: {
-      fetch: fetch.bind(globalThis),
-    },
-  })
-}
 
 export type Database = {
   public: {

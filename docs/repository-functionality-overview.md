@@ -40,6 +40,8 @@ This document provides a broad, implementation-grounded map of what this reposit
 - `contexts/`: global state/providers (`auth`, `theme`, `query`, `tutorial`).
 - `hooks/`: domain hooks for recipes, meal planning, shopping, delivery, subscription.
 - `lib/database/`: singleton table/RPC wrappers around Supabase.
+  - `lib/database/supabase.ts`: browser client + schema types.
+  - `lib/database/supabase-server.ts`: `server-only` service-role client factory.
 - `lib/scrapers/`: grocery store scraper implementations and scraper runtime config.
 - `lib/ingredient-pipeline.ts`: cache-first + scraper fallback pricing pipeline.
 - `python-api/`: FastAPI import service for URL/Instagram/OCR recipe parsing.
@@ -174,6 +176,9 @@ This document provides a broad, implementation-grounded map of what this reposit
 ## Data Layer Model (Practical View)
 
 - Base abstraction: `lib/database/base-db.ts` for typed table helpers.
+- Supabase access boundary:
+  - Browser/session client access goes through `lib/database/supabase.ts`.
+  - Service-role access goes through `lib/database/supabase-server.ts` only.
 - Domain table wrappers include:
   - profiles/admin roles
   - recipes + related entities

@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { createServerClient } from "../lib/database/supabase"
+import { createServerClient } from "../lib/database/supabase-server"
 import { buildMockRecipePayload, MOCK_RECIPES, RPC_NAME } from "../lib/dev/mock-recipes"
 
 const SUPABASE_SEED_AUTHOR_ID = process.env.SUPABASE_SEED_AUTHOR_ID
@@ -12,11 +12,16 @@ if (!SUPABASE_SEED_AUTHOR_ID) {
 }
 
 async function main(): Promise<void> {
+  const seedAuthorId = SUPABASE_SEED_AUTHOR_ID
+  if (!seedAuthorId) {
+    throw new Error("Missing SUPABASE_SEED_AUTHOR_ID.")
+  }
+
   const supabase = createServerClient()
   let succeeded = 0
 
   for (const recipe of MOCK_RECIPES) {
-    const payload = buildMockRecipePayload(recipe, SUPABASE_SEED_AUTHOR_ID)
+    const payload = buildMockRecipePayload(recipe, seedAuthorId)
 
     if (DRY_RUN) {
       console.log(`[seed-mock-recipes] Dry run would upsert:\n${JSON.stringify(payload, null, 2)}`)

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/database/supabase"
+import { createServerClient } from "@/lib/database/supabase-server"
 import { getUserPreferredStores } from "@/lib/store/user-preferred-stores"
 import { groceryStoresDB } from "@/lib/database/grocery-stores-db"
 import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
@@ -97,7 +97,7 @@ async function hydrateStoreMetadataWithCachedLocations(
   }
 }
 
-function extractCoordsFromGeom(geom: string | { type?: string; coordinates?: [number, number] } | null | undefined) {
+function extractCoordsFromGeom(geom: unknown) {
   if (!geom) return null
 
   if (typeof geom === "string") {
@@ -111,10 +111,15 @@ function extractCoordsFromGeom(geom: string | { type?: string; coordinates?: [nu
     return null
   }
 
-  if (typeof geom === "object" && geom?.type === "Point" && Array.isArray(geom.coordinates)) {
+  if (
+    typeof geom === "object" &&
+    (geom as { type?: string }).type === "Point" &&
+    Array.isArray((geom as { coordinates?: unknown[] }).coordinates)
+  ) {
+    const coordinates = (geom as { coordinates: [number, number] }).coordinates
     return {
-      lng: geom.coordinates[0],
-      lat: geom.coordinates[1],
+      lng: coordinates[0],
+      lat: coordinates[1],
     }
   }
 

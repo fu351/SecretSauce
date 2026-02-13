@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth/admin"
-import { createServerClient } from "@/lib/database/supabase"
+import { createServerClient } from "@/lib/database/supabase-server"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"

@@ -49,6 +49,12 @@ LLM Queue Processor (external)
     → Updates product_mappings.unit_confidence / quantity_confidence from queue confidences
 ```
 
+### Runtime Access Boundaries
+
+- Browser/session DB access is via `lib/database/supabase.ts` (public URL + anon key, constrained by RLS).
+- Service-role DB access is via `lib/database/supabase-server.ts` (`createServerClient`, `server-only`).
+- Route handlers, server components, and scripts should import `createServerClient` only from `lib/database/supabase-server.ts`.
+
 ### Key Design Principles
 
 - **product_mappings** is the single source of truth for product identity (name, image, unit, ingredient mapping)

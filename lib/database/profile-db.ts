@@ -13,6 +13,39 @@ export type ProfileMinimal = Pick<ProfileRow, "id" | "email" | "full_name">
 // Export full profile type for convenience
 export type Profile = ProfileRow
 
+const PROFILE_SAFE_COLUMNS = [
+  "id",
+  "email",
+  "full_name",
+  "avatar_url",
+  "cooking_level",
+  "budget_range",
+  "dietary_preferences",
+  "primary_goal",
+  "created_at",
+  "updated_at",
+  "cuisine_preferences",
+  "cooking_time_preference",
+  "zip_code",
+  "grocery_distance_miles",
+  "theme_preference",
+  "tutorial_completed",
+  "tutorial_completed_at",
+  "tutorial_path",
+  "formatted_address",
+  "address_line1",
+  "address_line2",
+  "city",
+  "state",
+  "country",
+  "latitude",
+  "longitude",
+  "email_verified",
+  "subscription_tier",
+  "subscription_started_at",
+  "subscription_expires_at",
+].join(", ")
+
 /**
  * Database operations for user profiles
  * Singleton class extending BaseTable with specialized profile operations
@@ -65,6 +98,11 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       latitude: dbItem.latitude ?? null,
       longitude: dbItem.longitude ?? null,
       email_verified: dbItem.email_verified ?? null,
+      subscription_tier: dbItem.subscription_tier ?? null,
+      subscription_started_at: dbItem.subscription_started_at ?? null,
+      subscription_expires_at: dbItem.subscription_expires_at ?? null,
+      stripe_customer_id: dbItem.stripe_customer_id ?? null,
+      stripe_subscription_id: dbItem.stripe_subscription_id ?? null,
     }
   }
 
@@ -77,7 +115,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
 
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
+      .select(PROFILE_SAFE_COLUMNS)
       .eq("id", userId)
       .single()
 
@@ -108,7 +146,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
 
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select("*")
+      .select(PROFILE_SAFE_COLUMNS)
       .eq("email", email)
       .maybeSingle()
 
@@ -224,7 +262,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
         } as any,
         upsertOptions
       )
-      .select("*")
+      .select(PROFILE_SAFE_COLUMNS)
       .single()
 
     if (error) {

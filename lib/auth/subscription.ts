@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/database/supabase"
+import { createServerClient } from "@/lib/database/supabase-server"
 import { redirect } from "next/navigation"
 
 export type SubscriptionTier = "free" | "premium"

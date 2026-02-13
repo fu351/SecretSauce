@@ -27,6 +27,7 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
   - `GET|POST /api/daily-scraper` (required in production when `CRON_SECRET` is set)
 - Session-auth endpoint:
   - `POST /api/tutorial/complete` (requires logged-in Supabase user from cookies)
+- Service-role Supabase access must use `lib/database/supabase-server.ts` (`createServerClient`, `server-only`).
 - Most remaining routes are app-internal utility endpoints with input validation but no explicit auth guard in-route.
 - Endpoints that proxy external services should be treated as server-only surfaces:
   - Maps proxy (`/api/maps`)
@@ -38,7 +39,7 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
 |---|---|---|---|---|
 | `/api/batch-scraper` | `POST`, `GET` | `POST` requires `Authorization: Bearer $CRON_SECRET`; `GET` is health check | Batch scrape many ingredients across stores; returns per-ingredient/per-store success stats | `lib/ingredient-pipeline`, `lib/database/recipe-ingredients-db.ts`, `lib/database/ingredients-db.ts` |
 | `/api/daily-scraper` | `GET`, `POST` | Cron secret in production (when configured) | Legacy daily scraper loop over all standardized ingredients and stores; caches cheapest results | `lib/database/standardized-ingredients-db.ts`, `lib/database/ingredients-db.ts`, `lib/scrapers/` |
-| `/api/grocery-search` | `GET` | Optional Supabase token/cookies used for user zip + preferred stores | Search ingredient prices using cache-first pipeline with live scraper fallback | `lib/ingredient-pipeline`, `lib/database/ingredients-db.ts`, `lib/store/user-preferred-stores`, `lib/scrapers/` |
+| `/api/grocery-search` | `GET` | Optional Supabase token/cookies used for user zip + preferred stores | Search ingredient prices using cache-first pipeline with live scraper fallback | `lib/ingredient-pipeline`, `lib/database/supabase-server.ts`, `lib/database/ingredients-db.ts`, `lib/store/user-preferred-stores`, `lib/scrapers/` |
 | `/api/grocery-search/cache-selection` | `POST` | None in-route | Persist user-selected replacement into ingredient history/product mappings for future cache-first retrieval | `lib/database/ingredients-db.ts`, `components/store/store-replacement.tsx` |
 | `/api/ingredients/standardize` | `POST` | None in-route | Normalize ingredient inputs, run AI standardization, and update recipe/pantry links | `lib/ingredient-standardizer.ts`, `lib/database/standardized-ingredients-db.ts`, `lib/database/recipe-ingredients-db.ts`, `lib/database/pantry-items-db.ts` |
 | `/api/maps` | `POST` | None in-route (server API key required) | Proxy Google Maps geocode/places/routes requests | Google Maps HTTP APIs via `fetch` |
@@ -46,10 +47,10 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
 | `/api/recipe-import/image` | `POST` | None in-route (python service URL required) | Send OCR text to Python import service | `PYTHON_SERVICE_URL` + Python backend `/recipe-import/text` |
 | `/api/recipe-import/instagram` | `POST` | None in-route (python service URL required) | Validate/normalize Instagram URL and proxy import request with timeout/error mapping | `PYTHON_SERVICE_URL` + Python backend `/recipe-import/instagram` |
 | `/api/recipe-import/url` | `POST` | None in-route (python service URL required) | Validate generic URL and proxy recipe import request | `PYTHON_SERVICE_URL` + Python backend `/recipe-import/url` |
-| `/api/recipe-pricing` | `GET` | None in-route | Return per-store recipe totals and cheapest store from cached pricing/RPC | `lib/database/supabase`, RPC `calculate_recipe_cost` |
+| `/api/recipe-pricing` | `GET` | None in-route | Return per-store recipe totals and cheapest store from cached pricing/RPC | `lib/database/supabase-server.ts`, RPC `calculate_recipe_cost` |
 | `/api/shopping/comparison` | `POST` | None in-route | Build per-store shopping-list totals from cached item prices | `lib/database/base-db` (`shopping_item_price_cache`) |
 | `/api/tutorial/complete` | `POST` | Supabase session user required | Mark tutorial completion/path in `profiles` | `lib/database/supabase` |
-| `/api/user-store-metadata` | `GET` | None in-route | Return user-preferred store metadata, hydrating coordinates when needed | `lib/store/user-preferred-stores`, `lib/database/grocery-stores-db.ts`, `lib/utils/store-metadata.ts` |
+| `/api/user-store-metadata` | `GET` | None in-route | Return user-preferred store metadata, hydrating coordinates when needed | `lib/database/supabase-server.ts`, `lib/store/user-preferred-stores`, `lib/database/grocery-stores-db.ts`, `lib/utils/store-metadata.ts` |
 | `/api/weekly-dinner-plan` | `POST` | None in-route | Generate weekly meal plan via heuristic planner | `hooks/meal-planner/use-heuristic-plan` |
 
 ## Request Contract Quick Notes

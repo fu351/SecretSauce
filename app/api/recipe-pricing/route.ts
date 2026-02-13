@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient, type Database } from "@/lib/database/supabase"
+import { createServerClient } from "@/lib/database/supabase-server"
+import type { Database } from "@/lib/database/supabase"
 import { normalizeZipCode } from "@/lib/utils/zip"
 
 type GroceryStore = Database["public"]["Enums"]["grocery_store"]

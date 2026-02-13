@@ -3,7 +3,7 @@
  * Useful functions for debugging and testing
  */
 
-import { createServerClient } from "@/lib/database/supabase"
+import { createServerClient } from "@/lib/database/supabase-server"
 
 /**
  * Grant admin role to a user

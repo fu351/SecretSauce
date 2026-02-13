@@ -1,4 +1,5 @@
-import { createServerClient, type Database } from "@/lib/database/supabase"
+import { createServerClient } from "@/lib/database/supabase-server"
+import type { Database } from "@/lib/database/supabase"
 import { groceryStoresDB } from "@/lib/database/grocery-stores-db"
 import { normalizeStoreName } from "@/lib/database/ingredients-db"
 

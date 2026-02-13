@@ -3,7 +3,7 @@
  * Check if users have admin or analyst roles
  */
 
-import { createServerClient } from "@/lib/database/supabase"
+import { createServerClient } from "@/lib/database/supabase-server"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
