@@ -17,22 +17,6 @@ export const handlers = [
     })
   }),
 
-  http.get('/api/recipe-pricing', () => {
-    return HttpResponse.json({
-      recipeName: 'Test Recipe',
-      cheapest: {
-        store: 'Kroger',
-        total: 15.99,
-        items: [],
-      },
-      byStore: [],
-      allStores: ['Kroger', 'Walmart'],
-      totalIngredients: 5,
-      cachedIngredients: 5,
-      isComplete: true,
-    })
-  }),
-
   // Google Maps API mock
   http.post('/api/maps', async ({ request }) => {
     const body = await request.json()

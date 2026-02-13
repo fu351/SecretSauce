@@ -6,7 +6,7 @@
 - `Canonicality`: `status`
 - `Owner`: `Application Engineering`
 - `Last Reviewed`: `2026-02-13`
-- `Primary Surfaces`: `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/`, `app/api/tutorial/complete/route.ts`
+- `Primary Surfaces`: `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/`
 - `Update Trigger`: Tutorial path behavior, anchors, completion persistence, or roadmap status changes.
 
 ## Agent Use
@@ -116,18 +116,14 @@ Implemented in code:
 
 ## Known Gaps and Risks (Current)
 
-1. Completion endpoint duplication.
-- `app/api/tutorial/complete/route.ts` still exists, while completion is now handled from tutorial context via `updateProfile`.
-- The project should choose one canonical completion path.
-
-2. No automated selector contract or E2E tutorial tests.
+1. No automated selector contract or E2E tutorial tests.
 - Regressions can ship when UI markup changes.
 
-3. Additional store anchors are present but not yet fully used in tutorial paths.
+2. Additional store anchors are present but not yet fully used in tutorial paths.
 - Anchors such as `store-map-toggle`, `store-map`, `store-replace`, `store-missing`, and `store-total` are instrumented.
 - Current `budgeting` and `health` store steps still cover only overview/add/selector-level guidance.
 
-4. A/B testing integration is planned but not yet wired into tutorial surfaces.
+3. A/B testing integration is planned but not yet wired into tutorial surfaces.
 - There is no reusable `use-ab-test` hook in use by tutorial entry points yet.
 
 ## A/B Testing Strategy for Tutorial

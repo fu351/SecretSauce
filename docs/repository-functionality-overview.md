@@ -154,7 +154,6 @@ This document provides a broad, implementation-grounded map of what this reposit
 - `GET /api/grocery-search`
 - `POST /api/grocery-search/cache-selection`
 - `POST /api/shopping/comparison`
-- `GET /api/recipe-pricing`
 - `GET|POST /api/batch-scraper`
 
 ## Recipe Import And Parsing
@@ -167,10 +166,7 @@ This document provides a broad, implementation-grounded map of what this reposit
 ## Supporting Services
 
 - `POST /api/maps` (Google Maps proxy actions)
-- `POST /api/tutorial/complete`
 - `GET /api/user-store-metadata`
-- `POST /api/product-mappings/metrics`
-- `POST /api/weekly-dinner-plan`
 
 ## Data Layer Model (Practical View)
 

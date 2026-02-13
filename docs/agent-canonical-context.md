@@ -43,7 +43,6 @@ When docs or examples disagree, use this order:
 ## API/Auth Invariants
 
 - `POST /api/batch-scraper` must require `Authorization: Bearer $CRON_SECRET`.
-- `POST /api/tutorial/complete` requires an authenticated Supabase user session.
 - External proxy endpoints require server configuration:
   - `/api/maps` needs Google Maps API key
   - `/api/recipe-import/*` needs `PYTHON_SERVICE_URL`

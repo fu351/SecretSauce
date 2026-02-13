@@ -57,29 +57,15 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
         setAiPlannerProgress({ step: 4, message: "Optimizing for variety and budget..." })
       }, 7000)
 
-      // COMMENTED OUT: AI API call - using heuristic plan instead
-      // const response = await fetch("/api/weekly-dinner-plan", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ userId, weekIndex }),
-      // })
-
       // Clear progress timers
       clearTimeout(progressTimer)
       clearTimeout(progressTimer2)
       clearTimeout(progressTimer3)
 
-      // COMMENTED OUT: API response handling
-      // if (!response.ok) {
-      //   throw new Error("Failed to generate plan")
-      // }
-
       setAiPlannerProgress({ step: 5, message: "Finalizing your meal plan..." })
 
       // Use heuristic plan instead of AI API
       const plan = await useHeuristicPlan(userId, weekIndex)
-
-      // const plan = await response.json()
 
       // Fetch recipe details for the plan
       if (plan.meals && plan.meals.length > 0) {
@@ -157,4 +143,3 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
     aiRecipesById,
   }
 }
-
