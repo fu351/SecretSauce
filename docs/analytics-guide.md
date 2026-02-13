@@ -1,5 +1,21 @@
 # Analytics & User Behavior Tracking Guide
 
+## Agent Metadata
+
+- `Doc Kind`: `guide`
+- `Canonicality`: `implementation-guide`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `lib/analytics/`, `hooks/use-analytics.ts`, `contexts/analytics-context.tsx`, `lib/database/analytics-db.ts`
+- `Update Trigger`: Event schema, batching behavior, or analytics RPC contracts change.
+
+## Agent Use
+
+- `Read this when`: adding analytics events, debugging event delivery, or querying tracked behavior.
+- `Stop reading when`: experimentation-specific behavior is the core task.
+- `Escalate to`: `docs/ab-testing-guide.md`, `docs/database-guide.md`.
+
+
 > Canonical tier model: only `free` and `premium` are valid subscription tiers.
 
 ## Overview
@@ -641,7 +657,7 @@ const events = await supabase
 **Documentation**:
 - Event Types: `/lib/analytics/event-types.ts`
 - Implementation Plan: `~/.claude/plans/fluffy-popping-wombat.md`
-- A/B Testing: `/docs/AB_TESTING_GUIDE.md`
+- A/B Testing: `/docs/ab-testing-guide.md`
 
 **Common Issues**:
 - Type errors → Check event name and property names match definitions

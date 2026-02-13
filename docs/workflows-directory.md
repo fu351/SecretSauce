@@ -1,5 +1,21 @@
 # Workflows Directory
 
+## Agent Metadata
+
+- `Doc Kind`: `directory`
+- `Canonicality`: `reference`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `.github/workflows/`, `scripts/`, `queue/`
+- `Update Trigger`: Workflow triggers, composition graph, or script/RPC responsibilities change.
+
+## Agent Use
+
+- `Read this when`: debugging CI orchestration or selecting the right workflow entrypoint.
+- `Stop reading when`: you have identified the target workflow and need direct YAML details.
+- `Escalate to`: `.github/workflows/*.yml`, `docs/scripts-directory.md`.
+
+
 ## Purpose
 
 Quick routing for `.github/workflows/`: what runs, when it runs, and how workflows compose.
@@ -74,6 +90,6 @@ Trigger: manual (`workflow_dispatch`) only.
 - Tune scraping performance/timeouts:
   - `daily-scraper-matrix.yml` + `scripts/daily-scraper.js`
 - Queue quality/throughput tuning:
-  - `nightly-ingredient-queue.yml` + `queue/` + `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`
+  - `nightly-ingredient-queue.yml` + `queue/` + `docs/ingredient-queue-realtime-plan.md`
 - Store footprint/geo maintenance:
   - `import_stores.yml`, `geoscraper.yml`, `geo_fix.yml`, `backfill-scraped-zipcodes.yml`

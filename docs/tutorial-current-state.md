@@ -1,6 +1,19 @@
 # Tutorial System: Current State and Roadmap
 
-Last updated: 2026-02-13
+## Agent Metadata
+
+- `Doc Kind`: `status`
+- `Canonicality`: `status`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/`, `app/api/tutorial/complete/route.ts`
+- `Update Trigger`: Tutorial path behavior, anchors, completion persistence, or roadmap status changes.
+
+## Agent Use
+
+- `Read this when`: working on tutorial runtime, completion consistency, or tutorial experiment planning.
+- `Stop reading when`: work is unrelated to onboarding/tutorial surfaces.
+- `Escalate to`: `docs/agent-canonical-context.md`, concrete tutorial/runtime files.
 
 ## Goals
 

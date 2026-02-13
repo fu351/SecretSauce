@@ -1,5 +1,21 @@
 # API Entrypoints Directory
 
+## Agent Metadata
+
+- `Doc Kind`: `directory`
+- `Canonicality`: `reference`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `app/api/`, `lib/ingredient-pipeline.ts`, `lib/database/`, `lib/store/`
+- `Update Trigger`: API route additions/removals, auth changes, or request contract changes.
+
+## Agent Use
+
+- `Read this when`: mapping a task to the correct API route and dependency surface.
+- `Stop reading when`: endpoint ownership is clear and implementation editing begins.
+- `Escalate to`: `docs/agent-canonical-context.md`, concrete `app/api/**/route.ts` files.
+
+
 ## Purpose
 
 Quick routing for `app/api/`: which endpoint owns what, request contracts, auth expectations, and key dependencies.
@@ -69,15 +85,15 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
 - Ingredient price lookup behavior:
   - `app/api/grocery-search/route.ts`
   - `lib/ingredient-pipeline.ts`
-  - `docs/SCRAPERS_DIRECTORY.md`
+  - `docs/scrapers-directory.md`
 - Scheduled scraping and cron auth:
   - `app/api/batch-scraper/route.ts`
   - `app/api/daily-scraper/route.ts`
-  - `docs/SCRIPTS_DIRECTORY.md`
+  - `docs/scripts-directory.md`
 - Ingredient standardization and canonical IDs:
   - `app/api/ingredients/standardize/route.ts`
   - `lib/ingredient-standardizer.ts`
-  - `docs/PROMPT_MAINTENANCE_GUIDE.md`
+  - `docs/prompt-maintenance-guide.md`
 - Recipe import failures:
   - `app/api/recipe-import/instagram/route.ts`
   - `app/api/recipe-import/url/route.ts`

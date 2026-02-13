@@ -1,5 +1,21 @@
 # Subscription Infrastructure - Quick Reference
 
+## Agent Metadata
+
+- `Doc Kind`: `guide`
+- `Canonicality`: `implementation-guide`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `lib/auth/subscription.ts`, `hooks/use-subscription.ts`, `components/auth/tier-gate.tsx`
+- `Update Trigger`: Subscription helpers/hooks or tier checks change.
+
+## Agent Use
+
+- `Read this when`: you need quick server/client subscription API usage patterns.
+- `Stop reading when`: you need conflict resolution across docs.
+- `Escalate to`: `docs/agent-canonical-context.md`, `docs/auth-gates-complete-guide.md`.
+
+
 > Canonical tier model for agents: only `free` and `premium` are valid subscription tiers. Do not use `enterprise` in code or docs.
 
 ## 📦 Available Tools

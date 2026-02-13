@@ -1,5 +1,21 @@
 # Complete Authentication & Tier Gates Guide
 
+## Agent Metadata
+
+- `Doc Kind`: `guide`
+- `Canonicality`: `implementation-guide`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `components/auth/tier-gate.tsx`, `lib/auth/subscription.ts`, `hooks/use-subscription.ts`
+- `Update Trigger`: Auth gate components, tier semantics, or API signatures change.
+
+## Agent Use
+
+- `Read this when`: implementing auth/tier UI gates or choosing gate components.
+- `Stop reading when`: you need authoritative policy or exact runtime behavior.
+- `Escalate to`: `docs/agent-canonical-context.md`, `lib/auth/subscription.ts`.
+
+
 > Canonical tier model for agents: only `free` and `premium` are valid subscription tiers. Do not use `enterprise`.
 
 ## 🎯 All Available Components

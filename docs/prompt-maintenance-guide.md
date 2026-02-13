@@ -1,5 +1,21 @@
 # Prompt Maintenance Guide
 
+## Agent Metadata
+
+- `Doc Kind`: `operations-guide`
+- `Canonicality`: `implementation-guide`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `lib/prompts/`, `lib/ingredient-standardizer.ts`, `lib/unit-standardizer.ts`, `queue/worker/processor.ts`
+- `Update Trigger`: Prompt contracts, queue prompt consumers, or rollout flags change.
+
+## Agent Use
+
+- `Read this when`: modifying ingredient/unit prompt templates or output contracts.
+- `Stop reading when`: changes are outside prompt/runtime integration.
+- `Escalate to`: `docs/ingredient-queue-realtime-plan.md`, `docs/scripts-directory.md`.
+
+
 ## Purpose
 
 This guide describes where to edit queue standardization prompts and how changes flow into the worker.

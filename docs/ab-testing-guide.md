@@ -1,5 +1,21 @@
 # A/B Testing System Guide
 
+## Agent Metadata
+
+- `Doc Kind`: `guide`
+- `Canonicality`: `implementation-guide`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `ab_testing` schema, `app/dev/experiments/`, `lib/auth/admin.ts`
+- `Update Trigger`: Experiment schema/RPCs, targeting semantics, or admin role behavior change.
+
+## Agent Use
+
+- `Read this when`: creating experiments, assigning variants, and interpreting experiment events.
+- `Stop reading when`: you need baseline analytics patterns not tied to experiments.
+- `Escalate to`: `docs/analytics-guide.md`, `docs/agent-canonical-context.md`, `docs/database-guide.md`.
+
+
 > Canonical tier model for agents: only `free` and `premium` are valid subscription tiers. Do not create or target `enterprise`.
 
 ## Overview

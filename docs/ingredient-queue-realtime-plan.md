@@ -1,5 +1,21 @@
 # Ingredient Queue Real-Time Migration Plan
 
+## Agent Metadata
+
+- `Doc Kind`: `migration-plan`
+- `Canonicality`: `advisory`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `queue/`, `scripts/resolve-ingredient-match-queue.ts`, `lib/database/ingredient-match-queue-db.ts`, `.github/workflows/nightly-ingredient-queue.yml`
+- `Update Trigger`: Queue runtime rollout status, defaults, or migration milestones change.
+
+## Agent Use
+
+- `Read this when`: evaluating queue migration state and planned runtime architecture.
+- `Stop reading when`: you need guaranteed implemented behavior.
+- `Escalate to`: live code in `queue/`, `docs/agent-canonical-context.md`, active workflows.
+
+
 ## Scope
 
 This plan migrates the current nightly batch queue flow to a near-real-time queue worker, with local `Qwen3-8B` inference on a Framework Desktop (`64GB` config), and a throughput target of `50 ingredients every 5 minutes`.

@@ -222,7 +222,7 @@ export default async function FeatureFlagsPage() {
             </div>
             <div className="pt-2">
               <Link
-                href="/docs/AB_TESTING_GUIDE.md"
+                href="/docs/ab-testing-guide.md"
                 className="text-blue-600 hover:text-blue-700"
               >
                 View full documentation →

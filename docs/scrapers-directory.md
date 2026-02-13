@@ -1,5 +1,21 @@
 # Scrapers Directory
 
+## Agent Metadata
+
+- `Doc Kind`: `directory`
+- `Canonicality`: `reference`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `lib/scrapers/`, `lib/ingredient-pipeline.ts`, `app/api/grocery-search/route.ts`, `scripts/daily-scraper.js`
+- `Update Trigger`: Store scraper status, integration points, or runtime/env controls change.
+
+## Agent Use
+
+- `Read this when`: debugging scraper behavior or mapping store coverage and runtime controls.
+- `Stop reading when`: issue is clearly in downstream database or workflow orchestration.
+- `Escalate to`: `docs/scripts-directory.md`, `docs/workflows-directory.md`, specific scraper modules.
+
+
 ## Purpose
 
 Quick routing for `lib/scrapers/`: scraper entry points, store coverage, runtime behavior, and debugging paths.

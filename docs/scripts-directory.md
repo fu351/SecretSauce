@@ -1,5 +1,21 @@
 # Scripts Directory
 
+## Agent Metadata
+
+- `Doc Kind`: `directory`
+- `Canonicality`: `reference`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `scripts/`, `queue/worker/runner.ts`, `.github/workflows/`
+- `Update Trigger`: Script inventory, command usage, or script-to-workflow mappings change.
+
+## Agent Use
+
+- `Read this when`: selecting the correct operational script and understanding side effects.
+- `Stop reading when`: task requires workflow orchestration details rather than script internals.
+- `Escalate to`: `docs/workflows-directory.md`, script source files.
+
+
 ## Purpose
 
 Quick routing for operational scripts in `scripts/`: what each script does, when to run it, and what it writes.

@@ -1,5 +1,21 @@
 # Database Schema Documentation
 
+## Agent Metadata
+
+- `Doc Kind`: `reference`
+- `Canonicality`: `reference`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `lib/database/`, `supabase/migrations/`, `migrations/`
+- `Update Trigger`: Schema, triggers, RPCs, enums, or key table ownership changes.
+
+## Agent Use
+
+- `Read this when`: validating schema-level behavior, trigger paths, and RPC contracts.
+- `Stop reading when`: task is purely UI/component behavior.
+- `Escalate to`: `supabase/migrations/`, `lib/database/*`, `docs/agent-canonical-context.md`.
+
+
 **Project:** `bfycdolbspgmkezpeuly` (Supabase)
 **PostgreSQL 17** with PostGIS, pg_trgm, http, pg_net extensions
 

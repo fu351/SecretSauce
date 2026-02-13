@@ -134,7 +134,7 @@ export default async function TierDemoPage() {
             <p>
               <strong>Documentation:</strong> See{" "}
               <code className="bg-blue-100 px-1 rounded">
-                docs/SUBSCRIPTION_GUIDE.md
+                docs/subscription-quick-reference.md
               </code>{" "}
               for full guide
             </p>

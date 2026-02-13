@@ -1,5 +1,21 @@
 # Repository Functionality Overview
 
+## Agent Metadata
+
+- `Doc Kind`: `orientation`
+- `Canonicality`: `reference`
+- `Owner`: `Application Engineering`
+- `Last Reviewed`: `2026-02-13`
+- `Primary Surfaces`: `app/`, `lib/database/`, `lib/scrapers/`, `scripts/`, `python-api/`
+- `Update Trigger`: Major architecture, subsystem ownership, or repository layout changes.
+
+## Agent Use
+
+- `Read this when`: you need broad repository context before domain deep dives.
+- `Stop reading when`: the relevant subsystem has been identified.
+- `Escalate to`: `docs/agent-directory.md` and the selected domain directory doc.
+
+
 ## Purpose
 
 This document provides a broad, implementation-grounded map of what this repository does, where the major systems live, and how the pieces fit together.
@@ -198,7 +214,7 @@ This document provides a broad, implementation-grounded map of what this reposit
 ## Agent Guidance
 
 - Start here for broad orientation.
-- For tier/access decisions, defer to `docs/AGENT_CANONICAL_CONTEXT.md`.
+- For tier/access decisions, defer to `docs/agent-canonical-context.md`.
 - For auth/subscription specifics, pair docs with source of truth:
   - `lib/auth/subscription.ts`
   - `components/auth/tier-gate.tsx`
