@@ -97,6 +97,67 @@ function getSupabase() {
   return supabase
 }
 
+function toNonEmptyString(value) {
+  if (value === null || value === undefined) return null
+  const normalized = String(value).trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function parseMetadataObject(metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return {}
+  }
+  return metadata
+}
+
+function normalizeTargetStoreId(value) {
+  const normalized = toNonEmptyString(value)
+  if (!normalized) return null
+
+  // Target RedSky store IDs are numeric; avoid leaking internal UUIDs through store_id aliases.
+  return /^\d+$/.test(normalized) ? normalized : null
+}
+
+function resolveTargetStoreId(metadata) {
+  const raw = parseMetadataObject(metadata)
+  const nestedRaw = parseMetadataObject(raw.raw)
+
+  const candidates = [
+    raw.target_store_id,
+    raw.targetStoreId,
+    raw.store_id,
+    raw.storeId,
+    nestedRaw.target_store_id,
+    nestedRaw.targetStoreId,
+    nestedRaw.store_id,
+    nestedRaw.storeId,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeTargetStoreId(candidate)
+    if (normalized) return normalized
+  }
+
+  return null
+}
+
+function normalizeTargetStoreMetadata(store, fallbackZipCode = '') {
+  const base = parseMetadataObject(store)
+  const rawMetadata = parseMetadataObject(base.metadata ?? base.raw ?? base)
+  const zipCode = normalizeZipCode(base.zip_code ?? base.zipCode ?? fallbackZipCode)
+  const targetStoreId = resolveTargetStoreId({ ...rawMetadata, ...base, raw: rawMetadata })
+
+  return {
+    target_store_id: targetStoreId,
+    store_id: targetStoreId, // Alias expected by target scraper resolver.
+    grocery_store_id: toNonEmptyString(base.grocery_store_id ?? base.groceryStoreId ?? base.id),
+    zip_code: zipCode || null,
+    name: toNonEmptyString(base.name),
+    address: toNonEmptyString(base.address),
+    raw: rawMetadata,
+  }
+}
+
 async function appendStoreFailureMetadata(store, details) {
   if (!store?.id) return
 
@@ -271,6 +332,8 @@ async function fetchAllCanonicalIngredients() {
 
 async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, batchConcurrency, scrapeStats = null, storeMetadata = null) {
   const nativeBatchScraper = STORE_BATCH_SCRAPER_MAP[storeEnum]
+  const normalizedTargetMetadata =
+    storeEnum === 'target' ? normalizeTargetStoreMetadata(storeMetadata, zipCode) : null
 
   if (typeof nativeBatchScraper === 'function') {
     try {
@@ -323,11 +386,15 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
     async ingredientName => {
       try {
         // Special handling for Target to pass store metadata
-        if (storeEnum === 'target' && storeMetadata) {
-          console.log(`[DEBUG] Target scrape for ${ingredientName}: storeId=${storeMetadata.target_store_id}, zip=${zipCode}`)
+        if (storeEnum === 'target') {
+          console.log(
+            `[DEBUG] Target scrape for ${ingredientName}: ` +
+            `target_store_id=${normalizedTargetMetadata?.target_store_id || 'none'}, ` +
+            `grocery_store_id=${normalizedTargetMetadata?.grocery_store_id || 'none'}, zip=${zipCode}`
+          )
         }
-        const results = storeEnum === 'target' && storeMetadata
-          ? await scrapers.getTargetProducts(ingredientName, storeMetadata, zipCode)
+        const results = storeEnum === 'target'
+          ? await scrapers.getTargetProducts(ingredientName, normalizedTargetMetadata, zipCode)
           : await singleScraper(ingredientName, zipCode)
 
         return {
@@ -426,6 +493,8 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
 
     console.log(`\n🏬 Store ${storeIndex + 1}/${stores.length}: ${storeEnum} (${zipCode || 'no-zip'})`)
     console.log(`   ⚙️ Batch size: ${batchSize}, concurrency: ${batchConcurrency}`)
+    const normalizedTargetMetadata =
+      storeEnum === 'target' ? normalizeTargetStoreMetadata(store, zipCode) : null
 
     for (let i = 0; i < ingredients.length; i += batchSize) {
       const chunk = ingredients.slice(i, i + batchSize)
@@ -433,7 +502,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
       console.log(`   📦 Batched ingredients ${chunkLabel}/${ingredients.length}`)
 
       if (storeEnum === 'target') {
-        console.log(`[DEBUG] Calling runBatchedScraperForStore with metadata:`, JSON.stringify(store.metadata))
+        console.log(`[DEBUG] Calling runBatchedScraperForStore with metadata:`, JSON.stringify(normalizedTargetMetadata))
       }
 
       const { resultsByIngredient, errorFlags, errorMessages } = await runBatchedScraperForStore(
@@ -442,7 +511,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
         zipCode,
         batchConcurrency,
         scrapeStats,
-        store.metadata
+        normalizedTargetMetadata
       )
 
       let chunkHits = 0
