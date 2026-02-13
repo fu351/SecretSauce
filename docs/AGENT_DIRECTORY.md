@@ -31,7 +31,7 @@ Quick routing for agents: which docs and code to read first for each change.
 | A/B experiments | `docs/AB_TESTING_GUIDE.md` | `app/dev/experiments/`, `app/dev/feature-flags/`, `lib/dev/helpers.ts` |
 | Tutorial and onboarding | `docs/TUTORIAL_CURRENT_STATE.md` | `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/` |
 | Ingredient queue worker and prompts | `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`, `docs/PROMPT_MAINTENANCE_GUIDE.md` | `queue/`, `scripts/resolve-ingredient-match-queue.ts`, `lib/ingredient-standardizer.ts`, `lib/unit-standardizer.ts`, `lib/database/ingredient-match-queue-db.ts` |
-| Scraper implementation and runtime behavior | `docs/SCRAPERS_DIRECTORY.md`, `docs/target-geospatial-integration.md` | `lib/scrapers/`, `lib/ingredient-pipeline.ts`, `app/api/grocery-search/route.ts`, `scripts/daily-scraper.js` |
+| Scraper implementation and runtime behavior | `docs/SCRAPERS_DIRECTORY.md` | `lib/scrapers/`, `lib/ingredient-pipeline.ts`, `app/api/grocery-search/route.ts`, `scripts/daily-scraper.js` |
 | Database schema/functions | `docs/DATABASE_GUIDE.md` | `lib/database/`, `supabase/migrations/`, `migrations/` |
 | Operational scripts and maintenance workflows | `docs/SCRIPTS_DIRECTORY.md` | `scripts/`, `.github/workflows/` |
 | GitHub Actions orchestration and runbooks | `docs/WORKFLOWS_DIRECTORY.md` | `.github/workflows/`, reusable workflow call graph |
@@ -48,7 +48,6 @@ Quick routing for agents: which docs and code to read first for each change.
 - `docs/TUTORIAL_CURRENT_STATE.md`: current tutorial behavior and roadmap.
 - `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`: queue migration plan and rollout state.
 - `docs/PROMPT_MAINTENANCE_GUIDE.md`: queue prompt files, contracts, rollout flags.
-- `docs/target-geospatial-integration.md`: Target store ID + geospatial integration.
 - `docs/SCRAPERS_DIRECTORY.md`: scraper inventory, runtime behavior, and diagnostics.
 - `docs/DATABASE_GUIDE.md`: practical Supabase schema, functions, triggers.
 - `docs/SCRIPTS_DIRECTORY.md`: script routing, operational commands, and workflow mapping.
