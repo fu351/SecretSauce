@@ -1,75 +1,60 @@
-# Agent Directory & Docs Map
+# Agent Directory
 
 ## Purpose
 
-This document helps AI agents quickly understand the repository and choose the right docs/files before making changes.
-It intentionally lists only active, non-redundant docs.
+Quick routing for agents: which docs and code to read first for each change.
 
-## First Read
+## Canonical Invariants
 
-- For full-repo orientation, start with `docs/REPOSITORY_FUNCTIONALITY_OVERVIEW.md`.
+- Subscription tiers are only `free` and `premium`.
+- Access semantics:
+  - `requireAuth()` = signed-in user required
+  - `requireTier("free")` = any signed-in user
+  - `requireTier("premium")` = active premium user
+- If docs conflict, trust this order:
+  1. `docs/AGENT_CANONICAL_CONTEXT.md`
+  2. implementation in `lib/auth/subscription.ts` and `hooks/use-subscription.ts`
+  3. domain guides below
 
-## Canonical Product Truths
+## Recommended Read Order
 
-- Primary source for tier policy: `docs/AGENT_CANONICAL_CONTEXT.md`.
+1. `docs/REPOSITORY_FUNCTIONALITY_OVERVIEW.md` (broad architecture).
+2. `docs/AGENT_CANONICAL_CONTEXT.md` (non-negotiable policy).
+3. Domain docs from the task map below.
 
-## Docs Catalog (Key Files In `/docs`)
+## Task Map (Docs + Code Entry Points)
 
-| File | Category | Use For | Priority |
-|---|---|---|---|
-| `docs/REPOSITORY_FUNCTIONALITY_OVERVIEW.md` | Repository Overview | Broad functionality map across routes, APIs, data, and automation | Highest |
-| `docs/AGENT_CANONICAL_CONTEXT.md` | Agent Policy | Canonical tier rules and agent guardrails | Highest |
-| `docs/AUTH_GATES_COMPLETE_GUIDE.md` | Auth & Access | AuthGate/TierGate/ShowWhen usage patterns | High |
-| `docs/SUBSCRIPTION_QUICK_REFERENCE.md` | Auth & Access | Fast copy/paste API + hook usage | High |
-| `docs/ANALYTICS_GUIDE.md` | Analytics & Tracking | User behavior tracking, event definitions, analytics API | High |
-| `docs/AB_TESTING_GUIDE.md` | Experimentation | A/B architecture, targeting, events, experiment setup | High |
-| `docs/TUTORIAL_CURRENT_STATE.md` | Tutorials & Onboarding | Canonical tutorial flow, selector map, and roadmap | High |
-| `docs/target-geospatial-integration.md` | Scraping & Geospatial | How Target scraper uses geospatial lookup + Target store IDs | High |
-| `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md` | Queue Processing | Real-time ingredient queue migration plan (local LLM + worker + rollout) | High |
-| `docs/PROMPT_MAINTENANCE_GUIDE.md` | Prompting | Where to update ingredient/unit queue prompts and rollout flags | High |
+| Task | Read First | Then Inspect |
+|---|---|---|
+| Auth, login, paywall behavior | `docs/AGENT_CANONICAL_CONTEXT.md`, `docs/AUTH_GATES_COMPLETE_GUIDE.md`, `docs/SUBSCRIPTION_QUICK_REFERENCE.md` | `lib/auth/subscription.ts`, `components/auth/tier-gate.tsx`, `hooks/use-subscription.ts` |
+| Analytics and event tracking | `docs/ANALYTICS_GUIDE.md` | `lib/analytics/`, `lib/database/analytics-db.ts`, `hooks/use-analytics.ts`, `contexts/analytics-context.tsx` |
+| A/B experiments | `docs/AB_TESTING_GUIDE.md` | `app/dev/experiments/`, `app/dev/feature-flags/`, `lib/dev/helpers.ts` |
+| Tutorial and onboarding | `docs/TUTORIAL_CURRENT_STATE.md` | `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/` |
+| Ingredient queue worker and prompts | `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`, `docs/PROMPT_MAINTENANCE_GUIDE.md` | `queue/`, `scripts/resolve-ingredient-match-queue.ts`, `lib/ingredient-standardizer.ts`, `lib/unit-standardizer.ts`, `lib/database/ingredient-match-queue-db.ts` |
+| Scraper implementation and runtime behavior | `docs/SCRAPERS_DIRECTORY.md`, `docs/target-geospatial-integration.md` | `lib/scrapers/`, `lib/ingredient-pipeline.ts`, `app/api/grocery-search/route.ts`, `scripts/daily-scraper.js` |
+| Database schema/functions | `docs/DATABASE_GUIDE.md` | `lib/database/`, `supabase/migrations/`, `migrations/` |
+| Operational scripts and maintenance workflows | `docs/SCRIPTS_DIRECTORY.md` | `scripts/`, `.github/workflows/` |
+| GitHub Actions orchestration and runbooks | `docs/WORKFLOWS_DIRECTORY.md` | `.github/workflows/`, reusable workflow call graph |
 
-## Repository Map (Agent-Oriented)
+## Docs Catalog (All Files Under `/docs`)
 
-- `app/`: Next.js routes (UI pages + API routes).
-- `components/`: UI components. Auth gates live in `components/auth/tier-gate.tsx`.
-- `hooks/`: Client logic/hooks. Tier hooks live in `hooks/use-subscription.ts`, analytics in `hooks/use-analytics.ts`.
-- `contexts/`: React contexts. Auth in `contexts/auth-context.tsx`, analytics in `contexts/analytics-context.tsx`, tutorials in `contexts/tutorial-context.tsx`.
-- `lib/`: Core logic and data access.
-- `lib/auth/subscription.ts`: Server-side auth/tier enforcement.
-- `lib/analytics/`: Analytics tracking system (event types, queue, session management).
-- `lib/scrapers/target.js`: Target scraper logic.
-- `lib/database/`: Supabase data layer + typed access. Analytics DB in `lib/database/analytics-db.ts`.
-- `contents/tutorials/`: Tutorial path definitions and per-step selector targets.
-- `components/tutorial/`: Tutorial overlay runtime and highlight behavior.
-- `scripts/`: Backfills, validations, and data maintenance scripts.
-- `supabase/` and `migrations/`: Database migrations and schema evolution.
-  - `migrations/create-get-user-tier-function.sql`: Helper function to retrieve user subscription tier.
-  - `migrations/create-track-event-wrapper.sql`: Public wrapper for client-side analytics event RPC.
-  - `migrations/create-general-analytics-experiment.sql`: Reserved experiment/variant for general analytics tracking.
+- `docs/REPOSITORY_FUNCTIONALITY_OVERVIEW.md`: full repository and subsystem map.
+- `docs/AGENT_CANONICAL_CONTEXT.md`: canonical tier and guardrail policy.
+- `docs/AGENT_DIRECTORY.md`: this routing index.
+- `docs/AUTH_GATES_COMPLETE_GUIDE.md`: auth/tier gate component usage.
+- `docs/SUBSCRIPTION_QUICK_REFERENCE.md`: fast server/client subscription APIs.
+- `docs/ANALYTICS_GUIDE.md`: analytics events, queueing, DB usage.
+- `docs/AB_TESTING_GUIDE.md`: experiment setup, targeting, reporting.
+- `docs/TUTORIAL_CURRENT_STATE.md`: current tutorial behavior and roadmap.
+- `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`: queue migration plan and rollout state.
+- `docs/PROMPT_MAINTENANCE_GUIDE.md`: queue prompt files, contracts, rollout flags.
+- `docs/target-geospatial-integration.md`: Target store ID + geospatial integration.
+- `docs/SCRAPERS_DIRECTORY.md`: scraper inventory, runtime behavior, and diagnostics.
+- `docs/DATABASE_GUIDE.md`: practical Supabase schema, functions, triggers.
+- `docs/SCRIPTS_DIRECTORY.md`: script routing, operational commands, and workflow mapping.
+- `docs/WORKFLOWS_DIRECTORY.md`: workflow triggers, composition graph, and operational workflow map.
 
-## Where To Start By Task
+## Current State Notes
 
-- Understand the full codebase quickly:
-  Read `docs/REPOSITORY_FUNCTIONALITY_OVERVIEW.md`, then this directory doc, then drill into the domain docs below.
-- Auth/login/paywall behavior:
-  Read `docs/AGENT_CANONICAL_CONTEXT.md`, then `docs/AUTH_GATES_COMPLETE_GUIDE.md`, then inspect `lib/auth/subscription.ts` and `components/auth/tier-gate.tsx`.
-- Subscription/tier UI logic:
-  Read `docs/SUBSCRIPTION_QUICK_REFERENCE.md`, then inspect `hooks/use-subscription.ts` and `lib/auth/subscription.ts`.
-- Analytics/user behavior tracking:
-  Read `docs/ANALYTICS_GUIDE.md`, then inspect `lib/analytics/`, `hooks/use-analytics.ts`, and `contexts/analytics-context.tsx`.
-  For analytics migration identifiers and wrapper details, use the `migrations/` entries listed above.
-- A/B testing changes:
-  Read `docs/AB_TESTING_GUIDE.md`, then inspect `app/dev/experiments/`, `app/dev/feature-flags/`, and `lib/dev/helpers.ts`.
-- Tutorial/onboarding behavior:
-  Read `docs/TUTORIAL_CURRENT_STATE.md`, then inspect `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/`, and active route anchors in `app/meal-planner/page.tsx` and `components/store/shopping-receipt-view.tsx`.
-- Target pricing/geospatial/store matching:
-  Read `docs/target-geospatial-integration.md`, then inspect `lib/scrapers/target.js`, `lib/database/grocery-stores-db.ts`, and related scripts in `scripts/`.
-- Ingredient queue real-time migration:
-  Read `docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`, then inspect `queue/` (target structure), `scripts/resolve-ingredient-match-queue.ts` (legacy shim during migration), `lib/ingredient-standardizer.ts`, and `lib/database/ingredient-match-queue-db.ts`.
-
-## Agent Checklist Before Shipping
-
-- Confirm tier logic stays aligned with canonical tier policy in `docs/AGENT_CANONICAL_CONTEXT.md`.
-- Prefer server-side enforcement (`requireAuth`, `requireTier`) for route protection.
-- Keep docs and examples aligned with actual code paths.
-- If touching scraper logic, verify related validation scripts still match expectations.
+- Tutorial system status and roadmap are actively tracked in `docs/TUTORIAL_CURRENT_STATE.md` (last updated `2026-02-13`).
+- Queue runtime is partially migrated to `queue/`; nightly workflow remains fallback until full cutover (`docs/INGREDIENT_QUEUE_REALTIME_PLAN.md`).
