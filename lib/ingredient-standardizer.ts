@@ -280,6 +280,18 @@ export async function standardizeIngredientsWithAI(
       const entry = entriesById.get(input.id) ?? resultEntries[index]
       const status = typeof entry?.status === "string" ? entry.status.toLowerCase() : "success"
       const useEntry = Boolean(entry && status === "success")
+      const modelId =
+        typeof entry?.id === "string"
+          ? entry.id
+          : typeof entry?.rowId === "string"
+            ? entry.rowId
+            : null
+
+      if (modelId && modelId !== input.id) {
+        console.warn(
+          `[IngredientStandardizer] Model id mismatch for "${input.name}": expected "${input.id}", got "${modelId}". Using expected id.`
+        )
+      }
 
       const canonicalSource =
         useEntry && typeof entry?.canonicalName === "string"
@@ -299,7 +311,9 @@ export async function standardizeIngredientsWithAI(
         typeof entry?.originalName === "string" ? entry.originalName : input.name
 
       return {
-        id: String(entry?.id ?? entry?.rowId ?? input.id ?? index),
+        // Keep the original input id stable. Some model outputs emit rewritten ids,
+        // which breaks downstream row mapping in queue processing.
+        id: String(input.id ?? index),
         originalName,
         canonicalName,
         category,
