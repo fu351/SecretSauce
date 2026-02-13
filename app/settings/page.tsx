@@ -33,7 +33,11 @@ export default function SettingsPage() {
 function SettingsPageContent() {
   const { user, updateProfile } = useAuth()
   const { theme, setTheme } = useTheme()
-  const { tutorialCompleted: contextTutorialCompleted, tutorialCompletedAt: contextTutorialCompletedAt } = useTutorial()
+  const {
+    tutorialCompleted: contextTutorialCompleted,
+    tutorialPath: contextTutorialPath,
+    tutorialCompletedAt: contextTutorialCompletedAt,
+  } = useTutorial()
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
 
@@ -134,10 +138,13 @@ function SettingsPageContent() {
     if (contextTutorialCompleted) {
       setTutorialCompleted(contextTutorialCompleted)
     }
+    if (contextTutorialPath) {
+      setTutorialPath(contextTutorialPath)
+    }
     if (contextTutorialCompletedAt) {
       setTutorialCompletedAt(contextTutorialCompletedAt)
     }
-  }, [contextTutorialCompleted, contextTutorialCompletedAt])
+  }, [contextTutorialCompleted, contextTutorialPath, contextTutorialCompletedAt])
 
   useEffect(() => {
     const payload: ProfileUpdates = {
@@ -242,6 +249,8 @@ function SettingsPageContent() {
       setGroceryDistance(String(profile.grocery_distance_miles || 10))
       setDietaryPreferences(profile.dietary_preferences || [])
       setTutorialCompleted(profile.tutorial_completed || false)
+      setTutorialPath(profile.tutorial_path || null)
+      setTutorialCompletedAt(profile.tutorial_completed_at || null)
       setFullName(profile.full_name || "")
       setAvatarUrl(profile.avatar_url || null)
       setNewEmail(profile.email || "")
