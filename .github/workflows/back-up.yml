@@ -80,9 +80,9 @@ jobs:
 
           echo "Rows before wipe: ${BEFORE}"
 
-          # Delete all rows from ingredient_match_queue
+          # Delete all rows (id is UUID, so use not.is.null instead of numeric comparisons)
           curl -sf -X DELETE \
-            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?id=gt.0" \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?id=not.is.null" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Prefer: return=minimal"
