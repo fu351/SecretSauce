@@ -46,6 +46,7 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | Backfill missing Target store IDs | `scripts/backfill-target-store-ids.js` | Writes `metadata.target_store_id`; supports `--dry-run`, `--limit`, `--zip`. |
 | Analyze Target scraper 404 patterns | `scripts/analyze-404s.js` | Reads `target_404_log` and prints store/ingredient/ZIP trends. |
 | Reproduce 404-prone ingredient queries | `scripts/test-ingredient-404s.js` | Tests canonical ingredients against a known Target store (`TARGET_TEST_ZIP`, `TARGET_TEST_STORE_ID`). |
+| Validate Trader Joe's scraper in single-store mode | `scripts/test-traderjoes-scraper.js` | Daily-scraper-style harness that hard-enforces one `traderjoes` store and validates output shape/sorting/location consistency. |
 | Seed dev/mock recipes | `scripts/seed-mock-recipes.ts` | Upserts mock recipes through `lib/dev/mock-recipes` RPC contract; requires `SUPABASE_SEED_AUTHOR_ID`. |
 
 ## Script Catalog
@@ -65,6 +66,7 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | `scripts/backfill-target-store-ids.js` | Node | Updates `grocery_stores.metadata` for Target store IDs. |
 | `scripts/analyze-404s.js` | Node | Read-only analysis of `target_404_log`. |
 | `scripts/test-ingredient-404s.js` | Node | Read-only test calls to scraper APIs + DB reads. |
+| `scripts/test-traderjoes-scraper.js` | Node | Read-only test harness for Trader Joe's scraper using one DB-backed store + canonical ingredient sample. |
 | `scripts/scraper_common.py` | Python module | Shared helper module for store import/geoscraper/backfill flows. |
 | `scripts/utils/daily-scraper-utils.js` | JS module | Shared helper module for daily scraper batching/filtering/normalization. |
 | `scripts/utils/canonical-matching.ts` | TS module | Shared canonical-name similarity helpers. |
