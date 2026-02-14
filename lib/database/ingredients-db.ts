@@ -629,7 +629,7 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
 
   async getPricingGaps(userId: string): Promise<PricingGap[]> {
     try {
-      const { data, error } = await (this.supabase.rpc as any)("get_pricing_gaps", {
+      const { data, error } = await this.supabase.rpc("get_pricing_gaps", {
         p_user_id: userId,
       })
 

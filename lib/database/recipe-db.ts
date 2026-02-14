@@ -736,18 +736,22 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
   ): Promise<{ totalCost: number; costPerServing: number; ingredients: Record<string, number> } | null> {
 
     console.log(`[Recipe DB] Calculating cost estimate for recipe ${recipeId} at store ${store} for ${servings} servings in zip ${zip_code}`)
-    
-    // Note: Parameter names must match the SQL function exactly (p_store_id vs p_store)
-    const { data, error } = await (this.supabase as any).rpc("calculate_recipe_cost", {
-      p_recipe_id: recipeId,
-      p_store_id: store,
-      p_zip_code: zip_code,
-      p_servings: servings
-    });
 
+    const {
+      data: { user },
+    } = await this.supabase.auth.getUser()
+
+    // Note: Parameter names must match the SQL function exactly.
+    const { data, error } = await this.supabase.rpc("calculate_recipe_cost", {
+      p_recipe_id: recipeId,
+      p_store_id: store as Database["public"]["Enums"]["grocery_store"],
+      p_zip_code: zip_code,
+      p_servings: servings,
+      p_user_id: user?.id ?? null,
+    })
 
     if (error) {
-      this.handleError(error, "calculateCostEstimate");
+      this.handleError(error, "calculateCostEstimate")
       return null;
     }
 
@@ -768,12 +772,16 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     }));
 
     // 2. Make ONE call to the batch function
-    const { data, error } = await (this.supabase as any).rpc("calculate_weekly_basket", {
+    const {
+      data: { user },
+    } = await this.supabase.auth.getUser()
+
+    const { data, error } = await this.supabase.rpc("calculate_weekly_basket", {
       p_recipe_configs: recipeConfigs,
-      p_user_id: (await this.supabase.auth.getUser()).data.user?.id, // Assumes user is logged in
-      p_store_id: store,
-      p_zip_code: zip_code
-    });
+      p_user_id: user?.id ?? null,
+      p_store_id: store as Database["public"]["Enums"]["grocery_store"],
+      p_zip_code: zip_code,
+    })
 
     if (error) {
       this.handleError(error, "calculateMultipleCostEstimates");

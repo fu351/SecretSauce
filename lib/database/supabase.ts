@@ -1023,6 +1023,7 @@ export type Database = {
           p_store_id: Database["public"]["Enums"]["grocery_store"] // Use Enum
           p_zip_code: string
           p_servings: number
+          p_user_id?: string | null
         }
         Returns: {
           recipe_id: string
@@ -1030,6 +1031,15 @@ export type Database = {
           costPerServing: number
           ingredients: Record<string, number>
         }
+      }
+      calculate_weekly_basket: {
+        Args: {
+          p_recipe_configs: Json
+          p_store_id: Database["public"]["Enums"]["grocery_store"]
+          p_zip_code: string
+          p_user_id?: string | null
+        }
+        Returns: Json
       }
       claim_ingredient_match_queue: {
         Args: {
@@ -1079,8 +1089,9 @@ export type Database = {
       }
       get_best_store_for_plan: {
         Args: {
-          p_user_id: string
+          p_user_id?: string | null
           p_recipe_ids: string[]
+          p_zip_code?: string | null
         }
         Returns: {
           store_id: string
