@@ -17,6 +17,12 @@ export interface ScraperResult {
 
   /** Store's internal product ID */
   product_id?: string | null
+
+  /** Raw unit/size text from scraper output (preferred for downstream parsing) */
+  rawUnit?: string | null
+
+  /** Legacy unit field preserved for compatibility */
+  unit?: string | null
 }
 
 function normalizeWhitespace(value: unknown): string {
@@ -36,6 +42,7 @@ function hasEmbeddedUnitToken(value: string): boolean {
 
 function extractUnitHint(result: any): string {
   const directCandidates = [
+    result?.rawUnit,
     result?.unit,
     result?.size,
     result?.package_size,
@@ -70,11 +77,15 @@ function buildProductNameWithUnit(result: any): string {
  * Normalize legacy scraper results that may use 'title' instead of 'product_name'
  */
 export function normalizeScraperResult(result: any): ScraperResult {
+  const rawUnitHint = extractUnitHint(result) || null
+
   return {
     product_name: buildProductNameWithUnit(result),
     price: Number(result.price) || 0,
     image_url: result.image_url ?? null,
     product_id: result.product_id ?? (result.id != null ? String(result.id) : null),
+    rawUnit: rawUnitHint,
+    unit: rawUnitHint,
   }
 }
 

@@ -181,7 +181,7 @@ class IngredientsHistoryTable extends BaseTable<
    *
    * Note:
    * - standardizedIngredientId matching is handled by the database based on product_name
-   * - quantity and unit are extracted by the database from product_name
+   * - rawUnit/unit are forwarded when available for unit parsing, with product_name fallback
    * - location is deprecated (zipCode is used instead)
    */
   async batchInsertPricesRpc(
@@ -191,6 +191,8 @@ class IngredientsHistoryTable extends BaseTable<
       imageUrl?: string | null
       productName?: string | null
       productId?: string | null
+      rawUnit?: string | null
+      unit?: string | null
       zipCode?: string | null
       groceryStoreId?: string | null
     }>
@@ -206,6 +208,8 @@ class IngredientsHistoryTable extends BaseTable<
           imageUrl: item.imageUrl ?? null,
           productName: item.productName ?? null,
           productId: item.productId ?? null,
+          rawUnit: item.rawUnit ?? item.unit ?? null,
+          unit: item.unit ?? null,
           zipCode: item.zipCode ?? "",
           store_id: item.groceryStoreId ?? null,
         }))

@@ -628,7 +628,9 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
           productName: getProductName(best, ingredientName),
           productId: best.product_id || best.id || null,
           zipCode,
-          store_id: store.id || null
+          store_id: store.id || null,
+          rawUnit: best.rawUnit || best.unit || best.size || null,
+          unit: best.unit || null
         })
 
         totalScrapedCount += 1
@@ -700,7 +702,9 @@ async function bulkInsertIngredientHistory(items) {
       productName: (item.productName || '').toString().trim() || null,
       productId: item.productId == null ? null : String(item.productId),
       zipCode: normalizeZipCode(item.zipCode),
-      store_id: item.store_id ?? null
+      store_id: item.store_id ?? null,
+      rawUnit: item.rawUnit ?? item.unit ?? null,
+      unit: item.unit ?? null
     }))
     .filter(item => item.price !== null && item.price > 0 && item.productName && item.zipCode)
 

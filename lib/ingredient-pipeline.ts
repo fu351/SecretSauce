@@ -191,6 +191,8 @@ export async function getOrRefreshIngredientPricesForStores(
       imageUrl: bestProduct.image_url,
       productName: bestProduct.product_name,
       productId: bestProduct.product_id ?? null,
+      rawUnit: bestProduct.rawUnit ?? bestProduct.unit ?? null,
+      unit: bestProduct.unit ?? bestProduct.rawUnit ?? null,
       zipCode: storeZip,
       groceryStoreId: storeMeta?.grocery_store_id ?? resolvedStoreId,
     }
