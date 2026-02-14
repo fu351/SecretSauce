@@ -17,6 +17,15 @@ on:
         required: false
         type: boolean
         default: false
+      initiating_mode:
+        description: "Initiating mode (full, pre-queue only, or pre-queue dry-run only)"
+        required: false
+        type: choice
+        options:
+          - full
+          - queue-only-no-scrape
+          - queue-dry-run-only
+        default: full
       restore_suffix:
         description: "Backup suffix to restore (e.g., 20260209_150000)"
         required: false
@@ -43,6 +52,7 @@ jobs:
           CONFIRM="${{ inputs.confirm_reset }}"
           SUFFIX="${{ inputs.restore_suffix }}"
           RUN_INITIATING="${{ inputs.run_initiating_workflow }}"
+          INITIATING_MODE="${{ inputs.initiating_mode }}"
 
           if [[ "$ACTION" != "backup-only" && "$CONFIRM" != "RESET" ]]; then
             echo "❌ Type RESET in the confirm field for destructive actions."
@@ -51,6 +61,16 @@ jobs:
 
           if [[ "$RUN_INITIATING" == "true" && "$ACTION" != "backup-and-reset" ]]; then
             echo "❌ Initiating workflow can only run with backup-and-reset action."
+            exit 1
+          fi
+
+          if [[ "$INITIATING_MODE" == "queue-dry-run-only" && "$RUN_INITIATING" != "true" ]]; then
+            echo "❌ queue-dry-run-only mode requires run_initiating_workflow=true."
+            exit 1
+          fi
+
+          if [[ "$INITIATING_MODE" == "queue-only-no-scrape" && "$RUN_INITIATING" != "true" ]]; then
+            echo "❌ queue-only-no-scrape mode requires run_initiating_workflow=true."
             exit 1
           fi
 
@@ -65,6 +85,12 @@ jobs:
           fi
           if [[ "$RUN_INITIATING" == "true" ]]; then
             echo "⚠️  Initiating workflow will run after reset"
+          fi
+          if [[ "$INITIATING_MODE" == "queue-dry-run-only" ]]; then
+            echo "⚠️  Initiating mode: queue dry-run only (skip scraper + post queue)"
+          fi
+          if [[ "$INITIATING_MODE" == "queue-only-no-scrape" ]]; then
+            echo "⚠️  Initiating mode: pre-queue only (skip scraper + post queue)"
           fi
 
       - name: Wipe Ingredient Match Queue
@@ -173,7 +199,7 @@ jobs:
   initiating-bootstrap:
     name: Full Bootstrap (Initiating Workflow)
     needs: run
-    if: ${{ inputs.action == 'backup-and-reset' && inputs.run_initiating_workflow }}
+    if: ${{ inputs.action == 'backup-and-reset' && inputs.run_initiating_workflow && inputs.initiating_mode == 'full' }}
     uses: ./.github/workflows/initiating-workflow.yml
     secrets: inherit
     with:
@@ -184,3 +210,37 @@ jobs:
       store_limit: "0"
       queue_batch_limit: "100"
       queue_max_batches: "10"
+
+  initiating-queue-dry-run:
+    name: Queue Dry-Run Only (No Scraper, No Post Queue)
+    needs: run
+    if: ${{ inputs.action == 'backup-and-reset' && inputs.run_initiating_workflow && inputs.initiating_mode == 'queue-dry-run-only' }}
+    uses: ./.github/workflows/nightly-ingredient-queue.yml
+    secrets: inherit
+    with:
+      queue_batch_limit: "100"
+      queue_context: "recipe"
+      queue_source: recipe
+      queue_resolver_name: "backup-initiating-pre-dryrun"
+      queue_dry_run: "true"
+      openai_model: gpt-4o-mini
+      gemini_model: gemini-3-flash-preview
+      queue_max_batches: "10"
+      queue_batch_delay_seconds: "2"
+
+  initiating-queue-only:
+    name: Pre-Queue Only (No Scraper, No Post Queue)
+    needs: run
+    if: ${{ inputs.action == 'backup-and-reset' && inputs.run_initiating_workflow && inputs.initiating_mode == 'queue-only-no-scrape' }}
+    uses: ./.github/workflows/nightly-ingredient-queue.yml
+    secrets: inherit
+    with:
+      queue_batch_limit: "100"
+      queue_context: "recipe"
+      queue_source: recipe
+      queue_resolver_name: "backup-initiating-pre"
+      queue_dry_run: "false"
+      openai_model: gpt-4o-mini
+      gemini_model: gemini-3-flash-preview
+      queue_max_batches: "10"
+      queue_batch_delay_seconds: "2"
