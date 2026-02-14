@@ -26,6 +26,11 @@ on:
           - queue-only-no-scrape
           - queue-dry-run-only
         default: full
+      initiating_store_limit:
+        description: "Store limit per brand for full initiating workflow (0 = all, 5 = 5 Target + 5 Trader Joe's + ...)"
+        required: false
+        type: string
+        default: "5"
       restore_suffix:
         description: "Backup suffix to restore (e.g., 20260209_150000)"
         required: false
@@ -53,6 +58,7 @@ jobs:
           SUFFIX="${{ inputs.restore_suffix }}"
           RUN_INITIATING="${{ inputs.run_initiating_workflow }}"
           INITIATING_MODE="${{ inputs.initiating_mode }}"
+          INITIATING_STORE_LIMIT="${{ inputs.initiating_store_limit }}"
 
           if [[ "$ACTION" != "backup-only" && "$CONFIRM" != "RESET" ]]; then
             echo "❌ Type RESET in the confirm field for destructive actions."
@@ -79,12 +85,18 @@ jobs:
             exit 1
           fi
 
+          if ! [[ "$INITIATING_STORE_LIMIT" =~ ^[0-9]+$ ]]; then
+            echo "❌ initiating_store_limit must be a non-negative integer (got: $INITIATING_STORE_LIMIT)"
+            exit 1
+          fi
+
           echo "✅ Validated: $ACTION"
           if [[ "$ACTION" == "backup-and-reset" ]]; then
             echo "⚠️  Queue will be wiped as part of reset"
           fi
           if [[ "$RUN_INITIATING" == "true" ]]; then
             echo "⚠️  Initiating workflow will run after reset"
+            echo "⚙️  Initiating store_limit per brand: ${INITIATING_STORE_LIMIT}"
           fi
           if [[ "$INITIATING_MODE" == "queue-dry-run-only" ]]; then
             echo "⚠️  Initiating mode: queue dry-run only (skip scraper + post queue)"
@@ -207,7 +219,7 @@ jobs:
       scraper_cities_csv: "San Francisco,Oakland,Berkeley"
       scraper_state: "CA"
       ingredient_limit: "0"
-      store_limit: "5"
+      store_limit: ${{ inputs.initiating_store_limit || '5' }}
       queue_batch_limit: "100"
       queue_max_batches: "10"
 
