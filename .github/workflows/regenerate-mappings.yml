@@ -6,6 +6,11 @@ on:
     - cron: '0 3 * * 0'
   workflow_dispatch:
     inputs:
+      wipe_queue:
+        description: 'Wipe ingredient_match_queue before relinking'
+        required: false
+        type: boolean
+        default: false
       reset_all:
         description: 'Reset ALL mappings (ignore age filter)'
         required: false
@@ -21,6 +26,11 @@ on:
         required: false
         type: boolean
         default: true
+      run_initiating_workflow:
+        description: 'Run full initiating workflow after relink'
+        required: false
+        type: boolean
+        default: false
 
 env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -30,6 +40,43 @@ jobs:
   relink:
     runs-on: ubuntu-latest
     steps:
+      - name: Wipe Ingredient Match Queue
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.wipe_queue }}
+        run: |
+          echo "=== Wiping Ingredient Match Queue ==="
+
+          # Get count before wipe
+          BEFORE=$(curl -sI \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Prefer: count=exact" \
+            -H "Range: 0-0" \
+            | grep -i '^content-range' \
+            | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0")
+
+          echo "Rows before wipe: ${BEFORE}"
+
+          # Delete all rows from ingredient_match_queue
+          curl -sf -X DELETE \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?id=gt.0" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Prefer: return=minimal"
+
+          # Get count after wipe
+          AFTER=$(curl -sI \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Prefer: count=exact" \
+            -H "Range: 0-0" \
+            | grep -i '^content-range' \
+            | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0")
+
+          echo "Rows after wipe: ${AFTER}"
+          echo "Deleted: $((BEFORE - AFTER)) rows"
+
       - name: Relink Recipe Ingredients
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_recipe_relink }}
         run: |
@@ -95,9 +142,43 @@ jobs:
       - name: Queue Summary
         run: |
           echo "=== Queue Status ==="
-          RESULT=$(curl -sf \
-            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=source,status&limit=10000" \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
 
-          echo "$RESULT" | jq 'group_by(.source, .status) | map({source: .[0].source, status: .[0].status, count: length})'
+          # Optimized: Use count queries with minimal data fetch
+          get_count() {
+            local filter="$1"
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id&${filter}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          echo "Status breakdown by source:"
+          for source in scraper recipe; do
+            for status in pending processing success failed; do
+              count=$(get_count "source=eq.${source}&status=eq.${status}")
+              [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
+            done
+          done
+
+          # Total pending count
+          pending_total=$(get_count "status=eq.pending")
+          echo "Total pending rows: ${pending_total}"
+
+  initiating-bootstrap:
+    name: Full Bootstrap (Initiating Workflow)
+    needs: relink
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_initiating_workflow }}
+    uses: ./.github/workflows/initiating-workflow.yml
+    secrets: inherit
+    with:
+      queue_resolver_name: "relink-initiating"
+      scraper_cities_csv: "San Francisco,Oakland,Berkeley"
+      scraper_state: "CA"
+      ingredient_limit: "0"
+      store_limit: "0"
+      queue_batch_limit: "100"
+      queue_max_batches: "10"
