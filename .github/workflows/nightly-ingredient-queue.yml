@@ -259,6 +259,20 @@ jobs:
             max_batches="1"
           fi
 
+          if [ "${QUEUE_REVIEW_MODE}" != "ingredient" ]; then
+            if [ "${QUEUE_ENABLE_UNIT_RESOLUTION}" != "true" ]; then
+              echo "QUEUE_REVIEW_MODE=${QUEUE_REVIEW_MODE} requires unit resolution; forcing QUEUE_ENABLE_UNIT_RESOLUTION=true"
+              QUEUE_ENABLE_UNIT_RESOLUTION="true"
+            fi
+
+            if [ "${QUEUE_UNIT_DRY_RUN}" = "true" ]; then
+              echo "QUEUE_REVIEW_MODE=${QUEUE_REVIEW_MODE} cannot run with QUEUE_UNIT_DRY_RUN=true; forcing QUEUE_UNIT_DRY_RUN=false"
+              QUEUE_UNIT_DRY_RUN="false"
+            fi
+          fi
+
+          echo "Effective queue flags: review_mode=${QUEUE_REVIEW_MODE}, enable_unit_resolution=${QUEUE_ENABLE_UNIT_RESOLUTION}, unit_dry_run=${QUEUE_UNIT_DRY_RUN}, dry_run=${DRY_RUN}"
+
           retry_failed() {
             if [ "$QUEUE_RETRY_FAILED" != "true" ]; then
               return 0
