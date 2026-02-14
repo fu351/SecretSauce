@@ -36,6 +36,17 @@ export interface QueueRunSummary {
   dryRunResults?: ResolveBatchResult["results"]
 }
 
+const INVALID_CANONICAL_NAMES = new Set([
+  "other",
+  "unknown",
+  "none",
+  "null",
+  "n/a",
+  "na",
+  "misc",
+  "miscellaneous",
+])
+
 function getSearchTerm(row: IngredientMatchQueueRow): string {
   return (row.cleaned_name || row.raw_product_name || "").trim()
 }
@@ -262,10 +273,12 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             throw new Error("AI returned an empty canonical name")
           }
 
-          if (ingredientResult.confidence < 0.3 && !ingredientResult.category) {
-            throw new Error(
-              `Non-food item detected: "${normalizedCanonical}" (confidence: ${ingredientResult.confidence})`
-            )
+          if (INVALID_CANONICAL_NAMES.has(normalizedCanonical)) {
+            throw new Error(`Invalid canonical name "${normalizedCanonical}" returned by ingredient resolver`)
+          }
+
+          if (!ingredientResult.category) {
+            throw new Error(`Missing ingredient category for "${normalizedCanonical}"`)
           }
 
           canonicalForWrite = await resolveCanonicalWithDoubleCheck(

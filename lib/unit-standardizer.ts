@@ -55,6 +55,11 @@ const UNIT_ALIASES: Record<string, UnitLabel> = {
   unit: "unit",
 }
 
+const EXTRA_UNIT_SIGNAL_PATTERNS: Array<{ pattern: RegExp; unit: UnitLabel }> = [
+  { pattern: /\b(?:pack|pk|pkg|package|count)\b/i, unit: "ct" },
+  { pattern: /\b(?:ea|each)\b/i, unit: "each" },
+]
+
 export interface UnitStandardizationInput {
   id: string
   rawProductName: string
@@ -104,6 +109,53 @@ function parseQuantity(value: unknown): number | null {
   return numeric
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function buildAliasPattern(alias: string): RegExp {
+  // Match aliases even when attached to digits/punctuation (e.g. "12oz", "750ml", "16-fl-oz")
+  const flexibleAlias = escapeRegExp(alias.trim()).replace(/\s+/g, "[\\s.-]*")
+  return new RegExp(`(?<![a-z])${flexibleAlias}(?![a-z])`, "i")
+}
+
+function extractUnitSignals(input: UnitStandardizationInput): Set<UnitLabel> {
+  const raw = `${input.rawUnit ?? ""} ${input.rawProductName}`.trim().toLowerCase()
+  if (!raw) return new Set()
+
+  const signals = new Set<UnitLabel>()
+
+  for (const [alias, normalizedUnit] of Object.entries(UNIT_ALIASES)) {
+    if (!alias) continue
+    const pattern = buildAliasPattern(alias)
+    if (pattern.test(raw)) {
+      signals.add(normalizedUnit)
+    }
+  }
+
+  for (const extra of EXTRA_UNIT_SIGNAL_PATTERNS) {
+    if (extra.pattern.test(raw)) {
+      signals.add(extra.unit)
+    }
+  }
+
+  return signals
+}
+
+function mergeRawProductNameWithUnit(input: UnitStandardizationInput): string {
+  const rawProductName = (input.rawProductName ?? "").trim()
+  const rawUnit = (input.rawUnit ?? "").trim()
+  if (!rawUnit) return rawProductName
+
+  const hasUnitAlready = extractUnitSignals({
+    ...input,
+    rawUnit: "",
+  }).size > 0
+
+  if (hasUnitAlready) return rawProductName
+  return `${rawProductName} ${rawUnit}`.trim()
+}
+
 export function normalizeUnitLabel(value: unknown): UnitLabel | null {
   if (typeof value !== "string") return null
   const normalized = value.trim().toLowerCase().replace(/\s+/g, " ")
@@ -131,7 +183,7 @@ function buildHeuristicFallback(input: UnitStandardizationInput): UnitStandardiz
   let resolvedUnit: UnitLabel | null = null
   for (const [alias, standard] of Object.entries(UNIT_ALIASES)) {
     if (!alias) continue
-    const pattern = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i")
+    const pattern = buildAliasPattern(alias)
     if (pattern.test(raw)) {
       resolvedUnit = standard
       break
@@ -198,6 +250,7 @@ function parseParsedPayload(
     )
     const resolvedQuantity = parseQuantity(entry.resolvedQuantity ?? entry.quantity)
     const confidence = parseConfidence(entry.confidence ?? entry.confidenceScore, 0.5)
+    const unitSignals = extractUnitSignals(input)
 
     if (!resolvedUnit) {
       return errorResult(String(entry.id ?? entry.rowId ?? input.id), "Resolved unit missing/invalid")
@@ -205,6 +258,20 @@ function parseParsedPayload(
 
     if (!resolvedQuantity) {
       return errorResult(String(entry.id ?? entry.rowId ?? input.id), "Resolved quantity missing/invalid")
+    }
+
+    if (!unitSignals.size) {
+      return errorResult(
+        String(entry.id ?? entry.rowId ?? input.id),
+        "No explicit unit found in raw unit/product name"
+      )
+    }
+
+    if (!unitSignals.has(resolvedUnit)) {
+      return errorResult(
+        String(entry.id ?? entry.rowId ?? input.id),
+        `Resolved unit "${resolvedUnit}" not supported by raw unit/product name`
+      )
     }
 
     return {
@@ -298,7 +365,7 @@ export async function standardizeUnitsWithAI(
 
   const normalizedInputs: UnitStandardizerPromptInput[] = inputs.map((input) => ({
     id: input.id,
-    rawProductName: input.rawProductName,
+    rawProductName: mergeRawProductNameWithUnit(input),
     cleanedName: input.cleanedName ?? input.rawProductName,
     rawUnit: input.rawUnit ?? "",
     source: input.source,

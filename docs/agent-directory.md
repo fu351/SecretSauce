@@ -5,7 +5,7 @@
 - `Doc Kind`: `routing-index`
 - `Canonicality`: `routing`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-14`
 - `Primary Surfaces`: `docs/agent-directory.md`, `docs/agent-canonical-context.md`, `docs/repository-functionality-overview.md`
 - `Update Trigger`: New docs are added, renamed, or responsibilities move.
 
@@ -46,6 +46,7 @@ Quick routing for agents: which docs and code to read first for each change. Ple
 | A/B experiments | `docs/ab-testing-guide.md` | `app/dev/experiments/`, `app/dev/feature-flags/`, `lib/dev/helpers.ts` |
 | Tutorial and onboarding | `docs/tutorial-current-state.md` | `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/` |
 | Ingredient queue worker and prompts | `docs/ingredient-queue-realtime-plan.md`, `docs/prompt-maintenance-guide.md` | `queue/`, `scripts/resolve-ingredient-match-queue.ts`, `lib/ingredient-standardizer.ts`, `lib/unit-standardizer.ts`, `lib/database/ingredient-match-queue-db.ts` |
+| Scraper ingest function (`fn_bulk_insert_ingredient_history`) and queue handoff | `docs/database-guide.md`, `docs/ingredient-queue-realtime-plan.md` | `lib/database/ingredients-db.ts`, `scripts/daily-scraper.js`, Supabase function `public.fn_bulk_insert_ingredient_history(jsonb)` |
 | Scraper implementation and runtime behavior | `docs/scrapers-directory.md` | `lib/scrapers/`, `lib/ingredient-pipeline.ts`, `app/api/grocery-search/route.ts`, `scripts/daily-scraper.js` |
 | API routes, request contracts, and endpoint ownership | `docs/api-entrypoints-directory.md` | `app/api/`, `lib/ingredient-pipeline.ts`, `lib/database/`, `lib/store/` |
 | Database schema/functions | `docs/database-guide.md` | `lib/database/`, `supabase/migrations/`, `migrations/` |
@@ -92,3 +93,4 @@ Use this process when validating workflow edits, diagnosing bootstrap failures, 
 
 - Tutorial system status and roadmap are actively tracked in `docs/tutorial-current-state.md` (last updated `2026-02-13`).
 - Queue runtime is partially migrated to `queue/`; nightly workflow remains fallback until full cutover (`docs/ingredient-queue-realtime-plan.md`).
+- Unit standardization is a two-stage flow: first-pass deterministic parsing/mapping in `public.fn_bulk_insert_ingredient_history(jsonb)`, then AI queue resolution for rows flagged `needs_unit_review`.
