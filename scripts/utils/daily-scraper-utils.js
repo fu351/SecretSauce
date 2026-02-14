@@ -149,8 +149,44 @@ export function pickBestResult(results) {
   return withPrice[0]
 }
 
-export function getProductName(result, fallbackIngredient) {
+function normalizeWhitespace(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ')
+}
+
+function hasEmbeddedUnitToken(value) {
+  const text = normalizeWhitespace(value).toLowerCase()
+  if (!text) return false
+
+  // Quantity + common unit labels, or standalone count-style units.
   return (
+    /\b\d+(?:\.\d+)?\s*(?:fl\.?\s*oz|oz|lb|lbs?|pounds?|grams?|g|kg|ml|l|gal|gallon|gallons|ct|count|pk|pack|ea|each|bunch)\b/i.test(text) ||
+    /\b(?:each|ea|ct|count|pack|pk|bunch)\b/i.test(text)
+  )
+}
+
+function extractUnitHint(result) {
+  const directCandidates = [
+    result?.unit,
+    result?.size,
+    result?.package_size,
+    result?.unit_size,
+  ]
+
+  for (const candidate of directCandidates) {
+    const normalized = normalizeWhitespace(candidate)
+    if (!normalized) continue
+    if (/^(?:n\/a|na|none|null|undefined)$/i.test(normalized)) continue
+    return normalized
+  }
+
+  const pricePerUnit = normalizeWhitespace(result?.pricePerUnit || result?.price_per_unit || '')
+  if (!pricePerUnit) return ''
+  const suffixMatch = pricePerUnit.match(/\/\s*([a-z][a-z.\s]{0,20})$/i)
+  return suffixMatch ? normalizeWhitespace(suffixMatch[1]).toLowerCase() : ''
+}
+
+export function getProductName(result, fallbackIngredient) {
+  const baseName = normalizeWhitespace(
     result?.product_name ||
     result?.title ||
     result?.name ||
@@ -158,6 +194,24 @@ export function getProductName(result, fallbackIngredient) {
     fallbackIngredient ||
     null
   )
+
+  if (!baseName) return null
+
+  if (hasEmbeddedUnitToken(baseName)) {
+    return baseName
+  }
+
+  const unitHint = extractUnitHint(result)
+  if (!unitHint) {
+    return baseName
+  }
+
+  const normalizedLower = baseName.toLowerCase()
+  if (normalizedLower.includes(unitHint.toLowerCase())) {
+    return baseName
+  }
+
+  return `${baseName} ${unitHint}`.trim()
 }
 
 export async function mapWithConcurrency(items, concurrency, mapper) {
