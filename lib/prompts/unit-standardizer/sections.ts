@@ -70,7 +70,9 @@ export const UNIT_STANDARDIZATION_RULES_SECTION = `
    - "milk" → likely fl oz, gal, or ml
    - "chicken breast" → likely lb or oz
 
-8. **Validation**: The resolved unit MUST appear in the raw text (either rawUnit or rawProductName). Do not guess units not mentioned.
+8. **Validation**:
+   - For source="scraper": resolved unit MUST appear in raw text (rawUnit or rawProductName). Do not guess.
+   - For source="recipe": if there is no explicit unit token but quantity + culinary context imply a plausible unit, you may infer the closest allowed unit and lower confidence appropriately.
 `
 
 export const UNIT_CONFIDENCE_SECTION = `
@@ -142,6 +144,10 @@ export const EXAMPLES_SECTION = `
 
 - Input: rawProductName="Mystery Product XYZ", rawUnit="unknown"
   Output: { status: "error", error: "Unit 'unknown' not in allowed list" }
+
+~ Recipe-only inference case (allowed with lower confidence):
+- Input: rawProductName="1 glug extra virgin olive oil", rawUnit="", source="recipe"
+  Output: { unit: "fl oz", quantity: 1, confidence: 0.76 }
 `
 
 export const EDGE_CASES_SECTION = `

@@ -121,6 +121,35 @@ describe("unit standardizer parser", () => {
     expect(parsed[0]?.error).toContain("No explicit unit found")
   })
 
+  it("accepts high-confidence inferred units for recipe rows without explicit unit signals", () => {
+    const inputs: UnitStandardizationInput[] = [
+      {
+        id: "row-4b",
+        rawProductName: "1 glug extra virgin olive oil",
+        cleanedName: "extra virgin olive oil",
+        rawUnit: "",
+        source: "recipe",
+      },
+    ]
+
+    const parsed = parseUnitStandardizationPayload(inputs, [
+      {
+        id: "row-4b",
+        resolvedUnit: "fl oz",
+        resolvedQuantity: 1,
+        confidence: 0.76,
+        status: "success",
+      },
+    ])
+
+    expect(parsed[0]).toMatchObject({
+      id: "row-4b",
+      resolvedUnit: "fl oz",
+      resolvedQuantity: 1,
+      status: "success",
+    })
+  })
+
   it("rejects units not supported by raw unit/product name evidence", () => {
     const inputs: UnitStandardizationInput[] = [
       {

@@ -59,6 +59,7 @@ const EXTRA_UNIT_SIGNAL_PATTERNS: Array<{ pattern: RegExp; unit: UnitLabel }> = 
   { pattern: /\b(?:pack|pk|pkg|package|count)\b/i, unit: "ct" },
   { pattern: /\b(?:ea|each)\b/i, unit: "each" },
 ]
+const RECIPE_INFERRED_UNIT_MIN_CONFIDENCE = 0.75
 
 export interface UnitStandardizationInput {
   id: string
@@ -261,6 +262,16 @@ function parseParsedPayload(
     }
 
     if (!unitSignals.size) {
+      if (input.source === "recipe" && confidence >= RECIPE_INFERRED_UNIT_MIN_CONFIDENCE) {
+        return {
+          id: String(entry.id ?? entry.rowId ?? input.id),
+          resolvedUnit,
+          resolvedQuantity,
+          confidence,
+          status: "success",
+        }
+      }
+
       return errorResult(
         String(entry.id ?? entry.rowId ?? input.id),
         "No explicit unit found in raw unit/product name"
@@ -293,9 +304,9 @@ export function parseUnitStandardizationPayload(
 
 const geminiClient = GEMINI_API_KEY
   ? new GoogleGenAI({
-      apiKey: GEMINI_API_KEY,
-      ...(GEMINI_API_VERSION ? { apiVersion: GEMINI_API_VERSION } : {}),
-    })
+    apiKey: GEMINI_API_KEY,
+    ...(GEMINI_API_VERSION ? { apiVersion: GEMINI_API_VERSION } : {}),
+  })
   : null
 
 async function callOpenAI(prompt: string): Promise<string | null> {
