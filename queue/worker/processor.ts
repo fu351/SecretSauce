@@ -94,6 +94,8 @@ const GENERIC_MEASURE_ALIASES = [
   "bottles",
 ]
 
+const UNIT_FALLBACK_CONFIDENCE = 0.2
+
 function getSearchTerm(row: IngredientMatchQueueRow): string {
   return (row.cleaned_name || row.raw_product_name || "").trim()
 }
@@ -114,6 +116,55 @@ function escapeRegExp(value: string): string {
 
 function normalizeSpaces(value: string): string {
   return value.trim().replace(/\s+/g, " ")
+}
+
+function hasUnitAlias(raw: string, alias: string): boolean {
+  if (!raw || !alias) return false
+  const flexibleAlias = escapeRegExp(alias.trim()).replace(/\s+/g, "[\\s.-]*")
+  const pattern = new RegExp(`(?<![a-z])${flexibleAlias}(?![a-z])`, "i")
+  return pattern.test(raw)
+}
+
+function hasExplicitUnitSignals(row: IngredientMatchQueueRow): boolean {
+  const rawUnit = normalizeSpaces((row.raw_unit || "").toLowerCase())
+  if (rawUnit) return true
+
+  const rawText = normalizeSpaces(`${row.cleaned_name || ""} ${row.raw_product_name || ""}`.toLowerCase())
+  if (!rawText) return false
+
+  const aliases = new Set<string>([
+    ...Object.values(RESOLVED_UNIT_ALIASES).flat(),
+    ...GENERIC_MEASURE_ALIASES,
+    "pack",
+    "pk",
+    "pkg",
+    "package",
+    "cnt",
+    "dozen",
+  ])
+
+  for (const alias of aliases) {
+    if (hasUnitAlias(rawText, alias)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function shouldUsePackagedUnitFallback(row: IngredientMatchQueueRow): boolean {
+  if (row.source !== "scraper") return false
+  return !hasExplicitUnitSignals(row)
+}
+
+function buildPackagedUnitFallback(rowId: string): UnitStandardizationResult {
+  return {
+    id: rowId,
+    resolvedUnit: "unit",
+    resolvedQuantity: 1,
+    confidence: UNIT_FALLBACK_CONFIDENCE,
+    status: "success",
+  }
 }
 
 function collectUnitHints(row: IngredientMatchQueueRow, unitResult?: UnitStandardizationResult): string[] {
@@ -363,10 +414,28 @@ async function resolveUnitCandidates(
   const targetRows = rows.filter((row) => row.needs_unit_review)
   if (!targetRows.length) return new Map()
 
+  const fallbackRows = targetRows.filter((row) => shouldUsePackagedUnitFallback(row))
+  const rowsRequiringAI = targetRows.filter((row) => !shouldUsePackagedUnitFallback(row))
+
+  const byRowId = new Map<string, UnitStandardizationResult>()
+  for (const row of fallbackRows) {
+    byRowId.set(row.id, buildPackagedUnitFallback(row.id))
+  }
+
+  if (fallbackRows.length > 0) {
+    console.log(
+      `[QueueResolver] Applied packaged-item unit fallback (unit=1 unit, confidence=${UNIT_FALLBACK_CONFIDENCE}) for ${fallbackRows.length} row(s) with no explicit unit signals`
+    )
+  }
+
+  if (!rowsRequiringAI.length) {
+    return byRowId
+  }
+
   const uniqueInputByKey = new Map<string, Parameters<typeof standardizeUnitsWithAI>[0][number]>()
   const rowToInputKey = new Map<string, string>()
 
-  for (const row of targetRows) {
+  for (const row of rowsRequiringAI) {
     const ingredientCanonical =
       ingredientByRowId?.get(row.id)?.canonicalName ?? row.best_fuzzy_match ?? undefined
     const dedupeKey = [
@@ -393,8 +462,7 @@ async function resolveUnitCandidates(
   const aiResults = await standardizeUnitsWithAI(Array.from(uniqueInputByKey.values()))
   const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
 
-  const byRowId = new Map<string, UnitStandardizationResult>()
-  for (const row of targetRows) {
+  for (const row of rowsRequiringAI) {
     const inputKey = rowToInputKey.get(row.id)
     if (!inputKey) continue
     const result = aiResultByKey.get(inputKey)
@@ -412,6 +480,7 @@ function shouldRerunUnitResolution(
   config: QueueWorkerConfig
 ): boolean {
   if (!row.needs_unit_review) return false
+  if (shouldUsePackagedUnitFallback(row)) return false
   if (!current) return true
   if (current.status !== "success") return true
   return normalizeConfidence(current.confidence, 0) < config.unitMinConfidence
@@ -562,6 +631,12 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         }
 
         const unitResult = needsUnit ? unitByRowId.get(row.id) : undefined
+        const usedPackagedUnitFallback =
+          needsUnit &&
+          shouldUsePackagedUnitFallback(row) &&
+          unitResult?.status === "success" &&
+          unitResult.resolvedUnit === "unit" &&
+          unitResult.resolvedQuantity === 1
         const unitConfidence = normalizeConfidence(unitResult?.confidence, 0)
         const shouldWriteUnit = config.enableUnitResolution && !config.unitDryRun
         const unitLowConfidence =
@@ -577,7 +652,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
           if (unitResult.status !== "success") {
             throw new Error(unitResult.error || "Unit resolver returned error")
           }
-          if (unitResult.confidence < config.unitMinConfidence) {
+          if (!usedPackagedUnitFallback && unitResult.confidence < config.unitMinConfidence) {
             throw new Error(
               `Unit confidence ${unitResult.confidence.toFixed(3)} below threshold ${config.unitMinConfidence.toFixed(3)}`
             )
@@ -614,7 +689,8 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               }
 
               console.log(
-                `[QueueResolver] ${row.id} -> ${canonicalForWrite} (${standardized.id}) + unit ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit}`
+                `[QueueResolver] ${row.id} -> ${canonicalForWrite} (${standardized.id}) + unit ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit}` +
+                  (usedPackagedUnitFallback ? " [PACKAGED FALLBACK]" : "")
               )
             } else if (needsUnit) {
               const success = await ingredientMatchQueueDB.markIngredientResolvedPendingUnit({
@@ -675,7 +751,8 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             }
 
             console.log(
-              `[QueueResolver] ${row.id} unit resolved -> ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit}`
+              `[QueueResolver] ${row.id} unit resolved -> ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit}` +
+                (usedPackagedUnitFallback ? " [PACKAGED FALLBACK]" : "")
             )
           } else if (needsUnit && config.enableUnitResolution && config.unitDryRun) {
             throw new Error("Unit dry run cannot be used for unit-only rows")
@@ -685,9 +762,10 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         } else {
           if (needsUnit && config.enableUnitResolution && unitResult?.status === "success") {
             const lowConfidenceNote = unitLowConfidence ? " [LOW CONFIDENCE]" : ""
+            const fallbackNote = usedPackagedUnitFallback ? " [PACKAGED FALLBACK]" : ""
             console.log(
               `[QueueResolver] [DRY RUN] ${row.id} unit candidate -> ${unitResult.resolvedQuantity} ${unitResult.resolvedUnit} ` +
-                `(confidence=${unitResult.confidence.toFixed(3)})${lowConfidenceNote}`
+                `(confidence=${unitResult.confidence.toFixed(3)})${lowConfidenceNote}${fallbackNote}`
             )
           }
           if (needsIngredient) {
