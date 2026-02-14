@@ -12,6 +12,11 @@ on:
           - backup-and-reset
           - restore
         default: backup-only
+      run_initiating_workflow:
+        description: "Run full initiating workflow after backup-and-reset"
+        required: false
+        type: boolean
+        default: false
       restore_suffix:
         description: "Backup suffix to restore (e.g., 20260209_150000)"
         required: false
@@ -37,9 +42,15 @@ jobs:
           ACTION="${{ inputs.action }}"
           CONFIRM="${{ inputs.confirm_reset }}"
           SUFFIX="${{ inputs.restore_suffix }}"
+          RUN_INITIATING="${{ inputs.run_initiating_workflow }}"
 
           if [[ "$ACTION" != "backup-only" && "$CONFIRM" != "RESET" ]]; then
             echo "❌ Type RESET in the confirm field for destructive actions."
+            exit 1
+          fi
+
+          if [[ "$RUN_INITIATING" == "true" && "$ACTION" != "backup-and-reset" ]]; then
+            echo "❌ Initiating workflow can only run with backup-and-reset action."
             exit 1
           fi
 
@@ -49,6 +60,45 @@ jobs:
           fi
 
           echo "✅ Validated: $ACTION"
+          [[ "$ACTION" == "backup-and-reset" ]] && echo "⚠️  Queue will be wiped as part of reset"
+          [[ "$RUN_INITIATING" == "true" ]] && echo "⚠️  Initiating workflow will run after reset"
+
+      - name: Wipe Ingredient Match Queue
+        if: ${{ inputs.action == 'backup-and-reset' }}
+        run: |
+          echo "=== Wiping Ingredient Match Queue (part of backup-and-reset) ==="
+
+          # Get count before wipe
+          BEFORE=$(curl -sI \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Prefer: count=exact" \
+            -H "Range: 0-0" \
+            | grep -i '^content-range' \
+            | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0")
+
+          echo "Rows before wipe: ${BEFORE}"
+
+          # Delete all rows from ingredient_match_queue
+          curl -sf -X DELETE \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?id=gt.0" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Prefer: return=minimal"
+
+          # Get count after wipe
+          AFTER=$(curl -sI \
+            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Prefer: count=exact" \
+            -H "Range: 0-0" \
+            | grep -i '^content-range' \
+            | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0")
+
+          echo "Rows after wipe: ${AFTER}"
+          echo "✅ Deleted: $((BEFORE - AFTER)) rows"
 
       - name: "Run: ${{ inputs.action }}"
         run: |
@@ -85,3 +135,48 @@ jobs:
           if [[ -n "$SUFFIX_OUT" ]]; then
             echo "📦 Backup suffix: $SUFFIX_OUT"
           fi
+
+      - name: Queue Status Summary
+        if: ${{ always() }}
+        run: |
+          echo "=== Ingredient Match Queue Status ==="
+
+          # Optimized: Use count queries with minimal data fetch
+          get_count() {
+            local filter="$1"
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id&${filter}" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          echo "Status breakdown by source:"
+          for source in scraper recipe; do
+            for status in pending processing success failed; do
+              count=$(get_count "source=eq.${source}&status=eq.${status}")
+              [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
+            done
+          done
+
+          # Total pending count
+          pending_total=$(get_count "status=eq.pending")
+          echo "Total pending rows: ${pending_total}"
+
+  initiating-bootstrap:
+    name: Full Bootstrap (Initiating Workflow)
+    needs: run
+    if: ${{ inputs.action == 'backup-and-reset' && inputs.run_initiating_workflow }}
+    uses: ./.github/workflows/initiating-workflow.yml
+    secrets: inherit
+    with:
+      queue_resolver_name: "backup-initiating"
+      scraper_cities_csv: "San Francisco,Oakland,Berkeley"
+      scraper_state: "CA"
+      ingredient_limit: "0"
+      store_limit: "0"
+      queue_batch_limit: "100"
+      queue_max_batches: "10"
