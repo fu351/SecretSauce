@@ -407,6 +407,7 @@ export type Database = {
           zip_code: string | null
           raw_product_name: string | null
           standardized_ingredient_id: string | null
+          is_ingredient: boolean
           ingredient_confidence: number | null
           standardized_unit: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity: number | null
@@ -424,6 +425,7 @@ export type Database = {
           zip_code?: string | null
           raw_product_name?: string | null
           standardized_ingredient_id?: string | null
+          is_ingredient?: boolean
           ingredient_confidence?: number | null
           standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity?: number | null
@@ -441,6 +443,7 @@ export type Database = {
           zip_code?: string | null
           raw_product_name?: string | null
           standardized_ingredient_id?: string | null
+          is_ingredient?: boolean
           ingredient_confidence?: number | null
           standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity?: number | null

@@ -89,6 +89,7 @@ LLM Queue Processor (external)
 | `raw_product_name` | text | YES | | Original scraped product name |
 | `image_url` | text | YES | | Product image URL |
 | `standardized_ingredient_id` | uuid FK | YES | | → standardized_ingredients.id |
+| `is_ingredient` | boolean | NO | true | Ingredient classification flag (`false` while unresolved non-ingredient review is pending) |
 | `ingredient_confidence` | numeric | YES | 0.0 | Match confidence (0–1) |
 | `standardized_unit` | unit_label FK | YES | | → unit_canonical.standard_unit |
 | `standardized_quantity` | numeric | YES | | Package quantity in standardized unit |
