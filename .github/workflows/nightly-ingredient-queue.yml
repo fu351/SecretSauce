@@ -42,11 +42,6 @@ on:
         description: "Enable unit resolver writes"
         required: false
         type: string
-        default: "false"
-      queue_unit_dry_run:
-        description: "Unit resolver dry-run mode"
-        required: false
-        type: string
         default: "true"
       queue_unit_min_confidence:
         description: "Minimum confidence required for unit writes"
@@ -134,14 +129,6 @@ on:
         options:
           - "false"
           - "true"
-        default: "false"
-      queue_unit_dry_run:
-        description: "Unit resolver dry-run mode"
-        required: false
-        type: choice
-        options:
-          - "true"
-          - "false"
         default: "true"
       queue_unit_min_confidence:
         description: "Minimum confidence required for unit writes"
@@ -185,7 +172,7 @@ jobs:
       QUEUE_RETRY_FAILED: ${{ inputs.queue_retry_failed }}
       DRY_RUN: ${{ inputs.queue_dry_run }}
       QUEUE_ENABLE_UNIT_RESOLUTION: ${{ inputs.queue_enable_unit_resolution }}
-      QUEUE_UNIT_DRY_RUN: ${{ inputs.queue_unit_dry_run }}
+      QUEUE_UNIT_DRY_RUN: ${{ inputs.queue_dry_run }}
       QUEUE_UNIT_MIN_CONFIDENCE: ${{ inputs.queue_unit_min_confidence }}
       OPENAI_MODEL: ${{ inputs.openai_model }}
       GEMINI_MODEL: ${{ inputs.gemini_model }}
@@ -265,8 +252,8 @@ jobs:
               QUEUE_ENABLE_UNIT_RESOLUTION="true"
             fi
 
-            if [ "${QUEUE_UNIT_DRY_RUN}" = "true" ]; then
-              echo "QUEUE_REVIEW_MODE=${QUEUE_REVIEW_MODE} cannot run with QUEUE_UNIT_DRY_RUN=true; forcing QUEUE_UNIT_DRY_RUN=false"
+            if [ "${DRY_RUN}" != "true" ] && [ "${QUEUE_UNIT_DRY_RUN}" = "true" ]; then
+              echo "QUEUE_REVIEW_MODE=${QUEUE_REVIEW_MODE} cannot run with QUEUE_UNIT_DRY_RUN=true in non-dry runs; forcing QUEUE_UNIT_DRY_RUN=false"
               QUEUE_UNIT_DRY_RUN="false"
             fi
           fi

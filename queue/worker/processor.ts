@@ -492,9 +492,9 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
     )
   }
 
-  if (config.unitDryRun && config.reviewMode !== "ingredient") {
+  if (config.unitDryRun && config.reviewMode !== "ingredient" && !config.dryRun) {
     throw new Error(
-      "QUEUE_UNIT_DRY_RUN=true only supports QUEUE_REVIEW_MODE=ingredient to avoid claiming unit-only rows."
+      "QUEUE_UNIT_DRY_RUN=true only supports QUEUE_REVIEW_MODE=ingredient for non-dry runs to avoid claiming unit-only rows."
     )
   }
 

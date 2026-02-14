@@ -60,8 +60,8 @@ When docs or examples disagree, use this order:
 - Safe defaults remain:
   - `QUEUE_SOURCE=scraper`
   - `QUEUE_REVIEW_MODE=ingredient`
-  - `QUEUE_ENABLE_UNIT_RESOLUTION=false`
-  - `QUEUE_UNIT_DRY_RUN=true`
+  - `QUEUE_ENABLE_UNIT_RESOLUTION=true`
+  - `QUEUE_UNIT_DRY_RUN` follows `DRY_RUN`
 - Nightly queue workflow remains fallback until full real-time cutover is complete.
 
 ## Scraper Invariants

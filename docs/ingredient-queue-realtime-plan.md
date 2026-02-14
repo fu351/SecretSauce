@@ -62,8 +62,8 @@ Observed behavior in current implementation:
   - `QUEUE_SOURCE=scraper` (default)
   - `QUEUE_REVIEW_MODE=ingredient` (default)
 - Unit resolution rollout is env-gated:
-  - `QUEUE_ENABLE_UNIT_RESOLUTION=false` (default)
-  - `QUEUE_UNIT_DRY_RUN=true` (default)
+  - `QUEUE_ENABLE_UNIT_RESOLUTION=true` (default)
+  - `QUEUE_UNIT_DRY_RUN` defaults to `DRY_RUN`
   - `QUEUE_UNIT_MIN_CONFIDENCE=0.75` (default)
 
 ## Target Architecture
