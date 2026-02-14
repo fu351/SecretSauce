@@ -60,8 +60,12 @@ jobs:
           fi
 
           echo "✅ Validated: $ACTION"
-          [[ "$ACTION" == "backup-and-reset" ]] && echo "⚠️  Queue will be wiped as part of reset"
-          [[ "$RUN_INITIATING" == "true" ]] && echo "⚠️  Initiating workflow will run after reset"
+          if [[ "$ACTION" == "backup-and-reset" ]]; then
+            echo "⚠️  Queue will be wiped as part of reset"
+          fi
+          if [[ "$RUN_INITIATING" == "true" ]]; then
+            echo "⚠️  Initiating workflow will run after reset"
+          fi
 
       - name: Wipe Ingredient Match Queue
         if: ${{ inputs.action == 'backup-and-reset' }}
