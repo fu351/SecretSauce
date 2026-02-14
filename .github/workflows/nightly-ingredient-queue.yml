@@ -181,6 +181,7 @@ jobs:
       QUEUE_ENABLE_UNIT_RESOLUTION: ${{ inputs.queue_enable_unit_resolution }}
       QUEUE_UNIT_DRY_RUN: ${{ inputs.queue_dry_run }}
       QUEUE_UNIT_MIN_CONFIDENCE: ${{ inputs.queue_unit_min_confidence }}
+      QUEUE_RESOLVER_NAME: ${{ inputs.queue_resolver_name }}
 
       # Model/runtime
       OPENAI_MODEL: ${{ inputs.openai_model }}
@@ -247,6 +248,7 @@ jobs:
 
           max_batches="$QUEUE_MAX_BATCHES"
           delay_seconds="$QUEUE_BATCH_DELAY_SECONDS"
+          QUEUE_RESOLVER_NAME_BASE="${QUEUE_RESOLVER_NAME:-nightly-openai}"
 
           if [ "$DRY_RUN" = "true" ]; then
             echo "DRY_RUN=true -> forcing max_batches=1"
@@ -265,7 +267,7 @@ jobs:
             fi
           fi
 
-          echo "Effective queue flags: review_mode=${QUEUE_REVIEW_MODE}, enable_unit_resolution=${QUEUE_ENABLE_UNIT_RESOLUTION}, unit_dry_run=${QUEUE_UNIT_DRY_RUN}, dry_run=${DRY_RUN}"
+          echo "Effective queue flags: review_mode=${QUEUE_REVIEW_MODE}, enable_unit_resolution=${QUEUE_ENABLE_UNIT_RESOLUTION}, unit_dry_run=${QUEUE_UNIT_DRY_RUN}, dry_run=${DRY_RUN}, resolver_base=${QUEUE_RESOLVER_NAME_BASE}"
 
           retry_failed() {
             if [ "$QUEUE_RETRY_FAILED" != "true" ]; then
