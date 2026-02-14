@@ -211,9 +211,71 @@ jobs:
       queue_batch_limit: "100"
       queue_max_batches: "10"
 
+  seed-mock-recipes-for-queue-modes:
+    name: Seed Mock Recipes (Queue-Only Modes)
+    needs: run
+    if: ${{ inputs.action == 'backup-and-reset' && inputs.run_initiating_workflow && (inputs.initiating_mode == 'queue-only-no-scrape' || inputs.initiating_mode == 'queue-dry-run-only') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SECRET_SEED_AUTHOR_ID: ${{ secrets.SUPABASE_SEED_AUTHOR_ID }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install dependencies
+        timeout-minutes: 15
+        run: npm install --legacy-peer-deps --prefix scripts
+
+      - name: Expose scripts dependencies to shared imports
+        run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
+
+      - name: Resolve seed author id
+        run: |
+          set -euo pipefail
+
+          AUTHOR_ID="${SECRET_SEED_AUTHOR_ID// /}"
+
+          if [ -z "$AUTHOR_ID" ]; then
+            echo "No SUPABASE_SEED_AUTHOR_ID secret found. Querying earliest profile id..."
+            RESPONSE=$(curl -sfS \
+              "${SUPABASE_URL}/rest/v1/profiles?select=id&order=created_at.asc&limit=1" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")
+
+            AUTHOR_ID=$(echo "$RESPONSE" | jq -r '.[0].id // empty')
+          fi
+
+          if [ -z "$AUTHOR_ID" ]; then
+            echo "❌ Could not resolve a seed author id. Set SUPABASE_SEED_AUTHOR_ID secret or create a profile."
+            exit 1
+          fi
+
+          echo "SUPABASE_SEED_AUTHOR_ID=$AUTHOR_ID" >> "$GITHUB_ENV"
+          echo "✅ Using seed author id: $AUTHOR_ID"
+
+      - name: Seed mock recipes
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          ./scripts/node_modules/.bin/tsx scripts/seed-mock-recipes.ts
+
   initiating-queue-dry-run:
     name: Queue Dry-Run Only (No Scraper, No Post Queue)
-    needs: run
+    needs:
+      - run
+      - seed-mock-recipes-for-queue-modes
     if: ${{ inputs.action == 'backup-and-reset' && inputs.run_initiating_workflow && inputs.initiating_mode == 'queue-dry-run-only' }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
@@ -230,7 +292,9 @@ jobs:
 
   initiating-queue-only:
     name: Pre-Queue Only (No Scraper, No Post Queue)
-    needs: run
+    needs:
+      - run
+      - seed-mock-recipes-for-queue-modes
     if: ${{ inputs.action == 'backup-and-reset' && inputs.run_initiating_workflow && inputs.initiating_mode == 'queue-only-no-scrape' }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
