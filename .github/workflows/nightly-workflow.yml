@@ -2,8 +2,9 @@ name: Nightly Workflow
 
 on:
   schedule:
-    # Runs daily at 11:55 UTC
-    - cron: '55 11 * * *'
+    # Runs daily at midnight Pacific during PST (08:00 UTC).
+    # Note: GitHub schedule is UTC-only, so during PDT this will run at 1:00 AM Pacific.
+    - cron: '0 8 * * *'
   workflow_dispatch:
     inputs:
       purge_mode:
