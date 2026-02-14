@@ -105,13 +105,14 @@ on:
         type: string
         default: "100"
       queue_context:
-        description: "Queue context"
+        description: "Queue context (dynamic|pantry|recipe)"
         required: false
         type: choice
         options:
+          - dynamic
           - pantry
           - recipe
-        default: pantry
+        default: dynamic
       queue_resolver_name:
         description: "Queue resolver run name"
         required: false
@@ -195,7 +196,7 @@ jobs:
     secrets: inherit
     with:
       queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
-      queue_context: ${{ github.event.inputs.queue_context || 'pantry' }}
+      queue_context: ${{ github.event.inputs.queue_context || 'dynamic' }}
       queue_resolver_name: ${{ github.event.inputs.queue_resolver_name || 'nightly-openai' }}
       queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
       openai_model: ${{ github.event.inputs.openai_model || 'gpt-4o-mini' }}

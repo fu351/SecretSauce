@@ -73,7 +73,7 @@ Trigger: manual (`workflow_dispatch`) only.
 ## Operational Notes
 
 - `import_stores.yml` and `geo_fix.yml` are manual-only maintenance workflows (`workflow_dispatch`).
-- Queue workflow defaults are source/review constrained (`queue_source=scraper`, `queue_review_mode=ingredient`) and unit writes are opt-in.
+- Queue workflow defaults are `queue_source=any`, `queue_review_mode=any`, `queue_context=dynamic`, with unit resolution enabled by default.
 
 ## Where To Start By Task
 
@@ -83,5 +83,6 @@ Trigger: manual (`workflow_dispatch`) only.
   - `daily-scraper-matrix.yml` + `scripts/daily-scraper.js`
 - Queue quality/throughput tuning:
   - `nightly-ingredient-queue.yml` + `queue/` + `docs/ingredient-queue-realtime-plan.md`
+  - Queue concurrency/race protection: `docs/queue-processing.md`
 - Store footprint/geo maintenance:
   - `import_stores.yml`, `geoscraper.yml`, `geo_fix.yml`, `backfill-scraped-zipcodes.yml`

@@ -1,3 +1,8 @@
+# Nightly Ingredient Queue Resolver
+#
+# Processes the ingredient_match_queue in batches using LLM-based standardizers.
+# See docs/queue-processing.md for architecture details on atomic claiming and race condition protection.
+
 name: Nightly Ingredient Queue
 
 on:
@@ -9,10 +14,10 @@ on:
         type: string
         default: "100"
       queue_context:
-        description: "Standardizer context"
+        description: "Standardizer context (dynamic|pantry|recipe)"
         required: false
         type: string
-        default: "pantry"
+        default: "dynamic"
       queue_resolver_name:
         description: "Resolver run name"
         required: false
@@ -22,12 +27,12 @@ on:
         description: "Queue source filter (scraper|recipe|any)"
         required: false
         type: string
-        default: "scraper"
+        default: "any"
       queue_review_mode:
         description: "Queue review mode (ingredient|unit|any)"
         required: false
         type: string
-        default: "ingredient"
+        default: "any"
       queue_retry_failed:
         description: "Retry failed rows by re-queuing them to pending between batches"
         required: false
@@ -76,13 +81,14 @@ on:
         type: string
         default: "100"
       queue_context:
-        description: "Standardizer context"
+        description: "Standardizer context (dynamic|pantry|recipe)"
         required: false
         type: choice
         options:
+          - dynamic
           - pantry
           - recipe
-        default: pantry
+        default: dynamic
       queue_resolver_name:
         description: "Resolver run name"
         required: false
@@ -96,7 +102,7 @@ on:
           - scraper
           - recipe
           - any
-        default: scraper
+        default: any
       queue_review_mode:
         description: "Queue review mode"
         required: false
@@ -105,7 +111,7 @@ on:
           - ingredient
           - unit
           - any
-        default: ingredient
+        default: any
       queue_retry_failed:
         description: "Retry failed rows between batches"
         required: false
@@ -164,9 +170,10 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # Queue behavior
       QUEUE_BATCH_LIMIT: ${{ inputs.queue_batch_limit }}
       QUEUE_STANDARDIZER_CONTEXT: ${{ inputs.queue_context }}
-      QUEUE_RESOLVER_NAME_BASE: ${{ inputs.queue_resolver_name }}
       QUEUE_SOURCE: ${{ inputs.queue_source }}
       QUEUE_REVIEW_MODE: ${{ inputs.queue_review_mode }}
       QUEUE_RETRY_FAILED: ${{ inputs.queue_retry_failed }}
@@ -174,6 +181,8 @@ jobs:
       QUEUE_ENABLE_UNIT_RESOLUTION: ${{ inputs.queue_enable_unit_resolution }}
       QUEUE_UNIT_DRY_RUN: ${{ inputs.queue_dry_run }}
       QUEUE_UNIT_MIN_CONFIDENCE: ${{ inputs.queue_unit_min_confidence }}
+
+      # Model/runtime
       OPENAI_MODEL: ${{ inputs.openai_model }}
       GEMINI_MODEL: ${{ inputs.gemini_model }}
       QUEUE_MAX_BATCHES: ${{ inputs.queue_max_batches }}
@@ -197,19 +206,33 @@ jobs:
         run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
 
       - name: Queue Summary (Before)
-        env:
-          SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
         run: |
           echo "=== Queue Status (Before) ==="
-          RESULT=$(curl -sf \
-            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=source,status&limit=10000" \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
 
-          echo "$RESULT" | jq 'group_by(.source, .status) | map({source: .[0].source, status: .[0].status, count: length})'
-          PENDING=$(echo "$RESULT" | jq '[.[] | select(.status == "pending")] | length')
-          echo "Pending rows (sampled <= 10k): $PENDING"
+          # Optimized: Use count queries with minimal data fetch
+          get_count() {
+            local filter="$1"
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id&${filter}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          echo "Status breakdown by source:"
+          for source in scraper recipe; do
+            for status in pending processing success failed; do
+              count=$(get_count "source=eq.${source}&status=eq.${status}")
+              [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
+            done
+          done
+
+          # Total pending count
+          pending_total=$(get_count "status=eq.pending")
+          echo "Total pending rows: ${pending_total}"
 
       - name: Resolve pending ingredient matches (Batched)
         env:
@@ -217,24 +240,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ env.OPENAI_MODEL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ env.GEMINI_MODEL }}
-          QUEUE_BATCH_LIMIT: ${{ env.QUEUE_BATCH_LIMIT }}
-          QUEUE_STANDARDIZER_CONTEXT: ${{ env.QUEUE_STANDARDIZER_CONTEXT }}
-          DRY_RUN: ${{ env.DRY_RUN }}
-          QUEUE_SOURCE: ${{ env.QUEUE_SOURCE }}
-          QUEUE_REVIEW_MODE: ${{ env.QUEUE_REVIEW_MODE }}
-          QUEUE_RETRY_FAILED: ${{ env.QUEUE_RETRY_FAILED }}
-          QUEUE_ENABLE_UNIT_RESOLUTION: ${{ env.QUEUE_ENABLE_UNIT_RESOLUTION }}
-          QUEUE_UNIT_DRY_RUN: ${{ env.QUEUE_UNIT_DRY_RUN }}
-          QUEUE_UNIT_MIN_CONFIDENCE: ${{ env.QUEUE_UNIT_MIN_CONFIDENCE }}
           NODE_ENV: production
-          SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
-          QUEUE_MAX_BATCHES: ${{ env.QUEUE_MAX_BATCHES }}
-          QUEUE_BATCH_DELAY_SECONDS: ${{ env.QUEUE_BATCH_DELAY_SECONDS }}
-          QUEUE_RESOLVER_NAME_BASE: ${{ env.QUEUE_RESOLVER_NAME_BASE }}
         run: |
           set -euo pipefail
 
@@ -337,16 +344,30 @@ jobs:
           done
 
       - name: Queue Summary (After)
-        env:
-          SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
         run: |
           echo "=== Queue Status (After) ==="
-          RESULT=$(curl -sf \
-            "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=source,status&limit=10000" \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
 
-          echo "$RESULT" | jq 'group_by(.source, .status) | map({source: .[0].source, status: .[0].status, count: length})'
-          PENDING=$(echo "$RESULT" | jq '[.[] | select(.status == "pending")] | length')
-          echo "Pending rows (sampled <= 10k): $PENDING"
+          # Optimized: Use count queries with minimal data fetch
+          get_count() {
+            local filter="$1"
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=id&${filter}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          echo "Status breakdown by source:"
+          for source in scraper recipe; do
+            for status in pending processing success failed; do
+              count=$(get_count "source=eq.${source}&status=eq.${status}")
+              [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
+            done
+          done
+
+          # Total pending count
+          pending_total=$(get_count "status=eq.pending")
+          echo "Total pending rows: ${pending_total}"

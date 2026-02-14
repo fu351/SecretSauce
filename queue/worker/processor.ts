@@ -3,6 +3,7 @@ import { standardizedIngredientsDB } from "../../lib/database/standardized-ingre
 import { standardizeIngredientsWithAI, type IngredientStandardizationResult } from "../../lib/ingredient-standardizer"
 import { standardizeUnitsWithAI, type UnitStandardizationResult } from "../../lib/unit-standardizer"
 import type { QueueWorkerConfig } from "../config"
+import type { IngredientStandardizerContext } from "../../lib/utils/ingredient-standardizer-context"
 import { chunkItems, mapWithConcurrency } from "./batching"
 import {
   buildCanonicalQueryTerms,
@@ -59,6 +60,18 @@ function getCanonicalFallback(row: IngredientMatchQueueRow): string {
 function normalizeConfidence(value: number | null | undefined, fallback = 0.5): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) return fallback
   return value
+}
+
+function resolveRowStandardizerContext(
+  row: IngredientMatchQueueRow,
+  configuredContext: QueueWorkerConfig["standardizerContext"]
+): IngredientStandardizerContext {
+  if (configuredContext !== "dynamic") {
+    return configuredContext
+  }
+
+  if (row.source === "recipe") return "recipe"
+  return "pantry"
 }
 
 async function resolveCanonicalWithDoubleCheck(
@@ -140,33 +153,44 @@ async function resolveIngredientCandidates(
   const targetRows = rows.filter((row) => row.needs_ingredient_review)
   if (!targetRows.length) return new Map()
 
-  const uniqueInputByKey = new Map<string, { id: string; name: string }>()
-  const rowToInputKey = new Map<string, string>()
+  const byRowId = new Map<string, IngredientStandardizationResult>()
+  const rowsByContext = new Map<IngredientStandardizerContext, IngredientMatchQueueRow[]>()
 
   for (const row of targetRows) {
-    const searchTerm = getSearchTerm(row)
-    const dedupeKey = searchTerm.toLowerCase()
-
-    if (!uniqueInputByKey.has(dedupeKey)) {
-      uniqueInputByKey.set(dedupeKey, { id: dedupeKey, name: searchTerm })
+    const rowContext = resolveRowStandardizerContext(row, config.standardizerContext)
+    const bucket = rowsByContext.get(rowContext)
+    if (bucket) {
+      bucket.push(row)
+    } else {
+      rowsByContext.set(rowContext, [row])
     }
-
-    rowToInputKey.set(row.id, dedupeKey)
   }
 
-  const aiResults = await standardizeIngredientsWithAI(
-    Array.from(uniqueInputByKey.values()),
-    config.standardizerContext
-  )
-  const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
+  for (const [context, contextRows] of rowsByContext.entries()) {
+    const uniqueInputByKey = new Map<string, { id: string; name: string }>()
+    const rowToInputKey = new Map<string, string>()
 
-  const byRowId = new Map<string, IngredientStandardizationResult>()
-  for (const row of targetRows) {
-    const inputKey = rowToInputKey.get(row.id)
-    if (!inputKey) continue
-    const result = aiResultByKey.get(inputKey)
-    if (result) {
-      byRowId.set(row.id, result)
+    for (const row of contextRows) {
+      const searchTerm = getSearchTerm(row)
+      const dedupeKey = searchTerm.toLowerCase()
+
+      if (!uniqueInputByKey.has(dedupeKey)) {
+        uniqueInputByKey.set(dedupeKey, { id: dedupeKey, name: searchTerm })
+      }
+
+      rowToInputKey.set(row.id, dedupeKey)
+    }
+
+    const aiResults = await standardizeIngredientsWithAI(Array.from(uniqueInputByKey.values()), context)
+    const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
+
+    for (const row of contextRows) {
+      const inputKey = rowToInputKey.get(row.id)
+      if (!inputKey) continue
+      const result = aiResultByKey.get(inputKey)
+      if (result) {
+        byRowId.set(row.id, result)
+      }
     }
   }
 

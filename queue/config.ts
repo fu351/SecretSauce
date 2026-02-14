@@ -2,6 +2,8 @@ import { resolveIngredientStandardizerContext } from "../lib/utils/ingredient-st
 import type { IngredientMatchQueueReviewMode, IngredientMatchQueueSource } from "../lib/database/ingredient-match-queue-db"
 import type { IngredientStandardizerContext } from "../lib/utils/ingredient-standardizer-context"
 
+export type QueueStandardizerContextMode = IngredientStandardizerContext | "dynamic"
+
 export interface QueueWorkerConfig {
   resolverName: string
   batchLimit: number
@@ -11,7 +13,7 @@ export interface QueueWorkerConfig {
   leaseSeconds: number
   workerIntervalSeconds: number
   dryRun: boolean
-  standardizerContext: IngredientStandardizerContext
+  standardizerContext: QueueStandardizerContextMode
   reviewMode: IngredientMatchQueueReviewMode
   queueSource: IngredientMatchQueueSource | "any"
   doubleCheckMinConfidence: number
@@ -52,6 +54,12 @@ function resolveQueueSource(value: string | undefined): IngredientMatchQueueSour
   return "scraper"
 }
 
+function resolveStandardizerContextMode(value: string | undefined): QueueStandardizerContextMode {
+  const normalized = String(value ?? "").trim().toLowerCase()
+  if (normalized === "dynamic") return "dynamic"
+  return resolveIngredientStandardizerContext(value)
+}
+
 export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfig>): QueueWorkerConfig {
   const defaultMaxCycles = readPositiveInt(process.env.QUEUE_MAX_CYCLES, 0)
   const dryRun = readBoolean(process.env.DRY_RUN, false)
@@ -65,7 +73,7 @@ export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfi
     leaseSeconds: readPositiveInt(process.env.QUEUE_LEASE_SECONDS, 180),
     workerIntervalSeconds: readPositiveInt(process.env.WORKER_INTERVAL_SECONDS, 300),
     dryRun,
-    standardizerContext: resolveIngredientStandardizerContext(process.env.QUEUE_STANDARDIZER_CONTEXT),
+    standardizerContext: resolveStandardizerContextMode(process.env.QUEUE_STANDARDIZER_CONTEXT),
     reviewMode: resolveReviewMode(process.env.QUEUE_REVIEW_MODE),
     queueSource: resolveQueueSource(process.env.QUEUE_SOURCE),
     doubleCheckMinConfidence: readBoundedFloat(process.env.LLM_DOUBLE_CHECK_MIN_CONFIDENCE, 0.85, 0, 1),
