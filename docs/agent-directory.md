@@ -47,6 +47,7 @@ Quick routing for agents: which docs and code to read first for each change. Ple
 | Tutorial and onboarding | `docs/tutorial-current-state.md` | `contexts/tutorial-context.tsx`, `components/tutorial/tutorial-overlay.tsx`, `contents/tutorials/` |
 | Ingredient queue worker and prompts | `docs/ingredient-queue-realtime-plan.md`, `docs/prompt-maintenance-guide.md` | `queue/`, `scripts/resolve-ingredient-match-queue.ts`, `lib/ingredient-standardizer.ts`, `lib/unit-standardizer.ts`, `lib/database/ingredient-match-queue-db.ts` |
 | Scraper ingest function (`fn_bulk_insert_ingredient_history`) and queue handoff | `docs/database-guide.md`, `docs/ingredient-queue-realtime-plan.md` | `lib/database/ingredients-db.ts`, `scripts/daily-scraper.js`, Supabase function `public.fn_bulk_insert_ingredient_history(jsonb)` |
+| Recipe ingest function (`fn_upsert_recipe_with_ingredients`) and queue handoff | `docs/database-guide.md`, `docs/ingredient-queue-realtime-plan.md` | `lib/database/recipe-db.ts`, `lib/dev/mock-recipes.ts`, Supabase function `public.fn_upsert_recipe_with_ingredients(...)` |
 | Scraper implementation and runtime behavior | `docs/scrapers-directory.md` | `lib/scrapers/`, `lib/ingredient-pipeline.ts`, `app/api/grocery-search/route.ts`, `scripts/daily-scraper.js` |
 | API routes, request contracts, and endpoint ownership | `docs/api-entrypoints-directory.md` | `app/api/`, `lib/ingredient-pipeline.ts`, `lib/database/`, `lib/store/` |
 | Database schema/functions | `docs/database-guide.md` | `lib/database/`, `supabase/migrations/`, `migrations/` |
@@ -93,4 +94,4 @@ Use this process when validating workflow edits, diagnosing bootstrap failures, 
 
 - Tutorial system status and roadmap are actively tracked in `docs/tutorial-current-state.md` (last updated `2026-02-13`).
 - Queue runtime is partially migrated to `queue/`; nightly workflow remains fallback until full cutover (`docs/ingredient-queue-realtime-plan.md`).
-- Unit standardization is a two-stage flow: first-pass deterministic parsing/mapping in `public.fn_bulk_insert_ingredient_history(jsonb)`, then AI queue resolution for rows flagged `needs_unit_review`.
+- Unit standardization is a two-stage flow: first-pass deterministic parsing/mapping in ingest RPCs (`public.fn_bulk_insert_ingredient_history(jsonb)` and `public.fn_upsert_recipe_with_ingredients(...)`), then AI queue resolution for rows flagged `needs_unit_review`.

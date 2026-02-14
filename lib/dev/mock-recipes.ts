@@ -5,6 +5,8 @@ export type MealType = Database["public"]["Enums"]["meal_type_enum"]
 export type ProteinType = Database["public"]["Enums"]["protein_type_enum"]
 export type DifficultyLevel = Database["public"]["Enums"]["recipe_difficulty"]
 export type RecipeTag = Database["public"]["Enums"]["tags_enum"]
+export type UpsertRecipeRpcArgs =
+  Database["public"]["Functions"]["fn_upsert_recipe_with_ingredients"]["Args"]
 
 export type MockIngredient = {
   name: string
@@ -37,24 +39,39 @@ export type MockRecipe = {
 
 export const RPC_NAME = "fn_upsert_recipe_with_ingredients"
 
+type MockIngredientRpcInput = {
+  display_name: string
+  standardized_ingredient_id: string | null
+  quantity: number | null
+  units: string | null
+}
+
+const normalizeOptionalText = (value?: string | null) => {
+  const trimmed = value?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : null
+}
+
 const stripIngredient = (ingredient: MockIngredient) => {
   const displayName = ingredient.name.trim()
   if (!displayName) return null
 
-  return {
+  const rpcIngredient: MockIngredientRpcInput = {
     display_name: displayName,
     standardized_ingredient_id: ingredient.standardizedIngredientId ?? null,
     quantity: ingredient.quantity ?? null,
-    units: ingredient.unit ?? null,
+    units: normalizeOptionalText(ingredient.unit),
   }
+
+  return rpcIngredient
 }
 
-export function buildMockRecipePayload(recipe: MockRecipe, authorId: string) {
+export function buildMockRecipePayload(recipe: MockRecipe, authorId: string): UpsertRecipeRpcArgs {
   const ingredients = recipe.ingredients
     .map(stripIngredient)
     .filter((item): item is NonNullable<ReturnType<typeof stripIngredient>> => Boolean(item))
 
   return {
+    p_recipe_id: null,
     p_title: recipe.title,
     p_author_id: authorId,
     p_cuisine: recipe.cuisine,

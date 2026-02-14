@@ -5,7 +5,7 @@
 - `Doc Kind`: `reference`
 - `Canonicality`: `reference`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-14`
 - `Primary Surfaces`: `lib/database/`, `supabase/migrations/`, `migrations/`
 - `Update Trigger`: Schema, triggers, RPCs, enums, or key table ownership changes.
 
@@ -38,6 +38,15 @@ Scraper (GitHub Actions, nightly)
     → Queue to ingredient_match_queue if low confidence (ingredient OR unit)
     → INSERT into ingredients_history (price log)
     → UPSERT into ingredients_recent (current snapshot)
+
+Recipe Upsert (app + seed scripts)
+  → fn_upsert_recipe_with_ingredients(...)
+    → Upsert recipe row + replace recipe_ingredients payload
+    → Use explicit ingredient.units when provided
+    → Otherwise parse display_name with dynamic regex from fn_build_unit_regex()
+    → Resolve ingredient/unit with same deterministic + queue handoff used by scraper ingest
+    → Write extracted quantity + standardized unit to recipe_ingredients
+    → Queue low-confidence ingredient/unit rows in ingredient_match_queue (source = 'recipe')
 
 LLM Queue Processor (external)
   → Reads ingredient_match_queue WHERE status = 'pending'
@@ -397,8 +406,23 @@ LLM Queue Processor (external)
 | Function | Description |
 |----------|-------------|
 | `fn_bulk_insert_ingredient_history(jsonb)` | Main scraper entry point. Parses units, matches ingredients, creates/finds product mappings, calculates unit prices, queues for LLM review, inserts history, upserts recent. |
+| `fn_upsert_recipe_with_ingredients(...)` | Recipe upsert entry point. Replaces recipe ingredients, parses/extracts ingredient quantity+unit from `display_name` when `units` is missing, standardizes units, and queues unmatched ingredient/unit rows for LLM review. |
 | `fn_match_ingredient(text)` | Fuzzy matches product name → standardized_ingredient. Returns matched_id, confidence, match_strategy. |
 | `fn_clean_product_name(text)` | Strips brand noise from product names. |
+
+`fn_upsert_recipe_with_ingredients(...)` behavior details:
+
+- Dynamic unit regex from `unit_standardization_map`: calls `fn_build_unit_regex()` at runtime instead of using hardcoded patterns. New mappings learned via `fn_learn_unit_mapping(...)` are picked up automatically on future calls.
+- Full unit parsing pipeline when `units` is not provided (mirrors `fn_bulk_insert_ingredient_history`), with these regex passes on `display_name`:
+  - Pass A: trailing unit after separator (`chicken breast - 24oz`)
+  - Pass B: mixed fractions (`1 1/2 lb ground beef`)
+  - Pass C: general scan (`12oz pasta`)
+  - Pass D: leading quantity + unit (`2 cups flour`) for recipe text
+  - Pass E: standalone each/ea
+- Unit standardization parity with scraper ingest: extracted units run through exact match, fuzzy match, self-insert/learn, then queue fallback.
+- Queue flags: sets `needs_ingredient_review` when `fn_resolve_ingredient(...)` is unmatched and `needs_unit_review` when unit resolution fails. `ON CONFLICT` merges these flags with `OR` so prior review requirements are preserved.
+- `raw_unit` is always populated with `COALESCE(extracted search term, regex-found unit, original units field, display_name)` so the queue LLM always receives context.
+- Writes parsed results back to `recipe_ingredients`: standardized unit to `units` and extracted quantity to `quantity`.
 
 ### Price Retrieval
 

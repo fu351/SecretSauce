@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth/admin"
 import Link from "next/link"
 import { createServerClient } from "@/lib/database/supabase-server"
+import SeedMockRecipesButton from "./seed-mock-recipes-button"
 
 export const dynamic = "force-dynamic"
 
@@ -38,6 +39,7 @@ export default async function DevPage() {
   await requireAdmin()
 
   const stats = await getDevStats()
+  const seedAuthorId = process.env.NEXT_PUBLIC_DEV_EXPERIMENT_CREATED_BY_UUID ?? null
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -160,9 +162,7 @@ export default async function DevPage() {
             <button className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
               Clear Cache
             </button>
-            <button className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700">
-              Sync Data
-            </button>
+            <SeedMockRecipesButton defaultAuthorId={seedAuthorId} />
             <button className="rounded bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700">
               Run Migrations
             </button>
