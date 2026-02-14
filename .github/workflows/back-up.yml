@@ -207,7 +207,7 @@ jobs:
       scraper_cities_csv: "San Francisco,Oakland,Berkeley"
       scraper_state: "CA"
       ingredient_limit: "0"
-      store_limit: "0"
+      store_limit: "5"
       queue_batch_limit: "100"
       queue_max_batches: "10"
 
