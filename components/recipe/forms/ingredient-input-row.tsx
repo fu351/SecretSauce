@@ -12,6 +12,7 @@ interface IngredientInputRowProps {
   ingredient: IngredientFormInput
   index: number
   canRemove: boolean
+  showAmountAndUnit?: boolean
   onChange: (index: number, field: keyof IngredientFormInput, value: string) => void
   onRemove: (index: number) => void
 }
@@ -20,6 +21,7 @@ export function IngredientInputRow({
   ingredient,
   index,
   canRemove,
+  showAmountAndUnit = true,
   onChange,
   onRemove,
 }: IngredientInputRowProps) {
@@ -30,28 +32,30 @@ export function IngredientInputRow({
     isDark ? "bg-secondary/70 border-border hover:bg-secondary/80" : "bg-white/80 backdrop-blur-sm border-white/50 hover:bg-white/90"
   )
 
-  const unitListId = `unit-options-${index}`
-
   return (
     <div className={pillClass}>
       <Input
-        placeholder="Ingredient"
+        placeholder={showAmountAndUnit ? "Ingredient" : "Ingredient line (e.g. 1 1/2 lb chicken breast)"}
         value={ingredient.name}
         onChange={(e) => onChange(index, "name", e.target.value)}
         className="flex-1 border-0 bg-transparent h-8 p-0 text-xs"
       />
-      <Input
-        placeholder="Amt"
-        value={ingredient.amount}
-        onChange={(e) => onChange(index, "amount", e.target.value)}
-        className="w-16 border-0 bg-transparent h-8 p-0 text-xs"
-      />
-      <div className="w-20">
-        <UnitAutocomplete
-          value={ingredient.unit}
-          onChange={(value) => onChange(index, "unit", value)}
-        />
-      </div>
+      {showAmountAndUnit && (
+        <>
+          <Input
+            placeholder="Amt"
+            value={ingredient.amount}
+            onChange={(e) => onChange(index, "amount", e.target.value)}
+            className="w-16 border-0 bg-transparent h-8 p-0 text-xs"
+          />
+          <div className="w-20">
+            <UnitAutocomplete
+              value={ingredient.unit}
+              onChange={(value) => onChange(index, "unit", value)}
+            />
+          </div>
+        </>
+      )}
       {canRemove && (
         <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(index)} className="h-6 w-6 flex-shrink-0 hover:bg-destructive/10">
           <X className="h-3 w-3" />
