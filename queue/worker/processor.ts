@@ -1,4 +1,8 @@
-import { ingredientMatchQueueDB, type IngredientMatchQueueRow } from "../../lib/database/ingredient-match-queue-db"
+import {
+  ingredientMatchQueueDB,
+  type IngredientMatchQueueRow,
+  type IngredientMatchQueueUpdate,
+} from "../../lib/database/ingredient-match-queue-db"
 import { standardizedIngredientsDB } from "../../lib/database/standardized-ingredients-db"
 import { standardizeIngredientsWithAI, type IngredientStandardizationResult } from "../../lib/ingredient-standardizer"
 import { standardizeUnitsWithAI, type UnitStandardizationResult } from "../../lib/unit-standardizer"
@@ -48,6 +52,48 @@ const INVALID_CANONICAL_NAMES = new Set([
   "miscellaneous",
 ])
 
+const RESOLVED_UNIT_ALIASES: Record<string, string[]> = {
+  oz: ["oz", "ounce", "ounces"],
+  lb: ["lb", "lbs", "pound", "pounds"],
+  "fl oz": ["fl oz", "fl. oz", "floz", "fluid ounce", "fluid ounces"],
+  ml: ["ml", "milliliter", "milliliters"],
+  gal: ["gal", "gallon", "gallons"],
+  ct: ["ct", "count"],
+  each: ["each", "ea"],
+  bunch: ["bunch"],
+  gram: ["gram", "grams", "g"],
+  unit: ["unit"],
+}
+
+const GENERIC_MEASURE_ALIASES = [
+  "cup",
+  "cups",
+  "tbsp",
+  "tablespoon",
+  "tablespoons",
+  "tsp",
+  "teaspoon",
+  "teaspoons",
+  "clove",
+  "cloves",
+  "stalk",
+  "stalks",
+  "sprig",
+  "sprigs",
+  "pinch",
+  "dash",
+  "glug",
+  "can",
+  "cans",
+  "jar",
+  "jars",
+  "package",
+  "pkg",
+  "pk",
+  "bottle",
+  "bottles",
+]
+
 function getSearchTerm(row: IngredientMatchQueueRow): string {
   return (row.cleaned_name || row.raw_product_name || "").trim()
 }
@@ -60,6 +106,89 @@ function getCanonicalFallback(row: IngredientMatchQueueRow): string {
 function normalizeConfidence(value: number | null | undefined, fallback = 0.5): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) return fallback
   return value
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function normalizeSpaces(value: string): string {
+  return value.trim().replace(/\s+/g, " ")
+}
+
+function collectUnitHints(row: IngredientMatchQueueRow, unitResult?: UnitStandardizationResult): string[] {
+  const hints = new Set<string>()
+  const addHint = (value?: string | null) => {
+    const normalized = normalizeSpaces((value || "").toLowerCase())
+    if (!normalized) return
+
+    // Ignore accidental full ingredient lines in raw_unit fallback.
+    const tokenCount = normalized.split(" ").length
+    if (tokenCount > 3) return
+    hints.add(normalized)
+  }
+
+  addHint(row.raw_unit)
+  addHint(row.resolved_unit)
+
+  if (unitResult?.status === "success" && unitResult.resolvedUnit) {
+    const aliases = RESOLVED_UNIT_ALIASES[unitResult.resolvedUnit] || []
+    aliases.forEach((alias) => hints.add(alias))
+  }
+
+  GENERIC_MEASURE_ALIASES.forEach((alias) => hints.add(alias))
+
+  return Array.from(hints).sort((a, b) => b.length - a.length)
+}
+
+function stripMeasurementFromSearchTerm(rawName: string, row: IngredientMatchQueueRow, unitResult?: UnitStandardizationResult): string {
+  let working = normalizeSpaces(rawName.toLowerCase())
+  if (!working) return rawName
+
+  // Collapse repeated leading quantities (e.g. "1 1 glug ...").
+  working = working.replace(/^(\d+(?:\.\d+)?)\s+\1(?=\s)/, "$1")
+
+  const unitHints = collectUnitHints(row, unitResult)
+  const hintedUnitsPattern = unitHints.length
+    ? `(?:${unitHints.map((hint) => escapeRegExp(hint).replace(/\s+/g, "[\\s.-]*")).join("|")})`
+    : ""
+
+  const quantityPattern = "(?:\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d+(?:\\.\\d+)?)"
+  const leadingQtyUnitPattern = hintedUnitsPattern
+    ? new RegExp(`^${quantityPattern}\\s*[-x*]?\\s*${hintedUnitsPattern}\\b\\s*`, "i")
+    : null
+  const leadingCompactPattern = hintedUnitsPattern
+    ? new RegExp(`^${quantityPattern}${hintedUnitsPattern}\\b\\s*`, "i")
+    : null
+  const leadingQtyOnlyPattern = new RegExp(`^${quantityPattern}\\s+`, "i")
+  const trailingUnitPattern = hintedUnitsPattern ? new RegExp(`\\s+${hintedUnitsPattern}$`, "i") : null
+
+  for (let i = 0; i < 4; i += 1) {
+    const before = working
+
+    if (leadingQtyUnitPattern) {
+      working = working.replace(leadingQtyUnitPattern, "")
+    }
+    if (leadingCompactPattern) {
+      working = working.replace(leadingCompactPattern, "")
+    }
+    working = working.replace(leadingQtyOnlyPattern, "")
+
+    if (trailingUnitPattern) {
+      working = working.replace(trailingUnitPattern, "")
+    }
+
+    working = normalizeSpaces(working)
+    if (working === before) break
+  }
+
+  return working || rawName
+}
+
+function getIngredientSearchTerm(row: IngredientMatchQueueRow, unitResult?: UnitStandardizationResult): string {
+  const base = getSearchTerm(row)
+  if (!base) return base
+  return stripMeasurementFromSearchTerm(base, row, unitResult)
 }
 
 function resolveRowStandardizerContext(
@@ -148,7 +277,8 @@ async function resolveCanonicalWithDoubleCheck(
 
 async function resolveIngredientCandidates(
   rows: IngredientMatchQueueRow[],
-  config: QueueWorkerConfig
+  config: QueueWorkerConfig,
+  unitByRowId?: Map<string, UnitStandardizationResult>
 ): Promise<Map<string, IngredientStandardizationResult>> {
   const targetRows = rows.filter((row) => row.needs_ingredient_review)
   if (!targetRows.length) return new Map()
@@ -169,9 +299,11 @@ async function resolveIngredientCandidates(
   for (const [context, contextRows] of rowsByContext.entries()) {
     const uniqueInputByKey = new Map<string, { id: string; name: string }>()
     const rowToInputKey = new Map<string, string>()
+    const cleanedNameUpdatePromises: Array<Promise<unknown>> = []
 
     for (const row of contextRows) {
-      const searchTerm = getSearchTerm(row)
+      const originalSearchTerm = getSearchTerm(row)
+      const searchTerm = getIngredientSearchTerm(row, unitByRowId?.get(row.id))
       const dedupeKey = searchTerm.toLowerCase()
 
       if (!uniqueInputByKey.has(dedupeKey)) {
@@ -179,6 +311,30 @@ async function resolveIngredientCandidates(
       }
 
       rowToInputKey.set(row.id, dedupeKey)
+
+      if (
+        !config.dryRun &&
+        searchTerm &&
+        searchTerm !== originalSearchTerm &&
+        row.cleaned_name !== searchTerm
+      ) {
+        cleanedNameUpdatePromises.push(
+          ingredientMatchQueueDB
+            .update(row.id, {
+              cleaned_name: searchTerm,
+            } as IngredientMatchQueueUpdate)
+            .catch((error) => {
+              console.warn(
+                `[QueueResolver] Failed to persist cleaned_name normalization for row ${row.id}:`,
+                error
+              )
+            })
+        )
+      }
+    }
+
+    if (cleanedNameUpdatePromises.length) {
+      await Promise.allSettled(cleanedNameUpdatePromises)
     }
 
     const aiResults = await standardizeIngredientsWithAI(Array.from(uniqueInputByKey.values()), context)
@@ -199,7 +355,7 @@ async function resolveIngredientCandidates(
 
 async function resolveUnitCandidates(
   rows: IngredientMatchQueueRow[],
-  ingredientByRowId: Map<string, IngredientStandardizationResult>,
+  ingredientByRowId: Map<string, IngredientStandardizationResult> | undefined,
   config: QueueWorkerConfig
 ): Promise<Map<string, UnitStandardizationResult>> {
   if (!config.enableUnitResolution) return new Map()
@@ -212,7 +368,7 @@ async function resolveUnitCandidates(
 
   for (const row of targetRows) {
     const ingredientCanonical =
-      ingredientByRowId.get(row.id)?.canonicalName ?? row.best_fuzzy_match ?? undefined
+      ingredientByRowId?.get(row.id)?.canonicalName ?? row.best_fuzzy_match ?? undefined
     const dedupeKey = [
       getSearchTerm(row).toLowerCase(),
       (row.raw_unit ?? "").trim().toLowerCase(),
@@ -250,6 +406,78 @@ async function resolveUnitCandidates(
   return byRowId
 }
 
+function shouldRerunUnitResolution(
+  row: IngredientMatchQueueRow,
+  current: UnitStandardizationResult | undefined,
+  config: QueueWorkerConfig
+): boolean {
+  if (!row.needs_unit_review) return false
+  if (!current) return true
+  if (current.status !== "success") return true
+  return normalizeConfidence(current.confidence, 0) < config.unitMinConfidence
+}
+
+function choosePreferredUnitResult(
+  current: UnitStandardizationResult | undefined,
+  candidate: UnitStandardizationResult | undefined
+): UnitStandardizationResult | undefined {
+  if (!candidate) return current
+  if (!current) return candidate
+
+  if (candidate.status === "success" && current.status !== "success") {
+    return candidate
+  }
+
+  if (candidate.status !== "success" && current.status === "success") {
+    return current
+  }
+
+  const currentConfidence = normalizeConfidence(current.confidence, 0)
+  const candidateConfidence = normalizeConfidence(candidate.confidence, 0)
+  return candidateConfidence > currentConfidence ? candidate : current
+}
+
+async function rerunUnitCandidatesWithIngredientContext(
+  rows: IngredientMatchQueueRow[],
+  existingUnitByRowId: Map<string, UnitStandardizationResult>,
+  ingredientByRowId: Map<string, IngredientStandardizationResult>,
+  config: QueueWorkerConfig
+): Promise<Map<string, UnitStandardizationResult>> {
+  if (!config.enableUnitResolution) return existingUnitByRowId
+
+  const rerunRows = rows.filter((row) =>
+    shouldRerunUnitResolution(row, existingUnitByRowId.get(row.id), config)
+  )
+  if (!rerunRows.length) return existingUnitByRowId
+
+  const rerunUnitByRowId = await resolveUnitCandidates(rerunRows, ingredientByRowId, config)
+  const merged = new Map(existingUnitByRowId)
+  let improvedCount = 0
+
+  for (const row of rerunRows) {
+    const rowId = row.id
+    const current = existingUnitByRowId.get(rowId)
+    const candidate = rerunUnitByRowId.get(rowId)
+    const preferred = choosePreferredUnitResult(current, candidate)
+
+    if (preferred) {
+      merged.set(rowId, preferred)
+    }
+
+    if (preferred && preferred !== current) {
+      improvedCount += 1
+    }
+  }
+
+  if (improvedCount > 0) {
+    console.log(
+      `[QueueResolver] Unit second-pass improved ${improvedCount}/${rerunRows.length} row(s) using ingredient context`
+    )
+  }
+
+  return merged
+}
+
 async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorkerConfig): Promise<ResolveBatchResult> {
   const detailedResults: ResolveBatchResult["results"] = config.dryRun ? [] : undefined
   const validRows = rows.filter((row) => {
@@ -270,8 +498,14 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
   }
 
   try {
-    const ingredientByRowId = await resolveIngredientCandidates(validRows, config)
-    const unitByRowId = await resolveUnitCandidates(validRows, ingredientByRowId, config)
+    const firstPassUnitByRowId = await resolveUnitCandidates(validRows, undefined, config)
+    const ingredientByRowId = await resolveIngredientCandidates(validRows, config, firstPassUnitByRowId)
+    const unitByRowId = await rerunUnitCandidatesWithIngredientContext(
+      validRows,
+      firstPassUnitByRowId,
+      ingredientByRowId,
+      config
+    )
 
     const results = await Promise.allSettled(
       validRows.map(async (row) => {
@@ -514,7 +748,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
     return { resolved, failed: failed + (rows.length - validRows.length), results: detailedResults }
   } catch (error) {
-    console.error(`[QueueResolver] Batch processing failed:`, error)
+    console.error("[QueueResolver] Batch processing failed:", error)
     if (!config.dryRun) {
       await Promise.allSettled(
         validRows.map((row) =>
@@ -576,17 +810,17 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
     console.log(`[QueueResolver] ${mode} Fetch cycle ${cycle + 1} (limit ${config.batchLimit})`)
     const pending = config.dryRun
       ? await ingredientMatchQueueDB.fetchPendingFiltered({
-          limit: config.batchLimit,
-          reviewMode: config.reviewMode,
-          source: config.queueSource,
-        })
+        limit: config.batchLimit,
+        reviewMode: config.reviewMode,
+        source: config.queueSource,
+      })
       : await ingredientMatchQueueDB.claimPending({
-          limit: config.batchLimit,
-          resolver: config.resolverName,
-          leaseSeconds: config.leaseSeconds,
-          reviewMode: config.reviewMode,
-          source: config.queueSource,
-        })
+        limit: config.batchLimit,
+        resolver: config.resolverName,
+        leaseSeconds: config.leaseSeconds,
+        reviewMode: config.reviewMode,
+        source: config.queueSource,
+      })
 
     if (!pending.length) {
       if (cycle === 0) {
