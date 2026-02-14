@@ -389,7 +389,7 @@ LLM Queue Processor (external)
 | `grocery_store` | aldi, kroger, safeway, meijer, target, traderjoes, 99ranch, walmart, ... |
 | `unit_label` | oz, lb, fl oz, ml, gal, ct, each, bunch, gram, unit, g, tsp, tbsp, cup, kg, quart, pint, liter, mg, dozen |
 | `unit_category` | weight, volume, count, other |
-| `item_category_enum` | baking, beverages, condiments, dairy, meat_seafood, pantry_staples, produce, snacks, frozen, other, ... |
+| `item_category_enum` | baking, beverages, condiments, dairy, meat_seafood, pantry_staples, produce, snacks, spices, other |
 | `meal_type_enum` | breakfast, lunch, dinner, snack, dessert |
 | `protein_type_enum` | chicken, beef, pork, fish, shellfish, turkey, tofu, legume, egg, ... |
 | `cuisine_type_enum` | italian, mexican, chinese, indian, american, french, japanese, ... |

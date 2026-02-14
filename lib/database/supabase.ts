@@ -1189,7 +1189,7 @@ export type Database = {
       cooking_level_enum: "beginner" | "intermediate" | "advanced"
       budget_range_enum: "low" | "medium" | "high"
       theme_enum: "light" | "dark"
-      item_category_enum: "baking" | "beverages" | "condiments" | "dairy" | "meat_seafood" | "pantry_staples" | "produce" | "snacks" | "other"
+      item_category_enum: "baking" | "beverages" | "condiments" | "dairy" | "meat_seafood" | "pantry_staples" | "produce" | "snacks" | "other" | "spices"
       grocery_store: "aldi" | "kroger" | "safeway" | "meijer" | "target" | "traderjoes" | "99ranch" | "walmart" | "andronicos" | "wholefoods"
       unit_category: "weight" | "volume" | "count" | "other"
       unit_label: "oz" | "lb" | "fl oz" | "ml" | "gal" | "ct" | "each" | "bunch" | "gram" | "unit"

@@ -50,6 +50,7 @@ export const CATEGORY_ASSIGNMENT_SECTION = `
    - **snacks**: chips, crackers, cookies, candy, nuts (unopened packaged snacks)
    - **condiments**: sauces, dressings, ketchup, mustard, mayo, vinegar, soy sauce
    - **baking**: baking powder, baking soda, vanilla extract, chocolate chips, yeast
+   - **spices**: dried spices and seasoning blends (paprika, cumin, turmeric, curry powder, chili flakes)
    - **other**: items that don't fit above categories
    
    For NON-FOOD items: category = null

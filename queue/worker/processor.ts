@@ -301,13 +301,21 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             throw new Error(`Invalid canonical name "${normalizedCanonical}" returned by ingredient resolver`)
           }
 
-          if (!ingredientResult.category) {
-            throw new Error(`Missing ingredient category for "${normalizedCanonical}"`)
+          let resolvedIngredientCategory = ingredientResult.category?.trim() || null
+          if (!resolvedIngredientCategory) {
+            const existingCanonical = await standardizedIngredientsDB.findByCanonicalName(normalizedCanonical)
+            resolvedIngredientCategory = existingCanonical?.category ?? null
+          }
+          if (!resolvedIngredientCategory) {
+            resolvedIngredientCategory = "other"
+            console.warn(
+              `[QueueResolver] Missing ingredient category for "${normalizedCanonical}". Falling back to "other".`
+            )
           }
 
           canonicalForWrite = await resolveCanonicalWithDoubleCheck(
             normalizedCanonical,
-            ingredientResult.category,
+            resolvedIngredientCategory,
             ingredientResult.confidence,
             config
           )
@@ -315,7 +323,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             throw new Error("Canonical name became empty after double-check")
           }
 
-          ingredientCategory = ingredientResult.category || null
+          ingredientCategory = resolvedIngredientCategory
           ingredientConfidence = normalizeConfidence(ingredientResult.confidence, 0.5)
         }
 
