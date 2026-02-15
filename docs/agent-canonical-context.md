@@ -5,7 +5,7 @@
 - `Doc Kind`: `policy`
 - `Canonicality`: `canonical`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-15`
 - `Primary Surfaces`: `docs/agent-canonical-context.md`, `lib/auth/subscription.ts`, `hooks/use-subscription.ts`
 - `Update Trigger`: Tier/access invariants or core API/data pipeline rules change.
 
@@ -53,6 +53,9 @@ When docs or examples disagree, use this order:
 - `ingredients_history` is the append-only price log; `ingredients_recent` is the current snapshot.
 - Processing logic belongs in `fn_bulk_insert_ingredient_history(jsonb)`; do not rely on `ingredients_history` triggers.
 - Low-confidence ingredient/unit matches flow to `ingredient_match_queue` and resolved queue rows backfill `product_mappings`.
+- Store identity in comparison/replacement flows should be canonical `grocery_store` enum values; treat display names/aliases as presentation-only.
+- `get_replacement(uuid, grocery_store, text)` must use current-schema joins (`ingredients_recent.product_mapping_id -> product_mappings.id`).
+- Unit-weight refresh jobs should use the winsorized estimate path in `calculate_unit_weight_estimates()` via `scheduled_update_unit_estimates()`.
 
 ## Queue Runtime Invariants
 

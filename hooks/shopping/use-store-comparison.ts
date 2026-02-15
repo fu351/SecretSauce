@@ -286,12 +286,12 @@ export function useStoreComparison(
       const fallbackName = representativeItem?.name || "Item"
 
       offers.forEach(offer => {
-        const storeKey = (offer?.store || offer?.store_name || "Unknown").toString().trim()
-        const storeName = (offer?.store_name || storeKey || "Unknown").toString().trim()
+        const canonicalStore = (offer?.store || offer?.store_enum || offer?.store_name || "Unknown").toString().trim()
+        const storeDisplayName = (offer?.store_name || canonicalStore || "Unknown").toString().trim()
 
-        if (!storeMap.has(storeName)) {
-          storeMap.set(storeName, {
-            store: storeName,
+        if (!storeMap.has(canonicalStore)) {
+          storeMap.set(canonicalStore, {
+            store: canonicalStore,
             items: [],
             total: 0,
             savings: 0,
@@ -301,7 +301,7 @@ export function useStoreComparison(
           })
         }
 
-        const comp = storeMap.get(storeName)!
+        const comp = storeMap.get(canonicalStore)!
         const requestedAmountRaw = Number(entry?.total_amount ?? entry?.total_quantity ?? 1)
         const requestedAmount = requestedAmountRaw > 0 ? requestedAmountRaw : 1
         const totalQty = Math.max(1, Math.ceil(requestedAmount))
@@ -325,31 +325,31 @@ export function useStoreComparison(
         const primaryShoppingItemId = shoppingItemIds[0] || ""
         const stableItemKey = primaryShoppingItemId || standardizedIngredientId || rpcItemIds[0] || String(comp.items.length)
 
-          comp.items.push({
-            id: `${storeKey}-${stableItemKey}`,
-            title: offer?.product_name || fallbackName,
-            brand: "",
-            price: totalPrice,
-            pricePerUnit: undefined, // DB totals are already whole-item; no unit price displayed
-            unit: undefined,
-            image_url: offer?.image_url || offer?.imageUrl || undefined,
-            provider: storeName,
-            location: offer?.zip_code ? `${storeName} (${offer.zip_code})` : storeName,
-            category: "other",
-            quantity: requestedAmount,
-            shoppingItemId: primaryShoppingItemId,
-            originalName: fallbackName,
-            shoppingItemIds,
-            productMappingId: offer?.product_mapping_id || undefined,
-            packagesToBuy,
-            requestedUnit,
-            productUnit,
-            productQuantity,
-            convertedQuantity,
-            packagePrice,
-            conversionError,
-            usedEstimate,
-          })
+        comp.items.push({
+          id: `${canonicalStore}-${stableItemKey}`,
+          title: offer?.product_name || fallbackName,
+          brand: "",
+          price: totalPrice,
+          pricePerUnit: undefined, // DB totals are already whole-item; no unit price displayed
+          unit: undefined,
+          image_url: offer?.image_url || offer?.imageUrl || undefined,
+          provider: canonicalStore,
+          location: offer?.zip_code ? `${storeDisplayName} (${offer.zip_code})` : storeDisplayName,
+          category: "other",
+          quantity: requestedAmount,
+          shoppingItemId: primaryShoppingItemId,
+          originalName: fallbackName,
+          shoppingItemIds,
+          productMappingId: offer?.product_mapping_id || undefined,
+          packagesToBuy,
+          requestedUnit,
+          productUnit,
+          productQuantity,
+          convertedQuantity,
+          packagePrice,
+          conversionError,
+          usedEstimate,
+        })
 
         comp.total += totalPrice
         if (distance !== undefined) {

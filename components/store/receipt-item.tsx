@@ -37,10 +37,23 @@ export function ReceiptItem({
   const quantityDisplay = formatMeasure(quantity)
   const unit = item.unit || ""
   const isAvailable = pricing !== null
-  const lineTotal = pricing ? pricing.price * quantity : null
   const pricingBaselineQuantity = Math.max(1, Number(pricing?.quantity) || 1)
+  const baselinePackages = pricing?.packagesToBuy && Number(pricing.packagesToBuy) > 0
+    ? Number(pricing.packagesToBuy)
+    : null
+  const packagePrice = pricing?.packagePrice != null ? Number(pricing.packagePrice) : null
+  const packagesPerQuantity = baselinePackages !== null
+    ? baselinePackages / pricingBaselineQuantity
+    : null
   const adjustedPackagesToBuy = pricing?.packagesToBuy
-    ? Math.max(1, Math.ceil((pricing.packagesToBuy / pricingBaselineQuantity) * quantity))
+    ? Math.max(1, Math.ceil((packagesPerQuantity || 0) * quantity))
+    : null
+  const lineTotal = pricing
+    ? (
+      packagePrice !== null && adjustedPackagesToBuy !== null
+        ? packagePrice * adjustedPackagesToBuy
+        : (Number(pricing.price) || 0) * quantity
+    )
     : null
   const packageQuantityDisplay = adjustedPackagesToBuy !== null
     ? formatMeasure(adjustedPackagesToBuy)
@@ -93,10 +106,22 @@ export function ReceiptItem({
   const hasExpandedDetails = detailRows.length > 0
 
   const handleIncrement = () => {
+    if (adjustedPackagesToBuy !== null && packagesPerQuantity && packagesPerQuantity > 0) {
+      const nextPackages = adjustedPackagesToBuy + 1
+      const nextQuantity = Number((nextPackages / packagesPerQuantity).toFixed(4))
+      onQuantityChange(item.id, Math.max(1, nextQuantity))
+      return
+    }
     onQuantityChange(item.id, quantity + 1)
   }
 
   const handleDecrement = () => {
+    if (adjustedPackagesToBuy !== null && packagesPerQuantity && packagesPerQuantity > 0) {
+      const nextPackages = Math.max(1, adjustedPackagesToBuy - 1)
+      const nextQuantity = Number((nextPackages / packagesPerQuantity).toFixed(4))
+      onQuantityChange(item.id, Math.max(1, nextQuantity))
+      return
+    }
     onQuantityChange(item.id, Math.max(1, quantity - 1))
   }
 
@@ -184,7 +209,7 @@ export function ReceiptItem({
                   variant="ghost"
                   type="button"
                   onClick={handleDecrement}
-                  disabled={quantity <= 1 || !isAvailable}
+                  disabled={(adjustedPackagesToBuy !== null ? adjustedPackagesToBuy <= 1 : quantity <= 1) || !isAvailable}
                   className="h-7 w-7 md:h-8 md:w-8 flex-shrink-0 hover:bg-white/10 disabled:opacity-40"
                   aria-label={`Decrease quantity for ${displayName}`}
                 >

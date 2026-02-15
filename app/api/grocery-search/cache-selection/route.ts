@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       productTitle: product.title,
     })
 
-    // Preferred path: standardize + mapping-aware insert via RPC.
+    // Preferred path: mapping-aware insert via RPC.
     // Falls back to direct insert for compatibility.
     const inserted = await ingredientsHistoryDB.batchStandardizeAndMatch([
       {

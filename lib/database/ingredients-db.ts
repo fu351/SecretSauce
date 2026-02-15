@@ -12,6 +12,7 @@ function resolveGroceryStoreEnum(
   const value = normalizeStoreName(store)
   if (value.includes("target")) return "target"
   if (value.includes("kroger")) return "kroger"
+  if (value.includes("foodsco")) return "kroger"
   if (value.includes("meijer")) return "meijer"
   if (value.includes("99") || value.includes("ranch")) return "99ranch"
   if (value.includes("walmart")) return "walmart"
@@ -284,9 +285,9 @@ class IngredientsHistoryTable extends BaseTable<
   }
 
   /**
-   * Bulk insert with full standardization and product-mapping creation via RPC.
-   * Uses fn_bulk_standardize_and_match which:
-   *  - Resolves standardized_ingredient_id (uses manual value if provided, else fuzzy match)
+   * Bulk insert with product-mapping creation via RPC.
+   * Uses fn_bulk_insert_ingredient_history which:
+   *  - Resolves standardized_ingredient_id via ingredient matching
    *  - Extracts quantity/unit from product name
    *  - Upserts into product_mappings (creates the row needed for checkout)
    *  - Inserts into ingredients_history with product_mapping_id set
@@ -309,7 +310,6 @@ class IngredientsHistoryTable extends BaseTable<
       const payload = items
         .filter((i) => i.price > 0)
         .map((item) => ({
-          standardizedIngredientId: item.standardizedIngredientId ?? null,
           store: normalizeStoreName(item.store),
           price: item.price,
           productName: item.productName ?? null,
@@ -320,7 +320,7 @@ class IngredientsHistoryTable extends BaseTable<
 
       if (!payload.length) return 0
 
-      const { data, error } = await (this.supabase.rpc as any)("fn_bulk_standardize_and_match", {
+      const { data, error } = await (this.supabase.rpc as any)("fn_bulk_insert_ingredient_history", {
         p_items: payload,
       })
 

@@ -5,7 +5,7 @@
 - `Doc Kind`: `routing-index`
 - `Canonicality`: `routing`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-14`
+- `Last Reviewed`: `2026-02-15`
 - `Primary Surfaces`: `docs/agent-directory.md`, `docs/agent-canonical-context.md`, `docs/repository-functionality-overview.md`
 - `Update Trigger`: New docs are added, renamed, or responsibilities move.
 
@@ -95,3 +95,6 @@ Use this process when validating workflow edits, diagnosing bootstrap failures, 
 - Tutorial system status and roadmap are actively tracked in `docs/tutorial-current-state.md` (last updated `2026-02-13`).
 - Queue runtime is partially migrated to `queue/`; nightly workflow remains fallback until full cutover (`docs/ingredient-queue-realtime-plan.md`).
 - Unit standardization is a two-stage flow: first-pass deterministic parsing/mapping in ingest RPCs (`public.fn_bulk_insert_ingredient_history(jsonb)` and `public.fn_upsert_recipe_with_ingredients(...)`), then AI queue resolution for rows flagged `needs_unit_review`.
+- Store comparison/replacement internals should key by canonical `grocery_store` enum values (`offer.store` / `store_enum`), not display labels (`store_name`).
+- `get_replacement(uuid, grocery_store, text)` is on the current schema (`product_mappings` + `ingredients_recent` via `product_mapping_id`), not legacy `ingredients_recent.standardized_ingredient_id`.
+- Unit-weight estimate jobs (`scheduled_update_unit_estimates`) now use winsorized mean logic in `calculate_unit_weight_estimates()`.

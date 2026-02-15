@@ -5,7 +5,7 @@
 - `Doc Kind`: `orientation`
 - `Canonicality`: `reference`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-15`
 - `Primary Surfaces`: `app/`, `lib/database/`, `lib/scrapers/`, `scripts/`, `python-api/`
 - `Update Trigger`: Major architecture, subsystem ownership, or repository layout changes.
 
@@ -109,9 +109,11 @@ This document provides a broad, implementation-grounded map of what this reposit
   - `hooks/shopping/use-store-comparison.ts`
   - `/api/shopping/comparison`
 - Manual replacement flow:
-  - `get_replacement` RPC returns cached replacement candidates (store-scoped).
+  - `get_replacement` RPC returns cached replacement candidates (store-scoped), using `product_mappings` + `ingredients_recent` (`product_mapping_id` join).
+  - Replacement search term is seeded from standardized ingredient canonical name when available (fallback is display name).
   - Falls back to live scraper search when no replacement candidates are available.
-  - User-selected scraper items are persisted via `POST /api/grocery-search/cache-selection`, which writes through `fn_bulk_standardize_and_match` (with direct insert fallback).
+  - Store comparison and replacement flows use canonical store enums internally; display labels are presentation-only.
+  - User-selected scraper items are persisted via `POST /api/grocery-search/cache-selection`, which writes through `fn_bulk_insert_ingredient_history` (with direct insert fallback).
 - Store metadata (store IDs, location, distance, zip) is hydrated via `/api/user-store-metadata`.
 
 ## 8. Delivery And Order Logging

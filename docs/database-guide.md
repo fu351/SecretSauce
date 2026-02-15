@@ -431,7 +431,7 @@ LLM Queue Processor (external)
 |----------|-------------|
 | `get_pricing(uuid)` | Returns price options for a user's shopping list, grouped by ingredient with per-store offers. |
 | `get_ingredient_price_details(uuid, uuid, numeric)` | Detailed pricing for a specific ingredient at user's preferred stores. |
-| `get_replacement(uuid, grocery_store, text)` | Primary replacement lookup used by manual replacement UI; returns store-scoped offers grouped by matched ingredient. |
+| `get_replacement(uuid, grocery_store, text)` | Primary replacement lookup used by manual replacement UI; returns store-scoped offers grouped by matched ingredient. Uses `product_mappings` + `ingredients_recent` (`ir.product_mapping_id = pm.id`) and supports user preferred-store scoping when `p_user_id` is provided. |
 | `get_replacement(text, grocery_store)` | Backward-compatible overload for replacement lookup (delegates to 3-arg form). |
 | `get_pricing_gaps(uuid)` | Identifies missing ingredient coverage per store. |
 
@@ -448,8 +448,8 @@ LLM Queue Processor (external)
 | Function | Description |
 |----------|-------------|
 | `convert_units(numeric, text, text, uuid)` | Converts between units using conversion table + ingredient-specific weight estimates. |
-| `calculate_unit_weight_estimates()` | Infers weight-per-unit from price analysis (comparing weight-sold vs unit-sold products). |
-| `scheduled_update_unit_estimates()` | Batch update of weight estimates and default units. |
+| `calculate_unit_weight_estimates()` | Infers weight-per-unit from price analysis using winsorized means (10th/90th percentile clamping) across weight-sold and unit-sold product price distributions. |
+| `scheduled_update_unit_estimates()` | Runs `calculate_unit_weight_estimates()` and updates `standardized_ingredients.default_unit` based on observed product mapping frequencies. |
 
 ### Data Maintenance
 
