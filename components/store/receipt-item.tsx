@@ -40,7 +40,7 @@ export function ReceiptItem({
   const lineTotal = pricing ? pricing.price * quantity : null
   const pricingBaselineQuantity = Math.max(1, Number(pricing?.quantity) || 1)
   const adjustedPackagesToBuy = pricing?.packagesToBuy
-    ? (pricing.packagesToBuy / pricingBaselineQuantity) * quantity
+    ? Math.max(1, Math.ceil((pricing.packagesToBuy / pricingBaselineQuantity) * quantity))
     : null
   const packageQuantityDisplay = adjustedPackagesToBuy !== null
     ? formatMeasure(adjustedPackagesToBuy)

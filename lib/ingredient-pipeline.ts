@@ -204,16 +204,7 @@ export async function getOrRefreshIngredientPricesForStores(
 
   // 5. Batch insert into history via RPC; triggers sync recents
   if (rpcPayloads.length > 0) {
-    let count = await ingredientsHistoryDB.batchInsertPricesRpc(rpcPayloads)
-
-    // Fallback to standard insert if RPC is unavailable
-    if (count === 0) {
-      const fallbackPayloads = rpcPayloads.map((item) => ({
-        standardizedIngredientId,
-        ...item,
-      }))
-      count = await ingredientsHistoryDB.batchInsertPrices(fallbackPayloads)
-    }
+    const count = await ingredientsHistoryDB.batchInsertPricesRpc(rpcPayloads)
     
     if (count > 0) {
       // Refresh results from recents to ensure we have the latest rows

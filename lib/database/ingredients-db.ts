@@ -96,9 +96,9 @@ class IngredientsHistoryTable extends BaseTable<
           standardized_ingredient_id: payload.standardizedIngredientId,
           store: normalizedStore,
           price: payload.price,
-        quantity: 1,
-        unit: "unit",
-        unit_price: null,
+          quantity: 1,
+          unit: "unit",
+          unit_price: null,
           image_url: payload.imageUrl ?? null,
           product_name: payload.productName ?? null,
           product_id: payload.productId ?? null,
@@ -134,6 +134,8 @@ class IngredientsHistoryTable extends BaseTable<
       location?: string | null
       zipCode?: string | null
       standardizedUnit?: Database["public"]["Enums"]["unit_label"] | null
+      rawUnit?: string | null
+      unit?: string | null
       groceryStoreId?: string | null
       productMappingId?: string | null
     }>
@@ -141,34 +143,21 @@ class IngredientsHistoryTable extends BaseTable<
     try {
       if (items.length === 0) return 0
 
-      const payload = items.map((item) => ({
-        standardized_ingredient_id: item.standardizedIngredientId,
-        store: normalizeStoreName(item.store),
+      // Live schema writes to ingredients_history are handled via RPC.
+      // Normalize legacy payloads into fn_bulk_insert_ingredient_history input.
+      const rpcItems = items.map((item) => ({
+        store: item.store,
         price: item.price,
-        quantity: 1,
-        unit: "unit",
-        unit_price: null,
-        image_url: item.imageUrl ?? null,
-        product_name: item.productName ?? null,
-        product_id: item.productId ?? null,
-        location: item.location ?? null,
-        zip_code: item.zipCode ?? null,
-        standardized_unit: item.standardizedUnit ?? null,
-        grocery_store_id: item.groceryStoreId ?? null,
-        product_mapping_id: item.productMappingId ?? null,
+        imageUrl: item.imageUrl ?? null,
+        productName: item.productName ?? null,
+        productId: item.productId ?? null,
+        rawUnit: item.rawUnit ?? item.unit ?? item.standardizedUnit ?? null,
+        unit: item.unit ?? null,
+        zipCode: item.zipCode ?? null,
+        groceryStoreId: item.groceryStoreId ?? null,
       }))
 
-      const { data, error } = await this.supabase
-        .from(this.tableName)
-        .insert(payload)
-        .select("id")
-
-      if (error) {
-        this.handleError(error, "batchInsertPrices")
-        return 0
-      }
-
-      return data?.length || 0
+      return await this.batchInsertPricesRpc(rpcItems)
     } catch (error) {
       this.handleError(error, "batchInsertPrices")
       return 0
