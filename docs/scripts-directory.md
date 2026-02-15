@@ -39,7 +39,6 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | Import/refresh grocery stores from AllThePlaces | `scripts/import_new_stores.py` | Defaults to target ZIP strategy (`target_zipcodes`); supports `--brand` and `--all-zipcodes`. |
 | Real-time ZIP-triggered store scraping | `scripts/geoscraper.py` | Event/webhook-oriented; accepts ZIP input via flags or `REALTIME_TARGET_ZIPCODES`. |
 | Build target ZIP list from user profiles | `scripts/update_target_zipcodes.py` | Calls DB RPCs `update_target_zipcodes` and optional `add_neighbor_zipcodes`. |
-| Expand one-off ZIP input with neighbors | `scripts/expand_zipcodes_with_neighbors.py` | Useful in workflows; outputs final ZIP CSV to stdout. |
 | Backfill `scraped_zipcodes` city/state/geom | `scripts/backfill_scraped_zipcodes.py` | Uses Zippopotam API, supports `--loop`, `--concurrency`, `--dry-run`. |
 | Fix missing/centroid store geometry in `grocery_stores` | `scripts/fix_missing_geo.py` | Uses AllThePlaces first; optional Google geocode ZIP fallback (`GOOGLE_MAPS_API_KEY`). |
 | Validate Target store IDs in metadata | `scripts/validate-target-store-ids.js` | Compares DB IDs vs Target nearest-store lookup (`--limit`, `--zip`). |
@@ -59,7 +58,6 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | `scripts/import_new_stores.py` | Python | Inserts new rows into `grocery_stores`; updates `scraped_zipcodes`. |
 | `scripts/geoscraper.py` | Python | Inserts ZIP-scoped store rows; updates `scraped_zipcodes`. |
 | `scripts/update_target_zipcodes.py` | Python | Rebuilds/expands `target_zipcodes`. |
-| `scripts/expand_zipcodes_with_neighbors.py` | Python | Writes temporary `target_zipcodes` rows; emits expanded ZIP list. |
 | `scripts/backfill_scraped_zipcodes.py` | Python | Updates metadata/geography in `scraped_zipcodes`. |
 | `scripts/fix_missing_geo.py` | Python | Updates `grocery_stores.geom`; adjusts failure counters in run logic. |
 | `scripts/validate-target-store-ids.js` | Node | Read/compare pass; no DB writes. |
