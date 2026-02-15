@@ -137,6 +137,8 @@ async function hydratePricingGaps(
     imageUrl?: string | null
     productName?: string | null
     productId?: string | null
+    rawUnit?: string | null
+    unit?: string | null
     zipCode?: string | null
     groceryStoreId?: string | null
   }> = []
@@ -172,6 +174,8 @@ async function hydratePricingGaps(
         imageUrl: best.image_url || null,
         productName: best.title || null,
         productId: best.id || null,
+        rawUnit: best.rawUnit ?? best.unit ?? null,
+        unit: best.unit ?? best.rawUnit ?? null,
         zipCode: gapZip ?? null,
         groceryStoreId: gap.grocery_store_id ?? null,
       })

@@ -18,6 +18,7 @@
     "test:components": "vitest run components/",
     "test:api": "vitest run app/api/",
     "test:traderjoes-scraper": "node scripts/test-traderjoes-scraper.js",
+    "test:99ranch-scraper": "node scripts/test-99ranch-scraper.js",
     "queue-worker": "tsx queue/worker/runner.ts"
   },
   "dependencies": {

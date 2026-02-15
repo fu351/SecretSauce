@@ -300,6 +300,8 @@ class IngredientsHistoryTable extends BaseTable<
       price: number
       productName?: string | null
       productId?: string | null
+      rawUnit?: string | null
+      unit?: string | null
       zipCode?: string | null
       groceryStoreId?: string | null
     }>
@@ -314,6 +316,8 @@ class IngredientsHistoryTable extends BaseTable<
           price: item.price,
           productName: item.productName ?? null,
           productId: item.productId ?? null,
+          rawUnit: item.rawUnit ?? item.unit ?? null,
+          unit: item.unit ?? null,
           zipCode: item.zipCode ?? "",
           store_id: item.groceryStoreId ?? null,
         }))

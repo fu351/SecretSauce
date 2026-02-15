@@ -65,6 +65,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
             title: item.title,
             price: item.price,
             unit: item.unit,
+            rawUnit: item.rawUnit,
             pricePerUnit: item.pricePerUnit,
             image_url: item.image_url,
             location: item.provider || null,
@@ -172,6 +173,8 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         price: item.price,
         productName: item.title,
         productId: item.id,
+        rawUnit: item.rawUnit ?? item.unit ?? null,
+        unit: item.unit ?? item.rawUnit ?? null,
         zipCode: zipCode || null,
         groceryStoreId: target?.groceryStoreId ?? null,
       }))

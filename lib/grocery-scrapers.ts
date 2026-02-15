@@ -1,4 +1,5 @@
 import { normalizeZipCode } from "@/lib/utils/zip"
+import { resolveRawUnitWithDailyScraperPriority } from "@/lib/utils/daily-scraper-raw-unit"
 
 interface GroceryItem {
   id: string
@@ -7,6 +8,7 @@ interface GroceryItem {
   price: number
   pricePerUnit?: string
   unit?: string
+  rawUnit?: string
   image_url: string
   provider: string
   location?: string
@@ -70,6 +72,7 @@ export async function searchGroceryStores(
           price: Number(item.price) || 0,
           pricePerUnit: item.pricePerUnit,
           unit: item.unit,
+          rawUnit: resolveRawUnitWithDailyScraperPriority(item) || undefined,
           image_url: item.image_url || "/placeholder.svg",
           provider: storeName,
           location: item.location,
