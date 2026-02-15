@@ -21,18 +21,151 @@ type Experiment = {
   }>
 }
 
-async function getExperiments(): Promise<Experiment[]> {
-  const supabase = createServerClient()
+const PAGE_SIZE = 1000
+const VARIANT_CHUNK_SIZE = 200
 
-  // Use RPC function to query ab_testing schema
-  const { data: experiments, error } = await supabase.rpc("dev_get_experiments")
+type ExperimentRow = Omit<Experiment, "variants">
+type ExperimentRpcRow = Omit<Experiment, "variants"> & {
+  variants: unknown
+}
 
-  if (error) {
-    console.error("Error fetching experiments:", error)
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize))
+  }
+  return chunks
+}
+
+function normalizeVariants(raw: unknown): Experiment["variants"] {
+  if (!Array.isArray(raw)) {
     return []
   }
 
-  return (experiments || []) as Experiment[]
+  return raw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item) => ({
+      id: String(item.id || ""),
+      name: String(item.name || "Unnamed Variant"),
+      is_control: Boolean(item.is_control),
+      weight: Number(item.weight || 0),
+    }))
+}
+
+function normalizeExperimentRows(rows: ExperimentRpcRow[]): Experiment[] {
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    hypothesis: row.hypothesis,
+    status: row.status,
+    target_user_tiers: row.target_user_tiers,
+    traffic_percentage: row.traffic_percentage,
+    primary_metric: row.primary_metric,
+    variants: normalizeVariants(row.variants),
+  }))
+}
+
+async function getExperimentsFromSchema(
+  supabase: ReturnType<typeof createServerClient>,
+): Promise<Experiment[]> {
+  const experiments: ExperimentRow[] = []
+  let rangeStart = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .schema("ab_testing")
+      .from("experiments")
+      .select(
+        "id, name, description, hypothesis, status, target_user_tiers, traffic_percentage, primary_metric"
+      )
+      .order("created_at", { ascending: false })
+      .range(rangeStart, rangeStart + PAGE_SIZE - 1)
+
+    if (error) {
+      console.error("Error fetching experiments:", error)
+      return []
+    }
+
+    if (!data || data.length === 0) {
+      break
+    }
+
+    experiments.push(...(data as ExperimentRow[]))
+
+    if (data.length < PAGE_SIZE) {
+      break
+    }
+
+    rangeStart += PAGE_SIZE
+  }
+
+  const experimentIds = experiments.map((experiment) => experiment.id)
+  const allVariants: Array<{
+    id: string
+    name: string
+    is_control: boolean
+    weight: number
+    experiment_id: string
+  }> = []
+
+  for (const idChunk of chunkArray(experimentIds, VARIANT_CHUNK_SIZE)) {
+    if (idChunk.length === 0) {
+      continue
+    }
+
+    const { data: variants, error: variantsError } = await supabase
+      .schema("ab_testing")
+      .from("variants")
+      .select("id, name, is_control, weight, experiment_id")
+      .in("experiment_id", idChunk)
+      .order("weight", { ascending: false })
+
+    if (variantsError) {
+      console.error("Error fetching experiment variants:", variantsError)
+      continue
+    }
+
+    allVariants.push(...(variants || []))
+  }
+
+  const variantsByExperiment = new Map<Experiment["id"], Experiment["variants"]>()
+  for (const variant of allVariants) {
+    const existing = variantsByExperiment.get(variant.experiment_id) || []
+    existing.push({
+      id: variant.id,
+      name: variant.name,
+      is_control: variant.is_control,
+      weight: variant.weight,
+    })
+    variantsByExperiment.set(variant.experiment_id, existing)
+  }
+
+  return experiments.map((experiment) => ({
+    ...experiment,
+    variants: variantsByExperiment.get(experiment.id) || [],
+  }))
+}
+
+async function getExperiments(): Promise<Experiment[]> {
+  const supabase = createServerClient()
+
+  const { data, error } = await supabase.rpc("dev_get_experiments")
+
+  if (!error && data) {
+    return normalizeExperimentRows(data as ExperimentRpcRow[])
+  }
+
+  if (error) {
+    console.error("Error fetching experiments via dev_get_experiments:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    })
+  }
+
+  return getExperimentsFromSchema(supabase)
 }
 
 export default async function ExperimentsPage() {
@@ -168,11 +301,8 @@ export default async function ExperimentsPage() {
                       href={`/dev/experiments/${experiment.id}`}
                       className="rounded bg-gray-100 px-3 py-1 text-sm text-gray-700 hover:bg-gray-200"
                     >
-                      View Results
+                      Open
                     </Link>
-                    <button className="rounded bg-blue-100 px-3 py-1 text-sm text-blue-700 hover:bg-blue-200">
-                      Edit
-                    </button>
                   </div>
                 </div>
               </div>

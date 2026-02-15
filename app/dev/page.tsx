@@ -18,10 +18,12 @@ async function getDevStats() {
     supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("recipes").select("*", { count: "exact", head: true }),
     supabase
-      .from("ab_testing.experiments")
+      .schema("ab_testing")
+      .from("experiments")
       .select("*", { count: "exact", head: true }),
     supabase
-      .from("ab_testing.experiments")
+      .schema("ab_testing")
+      .from("experiments")
       .select("*", { count: "exact", head: true })
       .eq("status", "active"),
   ])
@@ -149,6 +151,19 @@ export default async function DevPage() {
             <h3 className="text-lg font-semibold text-gray-900">⚡ API Tester</h3>
             <p className="mt-2 text-sm text-gray-600">
               Test API endpoints and functions
+            </p>
+          </Link>
+
+          {/* A/B Hook Test Lab */}
+          <Link
+            href="/dev/ab-testing-lab"
+            className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg"
+          >
+            <h3 className="text-lg font-semibold text-gray-900">
+              🧪 A/B Hook Test Lab
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Validate useExperiment and useFeatureFlag in-browser
             </p>
           </Link>
         </div>

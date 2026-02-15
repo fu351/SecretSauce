@@ -5,7 +5,7 @@
 - `Doc Kind`: `guide`
 - `Canonicality`: `implementation-guide`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-15`
 - `Primary Surfaces`: `ab_testing` schema, `app/dev/experiments/`, `lib/auth/admin.ts`
 - `Update Trigger`: Experiment schema/RPCs, targeting semantics, or admin role behavior change.
 
@@ -334,95 +334,169 @@ INSERT INTO ab_testing.variants (experiment_id, name, weight, config) VALUES
   ('exp-id', 'Variant', 20, '{"feature_enabled": true}');
 ```
 
-## Helper Hook (React)
+## Frontend Helpers (Recommended)
 
-Create a reusable hook:
+The app now provides reusable frontend helpers so components do not need to call
+`assign_user_to_variant`, `get_active_experiments`, and `track_event` directly.
 
 ```typescript
-// hooks/useABTest.ts
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/database/supabase'
+import { useExperiment, useFeatureFlag } from '@/hooks'
+```
 
-export function useABTest(experimentId: string) {
-  const [variant, setVariant] = useState(null)
-  const [loading, setLoading] = useState(true)
+### `useExperiment(experimentIdentifier, options)`
 
-  useEffect(() => {
-    const getVariant = async () => {
-      const sessionId = sessionStorage.getItem('ab_session') ||
-        crypto.randomUUID()
-      sessionStorage.setItem('ab_session', sessionId)
+Use this when you need full experiment assignment + tracking control.
 
-      const { data: { user } } = await supabase.auth.getUser()
+```typescript
+const {
+  loading,
+  assignment,
+  config,
+  trackClick,
+  trackConversion,
+} = useExperiment('Signup Button Color Test', {
+  autoTrackExposure: true,
+  exposureEventName: 'signup_button_shown',
+})
 
-      // Assign variant
-      const { data: variantId } = await supabase.rpc(
-        'ab_testing.assign_user_to_variant',
-        {
-          p_experiment_id: experimentId,
-          p_user_id: user?.id,
-          p_session_id: !user ? sessionId : null
-        }
-      )
-
-      if (variantId) {
-        // Get variant details
-        const { data: experiments } = await supabase.rpc(
-          'ab_testing.get_active_experiments',
-          {
-            p_user_id: user?.id,
-            p_session_id: !user ? sessionId : null
-          }
-        )
-
-        const exp = experiments?.find(e => e.experiment_id === experimentId)
-        setVariant(exp)
-
-        // Track exposure
-        await supabase.rpc('ab_testing.track_event', {
-          p_experiment_id: experimentId,
-          p_variant_id: variantId,
-          p_event_type: 'exposure',
-          p_event_name: 'variant_shown',
-          p_user_id: user?.id,
-          p_session_id: !user ? sessionId : null
-        })
-      }
-
-      setLoading(false)
-    }
-
-    getVariant()
-  }, [experimentId])
-
-  const trackEvent = async (
-    eventType: string,
-    eventName: string,
-    value?: number
-  ) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const sessionId = sessionStorage.getItem('ab_session')
-
-    await supabase.rpc('ab_testing.track_event', {
-      p_experiment_id: experimentId,
-      p_variant_id: variant?.variant_id,
-      p_event_type: eventType,
-      p_event_name: eventName,
-      p_user_id: user?.id,
-      p_session_id: !user ? sessionId : null,
-      p_event_value: value
-    })
-  }
-
-  return { variant, loading, trackEvent }
+if (!loading && assignment) {
+  const buttonColor = config.buttonColor
+  // ...
 }
 
-// Usage:
-// const { variant, trackEvent } = useABTest('exp-id')
-// <button onClick={() => trackEvent('click', 'cta_clicked')}>
-//   {variant?.variant_config.buttonText}
-// </button>
+await trackClick({ eventName: 'signup_button_clicked' })
+await trackConversion({
+  eventName: 'user_signed_up',
+  eventValue: 29.99,
+})
 ```
+
+### `useFeatureFlag(experimentIdentifier, options)`
+
+Use this for feature-toggle style experiments (single or multiple variants).
+
+```typescript
+const {
+  isEnabled,
+  config,
+  loading,
+  trackEnabledClick,
+} = useFeatureFlag('New Recipe Filter Feature', {
+  flagKey: 'feature_enabled',
+  fallback: false,
+  autoTrackExposure: true,
+})
+
+if (!loading && isEnabled) {
+  const limit = config.limit
+  // render enabled feature
+}
+
+await trackEnabledClick({ eventName: 'recipe_filter_cta_clicked' })
+```
+
+## Variant Config Contract (Frontend)
+
+Use `ab_testing.variants.config` as the source of truth for UI behavior.
+
+### Shape Requirements
+
+- `config` must be a JSON object.
+- Arrays, strings, or numbers as root values are not supported by the current editor and hooks.
+- Use stable, explicit keys so components can safely read defaults.
+
+### Recommended Keys
+
+- `feature_enabled`: Primary boolean for feature-flag style experiments.
+- `enabled`: Secondary boolean fallback used by `useFeatureFlag`.
+- UI/content keys like `headline`, `ctaText`, `layout`, `showBadge`.
+- Optional numeric knobs like `maxItems`, `discountPercent`.
+
+### Example Configs
+
+Control:
+
+```json
+{
+  "feature_enabled": false,
+  "headline": "Welcome",
+  "ctaText": "Get Started",
+  "showBadge": false,
+  "layout": "default",
+  "maxItems": 3
+}
+```
+
+Variant:
+
+```json
+{
+  "feature_enabled": true,
+  "headline": "Start Faster",
+  "ctaText": "Start Free Trial",
+  "showBadge": true,
+  "layout": "compact",
+  "maxItems": 6
+}
+```
+
+### Component Usage Pattern
+
+```tsx
+'use client'
+
+import { useExperiment } from '@/hooks'
+
+export function WelcomeCTA() {
+  const exp = useExperiment('Testing page')
+
+  if (exp.loading) return null
+
+  const headline = (exp.config.headline as string) ?? 'Welcome'
+  const ctaText = (exp.config.ctaText as string) ?? 'Get Started'
+  const showBadge = exp.config.showBadge === true
+
+  return (
+    <div>
+      <h2>{headline}</h2>
+      {showBadge ? <span>Popular</span> : null}
+      <button onClick={() => void exp.trackClick({ eventName: 'welcome_cta_click' })}>
+        {ctaText}
+      </button>
+    </div>
+  )
+}
+```
+
+### Feature Flag Pattern
+
+```tsx
+'use client'
+
+import { useFeatureFlag } from '@/hooks'
+
+export function PremiumFilterEntry() {
+  const flag = useFeatureFlag('New Recipe Filter Feature', {
+    flagKey: 'feature_enabled',
+    fallback: false,
+  })
+
+  if (flag.loading) return null
+  if (!flag.isEnabled) return null
+
+  const label = flag.getConfigValue('ctaText', 'Try Filters')
+
+  return <button>{label}</button>
+}
+```
+
+### Editing Workflow (Dev UI)
+
+1. Open `/dev/experiments/<experiment-id>`.
+2. Scroll to the `Variants` section.
+3. Edit `Config (JSON Object)`.
+4. Save using `Save Variant`.
+5. Refresh your test page and verify variant behavior.
 
 ## Best Practices
 
