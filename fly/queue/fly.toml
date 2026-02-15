@@ -1,0 +1,21 @@
+app = "secretsauce-queue"
+primary_region = "ord"
+
+[build]
+  dockerfile = "fly/queue/Dockerfile"
+
+[env]
+  WORKER_INTERVAL_SECONDS = "300"
+  QUEUE_BATCH_LIMIT = "50"
+  QUEUE_LEASE_SECONDS = "180"
+  QUEUE_CHUNK_CONCURRENCY = "2"
+  QUEUE_SOURCE = "scraper"
+  QUEUE_REVIEW_MODE = "ingredient"
+
+[processes]
+  worker = "npm --prefix scripts run queue-worker"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024
