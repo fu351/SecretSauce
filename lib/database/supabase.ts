@@ -1071,6 +1071,24 @@ export type Database = {
         }
         Returns: string
       }
+      fn_bulk_add_to_delivery_log: {
+        Args: {
+          p_entries: Array<{
+            item_id: string
+            product_id: string
+            num_pkgs: number
+            frontend_price: number
+            delivery_date?: string
+          }>
+          p_default_delivery_date?: string | null
+        }
+        Returns: Array<{
+          shopping_list_item_id: string
+          success: boolean
+          price_matched: boolean
+          error_message: string | null
+        }>
+      }
       requeue_expired_ingredient_match_queue: {
         Args: {
           p_limit?: number

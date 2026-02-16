@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { createServerClient } from "@/lib/database/supabase-server"
+import { storeListHistoryDB } from "@/lib/database/store-list-history-db"
 
 export const runtime = "nodejs"
 
@@ -148,6 +149,50 @@ export async function POST(request: NextRequest) {
           clerkUserId,
           customerId,
         })
+
+        // Add cart items to delivery log after successful payment
+        // This happens AFTER payment is confirmed, ensuring items are only logged for completed checkouts
+        const cartItemsJson = session.metadata?.cart_items
+        if (cartItemsJson && supabaseUserId) {
+          try {
+            const cartItems = JSON.parse(cartItemsJson) as Array<{
+              item_id: string
+              product_id: string
+              num_pkgs: number
+              frontend_price: number
+            }>
+
+            // Use bulk function with server-side price verification
+            const results = await storeListHistoryDB.bulkAddToDeliveryLog(cartItems)
+
+            // Log any price mismatches for fraud detection
+            const priceMismatches = results.filter(r => r.success && !r.price_matched)
+            if (priceMismatches.length > 0) {
+              console.warn(
+                `[stripe-webhook] Price mismatches detected for user ${supabaseUserId}:`,
+                priceMismatches
+              )
+            }
+
+            // Log any failures
+            const failures = results.filter(r => !r.success)
+            if (failures.length > 0) {
+              console.error(
+                `[stripe-webhook] Failed to add items to delivery log for user ${supabaseUserId}:`,
+                failures
+              )
+            }
+
+            console.log(
+              `[stripe-webhook] Added ${results.filter(r => r.success).length}/${cartItems.length} items to delivery log for user ${supabaseUserId}`
+            )
+          } catch (error) {
+            console.error(
+              "[stripe-webhook] Failed to process cart items for delivery log:",
+              error
+            )
+          }
+        }
         break
       }
       case "customer.subscription.created":

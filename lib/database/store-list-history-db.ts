@@ -105,6 +105,48 @@ class StoreListHistoryTable extends BaseTable<
   }
 
   /**
+   * Bulk add multiple items to delivery log with server-side price verification
+   * Calls fn_bulk_add_to_delivery_log RPC function
+   *
+   * This function:
+   * - Processes multiple items in a single database call
+   * - Validates prices against backend data (detects manipulation)
+   * - Returns detailed results for each item including price match status
+   * - Handles errors gracefully per-item
+   *
+   * @param entries - Array of items to add to delivery log
+   * @param defaultDeliveryDate - Optional default delivery date
+   * @returns Array of results with success status and price verification for each item
+   */
+  async bulkAddToDeliveryLog(
+    entries: Array<{
+      item_id: string
+      product_id: string
+      num_pkgs: number
+      frontend_price: number
+      delivery_date?: string
+    }>,
+    defaultDeliveryDate?: string
+  ): Promise<Array<{
+    shopping_list_item_id: string
+    success: boolean
+    price_matched: boolean
+    error_message: string | null
+  }>> {
+    const { data, error } = await this.supabase.rpc("fn_bulk_add_to_delivery_log", {
+      p_entries: entries,
+      p_default_delivery_date: defaultDeliveryDate || null,
+    })
+
+    if (error) {
+      this.handleError(error, "bulkAddToDeliveryLog")
+      return []
+    }
+
+    return data || []
+  }
+
+  /**
    * Get delivery log entries for a user
    */
   async findByUserId(userId: string, options?: { limit?: number }): Promise<StoreListHistoryRow[]> {

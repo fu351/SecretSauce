@@ -293,8 +293,54 @@ export default function ShoppingReceiptPage() {
   // Handle checkout
   const handleCheckout = () => {
     if (!selectedStore && storeComparisons.length > 0) scrollToStore(0)
-    // Navigate to delivery page or checkout flow
-    router.push("/delivery")
+
+    // Calculate total price and item count from selected store
+    const activeStoreData = selectedStore
+      ? storeComparisons.find((store) => store.store === selectedStore)
+      : storeComparisons[0]
+
+    let totalAmount = 0
+    let itemCount = shoppingList.length
+
+    // Build cart items for delivery log (with server-side price verification)
+    const cartItems: Array<{
+      item_id: string
+      product_id: string
+      num_pkgs: number
+      frontend_price: number
+    }> = []
+
+    if (activeStoreData?.items) {
+      totalAmount = activeStoreData.items.reduce((sum, item) => {
+        const price = typeof item.price === "number" ? item.price : 0
+        const quantity = typeof item.quantity === "number" ? item.quantity : 1
+
+        // Add to cart items if we have required data
+        if (item.shoppingItemId && item.productMappingId) {
+          cartItems.push({
+            item_id: item.shoppingItemId,
+            product_id: item.productMappingId,
+            num_pkgs: item.packagesToBuy || quantity,
+            frontend_price: price,
+          })
+        }
+
+        return sum + (price * quantity)
+      }, 0)
+    }
+
+    // Navigate to checkout with pricing parameters and cart items
+    const queryParams = new URLSearchParams({
+      total: totalAmount.toFixed(2),
+      items: itemCount.toString(),
+    })
+
+    // Add cart items if available (URL encoding for safe transport)
+    if (cartItems.length > 0) {
+      queryParams.set('cartItems', encodeURIComponent(JSON.stringify(cartItems)))
+    }
+
+    router.push(`/checkout?${queryParams.toString()}`)
   }
 
   // Theme classes
