@@ -83,19 +83,9 @@ export function LandingPage() {
             better meals
           </h1>
 
-          <p className="text-sm md:text-base lg:text-lg font-light tracking-wide text-[#CFC6B0]/50 mb-8 md:mb-10">
+          <p className="text-sm md:text-base lg:text-lg font-light tracking-wide text-[#CFC6B0]/50 mb-4">
             Save your health, money, and time.
           </p>
-
-          <Button
-            size={isMobile ? "default" : "lg"}
-            className="px-8 md:px-10 py-5 md:py-6 text-sm md:text-base font-normal border border-[#D4AF37]/60 bg-transparent text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all duration-300 rounded-xl"
-            asChild
-          >
-            <Link href="/auth/signup">
-              Get Early Access
-            </Link>
-          </Button>
         </div>
 
         {/* Slow pulsing scroll-down indicator */}
