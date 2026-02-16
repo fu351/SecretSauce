@@ -1,309 +1,410 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useCallback } from "react"
 
 /**
- * A rich, organic golden vine SVG that grows as the user scrolls.
- * Features: main trunk with sinuous curves, branching tendrils with
- * leaf shapes, glowing nodes, and a warm gold-leaf aesthetic.
- * 
- * The vine runs the FULL height of the page and is absolutely positioned
- * to the center.  On mobile it is hidden.
+ * Golden vine that grows as the user scrolls.
+ *
+ * Implementation:
+ * – A **fixed** full-viewport overlay holds the canvas.
+ * – We maintain a virtual vine of total length = document scroll height.
+ * – On every frame we compute how much vine to reveal (= scrollY) and
+ *   where the "camera" window sits so the **growth tip is always in the
+ *   bottom third** of the viewport.
+ * – Everything above the camera window has already scrolled past; the
+ *   tip is always near the bottom, giving the illusion of a vine that
+ *   perpetually grows downward.
+ *
+ * Desktop-only (hidden on mobile via CSS).
  */
-export function GoldenVine() {
-  const [scrollProgress, setScrollProgress] = useState(0)
-  const rafRef = useRef<number>(0)
 
+/* ── helpers ── */
+
+interface Point { x: number; y: number }
+
+/** Attempt a nice S-curve vine path.  We precompute waypoints
+ *  so the drawing step is fast. */
+function buildVineWaypoints(totalPts: number, amplitude: number): Point[] {
+  const pts: Point[] = []
+  for (let i = 0; i <= totalPts; i++) {
+    const t = i / totalPts                     // 0 → 1
+    const y = t                                // normalised y along vine
+    const wave = Math.sin(t * Math.PI * 6) * amplitude
+    const drift = Math.sin(t * Math.PI * 2.2) * amplitude * 0.4
+    pts.push({ x: 0.5 + wave + drift, y })    // x in 0-1 range around 0.5
+  }
+  return pts
+}
+
+/** Cubic catmull-rom through points for smooth drawing */
+function catmullRomTo(
+  ctx: CanvasRenderingContext2D,
+  p0: Point, p1: Point, p2: Point, p3: Point,
+  scaleX: number, scaleY: number,
+) {
+  const steps = 8
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps
+    const t2 = t * t, t3 = t2 * t
+    const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t
+      + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2
+      + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3)
+    const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t
+      + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2
+      + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+    ctx.lineTo(x * scaleX, y * scaleY)
+  }
+}
+
+/* ── branch & leaf data (normalised y 0→1) ── */
+const branches: { y: number; side: 1 | -1; length: number }[] = [
+  { y: 0.07, side:  1, length: 55 },
+  { y: 0.07, side: -1, length: 40 },
+  { y: 0.14, side: -1, length: 60 },
+  { y: 0.14, side:  1, length: 40 },
+  { y: 0.22, side:  1, length: 65 },
+  { y: 0.22, side: -1, length: 35 },
+  { y: 0.30, side: -1, length: 60 },
+  { y: 0.30, side:  1, length: 40 },
+  { y: 0.38, side:  1, length: 55 },
+  { y: 0.38, side: -1, length: 45 },
+  { y: 0.46, side: -1, length: 65 },
+  { y: 0.46, side:  1, length: 35 },
+  { y: 0.54, side:  1, length: 60 },
+  { y: 0.54, side: -1, length: 40 },
+  { y: 0.62, side: -1, length: 55 },
+  { y: 0.62, side:  1, length: 38 },
+  { y: 0.70, side:  1, length: 60 },
+  { y: 0.70, side: -1, length: 45 },
+  { y: 0.78, side: -1, length: 55 },
+  { y: 0.78, side:  1, length: 40 },
+  { y: 0.86, side:  1, length: 50 },
+  { y: 0.86, side: -1, length: 38 },
+  { y: 0.93, side: -1, length: 45 },
+  { y: 0.93, side:  1, length: 35 },
+]
+
+const glowNodes: { y: number; r: number }[] = [
+  { y: 0.06, r: 5 },
+  { y: 0.13, r: 6 },
+  { y: 0.21, r: 5 },
+  { y: 0.29, r: 6 },
+  { y: 0.37, r: 5 },
+  { y: 0.45, r: 6 },
+  { y: 0.53, r: 5 },
+  { y: 0.61, r: 6 },
+  { y: 0.69, r: 5 },
+  { y: 0.77, r: 6 },
+  { y: 0.85, r: 5 },
+  { y: 0.92, r: 7 },
+]
+
+/* ── component ── */
+
+export function GoldenVine() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rafRef = useRef(0)
+  const waypointsRef = useRef<Point[]>([])
+  const dprRef = useRef(1)
+
+  /* Rebuild waypoints (doesn't change, only on mount) */
   useEffect(() => {
-    const handleScroll = () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(() => {
-        const scrollTop = window.scrollY
-        const docHeight =
-          document.documentElement.scrollHeight - window.innerHeight
-        const progress = docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0
-        setScrollProgress(progress)
-      })
+    waypointsRef.current = buildVineWaypoints(600, 0.04)
+    dprRef.current = Math.min(window.devicePixelRatio || 1, 2)
+  }, [])
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    const dpr = dprRef.current
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+
+    // Resize canvas to viewport
+    if (canvas.width !== vw * dpr || canvas.height !== vh * dpr) {
+      canvas.width = vw * dpr
+      canvas.height = vh * dpr
+      canvas.style.width = `${vw}px`
+      canvas.style.height = `${vh}px`
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
 
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    handleScroll()
+    ctx.clearRect(0, 0, vw, vh)
 
-    return () => {
-      window.removeEventListener("scroll", handleScroll)
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    const scrollTop = window.scrollY
+    const docHeight = document.documentElement.scrollHeight - vh
+    if (docHeight <= 0) return
+
+    const progress = Math.min(scrollTop / docHeight, 1) // 0 → 1
+
+    // Virtual vine total height in px (maps to full page)
+    const vineHeight = docHeight + vh
+
+    // How far the vine has grown (in virtual vine px)
+    const grownLength = progress * vineHeight + vh * 0.3  // starts a bit visible
+
+    // Camera: the vine tip should be at the bottom ~66% of viewport
+    const tipTarget = vh * 0.66
+    // The tip is at `grownLength` in virtual coords
+    // Camera top in virtual coords:
+    const cameraTop = grownLength - tipTarget
+    // So virtual coord Y maps to screen Y = (virtualY - cameraTop)
+
+    const wp = waypointsRef.current
+    if (wp.length === 0) return
+
+    const centerX = vw * 0.5
+
+    /* ── helper: virtual normalised y → screen y ── */
+    const toScreenY = (normY: number) => {
+      const virtualY = normY * vineHeight
+      return virtualY - cameraTop
+    }
+
+    const toScreenX = (normX: number) => {
+      return centerX + (normX - 0.5) * vw * 0.15
+    }
+
+    /* ── draw ambient glow spots ── */
+    for (const node of glowNodes) {
+      if (node.y > progress + 0.02) continue  // not grown yet
+      const sy = toScreenY(node.y)
+      if (sy < -80 || sy > vh + 80) continue
+      const fadeIn = Math.min(1, (progress - node.y) / 0.03)
+      const grad = ctx.createRadialGradient(centerX, sy, 0, centerX, sy, 70)
+      grad.addColorStop(0, `rgba(212,175,55,${0.12 * fadeIn})`)
+      grad.addColorStop(1, `rgba(212,175,55,0)`)
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.arc(centerX, sy, 70, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    /* ── draw vine trunk ── */
+    // Only draw the portion that's grown
+    const grownNormY = Math.min(grownLength / vineHeight, 1)
+
+    // Find the last waypoint index within the grown region
+    let lastIdx = 0
+    for (let i = 0; i < wp.length; i++) {
+      if (wp[i].y <= grownNormY) lastIdx = i
+      else break
+    }
+
+    if (lastIdx < 2) return // need at least a few points
+
+    // -- Glow layer
+    ctx.save()
+    ctx.strokeStyle = "rgba(212,175,55,0.15)"
+    ctx.lineWidth = 8
+    ctx.lineCap = "round"
+    ctx.lineJoin = "round"
+    ctx.beginPath()
+    let started = false
+    for (let i = 1; i < lastIdx - 1; i++) {
+      const sy = toScreenY(wp[i].y)
+      if (sy < -100 || sy > vh + 100) {
+        started = false
+        continue
+      }
+      const sx = toScreenX(wp[i].x)
+      if (!started) { ctx.moveTo(sx, sy); started = true; continue }
+      const p0 = { x: toScreenX(wp[i-1].x), y: toScreenY(wp[i-1].y) }
+      const p1 = { x: sx, y: sy }
+      const p2 = { x: toScreenX(wp[i+1].x), y: toScreenY(wp[i+1].y) }
+      const p3i = Math.min(i + 2, lastIdx)
+      const p3 = { x: toScreenX(wp[p3i].x), y: toScreenY(wp[p3i].y) }
+      catmullRomTo(ctx, p0, p1, p2, p3, 1, 1)
+    }
+    ctx.stroke()
+    ctx.restore()
+
+    // -- Main line
+    ctx.save()
+    const goldGrad = ctx.createLinearGradient(0, 0, 0, vh)
+    goldGrad.addColorStop(0, "#A68523")
+    goldGrad.addColorStop(0.3, "#D4AF37")
+    goldGrad.addColorStop(0.7, "#D4AF37")
+    goldGrad.addColorStop(1, "#E8C84A")
+    ctx.strokeStyle = goldGrad
+    ctx.lineWidth = 2.5
+    ctx.lineCap = "round"
+    ctx.lineJoin = "round"
+    ctx.globalAlpha = 0.7
+    ctx.beginPath()
+    started = false
+    for (let i = 1; i < lastIdx - 1; i++) {
+      const sy = toScreenY(wp[i].y)
+      if (sy < -100 || sy > vh + 100) {
+        started = false
+        continue
+      }
+      const sx = toScreenX(wp[i].x)
+      if (!started) { ctx.moveTo(sx, sy); started = true; continue }
+      const p0 = { x: toScreenX(wp[i-1].x), y: toScreenY(wp[i-1].y) }
+      const p1 = { x: sx, y: sy }
+      const p2 = { x: toScreenX(wp[i+1].x), y: toScreenY(wp[i+1].y) }
+      const p3i = Math.min(i + 2, lastIdx)
+      const p3 = { x: toScreenX(wp[p3i].x), y: toScreenY(wp[p3i].y) }
+      catmullRomTo(ctx, p0, p1, p2, p3, 1, 1)
+    }
+    ctx.stroke()
+    ctx.restore()
+
+    // -- Thinner parallel strand
+    ctx.save()
+    ctx.strokeStyle = "rgba(212,175,55,0.18)"
+    ctx.lineWidth = 1
+    ctx.lineCap = "round"
+    ctx.beginPath()
+    started = false
+    for (let i = 1; i < lastIdx - 1; i += 2) {
+      const sy = toScreenY(wp[i].y)
+      if (sy < -100 || sy > vh + 100) { started = false; continue }
+      const sx = toScreenX(wp[i].x) + 4
+      if (!started) { ctx.moveTo(sx, sy); started = true }
+      else ctx.lineTo(sx, sy)
+    }
+    ctx.stroke()
+    ctx.restore()
+
+    /* ── branches & leaves ── */
+    for (const br of branches) {
+      if (br.y > progress + 0.01) continue
+      const sy = toScreenY(br.y)
+      if (sy < -80 || sy > vh + 80) continue
+
+      const fadeIn = Math.min(1, (progress - br.y) / 0.04)
+      // Find the x of the vine at this y
+      const wpIdx = Math.min(Math.floor(br.y * wp.length), wp.length - 1)
+      const sx = toScreenX(wp[wpIdx].x)
+
+      ctx.save()
+      ctx.globalAlpha = fadeIn * 0.6
+
+      // Branch tendril
+      const endX = sx + br.side * br.length
+      const cpX = sx + br.side * br.length * 0.6
+      const cpY = sy - 20
+      ctx.strokeStyle = "#D4AF37"
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.moveTo(sx, sy)
+      ctx.quadraticCurveTo(cpX, cpY, endX, sy - br.length * 0.5)
+      ctx.stroke()
+
+      // Leaf at end
+      if (fadeIn > 0.4) {
+        const leafX = endX
+        const leafY = sy - br.length * 0.5
+        ctx.globalAlpha = (fadeIn - 0.4) * 1.6 * 0.6
+
+        ctx.fillStyle = "#D4AF37"
+        ctx.beginPath()
+        const lSize = 10
+        const angle = br.side > 0 ? -0.5 : 0.5 + Math.PI
+        ctx.ellipse(leafX, leafY, lSize, lSize * 0.45, angle, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Leaf vein
+        ctx.strokeStyle = "#A68523"
+        ctx.lineWidth = 0.5
+        ctx.globalAlpha *= 0.6
+        ctx.beginPath()
+        ctx.moveTo(leafX - Math.cos(angle) * lSize * 0.8, leafY - Math.sin(angle) * lSize * 0.8)
+        ctx.lineTo(leafX + Math.cos(angle) * lSize * 0.8, leafY + Math.sin(angle) * lSize * 0.8)
+        ctx.stroke()
+      }
+
+      // Second smaller leaf on longer branches
+      if (fadeIn > 0.6 && br.length > 45) {
+        const midX = sx + br.side * br.length * 0.45
+        const midY = sy - br.length * 0.2
+        ctx.globalAlpha = (fadeIn - 0.6) * 2.5 * 0.4
+        ctx.fillStyle = "#D4AF37"
+        ctx.beginPath()
+        ctx.ellipse(midX, midY, 7, 3, br.side > 0 ? -0.3 : 0.3 + Math.PI, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      ctx.restore()
+    }
+
+    /* ── glowing nodes ── */
+    for (const node of glowNodes) {
+      if (node.y > progress + 0.01) continue
+      const sy = toScreenY(node.y)
+      if (sy < -40 || sy > vh + 40) continue
+
+      const wpIdx = Math.min(Math.floor(node.y * wp.length), wp.length - 1)
+      const sx = toScreenX(wp[wpIdx].x)
+      const fadeIn = Math.min(1, (progress - node.y) / 0.03)
+
+      // Outer glow
+      const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, node.r + 10)
+      glow.addColorStop(0, `rgba(212,175,55,${0.4 * fadeIn})`)
+      glow.addColorStop(0.5, `rgba(212,175,55,${0.1 * fadeIn})`)
+      glow.addColorStop(1, `rgba(212,175,55,0)`)
+      ctx.fillStyle = glow
+      ctx.beginPath()
+      ctx.arc(sx, sy, node.r + 10, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Main node
+      ctx.fillStyle = `rgba(212,175,55,${0.8 * fadeIn})`
+      ctx.beginPath()
+      ctx.arc(sx, sy, node.r, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Bright core
+      ctx.fillStyle = `rgba(245,230,163,${fadeIn})`
+      ctx.beginPath()
+      ctx.arc(sx, sy, node.r * 0.4, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    /* ── growth tip glow ── */
+    if (progress > 0.01 && progress < 0.98) {
+      const tipWpIdx = Math.min(Math.floor(grownNormY * wp.length), wp.length - 1)
+      const tipSx = toScreenX(wp[tipWpIdx].x)
+      const tipSy = toScreenY(wp[tipWpIdx].y)
+
+      if (tipSy > 0 && tipSy < vh) {
+        const tipGlow = ctx.createRadialGradient(tipSx, tipSy, 0, tipSx, tipSy, 20)
+        tipGlow.addColorStop(0, "rgba(245,230,163,0.6)")
+        tipGlow.addColorStop(0.3, "rgba(212,175,55,0.3)")
+        tipGlow.addColorStop(1, "rgba(212,175,55,0)")
+        ctx.fillStyle = tipGlow
+        ctx.beginPath()
+        ctx.arc(tipSx, tipSy, 20, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Bright dot at tip
+        ctx.fillStyle = "rgba(245,230,163,0.9)"
+        ctx.beginPath()
+        ctx.arc(tipSx, tipSy, 3, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
   }, [])
 
-  const totalLength = 8000
-  const visibleLength = totalLength * scrollProgress
-
-  /* ---------- branches: tendrils that sprout from the main vine ---------- */
-  const branches = [
-    { at: 0.08, y: 620,  side: "right" as const, path: "M0,0 C12,-18 30,-28 52,-22 C68,-18 78,-30 90,-48", leafX: 88, leafY: -52, leafAngle: -30 },
-    { at: 0.08, y: 650,  side: "left"  as const, path: "M0,0 C-10,-14 -26,-22 -44,-18 C-58,-14 -66,-28 -72,-40", leafX: -72, leafY: -44, leafAngle: 200 },
-    { at: 0.17, y: 1150, side: "left"  as const, path: "M0,0 C-16,-20 -38,-32 -60,-26 C-76,-22 -88,-36 -98,-52", leafX: -98, leafY: -56, leafAngle: 210 },
-    { at: 0.17, y: 1180, side: "right" as const, path: "M0,0 C14,-12 32,-24 50,-20 C64,-16 74,-30 82,-44", leafX: 80, leafY: -48, leafAngle: -20 },
-    { at: 0.27, y: 1800, side: "right" as const, path: "M0,0 C18,-22 44,-34 70,-28 C86,-24 98,-40 108,-58", leafX: 106, leafY: -62, leafAngle: -25 },
-    { at: 0.27, y: 1840, side: "left"  as const, path: "M0,0 C-12,-16 -30,-26 -48,-22", leafX: -48, leafY: -26, leafAngle: 195 },
-    { at: 0.36, y: 2400, side: "left"  as const, path: "M0,0 C-18,-24 -40,-36 -66,-30 C-82,-26 -94,-42 -104,-58", leafX: -104, leafY: -62, leafAngle: 215 },
-    { at: 0.36, y: 2430, side: "right" as const, path: "M0,0 C10,-14 28,-22 46,-18", leafX: 46, leafY: -22, leafAngle: -15 },
-    { at: 0.47, y: 3100, side: "right" as const, path: "M0,0 C20,-26 48,-38 76,-32 C92,-28 104,-44 114,-62", leafX: 112, leafY: -66, leafAngle: -30 },
-    { at: 0.47, y: 3140, side: "left"  as const, path: "M0,0 C-14,-18 -34,-28 -54,-24 C-68,-20 -78,-34 -86,-48", leafX: -86, leafY: -52, leafAngle: 205 },
-    { at: 0.57, y: 3800, side: "left"  as const, path: "M0,0 C-16,-22 -38,-34 -62,-28 C-78,-24 -90,-40 -100,-56", leafX: -100, leafY: -60, leafAngle: 210 },
-    { at: 0.57, y: 3830, side: "right" as const, path: "M0,0 C12,-14 30,-24 50,-20", leafX: 50, leafY: -24, leafAngle: -10 },
-    { at: 0.67, y: 4500, side: "right" as const, path: "M0,0 C18,-24 44,-36 72,-30 C88,-26 100,-42 110,-60", leafX: 108, leafY: -64, leafAngle: -25 },
-    { at: 0.67, y: 4540, side: "left"  as const, path: "M0,0 C-14,-18 -34,-28 -56,-22 C-70,-18 -80,-32 -88,-46", leafX: -88, leafY: -50, leafAngle: 200 },
-    { at: 0.77, y: 5200, side: "left"  as const, path: "M0,0 C-18,-22 -42,-34 -68,-28 C-84,-24 -96,-40 -106,-56", leafX: -106, leafY: -60, leafAngle: 215 },
-    { at: 0.77, y: 5230, side: "right" as const, path: "M0,0 C10,-12 26,-20 44,-16", leafX: 44, leafY: -20, leafAngle: -10 },
-    { at: 0.87, y: 5900, side: "right" as const, path: "M0,0 C16,-20 40,-30 64,-24 C80,-20 92,-36 102,-52", leafX: 100, leafY: -56, leafAngle: -30 },
-    { at: 0.87, y: 5940, side: "left"  as const, path: "M0,0 C-12,-16 -30,-26 -50,-20 C-66,-16 -76,-30 -84,-44", leafX: -84, leafY: -48, leafAngle: 205 },
-  ]
-
-  /* ---------- glowing nodes along the main vine ---------- */
-  const nodes = [
-    { y: 560,  at: 0.06, size: 5 },
-    { y: 1100, at: 0.15, size: 6 },
-    { y: 1750, at: 0.25, size: 5 },
-    { y: 2350, at: 0.34, size: 6 },
-    { y: 3050, at: 0.45, size: 5 },
-    { y: 3750, at: 0.55, size: 6 },
-    { y: 4450, at: 0.65, size: 5 },
-    { y: 5150, at: 0.75, size: 6 },
-    { y: 5850, at: 0.85, size: 5 },
-    { y: 6300, at: 0.92, size: 7 },
-  ]
+  useEffect(() => {
+    const loop = () => {
+      draw()
+      rafRef.current = requestAnimationFrame(loop)
+    }
+    rafRef.current = requestAnimationFrame(loop)
+    return () => { cancelAnimationFrame(rafRef.current) }
+  }, [draw])
 
   return (
-    <div
-      className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 z-[1] hidden md:block"
+    <canvas
+      ref={canvasRef}
+      className="pointer-events-none fixed inset-0 z-[1] hidden md:block"
       aria-hidden="true"
-    >
-      <svg
-        width="400"
-        height="6600"
-        viewBox="0 0 400 6600"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="opacity-70"
-      >
-        <defs>
-          {/* Gold gradient for the main trunk */}
-          <linearGradient id="vineGold" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#E8C84A" />
-            <stop offset="40%" stopColor="#D4AF37" />
-            <stop offset="100%" stopColor="#A68523" />
-          </linearGradient>
-
-          {/* Warm glow filter for vine */}
-          <filter id="vineGlow" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feComposite in="blur" in2="SourceGraphic" operator="over" />
-          </filter>
-
-          {/* Strong glow for nodes */}
-          <filter id="nodeGlow" x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur stdDeviation="8" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-
-          {/* Leaf shape */}
-          <path
-            id="leafShape"
-            d="M0,-14 C6,-12 10,-6 10,0 C10,6 6,12 0,14 C-4,10 -6,4 -6,0 C-6,-4 -4,-10 0,-14Z"
-            fill="url(#vineGold)"
-          />
-
-          {/* Radial glow for ambient warmth */}
-          <radialGradient id="warmGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#D4AF37" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#D4AF37" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-
-        {/* ====== Ambient warm glow spots along vine ====== */}
-        {nodes.map((node, i) => {
-          const opacity = scrollProgress > node.at
-            ? Math.min(1, (scrollProgress - node.at) / 0.04) * 0.35
-            : 0
-          return (
-            <circle
-              key={`glow-${i}`}
-              cx="200"
-              cy={node.y}
-              r="60"
-              fill="url(#warmGlow)"
-              opacity={opacity}
-              style={{ transition: "opacity 0.6s ease-out" }}
-            />
-          )
-        })}
-
-        {/* ====== Main vine trunk – sinuous S-curves ====== */}
-        <path
-          d={`
-            M 200,0
-            C 200,120 194,250 198,380
-            C 202,510 210,580 204,660
-            C 198,740 188,850 196,960
-            C 204,1070 214,1120 206,1220
-            C 198,1320 186,1420 194,1520
-            C 202,1620 216,1680 208,1780
-            C 200,1880 186,1960 194,2060
-            C 202,2160 218,2220 210,2320
-            C 202,2420 184,2520 194,2620
-            C 204,2720 220,2780 212,2880
-            C 204,2980 186,3060 194,3160
-            C 202,3260 218,3320 210,3420
-            C 202,3520 184,3620 194,3720
-            C 204,3820 220,3880 212,3980
-            C 204,4080 186,4160 194,4260
-            C 202,4360 218,4420 210,4520
-            C 202,4620 184,4720 194,4820
-            C 204,4920 220,4980 212,5080
-            C 204,5180 186,5260 194,5360
-            C 202,5460 218,5520 210,5620
-            C 202,5720 192,5820 196,5920
-            C 200,6020 202,6140 200,6280
-            C 200,6400 200,6500 200,6600
-          `}
-          stroke="url(#vineGold)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          filter="url(#vineGlow)"
-          strokeDasharray={totalLength}
-          strokeDashoffset={totalLength - visibleLength}
-          style={{ transition: "stroke-dashoffset 0.08s linear" }}
-        />
-
-        {/* Thinner secondary vine strand for depth */}
-        <path
-          d={`
-            M 200,100
-            C 204,230 196,360 200,490
-            C 204,620 210,700 206,800
-            C 202,900 192,1000 198,1100
-            C 204,1200 212,1300 206,1400
-            C 200,1500 190,1600 196,1700
-            C 202,1800 214,1900 208,2000
-            C 202,2100 190,2200 196,2300
-            C 202,2400 214,2500 208,2600
-            C 202,2700 190,2800 196,2900
-            C 202,3000 214,3100 208,3200
-            C 202,3300 190,3400 196,3500
-            C 202,3600 214,3700 208,3800
-            C 202,3900 190,4000 196,4100
-            C 202,4200 214,4300 208,4400
-            C 202,4500 190,4600 196,4700
-            C 202,4800 214,4900 208,5000
-            C 202,5100 190,5200 196,5300
-            C 202,5400 214,5500 208,5600
-            C 202,5700 194,5800 198,5900
-            C 202,6000 200,6200 200,6400
-          `}
-          stroke="#D4AF37"
-          strokeWidth="1"
-          strokeLinecap="round"
-          opacity="0.25"
-          strokeDasharray={totalLength}
-          strokeDashoffset={totalLength - visibleLength}
-          style={{ transition: "stroke-dashoffset 0.08s linear" }}
-        />
-
-        {/* ====== Branches with leaves ====== */}
-        {branches.map((branch, i) => {
-          const branchProgress = Math.max(
-            0,
-            Math.min(1, (scrollProgress - branch.at) / 0.06)
-          )
-          const branchLen = 350
-          return (
-            <g
-              key={i}
-              transform={`translate(200, ${branch.y})`}
-              opacity={branchProgress}
-              style={{ transition: "opacity 0.4s ease-out" }}
-            >
-              {/* Branch tendril */}
-              <path
-                d={branch.path}
-                stroke="#D4AF37"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                fill="none"
-                opacity={0.6}
-                strokeDasharray={branchLen}
-                strokeDashoffset={branchLen - branchLen * branchProgress}
-                style={{ transition: "stroke-dashoffset 0.3s ease-out" }}
-              />
-              {/* Leaf at the end */}
-              {branchProgress > 0.5 && (
-                <g
-                  transform={`translate(${branch.leafX}, ${branch.leafY}) rotate(${branch.leafAngle})`}
-                  opacity={Math.min(1, (branchProgress - 0.5) * 2) * 0.7}
-                  style={{ transition: "opacity 0.4s ease-out" }}
-                >
-                  <use href="#leafShape" />
-                </g>
-              )}
-              {/* Small extra leaves along some branches */}
-              {branchProgress > 0.7 && Math.abs(branch.leafX) > 60 && (
-                <g
-                  transform={`translate(${branch.leafX * 0.5}, ${branch.leafY * 0.5}) rotate(${branch.leafAngle + 20}) scale(0.6)`}
-                  opacity={Math.min(1, (branchProgress - 0.7) * 3.3) * 0.5}
-                  style={{ transition: "opacity 0.4s ease-out" }}
-                >
-                  <use href="#leafShape" />
-                </g>
-              )}
-            </g>
-          )
-        })}
-
-        {/* ====== Glowing nodes along trunk ====== */}
-        {nodes.map((node, i) => {
-          const nodeOpacity =
-            scrollProgress > node.at
-              ? Math.min(1, (scrollProgress - node.at) / 0.04)
-              : 0
-          return (
-            <g key={`node-${i}`}>
-              {/* Outer glow */}
-              <circle
-                cx="200"
-                cy={node.y}
-                r={node.size + 4}
-                fill="#D4AF37"
-                opacity={nodeOpacity * 0.3}
-                filter="url(#nodeGlow)"
-                style={{ transition: "opacity 0.5s ease-out" }}
-              />
-              {/* Main node */}
-              <circle
-                cx="200"
-                cy={node.y}
-                r={node.size}
-                fill="#D4AF37"
-                opacity={nodeOpacity * 0.8}
-                style={{ transition: "opacity 0.5s ease-out" }}
-              />
-              {/* Bright core */}
-              <circle
-                cx="200"
-                cy={node.y}
-                r={node.size * 0.4}
-                fill="#F5E6A3"
-                opacity={nodeOpacity}
-                style={{ transition: "opacity 0.5s ease-out" }}
-              />
-            </g>
-          )
-        })}
-      </svg>
-    </div>
+    />
   )
 }
