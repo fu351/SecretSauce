@@ -39,7 +39,7 @@ interface OrderDetail {
   deliveryDate: string | null
   weekIndex: number
   isConfirmed: boolean | null
-  createdAt: string
+  createdAt: string | null
   stores: {
     storeId: string
     storeName: string

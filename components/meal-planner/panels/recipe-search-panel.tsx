@@ -111,7 +111,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   const filters = useMemo(() => ({
     difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined,
     cuisine: selectedCuisine !== "all" ? selectedCuisine : undefined,
-    diet: selectedDiet !== "all" ? selectedDiet : undefined,
+    diet: selectedDiet !== "all" ? [selectedDiet] : undefined,
     search: searchTerm || undefined,
     limit: 100,
   }), [selectedDifficulty, selectedCuisine, selectedDiet, searchTerm])

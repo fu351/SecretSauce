@@ -141,11 +141,15 @@ export type Database = {
           latitude: number | null
           longitude: number | null
           email_verified: boolean | null
+          clerk_user_id: string | null
           subscription_tier: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at: string | null
           subscription_expires_at: string | null
+          subscription_status: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          stripe_price_id: string | null
+          stripe_current_period_end: string | null
         }
         Insert: {
           id: string
@@ -175,11 +179,15 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           email_verified?: boolean | null
+          clerk_user_id?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at?: string | null
           subscription_expires_at?: string | null
+          subscription_status?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_price_id?: string | null
+          stripe_current_period_end?: string | null
         }
         Update: {
           id?: string
@@ -209,11 +217,15 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           email_verified?: boolean | null
+          clerk_user_id?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at?: string | null
           subscription_expires_at?: string | null
+          subscription_status?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_price_id?: string | null
+          stripe_current_period_end?: string | null
         }
       }
       recipes: {

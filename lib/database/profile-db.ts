@@ -41,9 +41,15 @@ const PROFILE_SAFE_COLUMNS = [
   "latitude",
   "longitude",
   "email_verified",
+  "clerk_user_id",
   "subscription_tier",
   "subscription_started_at",
   "subscription_expires_at",
+  "subscription_status",
+  "stripe_customer_id",
+  "stripe_subscription_id",
+  "stripe_price_id",
+  "stripe_current_period_end",
 ].join(", ")
 
 /**
@@ -98,11 +104,15 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       latitude: dbItem.latitude ?? null,
       longitude: dbItem.longitude ?? null,
       email_verified: dbItem.email_verified ?? null,
+      clerk_user_id: dbItem.clerk_user_id ?? null,
       subscription_tier: dbItem.subscription_tier ?? null,
       subscription_started_at: dbItem.subscription_started_at ?? null,
       subscription_expires_at: dbItem.subscription_expires_at ?? null,
+      subscription_status: dbItem.subscription_status ?? null,
       stripe_customer_id: dbItem.stripe_customer_id ?? null,
       stripe_subscription_id: dbItem.stripe_subscription_id ?? null,
+      stripe_price_id: dbItem.stripe_price_id ?? null,
+      stripe_current_period_end: dbItem.stripe_current_period_end ?? null,
     }
   }
 
@@ -152,6 +162,24 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
 
     if (error) {
       this.handleError(error, "fetchProfileByEmail")
+      return null
+    }
+
+    return data ? this.map(data) : null
+  }
+
+  /**
+   * Fetch profile by Clerk user id
+   */
+  async fetchProfileByClerkUserId(clerkUserId: string): Promise<Profile | null> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select(PROFILE_SAFE_COLUMNS)
+      .eq("clerk_user_id", clerkUserId)
+      .maybeSingle()
+
+    if (error) {
+      this.handleError(error, "fetchProfileByClerkUserId")
       return null
     }
 

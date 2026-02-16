@@ -52,3 +52,5 @@ app/api/dev/seed-recipes/route.ts
 lib/scrapers/test-target-rate-limit.js
 lib/scrapers/test-walmart-rate-limit.js
 scripts/sync-codex-mcp-from-vscode.cjs
+docs/profiles-stripe-migrations.sql
+docs/profiles-clerk-bridge-migrations.sql

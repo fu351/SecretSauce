@@ -26,6 +26,12 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
 
+type PlannerMealType = "breakfast" | "lunch" | "dinner"
+
+function isPlannerMealType(mealType: string): mealType is PlannerMealType {
+  return mealType === "breakfast" || mealType === "lunch" || mealType === "dinner"
+}
+
 // --- MEMOIZED SUB-COMPONENTS ---
 // This ensures that scrolling or dragging doesn't force a re-render of heavy UI
 const MemoizedWeeklyView = memo(WeeklyView)
@@ -73,10 +79,10 @@ function MealPlannerPageContent() {
   const { hasAccess: hasSmartPlannerAccess, loading: smartPlannerAccessLoading } = useHasAccess("premium")
 
   // State
-  const [focusMode, setFocusMode] = useState<{ date: string; mealType: string } | null>(null)
+  const [focusMode, setFocusMode] = useState<{ date: string; mealType: PlannerMealType } | null>(null)
   const [showRecipeSidebar, setShowRecipeSidebar] = useState(false)
   // Mobile: track recipes selected in overlay (batch add on confirm, nothing added until then)
-  const [sessionSelections, setSessionSelections] = useState<Array<{ recipe: Recipe; mealType: string; date: string }>>([])
+  const [sessionSelections, setSessionSelections] = useState<Array<{ recipe: Recipe; mealType: PlannerMealType; date: string }>>([])
   const [weekIndex, setWeekIndex] = useState(getCurrentWeekIndex())
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
   const [heuristicPlanLoading, setHeuristicPlanLoading] = useState(false)
@@ -255,12 +261,28 @@ function MealPlannerPageContent() {
   }, [user, clearWeek, toast])
 
   const openRecipeSelector = useCallback(
-    (mealType: string, date: string) => {
+    (mealType: PlannerMealType, date: string) => {
       setFocusMode({ mealType, date })
       dnd.setHighlightSlot(mealType, date)
       if (isMobile) setSessionSelections([])
     },
     [dnd.setHighlightSlot, isMobile]
+  )
+
+  const openRecipeSelectorFromGrid = useCallback(
+    (mealType: string, date: string) => {
+      if (!isPlannerMealType(mealType)) return
+      openRecipeSelector(mealType, date)
+    },
+    [openRecipeSelector]
+  )
+
+  const handleRemoveFromGrid = useCallback(
+    (mealType: string, date: string) => {
+      if (!isPlannerMealType(mealType)) return
+      void removeFromMealPlan(mealType, date)
+    },
+    [removeFromMealPlan]
   )
 
   const handleRecipeSelection = useCallback(
@@ -271,12 +293,12 @@ function MealPlannerPageContent() {
           const nextFilled = [...sessionSelections, { recipe, mealType: focusMode.mealType, date: focusMode.date }].map((s) => ({ date: s.date, mealType: s.mealType }))
           dnd.highlightNextEmptySlotAfter(focusMode.mealType, focusMode.date)
           const next = getNextEmptySlotAfter(focusMode.mealType, focusMode.date, nextFilled)
-          if (next) setFocusMode(next)
+          if (next && isPlannerMealType(next.mealType)) setFocusMode(next)
         } else {
           await addToMealPlan(recipe, focusMode.mealType, focusMode.date)
           dnd.highlightNextEmptySlotAfter(focusMode.mealType, focusMode.date)
           const next = getNextEmptySlotAfter(focusMode.mealType, focusMode.date)
-          if (next) setFocusMode(next)
+          if (next && isPlannerMealType(next.mealType)) setFocusMode(next)
         }
       }
     },
@@ -288,7 +310,7 @@ function MealPlannerPageContent() {
     setSessionSelections([])
     setShowRecipeSidebar(false)
     for (const sel of toAdd) {
-      await addToMealPlan(sel.recipe, sel.mealType as "breakfast" | "lunch" | "dinner", sel.date, { reload: false })
+      await addToMealPlan(sel.recipe, sel.mealType, sel.date, { reload: false })
     }
     if (toAdd.length > 0) await reloadWeeklyPlan()
   }, [sessionSelections, addToMealPlan, reloadWeeklyPlan])
@@ -370,9 +392,9 @@ function MealPlannerPageContent() {
                   weekIndex={weekIndex}
                   meals={meals}
                   recipesById={recipesById}
-                  onAdd={openRecipeSelector}
-                  onSlotSelect={openRecipeSelector}
-                  onRemove={removeFromMealPlan}
+                  onAdd={openRecipeSelectorFromGrid}
+                  onSlotSelect={openRecipeSelectorFromGrid}
+                  onRemove={handleRemoveFromGrid}
                   onRecipeClick={handleRecipeClick}
                   getDraggableProps={dnd.getDraggableProps}
                   getDroppableProps={dnd.getDroppableProps}

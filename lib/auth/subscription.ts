@@ -1,4 +1,6 @@
 import { createServerClient } from "@/lib/database/supabase-server"
+import { auth as clerkAuth } from "@clerk/nextjs/server"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 export type SubscriptionTier = "free" | "premium"
@@ -7,9 +9,44 @@ export interface UserSubscription {
   tier: SubscriptionTier | null
   started_at: string | null
   expires_at: string | null
+  status: string | null
   is_active: boolean
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
+  stripe_price_id: string | null
+  stripe_current_period_end: string | null
+}
+
+async function getAuthenticatedUserSelector(): Promise<{
+  column: "id" | "clerk_user_id"
+  value: string
+} | null> {
+  try {
+    const state = await clerkAuth()
+    if (state.userId) {
+      return { column: "clerk_user_id", value: state.userId }
+    }
+  } catch {
+    // Clerk not configured or middleware missing; continue with Supabase auth fallback.
+  }
+
+  const cookieStore = await cookies()
+  const accessToken =
+    cookieStore.get("sb-access-token")?.value ??
+    cookieStore.get("supabase-access-token")?.value ??
+    cookieStore.get("supabase-auth-token")?.value ??
+    null
+
+  if (!accessToken) return null
+
+  const supabase = createServerClient()
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(accessToken)
+
+  if (error || !user) return null
+  return { column: "id", value: user.id }
 }
 
 /**
@@ -18,23 +55,19 @@ export interface UserSubscription {
  */
 export async function getUserSubscription(): Promise<UserSubscription | null> {
   const supabase = createServerClient()
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-
-  if (authError || !user) {
+  const selector = await getAuthenticatedUserSelector()
+  if (!selector) {
     return null
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const query = supabase
     .from("profiles")
     .select(
-      "subscription_tier, subscription_started_at, subscription_expires_at, stripe_customer_id, stripe_subscription_id"
+      "subscription_tier, subscription_started_at, subscription_expires_at, subscription_status, stripe_customer_id, stripe_subscription_id, stripe_price_id, stripe_current_period_end"
     )
-    .eq("id", user.id)
-    .single()
+    .eq(selector.column, selector.value)
+
+  const { data: profile, error: profileError } = await query.single()
 
   if (profileError || !profile) {
     console.error("Error fetching subscription:", profileError)
@@ -51,9 +84,12 @@ export async function getUserSubscription(): Promise<UserSubscription | null> {
     tier: profile.subscription_tier,
     started_at: profile.subscription_started_at,
     expires_at: profile.subscription_expires_at,
+    status: profile.subscription_status,
     is_active: isActive,
     stripe_customer_id: profile.stripe_customer_id,
     stripe_subscription_id: profile.stripe_subscription_id,
+    stripe_price_id: profile.stripe_price_id,
+    stripe_current_period_end: profile.stripe_current_period_end,
   }
 }
 
@@ -62,18 +98,12 @@ export async function getUserSubscription(): Promise<UserSubscription | null> {
  * Redirects to sign-in if not authenticated
  */
 export async function requireAuth(): Promise<string> {
-  const supabase = createServerClient()
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error || !user) {
+  const selector = await getAuthenticatedUserSelector()
+  if (!selector) {
     redirect("/auth/signin")
   }
 
-  return user.id
+  return selector.value
 }
 
 /**

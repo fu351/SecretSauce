@@ -5,14 +5,7 @@ import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner
 import type { Recipe, MealTypeTag } from "@/lib/types"
 import { getDatesForWeek } from "@/lib/date-utils"
 import { useToast } from "@/hooks/ui/use-toast"
-import { useHeuristicPlan } from "@/hooks/meal-planner/use-heuristic-plan"
-
-interface AiPlanResult {
-  storeId: string
-  totalCost: number
-  meals: Array<{ dayIndex: number; mealType: MealTypeTag; recipeId: string }>
-  explanation: string
-}
+import { useHeuristicPlan, type HeuristicPlanResult } from "@/hooks/meal-planner/use-heuristic-plan"
 
 interface AiProgress {
   step: number
@@ -23,7 +16,7 @@ export function useMealPlannerAi(userId: string | undefined, weekIndex: number) 
   const { toast } = useToast()
   const [aiPlannerLoading, setAiPlannerLoading] = useState(false)
   const [aiPlannerProgress, setAiPlannerProgress] = useState<AiProgress>({ step: 0, message: "" })
-  const [aiPlanResult, setAiPlanResult] = useState<AiPlanResult | null>(null)
+  const [aiPlanResult, setAiPlanResult] = useState<HeuristicPlanResult | null>(null)
   const [showAiPlanDialog, setShowAiPlanDialog] = useState(false)
   const [aiRecipesById, setAiRecipesById] = useState<Record<string, Recipe>>({})
 

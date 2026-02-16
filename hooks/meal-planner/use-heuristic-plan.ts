@@ -1,16 +1,18 @@
 import { recipeDB } from "@/lib/database/recipe-db"
 import { mealPlannerDB } from "@/lib/database/meal-planner-db"
 import { profileDB } from "@/lib/database/profile-db"
-import type { MealTypeTag, Recipe } from "@/lib/types"
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'] as const
 type PlannerMealType = typeof MEAL_TYPES[number]
 
-interface WeeklyMealPlan extends Recipe {
-    storeId: string
+export interface HeuristicPlanResult {
+  storeId: string
+  totalCost: number
+  meals: Array<{ dayIndex: number; mealType: PlannerMealType; recipeId: string }>
+  explanation: string
 }
 
-export async function useHeuristicPlan(userId: string, weekIndex?: number): Promise<WeeklyMealPlan[]> {
+export async function useHeuristicPlan(userId: string, weekIndex?: number): Promise<HeuristicPlanResult> {
   // 1. Gather Context
   const [existingSchedule, profileFields] = await Promise.all([
     fetchExistingSchedule(userId, weekIndex),
@@ -26,7 +28,12 @@ export async function useHeuristicPlan(userId: string, weekIndex?: number): Prom
   const totalSlots = Object.values(slotsNeeded).reduce((a, b) => a + b, 0)
 
   if (totalSlots === 0) {
-    return { storeId: "walmart", totalCost: 0, meals: [], explanation: "Week fully planned." }
+    return {
+      storeId: "walmart",
+      totalCost: 0,
+      meals: [],
+      explanation: "Week fully planned.",
+    }
   }
 
   // 3. Fetch Recipes (RPC 1: Logic & Filtering)
@@ -49,7 +56,7 @@ export async function useHeuristicPlan(userId: string, weekIndex?: number): Prom
 
   // 4. Build the Meal List
   const recipeMap = new Map(recsByType.map(r => [r.type, r.recipes]))
-  const plannedMeals: Array<{ dayIndex: number; mealType: MealTypeTag; recipeId: string }> = []
+  const plannedMeals: Array<{ dayIndex: number; mealType: PlannerMealType; recipeId: string }> = []
   const usedRecipes = new Set<string>(existingRecipeIds)
 
   for (let day = 0; day < 7; day++) {
@@ -85,7 +92,7 @@ export async function useHeuristicPlan(userId: string, weekIndex?: number): Prom
       storeId: "walmart",
       totalCost: 0,
       meals: plannedMeals,
-      explanation: "Plan generated. Local pricing unavailable for your zip code."
+      explanation: "Plan generated. Local pricing unavailable for your zip code.",
     }
   }
 
