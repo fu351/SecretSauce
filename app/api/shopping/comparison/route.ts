@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
               ? `$${Number(cached.row.unit_price).toFixed(2)}/${item.unit}`
               : undefined,
             unit: item.unit || undefined,
-            image_url: cached.row.image_url || undefined,
+            image_url: cached.row.image_url || "",
             provider: displayName,
             location:
               cached.row.store_name ||

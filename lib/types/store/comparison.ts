@@ -13,6 +13,7 @@ export interface GroceryItem {
   price: number
   pricePerUnit?: string
   unit?: string
+  rawUnit?: string
   image_url: string
   provider: string
   location?: string

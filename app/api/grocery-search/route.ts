@@ -10,6 +10,7 @@ import { profileDB } from "@/lib/database/profile-db"
 import type { Database } from "@/lib/database/supabase"
 import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
 import { getUserPreferredStores, type StoreData } from "@/lib/store/user-preferred-stores"
+import { resolveRawUnitWithDailyScraperPriority } from "@/lib/utils/daily-scraper-raw-unit"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",
@@ -77,6 +78,7 @@ async function scrapeDirectFallback(
     title: string
     price: number
     unit?: string | null
+    rawUnit?: string | null
     pricePerUnit?: string | null
     image_url?: string | null
     provider: string
@@ -138,6 +140,7 @@ async function scrapeDirectFallback(
             title: cached.product_name || term,
             price: Number(cached.price) || 0,
             unit: cached.unit || null,
+            rawUnit: resolveRawUnitWithDailyScraperPriority(cached),
             pricePerUnit: cached.unit_price ? `$${cached.unit_price}/${cached.unit}` : null,
             image_url: cached.image_url || null,
             provider: store,
@@ -197,6 +200,7 @@ async function scrapeDirectFallback(
             title: item.title || item.name || term,
             price: Number(item.price) || 0,
             unit: item.unit || null,
+            rawUnit: resolveRawUnitWithDailyScraperPriority(item),
             pricePerUnit: item.pricePerUnit || null,
             image_url: item.image_url || null,
             provider: store,
@@ -353,6 +357,7 @@ export async function GET(request: NextRequest) {
                 price: item.price,
                 quantity: 1,
                 unit: item.unit || "unit",
+                rawUnit: item.rawUnit ?? item.unit ?? null,
                 unitPrice: item.pricePerUnit
                   ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
                   : null,
@@ -380,6 +385,7 @@ export async function GET(request: NextRequest) {
           price: item.price,
           pricePerUnit: item.pricePerUnit || (item.unit ? `${item.price}/${item.unit}` : undefined),
           unit: item.unit || "",
+          rawUnit: item.rawUnit || item.unit || "",
           image_url: item.image_url || "/placeholder.svg",
           provider: mapStoreKeyToName(item.provider.toLowerCase()),
           location: item.location || `${mapStoreKeyToName(item.provider.toLowerCase())} Grocery`,
@@ -498,6 +504,7 @@ export async function GET(request: NextRequest) {
               price: item.price,
               quantity: 1,
               unit: item.unit || "unit",
+              rawUnit: item.rawUnit ?? item.unit ?? null,
               unitPrice: item.pricePerUnit
                 ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
                 : null,
@@ -544,6 +551,7 @@ export async function GET(request: NextRequest) {
           price: item.price,
           pricePerUnit: item.pricePerUnit || (item.unit ? `${item.price}/${item.unit}` : undefined),
           unit: item.unit || "",
+          rawUnit: item.rawUnit || item.unit || "",
           image_url: item.image_url || "/placeholder.svg",
           provider: mapStoreKeyToName(item.provider.toLowerCase()),
           location: `${mapStoreKeyToName(item.provider.toLowerCase())} Grocery`,
@@ -638,6 +646,7 @@ function formatCacheResults(
       price: Number(item.price) || 0,
       pricePerUnit: item.unit_price ? `$${item.unit_price}/${item.unit}` : undefined,
       unit: item.unit,
+      rawUnit: item.unit || undefined,
       image_url: item.image_url || "/placeholder.svg",
       product_url: (item as any).product_url,
       provider: storeName,

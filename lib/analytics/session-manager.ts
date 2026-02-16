@@ -32,11 +32,11 @@ export class SessionManager {
    */
   static async getSessionMetadata(): Promise<SessionMetadata> {
     try {
-      // Get current Supabase session
-      const { data: { session, user }, error } = await supabase.auth.getSession()
+      // Get current authenticated user (if any)
+      const { data: { user }, error } = await supabase.auth.getUser()
 
       if (error) {
-        console.error("[Analytics] Error getting session:", error)
+        console.error("[Analytics] Error getting user:", error)
       }
 
       // Authenticated user: use user.id

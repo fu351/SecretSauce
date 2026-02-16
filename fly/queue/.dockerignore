@@ -1,0 +1,11 @@
+**
+!scripts/package.json
+!scripts/package-lock.json
+!tsconfig.json
+!queue/**
+!lib/database/**
+!lib/prompts/**
+!lib/ingredient-standardizer.ts
+!lib/unit-standardizer.ts
+!lib/utils/ingredient-standardizer-context.ts
+!scripts/utils/**

@@ -90,7 +90,7 @@ export default async function PricingPage({
               "Priority support",
             ]}
             cta={subscription?.tier === "premium" ? "Current Plan" : "Upgrade to Premium"}
-            ctaHref="/api/stripe/checkout?tier=premium"
+            ctaHref="/checkout"
             current={subscription?.tier === "premium"}
             highlighted={true}
           />
@@ -197,8 +197,8 @@ function PricingCard({
               ? "bg-orange-700 text-white cursor-default"
               : "bg-gray-100 text-gray-400 cursor-default"
             : highlighted
-            ? "bg-white text-orange-600 hover:bg-orange-50"
-            : "bg-orange-600 text-white hover:bg-orange-700"
+              ? "bg-white text-orange-600 hover:bg-orange-50"
+              : "bg-orange-600 text-white hover:bg-orange-700"
         }`}
       >
         {cta}

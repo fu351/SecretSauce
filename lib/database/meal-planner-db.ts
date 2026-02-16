@@ -329,14 +329,12 @@ class MealPlannerTable extends BaseTable<
     return result
   }
 
-  async bestStore(userId: string, recipeIds: string[], userZipCode?: string): Promise<any> {
-    const client = this.supabase as any
-
-    const { data, error } = await client
-      .rpc('get_best_store_for_plan', { 
-        p_user_id: userId, 
+  async bestStore(userId: string | null, recipeIds: string[], userZipCode?: string): Promise<any> {
+    const { data, error } = await this.supabase
+      .rpc("get_best_store_for_plan", {
+        p_user_id: userId,
         p_recipe_ids: recipeIds,
-        p_zip_code: userZipCode || null
+        p_zip_code: userZipCode || null,
       })
       .single()
 

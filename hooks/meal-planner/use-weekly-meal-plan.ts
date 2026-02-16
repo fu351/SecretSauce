@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
-import type { Recipe, MealTypeTag } from "@/lib/types"
+import type { Recipe } from "@/lib/types"
+
+type PlannerMealType = MealScheduleRow["meal_type"]
 
 export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number) {
   const [meals, setMeals] = useState<MealScheduleRow[]>([])
@@ -39,7 +41,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
   }, [userId, weekIndex])
 
   const addToMealPlan = useCallback(
-    async (recipe: Recipe, mealType: MealTypeTag, date: string, options: { reload: boolean } = { reload: true }) => {
+    async (recipe: Recipe, mealType: PlannerMealType, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
       if (options.reload) {
@@ -98,7 +100,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
   )
 
   const removeFromMealPlan = useCallback(
-    async (mealType: MealTypeTag, date: string, options: { reload: boolean } = { reload: true }) => {
+    async (mealType: PlannerMealType, date: string, options: { reload: boolean } = { reload: true }) => {
       if (!userId) return
 
       if (options.reload) {

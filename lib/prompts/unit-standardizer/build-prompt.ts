@@ -1,8 +1,11 @@
 import { formatPromptInputJson, stringifyPromptList, STRICT_JSON_RESPONSE_RULE } from "../shared/json-output"
 import {
+  UNIT_ALIASES_CONTEXT_SECTION,
   UNIT_CONFIDENCE_SECTION,
   UNIT_OUTPUT_SECTION,
   UNIT_STANDARDIZATION_RULES_SECTION,
+  EXAMPLES_SECTION,
+  EDGE_CASES_SECTION,
 } from "./sections"
 
 export interface UnitStandardizerPromptInput {
@@ -27,22 +30,28 @@ export function buildUnitStandardizerPrompt({
 
   return `
 You are a unit standardization engine for a grocery ingestion queue.
-Prompt version: unit-v1.
+Prompt version: unit-v2.
 
 ${STRICT_JSON_RESPONSE_RULE}
 
 **GOAL:**
 - For each input row, resolve:
-  1) \`resolvedUnit\` (must be one of allowed units)
+  1) \`resolvedUnit\` (must be one of the allowed units)
   2) \`resolvedQuantity\` (must be finite and > 0)
   3) \`confidence\` in [0, 1]
 
 **ALLOWED UNIT LABELS:**
 ${unitList}
 
+${UNIT_ALIASES_CONTEXT_SECTION}
+
 ${UNIT_STANDARDIZATION_RULES_SECTION}
 
 ${UNIT_CONFIDENCE_SECTION}
+
+${EXAMPLES_SECTION}
+
+${EDGE_CASES_SECTION}
 
 ${UNIT_OUTPUT_SECTION}
 

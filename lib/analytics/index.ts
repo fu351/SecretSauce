@@ -6,6 +6,11 @@
 
 // Core client
 export { AnalyticsClient } from "./analytics-client"
+export {
+  ABTestingClient,
+  type ABExperimentAssignment,
+  type TrackExperimentEventOptions,
+} from "./ab-testing-client"
 
 // Session management
 export { SessionManager } from "./session-manager"

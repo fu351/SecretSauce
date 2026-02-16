@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
         title: string
         price: number
         unit?: string
+        rawUnit?: string
         pricePerUnit?: string
         image_url?: string
         location?: string
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       productTitle: product.title,
     })
 
-    // Preferred path: standardize + mapping-aware insert via RPC.
+    // Preferred path: mapping-aware insert via RPC.
     // Falls back to direct insert for compatibility.
     const inserted = await ingredientsHistoryDB.batchStandardizeAndMatch([
       {
@@ -68,6 +69,8 @@ export async function POST(request: NextRequest) {
         price: product.price,
         productName: product.title,
         productId: product.id,
+        rawUnit: product.rawUnit ?? product.unit ?? null,
+        unit: product.unit ?? product.rawUnit ?? null,
         zipCode: zipCode || null,
         groceryStoreId: groceryStoreId || null,
       },

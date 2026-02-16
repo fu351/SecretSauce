@@ -167,6 +167,7 @@ export default function UploadRecipePage() {
             <RecipeManualEntryForm
               onSubmit={handleSubmit}
               loading={loading}
+              hideAmountAndUnit
               initialData={formData as any}
             />
           </TabsContent>

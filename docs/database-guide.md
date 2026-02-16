@@ -5,7 +5,7 @@
 - `Doc Kind`: `reference`
 - `Canonicality`: `reference`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-14`
 - `Primary Surfaces`: `lib/database/`, `supabase/migrations/`, `migrations/`
 - `Update Trigger`: Schema, triggers, RPCs, enums, or key table ownership changes.
 
@@ -38,6 +38,15 @@ Scraper (GitHub Actions, nightly)
     → Queue to ingredient_match_queue if low confidence (ingredient OR unit)
     → INSERT into ingredients_history (price log)
     → UPSERT into ingredients_recent (current snapshot)
+
+Recipe Upsert (app + seed scripts)
+  → fn_upsert_recipe_with_ingredients(...)
+    → Upsert recipe row + replace recipe_ingredients payload
+    → Use explicit ingredient.units when provided
+    → Otherwise parse display_name with dynamic regex from fn_build_unit_regex()
+    → Resolve ingredient/unit with same deterministic + queue handoff used by scraper ingest
+    → Write extracted quantity + standardized unit to recipe_ingredients
+    → Queue low-confidence ingredient/unit rows in ingredient_match_queue (source = 'recipe')
 
 LLM Queue Processor (external)
   → Reads ingredient_match_queue WHERE status = 'pending'
@@ -80,6 +89,7 @@ LLM Queue Processor (external)
 | `raw_product_name` | text | YES | | Original scraped product name |
 | `image_url` | text | YES | | Product image URL |
 | `standardized_ingredient_id` | uuid FK | YES | | → standardized_ingredients.id |
+| `is_ingredient` | boolean | NO | true | Ingredient classification flag (`false` while unresolved non-ingredient review is pending) |
 | `ingredient_confidence` | numeric | YES | 0.0 | Match confidence (0–1) |
 | `standardized_unit` | unit_label FK | YES | | → unit_canonical.standard_unit |
 | `standardized_quantity` | numeric | YES | | Package quantity in standardized unit |
@@ -379,7 +389,7 @@ LLM Queue Processor (external)
 | `grocery_store` | aldi, kroger, safeway, meijer, target, traderjoes, 99ranch, walmart, ... |
 | `unit_label` | oz, lb, fl oz, ml, gal, ct, each, bunch, gram, unit, g, tsp, tbsp, cup, kg, quart, pint, liter, mg, dozen |
 | `unit_category` | weight, volume, count, other |
-| `item_category_enum` | baking, beverages, condiments, dairy, meat_seafood, pantry_staples, produce, snacks, frozen, other, ... |
+| `item_category_enum` | baking, beverages, condiments, dairy, meat_seafood, pantry_staples, produce, snacks, spices, other |
 | `meal_type_enum` | breakfast, lunch, dinner, snack, dessert |
 | `protein_type_enum` | chicken, beef, pork, fish, shellfish, turkey, tofu, legume, egg, ... |
 | `cuisine_type_enum` | italian, mexican, chinese, indian, american, french, japanese, ... |
@@ -397,8 +407,23 @@ LLM Queue Processor (external)
 | Function | Description |
 |----------|-------------|
 | `fn_bulk_insert_ingredient_history(jsonb)` | Main scraper entry point. Parses units, matches ingredients, creates/finds product mappings, calculates unit prices, queues for LLM review, inserts history, upserts recent. |
+| `fn_upsert_recipe_with_ingredients(...)` | Recipe upsert entry point. Replaces recipe ingredients, parses/extracts ingredient quantity+unit from `display_name` when `units` is missing, standardizes units, and queues unmatched ingredient/unit rows for LLM review. |
 | `fn_match_ingredient(text)` | Fuzzy matches product name → standardized_ingredient. Returns matched_id, confidence, match_strategy. |
 | `fn_clean_product_name(text)` | Strips brand noise from product names. |
+
+`fn_upsert_recipe_with_ingredients(...)` behavior details:
+
+- Dynamic unit regex from `unit_standardization_map`: calls `fn_build_unit_regex()` at runtime instead of using hardcoded patterns. New mappings learned via `fn_learn_unit_mapping(...)` are picked up automatically on future calls.
+- Full unit parsing pipeline when `units` is not provided (mirrors `fn_bulk_insert_ingredient_history`), with these regex passes on `display_name`:
+  - Pass A: trailing unit after separator (`chicken breast - 24oz`)
+  - Pass B: mixed fractions (`1 1/2 lb ground beef`)
+  - Pass C: general scan (`12oz pasta`)
+  - Pass D: leading quantity + unit (`2 cups flour`) for recipe text
+  - Pass E: standalone each/ea
+- Unit standardization parity with scraper ingest: extracted units run through exact match, fuzzy match, self-insert/learn, then queue fallback.
+- Queue flags: sets `needs_ingredient_review` when `fn_resolve_ingredient(...)` is unmatched and `needs_unit_review` when unit resolution fails. `ON CONFLICT` merges these flags with `OR` so prior review requirements are preserved.
+- `raw_unit` is always populated with `COALESCE(extracted search term, regex-found unit, original units field, display_name)` so the queue LLM always receives context.
+- Writes parsed results back to `recipe_ingredients`: standardized unit to `units` and extracted quantity to `quantity`.
 
 ### Price Retrieval
 
@@ -406,7 +431,7 @@ LLM Queue Processor (external)
 |----------|-------------|
 | `get_pricing(uuid)` | Returns price options for a user's shopping list, grouped by ingredient with per-store offers. |
 | `get_ingredient_price_details(uuid, uuid, numeric)` | Detailed pricing for a specific ingredient at user's preferred stores. |
-| `get_replacement(uuid, grocery_store, text)` | Primary replacement lookup used by manual replacement UI; returns store-scoped offers grouped by matched ingredient. |
+| `get_replacement(uuid, grocery_store, text)` | Primary replacement lookup used by manual replacement UI; returns store-scoped offers grouped by matched ingredient. Uses `product_mappings` + `ingredients_recent` (`ir.product_mapping_id = pm.id`) and supports user preferred-store scoping when `p_user_id` is provided. |
 | `get_replacement(text, grocery_store)` | Backward-compatible overload for replacement lookup (delegates to 3-arg form). |
 | `get_pricing_gaps(uuid)` | Identifies missing ingredient coverage per store. |
 
@@ -423,8 +448,8 @@ LLM Queue Processor (external)
 | Function | Description |
 |----------|-------------|
 | `convert_units(numeric, text, text, uuid)` | Converts between units using conversion table + ingredient-specific weight estimates. |
-| `calculate_unit_weight_estimates()` | Infers weight-per-unit from price analysis (comparing weight-sold vs unit-sold products). |
-| `scheduled_update_unit_estimates()` | Batch update of weight estimates and default units. |
+| `calculate_unit_weight_estimates()` | Infers weight-per-unit from price analysis using winsorized means (10th/90th percentile clamping) across weight-sold and unit-sold product price distributions. |
+| `scheduled_update_unit_estimates()` | Runs `calculate_unit_weight_estimates()` and updates `standardized_ingredients.default_unit` based on observed product mapping frequencies. |
 
 ### Data Maintenance
 

@@ -10,10 +10,11 @@ import type { IngredientFormInput } from "@/lib/types/forms"
 
 interface RecipeIngredientsFormProps {
   ingredients: IngredientFormInput[]
+  showAmountAndUnit?: boolean
   onChange: (ingredients: IngredientFormInput[]) => void
 }
 
-export function RecipeIngredientsForm({ ingredients, onChange }: RecipeIngredientsFormProps) {
+export function RecipeIngredientsForm({ ingredients, showAmountAndUnit = true, onChange }: RecipeIngredientsFormProps) {
   const { theme } = useTheme()
   const isDark = theme === "dark"
 
@@ -52,6 +53,7 @@ export function RecipeIngredientsForm({ ingredients, onChange }: RecipeIngredien
               ingredient={ingredient}
               index={index}
               canRemove={ingredients.length > 1}
+              showAmountAndUnit={showAmountAndUnit}
               onChange={updateIngredient}
               onRemove={removeIngredient}
             />

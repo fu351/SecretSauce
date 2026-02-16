@@ -12,6 +12,7 @@ import { ShoppingReceiptView } from "@/components/store/shopping-receipt-view"
 import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { MobileQuickAddPanel } from "@/components/store/mobile-quick-add-panel"
 import { Button } from "@/components/ui/button"
+import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import { Plus } from "lucide-react"
 import type { GroceryItem } from "@/lib/types/store"
 
@@ -219,7 +220,7 @@ export default function ShoppingReceiptPage() {
     itemsToRemove.forEach(item => removeItem(item.id))
   }, [shoppingList, removeItem])
 
-  const handleSwapRequest = useCallback((itemId: string) => {
+  const handleSwapRequest = useCallback(async (itemId: string) => {
     const item = shoppingList.find((shoppingItem) => shoppingItem.id === itemId)
     if (!item) {
       toast({ title: "Error", description: "Could not find item to replace.", variant: "destructive" })
@@ -234,9 +235,32 @@ export default function ShoppingReceiptPage() {
 
     const activeStoreData = storeComparisons.find((store) => store.store === activeStore)
     const standardizedIngredientId = item.ingredient_id || item.standardizedIngredientId || null
+    let replacementSearchTerm = item.name
+    const localStandardizedName =
+      typeof item.standardizedName === "string" ? item.standardizedName.trim() : ""
+
+    if (localStandardizedName.length > 0) {
+      replacementSearchTerm = localStandardizedName
+    } else if (standardizedIngredientId) {
+      try {
+        const [standardizedIngredient] = await standardizedIngredientsDB.fetchByIds([standardizedIngredientId])
+        const canonicalName =
+          typeof standardizedIngredient?.canonical_name === "string"
+            ? standardizedIngredient.canonical_name.trim()
+            : ""
+        if (canonicalName.length > 0) {
+          replacementSearchTerm = canonicalName
+        }
+      } catch (error) {
+        console.warn("[store] Failed to load standardized ingredient name for replacement", {
+          standardizedIngredientId,
+          error,
+        })
+      }
+    }
 
     setReloadTarget({
-      term: item.name,
+      term: replacementSearchTerm,
       store: activeStore,
       shoppingListId: item.id,
       shoppingListIds: [item.id],

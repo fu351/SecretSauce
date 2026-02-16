@@ -1,6 +1,128 @@
 name: Initiating Workflow
 
 on:
+  workflow_call:
+    inputs:
+      seed_author_id:
+        description: "Author profile UUID for mock recipe seeding (blank = auto-resolve)"
+        required: false
+        type: string
+        default: ""
+      stores_csv:
+        description: "Comma-separated stores (blank = all)"
+        required: false
+        type: string
+        default: ""
+      scraper_state:
+        description: "2-letter state code filter (e.g., CA, AZ)"
+        required: false
+        type: string
+        default: "CA"
+      scraper_cities_csv:
+        description: "Comma-separated Title Case cities (blank = all)"
+        required: false
+        type: string
+        default: "San Francisco,Oakland,Berkeley"
+      scraper_zip_min:
+        description: "Minimum ZIP filter (blank = no lower bound)"
+        required: false
+        type: string
+        default: ""
+      scraper_zip_max:
+        description: "Maximum ZIP filter (blank = no upper bound)"
+        required: false
+        type: string
+        default: ""
+      ingredient_limit:
+        description: "Limit ingredients scraped (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_limit:
+        description: "Limit store rows queried (0 = all)"
+        required: false
+        type: string
+        default: "0"
+      store_concurrency:
+        description: "Concurrent store scrapes per ingredient"
+        required: false
+        type: string
+        default: "20"
+      ingredient_delay_ms:
+        description: "Delay between ingredients in milliseconds"
+        required: false
+        type: string
+        default: "1000"
+      insert_batch_size:
+        description: "RPC insert batch size"
+        required: false
+        type: string
+        default: "500"
+      min_expected_rows:
+        description: "Fail if below this row count"
+        required: false
+        type: string
+        default: "100"
+      scraper_batch_size:
+        description: "Default ingredient chunk size for all stores"
+        required: false
+        type: string
+        default: "20"
+      scraper_batch_concurrency:
+        description: "Default batch worker concurrency for all stores"
+        required: false
+        type: string
+        default: "4"
+      scraper_timeout_minutes:
+        description: "Hard timeout per store job (minutes)"
+        required: false
+        type: string
+        default: "120"
+      traderjoes_batch_size:
+        description: "Trader Joe's ingredient chunk size"
+        required: false
+        type: string
+        default: "20"
+      traderjoes_batch_concurrency:
+        description: "Trader Joe's batch worker concurrency"
+        required: false
+        type: string
+        default: "2"
+      queue_batch_limit:
+        description: "Queue batch size"
+        required: false
+        type: string
+        default: "100"
+      pre_queue_context:
+        description: "Queue context before scraping"
+        required: false
+        type: string
+        default: "recipe"
+      post_queue_context:
+        description: "Queue context after scraping"
+        required: false
+        type: string
+        default: "pantry"
+      queue_resolver_name:
+        description: "Queue resolver base name"
+        required: false
+        type: string
+        default: "initiating-openai"
+      queue_dry_run:
+        description: "Dry run queue stage"
+        required: false
+        type: string
+        default: "false"
+      queue_max_batches:
+        description: "Maximum queue batch cycles"
+        required: false
+        type: string
+        default: "10"
+      queue_batch_delay_seconds:
+        description: "Delay between queue batches in seconds"
+        required: false
+        type: string
+        default: "2"
   workflow_dispatch:
     inputs:
       seed_author_id:

@@ -12,6 +12,7 @@ function resolveGroceryStoreEnum(
   const value = normalizeStoreName(store)
   if (value.includes("target")) return "target"
   if (value.includes("kroger")) return "kroger"
+  if (value.includes("foodsco")) return "kroger"
   if (value.includes("meijer")) return "meijer"
   if (value.includes("99") || value.includes("ranch")) return "99ranch"
   if (value.includes("walmart")) return "walmart"
@@ -96,9 +97,9 @@ class IngredientsHistoryTable extends BaseTable<
           standardized_ingredient_id: payload.standardizedIngredientId,
           store: normalizedStore,
           price: payload.price,
-        quantity: 1,
-        unit: "unit",
-        unit_price: null,
+          quantity: 1,
+          unit: "unit",
+          unit_price: null,
           image_url: payload.imageUrl ?? null,
           product_name: payload.productName ?? null,
           product_id: payload.productId ?? null,
@@ -134,6 +135,8 @@ class IngredientsHistoryTable extends BaseTable<
       location?: string | null
       zipCode?: string | null
       standardizedUnit?: Database["public"]["Enums"]["unit_label"] | null
+      rawUnit?: string | null
+      unit?: string | null
       groceryStoreId?: string | null
       productMappingId?: string | null
     }>
@@ -141,34 +144,21 @@ class IngredientsHistoryTable extends BaseTable<
     try {
       if (items.length === 0) return 0
 
-      const payload = items.map((item) => ({
-        standardized_ingredient_id: item.standardizedIngredientId,
-        store: normalizeStoreName(item.store),
+      // Live schema writes to ingredients_history are handled via RPC.
+      // Normalize legacy payloads into fn_bulk_insert_ingredient_history input.
+      const rpcItems = items.map((item) => ({
+        store: item.store,
         price: item.price,
-        quantity: 1,
-        unit: "unit",
-        unit_price: null,
-        image_url: item.imageUrl ?? null,
-        product_name: item.productName ?? null,
-        product_id: item.productId ?? null,
-        location: item.location ?? null,
-        zip_code: item.zipCode ?? null,
-        standardized_unit: item.standardizedUnit ?? null,
-        grocery_store_id: item.groceryStoreId ?? null,
-        product_mapping_id: item.productMappingId ?? null,
+        imageUrl: item.imageUrl ?? null,
+        productName: item.productName ?? null,
+        productId: item.productId ?? null,
+        rawUnit: item.rawUnit ?? item.unit ?? item.standardizedUnit ?? null,
+        unit: item.unit ?? null,
+        zipCode: item.zipCode ?? null,
+        groceryStoreId: item.groceryStoreId ?? null,
       }))
 
-      const { data, error } = await this.supabase
-        .from(this.tableName)
-        .insert(payload)
-        .select("id")
-
-      if (error) {
-        this.handleError(error, "batchInsertPrices")
-        return 0
-      }
-
-      return data?.length || 0
+      return await this.batchInsertPricesRpc(rpcItems)
     } catch (error) {
       this.handleError(error, "batchInsertPrices")
       return 0
@@ -181,7 +171,7 @@ class IngredientsHistoryTable extends BaseTable<
    *
    * Note:
    * - standardizedIngredientId matching is handled by the database based on product_name
-   * - quantity and unit are extracted by the database from product_name
+   * - rawUnit/unit are forwarded when available for unit parsing, with product_name fallback
    * - location is deprecated (zipCode is used instead)
    */
   async batchInsertPricesRpc(
@@ -191,6 +181,8 @@ class IngredientsHistoryTable extends BaseTable<
       imageUrl?: string | null
       productName?: string | null
       productId?: string | null
+      rawUnit?: string | null
+      unit?: string | null
       zipCode?: string | null
       groceryStoreId?: string | null
     }>
@@ -206,6 +198,8 @@ class IngredientsHistoryTable extends BaseTable<
           imageUrl: item.imageUrl ?? null,
           productName: item.productName ?? null,
           productId: item.productId ?? null,
+          rawUnit: item.rawUnit ?? item.unit ?? null,
+          unit: item.unit ?? null,
           zipCode: item.zipCode ?? "",
           store_id: item.groceryStoreId ?? null,
         }))
@@ -291,9 +285,9 @@ class IngredientsHistoryTable extends BaseTable<
   }
 
   /**
-   * Bulk insert with full standardization and product-mapping creation via RPC.
-   * Uses fn_bulk_standardize_and_match which:
-   *  - Resolves standardized_ingredient_id (uses manual value if provided, else fuzzy match)
+   * Bulk insert with product-mapping creation via RPC.
+   * Uses fn_bulk_insert_ingredient_history which:
+   *  - Resolves standardized_ingredient_id via ingredient matching
    *  - Extracts quantity/unit from product name
    *  - Upserts into product_mappings (creates the row needed for checkout)
    *  - Inserts into ingredients_history with product_mapping_id set
@@ -306,6 +300,8 @@ class IngredientsHistoryTable extends BaseTable<
       price: number
       productName?: string | null
       productId?: string | null
+      rawUnit?: string | null
+      unit?: string | null
       zipCode?: string | null
       groceryStoreId?: string | null
     }>
@@ -316,18 +312,19 @@ class IngredientsHistoryTable extends BaseTable<
       const payload = items
         .filter((i) => i.price > 0)
         .map((item) => ({
-          standardizedIngredientId: item.standardizedIngredientId ?? null,
           store: normalizeStoreName(item.store),
           price: item.price,
           productName: item.productName ?? null,
           productId: item.productId ?? null,
+          rawUnit: item.rawUnit ?? item.unit ?? null,
+          unit: item.unit ?? null,
           zipCode: item.zipCode ?? "",
           store_id: item.groceryStoreId ?? null,
         }))
 
       if (!payload.length) return 0
 
-      const { data, error } = await (this.supabase.rpc as any)("fn_bulk_standardize_and_match", {
+      const { data, error } = await (this.supabase.rpc as any)("fn_bulk_insert_ingredient_history", {
         p_items: payload,
       })
 
@@ -629,7 +626,7 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
 
   async getPricingGaps(userId: string): Promise<PricingGap[]> {
     try {
-      const { data, error } = await (this.supabase.rpc as any)("get_pricing_gaps", {
+      const { data, error } = await this.supabase.rpc("get_pricing_gaps", {
         p_user_id: userId,
       })
 

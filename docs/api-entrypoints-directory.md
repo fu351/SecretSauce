@@ -5,7 +5,7 @@
 - `Doc Kind`: `directory`
 - `Canonicality`: `reference`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-15`
 - `Primary Surfaces`: `app/api/`, `lib/ingredient-pipeline.ts`, `lib/database/`, `lib/store/`
 - `Update Trigger`: API route additions/removals, auth changes, or request contract changes.
 
@@ -55,10 +55,12 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
   - required: `store`, `product`, and one of `searchTerm` or `standardizedIngredientId`
   - `product` requires: `id`, `title`, and positive `price`
   - optional context: `zipCode`, `groceryStoreId`
-  - write behavior: prefers `fn_bulk_standardize_and_match`; falls back to direct `ingredients_history` insert
+  - write behavior: prefers `fn_bulk_insert_ingredient_history`; falls back to direct `ingredients_history` insert
+  - store handling: use canonical `grocery_store` enum values for best results (`kroger`, `target`, etc.); known aliases are normalized in server code where needed
 - `/api/user-store-metadata` (`GET`):
   - required: `userId`
   - optional fallback: `zipCode`
+  - response store keys are canonical store enums sourced from `get_user_preferred_stores`
 - `/api/ingredients/standardize` (`POST`):
   - required: non-empty `ingredients[]`
   - `context="recipe"` requires `recipeId`

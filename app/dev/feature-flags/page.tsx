@@ -4,18 +4,33 @@ import Link from "next/link"
 
 export const dynamic = "force-dynamic"
 
-async function getFeatureFlags() {
+type FeatureVariant = {
+  id: string
+  name: string
+  config: Record<string, unknown> | null
+  is_control: boolean
+  weight: number
+  experiment_id: string
+}
+
+type FeatureFlag = {
+  id: string
+  name: string
+  description: string | null
+  status: string
+  target_user_tiers: string[] | null
+  target_anonymous: boolean | null
+  variants: FeatureVariant[]
+}
+
+async function getFeatureFlags(): Promise<FeatureFlag[]> {
   const supabase = createServerClient()
 
-  // Get all experiments that could be used as feature flags
+  // Load experiments and variants separately to avoid relation parser issues.
   const { data: experiments, error } = await supabase
-    .from("ab_testing.experiments")
-    .select(
-      `
-      *,
-      variants:ab_testing.variants(*)
-    `
-    )
+    .schema("ab_testing")
+    .from("experiments")
+    .select("id, name, description, status, target_user_tiers, target_anonymous")
     .order("name")
 
   if (error) {
@@ -23,7 +38,33 @@ async function getFeatureFlags() {
     return []
   }
 
-  return experiments || []
+  if (!experiments || experiments.length === 0) {
+    return []
+  }
+
+  const experimentIds = experiments.map((experiment) => experiment.id)
+  const { data: variants, error: variantsError } = await supabase
+    .schema("ab_testing")
+    .from("variants")
+    .select("id, name, config, is_control, weight, experiment_id")
+    .in("experiment_id", experimentIds)
+    .order("weight", { ascending: false })
+
+  if (variantsError) {
+    console.error("Error fetching feature flag variants:", variantsError)
+  }
+
+  const variantsByExperiment = new Map<string, FeatureVariant[]>()
+  for (const variant of variants || []) {
+    const existing = variantsByExperiment.get(variant.experiment_id) || []
+    existing.push(variant)
+    variantsByExperiment.set(variant.experiment_id, existing)
+  }
+
+  return experiments.map((experiment) => ({
+    ...experiment,
+    variants: variantsByExperiment.get(experiment.id) || [],
+  }))
 }
 
 export default async function FeatureFlagsPage() {
@@ -47,9 +88,12 @@ export default async function FeatureFlagsPage() {
               Control feature access by user tier
             </p>
           </div>
-          <button className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+          <Link
+            href="/dev/experiments/new"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          >
             + New Feature Flag
-          </button>
+          </Link>
         </div>
 
         {/* Common Feature Flags Examples */}
@@ -168,7 +212,7 @@ export default async function FeatureFlagsPage() {
                       )}
 
                       {/* Config Preview */}
-                      {feature.variants && feature.variants.length > 0 && (
+                      {feature.variants.length > 0 && (
                         <div>
                           <span className="font-medium text-gray-700">
                             Config:
@@ -180,6 +224,9 @@ export default async function FeatureFlagsPage() {
                               2
                             )}
                           </pre>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Variant: {feature.variants[0].name}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -205,7 +252,7 @@ export default async function FeatureFlagsPage() {
             <div>
               <strong>1. Create a feature flag as an experiment:</strong>
               <code className="ml-2 rounded bg-gray-100 px-2 py-1 text-xs">
-                target_user_tiers = ['premium']
+                {'target_user_tiers = ["premium"]'}
               </code>
             </div>
             <div>
@@ -217,16 +264,14 @@ export default async function FeatureFlagsPage() {
             <div>
               <strong>3. Use in your app:</strong>
               <code className="ml-2 rounded bg-gray-100 px-2 py-1 text-xs">
-                useFeatureFlag("Feature Name")
+                {'const { isEnabled, config } = useFeatureFlag("Feature Name")'}
               </code>
             </div>
             <div className="pt-2">
-              <Link
-                href="/docs/ab-testing-guide.md"
-                className="text-blue-600 hover:text-blue-700"
-              >
-                View full documentation →
-              </Link>
+              <strong>4. For custom events and variants:</strong>
+              <code className="ml-2 rounded bg-gray-100 px-2 py-1 text-xs">
+                {'useExperiment("experiment-id")'}
+              </code>
             </div>
           </div>
         </div>

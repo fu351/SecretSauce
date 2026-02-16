@@ -1,7 +1,13 @@
 #!/usr/bin/env tsx
 
 import { createClient } from "@supabase/supabase-js"
-import { buildMockRecipePayload, MOCK_RECIPES, RPC_NAME } from "../lib/dev/mock-recipes"
+import type { Database } from "../lib/database/supabase"
+import {
+  buildMockRecipePayload,
+  MOCK_RECIPES,
+  RPC_NAME,
+  type UpsertRecipeRpcArgs,
+} from "../lib/dev/mock-recipes"
 
 const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -31,7 +37,7 @@ async function main(): Promise<void> {
     throw new Error("Missing SUPABASE_SEED_AUTHOR_ID.")
   }
 
-  const supabase = createClient(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  const supabase = createClient<Database>(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -43,7 +49,7 @@ async function main(): Promise<void> {
   let succeeded = 0
 
   for (const recipe of MOCK_RECIPES) {
-    const payload = buildMockRecipePayload(recipe, seedAuthorId)
+    const payload: UpsertRecipeRpcArgs = buildMockRecipePayload(recipe, seedAuthorId)
 
     if (DRY_RUN) {
       console.log(`[seed-mock-recipes] Dry run would upsert:\n${JSON.stringify(payload, null, 2)}`)

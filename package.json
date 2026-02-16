@@ -17,6 +17,8 @@
     "test:lib": "vitest run lib/",
     "test:components": "vitest run components/",
     "test:api": "vitest run app/api/",
+    "test:traderjoes-scraper": "node scripts/test-traderjoes-scraper.js",
+    "test:99ranch-scraper": "node scripts/test-99ranch-scraper.js",
     "queue-worker": "tsx queue/worker/runner.ts"
   },
   "dependencies": {
@@ -90,6 +92,7 @@
     "react-resizable-panels": "latest",
     "recharts": "latest",
     "sonner": "latest",
+    "stripe": "^20.3.1",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^6.0.1",

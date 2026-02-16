@@ -161,7 +161,9 @@ export default function SignUpPage() {
             </Label>
             <Input
               id="email"
+              name="email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
@@ -175,7 +177,9 @@ export default function SignUpPage() {
             </Label>
             <Input
               id="password"
+              name="password"
               type="password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -191,7 +195,9 @@ export default function SignUpPage() {
             </Label>
             <Input
               id="confirm-password"
+              name="confirmPassword"
               type="password"
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"

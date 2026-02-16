@@ -39,13 +39,13 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | Import/refresh grocery stores from AllThePlaces | `scripts/import_new_stores.py` | Defaults to target ZIP strategy (`target_zipcodes`); supports `--brand` and `--all-zipcodes`. |
 | Real-time ZIP-triggered store scraping | `scripts/geoscraper.py` | Event/webhook-oriented; accepts ZIP input via flags or `REALTIME_TARGET_ZIPCODES`. |
 | Build target ZIP list from user profiles | `scripts/update_target_zipcodes.py` | Calls DB RPCs `update_target_zipcodes` and optional `add_neighbor_zipcodes`. |
-| Expand one-off ZIP input with neighbors | `scripts/expand_zipcodes_with_neighbors.py` | Useful in workflows; outputs final ZIP CSV to stdout. |
 | Backfill `scraped_zipcodes` city/state/geom | `scripts/backfill_scraped_zipcodes.py` | Uses Zippopotam API, supports `--loop`, `--concurrency`, `--dry-run`. |
 | Fix missing/centroid store geometry in `grocery_stores` | `scripts/fix_missing_geo.py` | Uses AllThePlaces first; optional Google geocode ZIP fallback (`GOOGLE_MAPS_API_KEY`). |
 | Validate Target store IDs in metadata | `scripts/validate-target-store-ids.js` | Compares DB IDs vs Target nearest-store lookup (`--limit`, `--zip`). |
 | Backfill missing Target store IDs | `scripts/backfill-target-store-ids.js` | Writes `metadata.target_store_id`; supports `--dry-run`, `--limit`, `--zip`. |
 | Analyze Target scraper 404 patterns | `scripts/analyze-404s.js` | Reads `target_404_log` and prints store/ingredient/ZIP trends. |
 | Reproduce 404-prone ingredient queries | `scripts/test-ingredient-404s.js` | Tests canonical ingredients against a known Target store (`TARGET_TEST_ZIP`, `TARGET_TEST_STORE_ID`). |
+| Validate Trader Joe's scraper in single-store mode | `scripts/test-traderjoes-scraper.js` | Daily-scraper-style harness that hard-enforces one `traderjoes` store and validates output shape/sorting/location consistency. |
 | Seed dev/mock recipes | `scripts/seed-mock-recipes.ts` | Upserts mock recipes through `lib/dev/mock-recipes` RPC contract; requires `SUPABASE_SEED_AUTHOR_ID`. |
 
 ## Script Catalog
@@ -58,13 +58,13 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | `scripts/import_new_stores.py` | Python | Inserts new rows into `grocery_stores`; updates `scraped_zipcodes`. |
 | `scripts/geoscraper.py` | Python | Inserts ZIP-scoped store rows; updates `scraped_zipcodes`. |
 | `scripts/update_target_zipcodes.py` | Python | Rebuilds/expands `target_zipcodes`. |
-| `scripts/expand_zipcodes_with_neighbors.py` | Python | Writes temporary `target_zipcodes` rows; emits expanded ZIP list. |
 | `scripts/backfill_scraped_zipcodes.py` | Python | Updates metadata/geography in `scraped_zipcodes`. |
 | `scripts/fix_missing_geo.py` | Python | Updates `grocery_stores.geom`; adjusts failure counters in run logic. |
 | `scripts/validate-target-store-ids.js` | Node | Read/compare pass; no DB writes. |
 | `scripts/backfill-target-store-ids.js` | Node | Updates `grocery_stores.metadata` for Target store IDs. |
 | `scripts/analyze-404s.js` | Node | Read-only analysis of `target_404_log`. |
 | `scripts/test-ingredient-404s.js` | Node | Read-only test calls to scraper APIs + DB reads. |
+| `scripts/test-traderjoes-scraper.js` | Node | Read-only test harness for Trader Joe's scraper using one DB-backed store + canonical ingredient sample. |
 | `scripts/scraper_common.py` | Python module | Shared helper module for store import/geoscraper/backfill flows. |
 | `scripts/utils/daily-scraper-utils.js` | JS module | Shared helper module for daily scraper batching/filtering/normalization. |
 | `scripts/utils/canonical-matching.ts` | TS module | Shared canonical-name similarity helpers. |

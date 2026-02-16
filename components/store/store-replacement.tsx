@@ -65,6 +65,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
             title: item.title,
             price: item.price,
             unit: item.unit,
+            rawUnit: item.rawUnit,
             pricePerUnit: item.pricePerUnit,
             image_url: item.image_url,
             location: item.provider || null,
@@ -88,6 +89,8 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     if (!searchTerm) return
     setLoading(true)
     try {
+      const normalizedTargetStore = normalizeStoreName(target?.store || "")
+
       // 1. Preferred source: RPC replacement options for this user/store.
       const replacementOptions =
         userId && target?.store
@@ -119,15 +122,27 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
       })
 
       // 2. Fallback source: live scrape if RPC has no candidates.
-      const flatResults = rpcResults.length > 0
+      const fallbackResults = rpcResults.length > 0
         ? rpcResults
         : (await searchGroceryStores(
-            searchTerm,
-            zipCode,
-            target?.store,
-            true,
-            target?.standardizedIngredientId || null
-          )).flatMap(r => r.items || [])
+          searchTerm,
+          zipCode,
+          target?.store,
+          true,
+          target?.standardizedIngredientId || null
+        ))
+          .filter((storeResult) => normalizeStoreName(storeResult.store) === normalizedTargetStore)
+          .flatMap((storeResult) =>
+            (storeResult.items || []).map((item) => ({
+              ...item,
+              provider: target?.store || item.provider || "",
+            }))
+          )
+
+      const flatResults = fallbackResults.filter((item) => {
+        const itemProvider = normalizeStoreName(item.provider || target?.store || "")
+        return itemProvider === normalizedTargetStore
+      })
 
       setResults(flatResults)
 
@@ -146,7 +161,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         replacementOptions[0]?.ingredient_id ||
         ingredientMap.values().next().value
 
-      // 4. Persist + create product_mappings via fn_bulk_standardize_and_match
+      // 4. Persist + create product_mappings via fn_bulk_insert_ingredient_history
       const payload = validResults.map(item => ({
         standardizedIngredientId:
           target?.standardizedIngredientId ||
@@ -158,6 +173,8 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         price: item.price,
         productName: item.title,
         productId: item.id,
+        rawUnit: item.rawUnit ?? item.unit ?? null,
+        unit: item.unit ?? item.rawUnit ?? null,
         zipCode: zipCode || null,
         groceryStoreId: target?.groceryStoreId ?? null,
       }))

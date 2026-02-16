@@ -7,13 +7,14 @@ import { supabase } from "@/lib/database/supabase"
 
 export default function NewExperimentPage() {
   const router = useRouter()
-  const createdByUserId = process.env.NEXT_PUBLIC_DEV_EXPERIMENT_CREATED_BY_UUID
+  const tierOptions = ["free", "premium"] as const
+  type TierOption = (typeof tierOptions)[number]
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     hypothesis: "",
-    target_user_tiers: [] as string[],
+    target_user_tiers: [] as TierOption[],
     target_anonymous: true,
     traffic_percentage: 100,
   })
@@ -31,22 +32,24 @@ export default function NewExperimentPage() {
         alert("You must be logged in to create an experiment")
         return
       }
-      if (!createdByUserId) {
-        alert("Missing NEXT_PUBLIC_DEV_EXPERIMENT_CREATED_BY_UUID in environment")
-        return
-      }
 
-      // Create experiment via RPC or direct insert
-      // For now, we'll use a simple approach - you can enhance this later
-      const { error } = await supabase.rpc("dev_create_experiment", {
-        p_name: formData.name,
-        p_description: formData.description,
-        p_hypothesis: formData.hypothesis,
-        p_target_user_tiers: formData.target_user_tiers.length > 0 ? formData.target_user_tiers : null,
-        p_target_anonymous: formData.target_anonymous,
-        p_traffic_percentage: formData.traffic_percentage,
-        p_created_by: createdByUserId,
-      })
+      const { error } = await supabase
+        .schema("ab_testing")
+        .from("experiments")
+        .insert({
+          name: formData.name.trim(),
+          description: formData.description.trim() || null,
+          hypothesis: formData.hypothesis.trim() || null,
+          status: "draft",
+          allocation_method: "random",
+          traffic_percentage: formData.traffic_percentage,
+          target_user_tiers:
+            formData.target_user_tiers.length > 0
+              ? formData.target_user_tiers
+              : null,
+          target_anonymous: formData.target_anonymous,
+          created_by: user.id,
+        })
 
       if (error) {
         console.error("Error creating experiment:", error)
@@ -61,8 +64,6 @@ export default function NewExperimentPage() {
       setLoading(false)
     }
   }
-
-  const tierOptions = ["free", "premium"]
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -216,7 +217,7 @@ export default function NewExperimentPage() {
 
           <div className="mt-6 rounded-lg bg-yellow-50 border border-yellow-200 p-4">
             <p className="text-sm text-yellow-800">
-              <strong>Note:</strong> After creating the experiment, you'll need to add
+              <strong>Note:</strong> After creating the experiment, you&apos;ll need to add
               variants and configure the experiment settings before activating it.
             </p>
           </div>

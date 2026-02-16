@@ -42,11 +42,11 @@ This guide describes where to edit queue standardization prompts and how changes
 
 ## Rollout Flags
 
-- `QUEUE_ENABLE_UNIT_RESOLUTION` (default `false`)
-- `QUEUE_UNIT_DRY_RUN` (default `true`)
+- `QUEUE_ENABLE_UNIT_RESOLUTION` (default `true`)
+- `QUEUE_UNIT_DRY_RUN` (defaults to `DRY_RUN`; typically `false` for normal runs, `true` for dry runs)
 - `QUEUE_UNIT_MIN_CONFIDENCE` (default `0.75`)
 
-Keep nightly workflow defaults unchanged (`QUEUE_REVIEW_MODE=ingredient`, `QUEUE_SOURCE=scraper`) until unit quality is validated.
+Nightly workflow defaults stay source/review scoped (`QUEUE_REVIEW_MODE=ingredient`, `QUEUE_SOURCE=scraper`) while unit resolution is enabled by default.
 
 ## Editing Rules
 

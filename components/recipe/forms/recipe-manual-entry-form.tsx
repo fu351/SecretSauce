@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
@@ -30,6 +30,7 @@ interface RecipeManualEntryFormProps {
   loading: boolean
   initialData?: ImportedRecipe
   mode?: "create" | "edit"
+  hideAmountAndUnit?: boolean
   recipeId?: string
   onDelete?: () => Promise<void>
   deleting?: boolean
@@ -40,6 +41,7 @@ export function RecipeManualEntryForm({
   loading,
   initialData,
   mode = "create",
+  hideAmountAndUnit = false,
   onDelete,
   deleting = false,
 }: RecipeManualEntryFormProps) {
@@ -71,20 +73,35 @@ export function RecipeManualEntryForm({
   }
   const [imagePreview, setImagePreview] = useState(() => resolveInitialImageUrl(initialData))
 
+  const mapInitialIngredient = useCallback((ing: any): IngredientFormInput => {
+    const amountStr = String((ing as any).amount ?? (ing.quantity?.toString() ?? "")).trim()
+    const unitStr = (ing.unit || "").trim()
+    const nameStr = (ing.name || "").trim()
+
+    if (hideAmountAndUnit) {
+      const line = [amountStr, unitStr, nameStr].filter(Boolean).join(" ").trim()
+      return {
+        name: line || nameStr,
+        amount: "",
+        unit: "",
+        standardizedIngredientId: ing.standardizedIngredientId,
+        standardizedName: ing.standardizedName,
+      }
+    }
+
+    return {
+      name: nameStr,
+      amount: amountStr,
+      unit: unitStr,
+      standardizedIngredientId: ing.standardizedIngredientId,
+      standardizedName: ing.standardizedName,
+    }
+  }, [hideAmountAndUnit])
+
   // Ingredients state
   const [ingredients, setIngredients] = useState<IngredientFormInput[]>(
     initialData?.ingredients?.length
-      ? initialData.ingredients.map((ing) => {
-          // Handle both Python API format (amount as string) and DB format (quantity as number)
-          const amountStr = (ing as any).amount ?? (ing.quantity?.toString() ?? "")
-          return {
-            name: ing.name,
-            amount: amountStr,
-            unit: ing.unit || "",
-            standardizedIngredientId: ing.standardizedIngredientId,
-            standardizedName: ing.standardizedName,
-          }
-        })
+      ? initialData.ingredients.map((ing) => mapInitialIngredient(ing))
       : [{ name: "", amount: "", unit: "" }]
   )
 
@@ -120,17 +137,7 @@ export function RecipeManualEntryForm({
     setImagePreview(resolveInitialImageUrl(initialData))
     setIngredients(
       initialData.ingredients?.length
-        ? initialData.ingredients.map((ing) => {
-            // Handle both Python API format (amount as string) and DB format (quantity as number)
-            const amountStr = (ing as any).amount ?? (ing.quantity?.toString() ?? "")
-            return {
-              name: ing.name,
-              amount: amountStr,
-              unit: ing.unit || "",
-              standardizedIngredientId: ing.standardizedIngredientId,
-              standardizedName: ing.standardizedName,
-            }
-          })
+        ? initialData.ingredients.map((ing) => mapInitialIngredient(ing))
         : [{ name: "", amount: "", unit: "" }],
     )
     setInstructions(initialData.instructions?.length ? initialData.instructions : [{ step: 1, description: "" }])
@@ -140,7 +147,7 @@ export function RecipeManualEntryForm({
       carbs: initialData.nutrition?.carbs?.toString() || "",
       fat: initialData.nutrition?.fat?.toString() || "",
     })
-  }, [initialData])
+  }, [initialData, mapInitialIngredient])
 
   const handleNutritionChange = (field: string, value: string) => {
     setNutrition((prev) => ({ ...prev, [field]: value }))
@@ -187,6 +194,26 @@ export function RecipeManualEntryForm({
     const parsePrepTime = prep_time.trim() ? Number.parseInt(prep_time) : 15
     const parseCookTime = cook_time.trim() ? Number.parseInt(cook_time) : 30
     const parseServings = servings.trim() ? Number.parseInt(servings) : 1
+    const ingredientsForSubmission = validIngredients.map((ing) => {
+      const ingredientPayload: {
+        name: string
+        quantity?: number
+        unit?: string
+        standardizedIngredientId?: string
+        standardizedName?: string
+      } = {
+        name: ing.name,
+        standardizedIngredientId: ing.standardizedIngredientId,
+        standardizedName: ing.standardizedName,
+      }
+
+      if (!hideAmountAndUnit) {
+        ingredientPayload.quantity = ing.amount ? parseFloat(ing.amount) : undefined
+        ingredientPayload.unit = ing.unit || undefined
+      }
+
+      return ingredientPayload
+    })
 
     const submissionData: RecipeSubmissionData = {
       title,
@@ -199,13 +226,7 @@ export function RecipeManualEntryForm({
       difficulty,
       cuisine: cuisine || null,
       tags,
-      ingredients: validIngredients.map((ing) => ({
-        name: ing.name,
-        quantity: ing.amount ? parseFloat(ing.amount) : undefined,
-        unit: ing.unit || undefined,
-        standardizedIngredientId: ing.standardizedIngredientId,
-        standardizedName: ing.standardizedName,
-      })),
+      ingredients: ingredientsForSubmission,
       instructions: validInstructions.map((inst, i) => ({
         step: i + 1,
         description: inst.description,
@@ -264,7 +285,11 @@ export function RecipeManualEntryForm({
         </div>
 
         {/* Ingredients Section */}
-        <RecipeIngredientsForm ingredients={ingredients} onChange={setIngredients} />
+        <RecipeIngredientsForm
+          ingredients={ingredients}
+          showAmountAndUnit={!hideAmountAndUnit}
+          onChange={setIngredients}
+        />
 
         {/* Instructions Section */}
         <RecipeInstructionsForm instructions={instructions} onChange={setInstructions} />

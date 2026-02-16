@@ -81,6 +81,21 @@ export function ShoppingReceiptView({
           effectiveQty = Math.max(1, Number(pricedItem.quantity) || 1)
         }
 
+        const baselineQuantity = Math.max(1, Number(pricedItem.quantity) || 1)
+        const baselinePackages = Number(pricedItem.packagesToBuy)
+        const packagePrice = Number(pricedItem.packagePrice)
+
+        if (
+          Number.isFinite(packagePrice) &&
+          packagePrice > 0 &&
+          Number.isFinite(baselinePackages) &&
+          baselinePackages > 0
+        ) {
+          const packagesPerQuantity = baselinePackages / baselineQuantity
+          const adjustedPackages = Math.max(1, Math.ceil(packagesPerQuantity * effectiveQty))
+          return sum + (packagePrice * adjustedPackages)
+        }
+
         return sum + (Number(pricedItem.price) || 0) * effectiveQty
       }, 0)
 

@@ -50,6 +50,7 @@ export const CATEGORY_ASSIGNMENT_SECTION = `
    - **snacks**: chips, crackers, cookies, candy, nuts (unopened packaged snacks)
    - **condiments**: sauces, dressings, ketchup, mustard, mayo, vinegar, soy sauce
    - **baking**: baking powder, baking soda, vanilla extract, chocolate chips, yeast
+   - **spices**: dried spices and seasoning blends (paprika, cumin, turmeric, curry powder, chili flakes)
    - **other**: items that don't fit above categories
    
    For NON-FOOD items: category = null
@@ -141,6 +142,7 @@ HANDLING EDGE CASES:
    - If you don't recognize it but it SEEMS like food: confidence 0.5-0.7
    - Clean it up (lowercase, singular, remove brands) and let human review
    - DON'T invent fake categories - use "other" if unsure
+   - canonicalName must be a real ingredient phrase, never a category label like "other"
 
 **4. Abbreviations:**
    - "evoo" -> "olive oil"

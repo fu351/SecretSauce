@@ -141,11 +141,15 @@ export type Database = {
           latitude: number | null
           longitude: number | null
           email_verified: boolean | null
+          clerk_user_id: string | null
           subscription_tier: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at: string | null
           subscription_expires_at: string | null
+          subscription_status: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          stripe_price_id: string | null
+          stripe_current_period_end: string | null
         }
         Insert: {
           id: string
@@ -175,11 +179,15 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           email_verified?: boolean | null
+          clerk_user_id?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at?: string | null
           subscription_expires_at?: string | null
+          subscription_status?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_price_id?: string | null
+          stripe_current_period_end?: string | null
         }
         Update: {
           id?: string
@@ -209,11 +217,15 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           email_verified?: boolean | null
+          clerk_user_id?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at?: string | null
           subscription_expires_at?: string | null
+          subscription_status?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_price_id?: string | null
+          stripe_current_period_end?: string | null
         }
       }
       recipes: {
@@ -407,6 +419,7 @@ export type Database = {
           zip_code: string | null
           raw_product_name: string | null
           standardized_ingredient_id: string | null
+          is_ingredient: boolean
           ingredient_confidence: number | null
           standardized_unit: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity: number | null
@@ -424,6 +437,7 @@ export type Database = {
           zip_code?: string | null
           raw_product_name?: string | null
           standardized_ingredient_id?: string | null
+          is_ingredient?: boolean
           ingredient_confidence?: number | null
           standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity?: number | null
@@ -441,6 +455,7 @@ export type Database = {
           zip_code?: string | null
           raw_product_name?: string | null
           standardized_ingredient_id?: string | null
+          is_ingredient?: boolean
           ingredient_confidence?: number | null
           standardized_unit?: Database["public"]["Enums"]["unit_label"] | null
           standardized_quantity?: number | null
@@ -1020,6 +1035,7 @@ export type Database = {
           p_store_id: Database["public"]["Enums"]["grocery_store"] // Use Enum
           p_zip_code: string
           p_servings: number
+          p_user_id?: string | null
         }
         Returns: {
           recipe_id: string
@@ -1027,6 +1043,15 @@ export type Database = {
           costPerServing: number
           ingredients: Record<string, number>
         }
+      }
+      calculate_weekly_basket: {
+        Args: {
+          p_recipe_configs: Json
+          p_store_id: Database["public"]["Enums"]["grocery_store"]
+          p_zip_code: string
+          p_user_id?: string | null
+        }
+        Returns: Json
       }
       claim_ingredient_match_queue: {
         Args: {
@@ -1076,8 +1101,9 @@ export type Database = {
       }
       get_best_store_for_plan: {
         Args: {
-          p_user_id: string
+          p_user_id?: string | null
           p_recipe_ids: string[]
+          p_zip_code?: string | null
         }
         Returns: {
           store_id: string
@@ -1186,7 +1212,7 @@ export type Database = {
       cooking_level_enum: "beginner" | "intermediate" | "advanced"
       budget_range_enum: "low" | "medium" | "high"
       theme_enum: "light" | "dark"
-      item_category_enum: "baking" | "beverages" | "condiments" | "dairy" | "meat_seafood" | "pantry_staples" | "produce" | "snacks" | "other"
+      item_category_enum: "baking" | "beverages" | "condiments" | "dairy" | "meat_seafood" | "pantry_staples" | "produce" | "snacks" | "other" | "spices"
       grocery_store: "aldi" | "kroger" | "safeway" | "meijer" | "target" | "traderjoes" | "99ranch" | "walmart" | "andronicos" | "wholefoods"
       unit_category: "weight" | "volume" | "count" | "other"
       unit_label: "oz" | "lb" | "fl oz" | "ml" | "gal" | "ct" | "each" | "bunch" | "gram" | "unit"
