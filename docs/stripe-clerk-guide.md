@@ -1,214 +1,168 @@
-# Stripe and Clerk Integration
+# Stripe + Clerk Integration Guide
 
-This document provides a comprehensive guide to the Stripe and Clerk integration for handling payments, subscriptions, and user authentication. It serves as a map for developers working on this implementation.
+This guide reflects the current implementation in:
+- `app/api/checkout/route.ts`
+- `app/api/webhooks/stripe/route.ts`
+- `app/api/webhooks/clerk/route.ts`
 
 ## Overview
 
-The Stripe and Clerk integration is designed to provide a seamless and secure way to handle subscription-based payments and user management. It leverages Clerk for user authentication and Stripe for payment processing.
+The app uses:
+- Clerk for auth identity
+- Stripe for subscriptions
+- Supabase `public.profiles` as the app-side subscription/profile state
 
-## Clerk Integration
+`public.profiles` remains the central record. Stripe and Clerk both sync into it.
 
-Clerk is used for user authentication and management. It provides a simple and secure way to handle user sign-up, sign-in, and profile management.
+## Data Model (Profiles)
 
-- **Authentication:** The application uses Clerk's `auth()` middleware in `app/api/checkout/route.ts` to protect routes and get the user's ID.
+The integration expects these profile columns:
+- `clerk_user_id`
+- `stripe_customer_id`
+- `stripe_subscription_id`
+- `subscription_tier`
+- `subscription_started_at`
+- `subscription_expires_at`
+- `subscription_status`
+- `stripe_price_id`
+- `stripe_current_period_end`
 
-    ```typescript
-    // app/api/checkout/route.ts
-    import { auth } from "@clerk/nextjs/server"
+Documentation SQL for these exists in:
+- `docs/profiles-clerk-bridge-migrations.sql`
+- `docs/profiles-stripe-migrations.sql`
 
-    // ...
+## Checkout Flow (`POST /api/checkout`)
 
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "You must be signed in to create a checkout session." }, { status: 401 })
-    }
-    ```
+Checkout is created in `app/api/checkout/route.ts`.
 
-- **User ID:** The Clerk `userId` is used to associate payments and subscriptions with a specific user. It's passed to the Stripe checkout session's metadata.
+Request flow:
+1. Validate required server config.
+2. Resolve user identity.
+3. Find or create Stripe customer.
+4. Create Stripe Checkout Session (`mode: "subscription"`).
+5. Return `{ url }` and redirect client-side.
 
-    ```typescript
-    // app/api/checkout/route.ts
-    const session = await stripe.checkout.sessions.create({
-      // ...
-      metadata: {
-        userId,
-      },
-    })
-    ```
+Identity resolution order:
+1. Clerk-authenticated user:
+   - Match `profiles.clerk_user_id = clerkUserId`.
+   - If missing, match by Clerk primary email to `profiles.email`, then backfill `clerk_user_id`.
+2. Fallback: Supabase access token from `Authorization` header or auth cookies.
 
-## Checkout Flow
+If neither identity path resolves a profile, API returns `401` with:
+- `"Unauthorized or missing linked profile"`
 
-The checkout flow is initiated from the `/checkout` page. Here's how it works:
+## Required Environment Variables
 
-1. **Authentication:** The user must be signed in to access the checkout page. The application uses Clerk to manage user authentication. The `CheckoutPage` component in `app/checkout/page.tsx` is a client-side component that initiates the checkout process.
+For checkout route:
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PREMIUM_PRICE_ID` (must start with `price_`, not `prod_`)
+- `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SERVICE_KEY` fallback)
+- `NEXT_PUBLIC_SITE_URL` (recommended in production; falls back to request origin)
 
-2. **Initiate Checkout:** The user clicks the "Proceed to Payment" button on the `/checkout` page. The `handleCheckout` function is called inside the `CheckoutPage` component.
+For Stripe webhook route:
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
 
-    ```tsx
-    // app/checkout/page.tsx
-    "use client"
+For Clerk webhook route:
+- `CLERK_WEBHOOK_SIGNING_SECRET`
 
-    import { Button } from "@/components/ui/button"
-    import { useTransition } from "react"
-
-    export default function CheckoutPage() {
-      const [isPending, startTransition] = useTransition()
-
-      const handleCheckout = () => {
-        startTransition(async () => {
-          const response = await fetch("/api/checkout", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          })
-
-          const session = await response.json()
-
-          if (response.ok) {
-            if (session.url) {
-              window.location.href = session.url
-            }
-          } else {
-            console.error("Failed to create checkout session:", session.error)
-          }
-        })
-      }
-      // ...
-    }
-    ```
-
-3. **Create Checkout Session:** A POST request is sent to the `/api/checkout/route.ts` endpoint. The `POST` function in this file retrieves the `userId` from Clerk's `auth()` middleware and uses it to create a new Stripe checkout session.
-
-    ```typescript
-    // app/api/checkout/route.ts
-    export async function POST() {
-      try {
-        const { userId } = await auth();
-        // ...
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ["card"],
-          line_items: [
-            // ...
-          ],
-          mode: "subscription",
-          success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/cancel`,
-          metadata: {
-            userId,
-          },
-        })
-
-        return NextResponse.json({ url: session.url })
-      } catch (error:any) {
-        // ...
-      }
-    }
-    ```
-
-4. **Redirect to Stripe:** The user is redirected to the Stripe checkout page using the URL returned from the `/api/checkout` endpoint.
-
-5. **Payment Status:**
-    - **Success:** If the payment is successful, the user is redirected to the `app/checkout/success/page.tsx` page, which displays a success message.
-    - **Cancel:** If the payment is canceled, the user is redirected to the `app/checkout/cancel/page.tsx` page, which displays a cancellation message and an option to try again.
+For Clerk auth generally:
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
 
 ## Webhooks
 
-The application uses Stripe webhooks to receive and handle payment-related events.
+### Stripe Webhook (`POST /api/webhooks/stripe`)
 
-- **Endpoint:** The webhook endpoint is located at `app/api/webhooks/stripe/route.ts`. The `POST` function in this file handles the incoming webhook events.
+Location: `app/api/webhooks/stripe/route.ts`
 
-- **Verification:** The endpoint verifies the webhook signature to ensure that the request is coming from Stripe.
+Signature verification:
+- Uses `stripe-signature` header + `STRIPE_WEBHOOK_SECRET`.
 
-    ```typescript
-    // app/api/webhooks/stripe/route.ts
-    const body = await req.text();
-    const sig = headers().get("stripe-signature")!;
+Handled events:
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
 
-    let event: Stripe.Event;
+Profile update behavior:
+- Maps Stripe status to app tier:
+  - `active`, `trialing`, `past_due` -> `premium`
+  - else -> `free`
+- Updates lifecycle fields on `profiles`.
+- Lookup priority:
+  1. `supabase_user_id` from session metadata
+  2. `clerk_user_id` from session metadata
+  3. `stripe_customer_id`
 
-    try {
-      event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-    } catch (err) {
-      // ...
-    }
-    ```
+### Clerk Webhook (`POST /api/webhooks/clerk`)
 
-- **Event Handling:** The endpoint handles the `checkout.session.completed` event. When this event is received, it retrieves the `clerkUserId` from the session's metadata and logs the successful payment for that user.
+Location: `app/api/webhooks/clerk/route.ts`
 
-    ```typescript
-    // app/api/webhooks/stripe/route.ts
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const clerkUserId = session.metadata?.clerkUserId;
+Signature verification:
+- Uses Clerk `verifyWebhook(req)` and `CLERK_WEBHOOK_SIGNING_SECRET`.
 
-      if (clerkUserId) {
-        console.log(`💰 Payment successful for user ${clerkUserId}`);
-        // TODO: Add your business logic here.
-      } else {
-          console.log(`💰 Payment successful but no clerkUserId found in metadata`);
-      }
-    }
-    ```
+Handled events:
+- `user.created`
+- `user.updated`
+- `user.deleted`
 
-## Stripe and Clerk Account Interactions
+Profile sync behavior:
+- On `user.created` / `user.updated`:
+  - syncs `clerk_user_id`, `email`, `full_name`, `avatar_url`, `email_verified`
+  - tries match by `clerk_user_id`, then by `email`
+- On `user.deleted`:
+  - nulls `clerk_user_id` for matched row
 
-### Stripe Details
+Note:
+- This webhook does not create brand-new profile rows if none match.
+- Reason: `profiles.id` is FK to `auth.users.id`.
 
-- **Data Stored:**
-- **Customer Information:** Stripe creates a customer object for each new user who initiates a checkout. This may include the user's email address and name.
-- **Payment Methods:** Stripe securely stores the user's payment method details (e.g., credit card information).
-- **Subscriptions:** Stripe manages the subscription status, billing cycles, and payment history for each user.
-- **Metadata:** The Clerk `userId` is stored in the metadata of the Stripe checkout session to link Stripe customers to Clerk users.
+## Production Checklist
 
-- **Permissions (API Keys):**
-- **`STRIPE_SECRET_KEY`**: This secret key is used for all server-side API requests, such as creating checkout sessions and handling webhooks. It has full access to the Stripe account, so it must be kept confidential.
-- **`STRIPE_WEBHOOK_SECRET`**: This secret is used to verify the authenticity of incoming webhooks, ensuring they are sent from Stripe and not from a malicious third party.
+1. Clerk production instance:
+   - set production domain + redirect URLs
+   - use production Clerk keys
+2. Stripe live mode:
+   - use `sk_live_...`
+   - create live product + live price
+   - set `STRIPE_PREMIUM_PRICE_ID` to live `price_...`
+3. Supabase:
+   - set `SUPABASE_SERVICE_ROLE_KEY` in deployment env
+   - do not use anon or publishable key
+4. Configure webhook endpoints:
+   - Stripe: `https://<domain>/api/webhooks/stripe`
+   - Clerk: `https://<domain>/api/webhooks/clerk`
+5. Redeploy after any env changes.
 
-### Clerk Details
+## Local Development
 
-- **Data Stored:**
-- **User Profiles:** Clerk stores user information such as email address, name, and profile picture.
-- **Authentication Data:** Clerk manages all aspects of user authentication, including passwords, sessions, and multi-factor authentication.
+Stripe:
+```bash
+stripe login
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
 
-- **Permissions (API Keys):**
-- The application uses the Clerk Next.js SDK, which handles authentication via environment variables. These keys grant the application permission to:
-  - Verify user sessions.
-  - Retrieve user information, including the `userId`.
-  - Sign users in and out.
-  
-## Moving to Production
+Clerk:
+- expose local app via tunnel (ngrok/cloudflared)
+- configure Clerk webhook endpoint to your tunnel URL `/api/webhooks/clerk`
+- use signing secret in local `.env`
 
-When moving from a development environment to a production environment, several changes are required for both Clerk and Stripe to ensure that you are using your live accounts and data.
+## Troubleshooting
 
-### Clerk Settings
+`[checkout-page] Failed to create session` with:
+- `"Missing configuration. Set STRIPE_SECRET_KEY, STRIPE_PREMIUM_PRICE_ID, and SUPABASE_SERVICE_ROLE_KEY."`
+  - One or more env vars are missing in deployed runtime.
+  - Add vars in your host's production env settings and redeploy.
 
-Your Clerk application is currently in a **development setup**. To move to production, you will need to create a **production instance** from your Clerk dashboard.
+- `"SUPABASE_SERVICE_ROLE_KEY is invalid... not a publishable key."`
+  - You used a publishable/anon key.
+  - Replace with Supabase service-role secret.
 
-Key changes:
+- `"STRIPE_PREMIUM_PRICE_ID must be ... price_..., not prod_..."`
+  - You used a Product ID instead of Price ID.
+  - Use Stripe Price ID.
 
-- **API Keys:**
-  - You will need to replace your development API keys with the production keys in your environment variables.
-  - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-  - `CLERK_SECRET_KEY`
-- **Domains & Redirects:**
-  - In your Clerk production instance settings, you must update the application's domain and redirect URLs to match your production URLs.
-
-### Stripe Settings
-
-Your Stripe account is currently in **test mode**. To process real payments, you must activate your account and switch to **live mode**.
-
-Key changes:
-
-- **API Keys:**
-  - You will need to replace your test API keys with the live keys in your environment variables.
-  - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-  - `STRIPE_SECRET_KEY`
-- **Webhooks:**
-  - You need to create a new webhook endpoint in your Stripe live mode dashboard. The URL should point to your production application's webhook handler (`https://<your-production-domain>/api/webhooks/stripe`).
-  - You will get a new webhook signing secret that you must update in your environment variables (`STRIPE_WEBHOOK_SECRET`).
-- **Products and Prices:**
-  - Any products and subscription prices you created in test mode need to be recreated in live mode.
-  - Update the price IDs in your application code or environment variables to use the new live mode price IDs.
-
-By default, the Clerk and Stripe accounts are in a development setup. The accounts store user authentication information and payment details respectively. No sensitive user information is stored on our end. To move to production, you would need to switch to a production instance on Clerk and activate your Stripe account to live mode. This would involve updating the API keys and webhook endpoints in the environment variables to reflect the production values.
+- `401 Unauthorized or missing linked profile`
+  - Clerk/Supabase user exists but no matching profile row.
+  - Ensure profile row exists and is linkable via `clerk_user_id` or email.
