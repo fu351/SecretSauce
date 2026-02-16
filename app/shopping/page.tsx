@@ -186,7 +186,8 @@ export default function ShoppingPage() {
     try {
       toast({ title: "Processing...", description: "Creating your delivery order" })
 
-      const deliverySelections = bestStore.items
+      // Build cart entries with price verification data for bulk delivery log
+      const cartEntries = bestStore.items
         .flatMap(item => {
           if (!item.productMappingId) return []
           const sourceIds = item.shoppingItemIds?.length ? item.shoppingItemIds : [item.shoppingItemId]
@@ -195,35 +196,54 @@ export default function ShoppingPage() {
             .filter((id) => id.length > 0)
 
           return normalizedIds.map((shoppingItemId) => ({
-            shoppingItemId,
-            productMappingId: item.productMappingId!,
+            item_id: shoppingItemId,
+            product_id: item.productMappingId!,
+            num_pkgs: item.packagesToBuy || item.quantity || 1,
+            frontend_price: typeof item.price === "number" ? item.price : 0,
           }))
         })
         .filter(
-          (selection, index, arr) =>
+          (entry, index, arr) =>
             arr.findIndex(
               (candidate) =>
-                candidate.shoppingItemId === selection.shoppingItemId &&
-                candidate.productMappingId === selection.productMappingId
+                candidate.item_id === entry.item_id &&
+                candidate.product_id === entry.product_id
             ) === index
         )
 
-      if (deliverySelections.length === 0) {
+      if (cartEntries.length === 0) {
         throw new Error("No items were added to delivery log")
       }
 
-      // order_id is assigned automatically by DB trigger — safe to run in parallel
-      const results = await Promise.all(
-        deliverySelections.map(selection =>
-          storeListHistoryDB.addToDeliveryLog(selection.shoppingItemId, selection.productMappingId)
-        )
-      )
+      // Use bulk function with server-side price verification
+      const results = await storeListHistoryDB.bulkAddToDeliveryLog(cartEntries)
 
-      const orderId = results.find(id => id !== null) ?? null
-      const addedCount = results.filter(id => id !== null).length
+      // Check for price mismatches (fraud detection)
+      const priceMismatches = results.filter(r => r.success && !r.price_matched)
+      if (priceMismatches.length > 0) {
+        console.warn("[shopping] Price mismatches detected:", priceMismatches)
+      }
+
+      // Count successful additions
+      const successfulResults = results.filter(r => r.success)
+      const addedCount = successfulResults.length
+
+      if (addedCount === 0) {
+        throw new Error("No items were added to delivery log")
+      }
+
+      // Fetch order_id from first successful entry (assigned by DB trigger)
+      // All items in the same batch should have the same order_id
+      const firstItemId = successfulResults[0]?.shopping_list_item_id
+      let orderId: string | null = null
+
+      if (firstItemId) {
+        const logEntries = await storeListHistoryDB.findByUserId(user?.id || "", { limit: 1 })
+        orderId = logEntries[0]?.order_id || null
+      }
 
       if (!orderId) {
-        throw new Error("No items were added to delivery log")
+        throw new Error("Failed to retrieve order ID")
       }
 
       // Success! Redirect to order detail page

@@ -1063,14 +1063,6 @@ export type Database = {
         }
         Returns: Database["public"]["Tables"]["ingredient_match_queue"]["Row"][]
       }
-      fn_add_to_delivery_log: {
-        Args: {
-          p_shopping_list_item_id: string
-          p_product_mapping_id: string
-          p_delivery_date: string | null
-        }
-        Returns: string
-      }
       fn_bulk_add_to_delivery_log: {
         Args: {
           p_entries: Array<{

@@ -71,40 +71,6 @@ class StoreListHistoryTable extends BaseTable<
   }
 
   /**
-   * Add a product from ingredients_recent to the delivery log
-   * Calls fn_add_to_delivery_log RPC function
-   *
-   * This function:
-   * - Accepts ANY product from ingredients_recent (not just cached ones)
-   * - Validates the product matches the shopping list item's ingredient
-   * - Creates or updates the delivery log entry
-   * - Accumulates quantity on conflicts
-   *
-   * @param shoppingListItemId - UUID of the shopping list item
-   * @param productMappingId - UUID of the product mapping from ingredients_recent
-   * @param deliveryDate - Optional delivery date (defaults to today)
-   * @returns UUID of the created/updated log entry, or null on error
-   */
-  async addToDeliveryLog(
-    shoppingListItemId: string,
-    productMappingId: string,
-    deliveryDate?: string
-  ): Promise<string | null> {
-    const { data, error } = await this.supabase.rpc("fn_add_to_delivery_log", {
-      p_shopping_list_item_id: shoppingListItemId,
-      p_product_mapping_id: productMappingId,
-      p_delivery_date: deliveryDate || null,
-    })
-
-    if (error) {
-      this.handleError(error, "addToDeliveryLog")
-      return null
-    }
-
-    return data
-  }
-
-  /**
    * Bulk add multiple items to delivery log with server-side price verification
    * Calls fn_bulk_add_to_delivery_log RPC function
    *
