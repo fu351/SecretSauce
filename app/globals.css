@@ -372,11 +372,17 @@ html:not(.dark) .tutorial-highlight {
 /* Floating price tags */
 @keyframes landing-float {
   0%, 100% { transform: translateY(0) rotate(var(--tag-rotate, 0deg)); }
-  50% { transform: translateY(-8px) rotate(var(--tag-rotate, 0deg)); }
+  50% { transform: translateY(-10px) rotate(var(--tag-rotate, 0deg)); }
 }
 
 .landing-float-tag {
-  animation: landing-float 3s ease-in-out infinite;
+  animation: landing-float 3.5s ease-in-out infinite;
+}
+
+/* Gold leaf shimmer for illustrations */
+@keyframes landing-shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
 }
 
 /* Respect reduced motion */

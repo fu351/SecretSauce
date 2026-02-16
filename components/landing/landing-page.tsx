@@ -28,9 +28,9 @@ export function LandingPage() {
   }, [])
 
   return (
-    <div className="relative min-h-screen bg-[#0B0B0B] overflow-hidden">
+    <div className="relative min-h-screen bg-[#0B0B0B] overflow-x-hidden">
       {/* Subtle noise texture */}
-      <div className="fixed inset-0 opacity-[0.02] pointer-events-none z-0">
+      <div className="fixed inset-0 opacity-[0.015] pointer-events-none z-0">
         <div
           className="absolute inset-0"
           style={{
@@ -40,18 +40,18 @@ export function LandingPage() {
         />
       </div>
 
-      {/* Golden vine - only on desktop */}
+      {/* Golden vine - desktop only */}
       <GoldenVine />
 
-      {/* ───────── HERO ───────── */}
+      {/* ═══════════ HERO ═══════════ */}
       <section className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
         <div
           className={`text-center transition-all duration-1000 ${
-            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+            mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
           }`}
         >
-          {/* Logo / Bottle */}
-          <div className="mb-8 flex justify-center">
+          {/* Bottle / Logo */}
+          <div className="mb-6 md:mb-8 flex justify-center">
             <div className="relative">
               <Image
                 src="/logo-dark.png"
@@ -61,36 +61,46 @@ export function LandingPage() {
                 className="opacity-90"
                 priority
               />
-              {/* Golden drip below logo */}
-              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-px h-10 bg-gradient-to-b from-[#D4AF37] to-transparent opacity-60" />
+              {/* Golden drip below bottle */}
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
+                <svg width="6" height="32" viewBox="0 0 6 32" fill="none">
+                  <path
+                    d="M3 0 C3 8 1 14 3 20 C4.5 26 3 32 3 32"
+                    stroke="#D4AF37"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    opacity="0.6"
+                  />
+                  <circle cx="3" cy="30" r="2.5" fill="#D4AF37" opacity="0.5" />
+                </svg>
+              </div>
             </div>
           </div>
 
-          <h1 className="text-4xl md:text-5xl lg:text-7xl font-serif font-light tracking-tight leading-tight mb-5 text-[#F5F2E8] text-balance">
+          <h1 className="text-4xl md:text-5xl lg:text-7xl font-serif font-bold tracking-tight leading-[1.1] mb-4 md:mb-5 text-[#F5F2E8] text-balance">
             The secret to
             <br />
             better meals
           </h1>
 
-          <p className="text-sm md:text-base lg:text-lg font-light tracking-wide text-[#CFC6B0]/60 mb-10">
+          <p className="text-sm md:text-base lg:text-lg font-light tracking-wide text-[#CFC6B0]/50 mb-8 md:mb-10">
             Save your health, money, and time.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <div className="flex flex-col items-center gap-3">
             <Button
               size={isMobile ? "default" : "lg"}
-              className="px-8 md:px-10 py-5 md:py-6 text-sm md:text-base font-normal bg-gradient-to-b from-[#D4AF37] to-[#B8962E] text-[#0B0B0B] hover:from-[#E0BF4A] hover:to-[#C5A028] shadow-lg shadow-[#D4AF37]/20 transition-all duration-300 rounded-xl"
+              className="px-8 md:px-10 py-5 md:py-6 text-sm md:text-base font-normal border border-[#D4AF37]/60 bg-transparent text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all duration-300 rounded-xl"
               asChild
             >
               <Link href="/auth/signup">
                 Get Early Access
-                <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button
               size={isMobile ? "default" : "lg"}
               variant="ghost"
-              className="px-8 md:px-10 py-5 md:py-6 text-sm md:text-base font-light text-[#CFC6B0]/50 hover:text-[#F5F2E8] hover:bg-transparent transition-all duration-300"
+              className="px-8 md:px-10 py-4 md:py-5 text-sm md:text-base font-light text-[#CFC6B0]/40 hover:text-[#F5F2E8] hover:bg-transparent transition-all duration-300"
               asChild
             >
               <Link href="/auth/signin">Sign In</Link>
@@ -105,7 +115,7 @@ export function LandingPage() {
           }`}
         >
           <div className="flex flex-col items-center gap-2">
-            <span className="text-[10px] tracking-[0.3em] uppercase text-[#D4AF37]/30 font-light">
+            <span className="text-[10px] tracking-[0.3em] uppercase text-[#D4AF37]/25 font-light">
               Scroll
             </span>
             <div className="w-px h-8 bg-gradient-to-b from-[#D4AF37]/40 to-transparent landing-scroll-pulse" />
@@ -113,10 +123,11 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ───────── SECTION 1: Decision Anxiety ───────── */}
+      {/* ═══════════ SECTION 1: Decision Anxiety ═══════════ */}
       <ScrollSection
         label="Section 1 — Decision Anxiety"
         headline="You shouldn't have to think this hard about food."
+        caption="Decision fatigue starts here."
         align="left"
         accent={<DecisionFatigueIllustration />}
         body={
@@ -133,31 +144,33 @@ export function LandingPage() {
         }
       />
 
-      {/* ───────── SECTION 2: Recipe Friction ───────── */}
+      {/* ═══════════ SECTION 2: Recipe Friction ═══════════ */}
       <ScrollSection
         label="Section 2 — Recipe Discovery Friction"
         headline="Recipes don't work in real life."
+        caption="Discovery without execution."
         align="right"
         accent={<RecipeFrictionIllustration />}
         body={
           <>
             <p>
-              You find something you want to cook. Then realize you don{"'"}t have
-              the ingredients. Or they cost too much. Or you{"'"}ll only use them
-              once.
+              You find something you want to cook. Then realize you don{"'"}t
+              have the ingredients. Or they cost too much. Or you{"'"}ll only use
+              them once.
             </p>
             <p>
-              So you abandon it. Not because you didn{"'"}t want to cook — because
-              it didn{"'"}t fit your reality.
+              So you abandon it. Not because you didn{"'"}t want to cook —
+              because it didn{"'"}t fit your reality.
             </p>
           </>
         }
       />
 
-      {/* ───────── SECTION 3: Grocery Cost ───────── */}
+      {/* ═══════════ SECTION 3: Grocery Cost ═══════════ */}
       <ScrollSection
         label="Section 3 — Grocery Cost Pain"
         headline="Groceries are more expensive than they should be."
+        caption="Costs rise silently."
         align="left"
         accent={<FloatingPriceTags />}
         body={
@@ -169,62 +182,68 @@ export function LandingPage() {
             <p>
               Students quietly overspend every week — without realizing it.
             </p>
-            <p className="text-[#D4AF37]/40 text-sm italic">
-              Costs rise silently.
-            </p>
           </>
         }
       />
 
-      {/* ───────── SECTION 4: Pantry Disconnect ───────── */}
+      {/* ═══════════ SECTION 4: Pantry Disconnect ═══════════ */}
       <ScrollSection
         label="Section 4 — Food Waste and Pantry Disconnect"
         headline="You forget what you already have."
+        caption="Waste becomes normal."
         align="right"
         accent={<PantryDisconnectIllustration />}
         body={
           <>
-            <p>
-              Ingredients expire. Food sits unused. Money gets wasted.
-            </p>
+            <p>Ingredients expire. Food sits unused. Money gets wasted.</p>
             <p>
               Not because you didn{"'"}t care — because nothing was helping you
               manage it.
-            </p>
-            <p className="text-[#D4AF37]/40 text-sm italic">
-              Waste becomes normal.
             </p>
           </>
         }
       />
 
-      {/* ───────── SECTION 5: Secret Sauce Awakens ───────── */}
+      {/* ═══════════ SECTION 5: Secret Sauce Awakens ═══════════ */}
       <ScrollSection
         label="Section 5 — Secret Sauce Awakens"
         headline="Secret Sauce connects everything."
+        caption="Intelligence replaces guesswork."
         align="left"
         accent={<ConnectsEverythingIllustration />}
         body={
           <>
             <p>It understands:</p>
-            <ul className="list-disc list-inside space-y-1 ml-1">
-              <li>What you like.</li>
-              <li>What you can afford.</li>
-              <li>What you already have.</li>
-              <li>What actually makes sense.</li>
+            <ul className="space-y-1.5 ml-0.5">
+              <li className="flex items-start gap-2">
+                <span className="text-[#D4AF37]/50 mt-0.5">{">"}</span>
+                What you like.
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#D4AF37]/50 mt-0.5">{">"}</span>
+                What you can afford.
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#D4AF37]/50 mt-0.5">{">"}</span>
+                What you already have.
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#D4AF37]/50 mt-0.5">{">"}</span>
+                What actually makes sense.
+              </li>
             </ul>
-            <p className="mt-2">And builds around you.</p>
-            <p className="text-[#D4AF37]/40 text-sm italic">
-              Intelligence replaces guesswork.
+            <p className="mt-3 font-medium text-[#F5F2E8]">
+              And builds around you.
             </p>
           </>
         }
       />
 
-      {/* ───────── SECTION 6: Automatic Planning ───────── */}
+      {/* ═══════════ SECTION 6: Automatic Planning ═══════════ */}
       <ScrollSection
         label="Section 6 — Automatic Meal Planning"
         headline="Meals plan themselves."
+        caption="Planning without effort."
         align="right"
         accent={<MealPlanIllustration />}
         body={
@@ -232,25 +251,39 @@ export function LandingPage() {
             <p>
               Secret Sauce builds personalized meal plans based on:
             </p>
-            <ul className="list-disc list-inside space-y-1 ml-1">
-              <li>Your budget</li>
-              <li>Your taste</li>
-              <li>Your schedule</li>
-              <li>Your goals</li>
+            <ul className="space-y-1.5 ml-0.5">
+              <li className="flex items-start gap-2">
+                <span className="text-[#D4AF37]/50 mt-0.5">{">"}</span>
+                Your budget
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#D4AF37]/50 mt-0.5">{">"}</span>
+                Your taste
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#D4AF37]/50 mt-0.5">{">"}</span>
+                Your schedule
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#D4AF37]/50 mt-0.5">{">"}</span>
+                Your goals
+              </li>
             </ul>
-            <p className="mt-2 font-medium text-[#F5F2E8]">
+            <p className="mt-3 font-medium text-[#F5F2E8]">
               Everything connects.
             </p>
           </>
         }
       />
 
-      {/* ───────── SECTION 7: Cost Optimization ───────── */}
+      {/* ═══════════ SECTION 7: Cost Optimization (WARM BG) ═══════════ */}
       <ScrollSection
         label="Section 7 — Cost Optimization and Financial Relief"
         headline="You stop overpaying."
+        caption="Control replaces uncertainty."
         align="left"
         accent={<CostOptimizationIllustration />}
+        warmBg
         body={
           <>
             <p>
@@ -258,14 +291,11 @@ export function LandingPage() {
               maximize efficiency. You buy exactly what you need.
             </p>
             <p>Nothing wasted. Nothing unnecessary.</p>
-            <p className="text-[#D4AF37]/40 text-sm italic">
-              Control replaces uncertainty.
-            </p>
           </>
         }
       />
 
-      {/* ───────── SECTION 8: Outcome ───────── */}
+      {/* ═══════════ SECTION 8: Outcome ═══════════ */}
       <ScrollSection
         label="Section 8 — Outcome and Student Empowerment"
         headline="Eating well becomes effortless."
@@ -273,11 +303,10 @@ export function LandingPage() {
         accent={<EffortlessIllustration />}
         body={
           <>
+            <p>You spend less. Waste less. Think less.</p>
             <p>
-              You spend less. Waste less. Think less.
-            </p>
-            <p>
-              The system works quietly in the background. You just live your life.
+              The system works quietly in the background. You just live your
+              life.
             </p>
             <p className="font-medium text-[#F5F2E8]">
               The system works for you.
@@ -286,35 +315,74 @@ export function LandingPage() {
         }
       />
 
-      {/* ───────── FINAL CTA ───────── */}
-      <section className="relative z-10 min-h-[60vh] flex flex-col items-center justify-center px-6 py-24">
-        {/* Warm gradient background for final section */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#1a1508]/80 via-transparent to-transparent" />
+      {/* ═══════════ FINAL CTA: Vine flows back into bottle ═══════════ */}
+      <section className="relative z-10 min-h-[70vh] flex flex-col items-center justify-center px-6 py-24 md:py-32">
+        {/* Warm radial glow behind the bottle */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-[#D4AF37]/[0.04] blur-[100px]" />
+        </div>
 
-        <div className="relative z-10 text-center max-w-2xl mx-auto">
-          {/* Logo */}
-          <div className="mb-8 flex justify-center">
-            <Image
-              src="/logo-dark.png"
-              alt="Secret Sauce"
-              width={80}
-              height={80}
-              className="opacity-80"
-            />
+        <div className="relative z-10 flex flex-col items-center text-center max-w-2xl mx-auto">
+          {/* Vine flowing INTO the bottle from above */}
+          <div className="mb-2 relative">
+            <svg
+              width="80"
+              height="80"
+              viewBox="0 0 80 80"
+              fill="none"
+              className="mx-auto opacity-50"
+            >
+              {/* Vine dripping down into bottle opening */}
+              <path
+                d="M40 0 C38 15 42 25 40 35 C38 45 40 55 40 70"
+                stroke="#D4AF37"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              {/* Small leaves on the entering vine */}
+              <path
+                d="M40 15 C46 10 50 14 46 20"
+                fill="#D4AF37"
+                opacity="0.5"
+              />
+              <path
+                d="M40 30 C34 26 30 30 34 36"
+                fill="#D4AF37"
+                opacity="0.4"
+              />
+              {/* Glow at entry point */}
+              <circle cx="40" cy="68" r="4" fill="#D4AF37" opacity="0.3" />
+              <circle cx="40" cy="68" r="2" fill="#F5E6A3" opacity="0.6" />
+            </svg>
           </div>
 
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif font-light tracking-tight text-[#F5F2E8] mb-6 text-balance">
+          {/* Bottle */}
+          <div className="mb-8 flex justify-center relative">
+            <div className="relative">
+              <Image
+                src="/logo-dark.png"
+                alt="Secret Sauce"
+                width={isMobile ? 80 : 100}
+                height={isMobile ? 80 : 100}
+                className="opacity-85"
+              />
+              {/* Glow behind bottle */}
+              <div className="absolute inset-0 -z-10 rounded-full bg-[#D4AF37]/[0.08] blur-xl scale-150" />
+            </div>
+          </div>
+
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold tracking-tight text-[#F5F2E8] mb-5 text-balance">
             This is the secret.
           </h2>
 
-          <p className="text-[#CFC6B0]/60 text-base md:text-lg font-light mb-10 max-w-lg mx-auto">
+          <p className="text-[#CFC6B0]/50 text-base md:text-lg font-light mb-10 max-w-lg mx-auto leading-relaxed">
             Built for students who want to eat better, spend less, and stop
             worrying about food.
           </p>
 
           <Button
             size="lg"
-            className="px-10 py-6 text-base font-normal bg-gradient-to-b from-[#D4AF37] to-[#B8962E] text-[#0B0B0B] hover:from-[#E0BF4A] hover:to-[#C5A028] shadow-lg shadow-[#D4AF37]/20 transition-all duration-300 rounded-xl"
+            className="px-10 py-6 text-base font-normal bg-gradient-to-b from-[#D4AF37] to-[#B8962E] text-[#0B0B0B] hover:from-[#E0BF4A] hover:to-[#C5A028] shadow-lg shadow-[#D4AF37]/20 hover:shadow-[#D4AF37]/30 transition-all duration-300 rounded-xl"
             asChild
           >
             <Link href="/auth/signup">
@@ -330,7 +398,7 @@ export function LandingPage() {
       </section>
 
       {/* Footer spacer */}
-      <div className="h-16" />
+      <div className="h-12" />
     </div>
   )
 }
