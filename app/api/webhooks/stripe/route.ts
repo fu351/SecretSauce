@@ -29,14 +29,14 @@ export async function POST(req: Request) {
   // Cast event data to Stripe object.
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const clerkUserId = session.metadata?.clerkUserId;
+    const userId = session.metadata?.userId;
 
-    if (clerkUserId) {
-      console.log(`💰 Payment successful for user ${clerkUserId}`);
+    if (userId) {
+      console.log(`💰 Payment successful for user ${userId}`);
       // TODO: Add your business logic here.
       // e.g., update your database, grant access to a service, etc.
     } else {
-        console.log(`💰 Payment successful but no clerkUserId found in metadata`);
+        console.log(`💰 Payment successful but no userId found in metadata`);
     }
   } else {
     console.warn(`🤷‍♀️ Unhandled event type: ${event.type}`);
