@@ -90,7 +90,9 @@ export default function SignInPage() {
             </Label>
             <Input
               id="email"
+              name="email"
               type="email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
@@ -104,7 +106,9 @@ export default function SignInPage() {
             </Label>
             <Input
               id="password"
+              name="password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
