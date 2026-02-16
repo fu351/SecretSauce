@@ -123,6 +123,9 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* Spacer to let vine establish before content */}
+      <div className="h-16 md:h-24" />
+
       {/* ═══════════ SECTION 1: Decision Anxiety ═══════════ */}
       <ScrollSection
         label="Section 1 — Decision Anxiety"
@@ -315,59 +318,27 @@ export function LandingPage() {
         }
       />
 
-      {/* ═══════════ FINAL CTA: Vine flows back into bottle ═══════════ */}
-      <section className="relative z-10 min-h-[70vh] flex flex-col items-center justify-center px-6 py-24 md:py-32">
+      {/* ═══════════ FINAL CTA: Vine terminates at the bottle ═══════════ */}
+      <section className="relative z-10 min-h-[80vh] flex flex-col items-center justify-center px-6 py-32 md:py-44">
         {/* Warm radial glow behind the bottle */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-[#D4AF37]/[0.04] blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-[#D4AF37]/[0.05] blur-[120px]" />
         </div>
 
         <div className="relative z-10 flex flex-col items-center text-center max-w-2xl mx-auto">
-          {/* Vine flowing INTO the bottle from above */}
-          <div className="mb-2 relative">
-            <svg
-              width="80"
-              height="80"
-              viewBox="0 0 80 80"
-              fill="none"
-              className="mx-auto opacity-50"
-            >
-              {/* Vine dripping down into bottle opening */}
-              <path
-                d="M40 0 C38 15 42 25 40 35 C38 45 40 55 40 70"
-                stroke="#D4AF37"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-              {/* Small leaves on the entering vine */}
-              <path
-                d="M40 15 C46 10 50 14 46 20"
-                fill="#D4AF37"
-                opacity="0.5"
-              />
-              <path
-                d="M40 30 C34 26 30 30 34 36"
-                fill="#D4AF37"
-                opacity="0.4"
-              />
-              {/* Glow at entry point */}
-              <circle cx="40" cy="68" r="4" fill="#D4AF37" opacity="0.3" />
-              <circle cx="40" cy="68" r="2" fill="#F5E6A3" opacity="0.6" />
-            </svg>
-          </div>
-
-          {/* Bottle */}
-          <div className="mb-8 flex justify-center relative">
+          {/* Bottle — the vine path in the SVG ends right here */}
+          <div className="mb-10 flex justify-center relative">
             <div className="relative">
+              {/* Multi-layered glow behind bottle */}
+              <div className="absolute inset-0 -z-10 rounded-full bg-[#D4AF37]/[0.06] blur-2xl scale-[2]" />
+              <div className="absolute inset-0 -z-10 rounded-full bg-[#D4AF37]/[0.12] blur-xl scale-[1.5]" />
               <Image
                 src="/logo-dark.png"
                 alt="Secret Sauce"
-                width={isMobile ? 80 : 100}
-                height={isMobile ? 80 : 100}
-                className="opacity-85"
+                width={isMobile ? 90 : 110}
+                height={isMobile ? 90 : 110}
+                className="opacity-90"
               />
-              {/* Glow behind bottle */}
-              <div className="absolute inset-0 -z-10 rounded-full bg-[#D4AF37]/[0.08] blur-xl scale-150" />
             </div>
           </div>
 
@@ -398,7 +369,7 @@ export function LandingPage() {
       </section>
 
       {/* Footer spacer */}
-      <div className="h-12" />
+      <div className="h-8" />
     </div>
   )
 }

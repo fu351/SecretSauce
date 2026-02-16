@@ -47,7 +47,7 @@ export function ScrollSection({
   return (
     <section
       ref={sectionRef}
-      className={`relative min-h-[80vh] flex items-center px-6 md:px-16 lg:px-24 py-20 md:py-32 ${className}`}
+      className={`relative min-h-[90vh] flex items-center px-6 md:px-16 lg:px-24 py-28 md:py-40 ${className}`}
     >
       {/* Warm amber background for highlighted sections */}
       {warmBg && (
