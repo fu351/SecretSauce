@@ -358,15 +358,14 @@ html:not(.dark) .tutorial-highlight {
 
 /* ───────── Landing Page Animations ───────── */
 
-/* Scroll indicator pulse */
-@keyframes landing-scroll-pulse {
-  0%, 100% { opacity: 0.4; transform: scaleY(1); }
-  50% { opacity: 0.1; transform: scaleY(0.6); }
+/* Slow breathing for scroll-down indicator */
+@keyframes landing-scroll-breathe {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.35; transform: translateY(6px); }
 }
 
-.landing-scroll-pulse {
-  animation: landing-scroll-pulse 2s ease-in-out infinite;
-  transform-origin: top;
+.landing-scroll-breathe {
+  animation: landing-scroll-breathe 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 /* Floating price tags */
@@ -379,15 +378,9 @@ html:not(.dark) .tutorial-highlight {
   animation: landing-float 3.5s ease-in-out infinite;
 }
 
-/* Gold leaf shimmer for illustrations */
-@keyframes landing-shimmer {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.8; }
-}
-
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .landing-scroll-pulse,
+  .landing-scroll-breathe,
   .landing-float-tag {
     animation: none !important;
   }

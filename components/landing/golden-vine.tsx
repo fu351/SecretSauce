@@ -3,24 +3,36 @@
 import { useEffect, useRef, useCallback } from "react"
 
 /* ──────────────────────────────────────────────────────────────
-   Golden Vine — Apple-level scroll-driven SVG.
+   Golden Vine  — ornate SVG spine with sauce-flow highlight.
 
-   - preserveAspectRatio="xMidYMin meet" on a centred column
-     so nothing stretches.
-   - Full vine structure always visible at low opacity.
-   - requestAnimationFrame + lerp for 60 fps buttery animation.
-   - Flow paths updated via direct DOM style manipulation.
-   - Leaves rotated to follow branch direction (tangent-aligned).
+   Architecture
+   ────────────
+   1. A centred, fixed-width SVG column (`preserveAspectRatio =
+      xMidYMin meet`) so nothing is horizontally stretched.
+   2. The full vine (trunk, secondary strand, branches, tendrils,
+      leaves, nodes) is always rendered at LOW opacity — the
+      "embossed gold filigree" look.
+   3. On top, four "flow" path layers (ambient glow → main trail →
+      bright leading edge → cream core) trace the trunk using
+      `strokeDasharray`.  A requestAnimationFrame + lerp loop
+      updates these via direct DOM style writes for 60 fps.
+   4. Branches, tendrils, and nodes illuminate as the flow passes
+      their Y-position.
+   5. The vine fades in from 0 opacity once the user starts
+      scrolling (controlled via `--vine-opacity` CSS var).
+   6. Leaves use `translate → rotate → scale` with the rotation
+      following the tangent of their parent branch so they always
+      point naturally along the vine.
    ────────────────────────────────────────────────────────────── */
 
 const VW = 240
 const VH = 8400
 
-/* ── Leaf ── */
+/* ── Leaf shape (pointing upward along local Y-axis) ── */
 const LEAF = "M0,-1 C3,-5 4,-12 2,-18 C1,-20 -1,-20 -2,-18 C-4,-12 -3,-5 0,-1Z"
 const LEAF_VEIN = "M0,-2 L0,-17"
 
-/* ── Trunk ── */
+/* ── Main trunk path — organic S-curves ── */
 const TRUNK = [
   "M120,0",
   "C120,80 118,140 116,200",
@@ -45,7 +57,7 @@ const TRUNK = [
   "C120,8050 120,8150 120,8200",
 ].join(" ")
 
-/* ── Secondary strand ── */
+/* ── Parallel secondary strand ── */
 const STRAND2 = [
   "M123,60",
   "C126,200 114,300 118,460",
@@ -68,7 +80,7 @@ const STRAND2 = [
   "C118,7500 119,7660 119,7820",
 ].join(" ")
 
-/* ── Branch type ── */
+/* ── Branch definition ── */
 interface Branch {
   y: number
   side: 1 | -1
@@ -107,7 +119,7 @@ const BRANCHES: Branch[] = [
   br(2240, -1, 58, 34, 1.5, [{ x: -52, y: -32, rot: 158, s: 1.1 }, { x: -28, y: -16, rot: 130, s: 0.7 }], ["M-30,-17 C-40,-26 -48,-20 -56,-28"], "M-52,-32 C-58,-38 -56,-50 -48,-52"),
   br(2420, 1, 50, 28, 1.2, [{ x: 44, y: -26, rot: -25, s: 0.95 }], ["M24,-14 C32,-22 42,-16 48,-24"]),
   br(2580, 1, 42, 20, 0.9, [{ x: 36, y: -18, rot: -32, s: 0.78 }], undefined, "M36,-18 C42,-24 40,-32 34,-36"),
-  br(2920, -1, 56, 32, 1.4, [{ x: -50, y: -30, rot: 152, s: 1.05 }, { x: -26, y: -14, rot: 128, s: 0.6 }], ["M-28,-15 C-36,-22 -46,-16 -52,-24"], "M-50,-30 C-56,-36 -54,-48 -46,-50"),
+  br(2920, -1, 56, 32, 1.4, [{ x: -50, y: -30, rot: 152, s: 1.05 }, { x: -26, y: -14, rot: 128, s: 0.6 }], ["M-28,-15 C-36,-22 -46,-16 -52,-24"], "M-50,-30 C-56,-38 -54,-48 -46,-50"),
   br(3100, 1, 54, 30, 1.3, [{ x: 48, y: -28, rot: -22, s: 1.0 }, { x: 24, y: -12, rot: -45, s: 0.6 }], ["M26,-13 C34,-20 44,-14 50,-22", "M48,-28 C54,-36 52,-46 44,-48"]),
   br(3280, -1, 40, 18, 0.8, [{ x: -34, y: -16, rot: 145, s: 0.75 }]),
   br(3640, 1, 60, 36, 1.6, [{ x: 54, y: -34, rot: -18, s: 1.12 }, { x: 28, y: -16, rot: -42, s: 0.7 }], ["M30,-17 C38,-24 50,-18 56,-26"], "M54,-34 C60,-40 58,-52 50,-54"),
@@ -127,6 +139,7 @@ const BRANCHES: Branch[] = [
   br(6560, -1, 18, 8, 0.35, [{ x: -14, y: -6, rot: 152, s: 0.4 }]),
 ]
 
+/* ── Standalone curling tendrils along the trunk ── */
 const TENDRILS = [
   "M120,300 C128,290 132,276 128,268 C124,260 116,262 118,270",
   "M90,820 C82,810 76,796 80,786 C84,776 92,778 90,786",
@@ -145,6 +158,7 @@ const TENDRILS = [
   "M114,6500 C118,6494 120,6484 116,6478 C112,6472 110,6478 112,6484",
 ]
 
+/* ── Glowing nodes along the trunk ── */
 const NODES = [
   { y: 340, r: 2.5 }, { y: 720, r: 3 }, { y: 1080, r: 2.5 },
   { y: 1400, r: 3 }, { y: 1760, r: 2.5 }, { y: 2100, r: 3.5 },
@@ -155,6 +169,7 @@ const NODES = [
   { y: 6440, r: 2 }, { y: 6640, r: 2 },
 ]
 
+/* Approximate trunk x at given y */
 function trunkX(y: number): number {
   const t = y / VH
   const w1 = Math.sin(t * Math.PI * 9.5) * 28
@@ -163,66 +178,89 @@ function trunkX(y: number): number {
   return 120 + (w1 + w2) * (1 - converge)
 }
 
-/* IDs for the sauce-flow path layers so we can update them in rAF */
-const FLOW_IDS = {
-  ambientGlow: "vine-flow-ambient",
-  mainTrail: "vine-flow-main",
-  brightEdge: "vine-flow-edge",
-  creamCore: "vine-flow-core",
-  secondaryStrand: "vine-flow-strand2",
-} as const
+/* Estimated total path length for the trunk */
+const TRUNK_LEN = 13000
 
 export function GoldenVine() {
   const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
   const currentProgress = useRef(0)
   const targetProgress = useRef(0)
+  const vineOpacity = useRef(0)
+  const targetVineOpacity = useRef(0)
 
   const animate = useCallback(() => {
+    /* ── Lerp progress smoothly ── */
     const diff = targetProgress.current - currentProgress.current
-    currentProgress.current += diff * 0.06
+    currentProgress.current += diff * 0.04 // slower lerp = smoother, more Apple-like
+    if (Math.abs(diff) < 0.0001) currentProgress.current = targetProgress.current
+
+    /* ── Lerp vine opacity smoothly ── */
+    const opDiff = targetVineOpacity.current - vineOpacity.current
+    vineOpacity.current += opDiff * 0.03
+    if (Math.abs(opDiff) < 0.001) vineOpacity.current = targetVineOpacity.current
+
+    const container = containerRef.current
+    if (!container) {
+      rafRef.current = requestAnimationFrame(animate)
+      return
+    }
+
+    /* Apply vine container opacity */
+    const svgEl = container.querySelector("svg")
+    if (svgEl) svgEl.style.opacity = String(vineOpacity.current)
 
     const p = currentProgress.current
-    const TRUNK_LEN = 13000
     const flow = p * TRUNK_LEN
-    const trail = TRUNK_LEN * 0.12
+    const trail = TRUNK_LEN * 0.15 // length of the bright leading edge
 
     /* ── Update flow paths via direct style ── */
-    const amb = document.getElementById(FLOW_IDS.ambientGlow)
-    const main = document.getElementById(FLOW_IDS.mainTrail)
-    const edge = document.getElementById(FLOW_IDS.brightEdge)
-    const core = document.getElementById(FLOW_IDS.creamCore)
-    const s2 = document.getElementById(FLOW_IDS.secondaryStrand)
+    const amb = container.querySelector<SVGPathElement>("[data-flow='ambient']")
+    const main = container.querySelector<SVGPathElement>("[data-flow='main']")
+    const edge = container.querySelector<SVGPathElement>("[data-flow='edge']")
+    const core = container.querySelector<SVGPathElement>("[data-flow='core']")
+    const s2 = container.querySelector<SVGPathElement>("[data-flow='strand2']")
 
-    if (amb) amb.style.strokeDasharray = `${flow} ${TRUNK_LEN}`
-    if (main) main.style.strokeDasharray = `${flow} ${TRUNK_LEN}`
+    if (amb) {
+      amb.style.strokeDasharray = `${flow} ${TRUNK_LEN}`
+    }
+    if (main) {
+      main.style.strokeDasharray = `${flow} ${TRUNK_LEN}`
+    }
     if (edge) {
+      const edgeStart = Math.max(0, flow - trail)
       edge.style.strokeDasharray = `${trail} ${TRUNK_LEN}`
-      edge.style.strokeDashoffset = `${-(flow - trail)}`
+      edge.style.strokeDashoffset = `${-edgeStart}`
     }
     if (core) {
-      const tip = trail * 0.25
-      core.style.strokeDasharray = `${tip} ${TRUNK_LEN}`
-      core.style.strokeDashoffset = `${-(flow - tip)}`
+      const tipLen = trail * 0.3
+      const coreStart = Math.max(0, flow - tipLen)
+      core.style.strokeDasharray = `${tipLen} ${TRUNK_LEN}`
+      core.style.strokeDashoffset = `${-coreStart}`
     }
-    if (s2) s2.style.strokeDasharray = `${flow * 0.95} ${TRUNK_LEN}`
+    if (s2) {
+      s2.style.strokeDasharray = `${flow * 0.92} ${TRUNK_LEN}`
+    }
 
     /* ── Update branches, tendrils, nodes ── */
-    const container = containerRef.current
-    if (container) {
-      container.querySelectorAll<SVGGElement>("[data-by]").forEach((g) => {
-        const by = parseFloat(g.dataset.by || "0") / VH
-        g.style.opacity = String(Math.max(0, Math.min(1, (p - by * 0.88) * 6)))
-      })
-      container.querySelectorAll<SVGPathElement>("[data-ty]").forEach((el) => {
-        const ty = parseFloat(el.dataset.ty || "0") / VH
-        el.style.opacity = String(Math.max(0, Math.min(1, (p - ty * 0.88) * 5)) * 0.4)
-      })
-      container.querySelectorAll<SVGGElement>("[data-ny]").forEach((g) => {
-        const ny = parseFloat(g.dataset.ny || "0") / VH
-        g.style.opacity = String(Math.max(0, Math.min(1, (p - ny * 0.88) * 8)))
-      })
-    }
+    /* Branches illuminate when the flow reaches their Y position */
+    container.querySelectorAll<SVGGElement>("[data-by]").forEach((g) => {
+      const by = parseFloat(g.dataset.by || "0") / VH
+      const localP = (p - by * 0.9) / 0.06 // smooth ramp over 6% of progress
+      g.style.opacity = String(Math.max(0, Math.min(1, localP)))
+    })
+    /* Tendrils */
+    container.querySelectorAll<SVGPathElement>("[data-ty]").forEach((el) => {
+      const ty = parseFloat(el.dataset.ty || "0") / VH
+      const localP = (p - ty * 0.9) / 0.08
+      el.style.opacity = String(Math.max(0, Math.min(0.45, localP * 0.45)))
+    })
+    /* Nodes */
+    container.querySelectorAll<SVGGElement>("[data-ny]").forEach((g) => {
+      const ny = parseFloat(g.dataset.ny || "0") / VH
+      const localP = (p - ny * 0.9) / 0.04
+      g.style.opacity = String(Math.max(0, Math.min(1, localP)))
+    })
 
     rafRef.current = requestAnimationFrame(animate)
   }, [])
@@ -232,7 +270,14 @@ export function GoldenVine() {
     const rect = containerRef.current.getBoundingClientRect()
     const h = containerRef.current.offsetHeight
     const vh = window.innerHeight
-    targetProgress.current = Math.max(0, Math.min(1, (vh - rect.top) / (h + vh)))
+
+    /* Calculate scroll progress through the vine container */
+    const raw = (vh - rect.top) / (h + vh)
+    targetProgress.current = Math.max(0, Math.min(1, raw))
+
+    /* Vine fades in once user scrolls even a tiny amount */
+    const scrollY = window.scrollY || window.pageYOffset
+    targetVineOpacity.current = scrollY > 20 ? 1 : 0
   }, [])
 
   useEffect(() => {
@@ -251,17 +296,23 @@ export function GoldenVine() {
         viewBox={`0 0 ${VW} ${VH}`}
         preserveAspectRatio="xMidYMin meet"
         className="absolute top-0 left-1/2 -translate-x-1/2 h-full"
-        style={{ width: "min(600px, 50vw)", overflow: "visible" }}
+        style={{ width: "min(600px, 50vw)", overflow: "visible", opacity: 0 }}
       >
         <defs>
+          {/* ── Leaf template ── */}
           <g id="vL">
             <path d={LEAF} fill="currentColor" opacity="0.75" />
             <path d={LEAF_VEIN} fill="none" stroke="currentColor" strokeWidth="0.3" opacity="0.35" />
           </g>
+          {/* ── Filters ── */}
           <filter id="gS" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b1" />
             <feGaussianBlur in="SourceGraphic" stdDeviation="0.8" result="b2" />
-            <feMerge><feMergeNode in="b1" /><feMergeNode in="b2" /><feMergeNode in="SourceGraphic" /></feMerge>
+            <feMerge>
+              <feMergeNode in="b1" />
+              <feMergeNode in="b2" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
           <filter id="gW" x="-100%" y="-100%" width="300%" height="300%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
@@ -271,11 +322,14 @@ export function GoldenVine() {
           </filter>
         </defs>
 
-        {/* ═══ DIM STRUCTURE ═══ */}
-        <g opacity="0.14" style={{ color: "#D4AF37" }}>
+        {/* ═══════════ DIM STRUCTURE (always visible) ═══════════ */}
+        <g opacity="0.12" style={{ color: "#D4AF37" }}>
+          {/* Trunk */}
           <path d={TRUNK} fill="none" stroke="#D4AF37" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Secondary strand */}
           <path d={STRAND2} fill="none" stroke="#D4AF37" strokeWidth="0.7" strokeLinecap="round" opacity="0.5" />
 
+          {/* Branches */}
           {BRANCHES.map((b, i) => (
             <g key={`d${i}`} transform={`translate(${trunkX(b.y)},${b.y})`}>
               <path d={b.path} fill="none" stroke="#D4AF37" strokeWidth="1.2" strokeLinecap="round" />
@@ -289,55 +343,64 @@ export function GoldenVine() {
             </g>
           ))}
 
-          {TENDRILS.map((d, i) => <path key={`t${i}`} d={d} fill="none" stroke="#D4AF37" strokeWidth="0.5" strokeLinecap="round" />)}
-          {NODES.map((n, i) => <circle key={`n${i}`} cx={trunkX(n.y)} cy={n.y} r={n.r} fill="#D4AF37" />)}
+          {/* Tendrils */}
+          {TENDRILS.map((d, i) => (
+            <path key={`t${i}`} d={d} fill="none" stroke="#D4AF37" strokeWidth="0.5" strokeLinecap="round" />
+          ))}
+
+          {/* Nodes */}
+          {NODES.map((n, i) => (
+            <circle key={`n${i}`} cx={trunkX(n.y)} cy={n.y} r={n.r} fill="#D4AF37" />
+          ))}
         </g>
 
-        {/* ═══ SAUCE FLOW ═══ */}
-        {/* Ambient glow */}
-        <path id={FLOW_IDS.ambientGlow} d={TRUNK} fill="none" stroke="#D4AF37" strokeWidth="8" strokeLinecap="round" filter="url(#gW)" opacity="0.06" style={{ strokeDasharray: "0 13000" }} />
-        {/* Main trail */}
-        <path id={FLOW_IDS.mainTrail} d={TRUNK} fill="none" stroke="#D4AF37" strokeWidth="2.2" strokeLinecap="round" opacity="0.5" style={{ strokeDasharray: "0 13000" }} />
-        {/* Bright leading edge */}
-        <path id={FLOW_IDS.brightEdge} d={TRUNK} fill="none" stroke="#FFCC44" strokeWidth="1.6" strokeLinecap="round" filter="url(#gS)" opacity="0.7" style={{ strokeDasharray: "1560 13000", strokeDashoffset: "0" }} />
-        {/* Cream core */}
-        <path id={FLOW_IDS.creamCore} d={TRUNK} fill="none" stroke="#FFF8DC" strokeWidth="0.7" strokeLinecap="round" filter="url(#gS)" opacity="0.55" style={{ strokeDasharray: "390 13000", strokeDashoffset: "0" }} />
-        {/* Secondary strand */}
-        <path id={FLOW_IDS.secondaryStrand} d={STRAND2} fill="none" stroke="#D4AF37" strokeWidth="0.9" strokeLinecap="round" opacity="0.25" style={{ strokeDasharray: "0 13000" }} />
+        {/* ═══════════ SAUCE FLOW LAYERS ═══════════ */}
+        {/* 1. Wide ambient glow */}
+        <path data-flow="ambient" d={TRUNK} fill="none" stroke="#D4AF37" strokeWidth="10" strokeLinecap="round" filter="url(#gW)" opacity="0.06" style={{ strokeDasharray: `0 ${TRUNK_LEN}` }} />
+        {/* 2. Main trail */}
+        <path data-flow="main" d={TRUNK} fill="none" stroke="#D4AF37" strokeWidth="2.2" strokeLinecap="round" opacity="0.45" style={{ strokeDasharray: `0 ${TRUNK_LEN}` }} />
+        {/* 3. Bright leading edge */}
+        <path data-flow="edge" d={TRUNK} fill="none" stroke="#FFCC44" strokeWidth="1.6" strokeLinecap="round" filter="url(#gS)" opacity="0.65" style={{ strokeDasharray: `0 ${TRUNK_LEN}`, strokeDashoffset: "0" }} />
+        {/* 4. Cream-white core (tip only) */}
+        <path data-flow="core" d={TRUNK} fill="none" stroke="#FFF8DC" strokeWidth="0.7" strokeLinecap="round" filter="url(#gS)" opacity="0.5" style={{ strokeDasharray: `0 ${TRUNK_LEN}`, strokeDashoffset: "0" }} />
+        {/* 5. Secondary strand flow */}
+        <path data-flow="strand2" d={STRAND2} fill="none" stroke="#D4AF37" strokeWidth="0.9" strokeLinecap="round" opacity="0.2" style={{ strokeDasharray: `0 ${TRUNK_LEN}` }} />
 
-        {/* ═══ ILLUMINATED BRANCHES ═══ */}
+        {/* ═══════════ ILLUMINATED BRANCHES ═══════════ */}
         {BRANCHES.map((b, i) => (
           <g key={`l${i}`} data-by={b.y} transform={`translate(${trunkX(b.y)},${b.y})`} opacity="0" style={{ color: "#D4AF37" }}>
             <path d={b.path} fill="none" stroke="#D4AF37" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-            <path d={b.path} fill="none" stroke="#FFCC44" strokeWidth="0.7" strokeLinecap="round" filter="url(#gS)" opacity="0.35" />
+            <path d={b.path} fill="none" stroke="#FFCC44" strokeWidth="0.7" strokeLinecap="round" filter="url(#gS)" opacity="0.3" />
             {b.subs?.map((s, j) => (
               <g key={j}>
                 <path d={s} fill="none" stroke="#D4AF37" strokeWidth="0.9" strokeLinecap="round" opacity="0.4" />
-                <path d={s} fill="none" stroke="#FFCC44" strokeWidth="0.4" strokeLinecap="round" filter="url(#gS)" opacity="0.25" />
+                <path d={s} fill="none" stroke="#FFCC44" strokeWidth="0.4" strokeLinecap="round" filter="url(#gS)" opacity="0.2" />
               </g>
             ))}
-            {b.tendril && <path d={b.tendril} fill="none" stroke="#FFCC44" strokeWidth="0.4" strokeLinecap="round" opacity="0.25" />}
+            {b.tendril && <path d={b.tendril} fill="none" stroke="#FFCC44" strokeWidth="0.4" strokeLinecap="round" opacity="0.2" />}
             {b.leaves.map((l, j) => (
               <g key={j} transform={`translate(${l.x},${l.y}) rotate(${l.rot}) scale(${l.s})`}>
-                <use href="#vL" style={{ color: "#FFCC44" }} opacity="0.6" />
+                <use href="#vL" style={{ color: "#FFCC44" }} opacity="0.55" />
               </g>
             ))}
           </g>
         ))}
 
-        {/* ═══ ILLUMINATED TENDRILS ═══ */}
+        {/* ═══════════ ILLUMINATED TENDRILS ═══════════ */}
         {TENDRILS.map((d, i) => {
           const m = d.match(/M[\d.]+,([\d.]+)/)
-          return <path key={`lt${i}`} data-ty={m ? m[1] : "0"} d={d} fill="none" stroke="#FFCC44" strokeWidth="0.5" strokeLinecap="round" opacity="0" />
+          return (
+            <path key={`lt${i}`} data-ty={m ? m[1] : "0"} d={d} fill="none" stroke="#FFCC44" strokeWidth="0.5" strokeLinecap="round" opacity="0" />
+          )
         })}
 
-        {/* ═══ ILLUMINATED NODES ═══ */}
+        {/* ═══════════ ILLUMINATED NODES ═══════════ */}
         {NODES.map((n, i) => (
           <g key={`ln${i}`} data-ny={n.y} opacity="0">
             <circle cx={trunkX(n.y)} cy={n.y} r={n.r + 6} fill="#D4AF37" opacity="0.15" filter="url(#gN)" />
-            <circle cx={trunkX(n.y)} cy={n.y} r={n.r + 1.5} fill="#D4AF37" opacity="0.45" />
-            <circle cx={trunkX(n.y)} cy={n.y} r={n.r} fill="#FFCC44" opacity="0.65" />
-            <circle cx={trunkX(n.y)} cy={n.y} r={n.r * 0.35} fill="#FFF8DC" opacity="0.85" />
+            <circle cx={trunkX(n.y)} cy={n.y} r={n.r + 1.5} fill="#D4AF37" opacity="0.4" />
+            <circle cx={trunkX(n.y)} cy={n.y} r={n.r} fill="#FFCC44" opacity="0.6" />
+            <circle cx={trunkX(n.y)} cy={n.y} r={n.r * 0.35} fill="#FFF8DC" opacity="0.8" />
           </g>
         ))}
       </svg>

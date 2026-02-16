@@ -87,38 +87,36 @@ export function LandingPage() {
             Save your health, money, and time.
           </p>
 
-          <div className="flex flex-col items-center gap-3">
-            <Button
-              size={isMobile ? "default" : "lg"}
-              className="px-8 md:px-10 py-5 md:py-6 text-sm md:text-base font-normal border border-[#D4AF37]/60 bg-transparent text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all duration-300 rounded-xl"
-              asChild
-            >
-              <Link href="/auth/signup">
-                Get Early Access
-              </Link>
-            </Button>
-            <Button
-              size={isMobile ? "default" : "lg"}
-              variant="ghost"
-              className="px-8 md:px-10 py-4 md:py-5 text-sm md:text-base font-light text-[#CFC6B0]/40 hover:text-[#F5F2E8] hover:bg-transparent transition-all duration-300"
-              asChild
-            >
-              <Link href="/auth/signin">Sign In</Link>
-            </Button>
-          </div>
+          <Button
+            size={isMobile ? "default" : "lg"}
+            className="px-8 md:px-10 py-5 md:py-6 text-sm md:text-base font-normal border border-[#D4AF37]/60 bg-transparent text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all duration-300 rounded-xl"
+            asChild
+          >
+            <Link href="/auth/signup">
+              Get Early Access
+            </Link>
+          </Button>
         </div>
 
-        {/* Scroll indicator */}
+        {/* Slow pulsing scroll-down indicator */}
         <div
-          className={`absolute bottom-10 left-1/2 -translate-x-1/2 transition-all duration-1000 delay-700 ${
+          className={`absolute bottom-10 left-1/2 -translate-x-1/2 transition-all duration-[1.5s] delay-1000 ${
             mounted ? "opacity-100" : "opacity-0"
           }`}
         >
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-[10px] tracking-[0.3em] uppercase text-[#D4AF37]/25 font-light">
+          <div className="flex flex-col items-center gap-3 landing-scroll-breathe">
+            <span className="text-[10px] tracking-[0.3em] uppercase text-[#D4AF37]/30 font-light">
               Scroll
             </span>
-            <div className="w-px h-8 bg-gradient-to-b from-[#D4AF37]/40 to-transparent landing-scroll-pulse" />
+            <svg width="16" height="24" viewBox="0 0 16 24" fill="none" className="text-[#D4AF37]/40">
+              <path
+                d="M8 0 L8 18 M2 13 L8 20 L14 13"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </div>
         </div>
       </section>
