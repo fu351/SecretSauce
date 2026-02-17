@@ -300,7 +300,7 @@ export default function ShoppingReceiptPage() {
       : storeComparisons[0]
 
     let totalAmount = 0
-    let itemCount = shoppingList.length
+    let itemCount = 0
 
     // Build cart items for delivery log (with server-side price verification)
     const cartItems: Array<{
@@ -311,22 +311,65 @@ export default function ShoppingReceiptPage() {
     }> = []
 
     if (activeStoreData?.items) {
+      // Use the same calculation logic as shopping-receipt-view for consistency
       totalAmount = activeStoreData.items.reduce((sum, item) => {
-        const price = typeof item.price === "number" ? item.price : 0
-        const quantity = typeof item.quantity === "number" ? item.quantity : 1
+        const itemIds = item.shoppingItemIds?.filter(Boolean) || [item.shoppingItemId]
+        let effectiveQty = 0
+
+        itemIds.forEach((id) => {
+          const shoppingItem = shoppingList.find((si) => si.id === id)
+          effectiveQty += Math.max(1, Number(shoppingItem?.quantity) || 1)
+        })
+
+        if (effectiveQty <= 0) {
+          effectiveQty = Math.max(1, Number(item.quantity) || 1)
+        }
+
+        const baselineQuantity = Math.max(1, Number(item.quantity) || 1)
+        const baselinePackages = Number(item.packagesToBuy)
+        const packagePrice = Number(item.packagePrice)
+
+        // Use package-based pricing when available
+        if (
+          Number.isFinite(packagePrice) &&
+          packagePrice > 0 &&
+          Number.isFinite(baselinePackages) &&
+          baselinePackages > 0
+        ) {
+          const packagesPerQuantity = baselinePackages / baselineQuantity
+          const adjustedPackages = Math.max(1, Math.ceil(packagesPerQuantity * effectiveQty))
+
+          // Add to cart items if we have required data
+          if (item.shoppingItemId && item.productMappingId) {
+            cartItems.push({
+              item_id: item.shoppingItemId,
+              product_id: item.productMappingId,
+              num_pkgs: adjustedPackages,
+              frontend_price: packagePrice,
+            })
+          }
+
+          return sum + (packagePrice * adjustedPackages)
+        }
+
+        // Fallback to simple price * quantity
+        const price = Number(item.price) || 0
 
         // Add to cart items if we have required data
         if (item.shoppingItemId && item.productMappingId) {
           cartItems.push({
             item_id: item.shoppingItemId,
             product_id: item.productMappingId,
-            num_pkgs: item.packagesToBuy || quantity,
+            num_pkgs: effectiveQty,
             frontend_price: price,
           })
         }
 
-        return sum + (price * quantity)
+        return sum + (price * effectiveQty)
       }, 0)
+
+      // Set item count to actual priced items
+      itemCount = activeStoreData.items.length
     }
 
     // Navigate to checkout with pricing parameters and cart items
