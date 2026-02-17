@@ -7,6 +7,8 @@ export type IngredientMatchQueueSource = "scraper" | "recipe"
 export type IngredientMatchQueueRow = Database["public"]["Tables"]["ingredient_match_queue"]["Row"]
 export type IngredientMatchQueueInsert = Database["public"]["Tables"]["ingredient_match_queue"]["Insert"]
 export type IngredientMatchQueueUpdate = Database["public"]["Tables"]["ingredient_match_queue"]["Update"]
+export type CanonicalDoubleCheckDecision = "remapped" | "skipped"
+export type CanonicalDoubleCheckDirection = "generic_to_specific" | "specific_to_generic" | "lateral" | "unknown"
 
 class IngredientMatchQueueTable extends BaseTable<
   "ingredient_match_queue",
@@ -329,6 +331,52 @@ class IngredientMatchQueueTable extends BaseTable<
 
     if (error) {
       this.handleError(error, "markIngredientResolvedPendingUnit")
+      return false
+    }
+
+    return true
+  }
+
+  async logCanonicalDoubleCheckDaily(params: {
+    sourceCanonical: string
+    targetCanonical: string
+    decision: CanonicalDoubleCheckDecision
+    reason?: string
+    direction?: CanonicalDoubleCheckDirection
+    aiConfidence?: number | null
+    similarity?: number | null
+    sourceCategory?: string | null
+    targetCategory?: string | null
+    eventAt?: string | null
+  }): Promise<boolean> {
+    const {
+      sourceCanonical,
+      targetCanonical,
+      decision,
+      reason,
+      direction,
+      aiConfidence,
+      similarity,
+      sourceCategory,
+      targetCategory,
+      eventAt,
+    } = params
+
+    const { error } = await (this.supabase.rpc as any)("fn_log_canonical_double_check_daily", {
+      p_source_canonical: sourceCanonical,
+      p_target_canonical: targetCanonical,
+      p_decision: decision,
+      p_reason: reason ?? "none",
+      p_direction: direction ?? "unknown",
+      p_ai_confidence: aiConfidence ?? null,
+      p_similarity: similarity ?? null,
+      p_source_category: sourceCategory ?? null,
+      p_target_category: targetCategory ?? null,
+      p_event_at: eventAt ?? null,
+    })
+
+    if (error) {
+      this.handleError(error, "logCanonicalDoubleCheckDaily")
       return false
     }
 

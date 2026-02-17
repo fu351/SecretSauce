@@ -32,6 +32,7 @@ AGENTS.md
 
 *.sql
 !supabase/migrations/0016_product_mapping_is_ingredient_flag.sql
+!supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql
 
 CLAUDE.md
 
@@ -54,3 +55,4 @@ lib/scrapers/test-walmart-rate-limit.js
 scripts/sync-codex-mcp-from-vscode.cjs
 docs/profiles-stripe-migrations.sql
 docs/profiles-clerk-bridge-migrations.sql
+supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql

@@ -448,6 +448,34 @@ function buildCanonicalDoubleCheckTerms(canonicalName: string): string[] {
   return Array.from(terms).filter(Boolean)
 }
 
+function logCanonicalDoubleCheckDecision(params: {
+  sourceCanonical: string
+  targetCanonical: string
+  decision: "remapped" | "skipped"
+  reason: string
+  direction: RemapDirection | "unknown"
+  confidence: number
+  similarity: number
+  sourceCategory: string | null | undefined
+  targetCategory: string | null | undefined
+}): void {
+  void ingredientMatchQueueDB
+    .logCanonicalDoubleCheckDaily({
+      sourceCanonical: params.sourceCanonical,
+      targetCanonical: params.targetCanonical,
+      decision: params.decision,
+      reason: params.reason,
+      direction: params.direction,
+      aiConfidence: params.confidence,
+      similarity: params.similarity,
+      sourceCategory: params.sourceCategory ?? null,
+      targetCategory: params.targetCategory ?? null,
+    })
+    .catch((error) => {
+      console.warn("[QueueResolver] Failed to log canonical double-check telemetry:", error)
+    })
+}
+
 async function resolveCanonicalWithDoubleCheck(
   canonicalName: string,
   category: string | null | undefined,
@@ -509,6 +537,7 @@ async function resolveCanonicalWithDoubleCheck(
 
   if (bestMatch && bestScore >= config.doubleCheckMinSimilarity) {
     if (bestMatch.canonicalName !== normalizedCanonical) {
+      const direction = resolveRemapDirection(normalizedCanonical, bestMatch.canonicalName)
       const crossCategoryMismatch =
         Boolean(category && bestMatch.category && category !== bestMatch.category)
 
@@ -518,6 +547,17 @@ async function resolveCanonicalWithDoubleCheck(
           CROSS_CATEGORY_MIN_SIMILARITY_FLOOR
         )
         if (confidence < CROSS_CATEGORY_MIN_CONFIDENCE || bestScore < minCrossCategorySimilarity) {
+          logCanonicalDoubleCheckDecision({
+            sourceCanonical: normalizedCanonical,
+            targetCanonical: bestMatch.canonicalName,
+            decision: "skipped",
+            reason: "cross_category_mismatch",
+            direction,
+            confidence,
+            similarity: bestScore,
+            sourceCategory: category,
+            targetCategory: bestMatch.category,
+          })
           console.log(
             `[QueueResolver] Canonical double-check skipped remap "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
               `(reason=cross_category_mismatch, ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)}, ` +
@@ -527,9 +567,19 @@ async function resolveCanonicalWithDoubleCheck(
         }
       }
 
-      const direction = resolveRemapDirection(normalizedCanonical, bestMatch.canonicalName)
       const asymmetricCheck = meetsAsymmetricRemapPolicy(direction, confidence, bestScore, config)
       if (!asymmetricCheck.allowed) {
+        logCanonicalDoubleCheckDecision({
+          sourceCanonical: normalizedCanonical,
+          targetCanonical: bestMatch.canonicalName,
+          decision: "skipped",
+          reason: `asymmetric_${direction}`,
+          direction,
+          confidence,
+          similarity: bestScore,
+          sourceCategory: category,
+          targetCategory: bestMatch.category,
+        })
         console.log(
           `[QueueResolver] Canonical double-check skipped remap "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
             `(reason=asymmetric_${direction}, ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)}, ` +
@@ -538,12 +588,37 @@ async function resolveCanonicalWithDoubleCheck(
         return normalizedCanonical
       }
 
+      logCanonicalDoubleCheckDecision({
+        sourceCanonical: normalizedCanonical,
+        targetCanonical: bestMatch.canonicalName,
+        decision: "remapped",
+        reason: "applied",
+        direction,
+        confidence,
+        similarity: bestScore,
+        sourceCategory: category,
+        targetCategory: bestMatch.category,
+      })
       console.log(
         `[QueueResolver] High-confidence canonical double-check remapped "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
           `(ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)}, direction=${direction})`
       )
     }
     return bestMatch.canonicalName
+  }
+
+  if (bestMatch && bestMatch.canonicalName !== normalizedCanonical) {
+    logCanonicalDoubleCheckDecision({
+      sourceCanonical: normalizedCanonical,
+      targetCanonical: bestMatch.canonicalName,
+      decision: "skipped",
+      reason: "below_similarity_threshold",
+      direction: resolveRemapDirection(normalizedCanonical, bestMatch.canonicalName),
+      confidence,
+      similarity: bestScore,
+      sourceCategory: category,
+      targetCategory: bestMatch.category,
+    })
   }
 
   return normalizedCanonical

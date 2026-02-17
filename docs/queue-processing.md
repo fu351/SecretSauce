@@ -76,3 +76,37 @@ The queue resolver now applies multiple safety layers before writing canonical i
    - If canonical does not already exist, long/noisy/low-confidence names can be blocked from creation.
    - This prevents raw retail product titles from being inserted into `standardized_ingredients`.
    - Blocked rows are surfaced as queue failures for follow-up or remap workflows.
+
+## Drift Telemetry (DB-Side Feedback Loop)
+
+Canonical double-check pair outcomes are now aggregated daily in Postgres:
+
+- Table: `public.canonical_double_check_daily_stats`
+- Logging RPC: `public.fn_log_canonical_double_check_daily(...)`
+- Analytics view: `public.v_canonical_double_check_drift_daily`
+
+Worker behavior:
+
+- Remapped pairs are logged as `decision='remapped'`.
+- Skipped pairs are logged as `decision='skipped'` with explicit reasons
+  (e.g., `cross_category_mismatch`, `asymmetric_lateral`, `below_similarity_threshold`).
+- Aggregation key is daily and pair-based, so repeated drift patterns are easy to rank.
+
+Useful tuning query:
+
+```sql
+select
+  event_date,
+  source_canonical,
+  target_canonical,
+  decision,
+  reason,
+  direction,
+  event_count,
+  avg_similarity,
+  avg_ai_confidence
+from public.v_canonical_double_check_drift_daily
+where event_date >= (current_date - interval '14 days')
+order by event_count desc, avg_similarity desc
+limit 200;
+```
