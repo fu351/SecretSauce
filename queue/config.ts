@@ -23,6 +23,11 @@ export interface QueueWorkerConfig {
   unitMinConfidence: number
 }
 
+// Keep these hard-coded so CI/CD environment vars can't silently weaken
+// canonical remap safeguards.
+const HARD_CODED_DOUBLE_CHECK_MIN_CONFIDENCE = 0.85
+const HARD_CODED_DOUBLE_CHECK_MIN_SIMILARITY = 0.96
+
 function readPositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value ?? "")
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback
@@ -76,8 +81,8 @@ export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfi
     standardizerContext: resolveStandardizerContextMode(process.env.QUEUE_STANDARDIZER_CONTEXT),
     reviewMode: resolveReviewMode(process.env.QUEUE_REVIEW_MODE),
     queueSource: resolveQueueSource(process.env.QUEUE_SOURCE),
-    doubleCheckMinConfidence: readBoundedFloat(process.env.LLM_DOUBLE_CHECK_MIN_CONFIDENCE, 0.85, 0, 1),
-    doubleCheckMinSimilarity: readBoundedFloat(process.env.LLM_DOUBLE_CHECK_MIN_SIMILARITY, 0.96, 0, 1),
+    doubleCheckMinConfidence: HARD_CODED_DOUBLE_CHECK_MIN_CONFIDENCE,
+    doubleCheckMinSimilarity: HARD_CODED_DOUBLE_CHECK_MIN_SIMILARITY,
     enableUnitResolution: readBoolean(process.env.QUEUE_ENABLE_UNIT_RESOLUTION, true),
     unitDryRun: readBoolean(process.env.QUEUE_UNIT_DRY_RUN, dryRun),
     unitMinConfidence: readBoundedFloat(process.env.QUEUE_UNIT_MIN_CONFIDENCE, 0.75, 0, 1),

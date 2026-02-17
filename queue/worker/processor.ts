@@ -102,6 +102,7 @@ const CROSS_CATEGORY_MIN_SIMILARITY_BUFFER = 0.15
 const GENERIC_TO_SPECIFIC_MIN_CONFIDENCE = 0.95
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR = 0.9
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER = 0.2
+const LATERAL_MIN_SIMILARITY_FLOOR = 0.55
 const NEW_CANONICAL_MIN_CONFIDENCE = 0.65
 const NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE = 0.8
 const NEW_CANONICAL_MAX_TOKEN_COUNT = 4
@@ -213,6 +214,16 @@ function meetsAsymmetricRemapPolicy(
       config.doubleCheckMinSimilarity + GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER,
       GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR
     )
+    return {
+      allowed: confidence >= minConfidence && similarity >= minSimilarity,
+      minConfidence,
+      minSimilarity,
+    }
+  }
+
+  if (direction === "lateral") {
+    const minConfidence = config.doubleCheckMinConfidence
+    const minSimilarity = Math.max(config.doubleCheckMinSimilarity, LATERAL_MIN_SIMILARITY_FLOOR)
     return {
       allowed: confidence >= minConfidence && similarity >= minSimilarity,
       minConfidence,
