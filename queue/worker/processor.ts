@@ -95,6 +95,13 @@ const GENERIC_MEASURE_ALIASES = [
 ]
 
 const UNIT_FALLBACK_CONFIDENCE = 0.2
+const CROSS_CATEGORY_SCORE_PENALTY = 0.3
+const CROSS_CATEGORY_MIN_CONFIDENCE = 0.95
+const CROSS_CATEGORY_MIN_SIMILARITY_FLOOR = 0.92
+const CROSS_CATEGORY_MIN_SIMILARITY_BUFFER = 0.15
+const GENERIC_TO_SPECIFIC_MIN_CONFIDENCE = 0.95
+const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR = 0.9
+const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER = 0.2
 
 function getSearchTerm(row: IngredientMatchQueueRow): string {
   return (row.cleaned_name || row.raw_product_name || "").trim()
@@ -126,21 +133,56 @@ function toCanonicalTokenSet(value: string): Set<string> {
   )
 }
 
-function isQualifierExpansion(sourceCanonical: string, candidateCanonical: string): boolean {
+function isTokenSubset(source: Set<string>, target: Set<string>): boolean {
+  if (!source.size || !target.size || source.size > target.size) return false
+  for (const token of source) {
+    if (!target.has(token)) return false
+  }
+  return true
+}
+
+type RemapDirection = "generic_to_specific" | "specific_to_generic" | "lateral"
+
+function resolveRemapDirection(sourceCanonical: string, candidateCanonical: string): RemapDirection {
   const sourceTokens = toCanonicalTokenSet(sourceCanonical)
   const candidateTokens = toCanonicalTokenSet(candidateCanonical)
 
-  // Guard only ultra-generic single-token canonicals (e.g. "egg" -> "duck egg").
-  // Multi-token phrases often represent valid refinement ("roast beef" -> "beef chuck roast").
-  if (sourceTokens.size !== 1 || candidateTokens.size <= sourceTokens.size) {
-    return false
+  const sourceIntoCandidate = isTokenSubset(sourceTokens, candidateTokens)
+  const candidateIntoSource = isTokenSubset(candidateTokens, sourceTokens)
+
+  if (sourceIntoCandidate && candidateTokens.size > sourceTokens.size) {
+    return "generic_to_specific"
+  }
+  if (candidateIntoSource && sourceTokens.size > candidateTokens.size) {
+    return "specific_to_generic"
+  }
+  return "lateral"
+}
+
+function meetsAsymmetricRemapPolicy(
+  direction: RemapDirection,
+  confidence: number,
+  similarity: number,
+  config: QueueWorkerConfig
+): { allowed: boolean; minConfidence: number; minSimilarity: number } {
+  if (direction === "generic_to_specific") {
+    const minConfidence = Math.max(config.doubleCheckMinConfidence, GENERIC_TO_SPECIFIC_MIN_CONFIDENCE)
+    const minSimilarity = Math.max(
+      config.doubleCheckMinSimilarity + GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER,
+      GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR
+    )
+    return {
+      allowed: confidence >= minConfidence && similarity >= minSimilarity,
+      minConfidence,
+      minSimilarity,
+    }
   }
 
-  for (const token of sourceTokens) {
-    if (!candidateTokens.has(token)) return false
+  return {
+    allowed: confidence >= config.doubleCheckMinConfidence && similarity >= config.doubleCheckMinSimilarity,
+    minConfidence: config.doubleCheckMinConfidence,
+    minSimilarity: config.doubleCheckMinSimilarity,
   }
-
-  return true
 }
 
 function hasUnitAlias(raw: string, alias: string): boolean {
@@ -347,7 +389,7 @@ async function resolveCanonicalWithDoubleCheck(
     let score = scoreCanonicalSimilarity(normalizedCanonical, candidate.canonicalName)
 
     if (category && candidate.category && category !== candidate.category) {
-      score -= 0.05
+      score -= CROSS_CATEGORY_SCORE_PENALTY
     }
 
     if (score > bestScore) {
@@ -358,17 +400,38 @@ async function resolveCanonicalWithDoubleCheck(
 
   if (bestMatch && bestScore >= config.doubleCheckMinSimilarity) {
     if (bestMatch.canonicalName !== normalizedCanonical) {
-      if (isQualifierExpansion(normalizedCanonical, bestMatch.canonicalName)) {
+      const crossCategoryMismatch =
+        Boolean(category && bestMatch.category && category !== bestMatch.category)
+
+      if (crossCategoryMismatch) {
+        const minCrossCategorySimilarity = Math.max(
+          config.doubleCheckMinSimilarity + CROSS_CATEGORY_MIN_SIMILARITY_BUFFER,
+          CROSS_CATEGORY_MIN_SIMILARITY_FLOOR
+        )
+        if (confidence < CROSS_CATEGORY_MIN_CONFIDENCE || bestScore < minCrossCategorySimilarity) {
+          console.log(
+            `[QueueResolver] Canonical double-check skipped remap "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
+              `(reason=cross_category_mismatch, ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)}, ` +
+              `required_confidence=${CROSS_CATEGORY_MIN_CONFIDENCE.toFixed(2)}, required_similarity=${minCrossCategorySimilarity.toFixed(3)})`
+          )
+          return normalizedCanonical
+        }
+      }
+
+      const direction = resolveRemapDirection(normalizedCanonical, bestMatch.canonicalName)
+      const asymmetricCheck = meetsAsymmetricRemapPolicy(direction, confidence, bestScore, config)
+      if (!asymmetricCheck.allowed) {
         console.log(
           `[QueueResolver] Canonical double-check skipped remap "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
-            `(reason=qualifier_expansion, ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)})`
+            `(reason=asymmetric_${direction}, ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)}, ` +
+            `required_confidence=${asymmetricCheck.minConfidence.toFixed(2)}, required_similarity=${asymmetricCheck.minSimilarity.toFixed(3)})`
         )
         return normalizedCanonical
       }
 
       console.log(
         `[QueueResolver] High-confidence canonical double-check remapped "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
-          `(ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)})`
+          `(ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)}, direction=${direction})`
       )
     }
     return bestMatch.canonicalName
