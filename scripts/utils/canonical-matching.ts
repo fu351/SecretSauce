@@ -52,6 +52,12 @@ function tokenSet(value: string): Set<string> {
   )
 }
 
+function tokenList(value: string): string[] {
+  return normalizeCanonicalName(value)
+    .split(" ")
+    .filter(Boolean)
+}
+
 function tokenJaccard(a: string, b: string): number {
   const aTokens = tokenSet(a)
   const bTokens = tokenSet(b)
@@ -64,6 +70,48 @@ function tokenJaccard(a: string, b: string): number {
 
   const union = aTokens.size + bTokens.size - intersection
   return union === 0 ? 0 : intersection / union
+}
+
+function tokenPhraseSet(value: string): Set<string> {
+  const tokens = tokenList(value)
+  if (!tokens.length) return new Set()
+  if (tokens.length === 1) return new Set(tokens)
+
+  const phrases = new Set<string>()
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    phrases.add(`${tokens[index]} ${tokens[index + 1]}`)
+  }
+  return phrases
+}
+
+function phraseDiceSimilarity(a: string, b: string): number {
+  const aPhrases = tokenPhraseSet(a)
+  const bPhrases = tokenPhraseSet(b)
+  if (aPhrases.size === 0 || bPhrases.size === 0) return 0
+
+  let overlap = 0
+  for (const phrase of aPhrases) {
+    if (bPhrases.has(phrase)) overlap += 1
+  }
+  return (2 * overlap) / (aPhrases.size + bPhrases.size)
+}
+
+function positionalTokenSimilarity(a: string, b: string): number {
+  const aTokens = tokenList(a)
+  const bTokens = tokenList(b)
+  if (!aTokens.length || !bTokens.length) return 0
+
+  const minLength = Math.min(aTokens.length, bTokens.length)
+  const maxLength = Math.max(aTokens.length, bTokens.length)
+  let positionMatches = 0
+
+  for (let index = 0; index < minLength; index += 1) {
+    if (aTokens[index] === bTokens[index]) {
+      positionMatches += 1
+    }
+  }
+
+  return positionMatches / maxLength
 }
 
 function bigramSet(value: string): Set<string> {
@@ -101,5 +149,7 @@ export function scoreCanonicalSimilarity(candidate: string, existing: string): n
 
   const tokenScore = tokenJaccard(normalizedCandidate, normalizedExisting)
   const charScore = diceSimilarity(normalizedCandidate, normalizedExisting)
-  return (tokenScore * 0.45) + (charScore * 0.55)
+  const phraseOrderScore = phraseDiceSimilarity(normalizedCandidate, normalizedExisting)
+  const positionOrderScore = positionalTokenSimilarity(normalizedCandidate, normalizedExisting)
+  return (tokenScore * 0.25) + (charScore * 0.15) + (phraseOrderScore * 0.35) + (positionOrderScore * 0.25)
 }

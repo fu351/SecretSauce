@@ -130,7 +130,9 @@ function isQualifierExpansion(sourceCanonical: string, candidateCanonical: strin
   const sourceTokens = toCanonicalTokenSet(sourceCanonical)
   const candidateTokens = toCanonicalTokenSet(candidateCanonical)
 
-  if (!sourceTokens.size || candidateTokens.size <= sourceTokens.size) {
+  // Guard only ultra-generic single-token canonicals (e.g. "egg" -> "duck egg").
+  // Multi-token phrases often represent valid refinement ("roast beef" -> "beef chuck roast").
+  if (sourceTokens.size !== 1 || candidateTokens.size <= sourceTokens.size) {
     return false
   }
 
