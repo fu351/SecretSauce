@@ -118,6 +118,29 @@ function normalizeSpaces(value: string): string {
   return value.trim().replace(/\s+/g, " ")
 }
 
+function toCanonicalTokenSet(value: string): Set<string> {
+  return new Set(
+    normalizeCanonicalName(value)
+      .split(" ")
+      .filter(Boolean)
+  )
+}
+
+function isQualifierExpansion(sourceCanonical: string, candidateCanonical: string): boolean {
+  const sourceTokens = toCanonicalTokenSet(sourceCanonical)
+  const candidateTokens = toCanonicalTokenSet(candidateCanonical)
+
+  if (!sourceTokens.size || candidateTokens.size <= sourceTokens.size) {
+    return false
+  }
+
+  for (const token of sourceTokens) {
+    if (!candidateTokens.has(token)) return false
+  }
+
+  return true
+}
+
 function hasUnitAlias(raw: string, alias: string): boolean {
   if (!raw || !alias) return false
   const flexibleAlias = escapeRegExp(alias.trim()).replace(/\s+/g, "[\\s.-]*")
@@ -315,6 +338,14 @@ async function resolveCanonicalWithDoubleCheck(
 
   if (bestMatch && bestScore >= config.doubleCheckMinSimilarity) {
     if (bestMatch.canonicalName !== normalizedCanonical) {
+      if (isQualifierExpansion(normalizedCanonical, bestMatch.canonicalName)) {
+        console.log(
+          `[QueueResolver] Canonical double-check skipped remap "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
+            `(reason=qualifier_expansion, ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)})`
+        )
+        return normalizedCanonical
+      }
+
       console.log(
         `[QueueResolver] High-confidence canonical double-check remapped "${normalizedCanonical}" -> "${bestMatch.canonicalName}" ` +
           `(ai_confidence=${confidence.toFixed(2)}, similarity=${bestScore.toFixed(3)})`
