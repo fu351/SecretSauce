@@ -47,7 +47,7 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | Analyze Target scraper 404 patterns | `scripts/analyze-404s.js` | Reads `target_404_log` and prints store/ingredient/ZIP trends. |
 | Reproduce 404-prone ingredient queries | `scripts/test-ingredient-404s.js` | Tests canonical ingredients against a known Target store (`TARGET_TEST_ZIP`, `TARGET_TEST_STORE_ID`). |
 | Validate Trader Joe's scraper in single-store mode | `scripts/test-traderjoes-scraper.js` | Daily-scraper-style harness that hard-enforces one `traderjoes` store and validates output shape/sorting/location consistency. |
-| Seed dev/mock recipes | `scripts/seed-mock-recipes.ts` | Upserts mock recipes through `lib/dev/mock-recipes` RPC contract; requires `SUPABASE_SEED_AUTHOR_ID`. |
+| Seed dev/mock recipes | `scripts/seed-mock-recipes.ts` | Upserts mock recipes through `lib/dev/mock-recipes` RPC contract; includes queue drift stress recipes (`QUEUE_DRIFT_MOCK_RECIPES`), requires `SUPABASE_SEED_AUTHOR_ID`. |
 
 ## Script Catalog
 

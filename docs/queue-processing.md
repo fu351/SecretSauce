@@ -77,6 +77,16 @@ The queue resolver now applies multiple safety layers before writing canonical i
    - This prevents raw retail product titles from being inserted into `standardized_ingredients`.
    - Blocked rows are surfaced as queue failures for follow-up or remap workflows.
 
+6. Invalid category enum safeguard:
+   - `standardized_ingredients` inserts guard `item_category_enum` values.
+   - If the model emits an invalid category string (example: `"pasta"`), insert retries with category `"other"`.
+   - Valid enum categories are not changed.
+
+7. Blocked-canonical recovery (non-fuzzy):
+   - If a new canonical is blocked, the worker attempts deterministic fallback candidates using tail tokens.
+   - Fallback is accepted only when the candidate already exists in `standardized_ingredients`.
+   - `best_fuzzy_match` is intentionally not used for this recovery path.
+
 ## Drift Telemetry (DB-Side Feedback Loop)
 
 Canonical double-check pair outcomes are now aggregated daily in Postgres:
@@ -110,3 +120,22 @@ where event_date >= (current_date - interval '14 days')
 order by event_count desc, avg_similarity desc
 limit 200;
 ```
+
+## Queue Drift Stress Dataset
+
+For reliability testing of queue resolver behavior against noisy retail strings:
+
+- Source file: `lib/dev/mock-recipes.ts`
+- Generated set: `QUEUE_DRIFT_MOCK_RECIPES`
+- Default volume: `72` synthetic recipes
+- Stress pool includes:
+  - long/brand-heavy product titles
+  - sauce and beverage ambiguity pairs
+  - deli/meat/hot-dog variants
+  - packaging/count/unit noise
+  - selected non-food lookalikes for rejection behavior
+
+Seeding path:
+
+- Script: `scripts/seed-mock-recipes.ts`
+- The stress set is appended to `MOCK_RECIPES` before upsert.

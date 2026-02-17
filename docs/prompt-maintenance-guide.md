@@ -75,6 +75,13 @@ Prompt changes alone are not relied on for safety. Queue runtime adds independen
 - New-canonical creation gate:
   - long/noisy candidate names can be blocked from `getOrCreate`
   - blocked rows surface as queue failures for follow-up/remap
+- Category enum write guard:
+  - invalid model category values are not allowed to break inserts
+  - invalid `item_category_enum` values retry with fallback category `other`
+  - valid enum values are preserved as-is
+- Blocked-canonical fallback behavior:
+  - when blocked, worker may recover only to existing canonicals via deterministic tail-token candidates
+  - `best_fuzzy_match` is intentionally not used for this recovery
 
 ## Editing Rules
 

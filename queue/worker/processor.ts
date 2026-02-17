@@ -1,3 +1,4 @@
+import { createHash } from "crypto"
 import {
   ingredientMatchQueueDB,
   type IngredientMatchQueueRow,
@@ -9,6 +10,7 @@ import { standardizeUnitsWithAI, type UnitStandardizationResult } from "../../li
 import type { QueueWorkerConfig } from "../config"
 import type { IngredientStandardizerContext } from "../../lib/utils/ingredient-standardizer-context"
 import { chunkItems, mapWithConcurrency } from "./batching"
+import { localQueueAICache } from "./local-ai-cache"
 import {
   buildCanonicalQueryTerms,
   type CanonicalCandidate,
@@ -107,6 +109,8 @@ const NEW_CANONICAL_MIN_CONFIDENCE = 0.65
 const NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE = 0.8
 const NEW_CANONICAL_MAX_TOKEN_COUNT = 4
 const NEW_CANONICAL_RETAIL_TITLE_TOKEN_COUNT = 5
+const INGREDIENT_LOCAL_CACHE_VERSION = "ingredient-standardizer-v1"
+const INGREDIENT_LOCAL_CACHE_MAX_AGE_DAYS = 30
 const NEW_CANONICAL_NOISE_TOKENS = new Set([
   "fresh",
   "deli",
@@ -160,6 +164,57 @@ function escapeRegExp(value: string): string {
 
 function normalizeSpaces(value: string): string {
   return value.trim().replace(/\s+/g, " ")
+}
+
+function toStableHash(input: unknown): string {
+  return createHash("sha256").update(JSON.stringify(input)).digest("hex")
+}
+
+function buildIngredientLocalCacheKey(context: IngredientStandardizerContext, searchTerm: string): string {
+  return toStableHash({
+    context,
+    searchTerm: normalizeSpaces(searchTerm.toLowerCase()),
+  })
+}
+
+type IngredientLocalCachePayload = {
+  canonicalName: string
+  category: string | null
+  confidence: number
+}
+
+function toIngredientLocalCachePayload(
+  result: IngredientStandardizationResult
+): IngredientLocalCachePayload | null {
+  const canonicalName = normalizeCanonicalName(result.canonicalName || "")
+  if (!canonicalName) return null
+
+  return {
+    canonicalName,
+    category: result.category?.trim() || null,
+    confidence: normalizeConfidence(result.confidence, 0.5),
+  }
+}
+
+function fromIngredientLocalCachePayload(
+  payload: unknown,
+  id: string,
+  originalName: string
+): IngredientStandardizationResult | null {
+  const canonicalName = normalizeCanonicalName((payload as IngredientLocalCachePayload)?.canonicalName || "")
+  if (!canonicalName) return null
+
+  const categoryRaw = (payload as IngredientLocalCachePayload)?.category
+  const category =
+    typeof categoryRaw === "string" && categoryRaw.trim().length > 0 ? categoryRaw.trim().toLowerCase() : null
+
+  return {
+    id,
+    originalName,
+    canonicalName,
+    category,
+    confidence: normalizeConfidence((payload as IngredientLocalCachePayload)?.confidence, 0.5),
+  }
 }
 
 function toCanonicalTokenSet(value: string): Set<string> {
@@ -682,7 +737,7 @@ async function resolveIngredientCandidates(
   }
 
   for (const [context, contextRows] of rowsByContext.entries()) {
-    const uniqueInputByKey = new Map<string, { id: string; name: string }>()
+    const uniqueInputByKey = new Map<string, { id: string; name: string; cacheKey: string }>()
     const rowToInputKey = new Map<string, string>()
     const cleanedNameUpdatePromises: Array<Promise<unknown>> = []
 
@@ -690,9 +745,10 @@ async function resolveIngredientCandidates(
       const originalSearchTerm = getSearchTerm(row)
       const searchTerm = getIngredientSearchTerm(row, unitByRowId?.get(row.id))
       const dedupeKey = searchTerm.toLowerCase()
+      const cacheKey = buildIngredientLocalCacheKey(context, searchTerm)
 
       if (!uniqueInputByKey.has(dedupeKey)) {
-        uniqueInputByKey.set(dedupeKey, { id: dedupeKey, name: searchTerm })
+        uniqueInputByKey.set(dedupeKey, { id: dedupeKey, name: searchTerm, cacheKey })
       }
 
       rowToInputKey.set(row.id, dedupeKey)
@@ -722,8 +778,71 @@ async function resolveIngredientCandidates(
       await Promise.allSettled(cleanedNameUpdatePromises)
     }
 
-    const aiResults = await standardizeIngredientsWithAI(Array.from(uniqueInputByKey.values()), context)
-    const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
+    const aiResultByKey = new Map<string, IngredientStandardizationResult>()
+    const uniqueInputs = Array.from(uniqueInputByKey.values())
+    const inputById = new Map(uniqueInputs.map((item) => [item.id, item]))
+
+    const cachedByCacheKey = await localQueueAICache.getMany<IngredientLocalCachePayload>({
+      namespace: "ingredient",
+      cacheVersion: INGREDIENT_LOCAL_CACHE_VERSION,
+      keys: uniqueInputs.map((item) => item.cacheKey),
+      maxAgeDays: INGREDIENT_LOCAL_CACHE_MAX_AGE_DAYS,
+    })
+
+    let cacheHitCount = 0
+    const aiInputs: Array<{ id: string; name: string }> = []
+
+    for (const input of uniqueInputs) {
+      const cachedPayload = cachedByCacheKey.get(input.cacheKey)
+      const cachedResult =
+        cachedPayload ? fromIngredientLocalCachePayload(cachedPayload, input.id, input.name) : null
+
+      if (cachedResult) {
+        aiResultByKey.set(input.id, cachedResult)
+        cacheHitCount += 1
+      } else {
+        aiInputs.push({ id: input.id, name: input.name })
+      }
+    }
+
+    if (cacheHitCount > 0) {
+      console.log(
+        `[QueueResolver] Ingredient AI local cache hits ${cacheHitCount}/${uniqueInputs.length} for context=${context}`
+      )
+    }
+
+    if (aiInputs.length > 0) {
+      const aiResults = await standardizeIngredientsWithAI(aiInputs, context)
+      for (const result of aiResults) {
+        aiResultByKey.set(result.id, result)
+      }
+
+      const cacheWrites: Array<{ key: string; value: IngredientLocalCachePayload }> = []
+      for (const result of aiResults) {
+        const input = inputById.get(result.id)
+        if (!input) continue
+        const payload = toIngredientLocalCachePayload(result)
+        if (!payload) continue
+        cacheWrites.push({
+          key: input.cacheKey,
+          value: payload,
+        })
+      }
+
+      if (cacheWrites.length > 0) {
+        await localQueueAICache.setMany({
+          namespace: "ingredient",
+          cacheVersion: INGREDIENT_LOCAL_CACHE_VERSION,
+          entries: cacheWrites,
+        })
+      }
+
+      if (cacheHitCount > 0) {
+        console.log(
+          `[QueueResolver] Ingredient AI local cache misses ${aiInputs.length}/${uniqueInputs.length} for context=${context}`
+        )
+      }
+    }
 
     for (const row of contextRows) {
       const inputKey = rowToInputKey.get(row.id)
