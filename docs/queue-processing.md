@@ -50,3 +50,29 @@ These support:
 - Efficient pending/expired lease lookups
 - Source-filtered claims (`p_source = 'scraper'`)
 - Oldest-first FIFO ordering (`ORDER BY created_at ASC`)
+
+## Canonical Resolution Safeguards
+
+The queue resolver now applies multiple safety layers before writing canonical ingredients:
+
+1. Similarity + candidate collection:
+   - Candidate search includes normalized terms and tail noun terms.
+   - Shared scorer lives in `scripts/utils/canonical-matching.ts`.
+
+2. Cross-category remap protection:
+   - Cross-category candidate scores are strongly penalized.
+   - Cross-category remaps must clear stricter confidence/similarity requirements.
+
+3. Asymmetric remap policy:
+   - Generic -> specific remaps are held to stricter thresholds.
+   - Lateral and specific -> generic remaps use baseline thresholds unless blocked by other rules.
+
+4. Modifier-conflict protection:
+   - Generic head nouns with conflicting modifiers are penalized
+     (example class: `hoisin sauce` vs `hot sauce`).
+   - Phrase/position bonuses only apply when there are enough shared tokens.
+
+5. New-canonical creation gate:
+   - If canonical does not already exist, long/noisy/low-confidence names can be blocked from creation.
+   - This prevents raw retail product titles from being inserted into `standardized_ingredients`.
+   - Blocked rows are surfaced as queue failures for follow-up or remap workflows.

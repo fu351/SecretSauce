@@ -5,7 +5,7 @@
 - `Doc Kind`: `operations-guide`
 - `Canonicality`: `implementation-guide`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-17`
 - `Primary Surfaces`: `lib/prompts/`, `lib/ingredient-standardizer.ts`, `lib/unit-standardizer.ts`, `queue/worker/processor.ts`
 - `Update Trigger`: Prompt contracts, queue prompt consumers, or rollout flags change.
 
@@ -39,6 +39,7 @@ This guide describes where to edit queue standardization prompts and how changes
   - `lib/unit-standardizer.ts`
 - Queue routing:
   - `queue/worker/processor.ts`
+  - `scripts/utils/canonical-matching.ts`
 
 ## Rollout Flags
 
@@ -47,6 +48,33 @@ This guide describes where to edit queue standardization prompts and how changes
 - `QUEUE_UNIT_MIN_CONFIDENCE` (default `0.75`)
 
 Nightly workflow defaults stay source/review scoped (`QUEUE_REVIEW_MODE=ingredient`, `QUEUE_SOURCE=scraper`) while unit resolution is enabled by default.
+
+## Current Ingredient Prompt Baseline
+
+- Prompt version: `ingredient-v3` in `lib/prompts/ingredient-standardizer/build-prompt.ts`
+- Key normalization intent:
+  - prioritize matching existing canonical names
+  - reject full retail product title outputs for `canonicalName`
+  - keep canonical names concise (typically `1-4` words)
+  - strip brand, packaging/count, and year/vintage-like noise
+- Context guidance source:
+  - `lib/utils/ingredient-standardizer-context.ts`
+  - recipe context remains stricter than pantry context
+
+## Matching + Queue Guardrails
+
+Prompt changes alone are not relied on for safety. Queue runtime adds independent safeguards:
+
+- Canonical similarity scoring:
+  - `scripts/utils/canonical-matching.ts`
+  - weighted lexical + containment scoring with reduced order sensitivity
+  - modifier-conflict penalty for generic head nouns (e.g., `hoisin sauce` vs `hot sauce`)
+- Queue remap policies:
+  - cross-category remaps are heavily penalized and gated
+  - asymmetric policy: generic -> specific remaps require stricter confidence/similarity
+- New-canonical creation gate:
+  - long/noisy candidate names can be blocked from `getOrCreate`
+  - blocked rows surface as queue failures for follow-up/remap
 
 ## Editing Rules
 
@@ -57,3 +85,6 @@ Nightly workflow defaults stay source/review scoped (`QUEUE_REVIEW_MODE=ingredie
 3. Update/add tests when changing prompt output structure:
    - `lib/prompts/unit-standardizer/build-prompt.test.ts`
    - `lib/unit-standardizer.test.ts`
+4. When changing ingredient prompt policy, verify corresponding runtime guards still align:
+   - `queue/worker/processor.ts`
+   - `scripts/utils/canonical-matching.ts`

@@ -58,6 +58,18 @@ function tokenList(value: string): string[] {
     .filter(Boolean)
 }
 
+function sharedUniqueTokenCount(a: string, b: string): number {
+  const aTokens = tokenSet(a)
+  const bTokens = tokenSet(b)
+  if (!aTokens.size || !bTokens.size) return 0
+
+  let shared = 0
+  for (const token of aTokens) {
+    if (bTokens.has(token)) shared += 1
+  }
+  return shared
+}
+
 function sharedTokenProjection(a: string, b: string): { aShared: string[]; bShared: string[] } {
   const aTokens = tokenList(a)
   const bTokens = tokenList(b)
@@ -169,6 +181,44 @@ function diceSimilarity(a: string, b: string): number {
   return (2 * overlap) / (aBigrams.size + bBigrams.size)
 }
 
+const GENERIC_HEAD_NOUNS = new Set([
+  "sauce",
+  "onion",
+  "tea",
+  "wine",
+  "cheese",
+  "milk",
+  "oil",
+  "bread",
+  "rice",
+  "bean",
+  "pepper",
+  "tomato",
+])
+
+function modifierConflictPenalty(candidate: string, existing: string): number {
+  const candidateTokens = tokenList(singularizeCanonicalName(candidate))
+  const existingTokens = tokenList(singularizeCanonicalName(existing))
+  if (candidateTokens.length < 2 || existingTokens.length < 2) return 0
+
+  const candidateHead = candidateTokens[candidateTokens.length - 1]
+  const existingHead = existingTokens[existingTokens.length - 1]
+  if (!candidateHead || candidateHead !== existingHead) return 0
+  if (!GENERIC_HEAD_NOUNS.has(candidateHead)) return 0
+
+  const candidateModifiers = new Set(candidateTokens.slice(0, -1))
+  const existingModifiers = new Set(existingTokens.slice(0, -1))
+  if (!candidateModifiers.size || !existingModifiers.size) return 0
+
+  let overlap = 0
+  for (const token of candidateModifiers) {
+    if (existingModifiers.has(token)) overlap += 1
+  }
+
+  if (overlap > 0) return 0
+  return 0.18
+}
+
 export function scoreCanonicalSimilarity(candidate: string, existing: string): number {
   const normalizedCandidate = normalizeCanonicalName(candidate)
   const normalizedExisting = normalizeCanonicalName(existing)
@@ -182,13 +232,18 @@ export function scoreCanonicalSimilarity(candidate: string, existing: string): n
   const tokenScore = tokenJaccard(normalizedCandidate, normalizedExisting)
   const containmentScore = tokenContainment(normalizedCandidate, normalizedExisting)
   const charScore = diceSimilarity(normalizedCandidate, normalizedExisting)
-  const phraseOrderScore = phraseDiceSimilarity(normalizedCandidate, normalizedExisting)
-  const positionOrderScore = positionalTokenSimilarity(normalizedCandidate, normalizedExisting)
-  return (
-    (tokenScore * 0.35) +
-    (containmentScore * 0.25) +
-    (charScore * 0.2) +
-    (phraseOrderScore * 0.12) +
-    (positionOrderScore * 0.08)
-  )
+  const sharedTokenCount = sharedUniqueTokenCount(normalizedCandidate, normalizedExisting)
+  const phraseOrderScore =
+    sharedTokenCount >= 2 ? phraseDiceSimilarity(normalizedCandidate, normalizedExisting) : 0
+  const positionOrderScore =
+    sharedTokenCount >= 2 ? positionalTokenSimilarity(normalizedCandidate, normalizedExisting) : 0
+  const modifierPenalty = modifierConflictPenalty(normalizedCandidate, normalizedExisting)
+
+  const score =
+    (tokenScore * 0.45) +
+    (containmentScore * 0.35) +
+    (charScore * 0.08) +
+    (phraseOrderScore * 0.07) +
+    (positionOrderScore * 0.05)
+  return Math.max(0, score - modifierPenalty)
 }

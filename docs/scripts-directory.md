@@ -5,7 +5,7 @@
 - `Doc Kind`: `directory`
 - `Canonicality`: `reference`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-13`
+- `Last Reviewed`: `2026-02-17`
 - `Primary Surfaces`: `scripts/`, `queue/worker/runner.ts`, `.github/workflows/`
 - `Update Trigger`: Script inventory, command usage, or script-to-workflow mappings change.
 
@@ -35,6 +35,7 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 |---|---|---|
 | Nightly ingredient price scraping into `ingredients_history`/`ingredients_recent` | `scripts/daily-scraper.js` | Main ingestion path; uses `fn_bulk_insert_ingredient_history` RPC. Controlled by env vars (store filters, limits, concurrency). |
 | Resolve ingredient match queue | `scripts/resolve-ingredient-match-queue.ts` | Thin shim to `queue/` runtime (`runQueueResolverFromEnv`). Use root `npm run resolve-ingredient-match-queue` or `npm --prefix scripts run resolve-ingredient-match-queue`. |
+| Cleanup recently created standardized ingredients | `scripts/cleanup-recent-standardized-ingredients.ts` | Dry-run by default. Finds recent `standardized_ingredients`, reports hard/soft references, and optionally applies safe resets + deletions for remap/recovery workflows. |
 | Run persistent queue worker | `queue/worker/runner.ts` (via scripts package) | Use `npm run queue-worker` (root) or `npm --prefix scripts run queue-worker`. |
 | Import/refresh grocery stores from AllThePlaces | `scripts/import_new_stores.py` | Defaults to target ZIP strategy (`target_zipcodes`); supports `--brand` and `--all-zipcodes`. |
 | Real-time ZIP-triggered store scraping | `scripts/geoscraper.py` | Event/webhook-oriented; accepts ZIP input via flags or `REALTIME_TARGET_ZIPCODES`. |
@@ -54,6 +55,7 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 |---|---|---|
 | `scripts/daily-scraper.js` | Node | Scrapes product prices and inserts via `fn_bulk_insert_ingredient_history`; logs failures to `failed_scrapes_log`. |
 | `scripts/resolve-ingredient-match-queue.ts` | TSX | Executes queue resolver pipeline. |
+| `scripts/cleanup-recent-standardized-ingredients.ts` | TSX | Scans recent canonical rows, writes JSON report, optionally resets soft references and deletes safe candidates. |
 | `scripts/seed-mock-recipes.ts` | TSX | Upserts recipe data in DB. |
 | `scripts/import_new_stores.py` | Python | Inserts new rows into `grocery_stores`; updates `scraped_zipcodes`. |
 | `scripts/geoscraper.py` | Python | Inserts ZIP-scoped store rows; updates `scraped_zipcodes`. |
@@ -74,6 +76,12 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 ```bash
 # Queue resolver (single run)
 npm run resolve-ingredient-match-queue
+
+# Preview recent standardized cleanup (dry run)
+npm run cleanup-recent-standardized-ingredients -- --minutes 60
+
+# Apply recent standardized cleanup
+npm run cleanup-recent-standardized-ingredients -- --minutes 60 --apply
 
 # Queue worker (persistent loop)
 npm run queue-worker

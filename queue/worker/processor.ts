@@ -102,6 +102,42 @@ const CROSS_CATEGORY_MIN_SIMILARITY_BUFFER = 0.15
 const GENERIC_TO_SPECIFIC_MIN_CONFIDENCE = 0.95
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR = 0.9
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER = 0.2
+const NEW_CANONICAL_MIN_CONFIDENCE = 0.65
+const NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE = 0.8
+const NEW_CANONICAL_MAX_TOKEN_COUNT = 4
+const NEW_CANONICAL_RETAIL_TITLE_TOKEN_COUNT = 5
+const NEW_CANONICAL_NOISE_TOKENS = new Set([
+  "fresh",
+  "deli",
+  "sliced",
+  "slice",
+  "grab",
+  "go",
+  "classic",
+  "premium",
+  "original",
+  "family",
+  "pack",
+  "tray",
+  "kosher",
+  "grade",
+  "large",
+  "jumbo",
+  "natural",
+  "cage",
+  "free",
+  "low",
+  "fat",
+  "part",
+  "skim",
+  "blend",
+  "style",
+  "collection",
+  "flavor",
+  "flavored",
+  "nouveau",
+  "table",
+])
 
 function getSearchTerm(row: IngredientMatchQueueRow): string {
   return (row.cleaned_name || row.raw_product_name || "").trim()
@@ -131,6 +167,12 @@ function toCanonicalTokenSet(value: string): Set<string> {
       .split(" ")
       .filter(Boolean)
   )
+}
+
+function toCanonicalTokens(value: string): string[] {
+  return normalizeCanonicalName(value)
+    .split(" ")
+    .filter(Boolean)
 }
 
 function isTokenSubset(source: Set<string>, target: Set<string>): boolean {
@@ -183,6 +225,62 @@ function meetsAsymmetricRemapPolicy(
     minConfidence: config.doubleCheckMinConfidence,
     minSimilarity: config.doubleCheckMinSimilarity,
   }
+}
+
+function assessNewCanonicalRisk(params: {
+  canonicalName: string
+  category: string | null | undefined
+  confidence: number
+}): { blocked: boolean; reason: string } {
+  const { canonicalName, category, confidence } = params
+  const normalized = normalizeCanonicalName(canonicalName)
+  const tokens = toCanonicalTokens(normalized)
+  const tokenCount = tokens.length
+  const hasNumericToken = /\b\d+\b/.test(normalized)
+  const noiseHits = tokens.filter((token) => NEW_CANONICAL_NOISE_TOKENS.has(token)).length
+  const categoryUnknown = !category || category === "other"
+
+  if (confidence < NEW_CANONICAL_MIN_CONFIDENCE && tokenCount > 2) {
+    return {
+      blocked: true,
+      reason: `low_confidence_long_name(min_confidence=${NEW_CANONICAL_MIN_CONFIDENCE.toFixed(2)}, tokens=${tokenCount})`,
+    }
+  }
+
+  if (tokenCount > NEW_CANONICAL_MAX_TOKEN_COUNT && confidence < NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE) {
+    return {
+      blocked: true,
+      reason:
+        `long_name_requires_higher_confidence(min_confidence=${NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE.toFixed(2)}, ` +
+        `tokens=${tokenCount})`,
+    }
+  }
+
+  if (
+    tokenCount >= NEW_CANONICAL_RETAIL_TITLE_TOKEN_COUNT &&
+    (hasNumericToken || noiseHits >= 1 || categoryUnknown)
+  ) {
+    return {
+      blocked: true,
+      reason: `retail_title_like(tokens=${tokenCount}, noise_hits=${noiseHits}, has_numeric=${hasNumericToken})`,
+    }
+  }
+
+  if (tokenCount >= 4 && noiseHits >= 2) {
+    return {
+      blocked: true,
+      reason: `high_noise_density(tokens=${tokenCount}, noise_hits=${noiseHits})`,
+    }
+  }
+
+  if (categoryUnknown && tokenCount > NEW_CANONICAL_MAX_TOKEN_COUNT) {
+    return {
+      blocked: true,
+      reason: `unknown_category_long_name(max_tokens=${NEW_CANONICAL_MAX_TOKEN_COUNT}, tokens=${tokenCount})`,
+    }
+  }
+
+  return { blocked: false, reason: "ok" }
 }
 
 function hasUnitAlias(raw: string, alias: string): boolean {
@@ -778,7 +876,23 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
         if (!config.dryRun) {
           if (needsIngredient) {
-            const standardized = await standardizedIngredientsDB.getOrCreate(canonicalForWrite, ingredientCategory)
+            const existingCanonical = await standardizedIngredientsDB.findByCanonicalName(canonicalForWrite)
+            if (!existingCanonical) {
+              const risk = assessNewCanonicalRisk({
+                canonicalName: canonicalForWrite,
+                category: ingredientCategory,
+                confidence: ingredientConfidence,
+              })
+              if (risk.blocked) {
+                throw new Error(
+                  `Blocked new canonical creation for "${canonicalForWrite}" (${risk.reason}, ` +
+                    `confidence=${ingredientConfidence.toFixed(3)}, category=${ingredientCategory || "null"})`
+                )
+              }
+            }
+
+            const standardized =
+              existingCanonical || (await standardizedIngredientsDB.getOrCreate(canonicalForWrite, ingredientCategory))
             if (!standardized?.id) {
               throw new Error("Failed to upsert standardized ingredient")
             }
