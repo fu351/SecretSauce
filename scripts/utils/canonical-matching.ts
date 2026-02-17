@@ -89,6 +89,21 @@ function tokenJaccard(a: string, b: string): number {
   return union === 0 ? 0 : intersection / union
 }
 
+function tokenContainment(a: string, b: string): number {
+  const aTokens = tokenSet(a)
+  const bTokens = tokenSet(b)
+  if (aTokens.size === 0 || bTokens.size === 0) return 0
+
+  let intersection = 0
+  for (const token of aTokens) {
+    if (bTokens.has(token)) intersection += 1
+  }
+
+  const smallerSize = Math.min(aTokens.size, bTokens.size)
+  if (!smallerSize) return 0
+  return intersection / smallerSize
+}
+
 function tokenPhraseSet(value: string): Set<string> {
   const tokens = tokenList(value)
   if (!tokens.length) return new Set()
@@ -165,8 +180,15 @@ export function scoreCanonicalSimilarity(candidate: string, existing: string): n
   if (singularCandidate === singularExisting) return 0.995
 
   const tokenScore = tokenJaccard(normalizedCandidate, normalizedExisting)
+  const containmentScore = tokenContainment(normalizedCandidate, normalizedExisting)
   const charScore = diceSimilarity(normalizedCandidate, normalizedExisting)
   const phraseOrderScore = phraseDiceSimilarity(normalizedCandidate, normalizedExisting)
   const positionOrderScore = positionalTokenSimilarity(normalizedCandidate, normalizedExisting)
-  return (tokenScore * 0.52) + (charScore * 0.28) + (phraseOrderScore * 0.12) + (positionOrderScore * 0.08)
+  return (
+    (tokenScore * 0.35) +
+    (containmentScore * 0.25) +
+    (charScore * 0.2) +
+    (phraseOrderScore * 0.12) +
+    (positionOrderScore * 0.08)
+  )
 }

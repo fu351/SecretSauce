@@ -8,6 +8,7 @@
     "lint": "next lint",
     "start": "next start",
     "resolve-ingredient-match-queue": "tsx scripts/resolve-ingredient-match-queue.ts",
+    "cleanup-recent-standardized-ingredients": "tsx scripts/cleanup-recent-standardized-ingredients.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",

@@ -279,6 +279,24 @@ function resolveRowStandardizerContext(
   return "pantry"
 }
 
+function buildCanonicalDoubleCheckTerms(canonicalName: string): string[] {
+  const terms = new Set(buildCanonicalQueryTerms(canonicalName))
+  const tokens = normalizeCanonicalName(canonicalName)
+    .split(" ")
+    .filter(Boolean)
+
+  // Product titles are often noisy; include tail noun terms so we can match
+  // canonical base ingredients like "egg", "milk", "gravy mix", "red wine".
+  if (tokens.length >= 1) {
+    terms.add(tokens[tokens.length - 1])
+  }
+  if (tokens.length >= 2) {
+    terms.add(`${tokens[tokens.length - 2]} ${tokens[tokens.length - 1]}`)
+  }
+
+  return Array.from(terms).filter(Boolean)
+}
+
 async function resolveCanonicalWithDoubleCheck(
   canonicalName: string,
   category: string | null | undefined,
@@ -297,7 +315,7 @@ async function resolveCanonicalWithDoubleCheck(
     return exact.canonical_name
   }
 
-  const queryTerms = buildCanonicalQueryTerms(normalizedCanonical)
+  const queryTerms = buildCanonicalDoubleCheckTerms(normalizedCanonical)
   const collected = new Map<string, CanonicalCandidate>()
 
   for (const term of queryTerms) {
