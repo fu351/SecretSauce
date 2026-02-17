@@ -708,7 +708,7 @@ async function bulkInsertIngredientHistory(items) {
       rawUnit: item.rawUnit ?? item.unit ?? null,
       unit: item.unit ?? null
     }))
-    .filter(item => item.price !== null && item.price > 0 && item.productName && item.zipCode)
+    .filter(item => item.price !== null && item.price >= 0 && item.productName && item.zipCode)
 
   if (!payload.length) {
     console.warn('⚠️  No valid payload rows after normalization')
