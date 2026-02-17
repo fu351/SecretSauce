@@ -54,6 +54,21 @@ export interface QueueRunSummary {
   dryRunResults?: ResolveBatchResult["results"]
 }
 
+const PROTECTED_FORM_TOKENS = new Set([
+  "paste",
+  "powder",
+  "sauce",
+  "broth",
+  "stock",
+  "puree",
+  "extract",
+  "juice",
+  "syrup",
+  "flakes",
+  "seasoning",
+  "mix",
+])
+
 function getSearchTerm(row: IngredientMatchQueueRow): string {
   return (row.cleaned_name || row.raw_product_name || "").trim()
 }
@@ -79,6 +94,34 @@ function resolveRowStandardizerContext(
 
   if (row.source === "recipe") return "recipe"
   return "pantry"
+}
+
+function maybeRetainFormSpecificCanonical(params: {
+  sourceSearchTerm: string
+  modelCanonical: string
+}): { canonicalName: string; reason: string } | null {
+  const sourceCanonical = normalizeCanonicalName(params.sourceSearchTerm)
+  const modelCanonical = normalizeCanonicalName(params.modelCanonical)
+  if (!sourceCanonical || !modelCanonical || sourceCanonical === modelCanonical) return null
+
+  const sourceTokens = sourceCanonical.split(" ").filter(Boolean)
+  const modelTokens = new Set(modelCanonical.split(" ").filter(Boolean))
+  if (!sourceTokens.length || !modelTokens.size) return null
+
+  const sourceFormTokens = sourceTokens.filter((token) => PROTECTED_FORM_TOKENS.has(token))
+  if (!sourceFormTokens.length) return null
+
+  const missingFormTokens = sourceFormTokens.filter((token) => !modelTokens.has(token))
+  if (!missingFormTokens.length) return null
+
+  const sourceBaseTokens = sourceTokens.filter((token) => !PROTECTED_FORM_TOKENS.has(token))
+  const sharedBaseTokens = sourceBaseTokens.filter((token) => modelTokens.has(token))
+  if (!sharedBaseTokens.length) return null
+
+  return {
+    canonicalName: sourceCanonical,
+    reason: `form_retention(missing_forms=${missingFormTokens.join("|")})`,
+  }
 }
 
 async function resolveIngredientCandidates(
@@ -414,7 +457,22 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             throw new Error("AI returned no canonical name")
           }
 
-          const normalizedCanonical = normalizeCanonicalName(ingredientResult.canonicalName)
+          const sourceSearchTerm = getIngredientSearchTerm(row, unitByRowId.get(row.id))
+          let normalizedCanonical = normalizeCanonicalName(ingredientResult.canonicalName)
+
+          const formRetention = maybeRetainFormSpecificCanonical({
+            sourceSearchTerm,
+            modelCanonical: normalizedCanonical,
+          })
+          if (formRetention) {
+            normalizedCanonical = formRetention.canonicalName
+            console.log(
+              `[QueueResolver] Form retention kept "${normalizeCanonicalName(sourceSearchTerm)}" ` +
+                `over model canonical "${normalizeCanonicalName(ingredientResult.canonicalName)}" ` +
+                `(${formRetention.reason})`
+            )
+          }
+
           if (!normalizedCanonical) {
             throw new Error("AI returned an empty canonical name")
           }
