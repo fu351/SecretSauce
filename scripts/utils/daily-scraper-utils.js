@@ -133,22 +133,6 @@ export function normalizeResultsShape(rawResults) {
   return []
 }
 
-export function pickBestResult(results) {
-  const withPrice = results
-    .map(item => ({
-      ...item,
-      _price: toPriceNumber(item?.price)
-    }))
-    .filter(item => item._price !== null && item._price >= 0)
-
-  if (withPrice.length === 0) {
-    return null
-  }
-
-  withPrice.sort((a, b) => a._price - b._price)
-  return withPrice[0]
-}
-
 function normalizeWhitespace(value) {
   return String(value || '').trim().replace(/\s+/g, ' ')
 }

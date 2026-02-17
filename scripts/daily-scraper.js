@@ -27,7 +27,6 @@ import {
   normalizeResultsShape,
   normalizeStoreEnum,
   normalizeZipCode,
-  pickBestResult,
   sleep,
   toPriceNumber,
   truncateText,
@@ -383,8 +382,7 @@ async function fetchAllCanonicalIngredients() {
 
 async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, batchConcurrency, scrapeStats = null, storeMetadata = null) {
   const nativeBatchScraper = STORE_BATCH_SCRAPER_MAP[storeEnum]
-  const normalizedTargetMetadata =
-    storeEnum === 'target' ? normalizeTargetStoreMetadata(storeMetadata, zipCode) : null
+  const normalizedTargetMetadata = storeEnum === 'target' ? storeMetadata : null
 
   if (typeof nativeBatchScraper === 'function') {
     try {
@@ -618,23 +616,27 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
 
         consecutiveStoreErrors = 0
 
-        const best = pickBestResult(resultsByIngredient[idx] || [])
-        if (!best) continue
+        const validResults = (resultsByIngredient[idx] || [])
+          .map(item => ({ ...item, _price: toPriceNumber(item?.price) }))
+          .filter(item => item._price !== null && item._price >= 0)
 
-        pendingResults.push({
-          store: storeEnum,
-          price: best._price,
-          imageUrl: best.image_url || best.imageUrl || null,
-          productName: getProductName(best, ingredientName),
-          productId: best.product_id || best.id || null,
-          zipCode,
-          store_id: store.id || null,
-          rawUnit: best.rawUnit || best.unit || best.size || null,
-          unit: best.unit || null
-        })
+        if (validResults.length === 0) continue
 
-        totalScrapedCount += 1
-        chunkHits += 1
+        for (const result of validResults) {
+          pendingResults.push({
+            store: storeEnum,
+            price: result._price,
+            imageUrl: result.image_url || result.imageUrl || null,
+            productName: getProductName(result, ingredientName),
+            productId: result.product_id || result.id || null,
+            zipCode,
+            store_id: store.id || null,
+            rawUnit: result.rawUnit || result.unit || result.size || null,
+            unit: result.unit || null
+          })
+          totalScrapedCount += 1
+        }
+        chunkHits += validResults.length
       }
 
       console.log(`   ✅ Found ${chunkHits}/${chunk.length} prices in chunk`)
