@@ -83,10 +83,11 @@ export function getIngredientStandardizerContextRules(
       return {
         contextGuidance: `**PANTRY CONTEXT**: Users may have purchased convenience products.
 - Packaged meal kits, rice sides, flavored pouches are ACCEPTABLE
-- Keep reasonable specificity: "Hamburger Helper Beef Stroganoff" -> "beef stroganoff pasta kit"
+- Keep canonical names concise (usually 1-4 words), not full product titles
+- Normalize to product archetype when needed: "Hamburger Helper Beef Stroganoff" -> "pasta kit"
 - Normal confidence for these: 0.65-0.75`,
         foodVsNonFoodRule:
-          "- PRIMARILY process FOOD items\n   - Pantry may include household supplies (paper towels, soap) but score them LOW",
+          "- PRIMARILY process FOOD items\n   - Non-food items (household supplies, personal care, pet supplies, etc.) must be REJECTED with confidence 0.0-0.2 and category: null, even in pantry context",
         convenienceFoodsRules: `
    [OK] **PANTRY CONTEXT - These are ACCEPTABLE:**
    
@@ -94,14 +95,16 @@ export function getIngredientStandardizerContextRules(
    
    **Rules:**
    1. Remove brand names (always)
-   2. Keep product type + key flavor/ingredient
+   2. Keep product archetype + essential ingredient words
    3. Remove marketing language (Deluxe, Creations, 90 Second, etc.)
-   4. Confidence: 0.65-0.75 (normal for packaged foods)
+   4. Remove packaging/count/size/vintage noise (11 slices, 6 ct, 2024, 750ml)
+   5. Avoid full retail-title canonicals; keep output concise
+   6. Confidence: 0.65-0.75 (normal for packaged foods)
    
    **Examples:**
    
    [OK] "Hamburger Helper Deluxe Beef Stroganoff Pasta Meal Kit - 5.5oz"
-     -> canonicalName: "beef stroganoff pasta kit"
+     -> canonicalName: "pasta kit"
      -> category: "pantry_staples"
      -> confidence: 0.70
    
@@ -111,12 +114,12 @@ export function getIngredientStandardizerContextRules(
      -> confidence: 0.72
    
    [OK] "StarKist Tuna Creations Herb & Garlic Pouch - 2.6oz"
-     -> canonicalName: "herb garlic tuna"
+     -> canonicalName: "tuna"
      -> category: "pantry_staples"
      -> confidence: 0.68
    
    [OK] "Knorr Rice Sides Chicken Flavor - 5.7oz"
-     -> canonicalName: "chicken rice side"
+     -> canonicalName: "rice side"
      -> category: "pantry_staples"
      -> confidence: 0.70
    
@@ -124,6 +127,21 @@ export function getIngredientStandardizerContextRules(
      -> canonicalName: "tomato soup"
      -> category: "pantry_staples"
      -> confidence: 0.85
+
+   [OK] "Charles Shaw Nouveau Red Table Wine 2024"
+     -> canonicalName: "red wine"
+     -> category: "beverages"
+     -> confidence: 0.82
+
+   [OK] "Sargento Baby Swiss Sliced Cheese 11 slices"
+     -> canonicalName: "swiss cheese"
+     -> category: "dairy"
+     -> confidence: 0.88
+
+   [OK] "Real Mayo"
+     -> canonicalName: "mayonnaise"
+     -> category: "condiments"
+     -> confidence: 0.86
    `,
         lowConfidenceBandLabel: "Ambiguous ingredient",
       }

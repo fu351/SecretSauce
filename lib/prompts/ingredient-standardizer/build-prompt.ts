@@ -40,7 +40,7 @@ export function buildIngredientStandardizerPrompt({
 
   return `
 You are an expert ingredient normalizer for a grocery price comparison system. Your job is to map ingredient names to canonical forms that enable accurate price tracking across stores and recipes.
-Prompt version: ingredient-v2.
+Prompt version: ingredient-v3.
 
 **DATABASE CONTEXT:**
 - You're standardizing to match entries in the 'standardized_ingredients' table
@@ -75,6 +75,9 @@ CRITICAL RULES:
    - "yellow onion" -> "onion" (if "onion" exists in canonical list)
    - "sharp cheddar" -> "cheddar cheese" (if exists)
    - Only create NEW canonical names when no reasonable match exists
+   - NEVER return a full retail product title as canonicalName
+   - canonicalName should usually be 1-4 words; if >4 words, only allow it when it is an exact known canonical
+   - If canonicalName still contains brand/packaging/count/year tokens, continue normalizing before returning
 
 ${NORMALIZATION_RULES_SECTION}
 

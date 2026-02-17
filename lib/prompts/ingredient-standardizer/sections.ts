@@ -29,6 +29,7 @@ export const NORMALIZATION_RULES_SECTION = `
       - "Heinz ketchup" -> "ketchup"
       - "Campbell's tomato soup" -> "tomato soup"
       - "Philadelphia cream cheese" -> "cream cheese"
+      - Remove brand-like tokens and possessive brand markers (e.g. "kinder's", "mccormick", "charles shaw")
    
    e) **Singular Form:**
       - "tomatoes" -> "tomato"
@@ -38,6 +39,18 @@ export const NORMALIZATION_RULES_SECTION = `
    
    f) **Lowercase Everything:**
       - All canonical names must be lowercase
+
+   g) **Strip Packaging / Retail Noise:**
+      - Remove counts and packaging units: "12 slices", "6 ct", "24 pack", "750ml", "1 gal", "5.5oz"
+      - Remove merchandising words: deli, family-size, value pack, party size, microwavable, ready-to-eat
+      - Remove grade/marketing labels: grade aa, cage free, premium, classic, original, homestyle
+
+   h) **No Product-Title Canonicals:**
+      - canonicalName should be concise and ingredient-like, usually 1-4 words
+      - Do NOT include vintage/year/model-like tokens ("2024", "vintage", "limited edition")
+      - If the cleaned phrase is still a full product title, reduce to base ingredient/product archetype
+      - Good: "swiss cheese", "red wine", "taco seasoning", "mayonnaise"
+      - Bad: "sargento baby swiss sliced cheese 11 slices", "charles shaw nouveau red table wine 2024"
 `
 
 export const CATEGORY_ASSIGNMENT_SECTION = `
@@ -45,11 +58,11 @@ export const CATEGORY_ASSIGNMENT_SECTION = `
    - **produce**: fruits, vegetables, fresh herbs
    - **dairy**: milk, cheese, yogurt, butter, eggs, cream
    - **meat_seafood**: all meats, poultry, fish, seafood
-   - **pantry_staples**: flour, sugar, salt, oil, rice, pasta, beans, canned goods, grains
+   - **pantry_staples**: sugar, salt, oil, rice, pasta, beans, canned goods, grains
    - **beverages**: drinks, juice, soda, coffee, tea (NOT milk/cream - those are dairy)
    - **snacks**: chips, crackers, cookies, candy, nuts (unopened packaged snacks)
    - **condiments**: sauces, dressings, ketchup, mustard, mayo, vinegar, soy sauce
-   - **baking**: baking powder, baking soda, vanilla extract, chocolate chips, yeast
+   - **baking**: flour (all types), baking powder, baking soda, vanilla extract, chocolate chips, yeast
    - **spices**: dried spices and seasoning blends (paprika, cumin, turmeric, curry powder, chili flakes)
    - **other**: items that don't fit above categories
    
@@ -103,6 +116,36 @@ EXAMPLES OF PROPER NORMALIZATION:
   -> category: "pantry_staples"
   -> confidence: 0.98
 
+[OK] "Sargento baby swiss sliced cheese 11 slices"
+  -> canonicalName: "swiss cheese"
+  -> category: "dairy"
+  -> confidence: 0.88
+
+[OK] "Charles Shaw Nouveau Red Table Wine 2024"
+  -> canonicalName: "red wine"
+  -> category: "beverages"
+  -> confidence: 0.82
+
+[OK] "Kinder's The Taco Blend Mexican Seasoning"
+  -> canonicalName: "taco seasoning"
+  -> category: "spices"
+  -> confidence: 0.80
+
+[OK] "Real Mayo"
+  -> canonicalName: "mayonnaise"
+  -> category: "condiments"
+  -> confidence: 0.86
+
+[OK] "cage free large white egg"
+  -> canonicalName: "egg"
+  -> category: "dairy"
+  -> confidence: 0.90
+
+[OK] "1 low fat milk"
+  -> canonicalName: "low fat milk"
+  -> category: "dairy"
+  -> confidence: 0.86
+
 **Non-Food Items (ALL contexts):**
 
 [X] "Bounty paper towels" 
@@ -143,6 +186,7 @@ HANDLING EDGE CASES:
    - Clean it up (lowercase, singular, remove brands) and let human review
    - DON'T invent fake categories - use "other" if unsure
    - canonicalName must be a real ingredient phrase, never a category label like "other"
+   - Prefer short archetypes over long product strings (e.g. "red wine", "swiss cheese", "tuna")
 
 **4. Abbreviations:**
    - "evoo" -> "olive oil"
