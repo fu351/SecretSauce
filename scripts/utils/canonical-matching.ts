@@ -58,6 +58,23 @@ function tokenList(value: string): string[] {
     .filter(Boolean)
 }
 
+function sharedTokenProjection(a: string, b: string): { aShared: string[]; bShared: string[] } {
+  const aTokens = tokenList(a)
+  const bTokens = tokenList(b)
+
+  const aSet = new Set(aTokens)
+  const bSet = new Set(bTokens)
+
+  const aShared = aTokens.filter((token) => bSet.has(token))
+  const bShared = bTokens.filter((token) => aSet.has(token))
+
+  if (aShared.length && bShared.length) {
+    return { aShared, bShared }
+  }
+
+  return { aShared: aTokens, bShared: bTokens }
+}
+
 function tokenJaccard(a: string, b: string): number {
   const aTokens = tokenSet(a)
   const bTokens = tokenSet(b)
@@ -85,8 +102,9 @@ function tokenPhraseSet(value: string): Set<string> {
 }
 
 function phraseDiceSimilarity(a: string, b: string): number {
-  const aPhrases = tokenPhraseSet(a)
-  const bPhrases = tokenPhraseSet(b)
+  const { aShared, bShared } = sharedTokenProjection(a, b)
+  const aPhrases = tokenPhraseSet(aShared.join(" "))
+  const bPhrases = tokenPhraseSet(bShared.join(" "))
   if (aPhrases.size === 0 || bPhrases.size === 0) return 0
 
   let overlap = 0
@@ -97,8 +115,7 @@ function phraseDiceSimilarity(a: string, b: string): number {
 }
 
 function positionalTokenSimilarity(a: string, b: string): number {
-  const aTokens = tokenList(a)
-  const bTokens = tokenList(b)
+  const { aShared: aTokens, bShared: bTokens } = sharedTokenProjection(a, b)
   if (!aTokens.length || !bTokens.length) return 0
 
   const minLength = Math.min(aTokens.length, bTokens.length)
@@ -151,5 +168,5 @@ export function scoreCanonicalSimilarity(candidate: string, existing: string): n
   const charScore = diceSimilarity(normalizedCandidate, normalizedExisting)
   const phraseOrderScore = phraseDiceSimilarity(normalizedCandidate, normalizedExisting)
   const positionOrderScore = positionalTokenSimilarity(normalizedCandidate, normalizedExisting)
-  return (tokenScore * 0.25) + (charScore * 0.15) + (phraseOrderScore * 0.35) + (positionOrderScore * 0.25)
+  return (tokenScore * 0.52) + (charScore * 0.28) + (phraseOrderScore * 0.12) + (positionOrderScore * 0.08)
 }
