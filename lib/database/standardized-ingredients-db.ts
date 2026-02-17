@@ -4,6 +4,20 @@ import type { Database } from '@/lib/database/supabase'
 type StandardizedIngredientRow = Database['public']['Tables']['standardized_ingredients']['Row']
 type StandardizedIngredientInsert = Database['public']['Tables']['standardized_ingredients']['Insert']
 type StandardizedIngredientUpdate = Database['public']['Tables']['standardized_ingredients']['Update']
+type ItemCategoryEnum = Database["public"]["Enums"]["item_category_enum"]
+
+const ITEM_CATEGORY_ENUM_VALUES = new Set<ItemCategoryEnum>([
+  "baking",
+  "beverages",
+  "condiments",
+  "dairy",
+  "meat_seafood",
+  "pantry_staples",
+  "produce",
+  "snacks",
+  "other",
+  "spices",
+])
 
 class StandardizedIngredientsTable extends BaseTable<
   'standardized_ingredients',
@@ -27,6 +41,22 @@ class StandardizedIngredientsTable extends BaseTable<
 
   private normalizeCanonicalName(value: string): string {
     return value.trim().toLowerCase().replace(/\s+/g, " ")
+  }
+
+  private normalizeCategoryValue(value?: string | null): string | null {
+    if (typeof value !== "string") return null
+    const normalized = value.trim().toLowerCase()
+    return normalized.length > 0 ? normalized : null
+  }
+
+  private isValidItemCategoryEnum(value?: string | null): value is ItemCategoryEnum {
+    return typeof value === "string" && ITEM_CATEGORY_ENUM_VALUES.has(value as ItemCategoryEnum)
+  }
+
+  private isInvalidItemCategoryEnumError(error: unknown): boolean {
+    const code = (error as any)?.code
+    const message = String((error as any)?.message ?? "")
+    return code === "22P02" && message.includes("item_category_enum")
   }
 
   /**
@@ -124,6 +154,7 @@ class StandardizedIngredientsTable extends BaseTable<
   ): Promise<StandardizedIngredientRow | null> {
     try {
       const normalizedCanonicalName = this.normalizeCanonicalName(canonicalName)
+      const normalizedCategory = this.normalizeCategoryValue(category)
       console.log(`[StandardizedIngredientsTable] Get or create: ${normalizedCanonicalName}`)
 
       // Try to find existing
@@ -133,7 +164,7 @@ class StandardizedIngredientsTable extends BaseTable<
       // Create new
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .insert({ canonical_name: normalizedCanonicalName, category })
+        .insert({ canonical_name: normalizedCanonicalName, category: normalizedCategory })
         .select()
         .single()
 
@@ -144,6 +175,36 @@ class StandardizedIngredientsTable extends BaseTable<
           const conflicted = await this.findByCanonicalName(normalizedCanonicalName)
           if (conflicted) return conflicted
         }
+
+        // LLM may output invalid categories (e.g. "pasta") that do not match the DB enum.
+        // Retry once with safe fallback category when and only when category is invalid.
+        if (
+          this.isInvalidItemCategoryEnumError(error) &&
+          normalizedCategory &&
+          !this.isValidItemCategoryEnum(normalizedCategory)
+        ) {
+          console.warn(
+            `[StandardizedIngredientsTable] Invalid category "${normalizedCategory}" for "${normalizedCanonicalName}". Retrying with fallback category "other".`
+          )
+
+          const { data: retryData, error: retryError } = await this.supabase
+            .from(this.tableName)
+            .insert({ canonical_name: normalizedCanonicalName, category: "other" })
+            .select()
+            .single()
+
+          if (retryError) {
+            if ((retryError as any)?.code === "23505") {
+              const conflicted = await this.findByCanonicalName(normalizedCanonicalName)
+              if (conflicted) return conflicted
+            }
+            this.handleError(retryError, "getOrCreate.retryInvalidCategory")
+            return null
+          }
+
+          return retryData
+        }
+
         this.handleError(error, 'getOrCreate')
         return null
       }
@@ -171,15 +232,32 @@ class StandardizedIngredientsTable extends BaseTable<
 
       // Normalize + de-duplicate canonical names to avoid avoidable conflicts.
       const deduped = new Map<string, { canonical_name: string; category: string | null }>()
+      let invalidCategoryFallbackCount = 0
       for (const item of items) {
         const normalized = this.normalizeCanonicalName(item.canonicalName)
+        const normalizedCategory = this.normalizeCategoryValue(item.category)
+        const safeCategory =
+          normalizedCategory === null
+            ? null
+            : this.isValidItemCategoryEnum(normalizedCategory)
+              ? normalizedCategory
+              : "other"
+        if (normalizedCategory !== null && safeCategory === "other" && normalizedCategory !== "other") {
+          invalidCategoryFallbackCount += 1
+        }
         if (!normalized) continue
         if (!deduped.has(normalized)) {
           deduped.set(normalized, {
             canonical_name: normalized,
-            category: item.category,
+            category: safeCategory,
           })
         }
+      }
+
+      if (invalidCategoryFallbackCount > 0) {
+        console.warn(
+          `[StandardizedIngredientsTable] Normalized ${invalidCategoryFallbackCount} invalid category value(s) to "other" during batch upsert.`
+        )
       }
 
       if (!deduped.size) return result

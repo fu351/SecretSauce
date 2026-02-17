@@ -476,6 +476,42 @@ function logCanonicalDoubleCheckDecision(params: {
     })
 }
 
+async function resolveBlockedNewCanonicalFallback(params: {
+  canonicalName: string
+}): Promise<{ canonicalName: string; category: string | null; source: string } | null> {
+  const candidates: Array<{ canonicalName: string; source: string }> = []
+  const seen = new Set<string>()
+  const baseCanonical = normalizeCanonicalName(params.canonicalName)
+
+  const addCandidate = (value: string | null | undefined, source: string): void => {
+    const normalized = normalizeCanonicalName(value || "")
+    if (!normalized || normalized === baseCanonical || seen.has(normalized)) return
+    if (INVALID_CANONICAL_NAMES.has(normalized)) return
+    seen.add(normalized)
+    candidates.push({ canonicalName: normalized, source })
+  }
+
+  const baseTokens = toCanonicalTokens(baseCanonical)
+  if (baseTokens.length >= 2) {
+    addCandidate(baseTokens.slice(-2).join(" "), "tail_2_tokens")
+  }
+  if (baseTokens.length >= 3) {
+    addCandidate(baseTokens.slice(-3).join(" "), "tail_3_tokens")
+  }
+
+  for (const candidate of candidates) {
+    const existing = await standardizedIngredientsDB.findByCanonicalName(candidate.canonicalName)
+    if (!existing?.canonical_name) continue
+    return {
+      canonicalName: existing.canonical_name,
+      category: existing.category ?? null,
+      source: candidate.source,
+    }
+  }
+
+  return null
+}
+
 async function resolveCanonicalWithDoubleCheck(
   canonicalName: string,
   category: string | null | undefined,
@@ -962,14 +998,41 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
         if (!config.dryRun) {
           if (needsIngredient) {
-            const existingCanonical = await standardizedIngredientsDB.findByCanonicalName(canonicalForWrite)
+            let existingCanonical = await standardizedIngredientsDB.findByCanonicalName(canonicalForWrite)
             if (!existingCanonical) {
-              const risk = assessNewCanonicalRisk({
+              let risk = assessNewCanonicalRisk({
                 canonicalName: canonicalForWrite,
                 category: ingredientCategory,
                 confidence: ingredientConfidence,
               })
+
               if (risk.blocked) {
+                const fallback = await resolveBlockedNewCanonicalFallback({
+                  canonicalName: canonicalForWrite,
+                })
+
+                if (fallback) {
+                  canonicalForWrite = fallback.canonicalName
+                  ingredientCategory = fallback.category ?? ingredientCategory
+                  existingCanonical = await standardizedIngredientsDB.findByCanonicalName(canonicalForWrite)
+                  if (existingCanonical) {
+                    console.warn(
+                      `[QueueResolver] Recovered blocked canonical "${normalizedCanonical}" -> "${canonicalForWrite}" ` +
+                        `(source=${fallback.source}, block_reason=${risk.reason})`
+                    )
+                  }
+                }
+
+                if (!existingCanonical) {
+                  risk = assessNewCanonicalRisk({
+                    canonicalName: canonicalForWrite,
+                    category: ingredientCategory,
+                    confidence: ingredientConfidence,
+                  })
+                }
+              }
+
+              if (!existingCanonical && risk.blocked) {
                 throw new Error(
                   `Blocked new canonical creation for "${canonicalForWrite}" (${risk.reason}, ` +
                     `confidence=${ingredientConfidence.toFixed(3)}, category=${ingredientCategory || "null"})`
