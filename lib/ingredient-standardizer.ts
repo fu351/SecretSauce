@@ -92,7 +92,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
       OPENAI_URL,
       {
         model: OPENAI_MODEL,
-        temperature: 0.1,
+        temperature: 0,
         max_tokens: 1000,
         messages: [
           {
@@ -141,7 +141,7 @@ async function callGemini(prompt: string): Promise<string | null> {
         model: GEMINI_MODEL,
         contents: prompt,
         config: {
-          temperature: 0.1,
+          temperature: 0,
           maxOutputTokens: 1000,
           responseMimeType: "application/json",
         },
