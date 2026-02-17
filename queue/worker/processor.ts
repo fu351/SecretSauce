@@ -104,8 +104,13 @@ const CROSS_CATEGORY_MIN_SIMILARITY_BUFFER = 0.15
 const GENERIC_TO_SPECIFIC_MIN_CONFIDENCE = 0.95
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR = 0.9
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER = 0.2
+const SPECIFIC_TO_GENERIC_SCORE_PENALTY = 0.1
+const SPECIFIC_TO_GENERIC_MIN_CONFIDENCE = 0.9
+const SPECIFIC_TO_GENERIC_MIN_SIMILARITY_FLOOR = 0.98
+const SPECIFIC_TO_GENERIC_MIN_SIMILARITY_BUFFER = 0.03
 const LATERAL_MIN_SIMILARITY_FLOOR = 0.55
-const NEW_CANONICAL_MIN_CONFIDENCE = 0.65
+const NEW_CANONICAL_DYNAMIC_TOKEN_BASE_MIN_CONFIDENCE = 0.55
+const NEW_CANONICAL_DYNAMIC_TOKEN_CONFIDENCE_STEP = 0.1
 const NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE = 0.8
 const NEW_CANONICAL_MAX_TOKEN_COUNT = 4
 const NEW_CANONICAL_RETAIL_TITLE_TOKEN_COUNT = 5
@@ -286,11 +291,34 @@ function meetsAsymmetricRemapPolicy(
     }
   }
 
+  if (direction === "specific_to_generic") {
+    const minConfidence = Math.max(config.doubleCheckMinConfidence, SPECIFIC_TO_GENERIC_MIN_CONFIDENCE)
+    const minSimilarity = Math.max(
+      config.doubleCheckMinSimilarity + SPECIFIC_TO_GENERIC_MIN_SIMILARITY_BUFFER,
+      SPECIFIC_TO_GENERIC_MIN_SIMILARITY_FLOOR
+    )
+    return {
+      allowed: confidence >= minConfidence && similarity >= minSimilarity,
+      minConfidence,
+      minSimilarity,
+    }
+  }
+
   return {
     allowed: confidence >= config.doubleCheckMinConfidence && similarity >= config.doubleCheckMinSimilarity,
     minConfidence: config.doubleCheckMinConfidence,
     minSimilarity: config.doubleCheckMinSimilarity,
   }
+}
+
+function getDynamicTokenConfidenceFloor(tokenCount: number): number {
+  if (tokenCount <= 2) return 0
+
+  const growthSteps = Math.max(0, tokenCount - 3)
+  const dynamicFloor =
+    NEW_CANONICAL_DYNAMIC_TOKEN_BASE_MIN_CONFIDENCE + growthSteps * NEW_CANONICAL_DYNAMIC_TOKEN_CONFIDENCE_STEP
+
+  return Math.min(dynamicFloor, NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE)
 }
 
 function assessNewCanonicalRisk(params: {
@@ -305,19 +333,13 @@ function assessNewCanonicalRisk(params: {
   const hasNumericToken = /\b\d+\b/.test(normalized)
   const noiseHits = tokens.filter((token) => NEW_CANONICAL_NOISE_TOKENS.has(token)).length
   const categoryUnknown = !category || category === "other"
+  const minTokenConfidence = getDynamicTokenConfidenceFloor(tokenCount)
 
-  if (confidence < NEW_CANONICAL_MIN_CONFIDENCE && tokenCount > 2) {
-    return {
-      blocked: true,
-      reason: `low_confidence_long_name(min_confidence=${NEW_CANONICAL_MIN_CONFIDENCE.toFixed(2)}, tokens=${tokenCount})`,
-    }
-  }
-
-  if (tokenCount > NEW_CANONICAL_MAX_TOKEN_COUNT && confidence < NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE) {
+  if (minTokenConfidence > 0 && confidence < minTokenConfidence) {
     return {
       blocked: true,
       reason:
-        `long_name_requires_higher_confidence(min_confidence=${NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE.toFixed(2)}, ` +
+        `dynamic_token_confidence_floor(min_confidence=${minTokenConfidence.toFixed(2)}, ` +
         `tokens=${tokenCount})`,
     }
   }
@@ -615,6 +637,11 @@ async function resolveCanonicalWithDoubleCheck(
 
   for (const candidate of collected.values()) {
     let score = scoreCanonicalSimilarity(normalizedCanonical, candidate.canonicalName)
+    const direction = resolveRemapDirection(normalizedCanonical, candidate.canonicalName)
+
+    if (direction === "specific_to_generic") {
+      score -= SPECIFIC_TO_GENERIC_SCORE_PENALTY
+    }
 
     if (category && candidate.category && category !== candidate.category) {
       score -= CROSS_CATEGORY_SCORE_PENALTY
