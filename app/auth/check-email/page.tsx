@@ -35,6 +35,18 @@ export default function CheckEmailPage() {
     return () => clearTimeout(timer)
   }, [countdown])
 
+  useEffect(() => {
+    if (!isLoaded || !signUp) return
+    if (signUp.status === "abandoned") {
+      toast({
+        title: "Signup expired",
+        description: "Your previous signup attempt expired. Please start again.",
+        variant: "destructive",
+      })
+      router.replace("/auth/signup")
+    }
+  }, [isLoaded, router, signUp, signUp?.status, toast])
+
   const handleResendCode = async () => {
     if (!isLoaded || !signUp) {
       toast({
@@ -60,9 +72,20 @@ export default function CheckEmailPage() {
     } catch (error) {
       const firstError = (
         error as {
-          errors?: Array<{ longMessage?: string; message?: string }>
+          errors?: Array<{ code?: string; longMessage?: string; message?: string }>
         }
       )?.errors?.[0]
+      const code = firstError?.code ?? ""
+
+      if (code.includes("sign_up") || code.includes("abandoned")) {
+        toast({
+          title: "Start again",
+          description: "This signup attempt is no longer valid. Please create a new account attempt.",
+          variant: "destructive",
+        })
+        router.push("/auth/signup")
+        return
+      }
 
       toast({
         title: "Unable to resend",
@@ -124,9 +147,20 @@ export default function CheckEmailPage() {
     } catch (error) {
       const firstError = (
         error as {
-          errors?: Array<{ longMessage?: string; message?: string }>
+          errors?: Array<{ code?: string; longMessage?: string; message?: string }>
         }
       )?.errors?.[0]
+      const code = firstError?.code ?? ""
+
+      if (code.includes("sign_up") || code.includes("abandoned")) {
+        toast({
+          title: "Signup expired",
+          description: "Your signup session expired. Please start over.",
+          variant: "destructive",
+        })
+        router.push("/auth/signup")
+        return
+      }
 
       toast({
         title: "Verification failed",
