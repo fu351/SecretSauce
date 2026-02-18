@@ -1,12 +1,21 @@
 #!/usr/bin/env tsx
 
 import { createClient } from "@supabase/supabase-js"
+import dotenv from "dotenv"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 
 type ProfileRow = {
   id: string
   email: string | null
   clerk_user_id: string | null
 }
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+dotenv.config({ path: path.join(__dirname, "../.env.local") })
+dotenv.config({ path: path.join(__dirname, "../.env") })
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -166,4 +175,3 @@ void main().catch((error) => {
   console.error("[backfill-clerk-user-ids] Fatal error:", error)
   process.exit(1)
 })
-
