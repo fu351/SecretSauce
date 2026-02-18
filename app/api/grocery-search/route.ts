@@ -3,7 +3,7 @@ import {
   getOrRefreshIngredientPricesForStores,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
-import { createUserSupabaseClient } from "@/lib/database/supabase-server"
+import { createAnonSupabaseClient, createUserSupabaseClient } from "@/lib/database/supabase-server"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
@@ -254,27 +254,33 @@ export async function GET(request: NextRequest) {
     console.log(`[grocery-search] Store mapping: "${rawStoreParam}" -> "${storeKey}"`)
   }
 
-  const supabaseClient = createUserSupabaseClient()
+  const supabaseClient = supabaseAccessToken
+    ? createUserSupabaseClient()
+    : createAnonSupabaseClient()
 
   // Only use profile zip_code as fallback if no zipcode was explicitly provided
   let profileZip: string | null = null
   let userId: string | null = null
-  try {
-    const { data: authUserRes } = await supabaseClient.auth.getUser(supabaseAccessToken ?? undefined)
-    userId = authUserRes?.user?.id || null
-    if (userId && !zipToUse) {
-      // Only use profile zip if no zipcode was explicitly provided
-      const profile = await profileDB.fetchProfileFields(userId, ["zip_code"])
-      profileZip = normalizeZipCode(profile?.zip_code) ?? null
-      if (profileZip) {
-        zipToUse = profileZip
-        console.log("[grocery-search] Using profile zip code as fallback", { profileZip })
+  if (supabaseAccessToken) {
+    try {
+      const { data: authUserRes } = await supabaseClient.auth.getUser(supabaseAccessToken)
+      userId = authUserRes?.user?.id || null
+      if (userId && !zipToUse) {
+        // Only use profile zip if no zipcode was explicitly provided
+        const profile = await profileDB.fetchProfileFields(userId, ["zip_code"])
+        profileZip = normalizeZipCode(profile?.zip_code) ?? null
+        if (profileZip) {
+          zipToUse = profileZip
+          console.log("[grocery-search] Using profile zip code as fallback", { profileZip })
+        }
+      } else if (zipToUse) {
+        console.log("[grocery-search] Using explicitly provided zip code", { zipToUse })
       }
-    } else if (zipToUse) {
-      console.log("[grocery-search] Using explicitly provided zip code", { zipToUse })
+    } catch (error) {
+      console.warn("[grocery-search] Failed to derive zip from current user profile", error)
     }
-  } catch (error) {
-    console.warn("[grocery-search] Failed to derive zip from current user profile", error)
+  } else if (zipToUse) {
+    console.log("[grocery-search] Using explicitly provided zip code", { zipToUse })
   }
 
   if (!zipToUse) {
