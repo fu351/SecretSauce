@@ -1,9 +1,46 @@
 import { supabase, type Database } from "@/lib/database/supabase"
 
+const GROCERY_STORE_ENUMS = new Set<Database["public"]["Enums"]["grocery_store"]>([
+  "aldi",
+  "kroger",
+  "safeway",
+  "meijer",
+  "target",
+  "traderjoes",
+  "99ranch",
+  "walmart",
+  "andronicos",
+  "wholefoods",
+])
+
+function normalizeStoreName(store: string): string {
+  return store.toLowerCase().replace(/\s+/g, "").replace(/[']/g, "").trim()
+}
+
+function resolveStoreBrand(
+  value: string | Database["public"]["Enums"]["grocery_store"] | null | undefined
+): Database["public"]["Enums"]["grocery_store"] | null {
+  if (!value) return null
+  const normalized = normalizeStoreName(value)
+  if (GROCERY_STORE_ENUMS.has(normalized as Database["public"]["Enums"]["grocery_store"])) {
+    return normalized as Database["public"]["Enums"]["grocery_store"]
+  }
+  if (normalized.includes("target")) return "target"
+  if (normalized.includes("kroger") || normalized.includes("foodsco")) return "kroger"
+  if (normalized.includes("meijer")) return "meijer"
+  if (normalized.includes("99") || normalized.includes("ranch")) return "99ranch"
+  if (normalized.includes("walmart")) return "walmart"
+  if (normalized.includes("trader")) return "traderjoes"
+  if (normalized.includes("aldi")) return "aldi"
+  if (normalized.includes("andronico")) return "andronicos"
+  if (normalized.includes("safeway")) return "safeway"
+  if (normalized.includes("whole")) return "wholefoods"
+  return null
+}
+
 type ProductMappingInsert = {
   external_product_id: string
-  store_id?: string | null
-  zip_code?: string | null
+  store_brand: Database["public"]["Enums"]["grocery_store"]
   raw_product_name?: string | null
   standardized_ingredient_id?: string | null
   ingredient_confidence?: number | null
@@ -22,7 +59,7 @@ class ProductMappingsTable {
 
   /**
    * Upsert a batch of product mappings and return a map of external_product_id -> mapping id
-   * Uses the unique constraint on (external_product_id, store_id, zip_code).
+   * Uses the unique constraint on (external_product_id, store_brand[, zip_code]).
    */
   async upsertMappings(
     mappings: ProductMappingInsert[]
@@ -31,10 +68,10 @@ class ProductMappingsTable {
 
     // Use plain insert instead of upsert since unique constraint doesn't exist
     // Duplicate inserts will be silently ignored
-    const { data, error } = await supabase
-      .from<any>(this.tableName)
+    const { data, error } = await (supabase as any)
+      .from(this.tableName)
       .insert(mappings)
-      .select("id, external_product_id, store_id, zip_code")
+      .select("id, external_product_id, store_brand")
 
     if (error) {
       // Log but don't fail - duplicates are expected
@@ -44,7 +81,7 @@ class ProductMappingsTable {
 
     const map = new Map<string, string>()
     ;(data || []).forEach((row: any) => {
-      const key = `${row.external_product_id}::${row.store_id || ""}::${row.zip_code || ""}`
+      const key = `${row.external_product_id}::${row.store_brand || ""}`
       map.set(key, row.id)
     })
     return map
@@ -55,8 +92,8 @@ class ProductMappingsTable {
    */
   async incrementCounts(options: {
     external_product_id: string
-    store_id?: string | null
-    zip_code?: string | null
+    store?: string | null
+    store_brand?: string | Database["public"]["Enums"]["grocery_store"] | null
     raw_product_name?: string | null
     standardized_ingredient_id?: string | null
     modal_delta?: number
@@ -64,45 +101,50 @@ class ProductMappingsTable {
   }): Promise<string | null> {
     const {
       external_product_id,
-      store_id = null,
-      zip_code = null,
+      store = null,
+      store_brand = null,
       raw_product_name = null,
       standardized_ingredient_id = null,
       modal_delta = 0,
       exchange_delta = 0,
     } = options
 
-    // 1) Find or create mapping row (best-effort; may be constrained by RLS)
-    let query = supabase
-      .from<any>(this.tableName)
-      .select("id")
-      .eq("external_product_id", external_product_id)
-      .eq("zip_code", zip_code)
-      .limit(1)
-
-    // Supabase requires IS NULL for null UUIDs; avoid eq(null)
-    if (store_id === null || store_id === undefined) {
-      query = query.is("store_id", null)
-    } else {
-      query = query.eq("store_id", store_id)
+    const resolvedStoreBrand = resolveStoreBrand(store_brand ?? store ?? null)
+    if (!resolvedStoreBrand) {
+      console.warn("[ProductMappingsTable] incrementCounts skipped: missing store_brand", {
+        external_product_id,
+        store_brand,
+        store,
+      })
+      return null
     }
 
+    // 1) Find or create mapping row (best-effort; may be constrained by RLS)
+    const query = (supabase as any)
+      .from(this.tableName)
+      .select("id")
+      .eq("external_product_id", external_product_id)
+      .eq("store_brand", resolvedStoreBrand)
+      .limit(1)
+
     const { data: existing, error: findErr } = await query
+    if (findErr) {
+      console.error("[ProductMappingsTable] incrementCounts find failed", findErr)
+    }
 
     let mappingId = existing?.[0]?.id as string | undefined
 
     if (!mappingId) {
       const basePayload: ProductMappingInsert = {
         external_product_id,
-        store_id,
-        zip_code,
+        store_brand: resolvedStoreBrand,
         raw_product_name,
         standardized_ingredient_id,
         last_seen_at: new Date().toISOString(),
       }
 
-      const { data: inserted, error: insertErr } = await supabase
-        .from<any>(this.tableName)
+      const { data: inserted, error: insertErr } = await (supabase as any)
+        .from(this.tableName)
         .insert(basePayload)
         .select("id")
         .limit(1)

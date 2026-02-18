@@ -220,10 +220,9 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
           .map(item =>
             productMappingsDB.incrementCounts({
               external_product_id: item.id,
-              zip_code: zipCode || null,
+              store: target?.store ?? null,
               raw_product_name: target?.term || item.title,
               standardized_ingredient_id: target?.standardizedIngredientId || null,
-              store_id: target?.groceryStoreId ?? null,
               modal_delta: 1,
             })
           )
@@ -281,10 +280,9 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                         // Scraper-sourced fallback — look up/create mapping
                         productMappingsDB.incrementCounts({
                           external_product_id: item.id,
-                          zip_code: zipCode || null,
+                          store: target?.store ?? null,
                           raw_product_name: item.title,
                           standardized_ingredient_id: target?.standardizedIngredientId || null,
-                          store_id: target?.groceryStoreId ?? null,
                           exchange_delta: 1,
                         }).then(mappingId => {
                           onSelect({ ...item, productMappingId: mappingId || undefined })
