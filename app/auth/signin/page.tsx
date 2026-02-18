@@ -5,11 +5,11 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useSignIn } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import Image from "next/image"
 import { ArrowRight, X } from "lucide-react"
@@ -19,34 +19,56 @@ export default function SignInPage() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const { signIn } = useAuth()
+  const { isLoaded, signIn, setActive } = useSignIn()
   const { toast } = useToast()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isLoaded || !signIn) return
     setLoading(true)
 
     try {
-      const { error } = await signIn(email, password)
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      })
 
-      if (error) {
-        toast({
-          title: "Access Denied",
-          description: error.message,
-          variant: "destructive",
-        })
-      } else {
+      if (result.status === "complete" && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId })
+        await fetch("/api/auth/ensure-profile", { method: "POST" })
         toast({
           title: "Welcome Back",
           description: "Access granted.",
         })
         router.push("/dashboard")
+        return
       }
-    } catch (error) {
+
+      if (result.status === "needs_second_factor") {
+        toast({
+          title: "Additional Verification Required",
+          description: "Please complete your second factor to continue.",
+          variant: "destructive",
+        })
+        return
+      }
+
       toast({
-        title: "Error",
-        description: "An unexpected error occurred.",
+        title: "Sign-in Incomplete",
+        description: "Please complete the remaining sign-in steps.",
+        variant: "destructive",
+      })
+    } catch (error) {
+      const description =
+        (error as { errors?: Array<{ longMessage?: string; message?: string }> })?.errors?.[0]
+          ?.longMessage ??
+        (error as { errors?: Array<{ longMessage?: string; message?: string }> })?.errors?.[0]
+          ?.message ??
+        "An unexpected error occurred."
+      toast({
+        title: "Access Denied",
+        description,
         variant: "destructive",
       })
     } finally {

@@ -5,11 +5,11 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useSignUp } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import Image from "next/image"
 import { ArrowRight } from "lucide-react"
@@ -20,12 +20,13 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const { signUp } = useAuth()
+  const { isLoaded, signUp, setActive } = useSignUp()
   const { toast } = useToast()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isLoaded || !signUp) return
 
     // Validate password match
     if (password !== confirmPassword) {
@@ -50,81 +51,53 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
-      const { data, error } = await signUp(email, password)
+      const result = await signUp.create({
+        emailAddress: email,
+        password,
+      })
 
-      if (error) {
-        console.error("Signup error:", error)
-
-        // Handle different error types
-        if (error.message.toLowerCase().includes("already registered") ||
-            error.message.toLowerCase().includes("already exists") ||
-            error.message.toLowerCase().includes("user already registered")) {
-          toast({
-            title: "Account Already Exists",
-            description: (
-              <div className="space-y-2">
-                <p>An account with this email already exists.</p>
-                <div className="flex gap-2 mt-2">
-                  <Link href="/auth/signin" className="text-[#e8dcc4] underline">
-                    Sign in
-                  </Link>
-                  <span className="text-[#e8dcc4]/60">or</span>
-                  <Link href="/auth/forgot-password" className="text-[#e8dcc4] underline">
-                    Reset password
-                  </Link>
-                </div>
-              </div>
-            ) as any,
-            variant: "destructive",
-            duration: 6000,
-          })
-        } else if (error.message.toLowerCase().includes("password")) {
-          toast({
-            title: "Invalid Password",
-            description: error.message,
-            variant: "destructive",
-          })
-        } else if (error.message.toLowerCase().includes("email")) {
-          toast({
-            title: "Invalid Email",
-            description: error.message,
-            variant: "destructive",
-          })
-        } else {
-          toast({
-            title: "Signup Failed",
-            description: error.message || "An unexpected error occurred.",
-            variant: "destructive",
-          })
-        }
+      if (result.status === "complete" && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId })
+        await fetch("/api/auth/ensure-profile", { method: "POST" })
+        toast({
+          title: "Account created!",
+          description: "Let's set up your preferences.",
+        })
+        router.push("/onboarding")
         return
       }
 
-      // Success! Check if email confirmation is required
-      if (data?.user) {
-        // Check if email confirmation is required
-        const needsConfirmation = !data.user.email_confirmed_at
+      await signUp.prepareEmailAddressVerification({
+        strategy: "email_code",
+      })
 
-        if (needsConfirmation) {
-          toast({
-            title: "Check your email!",
-            description: "We've sent you a verification link. Please verify your email to continue.",
-          })
-          router.push("/auth/check-email")
-        } else {
-          // Email confirmation disabled or auto-confirmed
-          toast({
-            title: "Account created!",
-            description: "Let's set up your preferences.",
-          })
-          router.push("/onboarding")
-        }
-      }
-    } catch (error) {
-      console.error("Unexpected signup error:", error)
       toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        title: "Check your email",
+        description: "Enter the verification code we sent to finish creating your account.",
+      })
+      router.push(`/auth/check-email?email=${encodeURIComponent(email)}`)
+    } catch (error) {
+      const firstError = (
+        error as {
+          errors?: Array<{ code?: string; longMessage?: string; message?: string }>
+        }
+      )?.errors?.[0]
+
+      if (firstError?.code === "form_identifier_exists") {
+        toast({
+          title: "Account Already Exists",
+          description: "An account with this email already exists. Please sign in instead.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      toast({
+        title: "Signup Failed",
+        description:
+          firstError?.longMessage ??
+          firstError?.message ??
+          "An unexpected error occurred. Please try again.",
         variant: "destructive",
       })
     } finally {

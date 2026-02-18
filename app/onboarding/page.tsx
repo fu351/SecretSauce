@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -11,11 +11,8 @@ import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight } from
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
-import { useTutorial } from "@/contexts/tutorial-context"
-import { profileDB } from "@/lib/database/profile-db"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
-import type { TutorialPath } from "@/lib/types/tutorial"
-import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS, type DietaryTag, type CuisineType, type DifficultyLevel } from "@/lib/types"
+import { DIETARY_TAGS, CUISINE_TYPES, type DifficultyLevel } from "@/lib/types"
 
 const goals = [
   {
@@ -52,8 +49,8 @@ const budgetRanges = [
 
 const dietaryOptions = DIETARY_TAGS.map(tag => {
   // Capitalize first letter of each word for UI display
-  return tag.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('-')
-}).filter(tag => tag !== 'Other') // Remove 'other' option
+  return tag.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join("-")
+}).filter(tag => tag !== "Other") // Remove 'other' option
 
 const cookingTimeOptions = [
   { id: "quick", label: "Quick Meals", description: "Under 30 minutes", icon: "⚡" },
@@ -64,18 +61,18 @@ const cookingTimeOptions = [
 
 const cuisineOptions = CUISINE_TYPES.map(type => {
   // Capitalize and format for UI display
-  return type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-}).filter(type => type !== 'Other') // Remove 'other' option
+  return type.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+}).filter(type => type !== "Other") // Remove 'other' option
 
 // Helper functions to convert UI display values back to database format
 const convertDietaryToDb = (displayValue: string): string => {
   // Convert "Gluten-Free" -> "gluten-free", "Vegetarian" -> "vegetarian"
-  return displayValue.toLowerCase().replace(/\s+/g, '-')
+  return displayValue.toLowerCase().replace(/\s+/g, "-")
 }
 
 const convertCuisineToDb = (displayValue: string): string => {
   // Convert "Middle Eastern" -> "middle-eastern", "Italian" -> "italian"
-  return displayValue.toLowerCase().replace(/\s+/g, '-')
+  return displayValue.toLowerCase().replace(/\s+/g, "-")
 }
 
 const questionOrder = [
@@ -165,9 +162,8 @@ export default function OnboardingPage() {
   const atLastStep = activeIndex === lastStepIndex
 
   const router = useRouter()
-  const { updateProfile } = useAuth()
+  const { user, updateProfile } = useAuth()
   const { toast } = useToast()
-  const { startTutorial } = useTutorial()
 
   // Memoize address change handler to prevent autocomplete recreation
   const handleAddressChange = useCallback((addr: any) => {
@@ -187,7 +183,7 @@ export default function OnboardingPage() {
     // User can change to warm mode in the theme selection question
     setTheme("dark")
     setSelectedTheme("dark")
-  }, [])
+  }, [setTheme])
 
   // Keep global theme in sync with selectedTheme when navigating between steps
   useEffect(() => {
@@ -634,49 +630,28 @@ export default function OnboardingPage() {
         longitude: lng,
       }
 
-      // Get the pending email from localStorage (stored during signup)
-      const pendingEmail = localStorage.getItem('pending_verification_email')
-
-      if (!pendingEmail) {
+      if (!user?.id || !user?.email) {
         toast({
           title: "Error",
-          description: "Email not found. Please sign up again.",
+          description: "Please sign in to complete onboarding.",
           variant: "destructive",
         })
-        router.push('/auth/signup')
+        router.push("/auth/signin")
         return
       }
 
-      // Save onboarding data BEFORE email verification
-      // This creates/updates the profile with the unverified email
-      const profile = await profileDB.upsertProfile({
-        email: pendingEmail,
-        ...onboardingData,
-      } as any, {
-        onConflict: 'email'
-      })
-
-      if (!profile) {
-        const error = new Error('Failed to save onboarding data')
-        console.error('[Onboarding] Error saving to profiles:', error)
-        throw error
-      }
-
-      console.log('[Onboarding] Successfully saved onboarding data to profiles table')
+      await updateProfile(onboardingData)
 
       toast({
         title: "Preferences saved!",
-        description: "Now verify your email to get started.",
+        description: "Your profile is ready.",
       })
 
       setTheme(selectedTheme)
 
-      // Flow: User verifies email → /auth/callback → /welcome → tutorial auto-starts
-      // The tutorial-context maps primary_goal to TutorialPath:
-      //   "cooking" → "cooking", "budgeting" → "budgeting", "both" → "health"
-      router.push("/auth/check-email")
+      router.push("/welcome")
     } catch (error) {
-      console.error('[Onboarding] Error saving preferences:', error)
+      console.error("[Onboarding] Error saving preferences:", error)
       toast({
         title: "Error",
         description: "Failed to save preferences. Please try again.",
@@ -700,11 +675,11 @@ export default function OnboardingPage() {
             <p className={`uppercase tracking-[0.25em] text-xs mb-3 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>Onboarding</p>
             <h1 className="text-4xl font-serif font-light mb-3 tracking-tight">Tell us about your kitchen.</h1>
             <p className={`text-lg font-light mb-6 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-700"}`}>
-              We'll use your answers to tailor recipes, grocery finds, and meal planning tools.
+              We&apos;ll use your answers to tailor recipes, grocery finds, and meal planning tools.
             </p>
             <div className={`rounded-lg p-4 mb-8 ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
               <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-orange-900/70"}`}>
-                Don't worry if you'd like to change these preferences later — you can update everything in your settings at any time.
+                Don&apos;t worry if you&apos;d like to change these preferences later, you can update everything in your settings at any time.
               </p>
             </div>
           </header>
