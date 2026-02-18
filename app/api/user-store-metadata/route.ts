@@ -29,14 +29,15 @@ export async function GET(request: NextRequest) {
     const { data: authUser } = await supabaseClient.auth.getUser()
     const authUserId = authUser.user?.id ?? null
 
-    if (authUserId && userIdParam && userIdParam !== authUserId) {
+    if (!authUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (userIdParam && userIdParam !== authUserId) {
       return NextResponse.json({ error: "Forbidden userId" }, { status: 403 })
     }
 
-    const userId = authUserId ?? userIdParam
-    if (!userId) {
-      return NextResponse.json({ error: "userId required" }, { status: 400 })
-    }
+    const userId = authUserId
 
     // Use the robust getUserPreferredStores function which calls the RPC
     // and has built-in fallback to zipcode-based lookup

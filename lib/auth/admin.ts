@@ -5,81 +5,60 @@
 
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { auth as clerkAuth, clerkClient } from "@clerk/nextjs/server"
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 export type AdminRole = "admin" | "analyst"
 
 async function getAuthenticatedUser() {
   const supabase = createServiceSupabaseClient()
+  const state = await clerkAuth()
 
-  try {
-    const state = await clerkAuth()
-    if (state.userId) {
-      const { data: byClerkId } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("clerk_user_id", state.userId)
-        .maybeSingle()
-
-      if (byClerkId?.id) {
-        return { user: { id: byClerkId.id }, errorMessage: null }
-      }
-
-      const client = await clerkClient()
-      const clerkUser = await client.users.getUser(state.userId)
-      const primaryEmailId = clerkUser.primaryEmailAddressId
-      const primaryEmail = clerkUser.emailAddresses.find(
-        (entry) => entry.id === primaryEmailId
-      )?.emailAddress
-
-      if (!primaryEmail) {
-        return { user: null, errorMessage: "Missing Clerk primary email" }
-      }
-
-      const { data: byEmail } = await supabase
-        .from("profiles")
-        .select("id, clerk_user_id")
-        .eq("email", primaryEmail)
-        .maybeSingle()
-
-      if (!byEmail?.id) {
-        return { user: null, errorMessage: "No profile linked to Clerk user" }
-      }
-
-      if (byEmail.clerk_user_id !== state.userId) {
-        await supabase
-          .from("profiles")
-          .update({
-            clerk_user_id: state.userId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", byEmail.id)
-      }
-
-      return { user: { id: byEmail.id }, errorMessage: null }
-    }
-  } catch {
-    // Clerk not configured or middleware missing; continue with Supabase auth fallback.
+  if (!state.userId) {
+    return { user: null, errorMessage: "Missing Clerk session" }
   }
 
-  const cookieStore = await cookies()
-  const accessToken =
-    cookieStore.get("sb-access-token")?.value ??
-    cookieStore.get("supabase-access-token")?.value ??
-    cookieStore.get("supabase-auth-token")?.value ??
-    null
+  const { data: byClerkId } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("clerk_user_id", state.userId)
+    .maybeSingle()
 
-  if (!accessToken) {
-    return { user: null, errorMessage: "Missing access token cookie" }
+  if (byClerkId?.id) {
+    return { user: { id: byClerkId.id }, errorMessage: null }
   }
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(accessToken)
+  const client = await clerkClient()
+  const clerkUser = await client.users.getUser(state.userId)
+  const primaryEmailId = clerkUser.primaryEmailAddressId
+  const primaryEmail = clerkUser.emailAddresses.find(
+    (entry) => entry.id === primaryEmailId
+  )?.emailAddress
 
-  return { user, errorMessage: error?.message ?? null }
+  if (!primaryEmail) {
+    return { user: null, errorMessage: "Missing Clerk primary email" }
+  }
+
+  const { data: byEmail } = await supabase
+    .from("profiles")
+    .select("id, clerk_user_id")
+    .eq("email", primaryEmail)
+    .maybeSingle()
+
+  if (!byEmail?.id) {
+    return { user: null, errorMessage: "No profile linked to Clerk user" }
+  }
+
+  if (byEmail.clerk_user_id !== state.userId) {
+    await supabase
+      .from("profiles")
+      .update({
+        clerk_user_id: state.userId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", byEmail.id)
+  }
+
+  return { user: { id: byEmail.id }, errorMessage: null }
 }
 
 /**

@@ -18,8 +18,6 @@ const DEFAULT_STORE_KEYS = [
   "safeway",
 ]
 
-const FALLBACK_BATCH_ZIP = normalizeZipCode(process.env.ZIP_CODE ?? process.env.DEFAULT_ZIP_CODE)
-
 interface BatchIngredient {
   name: string
   recipeId?: string
@@ -84,7 +82,7 @@ export async function POST(request: NextRequest) {
       forceRefresh?: boolean
     }
     const requestedZip = normalizeZipCode(zipCode)
-    const zipToUse = requestedZip ?? FALLBACK_BATCH_ZIP
+    const zipToUse = requestedZip
 
     if (!zipToUse) {
       return NextResponse.json(

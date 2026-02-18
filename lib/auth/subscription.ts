@@ -1,6 +1,5 @@
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { auth as clerkAuth, clerkClient } from "@clerk/nextjs/server"
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 export type SubscriptionTier = "free" | "premium"
@@ -19,69 +18,48 @@ export interface UserSubscription {
 
 async function getAuthenticatedUserSelector(): Promise<{ value: string } | null> {
   const supabase = createServiceSupabaseClient()
+  const state = await clerkAuth()
 
-  try {
-    const state = await clerkAuth()
-    if (state.userId) {
-      const { data: byClerkId } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("clerk_user_id", state.userId)
-        .maybeSingle()
+  if (!state.userId) return null
 
-      if (byClerkId?.id) {
-        return { value: byClerkId.id }
-      }
+  const { data: byClerkId } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("clerk_user_id", state.userId)
+    .maybeSingle()
 
-      const client = await clerkClient()
-      const clerkUser = await client.users.getUser(state.userId)
-      const primaryEmailId = clerkUser.primaryEmailAddressId
-      const primaryEmail = clerkUser.emailAddresses.find(
-        (entry) => entry.id === primaryEmailId
-      )?.emailAddress
-
-      if (!primaryEmail) return null
-
-      const { data: byEmail } = await supabase
-        .from("profiles")
-        .select("id, clerk_user_id")
-        .eq("email", primaryEmail)
-        .maybeSingle()
-
-      if (!byEmail?.id) return null
-
-      if (byEmail.clerk_user_id !== state.userId) {
-        await supabase
-          .from("profiles")
-          .update({
-            clerk_user_id: state.userId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", byEmail.id)
-      }
-
-      return { value: byEmail.id }
-    }
-  } catch {
-    // Clerk not configured or middleware missing; continue with Supabase auth fallback.
+  if (byClerkId?.id) {
+    return { value: byClerkId.id }
   }
 
-  const cookieStore = await cookies()
-  const accessToken =
-    cookieStore.get("sb-access-token")?.value ??
-    cookieStore.get("supabase-access-token")?.value ??
-    cookieStore.get("supabase-auth-token")?.value ??
-    null
+  const client = await clerkClient()
+  const clerkUser = await client.users.getUser(state.userId)
+  const primaryEmailId = clerkUser.primaryEmailAddressId
+  const primaryEmail = clerkUser.emailAddresses.find(
+    (entry) => entry.id === primaryEmailId
+  )?.emailAddress
 
-  if (!accessToken) return null
+  if (!primaryEmail) return null
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(accessToken)
+  const { data: byEmail } = await supabase
+    .from("profiles")
+    .select("id, clerk_user_id")
+    .eq("email", primaryEmail)
+    .maybeSingle()
 
-  if (error || !user) return null
-  return { value: user.id }
+  if (!byEmail?.id) return null
+
+  if (byEmail.clerk_user_id !== state.userId) {
+    await supabase
+      .from("profiles")
+      .update({
+        clerk_user_id: state.userId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", byEmail.id)
+  }
+
+  return { value: byEmail.id }
 }
 
 /**
