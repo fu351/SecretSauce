@@ -51,7 +51,7 @@ function AnalyticsRouteTracker({ onRouteChange }: { onRouteChange: (url: string)
 }
 
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
-  const { user, profile } = useAuth()
+  const { user, profile, loading } = useAuth()
   const [sessionId, setSessionId] = useState<string>("")
   const previousUrl = useRef<string>("")
   const mounted = useRef(true)
@@ -86,14 +86,26 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
 
   // Identify user when authenticated
   useEffect(() => {
+    if (loading) {
+      return
+    }
+
     if (user && profile) {
       const tier = (profile.subscription_tier as SubscriptionTier) || "free"
       AnalyticsClient.identify(user.id, tier)
 
       // Update session ID to user ID
       setSessionId(user.id)
+      return
     }
-  }, [user, profile])
+
+    AnalyticsClient.reset()
+    SessionManager.getSessionId().then((id) => {
+      if (mounted.current) {
+        setSessionId(id)
+      }
+    })
+  }, [user, profile, loading])
 
   // Flush events on unmount and page unload
   useEffect(() => {

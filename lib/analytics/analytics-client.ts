@@ -131,6 +131,7 @@ export class AnalyticsClient {
   static identify(userId: string, tier: SubscriptionTier): void {
     this.currentUserId = userId
     this.currentUserTier = tier
+    SessionManager.setAuthenticatedUser(userId)
 
     // Clear anonymous session when user logs in
     SessionManager.clearAnonymousSession()
@@ -151,6 +152,7 @@ export class AnalyticsClient {
     // Clear user context
     this.currentUserId = undefined
     this.currentUserTier = undefined
+    SessionManager.setAuthenticatedUser(null)
 
     if (this.isDevelopment) {
       console.log("[Analytics] Analytics reset")
@@ -170,7 +172,7 @@ export class AnalyticsClient {
   private static getPageContext(): {
     page_url?: string
     referrer?: string
-  } {
+    } {
     if (typeof window === "undefined") {
       return {}
     }
@@ -235,7 +237,7 @@ export class AnalyticsClient {
   static getQueueStatus(): {
     queueSize: number
     failedEvents: number
-  } {
+    } {
     return {
       queueSize: EventQueue.getQueueSize(),
       failedEvents: EventQueue.getFailedEventsCount(),

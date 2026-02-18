@@ -1,12 +1,10 @@
 /**
  * Session Manager for Analytics
  *
- * Wraps Supabase's existing auth session management for analytics tracking.
- * - Authenticated users: Use user.id from Supabase auth
+ * Uses app auth state for analytics tracking.
+ * - Authenticated users: Use user.id set by auth context
  * - Anonymous users: Use localStorage UUID as fallback
  */
-
-import { supabase } from "@/lib/database/supabase"
 
 const ANON_SESSION_KEY = "analytics_anon_session_v1"
 
@@ -17,6 +15,12 @@ interface SessionMetadata {
 }
 
 export class SessionManager {
+  private static authenticatedUserId: string | null = null
+
+  static setAuthenticatedUser(userId: string | null | undefined): void {
+    this.authenticatedUserId = userId ?? null
+  }
+
   /**
    * Get session ID for tracking
    * - Returns user.id for authenticated users
@@ -31,38 +35,18 @@ export class SessionManager {
    * Get comprehensive session metadata for analytics
    */
   static async getSessionMetadata(): Promise<SessionMetadata> {
-    try {
-      // Get current authenticated user (if any)
-      const { data: { user }, error } = await supabase.auth.getUser()
-
-      if (error) {
-        console.error("[Analytics] Error getting user:", error)
-      }
-
-      // Authenticated user: use user.id
-      if (user) {
-        return {
-          sessionId: user.id,
-          userId: user.id,
-          isAuthenticated: true,
-        }
-      }
-
-      // Anonymous user: get or create session ID from localStorage
+    if (this.authenticatedUserId) {
       return {
-        sessionId: this.getOrCreateAnonSessionId(),
-        userId: undefined,
-        isAuthenticated: false,
+        sessionId: this.authenticatedUserId,
+        userId: this.authenticatedUserId,
+        isAuthenticated: true,
       }
-    } catch (err) {
-      console.error("[Analytics] Exception getting session metadata:", err)
+    }
 
-      // Fallback to anonymous session
-      return {
-        sessionId: this.getOrCreateAnonSessionId(),
-        userId: undefined,
-        isAuthenticated: false,
-      }
+    return {
+      sessionId: this.getOrCreateAnonSessionId(),
+      userId: undefined,
+      isAuthenticated: false,
     }
   }
 
@@ -110,11 +94,6 @@ export class SessionManager {
    * Check if user is authenticated
    */
   static async isAuthenticated(): Promise<boolean> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      return !!user
-    } catch {
-      return false
-    }
+    return Boolean(this.authenticatedUserId)
   }
 }
