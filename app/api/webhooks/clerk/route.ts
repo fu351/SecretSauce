@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyWebhook } from "@clerk/nextjs/webhooks"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
+import { profileIdFromClerkUserId } from "@/lib/auth/clerk-profile-id"
 
 export const runtime = "nodejs"
 
@@ -61,12 +62,13 @@ export async function POST(req: NextRequest) {
         const fullName = getFullName(user)
         const avatarUrl = user?.imageUrl ?? user?.image_url ?? null
         const emailVerified = getEmailVerified(user)
+        const nowIso = new Date().toISOString()
         const baseUpdate = {
           clerk_user_id: clerkUserId,
           email,
           full_name: fullName,
           avatar_url: avatarUrl,
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         } as Record<string, string | boolean | null>
 
         if (emailVerified !== null) {
@@ -91,12 +93,35 @@ export async function POST(req: NextRequest) {
           .maybeSingle()
 
         if (!byEmail?.id) {
-          // Keep this non-failing because profiles.id has an auth.users FK and cannot be created from Clerk-only IDs.
-          console.warn("[clerk-webhook] No matching profile found for Clerk user", {
-            clerkUserId,
+          const deterministicId = profileIdFromClerkUserId(clerkUserId)
+          const createPayload = {
+            id: deterministicId,
+            clerk_user_id: clerkUserId,
             email,
-          })
-          return NextResponse.json({ received: true, skipped: true })
+            full_name: fullName,
+            avatar_url: avatarUrl,
+            email_verified: emailVerified,
+            created_at: nowIso,
+            updated_at: nowIso,
+          }
+
+          const { error: createError } = await supabase
+            .from("profiles")
+            .upsert(createPayload, { onConflict: "id" })
+
+          if (createError) {
+            console.error("[clerk-webhook] Failed deterministic profile create", {
+              clerkUserId,
+              email,
+              createError,
+            })
+            return NextResponse.json(
+              { error: "Failed to create profile" },
+              { status: 500 }
+            )
+          }
+
+          return NextResponse.json({ received: true, created: true })
         }
 
         await supabase.from("profiles").update(baseUpdate).eq("id", byEmail.id)

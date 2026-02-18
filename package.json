@@ -20,7 +20,8 @@
     "test:api": "vitest run app/api/",
     "test:traderjoes-scraper": "node scripts/test-traderjoes-scraper.js",
     "test:99ranch-scraper": "node scripts/test-99ranch-scraper.js",
-    "queue-worker": "tsx queue/worker/runner.ts"
+    "queue-worker": "tsx queue/worker/runner.ts",
+    "backfill-clerk-user-ids": "tsx scripts/backfill-clerk-user-ids.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.31.1",

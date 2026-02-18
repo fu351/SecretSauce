@@ -3,8 +3,8 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
-import { useAuth as useClerkAuth, useClerk, useUser as useClerkUser } from "@clerk/nextjs"
-import { supabase } from "@/lib/database/supabase"
+import { useAuth as useClerkAuth, useClerk } from "@clerk/nextjs"
+import { setBrowserAccessTokenProvider, supabase } from "@/lib/database/supabase"
 import { profileDB } from "@/lib/database/profile-db"
 
 type AuthUser = {
@@ -50,12 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
-  const { isLoaded: clerkLoaded, userId: clerkUserId } = useClerkAuth()
-  const { user: clerkUser } = useClerkUser()
+  const { isLoaded: clerkLoaded, userId: clerkUserId, getToken } = useClerkAuth()
   const clerk = useClerk()
-  const clerkPrimaryEmail = clerkUser?.primaryEmailAddress?.emailAddress ?? null
-  const clerkPrimaryEmailVerified =
-    clerkUser?.primaryEmailAddress?.verification?.status === "verified"
   const mounted = useRef(true)
   const fetchingProfile = useRef(false)
 
@@ -71,6 +67,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email,
     created_at: createdAt,
   })
+
+  useEffect(() => {
+    setBrowserAccessTokenProvider(async () => {
+      if (!clerkLoaded) return null
+      const token = await getToken({ template: "supabase" })
+      return token ?? null
+    })
+
+    return () => {
+      setBrowserAccessTokenProvider(null)
+    }
+  }, [clerkLoaded, getToken])
 
   const fetchProfileBySupabaseUser = async (sessionUser: SupabaseUser): Promise<any | null> => {
     if (fetchingProfile.current || !mounted.current) return null
@@ -146,20 +154,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         if (clerkLoaded && clerkUserId) {
           const resolveProfileFromClerk = async (): Promise<any | null> => {
-            let resolvedProfile = await profileDB.fetchProfileByClerkUserId(clerkUserId)
+            const response = await fetch("/api/auth/ensure-profile", {
+              method: "POST",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            })
 
-            if (!resolvedProfile && clerkPrimaryEmail) {
-              const byEmail = await profileDB.fetchProfileByEmail(clerkPrimaryEmail)
-              if (byEmail) {
-                resolvedProfile =
-                  (await profileDB.updateProfile(byEmail.id, {
-                    clerk_user_id: clerkUserId,
-                    email_verified: clerkPrimaryEmailVerified,
-                  })) ?? byEmail
-              }
+            if (!response.ok) {
+              console.warn("[v0] Failed to ensure Clerk profile:", response.status)
+              return null
             }
 
-            return resolvedProfile
+            const payload = await response.json()
+            if (!payload?.profile?.id || !payload?.profile?.email) {
+              return null
+            }
+
+            return payload.profile
           }
 
           const linkedProfile = await resolveProfileFromClerk()
@@ -222,7 +235,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted.current = false
       authSubscription?.unsubscribe()
     }
-  }, [clerkLoaded, clerkUserId, clerkPrimaryEmail, clerkPrimaryEmailVerified])
+  }, [clerkLoaded, clerkUserId])
 
   const signIn = async (email: string, password: string) => {
     const startTime = performance.now()

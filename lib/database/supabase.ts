@@ -85,7 +85,57 @@ const createMissingEnvProxy = (message: string) => {
 const missingEnvMessage =
   "Supabase client is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
 
+type BrowserAccessTokenProvider = () => Promise<string | null>
+
+let browserAccessTokenProvider: BrowserAccessTokenProvider | null = null
+
+export const setBrowserAccessTokenProvider = (
+  provider: BrowserAccessTokenProvider | null
+) => {
+  browserAccessTokenProvider = provider
+}
+
+const getCookieValue = (name: string): string | null => {
+  if (typeof document === "undefined") return null
+  const prefix = `${name}=`
+  const cookies = document.cookie.split(";")
+  for (const raw of cookies) {
+    const cookie = raw.trim()
+    if (cookie.startsWith(prefix)) {
+      const value = cookie.slice(prefix.length)
+      try {
+        return decodeURIComponent(value)
+      } catch {
+        return value
+      }
+    }
+  }
+  return null
+}
+
+const getLegacySupabaseAccessTokenFromCookies = (): string | null => {
+  return (
+    getCookieValue("sb-access-token") ??
+    getCookieValue("supabase-access-token") ??
+    getCookieValue("supabase-auth-token")
+  )
+}
+
+const resolveBrowserAccessToken = async (): Promise<string | null> => {
+  if (browserAccessTokenProvider) {
+    try {
+      const clerkToken = await browserAccessTokenProvider()
+      if (clerkToken) return clerkToken
+    } catch (error) {
+      console.warn("[supabase] Browser access token provider failed:", error)
+    }
+  }
+
+  return getLegacySupabaseAccessTokenFromCookies()
+}
+
 const browserClientOptions = {
+  accessToken: resolveBrowserAccessToken,
   auth: {
     persistSession: true,
     autoRefreshToken: true,
