@@ -3,95 +3,82 @@
  */
 
 import { useAuth } from "@/contexts/auth-context"
-import { adminRolesDB } from "@/lib/database/admin-roles-db"
 import { useEffect, useState } from "react"
 
-export function useIsAdmin() {
+type AdminStatusResponse = {
+  isAdmin: boolean
+  canViewAnalytics: boolean
+}
+
+async function fetchAdminStatus(signal?: AbortSignal): Promise<AdminStatusResponse> {
+  const response = await fetch("/api/auth/admin-status", {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch admin status (${response.status})`)
+  }
+
+  const payload = (await response.json()) as Partial<AdminStatusResponse>
+
+  return {
+    isAdmin: payload.isAdmin === true,
+    canViewAnalytics: payload.canViewAnalytics === true,
+  }
+}
+
+function useAdminStatus() {
   const { user } = useAuth()
   const [isAdmin, setIsAdmin] = useState(false)
+  const [canViewAnalytics, setCanViewAnalytics] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
     setLoading(true)
 
-    async function checkAdmin() {
+    async function checkStatus() {
       if (!user) {
-        if (!cancelled) {
-          setIsAdmin(false)
-          setLoading(false)
-        }
+        setIsAdmin(false)
+        setCanViewAnalytics(false)
+        setLoading(false)
         return
       }
 
       try {
-        const hasAdminAccess = await adminRolesDB.isAdmin(user.id)
-        if (!cancelled) {
-          setIsAdmin(hasAdminAccess)
-        }
+        const status = await fetchAdminStatus(controller.signal)
+        setIsAdmin(status.isAdmin)
+        setCanViewAnalytics(status.canViewAnalytics)
       } catch (error) {
-        console.error("[useIsAdmin] Exception checking admin status:", error)
-        if (!cancelled) {
-          setIsAdmin(false)
+        if ((error as Error)?.name !== "AbortError") {
+          console.error("[useAdminStatus] Exception checking admin status:", error)
         }
+        setIsAdmin(false)
+        setCanViewAnalytics(false)
       } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
+        setLoading(false)
       }
     }
 
-    checkAdmin()
+    checkStatus()
 
     return () => {
-      cancelled = true
+      controller.abort()
     }
   }, [user])
 
+  return { isAdmin, canViewAnalytics, loading }
+}
+
+export function useIsAdmin() {
+  const { isAdmin, loading } = useAdminStatus()
   return { isAdmin, loading }
 }
 
 export function useCanViewAnalytics() {
-  const { user } = useAuth()
-  const [canView, setCanView] = useState(false)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-
-    async function checkAccess() {
-      if (!user) {
-        if (!cancelled) {
-          setCanView(false)
-          setLoading(false)
-        }
-        return
-      }
-
-      try {
-        const hasAnalyticsAccess = await adminRolesDB.canViewAnalytics(user.id)
-        if (!cancelled) {
-          setCanView(hasAnalyticsAccess)
-        }
-      } catch (error) {
-        console.error("[useCanViewAnalytics] Exception checking analytics access:", error)
-        if (!cancelled) {
-          setCanView(false)
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    checkAccess()
-
-    return () => {
-      cancelled = true
-    }
-  }, [user])
-
+  const { canViewAnalytics: canView, loading } = useAdminStatus()
   return { canView, loading }
 }
