@@ -5,7 +5,7 @@ import { createMonitoredClient } from "@/lib/database/supabase"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const clerkSupabaseJwtTemplate = process.env.CLERK_SUPABASE_JWT_TEMPLATE
+const clerkSupabaseJwtTemplate = "supabase"
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const assertServerOnly = (name: string) => {
@@ -35,13 +35,6 @@ const getSupabaseServiceKey = () => {
   return supabaseServiceKey
 }
 
-const getClerkSupabaseJwtTemplate = () => {
-  if (!clerkSupabaseJwtTemplate) {
-    throw new Error("Missing CLERK_SUPABASE_JWT_TEMPLATE environment variable.")
-  }
-  return clerkSupabaseJwtTemplate
-}
-
 const serverClientBaseOptions = {
   auth: {
     autoRefreshToken: false,
@@ -67,13 +60,12 @@ export const createUserSupabaseClient = () => {
   assertServerOnly("createUserSupabaseClient")
   const url = getSupabaseUrl()
   const anonKey = getSupabaseAnonKey()
-  const jwtTemplate = getClerkSupabaseJwtTemplate()
 
   return createMonitoredClient(url, anonKey, {
     ...serverClientBaseOptions,
     accessToken: async () => {
       const authState = await auth()
-      const token = await authState.getToken({ template: jwtTemplate })
+      const token = await authState.getToken({ template: clerkSupabaseJwtTemplate })
       return token ?? null
     },
   })
