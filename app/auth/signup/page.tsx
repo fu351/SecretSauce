@@ -179,6 +179,15 @@ export default function SignUpPage() {
               className="mt-2 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/30 focus:border-[#e8dcc4]/40"
             />
           </div>
+
+          {/* Required for Clerk bot protection in custom sign-up flows */}
+          <div
+            id="clerk-captcha"
+            data-cl-theme="dark"
+            data-cl-size="flexible"
+            className="min-h-16"
+          />
+
           <Button
             type="submit"
             className="w-full bg-[#e8dcc4] text-[#0a0a0a] hover:bg-[#d4c8b0] py-6 font-light tracking-wide"
