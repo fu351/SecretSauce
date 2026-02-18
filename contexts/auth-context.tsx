@@ -17,8 +17,6 @@ interface AuthContextType {
   user: AuthUser | null
   profile: any | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<any>
-  signUp: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
   updateProfile: (updates: any) => Promise<void>
 }
@@ -237,81 +235,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [clerkLoaded, clerkUserId])
 
-  const signIn = async (email: string, password: string) => {
-    const startTime = performance.now()
-    console.log(`[v0] Sign in attempt for: ${email}`)
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      const duration = performance.now() - startTime
-      console.log(`[v0] Sign in completed in ${duration.toFixed(2)}ms`)
-
-      if (error) {
-        console.error("[v0] Sign in error:", error)
-        return { data: null, error }
-      }
-
-      syncSessionCookies(data.session ?? null)
-      console.log("[v0] Sign in successful:", data.user?.email)
-      return { data, error: null }
-    } catch (error) {
-      const duration = performance.now() - startTime
-      console.error(`[v0] Sign in exception after ${duration.toFixed(2)}ms:`, error)
-      return { data: null, error }
-    }
-  }
-
-  const signUp = async (email: string, password: string) => {
-    const startTime = performance.now()
-    console.log(`[v0] Sign up attempt for: ${email}`)
-
-    try {
-      const getSiteUrl = () => {
-        if (typeof window !== "undefined") {
-          return window.location.origin
-        }
-        const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-        if (vercelUrl) {
-          return `https://${vercelUrl}`
-        }
-        return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${getSiteUrl()}/auth/callback?next=/welcome`,
-        },
-      })
-
-      const duration = performance.now() - startTime
-      console.log(`[v0] Sign up completed in ${duration.toFixed(2)}ms`)
-
-      if (error) {
-        console.error("[v0] Sign up error:", error)
-        return { data: null, error }
-      }
-
-      console.log("[v0] Sign up successful:", data.user?.email)
-
-      // Store email in localStorage for check-email page
-      if (typeof window !== "undefined" && email) {
-        localStorage.setItem("pending_verification_email", email)
-      }
-
-      return { data, error: null }
-    } catch (error) {
-      const duration = performance.now() - startTime
-      console.error(`[v0] Sign up exception after ${duration.toFixed(2)}ms:`, error)
-      return { data: null, error }
-    }
-  }
-
   const signOut = async () => {
     const startTime = performance.now()
     console.log("[v0] Signing out...")
@@ -387,8 +310,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     profile,
     loading,
-    signIn,
-    signUp,
     signOut,
     updateProfile,
   }
