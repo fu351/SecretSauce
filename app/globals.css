@@ -355,3 +355,33 @@ html:not(.dark) .tutorial-highlight {
 [data-tutorial-overlay] {
   z-index: 9998 !important;
 }
+
+/* ───────── Landing Page Animations ───────── */
+
+/* Slow breathing for scroll-down indicator */
+@keyframes landing-scroll-breathe {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.35; transform: translateY(6px); }
+}
+
+.landing-scroll-breathe {
+  animation: landing-scroll-breathe 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Floating price tags */
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0) rotate(var(--tag-rotate, 0deg)); }
+  50% { transform: translateY(-10px) rotate(var(--tag-rotate, 0deg)); }
+}
+
+.landing-float-tag {
+  animation: landing-float 3.5s ease-in-out infinite;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .landing-scroll-breathe,
+  .landing-float-tag {
+    animation: none !important;
+  }
+}

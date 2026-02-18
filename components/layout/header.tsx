@@ -29,7 +29,6 @@ export function Header() {
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
-  const [isFirstTimeVisitor, setIsFirstTimeVisitor] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
 
@@ -37,14 +36,6 @@ export function Header() {
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  // Check if user is visiting landing page for the first time
-  useEffect(() => {
-    if (pathname === "/") {
-      const hasVisited = document.cookie.includes("visited=true")
-      setIsFirstTimeVisitor(!hasVisited)
-    }
-  }, [pathname])
 
   // Use theme directly from context - it handles defaults properly
   const isDark = theme === "dark"
@@ -54,13 +45,14 @@ export function Header() {
     return null
   }
 
-  // Hide header for: first-time landing page visitors, auth and onboarding routes when not logged in
-  if (!user && (isFirstTimeVisitor || pathname.startsWith("/auth") || pathname === "/onboarding")) {
+  // Hide header on landing page for non-logged-in users, and on auth/onboarding routes
+  if (!user && (pathname === "/" || pathname.startsWith("/auth") || pathname === "/onboarding")) {
     return null
   }
 
   // Page-specific title and subtext for navbar (lg+ shows both, below lg shows title only)
   const pageTitles: Record<string, { title: string; subtext: string }> = {
+    "/home": { title: "Home", subtext: "Welcome back to Secret Sauce" },
     "/recipes": { title: "Recipes", subtext: "Discover and share amazing recipes" },
     "/meal-planner": { title: "Meal Planner", subtext: "Plan your weekly meals and track nutrition" },
     "/store": { title: "Shopping", subtext: "Manage your grocery list" },
@@ -88,7 +80,7 @@ export function Header() {
         description: "You have been signed out of your account.",
       })
 
-      router.push("/")
+      router.push("/home")
       router.refresh()
     } catch (error) {
       console.error("[v0] Sign out error:", error)
@@ -132,7 +124,7 @@ export function Header() {
           </Button>
         </nav>
         {/* Desktop: logo + title */}
-        <Link href="/" className="hidden md:block flex-shrink-0">
+        <Link href="/home" className="hidden md:block flex-shrink-0">
           <Image
             src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
             alt="Secret Sauce"
@@ -154,7 +146,7 @@ export function Header() {
       </div>
 
       {/* Center: logo on mobile only (centered between nav and account) */}
-      <Link href="/" className="flex-shrink-0 md:hidden">
+      <Link href="/home" className="flex-shrink-0 md:hidden">
         <Image
           src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
           alt="Secret Sauce"
