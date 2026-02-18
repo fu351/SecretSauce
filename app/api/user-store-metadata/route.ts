@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
+import { createUserSupabaseClient } from "@/lib/database/supabase-server"
 import { getUserPreferredStores } from "@/lib/store/user-preferred-stores"
 import { groceryStoresDB } from "@/lib/database/grocery-stores-db"
 import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
@@ -22,14 +22,21 @@ const DEFAULT_STORE_KEYS = [
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get('userId')
-    const fallbackZip = normalizeZipCode(searchParams.get('zipCode')) ?? ""
+    const userIdParam = searchParams.get("userId")
+    const fallbackZip = normalizeZipCode(searchParams.get("zipCode")) ?? ""
 
+    const supabaseClient = createUserSupabaseClient()
+    const { data: authUser } = await supabaseClient.auth.getUser()
+    const authUserId = authUser.user?.id ?? null
+
+    if (authUserId && userIdParam && userIdParam !== authUserId) {
+      return NextResponse.json({ error: "Forbidden userId" }, { status: 403 })
+    }
+
+    const userId = authUserId ?? userIdParam
     if (!userId) {
       return NextResponse.json({ error: "userId required" }, { status: 400 })
     }
-
-    const supabaseClient = createServiceSupabaseClient()
 
     // Use the robust getUserPreferredStores function which calls the RPC
     // and has built-in fallback to zipcode-based lookup
