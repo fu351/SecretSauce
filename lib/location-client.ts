@@ -77,14 +77,11 @@ export type UpdateLocationResult = {
   error?: string
 }
 
-function isMissingLegacyStoreSyncRpc(error: { code?: string; message?: string; details?: string; hint?: string }): boolean {
-  const text = [error.message, error.details, error.hint].filter(Boolean).join(" ").toLowerCase()
-  return error.code === "PGRST202" || text.includes("fn_sync_user_closest_stores")
-}
-
 /**
- * Update the user's profile coordinates from browser geolocation
- * and best-effort refresh preferred stores for legacy DBs.
+ * Update the user's profile coordinates from browser geolocation.
+ * Preferred-store sync is handled automatically by DB triggers:
+ *   trg_location_hierarchy_sync → builds geom from lat/lng
+ *   trg_refresh_preferred_stores → refreshes user_preferred_stores from geom
  */
 export async function updateLocation(userId: string): Promise<UpdateLocationResult> {
   const resolvedUserId = String(userId || "").trim()
@@ -118,17 +115,6 @@ export async function updateLocation(userId: string): Promise<UpdateLocationResu
       success: false,
       location,
       error: `Failed to update profile coordinates: ${profileError.message}`,
-    }
-  }
-
-  const { error: syncError } = await (supabase.rpc as any)("fn_sync_user_closest_stores", {
-    p_user_id: resolvedUserId,
-  })
-  if (syncError) {
-    if (isMissingLegacyStoreSyncRpc(syncError)) {
-      console.warn("[location] Legacy RPC fn_sync_user_closest_stores not available; skipping explicit preferred-store sync.")
-    } else {
-      console.warn("[location] Preferred-store sync failed after profile location update:", syncError.message)
     }
   }
 
