@@ -113,21 +113,53 @@ const getCookieValue = (name: string): string | null => {
   return null
 }
 
+const readJwtExp = (token: string): number | null => {
+  try {
+    const payloadSegment = token.split(".")[1]
+    if (!payloadSegment) return null
+
+    const normalized = payloadSegment.replace(/-/g, "+").replace(/_/g, "/")
+    const padding = normalized.length % 4
+    const padded = padding === 0 ? normalized : normalized.padEnd(normalized.length + (4 - padding), "=")
+    const payloadJson = atob(padded)
+    const payload = JSON.parse(payloadJson) as { exp?: unknown }
+
+    return typeof payload.exp === "number" ? payload.exp : null
+  } catch {
+    return null
+  }
+}
+
+const isJwtExpired = (token: string): boolean => {
+  const exp = readJwtExp(token)
+  if (!exp) return false
+  return exp * 1000 <= Date.now()
+}
+
 const getLegacySupabaseAccessTokenFromCookies = (): string | null => {
-  return (
-    getCookieValue("sb-access-token") ??
-    getCookieValue("supabase-access-token") ??
-    getCookieValue("supabase-auth-token")
-  )
+  const candidates = [
+    getCookieValue("sb-access-token"),
+    getCookieValue("supabase-access-token"),
+    getCookieValue("supabase-auth-token"),
+  ]
+
+  for (const token of candidates) {
+    if (!token) continue
+    if (isJwtExpired(token)) continue
+    return token
+  }
+
+  return null
 }
 
 const resolveBrowserAccessToken = async (): Promise<string | null> => {
   if (browserAccessTokenProvider) {
     try {
       const clerkToken = await browserAccessTokenProvider()
-      if (clerkToken) return clerkToken
+      return clerkToken ?? null
     } catch (error) {
       console.warn("[supabase] Browser access token provider failed:", error)
+      return null
     }
   }
 

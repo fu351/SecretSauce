@@ -21,6 +21,28 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const TOKEN_REFRESH_BUFFER_SECONDS = 30
+
+function readJwtExp(token: string): number | null {
+  try {
+    const payloadSegment = token.split(".")[1]
+    if (!payloadSegment) return null
+    const normalized = payloadSegment.replace(/-/g, "+").replace(/_/g, "/")
+    const padding = normalized.length % 4
+    const padded = padding === 0 ? normalized : normalized.padEnd(normalized.length + (4 - padding), "=")
+    const payloadJson = atob(padded)
+    const payload = JSON.parse(payloadJson) as { exp?: unknown }
+    return typeof payload.exp === "number" ? payload.exp : null
+  } catch {
+    return null
+  }
+}
+
+function isJwtExpiredOrExpiring(token: string, bufferSeconds = TOKEN_REFRESH_BUFFER_SECONDS): boolean {
+  const exp = readJwtExp(token)
+  if (!exp) return false
+  return exp * 1000 <= Date.now() + bufferSeconds * 1000
+}
 
 function clearLegacySupabaseCookies() {
   if (typeof document === "undefined") return
@@ -57,8 +79,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setBrowserAccessTokenProvider(async () => {
       if (!clerkLoaded) return null
-      const token = await getToken({ template: "supabase" })
-      return token ?? null
+      let token = await getToken({ template: "supabase" })
+
+      if (token && isJwtExpiredOrExpiring(token)) {
+        token = await getToken({ template: "supabase", skipCache: true })
+      }
+
+      if (!token || isJwtExpiredOrExpiring(token, 0)) {
+        return null
+      }
+
+      return token
     })
 
     return () => {

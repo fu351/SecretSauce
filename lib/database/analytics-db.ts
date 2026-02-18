@@ -59,6 +59,11 @@ export class AnalyticsDB {
       })
 
       if (error) {
+        if (error.code === "PGRST301") {
+          console.warn("[Analytics] Skipping event due to expired auth token; will continue with next events")
+          return { success: false, error: error.message }
+        }
+
         console.error("[Analytics] Track event error:", error)
         return { success: false, error: error.message }
       }
