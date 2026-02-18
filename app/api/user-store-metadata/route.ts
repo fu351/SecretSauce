@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { getUserPreferredStores } from "@/lib/store/user-preferred-stores"
 import { groceryStoresDB } from "@/lib/database/grocery-stores-db"
 import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "userId required" }, { status: 400 })
     }
 
-    const supabaseClient = createServerClient()
+    const supabaseClient = createServiceSupabaseClient()
 
     // Use the robust getUserPreferredStores function which calls the RPC
     // and has built-in fallback to zipcode-based lookup

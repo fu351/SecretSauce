@@ -1,5 +1,5 @@
-import { createServerClient } from "@/lib/database/supabase-server"
-import { auth as clerkAuth } from "@clerk/nextjs/server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
+import { auth as clerkAuth, clerkClient } from "@clerk/nextjs/server"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -17,14 +17,50 @@ export interface UserSubscription {
   stripe_current_period_end: string | null
 }
 
-async function getAuthenticatedUserSelector(): Promise<{
-  column: "id" | "clerk_user_id"
-  value: string
-} | null> {
+async function getAuthenticatedUserSelector(): Promise<{ value: string } | null> {
+  const supabase = createServiceSupabaseClient()
+
   try {
     const state = await clerkAuth()
     if (state.userId) {
-      return { column: "clerk_user_id", value: state.userId }
+      const { data: byClerkId } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("clerk_user_id", state.userId)
+        .maybeSingle()
+
+      if (byClerkId?.id) {
+        return { value: byClerkId.id }
+      }
+
+      const client = await clerkClient()
+      const clerkUser = await client.users.getUser(state.userId)
+      const primaryEmailId = clerkUser.primaryEmailAddressId
+      const primaryEmail = clerkUser.emailAddresses.find(
+        (entry) => entry.id === primaryEmailId
+      )?.emailAddress
+
+      if (!primaryEmail) return null
+
+      const { data: byEmail } = await supabase
+        .from("profiles")
+        .select("id, clerk_user_id")
+        .eq("email", primaryEmail)
+        .maybeSingle()
+
+      if (!byEmail?.id) return null
+
+      if (byEmail.clerk_user_id !== state.userId) {
+        await supabase
+          .from("profiles")
+          .update({
+            clerk_user_id: state.userId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", byEmail.id)
+      }
+
+      return { value: byEmail.id }
     }
   } catch {
     // Clerk not configured or middleware missing; continue with Supabase auth fallback.
@@ -39,14 +75,13 @@ async function getAuthenticatedUserSelector(): Promise<{
 
   if (!accessToken) return null
 
-  const supabase = createServerClient()
   const {
     data: { user },
     error,
   } = await supabase.auth.getUser(accessToken)
 
   if (error || !user) return null
-  return { column: "id", value: user.id }
+  return { value: user.id }
 }
 
 /**
@@ -54,7 +89,7 @@ async function getAuthenticatedUserSelector(): Promise<{
  * Server-side only
  */
 export async function getUserSubscription(): Promise<UserSubscription | null> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
   const selector = await getAuthenticatedUserSelector()
   if (!selector) {
     return null
@@ -65,7 +100,7 @@ export async function getUserSubscription(): Promise<UserSubscription | null> {
     .select(
       "subscription_tier, subscription_started_at, subscription_expires_at, subscription_status, stripe_customer_id, stripe_subscription_id, stripe_price_id, stripe_current_period_end"
     )
-    .eq(selector.column, selector.value)
+    .eq("id", selector.value)
 
   const { data: profile, error: profileError } = await query.single()
 

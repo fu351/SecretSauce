@@ -3,7 +3,7 @@ import {
   getOrRefreshIngredientPricesForStores,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
@@ -254,7 +254,7 @@ export async function GET(request: NextRequest) {
     console.log(`[grocery-search] Store mapping: "${rawStoreParam}" -> "${storeKey}"`)
   }
 
-  const supabaseClient = createServerClient()
+  const supabaseClient = createServiceSupabaseClient()
 
   // Only use profile zip_code as fallback if no zipcode was explicitly provided
   let profileZip: string | null = null

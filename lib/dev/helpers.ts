@@ -3,7 +3,7 @@
  * Useful functions for debugging and testing
  */
 
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 
 /**
  * Grant admin role to a user
@@ -13,7 +13,7 @@ export async function grantAdminRole(
   role: "admin" | "analyst" = "admin",
   grantedBy?: string
 ) {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase
     .from("ab_testing.admin_roles")
@@ -37,7 +37,7 @@ export async function grantAdminRole(
  * Revoke admin role from a user
  */
 export async function revokeAdminRole(userId: string, role: "admin" | "analyst" = "admin") {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { error } = await supabase
     .from("ab_testing.admin_roles")
@@ -62,7 +62,7 @@ export async function updateUserTier(
   tier: "free" | "premium",
   durationDays?: number
 ) {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const updates: any = {
     subscription_tier: tier,
@@ -99,7 +99,7 @@ export async function createFeatureFlag(params: {
   config: Record<string, any>
   createdBy: string
 }) {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   // Create experiment
   const { data: experiment, error: expError } = await supabase
@@ -147,7 +147,7 @@ export async function createFeatureFlag(params: {
  * Get all users with a specific subscription tier
  */
 export async function getUsersByTier(tier: "free" | "premium") {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase
     .from("profiles")
@@ -167,7 +167,7 @@ export async function getUsersByTier(tier: "free" | "premium") {
  * Get experiment analytics summary
  */
 export async function getExperimentAnalytics(experimentId: string) {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase.rpc("ab_testing.get_experiment_results", {
     p_experiment_id: experimentId,
@@ -185,7 +185,7 @@ export async function getExperimentAnalytics(experimentId: string) {
  * Clear all user assignments for an experiment (useful for testing)
  */
 export async function clearExperimentAssignments(experimentId: string) {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { error } = await supabase
     .from("ab_testing.user_assignments")
@@ -204,7 +204,7 @@ export async function clearExperimentAssignments(experimentId: string) {
  * Get database statistics
  */
 export async function getDatabaseStats() {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const [users, recipes, experiments, events] = await Promise.all([
     supabase.from("profiles").select("*", { count: "exact", head: true }),

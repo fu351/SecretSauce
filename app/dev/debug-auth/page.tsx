@@ -1,10 +1,10 @@
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { cookies } from "next/headers"
 
 export const dynamic = "force-dynamic"
 
 export default async function DebugAuthPage() {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   // Get current user
   const {

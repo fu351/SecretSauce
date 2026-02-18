@@ -3,13 +3,66 @@
  * Check if users have admin or analyst roles
  */
 
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
+import { auth as clerkAuth, clerkClient } from "@clerk/nextjs/server"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 export type AdminRole = "admin" | "analyst"
 
 async function getAuthenticatedUser() {
+  const supabase = createServiceSupabaseClient()
+
+  try {
+    const state = await clerkAuth()
+    if (state.userId) {
+      const { data: byClerkId } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("clerk_user_id", state.userId)
+        .maybeSingle()
+
+      if (byClerkId?.id) {
+        return { user: { id: byClerkId.id }, errorMessage: null }
+      }
+
+      const client = await clerkClient()
+      const clerkUser = await client.users.getUser(state.userId)
+      const primaryEmailId = clerkUser.primaryEmailAddressId
+      const primaryEmail = clerkUser.emailAddresses.find(
+        (entry) => entry.id === primaryEmailId
+      )?.emailAddress
+
+      if (!primaryEmail) {
+        return { user: null, errorMessage: "Missing Clerk primary email" }
+      }
+
+      const { data: byEmail } = await supabase
+        .from("profiles")
+        .select("id, clerk_user_id")
+        .eq("email", primaryEmail)
+        .maybeSingle()
+
+      if (!byEmail?.id) {
+        return { user: null, errorMessage: "No profile linked to Clerk user" }
+      }
+
+      if (byEmail.clerk_user_id !== state.userId) {
+        await supabase
+          .from("profiles")
+          .update({
+            clerk_user_id: state.userId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", byEmail.id)
+      }
+
+      return { user: { id: byEmail.id }, errorMessage: null }
+    }
+  } catch {
+    // Clerk not configured or middleware missing; continue with Supabase auth fallback.
+  }
+
   const cookieStore = await cookies()
   const accessToken =
     cookieStore.get("sb-access-token")?.value ??
@@ -21,7 +74,6 @@ async function getAuthenticatedUser() {
     return { user: null, errorMessage: "Missing access token cookie" }
   }
 
-  const supabase = createServerClient()
   const {
     data: { user },
     error,
@@ -34,7 +86,7 @@ async function getAuthenticatedUser() {
  * Check if a user has admin privileges
  */
 export async function isAdmin(userId: string): Promise<boolean> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   // Use RPC function in public schema (wrapper for ab_testing.is_admin)
   const { data: rpcData, error: rpcError } = await supabase.rpc(
@@ -58,7 +110,7 @@ export async function isAdmin(userId: string): Promise<boolean> {
  * Check if a user can view analytics (admin or analyst)
  */
 export async function canViewAnalytics(userId: string): Promise<boolean> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase.rpc("can_view_analytics", {
     p_user_id: userId,
@@ -76,7 +128,7 @@ export async function canViewAnalytics(userId: string): Promise<boolean> {
  * Get user's admin role if they have one
  */
 export async function getAdminRole(userId: string): Promise<AdminRole | null> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase
     .from("ab_testing.admin_roles")

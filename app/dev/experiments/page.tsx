@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth/admin"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -67,7 +67,7 @@ function normalizeExperimentRows(rows: ExperimentRpcRow[]): Experiment[] {
 }
 
 async function getExperimentsFromSchema(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
 ): Promise<Experiment[]> {
   const experiments: ExperimentRow[] = []
   let rangeStart = 0
@@ -148,7 +148,7 @@ async function getExperimentsFromSchema(
 }
 
 async function getExperiments(): Promise<Experiment[]> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase.rpc("dev_get_experiments")
 

@@ -1,11 +1,11 @@
 import { requireAdmin } from "@/lib/auth/admin"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
 
 async function getUsers() {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data: users, error } = await supabase
     .from("profiles")
@@ -22,7 +22,7 @@ async function getUsers() {
 }
 
 async function getUserStats() {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const [
     { count: totalUsers },

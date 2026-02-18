@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { auth, clerkClient } from "@clerk/nextjs/server"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 
 export const runtime = "nodejs"
 
@@ -44,7 +44,7 @@ async function resolveCheckoutIdentity(
   supabaseUserId: string | null
   clerkUserId: string | null
 } | null> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   let clerkUserId: string | null = null
   try {
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
       )
     }
     const { profile, supabaseUserId, clerkUserId } = identity
-    const supabase = createServerClient()
+    const supabase = createServiceSupabaseClient()
 
     // Parse request body for dynamic pricing parameters
     let body: {

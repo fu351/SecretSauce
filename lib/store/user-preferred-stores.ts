@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import type { Database } from "@/lib/database/supabase"
 import { groceryStoresDB } from "@/lib/database/grocery-stores-db"
 import { normalizeStoreName } from "@/lib/database/ingredients-db"
@@ -112,7 +112,7 @@ async function hydrateMissingStoresFromZip(
 }
 
 async function fetchUserPreferredStoresUncached(
-  supabaseClient: ReturnType<typeof createServerClient>,
+  supabaseClient: ReturnType<typeof createServiceSupabaseClient>,
   userId: string | null
 ): Promise<StoreDataMap> {
   const storeMap: StoreDataMap = new Map()
@@ -173,7 +173,7 @@ async function fetchUserPreferredStoresUncached(
  * If the RPC doesn't return enough stores, it falls back to zipcode-based lookup.
  */
 export async function getUserPreferredStores(
-  supabaseClient: ReturnType<typeof createServerClient>,
+  supabaseClient: ReturnType<typeof createServiceSupabaseClient>,
   userId: string | null,
   storeKeys: string[],
   fallbackZip: string

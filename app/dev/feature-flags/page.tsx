@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth/admin"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -24,7 +24,7 @@ type FeatureFlag = {
 }
 
 async function getFeatureFlags(): Promise<FeatureFlag[]> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   // Load experiments and variants separately to avoid relation parser issues.
   const { data: experiments, error } = await supabase

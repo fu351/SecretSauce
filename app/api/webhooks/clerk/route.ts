@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyWebhook } from "@clerk/nextjs/webhooks"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 
 export const runtime = "nodejs"
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 })
   }
 
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   try {
     switch (event.type) {

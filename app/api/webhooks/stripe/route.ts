@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { storeListHistoryDB } from "@/lib/database/store-list-history-db"
 
 export const runtime = "nodejs"
@@ -38,7 +38,7 @@ async function updateProfileFromSubscription(
     customerId?: string | null
   }
 ) {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
   const period = getSubscriptionPeriod(subscription)
 
   const updatePayload = {

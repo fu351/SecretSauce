@@ -2,12 +2,19 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
-import type { Session, User } from "@supabase/supabase-js"
+import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
+import { useAuth as useClerkAuth, useClerk, useUser as useClerkUser } from "@clerk/nextjs"
 import { supabase } from "@/lib/database/supabase"
 import { profileDB } from "@/lib/database/profile-db"
 
+type AuthUser = {
+  id: string
+  email: string
+  created_at: string | null
+}
+
 interface AuthContextType {
-  user: User | null
+  user: AuthUser | null
   profile: any | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<any>
@@ -40,91 +47,40 @@ function syncSessionCookies(session: Session | null) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
+  const { isLoaded: clerkLoaded, userId: clerkUserId } = useClerkAuth()
+  const { user: clerkUser } = useClerkUser()
+  const clerk = useClerk()
+  const clerkPrimaryEmail = clerkUser?.primaryEmailAddress?.emailAddress ?? null
+  const clerkPrimaryEmailVerified =
+    clerkUser?.primaryEmailAddress?.verification?.status === "verified"
   const mounted = useRef(true)
   const fetchingProfile = useRef(false)
 
-  useEffect(() => {
-    mounted.current = true
-    setLoading(true)
+  const clearAuthState = () => {
+    if (!mounted.current) return
+    setUser(null)
+    setProfile(null)
+    fetchingProfile.current = false
+  }
 
-    let currentUserId: string | null = null
-    let authSubscription: { unsubscribe: () => void } | null = null
+  const buildAuthUser = (id: string, email: string, createdAt: string | null): AuthUser => ({
+    id,
+    email,
+    created_at: createdAt,
+  })
 
-    const applySession = (sessionUser: User | null) => {
-      if (!mounted.current) return
-
-      const newUserId = sessionUser?.id ?? null
-      if (newUserId === currentUserId) {
-        if (mounted.current) setLoading(false)
-        return
-      }
-
-      currentUserId = newUserId
-      setUser(sessionUser)
-
-      if (sessionUser) {
-        console.log(`[v0] User state changed to: ${sessionUser.id}. Fetching profile.`)
-        // Fire and forget; fetchProfile already guards against concurrent fetches.
-        fetchProfile(sessionUser.id)
-      } else {
-        console.log("[v0] User state changed to null. Clearing profile.")
-        setProfile(null)
-        fetchingProfile.current = false
-      }
-
-      if (mounted.current) {
-        setLoading(false)
-      }
-    }
-
-    const bootstrapSession = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession()
-        if (error) throw error
-
-        if (!mounted.current) return
-
-        syncSessionCookies(data.session ?? null)
-        applySession(data.session?.user ?? null)
-      } catch (error) {
-        console.error("[v0] Error retrieving initial session:", error)
-        if (mounted.current) setLoading(false)
-      } finally {
-        if (!authSubscription) {
-          const {
-            data: { subscription },
-          } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
-            syncSessionCookies(session)
-            applySession(session?.user ?? null)
-          })
-          authSubscription = subscription
-        }
-      }
-    }
-
-    ;(async () => {
-      await bootstrapSession()
-    })()
-
-    return () => {
-      mounted.current = false
-      authSubscription?.unsubscribe()
-    }
-  }, []) // Empty dependency array is correct
-
-  const fetchProfile = async (userId: string) => {
-    if (fetchingProfile.current || !mounted.current) return
+  const fetchProfileBySupabaseUser = async (sessionUser: SupabaseUser): Promise<any | null> => {
+    if (fetchingProfile.current || !mounted.current) return null
 
     fetchingProfile.current = true
     const startTime = performance.now()
-    console.log(`[v0] Fetching profile for user: ${userId}`)
+    console.log(`[v0] Fetching profile for user: ${sessionUser.id}`)
 
     try {
-      const profile = await profileDB.fetchProfileById(userId)
+      const profile = await profileDB.fetchProfileById(sessionUser.id)
 
       const duration = performance.now() - startTime
       console.log(`[v0] Profile fetch completed in ${duration.toFixed(2)}ms`)
@@ -132,38 +88,141 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Profile doesn't exist - create one (trigger may have failed)
       if (!profile) {
         console.log("[v0] Profile not found, creating one...")
-        const { data: session } = await supabase.auth.getSession()
-        const userEmail = session?.session?.user?.email
+        const userEmail = sessionUser.email
 
         if (userEmail) {
           const newProfile = await profileDB.createProfile({
-            id: userId,
-            email: userEmail
+            id: sessionUser.id,
+            email: userEmail,
           })
 
           if (!newProfile) {
             console.error("[v0] Error creating profile")
-            return
+            return null
           }
 
-          if (mounted.current) {
-            console.log("[v0] Profile created successfully")
-            setProfile(newProfile)
-          }
+          console.log("[v0] Profile created successfully")
+          return newProfile
         }
-        return
+
+        return null
       }
 
-      if (mounted.current) {
-        setProfile(profile)
-      }
+      return profile
     } catch (error) {
       const duration = performance.now() - startTime
       console.error(`[v0] Error fetching profile after ${duration.toFixed(2)}ms:`, error)
+      return null
     } finally {
       fetchingProfile.current = false
     }
   }
+
+  useEffect(() => {
+    mounted.current = true
+    setLoading(true)
+
+    let authSubscription: { unsubscribe: () => void } | null = null
+    let cancelled = false
+
+    const applySupabaseUser = async (sessionUser: SupabaseUser | null) => {
+      if (cancelled || !mounted.current) return
+
+      if (!sessionUser?.id || !sessionUser.email) {
+        clearAuthState()
+        setLoading(false)
+        return
+      }
+
+      const nextProfile = await fetchProfileBySupabaseUser(sessionUser)
+      if (cancelled || !mounted.current) return
+
+      setUser(buildAuthUser(sessionUser.id, sessionUser.email, sessionUser.created_at ?? null))
+      setProfile(nextProfile)
+      setLoading(false)
+    }
+
+    const bootstrap = async () => {
+      try {
+        if (clerkLoaded && clerkUserId) {
+          const resolveProfileFromClerk = async (): Promise<any | null> => {
+            let resolvedProfile = await profileDB.fetchProfileByClerkUserId(clerkUserId)
+
+            if (!resolvedProfile && clerkPrimaryEmail) {
+              const byEmail = await profileDB.fetchProfileByEmail(clerkPrimaryEmail)
+              if (byEmail) {
+                resolvedProfile =
+                  (await profileDB.updateProfile(byEmail.id, {
+                    clerk_user_id: clerkUserId,
+                    email_verified: clerkPrimaryEmailVerified,
+                  })) ?? byEmail
+              }
+            }
+
+            return resolvedProfile
+          }
+
+          const linkedProfile = await resolveProfileFromClerk()
+          if (cancelled || !mounted.current) return
+
+          if (linkedProfile?.id && linkedProfile?.email) {
+            setUser(
+              buildAuthUser(
+                linkedProfile.id,
+                linkedProfile.email,
+                linkedProfile.created_at ?? null
+              )
+            )
+            setProfile(linkedProfile)
+            setLoading(false)
+            return
+          }
+
+          console.warn("[v0] Clerk session found but no linked profile. Falling back to logged-out state.")
+          clearAuthState()
+          setLoading(false)
+          return
+        }
+
+        const { data, error } = await supabase.auth.getSession()
+        if (error) throw error
+
+        if (cancelled || !mounted.current) return
+        syncSessionCookies(data.session ?? null)
+        await applySupabaseUser(data.session?.user ?? null)
+      } catch (error) {
+        console.error("[v0] Error retrieving initial session:", error)
+        if (!cancelled && mounted.current) {
+          clearAuthState()
+          setLoading(false)
+        }
+      } finally {
+        if (!authSubscription && !(clerkLoaded && clerkUserId)) {
+          const {
+            data: { subscription },
+          } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log(
+              `[v0] Auth state changed: ${event} at ${new Date().toISOString()}`,
+              session?.user?.email
+            )
+            syncSessionCookies(session)
+            await applySupabaseUser(session?.user ?? null)
+          })
+          authSubscription = subscription
+        }
+      }
+    }
+
+    ;(async () => {
+      await bootstrap()
+    })()
+
+    return () => {
+      cancelled = true
+      mounted.current = false
+      authSubscription?.unsubscribe()
+    }
+  }, [clerkLoaded, clerkUserId, clerkPrimaryEmail, clerkPrimaryEmailVerified])
 
   const signIn = async (email: string, password: string) => {
     const startTime = performance.now()
@@ -246,13 +305,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       fetchingProfile.current = false
+      const shouldSignOutClerk = clerkLoaded && Boolean(clerkUserId)
+
+      if (shouldSignOutClerk) {
+        await clerk.signOut()
+      }
 
       const { error } = await supabase.auth.signOut()
 
       const duration = performance.now() - startTime
       console.log(`[v0] Sign out completed in ${duration.toFixed(2)}ms`)
 
-      if (error) {
+      if (error && !shouldSignOutClerk) {
         console.error("[v0] Sign out error:", error)
         throw error
       }
@@ -277,7 +341,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const updateProfile = async (updates: any) => {
-    if (!user || !mounted.current) return
+    if (!user?.id || !user.email || !mounted.current) return
 
     const startTime = performance.now()
     console.log("[v0] Updating profile...")
@@ -285,8 +349,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const updatedProfile = await profileDB.upsertProfile({
         id: user.id,
-        email: user.email!,
-        ...updates
+        email: user.email,
+        ...updates,
       })
 
       const duration = performance.now() - startTime
@@ -297,7 +361,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (mounted.current) {
-        await fetchProfile(user.id)
+        setProfile(updatedProfile)
       }
     } catch (error) {
       const duration = performance.now() - startTime
