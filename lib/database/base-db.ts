@@ -62,7 +62,7 @@ export abstract class BaseTable<
       ) {
         loggedJwtSignatureHint = true
         console.error(
-          "[Supabase JWT] Signature mismatch detected. Verify Clerk JWT template 'supabase' uses HS256 and the exact Supabase project's JWT secret (not anon key/service key), and that NEXT_PUBLIC_SUPABASE_URL points to that same project."
+          "[Supabase JWT] Signature mismatch detected. Verify Supabase Third-Party Auth is configured for your Clerk instance (Issuer/JWKS), and that NEXT_PUBLIC_SUPABASE_URL points to that same Supabase project."
         )
       }
   }
