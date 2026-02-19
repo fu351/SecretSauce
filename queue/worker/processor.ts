@@ -98,16 +98,17 @@ function buildCanonicalProbationSourceSignature(row: IngredientMatchQueueRow, so
   return `${row.source}:row:${row.id}`
 }
 
-function inferConfidenceOutcomeReason(errorMessage: string): string {
+function inferIngredientSemanticRejectReason(errorMessage: string): string | null {
   const normalized = errorMessage.toLowerCase()
 
-  if (normalized.includes("canonical probation")) return "canonical_probation"
   if (normalized.includes("blocked new canonical creation")) return "blocked_new_canonical"
   if (normalized.includes("invalid canonical name")) return "invalid_canonical"
   if (normalized.includes("ai returned no canonical name")) return "empty_canonical"
   if (normalized.includes("canonical name became empty")) return "canonical_cleared"
 
-  return "processing_error"
+  // Calibration should only learn from ingredient-semantic failures.
+  // Unit failures, infra failures, and probation holds are excluded.
+  return null
 }
 
 function getCanonicalFallback(row: IngredientMatchQueueRow): string {
@@ -872,29 +873,32 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             calibratedIngredientConfidence !== null
           ) {
             const errorMessage = error instanceof Error ? error.message : String(error)
-            void ingredientMatchQueueDB
-              .logIngredientConfidenceOutcome({
-                rawConfidence: rawIngredientConfidence,
-                calibratedConfidence: calibratedIngredientConfidence,
-                outcome: "rejected",
-                reason: inferConfidenceOutcomeReason(errorMessage),
-                category: ingredientCategory,
-                canonicalName: canonicalForWrite || null,
-                tokenCount:
-                  confidenceTokenCount ??
-                  normalizeCanonicalName(canonicalForWrite).split(" ").filter(Boolean).length,
-                isNewCanonical: createdNewCanonical,
-                source: row.source,
-                resolver: config.resolverName,
-                context: rowContext,
-                metadata: {
-                  row_id: row.id,
-                  error: errorMessage.slice(0, 500),
-                },
-              })
-              .catch((telemetryError) => {
-                console.warn("[QueueResolver] Failed to log rejected confidence outcome:", telemetryError)
-              })
+            const semanticRejectReason = inferIngredientSemanticRejectReason(errorMessage)
+            if (semanticRejectReason) {
+              void ingredientMatchQueueDB
+                .logIngredientConfidenceOutcome({
+                  rawConfidence: rawIngredientConfidence,
+                  calibratedConfidence: calibratedIngredientConfidence,
+                  outcome: "rejected",
+                  reason: semanticRejectReason,
+                  category: ingredientCategory,
+                  canonicalName: canonicalForWrite || null,
+                  tokenCount:
+                    confidenceTokenCount ??
+                    normalizeCanonicalName(canonicalForWrite).split(" ").filter(Boolean).length,
+                  isNewCanonical: createdNewCanonical,
+                  source: row.source,
+                  resolver: config.resolverName,
+                  context: rowContext,
+                  metadata: {
+                    row_id: row.id,
+                    error: errorMessage.slice(0, 500),
+                  },
+                })
+                .catch((telemetryError) => {
+                  console.warn("[QueueResolver] Failed to log rejected confidence outcome:", telemetryError)
+                })
+            }
           }
           throw error
         }

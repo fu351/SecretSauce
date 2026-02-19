@@ -146,7 +146,8 @@ Worker flow:
 1. Read confidence bins from recent outcomes.
 2. Blend model confidence with empirical acceptance rates.
 3. Use calibrated confidence for canonical double-check and new-canonical risk gates.
-4. Log accepted/rejected outcomes for continuous recalibration.
+4. Log accepted outcomes and ingredient-semantic rejected outcomes for continuous recalibration.
+5. Exclude unit/infrastructure/probation failures from calibration reject labels to reduce label noise.
 
 This makes confidence thresholds less static and more aligned with observed production behavior.
 

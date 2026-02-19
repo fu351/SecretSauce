@@ -86,6 +86,7 @@ Prompt changes alone are not relied on for safety. Queue runtime adds independen
   - repeated identical probation checks are session-cached for efficiency (DB remains source of truth)
 - Outcome-driven confidence calibration:
   - accepted/rejected outcomes are logged to `ingredient_confidence_outcomes`
+  - rejected labels are limited to ingredient-semantic failures (unit/system/probation failures are excluded)
   - worker calibrates raw model confidence against empirical acceptance bins
 - Drift-learned variety retention:
   - sensitive head/modifier tokens are learned from canonical drift telemetry
