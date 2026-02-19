@@ -667,32 +667,39 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             ingredientCategory = resolvedIngredientCategory
           }
 
-          const unitResult = needsUnit ? unitByRowId.get(row.id) : undefined
+          let unitResult = needsUnit ? unitByRowId.get(row.id) : undefined
+          const shouldWriteUnit = config.enableUnitResolution && !config.unitDryRun
+
+          if (needsUnit && shouldWriteUnit) {
+            let fallbackReason: string | null = null
+
+            if (!unitResult) {
+              fallbackReason = "missing_unit_result"
+            } else if (unitResult.status !== "success") {
+              fallbackReason = unitResult.error || "unit_resolver_error"
+            } else if (!unitResult.resolvedUnit || !unitResult.resolvedQuantity) {
+              fallbackReason = "incomplete_unit_payload"
+            } else if (unitResult.confidence < config.unitMinConfidence) {
+              fallbackReason =
+                `low_confidence(${unitResult.confidence.toFixed(3)}<${config.unitMinConfidence.toFixed(3)})`
+            }
+
+            if (fallbackReason) {
+              unitResult = buildPackagedUnitFallback(row.id)
+              console.warn(
+                `[QueueResolver] ${row.id} unit fallback applied -> 1 unit ` +
+                  `(reason=${fallbackReason}, confidence=${UNIT_FALLBACK_CONFIDENCE.toFixed(3)})`
+              )
+            }
+          }
+
           const usedPackagedUnitFallback = needsUnit && isPackagedUnitFallbackResult(row, unitResult)
           const unitConfidence = normalizeConfidence(unitResult?.confidence, 0)
-          const shouldWriteUnit = config.enableUnitResolution && !config.unitDryRun
           const unitLowConfidence =
             needsUnit &&
             shouldWriteUnit &&
             unitResult?.status === "success" &&
             unitConfidence < config.unitMinConfidence
-
-          if (needsUnit && shouldWriteUnit) {
-            if (!unitResult) {
-              throw new Error("AI returned no unit result")
-            }
-            if (unitResult.status !== "success") {
-              throw new Error(unitResult.error || "Unit resolver returned error")
-            }
-            if (!usedPackagedUnitFallback && unitResult.confidence < config.unitMinConfidence) {
-              throw new Error(
-                `Unit confidence ${unitResult.confidence.toFixed(3)} below threshold ${config.unitMinConfidence.toFixed(3)}`
-              )
-            }
-            if (!unitResult.resolvedUnit || !unitResult.resolvedQuantity) {
-              throw new Error("Unit resolver returned incomplete resolution payload")
-            }
-          }
 
           if (!config.dryRun) {
             if (needsIngredient) {

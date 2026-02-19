@@ -116,10 +116,9 @@ export function buildPackagedUnitFallback(rowId: string): UnitStandardizationRes
 }
 
 export function isPackagedUnitFallbackResult(
-  row: IngredientMatchQueueRow,
+  _row: IngredientMatchQueueRow,
   unitResult: UnitStandardizationResult | undefined
 ): boolean {
-  if (row.source !== "scraper") return false
   if (!unitResult || unitResult.status !== "success") return false
   if (unitResult.resolvedUnit !== "unit" || unitResult.resolvedQuantity !== 1) return false
   return unitResult.confidence <= UNIT_FALLBACK_CONFIDENCE
