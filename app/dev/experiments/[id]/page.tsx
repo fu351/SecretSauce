@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth/admin"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 
 type Awaitable<T> = T | Promise<T>
 
@@ -125,7 +125,7 @@ function normalizeExperimentRow(row: ExperimentRpcRow): Experiment {
 }
 
 async function getExperiment(id: string): Promise<Experiment | null> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data: rpcData, error: rpcError } = await supabase.rpc(
     "dev_get_experiments"
@@ -218,7 +218,7 @@ export default async function ExperimentEditPage(props: PageProps) {
       .map((value) => String(value))
       .filter((tier): tier is Tier => TIER_OPTIONS.includes(tier as Tier))
 
-    const supabase = createServerClient()
+    const supabase = createServiceSupabaseClient()
     const { error } = await supabase
       .schema("ab_testing")
       .from("experiments")
@@ -276,7 +276,7 @@ export default async function ExperimentEditPage(props: PageProps) {
       }
     }
 
-    const supabase = createServerClient()
+    const supabase = createServiceSupabaseClient()
     const { error } = await supabase
       .schema("ab_testing")
       .from("variants")

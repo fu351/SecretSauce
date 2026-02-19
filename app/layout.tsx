@@ -1,5 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
+import { ClerkProvider } from "@clerk/nextjs"
 import { Inter, Playfair_Display } from "next/font/google"
 import Script from "next/script"
 import "./globals.css"
@@ -40,35 +41,37 @@ export default function RootLayout({
   const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
-        {/* Google Maps API - in body so layout chunk load isn't blocked */}
-        {googleMapsKey && (
-          <Script
-            src={`https://maps.googleapis.com/maps/api/js?key=${googleMapsKey}&libraries=places`}
-            strategy="lazyOnload"
-          />
-        )}
-        <ErrorBoundary>
-          <ThemeProvider>
-            <QueryProvider>
-              <AuthProvider>
-                <AnalyticsProvider>
-                  <TutorialProvider>
-                    <ThemeSync />
-                    <TutorialOverlay />
-                    <FeedbackWidget position="bottom-left" />
-                    <Header />
-                    {children}
-                    <Toaster />
-                    <SpeedInsights />
-                  </TutorialProvider>
-                </AnalyticsProvider>
-              </AuthProvider>
-            </QueryProvider>
-          </ThemeProvider>
-        </ErrorBoundary>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className="dark" suppressHydrationWarning>
+        <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
+          {/* Google Maps API - in body so layout chunk load isn't blocked */}
+          {googleMapsKey && (
+            <Script
+              src={`https://maps.googleapis.com/maps/api/js?key=${googleMapsKey}&libraries=places`}
+              strategy="lazyOnload"
+            />
+          )}
+          <ErrorBoundary>
+            <ThemeProvider>
+              <QueryProvider>
+                <AuthProvider>
+                  <AnalyticsProvider>
+                    <TutorialProvider>
+                      <ThemeSync />
+                      <TutorialOverlay />
+                      <FeedbackWidget position="bottom-left" />
+                      <Header />
+                      {children}
+                      <Toaster />
+                      <SpeedInsights />
+                    </TutorialProvider>
+                  </AnalyticsProvider>
+                </AuthProvider>
+              </QueryProvider>
+            </ThemeProvider>
+          </ErrorBoundary>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }

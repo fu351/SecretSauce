@@ -1,12 +1,12 @@
 import { requireAdmin } from "@/lib/auth/admin"
 import Link from "next/link"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import SeedMockRecipesButton from "./seed-mock-recipes-button"
 
 export const dynamic = "force-dynamic"
 
 async function getDevStats() {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   // Get database stats
   const [

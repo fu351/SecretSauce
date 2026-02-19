@@ -1,25 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { auth, clerkClient } from "@clerk/nextjs/server"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 
 export const runtime = "nodejs"
-
-function extractSupabaseAccessToken(request: NextRequest): string | null {
-  const headerToken = request.headers
-    .get("authorization")
-    ?.replace(/^Bearer\s+/i, "")
-    ?.trim()
-
-  if (headerToken) return headerToken
-
-  return (
-    request.cookies.get("sb-access-token")?.value ??
-    request.cookies.get("supabase-access-token")?.value ??
-    request.cookies.get("supabase-auth-token")?.value ??
-    null
-  )
-}
 
 type CheckoutProfile = {
   id: string
@@ -37,99 +21,60 @@ function getPrimaryEmailAddress(clerkUser: any): string | null {
   return typeof email === "string" ? email : null
 }
 
-async function resolveCheckoutIdentity(
-  request: NextRequest
-): Promise<{
+async function resolveCheckoutIdentity(): Promise<{
   profile: CheckoutProfile
   supabaseUserId: string | null
   clerkUserId: string | null
 } | null> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
+  const authState = await auth()
+  const clerkUserId = authState.userId ?? null
+  if (!clerkUserId) return null
 
-  let clerkUserId: string | null = null
-  try {
-    const authState = await auth()
-    clerkUserId = authState.userId ?? null
-  } catch {
-    clerkUserId = null
-  }
+  const { data: byClerk } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, stripe_customer_id, clerk_user_id")
+    .eq("clerk_user_id", clerkUserId)
+    .maybeSingle()
 
-  if (clerkUserId) {
-    const { data: byClerk } = await supabase
-      .from("profiles")
-      .select("id, email, full_name, stripe_customer_id, clerk_user_id")
-      .eq("clerk_user_id", clerkUserId)
-      .maybeSingle()
-
-    if (byClerk) {
-      return {
-        profile: byClerk as CheckoutProfile,
-        supabaseUserId: byClerk.id,
-        clerkUserId,
-      }
-    }
-
-    const client = await clerkClient()
-    const clerkUser = await client.users.getUser(clerkUserId)
-    const email = getPrimaryEmailAddress(clerkUser)
-    if (!email) return null
-
-    const { data: byEmail } = await supabase
-      .from("profiles")
-      .select("id, email, full_name, stripe_customer_id, clerk_user_id")
-      .eq("email", email)
-      .maybeSingle()
-
-    if (!byEmail) return null
-
-    if (byEmail.clerk_user_id !== clerkUserId) {
-      await supabase
-        .from("profiles")
-        .update({
-          clerk_user_id: clerkUserId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", byEmail.id)
-    }
-
+  if (byClerk) {
     return {
-      profile: {
-        ...(byEmail as CheckoutProfile),
-        clerk_user_id: clerkUserId,
-      },
-      supabaseUserId: byEmail.id,
+      profile: byClerk as CheckoutProfile,
+      supabaseUserId: byClerk.id,
       clerkUserId,
     }
   }
 
-  const accessToken = extractSupabaseAccessToken(request)
-  if (!accessToken) {
-    return null
-  }
+  const client = await clerkClient()
+  const clerkUser = await client.users.getUser(clerkUserId)
+  const email = getPrimaryEmailAddress(clerkUser)
+  if (!email) return null
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser(accessToken)
-
-  if (authError || !user) {
-    return null
-  }
-
-  const { data: profile } = await supabase
+  const { data: byEmail } = await supabase
     .from("profiles")
     .select("id, email, full_name, stripe_customer_id, clerk_user_id")
-    .eq("id", user.id)
-    .single()
+    .eq("email", email)
+    .maybeSingle()
 
-  if (!profile) {
-    return null
+  if (!byEmail) return null
+
+  if (byEmail.clerk_user_id !== clerkUserId) {
+    await supabase
+      .from("profiles")
+      .update({
+        clerk_user_id: clerkUserId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", byEmail.id)
   }
 
   return {
-    profile: profile as CheckoutProfile,
-    supabaseUserId: user.id,
-    clerkUserId: profile.clerk_user_id ?? null,
+    profile: {
+      ...(byEmail as CheckoutProfile),
+      clerk_user_id: clerkUserId,
+    },
+    supabaseUserId: byEmail.id,
+    clerkUserId,
   }
 }
 
@@ -137,8 +82,7 @@ export async function POST(request: NextRequest) {
   try {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY
     const stripePriceId = process.env.STRIPE_PREMIUM_PRICE_ID
-    const supabaseServiceKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!stripeSecretKey || !stripePriceId || !supabaseServiceKey) {
       return NextResponse.json(
@@ -168,7 +112,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const identity = await resolveCheckoutIdentity(request)
+    const identity = await resolveCheckoutIdentity()
     if (!identity) {
       return NextResponse.json(
         { error: "Unauthorized or missing linked profile" },
@@ -176,7 +120,7 @@ export async function POST(request: NextRequest) {
       )
     }
     const { profile, supabaseUserId, clerkUserId } = identity
-    const supabase = createServerClient()
+    const supabase = createServiceSupabaseClient()
 
     // Parse request body for dynamic pricing parameters
     let body: {

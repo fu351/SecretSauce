@@ -1,6 +1,8 @@
 import { SupabaseClient, PostgrestError } from '@supabase/supabase-js';
 import { supabase, Database } from '@/lib/database/supabase';
 
+let loggedJwtSignatureHint = false
+
 // Define types for table names valid in the database schema
 type TableName = keyof Database['public']['Tables'];
 
@@ -51,6 +53,18 @@ export abstract class BaseTable<
       const name = this.tableName || 'UnknownTable';
       const errorMessage = error?.message || 'Unknown error';
       console.error(`[${this.constructor.name}:${name}] Error in ${context}:`, errorMessage, error);
+
+      if (
+        !loggedJwtSignatureHint &&
+        error?.code === "PGRST301" &&
+        typeof error?.message === "string" &&
+        error.message.includes("JWSInvalidSignature")
+      ) {
+        loggedJwtSignatureHint = true
+        console.error(
+          "[Supabase JWT] Signature mismatch detected. Verify Supabase Third-Party Auth is configured for your Clerk instance (Issuer/JWKS), and that NEXT_PUBLIC_SUPABASE_URL points to that same Supabase project."
+        )
+      }
   }
 
   /**

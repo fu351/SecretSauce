@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { requireAdmin } from "@/lib/auth/admin"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import ABTestingLabClient from "./tester-client"
 
 export const dynamic = "force-dynamic"
@@ -18,7 +18,7 @@ type ExperimentRpcRow = {
 }
 
 async function getExperimentOptions(): Promise<ExperimentOption[]> {
-  const supabase = createServerClient()
+  const supabase = createServiceSupabaseClient()
 
   const { data: rpcData, error: rpcError } = await supabase.rpc(
     "dev_get_experiments"

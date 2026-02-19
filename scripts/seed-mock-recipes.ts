@@ -10,9 +10,7 @@ import {
 } from "../lib/dev/mock-recipes"
 
 const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_SERVICE_KEY
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const SUPABASE_SEED_AUTHOR_ID = process.env.SUPABASE_SEED_AUTHOR_ID
 const DRY_RUN = process.argv.includes("--dry-run")
 
@@ -22,7 +20,7 @@ if (!NEXT_PUBLIC_SUPABASE_URL) {
 }
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("Missing SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY.")
+  console.error("Missing SUPABASE_SERVICE_ROLE_KEY.")
   process.exit(1)
 }
 

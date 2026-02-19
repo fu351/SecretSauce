@@ -3,7 +3,8 @@ import {
   getOrRefreshIngredientPricesForStores,
   type IngredientCacheResult,
 } from "@/lib/ingredient-pipeline"
-import { createServerClient } from "@/lib/database/supabase-server"
+import { auth } from "@clerk/nextjs/server"
+import { createAnonSupabaseClient, createUserSupabaseClient } from "@/lib/database/supabase-server"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
@@ -25,8 +26,6 @@ const DEFAULT_STORE_KEYS = [
   "safeway",
 ]
 
-const FALLBACK_ZIP_CODE = normalizeZipCode(process.env.ZIP_CODE ?? process.env.DEFAULT_ZIP_CODE)
-
 type ScraperRuntimeConfig = {
   liveActivation?: boolean
   bypassTimeouts?: boolean
@@ -40,27 +39,8 @@ async function withScraperRuntimeContext<T>(
 ): Promise<T> {
   if (!runtimeConfig) return fn()
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { runWithScraperRuntimeConfig } = require("@/lib/scrapers/runtime-config")
   return runWithScraperRuntimeConfig(runtimeConfig, fn)
-}
-
-function extractSupabaseAccessToken(request: NextRequest): string | null {
-  const headerToken = request.headers
-    .get("authorization")
-    ?.replace(/^Bearer\s+/i, "")
-    ?.trim()
-
-  if (headerToken) {
-    return headerToken
-  }
-
-  return (
-    request.cookies.get("sb-access-token")?.value ??
-    request.cookies.get("supabase-access-token")?.value ??
-    request.cookies.get("supabase-auth-token")?.value ??
-    null
-  )
 }
 
 // getUserPreferredStores and StoreData type moved to @/lib/store/user-preferred-stores
@@ -87,7 +67,6 @@ async function scrapeDirectFallback(
   }>
 > {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const scrapers = require("@/lib/scrapers")
     const scraperMap: Record<string, any> = {
       walmart: scrapers.searchWalmartAPI,
@@ -181,7 +160,7 @@ async function scrapeDirectFallback(
             ? `${storeData.address}, ${storeData.city}, ${storeData.state} ${storeData.zip_code}`
             : null
 
-          console.log(`[scrapeDirectFallback] Scraping ${store} with ${storeData ? 'database' : 'fallback'} zip: ${storeZip}`)
+          console.log(`[scrapeDirectFallback] Scraping ${store} with ${storeData ? "database" : "fallback"} zip: ${storeZip}`)
 
           let data: any[] = []
           if (store === "kroger" || store === "meijer") {
@@ -210,7 +189,7 @@ async function scrapeDirectFallback(
             fromCache: false,
           }))
           console.log("[scrapeDirectFallback] Results", { store, count: mapped.length })
-          return mapped;
+          return mapped
         } catch (error) {
           console.warn("[grocery-search] Fallback scraper error", { store, error })
           return []
@@ -231,8 +210,8 @@ export async function GET(request: NextRequest) {
   const requestStart = Date.now()
   // Debug logging version: 2025-11-23-v3
   console.log("[grocery-search] API endpoint hit", { timestamp: new Date().toISOString() })
-
-  const supabaseAccessToken = extractSupabaseAccessToken(request)
+  const clerkAuthState = await auth()
+  const hasClerkSession = Boolean(clerkAuthState.userId)
 
   const { searchParams } = new URL(request.url)
   const rawSearchTerm = searchParams.get("searchTerm") || ""
@@ -254,31 +233,33 @@ export async function GET(request: NextRequest) {
     console.log(`[grocery-search] Store mapping: "${rawStoreParam}" -> "${storeKey}"`)
   }
 
-  const supabaseClient = createServerClient()
+  const supabaseClient = hasClerkSession
+    ? createUserSupabaseClient()
+    : createAnonSupabaseClient()
 
   // Only use profile zip_code as fallback if no zipcode was explicitly provided
   let profileZip: string | null = null
   let userId: string | null = null
-  try {
-    const { data: authUserRes } = await supabaseClient.auth.getUser(supabaseAccessToken ?? undefined)
-    userId = authUserRes?.user?.id || null
-    if (userId && !zipToUse) {
-      // Only use profile zip if no zipcode was explicitly provided
-      const profile = await profileDB.fetchProfileFields(userId, ["zip_code"])
-      profileZip = normalizeZipCode(profile?.zip_code) ?? null
-      if (profileZip) {
-        zipToUse = profileZip
-        console.log("[grocery-search] Using profile zip code as fallback", { profileZip })
+  if (hasClerkSession) {
+    try {
+      const { data: authUserRes } = await supabaseClient.auth.getUser()
+      userId = authUserRes?.user?.id || null
+      if (userId && !zipToUse) {
+        // Only use profile zip if no zipcode was explicitly provided
+        const profile = await profileDB.fetchProfileFields(userId, ["zip_code"])
+        profileZip = normalizeZipCode(profile?.zip_code) ?? null
+        if (profileZip) {
+          zipToUse = profileZip
+          console.log("[grocery-search] Using profile zip code as fallback", { profileZip })
+        }
+      } else if (zipToUse) {
+        console.log("[grocery-search] Using explicitly provided zip code", { zipToUse })
       }
-    } else if (zipToUse) {
-      console.log("[grocery-search] Using explicitly provided zip code", { zipToUse })
+    } catch (error) {
+      console.warn("[grocery-search] Failed to derive zip from current user profile", error)
     }
-  } catch (error) {
-    console.warn("[grocery-search] Failed to derive zip from current user profile", error)
-  }
-
-  if (!zipToUse) {
-    zipToUse = FALLBACK_ZIP_CODE
+  } else if (zipToUse) {
+    console.log("[grocery-search] Using explicitly provided zip code", { zipToUse })
   }
 
   console.log("[grocery-search] Resolved zip code", { zipToUse })
@@ -515,7 +496,7 @@ export async function GET(request: NextRequest) {
               zipCode: storeZip || null,
               groceryStoreId: groceryStoreId,
             }
-          });
+          })
 
           if (payloads.length === 0) {
             console.log("[grocery-search] No new items to cache (all from cache)")

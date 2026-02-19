@@ -2,243 +2,169 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
-import type { Session, User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/database/supabase"
+import { useAuth as useClerkAuth, useClerk } from "@clerk/nextjs"
+import { setBrowserAccessTokenProvider } from "@/lib/database/supabase"
 import { profileDB } from "@/lib/database/profile-db"
 
+type AuthUser = {
+  id: string
+  email: string
+  created_at: string | null
+}
+
 interface AuthContextType {
-  user: User | null
+  user: AuthUser | null
   profile: any | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<any>
-  signUp: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
   updateProfile: (updates: any) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const TOKEN_REFRESH_BUFFER_SECONDS = 30
 
-const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
-
-function syncSessionCookies(session: Session | null) {
-  if (typeof document === "undefined") return
-
-  const secureFlag = window.location.protocol === "https:" ? "; Secure" : ""
-  const baseFlags = `; Path=/; SameSite=Lax${secureFlag}`
-
-  if (session?.access_token) {
-    document.cookie = `sb-access-token=${encodeURIComponent(session.access_token)}${baseFlags}; Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`
-  } else {
-    document.cookie = `sb-access-token=${baseFlags}; Max-Age=0`
-  }
-
-  if (session?.refresh_token) {
-    document.cookie = `sb-refresh-token=${encodeURIComponent(session.refresh_token)}${baseFlags}; Max-Age=${SESSION_COOKIE_MAX_AGE_SECONDS}`
-  } else {
-    document.cookie = `sb-refresh-token=${baseFlags}; Max-Age=0`
+function readJwtExp(token: string): number | null {
+  try {
+    const payloadSegment = token.split(".")[1]
+    if (!payloadSegment) return null
+    const normalized = payloadSegment.replace(/-/g, "+").replace(/_/g, "/")
+    const padding = normalized.length % 4
+    const padded = padding === 0 ? normalized : normalized.padEnd(normalized.length + (4 - padding), "=")
+    const payloadJson = atob(padded)
+    const payload = JSON.parse(payloadJson) as { exp?: unknown }
+    return typeof payload.exp === "number" ? payload.exp : null
+  } catch {
+    return null
   }
 }
 
+function isJwtExpiredOrExpiring(token: string, bufferSeconds = TOKEN_REFRESH_BUFFER_SECONDS): boolean {
+  const exp = readJwtExp(token)
+  if (!exp) return false
+  return exp * 1000 <= Date.now() + bufferSeconds * 1000
+}
+
+function clearLegacySupabaseCookies() {
+  if (typeof document === "undefined") return
+  const secureFlag = window.location.protocol === "https:" ? "; Secure" : ""
+  const baseFlags = `; Path=/; SameSite=Lax${secureFlag}; Max-Age=0`
+  document.cookie = `sb-access-token=${baseFlags}`
+  document.cookie = `sb-refresh-token=${baseFlags}`
+  document.cookie = `supabase-access-token=${baseFlags}`
+  document.cookie = `supabase-auth-token=${baseFlags}`
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
+  const { isLoaded: clerkLoaded, userId: clerkUserId, getToken } = useClerkAuth()
+  const clerk = useClerk()
   const mounted = useRef(true)
   const fetchingProfile = useRef(false)
+
+  const clearAuthState = () => {
+    if (!mounted.current) return
+    setUser(null)
+    setProfile(null)
+    fetchingProfile.current = false
+  }
+
+  const buildAuthUser = (id: string, email: string, createdAt: string | null): AuthUser => ({
+    id,
+    email,
+    created_at: createdAt,
+  })
+
+  useEffect(() => {
+    setBrowserAccessTokenProvider(async () => {
+      if (!clerkLoaded) return null
+      let token = await getToken()
+
+      if (token && isJwtExpiredOrExpiring(token)) {
+        token = await getToken({ skipCache: true })
+      }
+
+      if (!token || isJwtExpiredOrExpiring(token, 0)) {
+        return null
+      }
+
+      return token
+    })
+
+    return () => {
+      setBrowserAccessTokenProvider(null)
+    }
+  }, [clerkLoaded, getToken])
 
   useEffect(() => {
     mounted.current = true
     setLoading(true)
 
-    let currentUserId: string | null = null
-    let authSubscription: { unsubscribe: () => void } | null = null
+    let cancelled = false
 
-    const applySession = (sessionUser: User | null) => {
-      if (!mounted.current) return
-
-      const newUserId = sessionUser?.id ?? null
-      if (newUserId === currentUserId) {
-        if (mounted.current) setLoading(false)
-        return
-      }
-
-      currentUserId = newUserId
-      setUser(sessionUser)
-
-      if (sessionUser) {
-        console.log(`[v0] User state changed to: ${sessionUser.id}. Fetching profile.`)
-        // Fire and forget; fetchProfile already guards against concurrent fetches.
-        fetchProfile(sessionUser.id)
-      } else {
-        console.log("[v0] User state changed to null. Clearing profile.")
-        setProfile(null)
-        fetchingProfile.current = false
-      }
-
-      if (mounted.current) {
-        setLoading(false)
-      }
-    }
-
-    const bootstrapSession = async () => {
+    const bootstrap = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession()
-        if (error) throw error
+        if (!clerkLoaded) {
+          return
+        }
 
-        if (!mounted.current) return
+        if (!clerkUserId) {
+          clearAuthState()
+          return
+        }
 
-        syncSessionCookies(data.session ?? null)
-        applySession(data.session?.user ?? null)
+        const response = await fetch("/api/auth/ensure-profile", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+        if (cancelled || !mounted.current) return
+
+        if (!response.ok) {
+          console.warn("[v0] Failed to ensure Clerk profile:", response.status)
+          clearAuthState()
+          return
+        }
+
+        const payload = await response.json()
+        const linkedProfile = payload?.profile
+        if (!linkedProfile?.id || !linkedProfile?.email) {
+          clearAuthState()
+          return
+        }
+
+        setUser(
+          buildAuthUser(
+            linkedProfile.id,
+            linkedProfile.email,
+            linkedProfile.created_at ?? null
+          )
+        )
+        setProfile(linkedProfile)
       } catch (error) {
-        console.error("[v0] Error retrieving initial session:", error)
-        if (mounted.current) setLoading(false)
+        console.error("[v0] Error retrieving Clerk-backed session:", error)
+        if (!cancelled && mounted.current) {
+          clearAuthState()
+        }
       } finally {
-        if (!authSubscription) {
-          const {
-            data: { subscription },
-          } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log(`[v0] Auth state changed: ${event} at ${new Date().toISOString()}`, session?.user?.email)
-            syncSessionCookies(session)
-            applySession(session?.user ?? null)
-          })
-          authSubscription = subscription
+        if (!cancelled && mounted.current && clerkLoaded) {
+          setLoading(false)
         }
       }
     }
 
     ;(async () => {
-      await bootstrapSession()
+      await bootstrap()
     })()
 
     return () => {
+      cancelled = true
       mounted.current = false
-      authSubscription?.unsubscribe()
     }
-  }, []) // Empty dependency array is correct
-
-  const fetchProfile = async (userId: string) => {
-    if (fetchingProfile.current || !mounted.current) return
-
-    fetchingProfile.current = true
-    const startTime = performance.now()
-    console.log(`[v0] Fetching profile for user: ${userId}`)
-
-    try {
-      const profile = await profileDB.fetchProfileById(userId)
-
-      const duration = performance.now() - startTime
-      console.log(`[v0] Profile fetch completed in ${duration.toFixed(2)}ms`)
-
-      // Profile doesn't exist - create one (trigger may have failed)
-      if (!profile) {
-        console.log("[v0] Profile not found, creating one...")
-        const { data: session } = await supabase.auth.getSession()
-        const userEmail = session?.session?.user?.email
-
-        if (userEmail) {
-          const newProfile = await profileDB.createProfile({
-            id: userId,
-            email: userEmail
-          })
-
-          if (!newProfile) {
-            console.error("[v0] Error creating profile")
-            return
-          }
-
-          if (mounted.current) {
-            console.log("[v0] Profile created successfully")
-            setProfile(newProfile)
-          }
-        }
-        return
-      }
-
-      if (mounted.current) {
-        setProfile(profile)
-      }
-    } catch (error) {
-      const duration = performance.now() - startTime
-      console.error(`[v0] Error fetching profile after ${duration.toFixed(2)}ms:`, error)
-    } finally {
-      fetchingProfile.current = false
-    }
-  }
-
-  const signIn = async (email: string, password: string) => {
-    const startTime = performance.now()
-    console.log(`[v0] Sign in attempt for: ${email}`)
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      const duration = performance.now() - startTime
-      console.log(`[v0] Sign in completed in ${duration.toFixed(2)}ms`)
-
-      if (error) {
-        console.error("[v0] Sign in error:", error)
-        return { data: null, error }
-      }
-
-      syncSessionCookies(data.session ?? null)
-      console.log("[v0] Sign in successful:", data.user?.email)
-      return { data, error: null }
-    } catch (error) {
-      const duration = performance.now() - startTime
-      console.error(`[v0] Sign in exception after ${duration.toFixed(2)}ms:`, error)
-      return { data: null, error }
-    }
-  }
-
-  const signUp = async (email: string, password: string) => {
-    const startTime = performance.now()
-    console.log(`[v0] Sign up attempt for: ${email}`)
-
-    try {
-      const getSiteUrl = () => {
-        if (typeof window !== "undefined") {
-          return window.location.origin
-        }
-        const vercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-        if (vercelUrl) {
-          return `https://${vercelUrl}`
-        }
-        return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${getSiteUrl()}/auth/callback?next=/welcome`,
-        },
-      })
-
-      const duration = performance.now() - startTime
-      console.log(`[v0] Sign up completed in ${duration.toFixed(2)}ms`)
-
-      if (error) {
-        console.error("[v0] Sign up error:", error)
-        return { data: null, error }
-      }
-
-      console.log("[v0] Sign up successful:", data.user?.email)
-
-      // Store email in localStorage for check-email page
-      if (typeof window !== "undefined" && email) {
-        localStorage.setItem("pending_verification_email", email)
-      }
-
-      return { data, error: null }
-    } catch (error) {
-      const duration = performance.now() - startTime
-      console.error(`[v0] Sign up exception after ${duration.toFixed(2)}ms:`, error)
-      return { data: null, error }
-    }
-  }
+  }, [clerkLoaded, clerkUserId])
 
   const signOut = async () => {
     const startTime = performance.now()
@@ -246,18 +172,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       fetchingProfile.current = false
-
-      const { error } = await supabase.auth.signOut()
+      if (clerkLoaded && clerkUserId) {
+        await clerk.signOut()
+      }
 
       const duration = performance.now() - startTime
       console.log(`[v0] Sign out completed in ${duration.toFixed(2)}ms`)
 
-      if (error) {
-        console.error("[v0] Sign out error:", error)
-        throw error
-      }
-
-      syncSessionCookies(null)
+      clearLegacySupabaseCookies()
       console.log("[v0] Sign out successful")
 
       if (mounted.current) {
@@ -277,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const updateProfile = async (updates: any) => {
-    if (!user || !mounted.current) return
+    if (!user?.id || !user.email || !mounted.current) return
 
     const startTime = performance.now()
     console.log("[v0] Updating profile...")
@@ -285,8 +207,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const updatedProfile = await profileDB.upsertProfile({
         id: user.id,
-        email: user.email!,
-        ...updates
+        email: user.email,
+        ...updates,
       })
 
       const duration = performance.now() - startTime
@@ -297,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (mounted.current) {
-        await fetchProfile(user.id)
+        setProfile(updatedProfile)
       }
     } catch (error) {
       const duration = performance.now() - startTime
@@ -310,8 +232,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     profile,
     loading,
-    signIn,
-    signUp,
     signOut,
     updateProfile,
   }
