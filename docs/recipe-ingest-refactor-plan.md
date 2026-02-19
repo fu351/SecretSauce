@@ -1,8 +1,23 @@
 # Recipe Ingest Refactor Plan
 
-**Status:** Proposed  
-**Last Updated:** 2026-02-19  
+**Status:** Execution-Ready (post-review)
+**Last Updated:** 2026-02-19
 **Scope:** Recipe upload, edit, and ingredient standardization pipeline
+
+---
+
+## Review Findings (resolved before implementation)
+
+Six issues were found during a doc-sync pass against current code and `supabase/migrations/fn_upsert_recipe_with_ingredients.sql`. All are resolved in this document. No code has been changed yet.
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| 1 | High | Problem statement described orphan queue rows from AI writes/enqueue; actual recipe branch only batch-upserts display names and returns empty `standardized` payload (`app/api/ingredients/standardize/route.ts:76`). | Problem Statement §1 rewritten to reflect actual behavior. |
+| 2 | High | Unit-keyword filter included all single-word strings, which would pull in single-word ingredient names from `unit_standardization_map`. | Filter moved to SQL RPC (`fn_get_recipe_parser_unit_keywords`) with an anti-join on `standardized_ingredients`. TypeScript filter simplified to a pass-through. |
+| 3 | High | Component prose said client fetches `unitKeywords` via `getUnitKeywordsCached()` — a server-only function. | `unitKeywords` are now returned by the `/api/ingredients/parse` response and delivered directly to the UI; no separate client fetch needed. |
+| 4 | Medium | `onConfirm` prop typed `{ name, quantity?, units? }` but mapper emitted `{ display_name, quantity, units }`. | Mapper updated to use `name` to match prop contract. |
+| 5 | Medium | Integration test path was `tests/integration/...`; repo root is `test/`. | Path corrected to `test/integration/...`. |
+| 6 | Medium | Phase 2 used direct `.from('unit_standardization_map')` without aligned DB types. | DB helper updated to use RPC + controlled `any` boundary. |
 
 ---
 
@@ -124,11 +139,12 @@ Canonical safeguard behavior in the worker:
 
 ### 1. Two paths write recipe ingredients
 
-The upload and edit UIs call `/api/ingredients/standardize` (context=recipe) before saving, then pass AI-resolved data to `fn_upsert_recipe_with_ingredients`. The standardize endpoint makes its own DB writes and can enqueue independently. This means:
+The upload and edit UIs call `/api/ingredients/standardize` (context=recipe) before saving. The current recipe branch of this route does **not** perform AI resolution or independent enqueue — it batch-upserts display names to `standardized_ingredients` and returns an empty `standardized` payload (`app/api/ingredients/standardize/route.ts:76`). The caller then passes those empty results to `fn_upsert_recipe_with_ingredients`.
 
-- Queue rows are created with no `recipe_ingredient_id` (the standardize endpoint has no `recipe_ingredients` row yet)
-- `fn_enqueue_for_review` then fires again inside the SQL function with the actual `recipe_ingredient_id`
-- The conflict clause on `product_mapping_id` doesn't apply (recipe rows don't have a product mapping), so two queue rows exist: one orphaned, one valid
+This creates two problems:
+
+- **Unnecessary write surface.** The route performs DB writes (batch name upserts) with no useful standardization output, and the empty `standardized` payload means the UI falls back to raw input anyway. The route does nothing valuable for recipe saves and adds an extra write path that could diverge from the SQL function's behavior as the route evolves.
+- **Architectural risk.** Because the recipe branch exists, any future change to the route (e.g. re-enabling AI calls, adding enqueue logic) could re-introduce orphan queue rows: rows created with no `recipe_ingredient_id` before the SQL function runs, which would not be caught by the `ON CONFLICT (recipe_ingredient_id)` dedup clause.
 
 ### 2. `/api/ingredients/standardize` uses the wrong prompt context for recipes
 
@@ -242,62 +258,70 @@ Update inline comments and JSDoc. No DB schema changes required.
 
 ---
 
-### Phase 2 — Live unit vocabulary endpoint
+### Phase 2 — SQL RPC for parser unit vocabulary (new migration)
 
-The TypeScript parser needs the unit keyword vocabulary from `unit_standardization_map`. We do **not** hardcode it — hardcoding creates drift. Instead, expose a lightweight DB query through an existing or new route.
+Add a security-definer function that the DB helper calls. Doing the filtering in SQL keeps the TypeScript simple and ensures product-name exclusion uses a proper anti-join against `standardized_ingredients` rather than an unreliable string heuristic.
 
-**Option A (preferred):** Add a public RPC wrapper for the vocabulary that the parse endpoint calls internally. This keeps the parse endpoint as a single server-side call with no client DB access.
+**New migration file:** `supabase/migrations/<timestamp>_fn_get_recipe_parser_unit_keywords.sql`
 
-**File:** `app/api/ingredients/parse/route.ts` (see Phase 3) calls `getUnitKeywords()` from a new DB helper:
+```sql
+-- Returns unit keyword strings for the TypeScript ingredient parser.
+-- Applies the same confidence/unit filters as fn_build_unit_regex() and
+-- excludes single- or multi-word strings that are themselves ingredient
+-- display names in standardized_ingredients (product-name entries like
+-- "avocado oil spray", "green onion", "egg" that map to a unit but are
+-- not meaningful unit tokens for the parser).
+-- Results are sorted longest-first so the caller can build a greedy regex.
+CREATE OR REPLACE FUNCTION public.fn_get_recipe_parser_unit_keywords()
+RETURNS TABLE (keyword text)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT m.raw_input_string
+  FROM   unit_standardization_map m
+  WHERE  m.standard_unit IS NOT NULL
+    AND  m.confidence_score >= 0.4
+    AND  LOWER(m.raw_input_string) NOT IN (
+           SELECT LOWER(si.display_name)
+           FROM   standardized_ingredients si
+         )
+  ORDER BY LENGTH(m.raw_input_string) DESC, m.raw_input_string ASC;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.fn_get_recipe_parser_unit_keywords() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.fn_get_recipe_parser_unit_keywords() TO service_role;
+```
+
+---
+
+### Phase 2b — Live unit vocabulary DB helper
+
+The TypeScript parser needs the unit keyword vocabulary from `unit_standardization_map`. We do **not** hardcode it — hardcoding creates drift. Expose the vocabulary through the RPC added above, using a controlled `any` boundary because the RPC return type is not in the generated Supabase TypeScript schema.
+
+**File:** `app/api/ingredients/parse/route.ts` (see Phase 4) calls `getUnitKeywords()` from a new DB helper:
 
 ```typescript
 // lib/database/unit-standardization-db.ts  (new file)
 
 /**
- * Returns raw unit keyword strings from unit_standardization_map that are:
- *   - resolved to a standard_unit (not NULL)
- *   - confidence_score >= 0.4  (matches fn_build_unit_regex threshold)
- *   - NOT a multi-word product-name entry (no ingredient-name strings like
- *     "avocado oil spray", "beef hot dogs", "green onion")
+ * Returns unit keyword strings for the TypeScript ingredient parser.
+ * Calls fn_get_recipe_parser_unit_keywords() via RPC — filtering and
+ * product-name exclusion are handled in SQL.
  *
- * This set is used by the TypeScript parser to build the unit alternation
- * regex, mirroring exactly what fn_build_unit_regex() produces in SQL.
- *
- * Product-name entries are excluded by filtering out strings containing
- * 3+ words OR strings that are themselves recognizable ingredient names
- * in standardized_ingredients. The practical filter is: keep only strings
- * where the raw_input_string does NOT contain a space that isn't a known
- * multi-token unit abbreviation ("fl oz", "g pack", "gram pack", "dz dozen",
- * "oz pack", "ea box", "ea each").
+ * Uses a controlled `any` boundary because the RPC return type is not
+ * in the generated Supabase schema. The narrow cast is intentional.
  */
 export async function getUnitKeywords(): Promise<string[]> {
-  const { data, error } = await createServerClient()
-    .from('unit_standardization_map')
-    .select('raw_input_string')
-    .not('standard_unit', 'is', null)
-    .gte('confidence_score', 0.4);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createServerClient() as any;
+  const { data, error } = await supabase
+    .rpc('fn_get_recipe_parser_unit_keywords', {});
 
   if (error) throw error;
 
-  // Multi-token strings allowed in the parser (known unit abbreviation phrases)
-  const ALLOWED_MULTI_TOKEN = new Set([
-    'fl oz', 'fluid ounce', 'fluid ounces',
-    'g pack', 'gram pack',
-    'oz pack',
-    'dz dozen',
-    'ea box', 'ea each',
-  ]);
-
-  return (data ?? [])
-    .map(r => r.raw_input_string)
-    .filter(s => {
-      // Single-word entries are always included
-      if (!s.includes(' ')) return true;
-      // Multi-word: only if it's a known unit phrase, not a product name
-      return ALLOWED_MULTI_TOKEN.has(s);
-    })
-    // Sort longest-first so regex alternation matches greedily (same as SQL)
-    .sort((a, b) => b.length - a.length || a.localeCompare(b));
+  // RPC returns rows { keyword: string }; extract the keyword column.
+  return ((data ?? []) as Array<{ keyword: string }>).map(r => r.keyword);
 }
 ```
 
@@ -475,7 +499,7 @@ The vocabulary comes from the DB and must not be hardcoded. By accepting it as a
 
 ### Phase 4 — `/api/ingredients/parse` endpoint
 
-Stateless preview — never writes to the DB.
+Stateless preview — never writes to the DB. Auth required: returns 401 if the user is not signed in. Returns `unitKeywords` alongside parsed rows so the client has the vocabulary for unit autocomplete without a second fetch.
 
 ```typescript
 // app/api/ingredients/parse/route.ts
@@ -483,17 +507,23 @@ Stateless preview — never writes to the DB.
 import { NextRequest, NextResponse } from 'next/server';
 import { parseIngredientParagraph } from '@/lib/ingredient-parser';
 import { getUnitKeywordsCached } from '@/lib/database/unit-standardization-db';
+import { getAuthenticatedUser } from '@/lib/auth'; // or equivalent pattern used elsewhere
 
 export async function POST(req: NextRequest) {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body.text !== 'string' || !body.text.trim()) {
     return NextResponse.json({ error: 'text is required' }, { status: 400 });
   }
 
-  const unitKeys = await getUnitKeywordsCached();
-  const rows = parseIngredientParagraph(body.text, unitKeys);
+  const unitKeywords = await getUnitKeywordsCached();
+  const rows = parseIngredientParagraph(body.text, unitKeywords);
 
-  return NextResponse.json({ rows });
+  return NextResponse.json({ rows, unitKeywords });
 }
 ```
 
@@ -507,17 +537,20 @@ export async function POST(req: NextRequest) {
     { "quantity": 0.75, "unit": "cup",  "name": "whole milk",         "raw": "3/4 cup whole milk" },
     { "quantity": 2,    "unit": "each", "name": "large eggs",         "raw": "2 large eggs" },
     { "quantity": null, "unit": null,   "name": "salt to taste",      "raw": "salt to taste" }
-  ]
+  ],
+  "unitKeywords": ["tablespoons", "tablespoon", "teaspoons", "teaspoon", "cups", "cup", "fl oz", "ounces", "ounce", "oz", "..."]
 }
 ```
 
 **What `unit` means in this response:** it is the raw string as matched (e.g. `"cups"`, `"tsp"`, `"each"`), **not** a `unit_label` enum value. The SQL function `fn_standardize_unit_lookup` will canonicalize it (e.g. `"cups"` → `cup`, `"tsp"` → `tsp`). The UI displays the raw string; the DB canonicalizes it on save.
 
+**Why `unitKeywords` is included in the response:** the preview table needs the vocabulary for unit autocomplete. Returning it here avoids a second round-trip from the client and keeps the vocabulary delivery path entirely server-side (`getUnitKeywordsCached` → parse route → client state).
+
 Add to `docs/api-entrypoints-directory.md`:
 
 | Route | Method | Auth | Responsibility | Dependencies |
 |---|---|---|---|---|
-| `/api/ingredients/parse` | POST | None | Stateless paragraph parser. Fetches live unit vocab from `unit_standardization_map`. Never writes to DB. | `lib/ingredient-parser.ts`, `lib/database/unit-standardization-db.ts` |
+| `/api/ingredients/parse` | POST | Required | Stateless paragraph parser. Fetches live unit vocab via `fn_get_recipe_parser_unit_keywords` RPC. Returns parsed rows + unit vocabulary for UI autocomplete. Never writes to DB. | `lib/ingredient-parser.ts`, `lib/database/unit-standardization-db.ts` |
 
 ---
 
@@ -528,6 +561,8 @@ Add to `docs/api-entrypoints-directory.md`:
 - `app/upload-recipe/page.tsx` and its ingredient sub-components
 - `app/edit-recipe/[id]/page.tsx` and its ingredient sub-components
 - Any shared ingredient form component
+- `hooks/recipe/use-recipe.ts` — remove `useStandardizeRecipeIngredients` or any recipe-context standardize call
+- `hooks/index.ts` — remove `useStandardizeRecipeIngredients` from barrel export
 
 **Pattern:**
 
@@ -590,9 +625,9 @@ No network call happens during editing — all edits are local React state. The 
 
 #### Unit autocomplete
 
-The unit dropdown/autocomplete for the preview table should be populated from the same `getUnitKeywordsCached()` call made by the parse endpoint. This means users see the same vocabulary as the parser and the DB. Fetch it once when the component mounts and store in component state.
+The unit autocomplete for the preview table is populated from the `unitKeywords` array returned in the `/api/ingredients/parse` response. The component stores these in state alongside the parsed rows — no additional client fetch is needed.
 
-Only show **canonical-adjacent** terms in the autocomplete (i.e., filter to strings that map to a known `unit_label`). Multi-word product-name entries (`"avocado oil spray"`, `"green onion"`) should not appear as unit autocomplete options.
+`unitKeywords` come pre-filtered by the SQL RPC (`fn_get_recipe_parser_unit_keywords`): they already exclude product-name entries and are sorted longest-first. Multi-word product-name entries (`"avocado oil spray"`, `"green onion"`) are not present in the array and will not appear as autocomplete options.
 
 #### Component sketch
 
@@ -600,7 +635,7 @@ Only show **canonical-adjacent** terms in the autocomplete (i.e., filter to stri
 // components/recipe/ingredient-paragraph-input.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { ParsedIngredientRow } from '@/lib/ingredient-parser';
 
 interface Props {
@@ -610,6 +645,7 @@ interface Props {
 export function IngredientParagraphInput({ onConfirm }: Props) {
   const [text, setText] = useState('');
   const [rows, setRows] = useState<ParsedIngredientRow[] | null>(null);
+  const [unitKeywords, setUnitKeywords] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -624,8 +660,9 @@ export function IngredientParagraphInput({ onConfirm }: Props) {
         body: JSON.stringify({ text }),
       });
       if (!res.ok) throw new Error('Parse failed');
-      const { rows: parsed } = await res.json();
+      const { rows: parsed, unitKeywords: keywords } = await res.json();
       setRows(parsed);
+      setUnitKeywords(keywords ?? []);
     } catch {
       setError('Could not parse ingredients. Please check the format and try again.');
     } finally {
@@ -637,13 +674,14 @@ export function IngredientParagraphInput({ onConfirm }: Props) {
     return (
       <IngredientPreviewTable
         rows={rows}
+        unitKeywords={unitKeywords}
         onChange={setRows}
         onConfirm={() =>
           onConfirm(
             rows
               .filter(r => r.name.trim())
               .map(r => ({
-                display_name: r.name.trim(),
+                name: r.name.trim(),
                 quantity: r.quantity ?? undefined,
                 units: r.unit ?? undefined,
               }))
@@ -688,12 +726,14 @@ import type { ParsedIngredientRow } from '@/lib/ingredient-parser';
 
 interface Props {
   rows: ParsedIngredientRow[];
+  /** Unit keyword strings from parse response — used for unit input autocomplete. */
+  unitKeywords: string[];
   onChange: (rows: ParsedIngredientRow[]) => void;
   onConfirm: () => void;
   onBack: () => void;
 }
 
-export function IngredientPreviewTable({ rows, onChange, onConfirm, onBack }: Props) {
+export function IngredientPreviewTable({ rows, unitKeywords, onChange, onConfirm, onBack }: Props) {
   const updateRow = (i: number, patch: Partial<ParsedIngredientRow>) => {
     const next = [...rows];
     next[i] = { ...next[i], ...patch };
@@ -994,7 +1034,7 @@ salt to taste
 });
 ```
 
-### Integration tests — `tests/integration/recipe-ingest.test.ts`
+### Integration tests — `test/integration/recipe-ingest.test.ts`
 
 These tests run against a dev/test Supabase instance and verify the end-to-end queue behavior of `fn_upsert_recipe_with_ingredients`.
 
@@ -1144,19 +1184,21 @@ Run this script after any significant change to `unit_standardization_map`. Add 
 
 ## Migration / Rollout Checklist
 
+- [ ] **Pre-work:** Apply new SQL migration `fn_get_recipe_parser_unit_keywords` to dev and production
 - [ ] **Phase 1:** Add `context !== 'pantry'` guard to `app/api/ingredients/standardize/route.ts`
-- [ ] **Phase 2:** Create `lib/database/unit-standardization-db.ts` with `getUnitKeywords()` and `getUnitKeywordsCached()`
-- [ ] **Phase 2:** Generate `test/fixtures/unit-keywords.json` from live DB
+- [ ] **Phase 2b:** Create `lib/database/unit-standardization-db.ts` with `getUnitKeywords()` (via RPC) and `getUnitKeywordsCached()`
+- [ ] **Phase 2b:** Generate `test/fixtures/unit-keywords.json` from live DB
 - [ ] **Phase 3:** Create `lib/ingredient-parser.ts` with `parseIngredientLine` and `parseIngredientParagraph`
 - [ ] **Phase 3:** Create `lib/ingredient-parser.test.ts` with full edge-case coverage
-- [ ] **Phase 4:** Create `app/api/ingredients/parse/route.ts`
+- [ ] **Phase 4:** Create `app/api/ingredients/parse/route.ts` (auth required, returns `{ rows, unitKeywords }`)
 - [ ] **Phase 5:** Audit all recipe upload/edit components for calls to `/api/ingredients/standardize` — confirm zero recipe-context calls remain
 - [ ] **Phase 5:** Update recipe upload and edit pages to call `recipeDB.upsertRecipeWithIngredients()` directly
+- [ ] **Phase 5:** Remove `useStandardizeRecipeIngredients` from `hooks/recipe/use-recipe.ts` and `hooks/index.ts` barrel export
 - [ ] **Phase 6:** Create `components/recipe/ingredient-paragraph-input.tsx`
 - [ ] **Phase 6:** Create `components/recipe/ingredient-preview-table.tsx`
 - [ ] **Phase 6:** Integrate paragraph input toggle into upload and edit pages
 - [ ] **Phase 7:** Audit `lib/database/recipe-db.ts` — remove any internal standardize calls
-- [ ] **Tests:** Run integration tests confirming unresolved rows land in `ingredient_match_queue`
+- [ ] **Tests:** Run integration tests (`test/integration/recipe-ingest.test.ts`) confirming unresolved rows land in `ingredient_match_queue`
 - [ ] **Docs:** Update `docs/api-entrypoints-directory.md` — mark standardize as pantry-only, add parse endpoint
 - [ ] **Docs:** Update `docs/database-guide.md` — add note that `fn_upsert_recipe_with_ingredients` is the sole recipe ingest authority
 - [ ] **Docs:** Add invariants below to `docs/agent-canonical-context.md`
@@ -1199,6 +1241,8 @@ Run this script after any significant change to `unit_standardization_map`. Add 
 
 - **SQL changes to `fn_upsert_recipe_with_ingredients`** — the function is already correct and authoritative. No changes needed.
 - **SQL changes to `fn_enqueue_for_review`** — works correctly for recipe rows today.
+
+> **Note:** One SQL addition IS in scope — the new `fn_get_recipe_parser_unit_keywords()` security-definer function (Phase 2 migration). It is a net-new read-only helper; it does not modify any existing function or table.
 - **Pantry flow** — entirely unchanged. `/api/ingredients/standardize` continues to serve pantry at full AI quality.
 - **Queue worker** — no changes. The queue worker resolves `source='recipe'` rows the same way it resolves scraper rows.
 - **Migrating existing `recipe_ingredients` rows** — existing rows are unaffected. Future edits re-run through the SQL function and re-enqueue if resolution has changed.
