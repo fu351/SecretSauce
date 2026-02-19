@@ -9,9 +9,10 @@ import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { uploadRecipeImage } from "@/lib/image-helper"
-import { PenLine, Download } from "lucide-react"
+import { PenLine, Download, ClipboardList } from "lucide-react"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
 import { RecipeImportTabs } from "@/components/recipe/import/recipe-import-tabs"
+import { RecipeImportParagraph } from "@/components/recipe/import/recipe-import-paragraph"
 import type { ImportedRecipe, RecipeSubmissionData } from "@/lib/types"
 
 export default function UploadRecipePage() {
@@ -22,7 +23,7 @@ export default function UploadRecipePage() {
   const isDark = theme === "dark"
 
   const searchParams = useSearchParams()
-  const [mainTab, setMainTab] = useState<"manual" | "import">("manual")
+  const [mainTab, setMainTab] = useState<"manual" | "import" | "paragraph">("manual")
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<RecipeSubmissionData | null>(null)
 
@@ -123,8 +124,8 @@ export default function UploadRecipePage() {
           <p className="text-muted-foreground">Create a new recipe manually or import from a URL</p>
         </div>
 
-        <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "manual" | "import")} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "manual" | "import" | "paragraph")} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="manual" className="flex items-center gap-2">
               <PenLine className="h-4 w-4" />
               Manual Entry
@@ -132,6 +133,10 @@ export default function UploadRecipePage() {
             <TabsTrigger value="import" className="flex items-center gap-2">
               <Download className="h-4 w-4" />
               Import Recipe
+            </TabsTrigger>
+            <TabsTrigger value="paragraph" className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Paste Ingredients
             </TabsTrigger>
           </TabsList>
 
@@ -141,6 +146,10 @@ export default function UploadRecipePage() {
               initialImportTab={shareImport === "instagram" ? "instagram" : undefined}
               initialInstagramUrl={shareImport === "instagram" && shareUrl.trim() ? shareUrl.trim() : undefined}
             />
+          </TabsContent>
+
+          <TabsContent value="paragraph">
+            <RecipeImportParagraph onImportSuccess={populateFormFromRecipe} />
           </TabsContent>
 
           <TabsContent value="manual" className="space-y-12">

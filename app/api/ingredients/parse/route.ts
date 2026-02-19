@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
-import { parseIngredientParagraph } from "@/lib/ingredient-parser"
+import { parseRecipeText } from "@/lib/ingredient-parser"
 import { getUnitKeywordsCached } from "@/lib/database/unit-standardization-db"
 
 export async function POST(request: NextRequest) {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const unitKeywords = await getUnitKeywordsCached()
-    const rows = parseIngredientParagraph(body.text, unitKeywords)
+    const rows = parseRecipeText(body.text, unitKeywords)
     return NextResponse.json({ rows, unitKeywords })
   } catch (error) {
     console.error("[IngredientParseAPI] Failed to parse ingredients:", error)
