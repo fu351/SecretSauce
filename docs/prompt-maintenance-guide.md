@@ -41,6 +41,18 @@ This guide describes where to edit queue standardization prompts and how changes
   - `queue/worker/processor.ts`
   - `scripts/utils/canonical-matching.ts`
 
+## System Boundary (Realtime vs Queue)
+
+- Ingredient resolution before queue:
+  - realtime path uses inverse-frequency-weighted fuzzy matching for ingredient candidates.
+  - queue receives mostly low-confidence/unresolved ingredient clusters after realtime filtering.
+- Unit resolution before queue:
+  - unit parsing primarily uses cleaning + regex over `unit_standardization_map`.
+  - queue unit AI is a fallback path for misses/ambiguous rows, not the first unit resolver.
+- Practical implication for prompt tuning:
+  - ingredient prompt/runtime should optimize hard residual edge cases (not baseline easy matches).
+  - unit prompt/runtime should focus on difficult leftovers where map/regex extraction did not converge.
+
 ## Rollout Flags
 
 - `QUEUE_ENABLE_UNIT_RESOLUTION` (default `true`)

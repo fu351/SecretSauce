@@ -42,6 +42,7 @@ import {
 interface ResolveBatchResult {
   resolved: number
   failed: number
+  unitMetrics: UnitMetrics
   results?: Array<{
     rowId: string
     originalName: string
@@ -61,7 +62,39 @@ export interface QueueRunSummary {
   cycles: number
   totalResolved: number
   totalFailed: number
+  unitMetrics: UnitMetrics
   dryRunResults?: ResolveBatchResult["results"]
+}
+
+interface UnitMetrics {
+  mapMissThenFallback: number
+  aiSuccess: number
+  aiError: number
+}
+
+function emptyUnitMetrics(): UnitMetrics {
+  return {
+    mapMissThenFallback: 0,
+    aiSuccess: 0,
+    aiError: 0,
+  }
+}
+
+function isUnitResolutionError(errorMessage: string): boolean {
+  const normalized = errorMessage.toLowerCase()
+  return (
+    normalized.includes("no explicit unit found in raw unit/product name") ||
+    normalized.includes("resolved unit") ||
+    normalized.includes("resolved quantity missing/invalid") ||
+    normalized.includes("resolved unit missing/invalid") ||
+    normalized.includes("no unit found in raw text") ||
+    normalized.includes("unable to infer unit from raw unit/product name") ||
+    normalized.includes("ai returned no unit result") ||
+    normalized.includes("unit resolver returned") ||
+    normalized.includes("unit confidence") ||
+    normalized.includes("unit resolution is disabled") ||
+    normalized.includes("unit dry run cannot be used")
+  )
 }
 
 const PROTECTED_FORM_TOKENS = new Set([
@@ -501,6 +534,7 @@ async function rerunUnitCandidatesWithIngredientContext(
 
 async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorkerConfig): Promise<ResolveBatchResult> {
   const detailedResults: ResolveBatchResult["results"] = config.dryRun ? [] : undefined
+  const unitMetrics = emptyUnitMetrics()
   const validRows = rows.filter((row) => {
     const searchTerm = getSearchTerm(row)
     if (!searchTerm) {
@@ -515,7 +549,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
   })
 
   if (!validRows.length) {
-    return { resolved: 0, failed: rows.length, results: detailedResults }
+    return { resolved: 0, failed: rows.length, unitMetrics, results: detailedResults }
   }
 
   try {
@@ -876,6 +910,12 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             resolvedQuantity: unitResult?.status === "success" ? unitResult.resolvedQuantity : null,
             unitConfidence: unitResult?.status === "success" ? unitResult.confidence : null,
             quantityConfidence: unitResult?.status === "success" ? unitResult.confidence : null,
+            unitMetric:
+              needsUnit && usedPackagedUnitFallback
+                ? ("map_miss_then_fallback" as const)
+                : needsUnit && unitResult?.status === "success"
+                  ? ("unit_ai_success" as const)
+                  : null,
           }
         } catch (error) {
           if (
@@ -923,6 +963,12 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
     results.forEach((result, idx) => {
       if (result.status === "fulfilled") {
         resolved += 1
+        const unitMetric = result.value.unitMetric
+        if (unitMetric === "map_miss_then_fallback") {
+          unitMetrics.mapMissThenFallback += 1
+        } else if (unitMetric === "unit_ai_success") {
+          unitMetrics.aiSuccess += 1
+        }
         if (config.dryRun && detailedResults) {
           detailedResults.push({
             ...result.value,
@@ -938,6 +984,9 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
       const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason)
       console.error(`[QueueResolver] ${row.id} failed to resolve:`, errorMessage)
+      if (row.needs_unit_review && isUnitResolutionError(errorMessage)) {
+        unitMetrics.aiError += 1
+      }
       if (!config.dryRun) {
         ingredientMatchQueueDB.markFailed(row.id, config.resolverName, errorMessage).catch(console.error)
       }
@@ -954,7 +1003,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       }
     })
 
-    return { resolved, failed: failed + (rows.length - validRows.length), results: detailedResults }
+    return { resolved, failed: failed + (rows.length - validRows.length), unitMetrics, results: detailedResults }
   } catch (error) {
     console.error("[QueueResolver] Batch processing failed:", error)
     if (!config.dryRun) {
@@ -968,7 +1017,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         )
       )
     }
-    return { resolved: 0, failed: rows.length, results: detailedResults }
+    return { resolved: 0, failed: rows.length, unitMetrics, results: detailedResults }
   }
 }
 
@@ -997,6 +1046,7 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
   let cycle = 0
   let totalResolved = 0
   let totalFailed = 0
+  const totalUnitMetrics = emptyUnitMetrics()
   const dryRunResults: ResolveBatchResult["results"] = config.dryRun ? [] : undefined
 
   while (true) {
@@ -1057,10 +1107,14 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
 
     let cycleResolved = 0
     let cycleFailed = 0
+    const cycleUnitMetrics = emptyUnitMetrics()
 
     for (const result of chunkResults) {
       cycleResolved += result.resolved
       cycleFailed += result.failed
+      cycleUnitMetrics.mapMissThenFallback += result.unitMetrics.mapMissThenFallback
+      cycleUnitMetrics.aiSuccess += result.unitMetrics.aiSuccess
+      cycleUnitMetrics.aiError += result.unitMetrics.aiError
       if (config.dryRun && result.results && dryRunResults) {
         dryRunResults.push(...result.results)
       }
@@ -1068,8 +1122,16 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
 
     totalResolved += cycleResolved
     totalFailed += cycleFailed
+    totalUnitMetrics.mapMissThenFallback += cycleUnitMetrics.mapMissThenFallback
+    totalUnitMetrics.aiSuccess += cycleUnitMetrics.aiSuccess
+    totalUnitMetrics.aiError += cycleUnitMetrics.aiError
 
     console.log(`[QueueResolver] ${mode} Cycle ${cycle} complete (resolved=${cycleResolved}, failed=${cycleFailed})`)
+    console.log(
+      `[QueueResolver] ${mode} Cycle ${cycle} unit metrics ` +
+        `(unit_map_miss_then_fallback=${cycleUnitMetrics.mapMissThenFallback}, ` +
+        `unit_ai_success=${cycleUnitMetrics.aiSuccess}, unit_ai_error=${cycleUnitMetrics.aiError})`
+    )
 
     if (config.dryRun) {
       console.log(`[QueueResolver] ${mode} Dry run stopping after one cycle before clearing the rest of the queue.`)
@@ -1081,12 +1143,18 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
     console.log(
       `[QueueResolver] ${mode} Completed ${cycle} cycle(s) (total_resolved=${totalResolved}, total_failed=${totalFailed})`
     )
+    console.log(
+      `[QueueResolver] ${mode} Unit metrics total ` +
+        `(unit_map_miss_then_fallback=${totalUnitMetrics.mapMissThenFallback}, ` +
+        `unit_ai_success=${totalUnitMetrics.aiSuccess}, unit_ai_error=${totalUnitMetrics.aiError})`
+    )
   }
 
   return {
     cycles: cycle,
     totalResolved,
     totalFailed,
+    unitMetrics: totalUnitMetrics,
     dryRunResults,
   }
 }

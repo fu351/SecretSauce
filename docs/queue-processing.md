@@ -93,6 +93,18 @@ The queue resolver now applies multiple safety layers before writing canonical i
    - Fallback is accepted only when the candidate already exists in `standardized_ingredients`.
    - `best_fuzzy_match` is intentionally not used for this recovery path.
 
+## Upstream Boundary (Before Queue)
+
+Queue behavior should be interpreted as a second-stage resolver, not first-pass ingestion:
+
+- Ingredients:
+  - realtime ingestion first runs inverse-frequency-weighted fuzzy matching.
+  - rows entering queue are the unresolved/low-confidence tail.
+- Units:
+  - unit extraction first uses cleaning + regex with `unit_standardization_map`.
+  - queue unit AI handles misses/ambiguous leftovers.
+  - packaged fallback (`1 unit`) remains a final resilience path for scraper rows.
+
 ## Session Cache + Input Normalization
 
 The queue worker now reduces repeated LLM calls within a worker session:
@@ -218,3 +230,15 @@ Seeding path:
 - dynamic queue context and source coverage:
   - `QUEUE_STANDARDIZER_CONTEXT=dynamic`
   - `QUEUE_SOURCE=any`
+
+## Unit Outcome Metrics
+
+Queue logs now include unit-resolution path metrics per cycle and total:
+
+- `unit_map_miss_then_fallback`
+  - rows that ended with packaged fallback `1 unit`
+  - includes pre-AI fallback and post-AI-failure fallback for scraper packaged items
+- `unit_ai_success`
+  - rows whose final unit came from AI success (non-fallback)
+- `unit_ai_error`
+  - rows that failed due unit-resolution errors
