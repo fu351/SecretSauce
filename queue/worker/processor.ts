@@ -19,6 +19,7 @@ import {
   resolveBlockedNewCanonicalFallback,
 } from "./canonical-risk"
 import { getIngredientConfidenceCalibrator } from "./confidence-calibration"
+import { localProbationCache } from "./probation-cache"
 import {
   INGREDIENT_LOCAL_CACHE_VERSION,
   INGREDIENT_LOCAL_CACHE_MAX_AGE_DAYS,
@@ -692,10 +693,11 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               }
 
               if (!existingCanonical) {
-                const probationStats = await ingredientMatchQueueDB.trackCanonicalCreationProbation({
+                const probationStats = await localProbationCache.track({
                   canonicalName: canonicalForWrite,
                   sourceSignature: buildCanonicalProbationSourceSignature(row, sourceSearchTerm),
                   source: row.source,
+                  minDistinctSourcesForLongTtl: NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES,
                 })
 
                 if (

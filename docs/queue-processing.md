@@ -81,6 +81,7 @@ The queue resolver now applies multiple safety layers before writing canonical i
      - table: `public.canonical_creation_probation_events`
      - RPC: `public.fn_track_canonical_creation_probation(...)`
      - worker currently requires `2` distinct source signatures before creation.
+     - efficiency: repeated checks for the same `(canonical_name, source_signature)` are session-cached to avoid redundant RPC calls.
 
 6. Invalid category enum safeguard:
    - `standardized_ingredients` inserts guard `item_category_enum` values.
@@ -109,6 +110,11 @@ The queue worker now reduces repeated LLM calls within a worker session:
 - Search-term normalization before ingredient standardization:
   - strips leading/trailing quantity/unit noise
   - handles patterns like `bananas 1` and repeated quantity prefixes.
+- Probation cache:
+  - `queue/worker/probation-cache.ts`
+  - caches recent probation outcomes for identical `(canonical_name, source_signature)` pairs
+  - uses short TTL below threshold and longer TTL once threshold is met
+  - keeps DB probation as source of truth while reducing repeated calls in bursty batches.
 
 ## Dynamic Sensitive Token Learning
 

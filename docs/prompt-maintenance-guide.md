@@ -83,6 +83,7 @@ Prompt changes alone are not relied on for safety. Queue runtime adds independen
 - New-canonical probation:
   - first creation is held until repeated evidence from distinct source signatures
   - tracked via `canonical_creation_probation_events`
+  - repeated identical probation checks are session-cached for efficiency (DB remains source of truth)
 - Outcome-driven confidence calibration:
   - accepted/rejected outcomes are logged to `ingredient_confidence_outcomes`
   - worker calibrates raw model confidence against empirical acceptance bins
