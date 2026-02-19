@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { standardizeIngredientsWithAI } from "@/lib/ingredient-standardizer"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
-import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import { pantryItemsDB } from "@/lib/database/pantry-items-db"
 
 interface RequestIngredient {
@@ -24,28 +23,36 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const {
-      context = "recipe",
-      recipeId,
+      context,
       pantryItemId,
       userId,
       ingredients,
     }: {
-      context?: "recipe" | "pantry"
-      recipeId?: string
+      context?: string
       pantryItemId?: string
       userId?: string
       ingredients: RequestIngredient[]
     } = body
 
+    // Recipe ingredient saves go through fn_upsert_recipe_with_ingredients exclusively.
+    // Non-pantry calls are rejected to prevent a parallel write path and potential
+    // orphan queue rows if this route is extended in the future.
+    if (context !== "pantry") {
+      return NextResponse.json(
+        {
+          error:
+            "This endpoint accepts context=pantry only. Recipe ingredient saves go through fn_upsert_recipe_with_ingredients.",
+          code: "RECIPE_CONTEXT_REJECTED",
+        },
+        { status: 400 }
+      )
+    }
+
     if (!Array.isArray(ingredients) || ingredients.length === 0) {
       return NextResponse.json({ error: "No ingredients supplied" }, { status: 400 })
     }
 
-    if (context === "recipe" && !recipeId) {
-      return NextResponse.json({ error: "recipeId is required" }, { status: 400 })
-    }
-
-    if (context === "pantry" && (!pantryItemId || !userId)) {
+    if (!pantryItemId || !userId) {
       return NextResponse.json({ error: "pantryItemId and userId are required" }, { status: 400 })
     }
 
@@ -73,19 +80,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "All ingredients were blank" }, { status: 400 })
     }
 
-    if (context === "recipe" && recipeId) {
-      const displayNames = normalizedInputs.map((input) => input.name)
-      await recipeIngredientsDB.batchUpsertDisplayNames(recipeId, displayNames)
-
-      return NextResponse.json({
-        context,
-        standardized: [],
-      })
-    }
-
     const aiResults = await standardizeIngredientsWithAI(normalizedInputs, context)
 
-    // OPTIMIZED: Batch create all standardized ingredients in one query
+    // Batch create all standardized ingredients in one query
     const standardizedItems = aiResults.map(result => ({
       canonicalName: result.canonicalName.trim().toLowerCase(),
       category: result.category || null,
@@ -109,7 +106,7 @@ export async function POST(request: NextRequest) {
       const standardizedId = standardizedIdMap.get(normalizedCanonical)
       if (!standardizedId) continue
 
-      const payload = {
+      updates.push({
         id: result.id,
         originalName: result.originalName,
         canonicalName: result.canonicalName,
@@ -117,13 +114,10 @@ export async function POST(request: NextRequest) {
         standardizedIngredientId: standardizedId,
         confidence: result.confidence,
         originalIndex: target.originalIndex,
-      }
-
-      updates.push(payload)
-
+      })
     }
 
-    if (context === "pantry" && pantryItemId && updates[0]) {
+    if (pantryItemId && updates[0]) {
       const primary = updates[0]
       await pantryItemsDB.update(pantryItemId, {
         standardized_ingredient_id: primary.standardizedIngredientId,
