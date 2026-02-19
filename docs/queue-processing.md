@@ -110,6 +110,9 @@ The queue worker now reduces repeated LLM calls within a worker session:
 - Search-term normalization before ingredient standardization:
   - strips leading/trailing quantity/unit noise
   - handles patterns like `bananas 1` and repeated quantity prefixes.
+- Unit fallback escalation:
+  - scraper rows that fail unit AI resolution but still look like packaged products now fall back to `1 unit`
+  - this avoids avoidable queue failures for packaged items with noisy titles.
 - Probation cache:
   - `queue/worker/probation-cache.ts`
   - caches recent probation outcomes for identical `(canonical_name, source_signature)` pairs

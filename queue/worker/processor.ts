@@ -32,7 +32,9 @@ import { localQueueAICache } from "./local-ai-cache"
 import { getLearnedVarietySensitivity, type LearnedVarietySensitivity } from "./sensitive-token-learning"
 import {
   shouldUsePackagedUnitFallback,
+  shouldUsePackagedUnitFallbackAfterFailure,
   buildPackagedUnitFallback,
+  isPackagedUnitFallbackResult,
   UNIT_FALLBACK_CONFIDENCE,
   stripMeasurementFromSearchTerm,
 } from "./unit-resolution-utils"
@@ -396,14 +398,28 @@ async function resolveUnitCandidates(
 
   const aiResults = await standardizeUnitsWithAI(Array.from(uniqueInputByKey.values()))
   const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
+  let postFailurePackagedFallbackCount = 0
 
   for (const row of rowsRequiringAI) {
     const inputKey = rowToInputKey.get(row.id)
     if (!inputKey) continue
     const result = aiResultByKey.get(inputKey)
-    if (result) {
+    if (result?.status === "success") {
       byRowId.set(row.id, result)
+      continue
     }
+
+    if (shouldUsePackagedUnitFallbackAfterFailure(row, result)) {
+      byRowId.set(row.id, buildPackagedUnitFallback(row.id))
+      postFailurePackagedFallbackCount += 1
+    }
+  }
+
+  if (postFailurePackagedFallbackCount > 0) {
+    console.log(
+      `[QueueResolver] Applied packaged-item unit fallback (unit=1 unit, confidence=${UNIT_FALLBACK_CONFIDENCE}) ` +
+        `for ${postFailurePackagedFallbackCount} row(s) after unit-resolution failure`
+    )
   }
 
   return byRowId
@@ -416,6 +432,7 @@ function shouldRerunUnitResolution(
 ): boolean {
   if (!row.needs_unit_review) return false
   if (shouldUsePackagedUnitFallback(row)) return false
+  if (isPackagedUnitFallbackResult(row, current)) return false
   if (!current) return true
   if (current.status !== "success") return true
   return normalizeConfidence(current.confidence, 0) < config.unitMinConfidence
@@ -617,12 +634,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
           }
 
           const unitResult = needsUnit ? unitByRowId.get(row.id) : undefined
-          const usedPackagedUnitFallback =
-            needsUnit &&
-            shouldUsePackagedUnitFallback(row) &&
-            unitResult?.status === "success" &&
-            unitResult.resolvedUnit === "unit" &&
-            unitResult.resolvedQuantity === 1
+          const usedPackagedUnitFallback = needsUnit && isPackagedUnitFallbackResult(row, unitResult)
           const unitConfidence = normalizeConfidence(unitResult?.confidence, 0)
           const shouldWriteUnit = config.enableUnitResolution && !config.unitDryRun
           const unitLowConfidence =

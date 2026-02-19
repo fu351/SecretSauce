@@ -95,6 +95,9 @@ Prompt changes alone are not relied on for safety. Queue runtime adds independen
   - invalid model category values are not allowed to break inserts
   - invalid `item_category_enum` values retry with fallback category `other`
   - valid enum values are preserved as-is
+- Unit resilience guard:
+  - scraper rows that fail unit AI resolution and match packaged-item signals are downgraded to fallback `1 unit`
+  - keeps packaged products from failing solely due brittle unit extraction.
 - Blocked-canonical fallback behavior:
   - when blocked, worker may recover only to existing canonicals via deterministic tail-token candidates
   - `best_fuzzy_match` is intentionally not used for this recovery
