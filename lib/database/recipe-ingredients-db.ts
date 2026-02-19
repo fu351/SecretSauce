@@ -26,18 +26,8 @@ class RecipeIngredientsTable extends BaseTable<
 
   private async getDebugContext(): Promise<{ userId: string | null } | null> {
     if (process.env.NODE_ENV === 'production') return null
-
-    try {
-      const { data, error } = await this.supabase.auth.getSession()
-      if (error) {
-        console.warn('[RecipeIngredients DB] Auth session error', error)
-        return { userId: null }
-      }
-      return { userId: data.session?.user?.id ?? null }
-    } catch (error) {
-      console.warn('[RecipeIngredients DB] Auth session exception', error)
-      return { userId: null }
-    }
+    // In Clerk token mode (supabase accessToken option), supabase.auth.* is unavailable in browser clients.
+    return { userId: null }
   }
 
   static getInstance(): RecipeIngredientsTable {

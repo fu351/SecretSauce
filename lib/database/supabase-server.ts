@@ -5,7 +5,6 @@ import { createMonitoredClient } from "@/lib/database/supabase"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const clerkSupabaseJwtTemplate = "supabase"
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const assertServerOnly = (name: string) => {
@@ -65,7 +64,7 @@ export const createUserSupabaseClient = () => {
     ...serverClientBaseOptions,
     accessToken: async () => {
       const authState = await auth()
-      const token = await authState.getToken({ template: clerkSupabaseJwtTemplate })
+      const token = await authState.getToken()
       return token ?? null
     },
   })
