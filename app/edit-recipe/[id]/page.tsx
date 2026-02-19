@@ -5,8 +5,7 @@ import { useRouter, useParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import clsx from "clsx"
 import { useAuth } from "@/contexts/auth-context"
-import { useToast } from "@/hooks"
-import { useRecipe, useStandardizeRecipeIngredients } from "@/hooks"
+import { useToast, useRecipe } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { uploadRecipeImage } from "@/lib/image-helper"
@@ -27,10 +26,6 @@ export default function EditRecipePage() {
 
   // Use React Query hook for data fetching
   const { data: recipe, isLoading } = useRecipe(recipeId || null)
-
-
-  // Use standardize ingredients mutation
-  const standardizeMutation = useStandardizeRecipeIngredients()
 
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -88,9 +83,6 @@ export default function EditRecipePage() {
       // Invalidate cache
       await queryClient.invalidateQueries({ queryKey: ["recipe", recipeId] })
       await queryClient.invalidateQueries({ queryKey: ["recipes"] })
-
-      // Standardize ingredients asynchronously (don't wait for it)
-      standardizeMutation.mutate({ recipeId, ingredients: data.ingredients })
 
       toast({
         title: "Recipe updated!",
