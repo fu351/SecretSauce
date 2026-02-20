@@ -45,8 +45,8 @@ export function Header() {
     return null
   }
 
-  // Hide header on landing page for non-logged-in users, and on auth/onboarding routes
-  if (!user && (pathname === "/" || pathname.startsWith("/auth") || pathname === "/onboarding")) {
+  // Hide header on landing page (for everyone), and on auth/onboarding for non-logged-in users
+  if (pathname === "/" || (!user && (pathname.startsWith("/auth") || pathname === "/onboarding"))) {
     return null
   }
 
