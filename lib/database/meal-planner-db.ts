@@ -169,7 +169,6 @@ class MealPlannerTable extends BaseTable<
     date: string,
     mealType: MealTypeTag
   ): Promise<MealScheduleRow | null> {
-
     const { data, error } = await (this.supabase.from(this.tableName) as any)
       .insert({
         user_id: userId,
