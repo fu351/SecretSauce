@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -23,24 +23,54 @@ interface ParagraphParseResult {
   warning?: string
 }
 
+// Minimum ms between API calls — cache hits are not subject to this limit
+const COOLDOWN_MS = 5000
+
 export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraphProps) {
   const [text, setText] = useState("")
   const [result, setResult] = useState<ParagraphParseResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [cooldown, setCooldown] = useState(false)
   const { toast } = useToast()
 
+  // Persists across renders without causing re-renders
+  const cacheRef = useRef<Map<string, ParagraphParseResult>>(new Map())
+  const lastCallRef = useRef<number>(0)
+
+  // The button is unavailable if: loading, no text, or in cooldown
+  const parseDisabled = loading || !text.trim() || cooldown
+
   const handleParse = async () => {
-    if (!text.trim()) return
+    const trimmed = text.trim()
+    if (!trimmed || loading || cooldown) return
+
+    // Cache hit — resolve instantly, no API call, no cooldown applied
+    const cached = cacheRef.current.get(trimmed)
+    if (cached) {
+      setResult(cached)
+      return
+    }
+
+    // Rate-limit guard (belt-and-suspenders in addition to disabled state)
+    const now = Date.now()
+    if (now - lastCallRef.current < COOLDOWN_MS) return
+    lastCallRef.current = now
+
     setLoading(true)
+    setCooldown(true)
+
     try {
       const res = await fetch("/api/recipe-import/paragraph", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: trimmed }),
       })
       if (!res.ok) throw new Error("Failed to parse recipe")
       const data: ParagraphParseResult = await res.json()
+
+      cacheRef.current.set(trimmed, data)
       setResult(data)
+
       if (data.warning) {
         toast({ title: "Low confidence result", description: data.warning })
       }
@@ -48,6 +78,10 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
       toast({ title: "Parse failed", description: "Could not parse recipe text.", variant: "destructive" })
     } finally {
       setLoading(false)
+      // Lift cooldown after the window expires from when the call was made
+      const elapsed = Date.now() - lastCallRef.current
+      const remaining = Math.max(0, COOLDOWN_MS - elapsed)
+      setTimeout(() => setCooldown(false), remaining)
     }
   }
 
@@ -89,12 +123,14 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
         </p>
       </div>
 
-      <Button onClick={handleParse} disabled={loading || !text.trim()}>
+      <Button onClick={handleParse} disabled={parseDisabled}>
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Parsing...
           </>
+        ) : cooldown ? (
+          "Please wait..."
         ) : (
           "Parse Recipe"
         )}
