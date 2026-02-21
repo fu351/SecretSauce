@@ -17,6 +17,9 @@ interface RecipeImportParagraphProps {
 interface ParagraphParseResult {
   instructions: Instruction[]
   ingredients: RecipeIngredient[]
+  prep_time?: number
+  cook_time?: number
+  total_time?: number
   warning?: string
 }
 
@@ -54,6 +57,9 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
       source_type: "manual",
       instructions: result.instructions,
       ingredients: result.ingredients,
+      prep_time: result.prep_time,
+      cook_time: result.cook_time,
+      total_time: result.total_time,
     })
   }
 
@@ -162,6 +168,15 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
               <p className="text-sm text-muted-foreground">No ingredients extracted.</p>
             )}
           </div>
+
+          {/* ── Times ────────────────────────────────────────────────────── */}
+          {(result.prep_time || result.cook_time || result.total_time) && (
+            <div className="flex gap-4 text-sm text-muted-foreground">
+              {result.prep_time && <span>Prep: {result.prep_time} min</span>}
+              {result.cook_time && <span>Cook: {result.cook_time} min</span>}
+              {result.total_time && <span>Total: {result.total_time} min</span>}
+            </div>
+          )}
 
           {hasResults && (
             <Button onClick={handleUse} className="w-full">

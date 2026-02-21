@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { parseRecipeParagraphWithAI } from "@/lib/recipe-paragraph-parser"
+import { extractTimes } from "@/lib/recipe-time-extractor"
 
 export async function POST(request: NextRequest) {
   const authState = await auth()
@@ -18,7 +19,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await parseRecipeParagraphWithAI(body.text)
+    // Run time extraction (regex, fast) and LLM parsing in parallel
+    const [result, times] = await Promise.all([
+      parseRecipeParagraphWithAI(body.text),
+      Promise.resolve(extractTimes(body.text)),
+    ])
 
     const warning =
       result.instructions.length === 0 && result.ingredients.length === 0
@@ -28,6 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       instructions: result.instructions,
       ingredients: result.ingredients,
+      ...times,
       ...(warning ? { warning } : {}),
     })
   } catch (error) {
