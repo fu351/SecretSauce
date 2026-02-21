@@ -1,5 +1,6 @@
 import { STRICT_JSON_RESPONSE_RULE } from "../shared/json-output"
 import {
+  PREPROCESSING_HINTS_SECTION,
   OUTPUT_SCHEMA_SECTION,
   INSTRUCTIONS_RULES_SECTION,
   INGREDIENTS_RULES_SECTION,
@@ -16,6 +17,8 @@ You are a recipe parsing engine for a cooking application.
 Prompt version: paragraph-parser-v1.
 
 ${STRICT_JSON_RESPONSE_RULE}
+
+${PREPROCESSING_HINTS_SECTION}
 
 ${OUTPUT_SCHEMA_SECTION}
 

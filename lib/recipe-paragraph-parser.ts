@@ -1,5 +1,4 @@
 import axios from "axios"
-import { GoogleGenAI } from "@google/genai"
 import { buildParagraphParserPrompt } from "./prompts/paragraph-parser/build-prompt"
 import type { Instruction } from "./types/recipe/instruction"
 import type { RecipeIngredient } from "./types/recipe/ingredient"
@@ -7,9 +6,6 @@ import type { RecipeIngredient } from "./types/recipe/ingredient"
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim()
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview"
-const GEMINI_API_VERSION = process.env.GEMINI_API_VERSION?.trim()
 
 export interface ParagraphParseResult {
   instructions: Instruction[]
@@ -26,7 +22,7 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
 function extractJSON(content: string): string | null {
   if (!content) return null
 
-  let cleaned = content.replace(/```json\n?|```/gi, "").trim()
+  const cleaned = content.replace(/```json\n?|```/gi, "").trim()
 
   const arrayMatch = cleaned.match(/\[[\s\S]*\]/)
   const objectMatch = cleaned.match(/\{[\s\S]*\}/)
@@ -40,81 +36,56 @@ function extractJSON(content: string): string | null {
   return cleaned
 }
 
-const geminiClient = GEMINI_API_KEY
-  ? new GoogleGenAI({
-      apiKey: GEMINI_API_KEY,
-      ...(GEMINI_API_VERSION ? { apiVersion: GEMINI_API_VERSION } : {}),
-    })
-  : null
-
 async function callOpenAI(prompt: string): Promise<string | null> {
   if (!OPENAI_API_KEY) return null
 
-  try {
-    const response = await axios.post(
-      OPENAI_URL,
-      {
-        model: OPENAI_MODEL,
-        temperature: 0,
-        max_tokens: 2000,
-        messages: [
-          {
-            role: "system",
-            content: "You are a recipe parsing engine. Always return valid JSON matching the requested schema.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
+  const response = await axios.post(
+    OPENAI_URL,
+    {
+      model: OPENAI_MODEL,
+      temperature: 0,
+      max_tokens: 2000,
+      messages: [
+        {
+          role: "system",
+          content: "You are a recipe parsing engine. Always return valid JSON matching the requested schema.",
         },
-      }
-    )
-
-    const content = response.data?.choices?.[0]?.message?.content?.trim()
-    if (!content) {
-      console.warn("[ParagraphParser] Empty response from OpenAI")
-      return null
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
     }
-    return content
-  } catch (error) {
-    console.error("[ParagraphParser] OpenAI request failed:", error)
-    return null
-  }
+  )
+
+  return response.data?.choices?.[0]?.message?.content?.trim() ?? null
 }
 
-async function callGemini(prompt: string): Promise<string | null> {
-  if (!geminiClient) return null
+// Matches known section headers like "Ingredients:", "Instructions:", "Method:", "For the sauce:"
+const HEADER_RE = /^(ingredients?|directions?|instructions?|method|steps?|preparation|for the [\w\s]+)\s*:?\s*$/i
+// Ingredient line: starts with a digit, unicode fraction, or bullet character
+const INGREDIENT_START_RE = /^([\d½⅓⅔¼¾⅛⅜⅝⅞]|[-•*–·]\s)/
+// Numbered step: "1." / "1)" / "Step 1:" / "Step 1."
+const STEP_NUMBER_RE = /^(step\s+\d+[.:)]|\d+[.)]\s)/i
 
-  try {
-    const response = await withTimeout(
-      geminiClient.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: prompt,
-        config: {
-          temperature: 0,
-          maxOutputTokens: 2000,
-          responseMimeType: "application/json",
-        },
-      }),
-      30000
-    )
-
-    const text = response.text?.trim()
-    if (!text) {
-      console.warn("[ParagraphParser] Empty response from Gemini")
-      return null
-    }
-    return text
-  } catch (error) {
-    console.error("[ParagraphParser] Gemini request failed:", error)
-    return null
-  }
+export function preprocessRecipeText(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim()
+      if (!trimmed) return ""
+      if (HEADER_RE.test(trimmed)) return `[SECTION: ${trimmed}]`
+      if (INGREDIENT_START_RE.test(trimmed)) return `[INGREDIENT] ${trimmed}`
+      if (STEP_NUMBER_RE.test(trimmed)) return `[STEP] ${trimmed}`
+      return trimmed
+    })
+    .join("\n")
 }
 
 function fallbackResult(): ParagraphParseResult {
@@ -122,7 +93,6 @@ function fallbackResult(): ParagraphParseResult {
 }
 
 function coerceResult(parsed: any): ParagraphParseResult {
-  // Handle LLM wrapping output in an array: [{instructions, ingredients}]
   const root = Array.isArray(parsed) ? parsed[0] : parsed
 
   const rawInstructions: any[] = Array.isArray(root?.instructions) ? root.instructions : []
@@ -152,73 +122,34 @@ function coerceResult(parsed: any): ParagraphParseResult {
   return { instructions, ingredients }
 }
 
-async function attemptParse(requestFn: (p: string) => Promise<string | null>, prompt: string, provider: string): Promise<ParagraphParseResult | null> {
-  const content = await withTimeout(requestFn(prompt), 30000)
-  if (!content) {
-    console.warn(`[ParagraphParser] ${provider} returned empty content`)
-    return null
-  }
-
-  const extracted = extractJSON(content)
-  if (!extracted) {
-    console.error(`[ParagraphParser] Could not extract JSON from ${provider} response`)
-    return null
-  }
-
-  let parsed: any
-  try {
-    parsed = JSON.parse(extracted)
-  } catch {
-    console.error(`[ParagraphParser] JSON parse error from ${provider}`)
-    return null
-  }
-
-  return coerceResult(parsed)
-}
-
 export async function parseRecipeParagraphWithAI(text: string): Promise<ParagraphParseResult> {
   if (!text?.trim()) return fallbackResult()
 
-  const hasOpenAI = Boolean(OPENAI_API_KEY)
-  const hasGemini = Boolean(GEMINI_API_KEY)
-
-  if (!hasOpenAI && !hasGemini) {
-    console.warn("[ParagraphParser] No AI keys configured; returning empty result")
+  if (!OPENAI_API_KEY) {
+    console.warn("[ParagraphParser] OPENAI_API_KEY not configured; returning empty result")
     return fallbackResult()
   }
 
-  const prompt = buildParagraphParserPrompt({ text })
+  const prompt = buildParagraphParserPrompt({ text: preprocessRecipeText(text) })
 
-  // OpenAI preferred
-  if (hasOpenAI) {
-    try {
-      const result = await attemptParse(callOpenAI, prompt, "OpenAI")
-      if (result) return result
-    } catch (error) {
-      console.error("[ParagraphParser] OpenAI failed:", error)
-    }
-
-    // Fallback to Gemini if available
-    if (hasGemini) {
-      console.log("[ParagraphParser] Attempting Gemini fallback...")
-      try {
-        const result = await attemptParse(callGemini, prompt, "Gemini")
-        if (result) return result
-      } catch (error) {
-        console.error("[ParagraphParser] Gemini fallback failed:", error)
-      }
-    }
-
-    return fallbackResult()
-  }
-
-  // Gemini only
   try {
-    const result = await attemptParse(callGemini, prompt, "Gemini")
-    if (result) return result
-  } catch (error) {
-    console.error("[ParagraphParser] Gemini failed:", error)
-  }
+    const content = await withTimeout(callOpenAI(prompt), 30000)
+    if (!content) {
+      console.warn("[ParagraphParser] OpenAI returned empty content")
+      return fallbackResult()
+    }
 
-  return fallbackResult()
+    const extracted = extractJSON(content)
+    if (!extracted) {
+      console.error("[ParagraphParser] Could not extract JSON from OpenAI response")
+      console.error("[ParagraphParser] Raw response:", content.substring(0, 300))
+      return fallbackResult()
+    }
+
+    const parsed = JSON.parse(extracted)
+    return coerceResult(parsed)
+  } catch (error) {
+    console.error("[ParagraphParser] OpenAI failed:", error)
+    return fallbackResult()
+  }
 }

@@ -1,3 +1,14 @@
+export const PREPROCESSING_HINTS_SECTION = `
+**PRE-PROCESSING HINTS:**
+The recipe text has been pre-labeled with hints to help you parse it. Lines may be prefixed with:
+- \`[INGREDIENT]\` — this line is almost certainly an ingredient entry; extract it into the ingredients array
+- \`[STEP]\` — this line is almost certainly a cooking instruction; extract it into the instructions array
+- \`[SECTION: <name>]\` — a section header (e.g. "Ingredients:", "Instructions:"); use it for context only, do not include it as a step or ingredient
+- No prefix — classify the line yourself based on context
+
+Treat these labels as strong hints, not absolute truth. If a \`[STEP]\` line is clearly just an ingredient (e.g. "Step 1: 2 cups flour"), extract it as an ingredient instead.
+`
+
 export const OUTPUT_SCHEMA_SECTION = `
 **OUTPUT SCHEMA:**
 Return ONLY a single valid JSON object with exactly two keys:
