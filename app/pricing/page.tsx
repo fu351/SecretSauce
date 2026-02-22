@@ -5,9 +5,12 @@ import Link from "next/link"
 export default async function PricingPage({
   searchParams,
 }: {
-  searchParams: { required?: string; reason?: string }
+  searchParams: Promise<{ required?: string; reason?: string }>
 }) {
-  const subscription = await getUserSubscription()
+  const [subscription, { required, reason }] = await Promise.all([
+    getUserSubscription(),
+    searchParams,
+  ])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-16 px-4">
@@ -22,7 +25,7 @@ export default async function PricingPage({
           </p>
 
           {/* Alert Messages */}
-          {searchParams.reason === "expired" && (
+          {reason === "expired" && (
             <div className="mt-6 mx-auto max-w-2xl rounded-lg bg-yellow-50 border border-yellow-200 p-4">
               <p className="text-yellow-800">
                 Your subscription has expired. Upgrade to continue accessing premium features.
@@ -30,10 +33,10 @@ export default async function PricingPage({
             </div>
           )}
 
-          {searchParams.required && (
+          {required && (
             <div className="mt-6 mx-auto max-w-2xl rounded-lg bg-blue-50 border border-blue-200 p-4">
               <p className="text-blue-800">
-                <strong className="capitalize">{searchParams.required}</strong> tier required for this feature
+                <strong className="capitalize">{required}</strong> tier required for this feature
               </p>
             </div>
           )}
