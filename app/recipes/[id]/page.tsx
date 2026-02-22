@@ -446,7 +446,7 @@ export default function RecipeDetailPage() {
                 {recipe.ingredients.map((ingredient, index) => (
                   <div key={index} className={itemPillClass}>
                     <span className="text-sm leading-relaxed font-medium">
-                      {ingredient.display_name || ingredient.name}
+                      {ingredient.name}
                     </span>
                   </div>
                 ))}
