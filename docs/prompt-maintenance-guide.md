@@ -5,7 +5,7 @@
 - `Doc Kind`: `operations-guide`
 - `Canonicality`: `implementation-guide`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-17`
+- `Last Reviewed`: `2026-02-19`
 - `Primary Surfaces`: `lib/prompts/`, `lib/ingredient-standardizer.ts`, `lib/unit-standardizer.ts`, `queue/worker/processor.ts`
 - `Update Trigger`: Prompt contracts, queue prompt consumers, or rollout flags change.
 
@@ -41,11 +41,28 @@ This guide describes where to edit queue standardization prompts and how changes
   - `queue/worker/processor.ts`
   - `scripts/utils/canonical-matching.ts`
 
+## System Boundary (Realtime vs Queue)
+
+- Ingredient resolution before queue:
+  - realtime path uses inverse-frequency-weighted fuzzy matching for ingredient candidates.
+  - queue receives mostly low-confidence/unresolved ingredient clusters after realtime filtering.
+- Unit resolution before queue:
+  - unit parsing primarily uses cleaning + regex over `unit_standardization_map`.
+  - queue unit AI is a fallback path for misses/ambiguous rows, not the first unit resolver.
+- Practical implication for prompt tuning:
+  - ingredient prompt/runtime should optimize hard residual edge cases (not baseline easy matches).
+  - unit prompt/runtime should focus on difficult leftovers where map/regex extraction did not converge.
+
 ## Rollout Flags
 
 - `QUEUE_ENABLE_UNIT_RESOLUTION` (default `true`)
 - `QUEUE_UNIT_DRY_RUN` (defaults to `DRY_RUN`; typically `false` for normal runs, `true` for dry runs)
 - `QUEUE_UNIT_MIN_CONFIDENCE` (default `0.75`)
+
+Canonical double-check thresholds are currently hard-coded in runtime config:
+
+- `doubleCheckMinConfidence=0.85`
+- `doubleCheckMinSimilarity=0.96`
 
 Nightly workflow defaults stay source/review scoped (`QUEUE_REVIEW_MODE=ingredient`, `QUEUE_SOURCE=scraper`) while unit resolution is enabled by default.
 
@@ -71,14 +88,28 @@ Prompt changes alone are not relied on for safety. Queue runtime adds independen
   - modifier-conflict penalty for generic head nouns (e.g., `hoisin sauce` vs `hot sauce`)
 - Queue remap policies:
   - cross-category remaps are heavily penalized and gated
-  - asymmetric policy: generic -> specific remaps require stricter confidence/similarity
+  - asymmetric policy: generic -> specific and specific -> generic remaps require stricter confidence/similarity
 - New-canonical creation gate:
   - long/noisy candidate names can be blocked from `getOrCreate`
   - blocked rows surface as queue failures for follow-up/remap
+- New-canonical probation:
+  - first creation is held until repeated evidence from distinct source signatures
+  - tracked via `canonical_creation_probation_events`
+  - repeated identical probation checks are session-cached for efficiency (DB remains source of truth)
+- Outcome-driven confidence calibration:
+  - accepted/rejected outcomes are logged to `ingredient_confidence_outcomes`
+  - rejected labels are limited to ingredient-semantic failures (unit/system/probation failures are excluded)
+  - worker calibrates raw model confidence against empirical acceptance bins
+- Drift-learned variety retention:
+  - sensitive head/modifier tokens are learned from canonical drift telemetry
+  - replaces static modifier list maintenance
 - Category enum write guard:
   - invalid model category values are not allowed to break inserts
   - invalid `item_category_enum` values retry with fallback category `other`
   - valid enum values are preserved as-is
+- Unit resilience guard:
+  - scraper rows that fail unit AI resolution and match packaged-item signals are downgraded to fallback `1 unit`
+  - keeps packaged products from failing solely due brittle unit extraction.
 - Blocked-canonical fallback behavior:
   - when blocked, worker may recover only to existing canonicals via deterministic tail-token candidates
   - `best_fuzzy_match` is intentionally not used for this recovery

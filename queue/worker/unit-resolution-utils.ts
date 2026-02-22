@@ -3,6 +3,8 @@ import type { UnitStandardizationResult } from "../../lib/unit-standardizer"
 import { escapeRegExp, normalizeSpaces } from "../../lib/utils/string"
 
 export const UNIT_FALLBACK_CONFIDENCE = 0.2
+const PACKAGED_ITEM_SIGNAL_PATTERN =
+  /\b(pack|pk|pkg|package|bag|bags|box|boxes|bottle|bottles|can|cans|jar|jars|carton|cartons|tray|trays|case|cases|pouch|pouches|unit|each|ea|ct|count)\b/i
 
 export const RESOLVED_UNIT_ALIASES: Record<string, string[]> = {
   oz: ["oz", "ounce", "ounces"],
@@ -85,6 +87,24 @@ export function shouldUsePackagedUnitFallback(row: IngredientMatchQueueRow): boo
   return !hasExplicitUnitSignals(row)
 }
 
+function hasPackagedItemSignals(row: IngredientMatchQueueRow): boolean {
+  const raw = normalizeSpaces(
+    `${row.raw_unit || ""} ${row.cleaned_name || ""} ${row.raw_product_name || ""}`.toLowerCase()
+  )
+  if (!raw) return false
+  return PACKAGED_ITEM_SIGNAL_PATTERN.test(raw)
+}
+
+export function shouldUsePackagedUnitFallbackAfterFailure(
+  row: IngredientMatchQueueRow,
+  unitResult?: UnitStandardizationResult
+): boolean {
+  if (row.source !== "scraper") return false
+  if (unitResult?.status === "success") return false
+  if (shouldUsePackagedUnitFallback(row)) return true
+  return hasPackagedItemSignals(row)
+}
+
 export function buildPackagedUnitFallback(rowId: string): UnitStandardizationResult {
   return {
     id: rowId,
@@ -93,6 +113,15 @@ export function buildPackagedUnitFallback(rowId: string): UnitStandardizationRes
     confidence: UNIT_FALLBACK_CONFIDENCE,
     status: "success",
   }
+}
+
+export function isPackagedUnitFallbackResult(
+  _row: IngredientMatchQueueRow,
+  unitResult: UnitStandardizationResult | undefined
+): boolean {
+  if (!unitResult || unitResult.status !== "success") return false
+  if (unitResult.resolvedUnit !== "unit" || unitResult.resolvedQuantity !== 1) return false
+  return unitResult.confidence <= UNIT_FALLBACK_CONFIDENCE
 }
 
 export function collectUnitHints(row: IngredientMatchQueueRow, unitResult?: UnitStandardizationResult): string[] {

@@ -26,6 +26,7 @@ export async function runQueueResolverFromEnv(overrides?: Partial<QueueWorkerCon
             totalProcessed: summary.totalResolved + summary.totalFailed,
             resolved: summary.totalResolved,
             failed: summary.totalFailed,
+            unitMetrics: summary.unitMetrics,
           },
           results: summary.dryRunResults || [],
         },

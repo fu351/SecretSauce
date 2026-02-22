@@ -9,6 +9,34 @@ export type IngredientMatchQueueInsert = Database["public"]["Tables"]["ingredien
 export type IngredientMatchQueueUpdate = Database["public"]["Tables"]["ingredient_match_queue"]["Update"]
 export type CanonicalDoubleCheckDecision = "remapped" | "skipped"
 export type CanonicalDoubleCheckDirection = "generic_to_specific" | "specific_to_generic" | "lateral" | "unknown"
+export type IngredientConfidenceOutcome = "accepted" | "rejected"
+export interface CanonicalDoubleCheckDailyStatsRow {
+  event_date: string
+  source_canonical: string
+  target_canonical: string
+  decision: CanonicalDoubleCheckDecision
+  reason: string
+  direction: CanonicalDoubleCheckDirection
+  event_count: number
+  source_category: string | null
+  target_category: string | null
+  min_confidence: number | null
+  max_confidence: number | null
+  min_similarity: number | null
+  max_similarity: number | null
+}
+export interface CanonicalCreationProbationStats {
+  distinctSources: number
+  totalEvents: number
+  firstSeenAt: string | null
+  lastSeenAt: string | null
+}
+export interface IngredientConfidenceCalibrationBinRow {
+  bin_start: number
+  sample_count: number
+  accepted_count: number
+  acceptance_rate: number
+}
 
 class IngredientMatchQueueTable extends BaseTable<
   "ingredient_match_queue",
@@ -381,6 +409,188 @@ class IngredientMatchQueueTable extends BaseTable<
     }
 
     return true
+  }
+
+  async fetchCanonicalDoubleCheckDailyStats(params?: {
+    daysBack?: number
+    directions?: CanonicalDoubleCheckDirection[]
+    decisions?: CanonicalDoubleCheckDecision[]
+    minEventCount?: number
+    limit?: number
+  }): Promise<CanonicalDoubleCheckDailyStatsRow[]> {
+    const {
+      daysBack = 30,
+      directions,
+      decisions,
+      minEventCount = 1,
+      limit = 5000,
+    } = params || {}
+
+    const safeDaysBack = Math.max(1, Math.min(daysBack, 365))
+    const cutoffDate = new Date(Date.now() - safeDaysBack * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10)
+
+    let query = (this.supabase.from as any)("canonical_double_check_daily_stats")
+      .select(
+        [
+          "event_date",
+          "source_canonical",
+          "target_canonical",
+          "decision",
+          "reason",
+          "direction",
+          "event_count",
+          "source_category",
+          "target_category",
+          "min_confidence",
+          "max_confidence",
+          "min_similarity",
+          "max_similarity",
+        ].join(",")
+      )
+      .gte("event_date", cutoffDate)
+      .gte("event_count", Math.max(1, minEventCount))
+      .order("event_date", { ascending: false })
+      .order("event_count", { ascending: false })
+      .limit(Math.max(1, Math.min(limit, 20000)))
+
+    if (directions?.length) {
+      query = query.in("direction", directions)
+    }
+
+    if (decisions?.length) {
+      query = query.in("decision", decisions)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      this.handleError(error, "fetchCanonicalDoubleCheckDailyStats")
+      return []
+    }
+
+    return ((data || []) as CanonicalDoubleCheckDailyStatsRow[]).map((row) => ({
+      ...row,
+      event_count: Number(row.event_count || 0),
+    }))
+  }
+
+  async trackCanonicalCreationProbation(params: {
+    canonicalName: string
+    sourceSignature: string
+    source?: string | null
+    eventAt?: string | null
+  }): Promise<CanonicalCreationProbationStats | null> {
+    const { canonicalName, sourceSignature, source, eventAt } = params
+
+    const { data, error } = await (this.supabase.rpc as any)("fn_track_canonical_creation_probation", {
+      p_canonical_name: canonicalName,
+      p_source_signature: sourceSignature,
+      p_source: source ?? null,
+      p_event_at: eventAt ?? null,
+    })
+
+    if (error) {
+      this.handleError(error, "trackCanonicalCreationProbation")
+      return null
+    }
+
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | {
+        distinct_sources?: number
+        total_events?: number
+        first_seen_at?: string | null
+        last_seen_at?: string | null
+      }
+      | undefined
+
+    return {
+      distinctSources: Number(row?.distinct_sources ?? 0),
+      totalEvents: Number(row?.total_events ?? 0),
+      firstSeenAt: row?.first_seen_at ?? null,
+      lastSeenAt: row?.last_seen_at ?? null,
+    }
+  }
+
+  async logIngredientConfidenceOutcome(params: {
+    rawConfidence: number
+    calibratedConfidence?: number | null
+    outcome: IngredientConfidenceOutcome
+    reason?: string
+    category?: string | null
+    canonicalName?: string | null
+    tokenCount?: number | null
+    isNewCanonical?: boolean
+    source?: string | null
+    resolver?: string | null
+    context?: string | null
+    metadata?: Record<string, unknown> | null
+    recordedAt?: string | null
+  }): Promise<boolean> {
+    const {
+      rawConfidence,
+      calibratedConfidence,
+      outcome,
+      reason,
+      category,
+      canonicalName,
+      tokenCount,
+      isNewCanonical,
+      source,
+      resolver,
+      context,
+      metadata,
+      recordedAt,
+    } = params
+
+    const { error } = await (this.supabase.rpc as any)("fn_log_ingredient_confidence_outcome", {
+      p_raw_confidence: rawConfidence,
+      p_calibrated_confidence: calibratedConfidence ?? null,
+      p_outcome: outcome,
+      p_reason: reason ?? "none",
+      p_category: category ?? null,
+      p_canonical_name: canonicalName ?? null,
+      p_token_count: tokenCount ?? null,
+      p_is_new_canonical: isNewCanonical ?? false,
+      p_source: source ?? null,
+      p_resolver: resolver ?? null,
+      p_context: context ?? null,
+      p_metadata: metadata ?? {},
+      p_recorded_at: recordedAt ?? null,
+    })
+
+    if (error) {
+      this.handleError(error, "logIngredientConfidenceOutcome")
+      return false
+    }
+
+    return true
+  }
+
+  async fetchIngredientConfidenceCalibration(params?: {
+    daysBack?: number
+    binSize?: number
+    minSamples?: number
+  }): Promise<IngredientConfidenceCalibrationBinRow[]> {
+    const { daysBack = 30, binSize = 0.1, minSamples = 10 } = params || {}
+
+    const { data, error } = await (this.supabase.rpc as any)("fn_get_ingredient_confidence_calibration", {
+      p_days_back: Math.max(1, Math.min(daysBack, 365)),
+      p_bin_size: Math.max(0.01, Math.min(binSize, 0.5)),
+      p_min_samples: Math.max(1, minSamples),
+    })
+
+    if (error) {
+      this.handleError(error, "fetchIngredientConfidenceCalibration")
+      return []
+    }
+
+    return ((data || []) as IngredientConfidenceCalibrationBinRow[]).map((row) => ({
+      bin_start: Number(row.bin_start ?? 0),
+      sample_count: Number(row.sample_count ?? 0),
+      accepted_count: Number(row.accepted_count ?? 0),
+      acceptance_rate: Number(row.acceptance_rate ?? 0),
+    }))
   }
 
   async requeueExpired(limit = 1000, errorMessage?: string): Promise<number> {

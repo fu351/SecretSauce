@@ -65,7 +65,8 @@ The queue resolver now applies multiple safety layers before writing canonical i
 
 3. Asymmetric remap policy:
    - Generic -> specific remaps are held to stricter thresholds.
-   - Lateral and specific -> generic remaps use baseline thresholds unless blocked by other rules.
+   - Specific -> generic remaps are also held to strict thresholds.
+   - Lateral remaps use baseline thresholds plus modifier/category protections.
 
 4. Modifier-conflict protection:
    - Generic head nouns with conflicting modifiers are penalized
@@ -76,6 +77,11 @@ The queue resolver now applies multiple safety layers before writing canonical i
    - If canonical does not already exist, long/noisy/low-confidence names can be blocked from creation.
    - This prevents raw retail product titles from being inserted into `standardized_ingredients`.
    - Blocked rows are surfaced as queue failures for follow-up or remap workflows.
+   - New-canonical probation requires repeated evidence before first insert:
+     - table: `public.canonical_creation_probation_events`
+     - RPC: `public.fn_track_canonical_creation_probation(...)`
+     - worker currently requires `2` distinct source signatures before creation.
+     - efficiency: repeated checks for the same `(canonical_name, source_signature)` are session-cached to avoid redundant RPC calls.
 
 6. Invalid category enum safeguard:
    - `standardized_ingredients` inserts guard `item_category_enum` values.
@@ -86,6 +92,79 @@ The queue resolver now applies multiple safety layers before writing canonical i
    - If a new canonical is blocked, the worker attempts deterministic fallback candidates using tail tokens.
    - Fallback is accepted only when the candidate already exists in `standardized_ingredients`.
    - `best_fuzzy_match` is intentionally not used for this recovery path.
+
+## Upstream Boundary (Before Queue)
+
+Queue behavior should be interpreted as a second-stage resolver, not first-pass ingestion:
+
+- Ingredients:
+  - realtime ingestion first runs inverse-frequency-weighted fuzzy matching.
+  - rows entering queue are the unresolved/low-confidence tail.
+- Units:
+  - unit extraction first uses cleaning + regex with `unit_standardization_map`.
+  - queue unit AI handles misses/ambiguous leftovers.
+  - packaged fallback (`1 unit`) remains a final resilience path for scraper rows.
+
+## Session Cache + Input Normalization
+
+The queue worker now reduces repeated LLM calls within a worker session:
+
+- In-memory cache:
+  - `queue/worker/local-ai-cache.ts`
+  - namespace/version keyed (`ingredient|cache_version|hash`)
+  - no DB persistence (session-only)
+- Cache key:
+  - `queue/worker/ingredient-cache-utils.ts`
+  - SHA-256 hash of `{context, normalized searchTerm}`
+- Cache quality gates:
+  - low-confidence outputs are not cached
+  - canonicals ending with trailing numeric tokens are not cached
+- Search-term normalization before ingredient standardization:
+  - strips leading/trailing quantity/unit noise
+  - handles patterns like `bananas 1` and repeated quantity prefixes.
+- Unit fallback escalation:
+  - scraper rows that fail unit AI resolution but still look like packaged products now fall back to `1 unit`
+  - this avoids avoidable queue failures for packaged items with noisy titles.
+- Probation cache:
+  - `queue/worker/probation-cache.ts`
+  - caches recent probation outcomes for identical `(canonical_name, source_signature)` pairs
+  - uses short TTL below threshold and longer TTL once threshold is met
+  - keeps DB probation as source of truth while reducing repeated calls in bursty batches.
+
+## Dynamic Sensitive Token Learning
+
+Variety retention is now learned from drift telemetry instead of hardcoded lists:
+
+- Loader: `queue/worker/sensitive-token-learning.ts`
+- Source: `canonical_double_check_daily_stats`
+- Focus: `direction='specific_to_generic'`
+- Output:
+  - sensitive head nouns
+  - per-head modifier sets that are frequently dropped
+- Runtime usage:
+  - `queue/worker/processor.ts` calls `maybeRetainVarietyCanonical(...)`
+  - helps prevent regressions like `red bell pepper -> pepper`.
+
+The learner is session-cached and refreshes periodically.
+
+## Confidence Calibration Feedback Loop
+
+Ingredient confidence now uses an outcome-informed calibration layer:
+
+- Outcome table: `public.ingredient_confidence_outcomes`
+- Logging RPC: `public.fn_log_ingredient_confidence_outcome(...)`
+- Calibration RPC: `public.fn_get_ingredient_confidence_calibration(...)`
+- Runtime calibrator: `queue/worker/confidence-calibration.ts`
+
+Worker flow:
+
+1. Read confidence bins from recent outcomes.
+2. Blend model confidence with empirical acceptance rates.
+3. Use calibrated confidence for canonical double-check and new-canonical risk gates.
+4. Log accepted outcomes and ingredient-semantic rejected outcomes for continuous recalibration.
+5. Exclude unit/infrastructure/probation failures from calibration reject labels to reduce label noise.
+
+This makes confidence thresholds less static and more aligned with observed production behavior.
 
 ## Drift Telemetry (DB-Side Feedback Loop)
 
@@ -139,3 +218,27 @@ Seeding path:
 
 - Script: `scripts/seed-mock-recipes.ts`
 - The stress set is appended to `MOCK_RECIPES` before upsert.
+
+## Regeneration Workflow Notes
+
+`.github/workflows/regenerate-mappings.yml` now supports drift-informed queue behavior:
+
+- optional drift snapshot logging before/after queue resolve (`run_drift_snapshot`)
+- two-pass queue resolve:
+  - pass 1 warms drift telemetry
+  - pass 2 runs with newly available drift signal
+- dynamic queue context and source coverage:
+  - `QUEUE_STANDARDIZER_CONTEXT=dynamic`
+  - `QUEUE_SOURCE=any`
+
+## Unit Outcome Metrics
+
+Queue logs now include unit-resolution path metrics per cycle and total:
+
+- `unit_map_miss_then_fallback`
+  - rows that ended with packaged fallback `1 unit`
+  - includes pre-AI fallback and post-AI-failure fallback for scraper packaged items
+- `unit_ai_success`
+  - rows whose final unit came from AI success (non-fallback)
+- `unit_ai_error`
+  - rows that failed due unit-resolution errors

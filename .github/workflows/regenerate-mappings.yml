@@ -31,6 +31,11 @@ on:
         required: false
         type: boolean
         default: false
+      run_drift_snapshot:
+        description: 'Print canonical drift snapshot before/after queue resolve'
+        required: false
+        type: boolean
+        default: true
 
 env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -88,9 +93,41 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{}')
 
-          TOTAL=$(echo "$RESULT" | jq 'length')
-          CHANGED=$(echo "$RESULT" | jq '[.[] | select(.changed == true)] | length')
-          QUEUED=$(echo "$RESULT" | jq '[.[] | select(.ri_match_strategy == "unmatched")] | length')
+          TOTAL=$(echo "$RESULT" | jq -r '
+            def norm: if type == "string" then (try fromjson catch .) else . end;
+            (norm) as $n
+            | if ($n | type) == "array" then ($n | length)
+              elif ($n | type) == "object" then
+                if ($n | has("total")) then ($n.total | tonumber? // 1)
+                elif ($n | has("rows")) and (($n.rows | type) == "array") then ($n.rows | length)
+                else 1 end
+              else 1 end
+          ')
+          CHANGED=$(echo "$RESULT" | jq -r '
+            def norm: if type == "string" then (try fromjson catch .) else . end;
+            (norm) as $n
+            | if ($n | type) == "array" then
+                [$n[] | select((type == "object") and ((.changed // false) == true))] | length
+              elif ($n | type) == "object" then
+                if ($n | has("changed_count")) then ($n.changed_count | tonumber? // 0)
+                elif ($n | has("changed")) then (if ($n.changed == true or $n.changed == 1) then 1 else 0 end)
+                elif ($n | has("rows")) and (($n.rows | type) == "array") then
+                  [$n.rows[] | select((type == "object") and ((.changed // false) == true))] | length
+                else 0 end
+              else 0 end
+          ')
+          QUEUED=$(echo "$RESULT" | jq -r '
+            def norm: if type == "string" then (try fromjson catch .) else . end;
+            (norm) as $n
+            | if ($n | type) == "array" then
+                [$n[] | select((type == "object") and ((.ri_match_strategy // "") == "unmatched"))] | length
+              elif ($n | type) == "object" and ($n | has("rows")) and (($n.rows | type) == "array") then
+                [$n.rows[] | select((type == "object") and ((.ri_match_strategy // "") == "unmatched"))] | length
+              elif ($n | type) == "object" and ($n | has("queued_count")) then
+                ($n.queued_count | tonumber? // 0)
+              else 0 end
+          ')
+          echo "Recipe RPC response type: $(echo "$RESULT" | jq -r 'type')"
           echo "Total: ${TOTAL} | Relinked: ${CHANGED} | Queued for LLM: ${QUEUED}"
 
       - name: Relink Product Mappings
@@ -110,8 +147,32 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$BODY")
 
-          TOTAL=$(echo "$RESULT" | jq 'length')
-          CHANGED=$(echo "$RESULT" | jq '[.[] | select(.changed == true)] | length')
+          TOTAL=$(echo "$RESULT" | jq -r '
+            def norm: if type == "string" then (try fromjson catch .) else . end;
+            (norm) as $n
+            | if ($n | type) == "array" then ($n | length)
+              elif ($n | type) == "object" then
+                if ($n | has("total")) then ($n.total | tonumber? // 1)
+                elif ($n | has("rows")) and (($n.rows | type) == "array") then ($n.rows | length)
+                else 1 end
+              else 1 end
+          ')
+          CHANGED=$(echo "$RESULT" | jq -r '
+            def norm: if type == "string" then (try fromjson catch .) else . end;
+            (norm) as $n
+            | if ($n | type) == "array" then
+                [$n[] | select((type == "object") and ((.changed // false) == true))] | length
+              elif ($n | type) == "object" then
+                if ($n | has("changed_count")) then ($n.changed_count | tonumber? // 0)
+                elif ($n | has("changed")) then (if ($n.changed == true or $n.changed == 1) then 1 else 0 end)
+                elif ($n | has("relinked")) then ($n.relinked | tonumber? // 0)
+                elif ($n | has("updated")) then ($n.updated | tonumber? // 0)
+                elif ($n | has("rows")) and (($n.rows | type) == "array") then
+                  [$n.rows[] | select((type == "object") and ((.changed // false) == true))] | length
+                else 0 end
+              else 0 end
+          ')
+          echo "Product RPC response type: $(echo "$RESULT" | jq -r 'type')"
           echo "Total: ${TOTAL} | Relinked: ${CHANGED}"
 
       - name: Checkout source
@@ -125,7 +186,18 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Resolve Ingredient Match Queue
+      - name: Drift Snapshot (Before)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_drift_snapshot }}
+        run: |
+          echo "=== Canonical Drift Snapshot (specific_to_generic, last 30 days) ==="
+          cutoff="$(date -u -d '30 days ago' +%Y-%m-%d)"
+          curl -sf \
+            "${SUPABASE_URL}/rest/v1/canonical_double_check_daily_stats?select=event_date,source_canonical,target_canonical,decision,direction,event_count,reason&direction=eq.specific_to_generic&event_date=gte.${cutoff}&order=event_count.desc&limit=25" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            | jq -r '.[] | "\(.event_date) | \(.decision) | \(.event_count)x | \(.source_canonical) -> \(.target_canonical) | reason=\(.reason)"'
+
+      - name: "Resolve Ingredient Match Queue (Pass 1: Warm Drift Learner)"
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
@@ -134,8 +206,27 @@ jobs:
           OPENAI_MODEL: 'gpt-4o-mini'
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: 'gemini-3-flash-preview'
-          QUEUE_STANDARDIZER_CONTEXT: 'pantry'
-          QUEUE_RESOLVER_NAME: 'relink-map-run'
+          QUEUE_STANDARDIZER_CONTEXT: 'dynamic'
+          QUEUE_SOURCE: 'any'
+          QUEUE_REVIEW_MODE: 'ingredient'
+          NODE_ENV: production
+        run: |
+          # First cycle generates fresh drift telemetry from current queue content.
+          QUEUE_RESOLVER_NAME="relink-map-run-b1" QUEUE_MAX_CYCLES="1" npm run resolve-ingredient-match-queue
+
+      - name: "Resolve Ingredient Match Queue (Pass 2: Drift-Informed)"
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: 'gpt-4o-mini'
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: 'gemini-3-flash-preview'
+          QUEUE_STANDARDIZER_CONTEXT: 'dynamic'
+          QUEUE_SOURCE: 'any'
+          QUEUE_REVIEW_MODE: 'ingredient'
+          QUEUE_RESOLVER_NAME: 'relink-map-run-b2'
           NODE_ENV: production
         run: npm run resolve-ingredient-match-queue
 
@@ -158,7 +249,7 @@ jobs:
 
           echo "Status breakdown by source:"
           for source in scraper recipe; do
-            for status in pending processing success failed; do
+            for status in pending processing resolved failed; do
               count=$(get_count "source=eq.${source}&status=eq.${status}")
               [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
             done
@@ -167,6 +258,17 @@ jobs:
           # Total pending count
           pending_total=$(get_count "status=eq.pending")
           echo "Total pending rows: ${pending_total}"
+
+      - name: Drift Snapshot (After)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_drift_snapshot }}
+        run: |
+          echo "=== Canonical Drift Snapshot After Queue Resolve (specific_to_generic, last 30 days) ==="
+          cutoff="$(date -u -d '30 days ago' +%Y-%m-%d)"
+          curl -sf \
+            "${SUPABASE_URL}/rest/v1/canonical_double_check_daily_stats?select=event_date,source_canonical,target_canonical,decision,direction,event_count,reason&direction=eq.specific_to_generic&event_date=gte.${cutoff}&order=event_count.desc&limit=25" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            | jq -r '.[] | "\(.event_date) | \(.decision) | \(.event_count)x | \(.source_canonical) -> \(.target_canonical) | reason=\(.reason)"'
 
   initiating-bootstrap:
     name: Full Bootstrap (Initiating Workflow)

@@ -10,10 +10,10 @@ import {
 } from "../../scripts/utils/canonical-matching"
 import type { QueueWorkerConfig } from "../config"
 
-const CROSS_CATEGORY_SCORE_PENALTY = 0.3
-const CROSS_CATEGORY_MIN_CONFIDENCE = 0.95
-const CROSS_CATEGORY_MIN_SIMILARITY_FLOOR = 0.92
-const CROSS_CATEGORY_MIN_SIMILARITY_BUFFER = 0.15
+const CROSS_CATEGORY_SCORE_PENALTY = 0.5
+const CROSS_CATEGORY_MIN_CONFIDENCE = 0.98
+const CROSS_CATEGORY_MIN_SIMILARITY_FLOOR = 0.98
+const CROSS_CATEGORY_MIN_SIMILARITY_BUFFER = 0.03
 const GENERIC_TO_SPECIFIC_MIN_CONFIDENCE = 0.95
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR = 0.9
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER = 0.2
@@ -229,9 +229,12 @@ export async function resolveCanonicalWithDoubleCheck(
         Boolean(category && bestMatch.category && category !== bestMatch.category)
 
       if (crossCategoryMismatch) {
-        const minCrossCategorySimilarity = Math.max(
-          config.doubleCheckMinSimilarity + CROSS_CATEGORY_MIN_SIMILARITY_BUFFER,
-          CROSS_CATEGORY_MIN_SIMILARITY_FLOOR
+        const minCrossCategorySimilarity = Math.min(
+          0.999,
+          Math.max(
+            config.doubleCheckMinSimilarity + CROSS_CATEGORY_MIN_SIMILARITY_BUFFER,
+            CROSS_CATEGORY_MIN_SIMILARITY_FLOOR
+          )
         )
         if (confidence < CROSS_CATEGORY_MIN_CONFIDENCE || bestScore < minCrossCategorySimilarity) {
           logCanonicalDoubleCheckDecision({
