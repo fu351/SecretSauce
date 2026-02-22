@@ -37,6 +37,7 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
 | `/api/batch-scraper` | `POST`, `GET` | `POST` requires `Authorization: Bearer $CRON_SECRET`; `GET` is health check | Batch scrape many ingredients across stores; returns per-ingredient/per-store success stats | `lib/ingredient-pipeline`, `lib/database/recipe-ingredients-db.ts`, `lib/database/ingredients-db.ts` |
 | `/api/grocery-search` | `GET` | Optional Supabase token/cookies used for user zip + preferred stores | Search ingredient prices using cache-first pipeline with live scraper fallback | `lib/ingredient-pipeline`, `lib/database/supabase-server.ts`, `lib/database/ingredients-db.ts`, `lib/store/user-preferred-stores`, `lib/scrapers/` |
 | `/api/grocery-search/cache-selection` | `POST` | None in-route | Persist user-selected replacement into ingredient history/product mappings for future cache-first retrieval | `lib/database/ingredients-db.ts`, `components/store/store-replacement.tsx` |
+| `/api/ingredients/parse` | `POST` | Clerk `auth()` required | Parse free-form recipe text or instruction prose into structured ingredient rows; returns `{ rows, unitKeywords }` | `lib/ingredient-parser.ts` (`parseRecipeText`), `lib/database/supabase-server.ts` (`fn_get_recipe_parser_unit_keywords`) |
 | `/api/ingredients/standardize` | `POST` | None in-route | Normalize ingredient inputs, run AI standardization, and update recipe/pantry links | `lib/ingredient-standardizer.ts`, `lib/database/standardized-ingredients-db.ts`, `lib/database/recipe-ingredients-db.ts`, `lib/database/pantry-items-db.ts` |
 | `/api/maps` | `POST` | None in-route (server API key required) | Proxy Google Maps geocode/places/routes requests | Google Maps HTTP APIs via `fetch` |
 | `/api/recipe-import/image` | `POST` | None in-route (python service URL required) | Send OCR text to Python import service | `PYTHON_SERVICE_URL` + Python backend `/recipe-import/text` |
@@ -61,6 +62,11 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
   - required: `userId`
   - optional fallback: `zipCode`
   - response store keys are canonical store enums sourced from `get_user_preferred_stores`
+- `/api/ingredients/parse` (`POST`):
+  - required: `text` (string) — free-form recipe text, ingredient list, or instruction prose
+  - response: `{ rows: ParsedIngredientRow[], unitKeywords: string[] }`
+  - `ParsedIngredientRow`: `{ quantity: number | null, unit: string | null, name: string, raw: string }`
+  - unit vocabulary sourced live from `fn_get_recipe_parser_unit_keywords` RPC; parsed client-side into three display categories (quantity+unit / conjunction / name-only)
 - `/api/ingredients/standardize` (`POST`):
   - required: non-empty `ingredients[]`
   - `context="recipe"` requires `recipeId`
@@ -87,6 +93,9 @@ Quick routing for `app/api/`: which endpoint owns what, request contracts, auth 
   - `app/api/batch-scraper/route.ts`
   - `scripts/daily-scraper.js`
   - `docs/scripts-directory.md`
+- Free-form ingredient parsing (paste/instructions tab):
+  - `app/api/ingredients/parse/route.ts`
+  - `lib/ingredient-parser.ts`
 - Ingredient standardization and canonical IDs:
   - `app/api/ingredients/standardize/route.ts`
   - `lib/ingredient-standardizer.ts`

@@ -5,12 +5,14 @@ import { useRouter, useParams } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import clsx from "clsx"
 import { useAuth } from "@/contexts/auth-context"
-import { useToast } from "@/hooks"
-import { useRecipe, useStandardizeRecipeIngredients } from "@/hooks"
+import { useToast, useRecipe } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { uploadRecipeImage } from "@/lib/image-helper"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
+import { RecipeImportParagraph } from "@/components/recipe/import/recipe-import-paragraph"
+import { ClipboardList, PenLine } from "lucide-react"
 import type { RecipeSubmissionData, ImportedRecipe } from "@/lib/types"
 import { parseInstructionsFromDB } from "@/lib/types"
 
@@ -28,12 +30,11 @@ export default function EditRecipePage() {
   // Use React Query hook for data fetching
   const { data: recipe, isLoading } = useRecipe(recipeId || null)
 
-
-  // Use standardize ingredients mutation
-  const standardizeMutation = useStandardizeRecipeIngredients()
-
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [editTab, setEditTab] = useState<"form" | "paragraph">("form")
+  const [formKey, setFormKey] = useState(0)
+  const [extraIngredients, setExtraIngredients] = useState<ImportedRecipe["ingredients"]>([])
 
   // Permission check
   if (recipe && recipe.author_id !== user?.id) {
@@ -89,9 +90,6 @@ export default function EditRecipePage() {
       await queryClient.invalidateQueries({ queryKey: ["recipe", recipeId] })
       await queryClient.invalidateQueries({ queryKey: ["recipes"] })
 
-      // Standardize ingredients asynchronously (don't wait for it)
-      standardizeMutation.mutate({ recipeId, ingredients: data.ingredients })
-
       toast({
         title: "Recipe updated!",
         description: "Your recipe has been successfully updated.",
@@ -138,7 +136,13 @@ export default function EditRecipePage() {
     }
   }
 
-  // Convert Recipe to ImportedRecipe format
+  const handleIngredientsFromParagraph = (imported: ImportedRecipe) => {
+    setExtraIngredients(imported.ingredients)
+    setFormKey((k) => k + 1)
+    setEditTab("form")
+  }
+
+  // Convert Recipe to ImportedRecipe format, merging any pasted ingredients
   const recipeData: ImportedRecipe | undefined = recipe
     ? {
         title: recipe.title || undefined,
@@ -150,7 +154,9 @@ export default function EditRecipePage() {
         difficulty: recipe.difficulty,
         cuisine: recipe.cuisine_name || undefined,
         tags: recipe.tags,
-        ingredients: recipe.ingredients,
+        ingredients: extraIngredients.length
+          ? [...(recipe.ingredients as any[]), ...extraIngredients]
+          : recipe.ingredients,
         instructions: parseInstructionsFromDB(recipe.instructions_list),
         nutrition: recipe.nutrition,
         source_type: "manual" as const,
@@ -177,15 +183,35 @@ export default function EditRecipePage() {
           <p className="text-muted-foreground">Update your recipe details</p>
         </div>
 
-        <RecipeManualEntryForm
-          mode="edit"
-          recipeId={recipeId}
-          initialData={recipeData}
-          onSubmit={handleSubmit}
-          onDelete={handleDelete}
-          loading={saving}
-          deleting={deleting}
-        />
+        <Tabs value={editTab} onValueChange={(v) => setEditTab(v as "form" | "paragraph")} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="form" className="flex items-center gap-2">
+              <PenLine className="h-4 w-4" />
+              Edit Recipe
+            </TabsTrigger>
+            <TabsTrigger value="paragraph" className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Paste Ingredients
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="form">
+            <RecipeManualEntryForm
+              key={formKey}
+              mode="edit"
+              recipeId={recipeId}
+              initialData={recipeData}
+              onSubmit={handleSubmit}
+              onDelete={handleDelete}
+              loading={saving}
+              deleting={deleting}
+            />
+          </TabsContent>
+
+          <TabsContent value="paragraph">
+            <RecipeImportParagraph onImportSuccess={handleIngredientsFromParagraph} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )
