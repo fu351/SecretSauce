@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
+import { hasAccessToTier } from "@/lib/auth/subscription"
 import { parseRecipeParagraphWithAI } from "@/lib/recipe-paragraph-parser"
 import { extractTimes } from "@/lib/recipe-time-extractor"
 
@@ -7,6 +8,11 @@ export async function POST(request: NextRequest) {
   const authState = await auth()
   if (!authState.userId) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+
+  const hasPremium = await hasAccessToTier("premium")
+  if (!hasPremium) {
+    return NextResponse.json({ error: "Premium subscription required" }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)
