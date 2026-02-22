@@ -6,9 +6,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Loader2, CheckCircle2 } from "lucide-react"
 import { useToast } from "@/hooks"
-import type { ImportedRecipe } from "@/lib/types"
-import type { Instruction } from "@/lib/types/recipe/instruction"
+import type { ImportedRecipe, Instruction } from "@/lib/types"
+import type { IngredientFormInput } from "@/lib/types/forms"
 import type { RecipeIngredient } from "@/lib/types/recipe/ingredient"
+import { RecipeIngredientsForm } from "@/components/recipe/forms/recipe-ingredients-form"
+import { RecipeInstructionsForm } from "@/components/recipe/forms/recipe-instructions-form"
 
 interface RecipeImportParagraphProps {
   onImportSuccess: (recipe: ImportedRecipe) => void
@@ -26,19 +28,38 @@ interface ParagraphParseResult {
 // Minimum ms between API calls — cache hits are not subject to this limit
 const COOLDOWN_MS = 5000
 
+function toFormIngredient(ing: RecipeIngredient): IngredientFormInput {
+  return {
+    name: ing.name,
+    amount: ing.quantity?.toString() ?? "",
+    unit: ing.unit ?? "",
+  }
+}
+
 export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraphProps) {
   const [text, setText] = useState("")
-  const [result, setResult] = useState<ParagraphParseResult | null>(null)
+  const [ingredients, setIngredients] = useState<IngredientFormInput[]>([])
+  const [instructions, setInstructions] = useState<Instruction[]>([])
+  const [times, setTimes] = useState<{ prep_time?: number; cook_time?: number; total_time?: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [cooldown, setCooldown] = useState(false)
   const { toast } = useToast()
 
-  // Persists across renders without causing re-renders
   const cacheRef = useRef<Map<string, ParagraphParseResult>>(new Map())
   const lastCallRef = useRef<number>(0)
 
-  // The button is unavailable if: loading, no text, or in cooldown
+  const hasResults = ingredients.length > 0 || instructions.length > 0
   const parseDisabled = loading || !text.trim() || cooldown
+
+  const applyResult = (data: ParagraphParseResult) => {
+    setIngredients(data.ingredients.map(toFormIngredient))
+    setInstructions(data.instructions)
+    setTimes({
+      prep_time: data.prep_time,
+      cook_time: data.cook_time,
+      total_time: data.total_time,
+    })
+  }
 
   const handleParse = async () => {
     const trimmed = text.trim()
@@ -47,7 +68,7 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
     // Cache hit — resolve instantly, no API call, no cooldown applied
     const cached = cacheRef.current.get(trimmed)
     if (cached) {
-      setResult(cached)
+      applyResult(cached)
       return
     }
 
@@ -69,7 +90,7 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
       const data: ParagraphParseResult = await res.json()
 
       cacheRef.current.set(trimmed, data)
-      setResult(data)
+      applyResult(data)
 
       if (data.warning) {
         toast({ title: "Low confidence result", description: data.warning })
@@ -86,20 +107,19 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
   }
 
   const handleUse = () => {
-    if (!result) return
     onImportSuccess({
       source_type: "manual",
-      instructions: result.instructions,
-      ingredients: result.ingredients,
-      prep_time: result.prep_time,
-      cook_time: result.cook_time,
-      total_time: result.total_time,
+      instructions,
+      ingredients: ingredients.map((ing) => ({
+        name: ing.name,
+        quantity: ing.amount ? parseFloat(ing.amount) : undefined,
+        unit: ing.unit || undefined,
+      })),
+      prep_time: times?.prep_time,
+      cook_time: times?.cook_time,
+      total_time: times?.total_time,
     })
   }
-
-  const hasResults = result
-    ? result.instructions.length > 0 || result.ingredients.length > 0
-    : false
 
   return (
     <div className="space-y-4">
@@ -113,7 +133,9 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
           value={text}
           onChange={(e) => {
             setText(e.target.value)
-            setResult(null)
+            setIngredients([])
+            setInstructions([])
+            setTimes(null)
           }}
           rows={9}
           className="mt-1 font-mono text-sm"
@@ -136,90 +158,23 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
         )}
       </Button>
 
-      {result && (
+      {hasResults && (
         <div className="space-y-4">
-
-          {/* ── Instructions ─────────────────────────────────────────────── */}
-          <div className="space-y-1">
-            <p className="text-sm font-medium">
-              Steps
-              <span className="ml-2 text-muted-foreground font-normal">({result.instructions.length})</span>
-            </p>
-            {result.instructions.length > 0 ? (
-              <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium w-10">#</th>
-                      <th className="text-left px-3 py-2 font-medium">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.instructions.map((instr) => (
-                      <tr key={instr.step} className="border-t">
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground">{instr.step}</td>
-                        <td className="px-3 py-2">{instr.description}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No steps extracted.</p>
-            )}
-          </div>
-
-          {/* ── Ingredients ──────────────────────────────────────────────── */}
-          <div className="space-y-1">
-            <p className="text-sm font-medium">
-              Ingredients
-              <span className="ml-2 text-muted-foreground font-normal">({result.ingredients.length})</span>
-            </p>
-            {result.ingredients.length > 0 ? (
-              <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium w-16">Qty</th>
-                      <th className="text-left px-3 py-2 font-medium w-28">Unit</th>
-                      <th className="text-left px-3 py-2 font-medium">Name</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.ingredients.map((ing, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="px-3 py-2 tabular-nums">
-                          {ing.quantity ?? <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-3 py-2">
-                          {ing.unit ?? <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-3 py-2">{ing.name}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No ingredients extracted.</p>
-            )}
-          </div>
-
-          {/* ── Times ────────────────────────────────────────────────────── */}
-          {(result.prep_time || result.cook_time || result.total_time) && (
+          {times && (times.prep_time || times.cook_time || times.total_time) && (
             <div className="flex gap-4 text-sm text-muted-foreground">
-              {result.prep_time && <span>Prep: {result.prep_time} min</span>}
-              {result.cook_time && <span>Cook: {result.cook_time} min</span>}
-              {result.total_time && <span>Total: {result.total_time} min</span>}
+              {times.prep_time && <span>Prep: {times.prep_time} min</span>}
+              {times.cook_time && <span>Cook: {times.cook_time} min</span>}
+              {times.total_time && <span>Total: {times.total_time} min</span>}
             </div>
           )}
 
-          {hasResults && (
-            <Button onClick={handleUse} className="w-full">
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              Use This Recipe
-            </Button>
-          )}
+          <RecipeInstructionsForm instructions={instructions} onChange={setInstructions} />
+          <RecipeIngredientsForm ingredients={ingredients} showAmountAndUnit onChange={setIngredients} />
+
+          <Button onClick={handleUse} className="w-full">
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Use This Recipe
+          </Button>
         </div>
       )}
     </div>
