@@ -579,7 +579,8 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
         normalizedTargetMetadata
       )
 
-      let chunkHits = 0
+      let chunkPriceHits = 0
+      let chunkIngredientHits = 0
       for (let idx = 0; idx < chunk.length; idx += 1) {
         const ingredientName = chunk[idx]
 
@@ -621,6 +622,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
           .filter(item => item._price !== null && item._price >= 0)
 
         if (validResults.length === 0) continue
+        chunkIngredientHits += 1
 
         for (const result of validResults) {
           pendingResults.push({
@@ -636,10 +638,12 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
           })
           totalScrapedCount += 1
         }
-        chunkHits += validResults.length
+        chunkPriceHits += validResults.length
       }
 
-      console.log(`   ✅ Found ${chunkHits}/${chunk.length} prices in chunk`)
+      console.log(
+        `   ✅ Found ${chunkPriceHits} prices across ${chunkIngredientHits}/${chunk.length} ingredients in chunk`
+      )
       await flushPendingResults(false, `threshold reached at ${storeEnum} (${zipCode})`)
 
       if (skippedForErrors) {
