@@ -250,7 +250,9 @@ export function RecipeManualEntryForm({
         standardizedName: ing.standardizedName,
       }
 
-      if (!hideAmountAndUnit) {
+      // In paste mode the LLM already parsed quantity/unit separately — always include them.
+      // hideAmountAndUnit only suppresses these fields for the manual entry flow.
+      if (!hideAmountAndUnit || ingredientMode === "paste") {
         ingredientPayload.quantity = ing.amount ? parseFloat(ing.amount) : undefined
         ingredientPayload.unit = ing.unit || undefined
       }

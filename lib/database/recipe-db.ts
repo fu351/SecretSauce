@@ -1,5 +1,4 @@
 
-import { options } from "happy-dom/lib/PropertySymbol"
 import { BaseTable } from "./base-db"
 import { MealTypeTag, Recipe, parseInstructionsFromDB } from "@/lib/types"
 import type { Database } from "./supabase"
