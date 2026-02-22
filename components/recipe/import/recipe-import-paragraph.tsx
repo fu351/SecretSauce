@@ -1,19 +1,27 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Loader2, CheckCircle2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks"
-import type { ImportedRecipe, Instruction } from "@/lib/types"
+import type { Instruction } from "@/lib/types"
 import type { IngredientFormInput } from "@/lib/types/forms"
 import type { RecipeIngredient } from "@/lib/types/recipe/ingredient"
 import { RecipeIngredientsForm } from "@/components/recipe/forms/recipe-ingredients-form"
 import { RecipeInstructionsForm } from "@/components/recipe/forms/recipe-instructions-form"
 
+export interface PasteData {
+  ingredients: IngredientFormInput[]
+  instructions: Instruction[]
+  prep_time?: number
+  cook_time?: number
+  total_time?: number
+}
+
 interface RecipeImportParagraphProps {
-  onImportSuccess: (recipe: ImportedRecipe) => void
+  onDataChange: (data: PasteData) => void
 }
 
 interface ParagraphParseResult {
@@ -36,7 +44,7 @@ function toFormIngredient(ing: RecipeIngredient): IngredientFormInput {
   }
 }
 
-export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraphProps) {
+export function RecipeImportParagraph({ onDataChange }: RecipeImportParagraphProps) {
   const [text, setText] = useState("")
   const [ingredients, setIngredients] = useState<IngredientFormInput[]>([])
   const [instructions, setInstructions] = useState<Instruction[]>([])
@@ -50,6 +58,17 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
 
   const hasResults = ingredients.length > 0 || instructions.length > 0
   const parseDisabled = loading || !text.trim() || cooldown
+
+  // Notify parent whenever the editable state changes
+  useEffect(() => {
+    onDataChange({
+      ingredients,
+      instructions,
+      prep_time: times?.prep_time,
+      cook_time: times?.cook_time,
+      total_time: times?.total_time,
+    })
+  }, [ingredients, instructions, times, onDataChange])
 
   const applyResult = (data: ParagraphParseResult) => {
     setIngredients(data.ingredients.map(toFormIngredient))
@@ -106,21 +125,6 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
     }
   }
 
-  const handleUse = () => {
-    onImportSuccess({
-      source_type: "manual",
-      instructions,
-      ingredients: ingredients.map((ing) => ({
-        name: ing.name,
-        quantity: ing.amount ? parseFloat(ing.amount) : undefined,
-        unit: ing.unit || undefined,
-      })),
-      prep_time: times?.prep_time,
-      cook_time: times?.cook_time,
-      total_time: times?.total_time,
-    })
-  }
-
   return (
     <div className="space-y-4">
       <div>
@@ -170,11 +174,6 @@ export function RecipeImportParagraph({ onImportSuccess }: RecipeImportParagraph
 
           <RecipeInstructionsForm instructions={instructions} onChange={setInstructions} />
           <RecipeIngredientsForm ingredients={ingredients} showAmountAndUnit onChange={setIngredients} />
-
-          <Button onClick={handleUse} className="w-full">
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            Use This Recipe
-          </Button>
         </div>
       )}
     </div>

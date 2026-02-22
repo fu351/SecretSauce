@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
@@ -27,6 +27,7 @@ import { RecipeInstructionsForm } from "./recipe-instructions-form"
 import { RecipeNutritionForm } from "./recipe-nutrition-form"
 import type { IngredientFormInput, NutritionFormInput, RecipeSubmissionData, Instruction, ImportedRecipe } from "@/lib/types"
 import { getRecipeImageUrl } from "@/lib/image-helper"
+import type { PasteData } from "@/components/recipe/import/recipe-import-paragraph"
 
 interface RecipeManualEntryFormProps {
   onSubmit: (data: RecipeSubmissionData) => Promise<void>
@@ -37,7 +38,7 @@ interface RecipeManualEntryFormProps {
   recipeId?: string
   onDelete?: () => Promise<void>
   deleting?: boolean
-  pasteSlot?: React.ReactNode
+  pasteSlot?: (onDataChange: (data: PasteData) => void) => React.ReactNode
 }
 
 export function RecipeManualEntryForm({
@@ -53,6 +54,25 @@ export function RecipeManualEntryForm({
   const router = useRouter()
   const { toast } = useToast()
   const { hasAccess: hasPremium } = useHasAccess("premium")
+
+  // Holds the latest paste tab state without triggering re-renders
+  const pasteDataRef = useRef<PasteData | null>(null)
+  const handlePasteDataChange = useCallback((data: PasteData) => {
+    pasteDataRef.current = data
+  }, [])
+
+  const handleIngredientModeChange = (v: string) => {
+    const newMode = v as "manual" | "paste"
+    // Sync paste tab edits into the manual form when switching back
+    if (newMode === "manual" && pasteDataRef.current) {
+      const { ingredients: pi, instructions: inst, prep_time, cook_time } = pasteDataRef.current
+      if (pi.length > 0) setIngredients(pi)
+      if (inst.length > 0) setInstructions(inst)
+      if (prep_time) setPrep_time(prep_time.toString())
+      if (cook_time) setCook_time(cook_time.toString())
+    }
+    setIngredientMode(newMode)
+  }
 
   // Basic info state
   const [title, setTitle] = useState(initialData?.title || "")
@@ -173,6 +193,16 @@ export function RecipeManualEntryForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // If submitting from the paste tab, pull directly from the paste ref
+    const activeIngredients =
+      ingredientMode === "paste" && pasteDataRef.current?.ingredients.length
+        ? pasteDataRef.current.ingredients
+        : ingredients
+    const activeInstructions =
+      ingredientMode === "paste" && pasteDataRef.current?.instructions.length
+        ? pasteDataRef.current.instructions
+        : instructions
+
     // Validation
     if (!title.trim()) {
       toast({
@@ -183,7 +213,7 @@ export function RecipeManualEntryForm({
       return
     }
 
-    const validIngredients = ingredients.filter((ing) => ing.name.trim())
+    const validIngredients = activeIngredients.filter((ing) => ing.name.trim())
     if (validIngredients.length === 0) {
       toast({
         title: "Missing information",
@@ -193,7 +223,7 @@ export function RecipeManualEntryForm({
       return
     }
 
-    const validInstructions = instructions.filter((inst) => inst.description.trim())
+    const validInstructions = activeInstructions.filter((inst) => inst.description.trim())
     if (validInstructions.length === 0) {
       toast({
         title: "Missing information",
@@ -299,7 +329,7 @@ export function RecipeManualEntryForm({
 
         {/* Ingredients + Instructions — with optional paste tab */}
         {pasteSlot ? (
-          <Tabs value={ingredientMode} onValueChange={(v) => setIngredientMode(v as "manual" | "paste")}>
+          <Tabs value={ingredientMode} onValueChange={handleIngredientModeChange}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="manual" className="flex items-center gap-2">
                 <PenLine className="h-4 w-4" />
@@ -322,7 +352,7 @@ export function RecipeManualEntryForm({
             </TabsContent>
 
             <TabsContent value="paste" className="mt-4">
-              {hasPremium ? pasteSlot : (
+              {hasPremium ? pasteSlot?.(handlePasteDataChange) : (
                 <div className="flex flex-col items-center gap-4 rounded-xl border border-border bg-card p-10 text-center">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
                     <Lock className="h-5 w-5 text-primary" />

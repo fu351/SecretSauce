@@ -151,7 +151,7 @@ export default function UploadRecipePage() {
               loading={loading}
               hideAmountAndUnit
               initialData={formData as any}
-              pasteSlot={<RecipeImportParagraph onImportSuccess={populateFormFromRecipe} />}
+              pasteSlot={(onDataChange) => <RecipeImportParagraph onDataChange={onDataChange} />}
             />
           </TabsContent>
         </Tabs>
