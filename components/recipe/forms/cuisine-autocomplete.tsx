@@ -49,6 +49,11 @@ export function CuisineAutocomplete({ value, onChange, placeholder }: CuisineAut
   const handleBlur = () => {
     setTimeout(() => {
       setIsOpen(false)
+      // If the user typed something not in the list, clear it so we never
+      // send an invalid value to the cuisine_type_enum column.
+      if (value && !(CUISINE_TYPES as readonly string[]).includes(value)) {
+        onChange("")
+      }
     }, 100)
   }
 
