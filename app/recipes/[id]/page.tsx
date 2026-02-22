@@ -81,6 +81,13 @@ export default function RecipeDetailPage() {
     : "bg-orange-500 hover:bg-orange-600"
   const isRecipeOwner = Boolean(user && recipe && user.id === recipe.author_id)
 
+  // True only when every ingredient has been matched to a standardized entry.
+  // Unmatched ingredients can't be priced or added to a shopping list.
+  const allIngredientsLinked =
+    recipe !== null &&
+    (recipe.ingredients?.length ?? 0) > 0 &&
+    recipe.ingredients.every((ing: any) => ing.standardizedIngredientId ?? ing.standardized_ingredient_id)
+
   useEffect(() => {
     if (params.id) {
       loadRecipe()
@@ -418,10 +425,20 @@ export default function RecipeDetailPage() {
                   Ingredients
                 </h3>
                 {user && (
-                  <Button size="sm" onClick={handleAddToShoppingList} className={`${primaryButtonClass} w-full sm:w-auto`}>
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Add to cart
-                  </Button>
+                  <span
+                    title={!allIngredientsLinked ? "Some ingredients haven't been matched yet — check back shortly" : undefined}
+                    className="w-full sm:w-auto"
+                  >
+                    <Button
+                      size="sm"
+                      onClick={handleAddToShoppingList}
+                      disabled={!allIngredientsLinked}
+                      className={`${primaryButtonClass} w-full sm:w-auto`}
+                    >
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Add to cart
+                    </Button>
+                  </span>
                 )}
               </div>
 
