@@ -34,7 +34,7 @@ on:
         type: string
         default: "any"
       queue_retry_failed:
-        description: "Retry failed rows by re-queuing them to pending between batches"
+        description: "Retry failed/probation rows by re-queuing them to pending between batches"
         required: false
         type: string
         default: "false"
@@ -113,7 +113,7 @@ on:
           - any
         default: any
       queue_retry_failed:
-        description: "Retry failed rows between batches"
+        description: "Retry failed/probation rows between batches"
         required: false
         type: choice
         options:
@@ -225,7 +225,7 @@ jobs:
 
           echo "Status breakdown by source:"
           for source in scraper recipe; do
-            for status in pending processing success failed; do
+            for status in pending processing resolved failed probation; do
               count=$(get_count "source=eq.${source}&status=eq.${status}")
               [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
             done
@@ -279,7 +279,7 @@ jobs:
               return 0
             fi
 
-            local query="status=eq.failed"
+            local query="or=(status.eq.failed,status.eq.probation)"
             if [ "${QUEUE_SOURCE}" != "any" ]; then
               query="${query}&source=eq.${QUEUE_SOURCE}"
             fi
@@ -304,7 +304,7 @@ jobs:
 
             local retried
             retried=$(echo "$response" | jq 'length')
-            echo "Requeued failed rows for retry: ${retried} (source=${QUEUE_SOURCE}, review_mode=${QUEUE_REVIEW_MODE})"
+            echo "Requeued failed/probation rows for retry: ${retried} (source=${QUEUE_SOURCE}, review_mode=${QUEUE_REVIEW_MODE})"
           }
 
           for batch in $(seq 1 "$max_batches"); do
@@ -364,7 +364,7 @@ jobs:
 
           echo "Status breakdown by source:"
           for source in scraper recipe; do
-            for status in pending processing success failed; do
+            for status in pending processing resolved failed probation; do
               count=$(get_count "source=eq.${source}&status=eq.${status}")
               [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
             done

@@ -28,10 +28,28 @@ interface StandardizerIngredientInput {
   unit?: string
 }
 
+function normalizeCanonicalOutput(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .replace(/ß/g, "ss")
+    .replace(/[Ææ]/g, "ae")
+    .replace(/[Œœ]/g, "oe")
+    .replace(/[Øø]/g, "o")
+    .replace(/[Łł]/g, "l")
+    .replace(/[Đđ]/g, "d")
+    .replace(/[Þþ]/g, "th")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 export interface IngredientStandardizationResult {
   id: string
   originalName: string
   canonicalName: string
+  isFoodItem: boolean
   category?: string | null
   confidence: number
 }
@@ -182,7 +200,8 @@ function fallbackResults(inputs: StandardizerIngredientInput[]): IngredientStand
   return inputs.map((item, index) => ({
     id: item.id || String(index),
     originalName: item.name,
-    canonicalName: item.name.toLowerCase(),
+    canonicalName: normalizeCanonicalOutput(item.name) || item.name.toLowerCase(),
+    isFoodItem: true,
     category: null,
     confidence: 0.2,
   }))
@@ -299,14 +318,24 @@ export async function standardizeIngredientsWithAI(
           : useEntry && typeof entry?.canonical === "string"
             ? entry.canonical
             : undefined
-      const canonicalCandidate = canonicalSource?.trim().toLowerCase()
+      const canonicalCandidate = normalizeCanonicalOutput(canonicalSource || "")
       const canonicalName =
-        canonicalCandidate && canonicalCandidate.length > 0 ? canonicalCandidate : input.name.toLowerCase()
+        canonicalCandidate && canonicalCandidate.length > 0
+          ? canonicalCandidate
+          : normalizeCanonicalOutput(input.name) || input.name.toLowerCase()
 
       const confidence = useEntry
         ? parseConfidence(entry?.confidence ?? entry?.confidenceScore, 0.5)
         : 0.2
-      const category = useEntry && typeof entry?.category === "string" ? entry.category : null
+      const isFoodItem = useEntry
+        ? typeof entry?.isFoodItem === "boolean"
+          ? entry.isFoodItem
+          : typeof entry?.is_food_item === "boolean"
+            ? entry.is_food_item
+            : true
+        : true
+      const category =
+        isFoodItem && useEntry && typeof entry?.category === "string" ? entry.category : null
       const originalName =
         typeof entry?.originalName === "string" ? entry.originalName : input.name
 
@@ -316,6 +345,7 @@ export async function standardizeIngredientsWithAI(
         id: String(input.id ?? index),
         originalName,
         canonicalName,
+        isFoodItem,
         category,
         confidence,
       }

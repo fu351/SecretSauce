@@ -198,7 +198,7 @@ jobs:
 
           echo "Status breakdown by source:"
           for source in scraper recipe; do
-            for status in pending processing success failed; do
+            for status in pending processing resolved failed probation; do
               count=$(get_count "source=eq.${source}&status=eq.${status}")
               [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
             done
@@ -279,6 +279,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INCLUDE_QUEUE_DRIFT_STRESS_RECIPES: "false"
         run: |
           set -euo pipefail
           ./scripts/node_modules/.bin/tsx scripts/seed-mock-recipes.ts

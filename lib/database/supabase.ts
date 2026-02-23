@@ -415,6 +415,7 @@ export type Database = {
           id: string
           canonical_name: string
           category: string | null
+          is_food_item: boolean
           created_at: string | null
           updated_at: string | null
           search_vector: unknown | null
@@ -423,6 +424,7 @@ export type Database = {
           id?: string
           canonical_name: string
           category?: string | null
+          is_food_item?: boolean
           created_at?: string | null
           updated_at?: string | null
         }
@@ -430,6 +432,7 @@ export type Database = {
           id?: string
           canonical_name?: string
           category?: string | null
+          is_food_item?: boolean
           created_at?: string | null
           updated_at?: string | null
         }
@@ -621,7 +624,8 @@ export type Database = {
        *           'pending'::text,
        *           'processing'::text,
        *           'resolved'::text,
-       *           'failed'::text
+       *           'failed'::text,
+       *           'probation'::text
        *         ]
        *       )
        *     )
@@ -640,7 +644,7 @@ export type Database = {
           cleaned_name: string
           best_fuzzy_match: string | null
           fuzzy_score: number | null
-          status: "pending" | "processing" | "resolved" | "failed"
+          status: "pending" | "processing" | "resolved" | "failed" | "probation"
           source: "scraper" | "recipe"
           recipe_ingredient_id: string | null
           needs_ingredient_review: boolean
@@ -651,6 +655,7 @@ export type Database = {
           resolved_quantity: number | null
           unit_confidence: number | null
           quantity_confidence: number | null
+          is_food_item: boolean | null
           resolved_by: string | null
           processing_started_at: string | null
           processing_lease_expires_at: string | null
@@ -666,7 +671,7 @@ export type Database = {
           cleaned_name: string
           best_fuzzy_match?: string | null
           fuzzy_score?: number | null
-          status?: "pending" | "processing" | "resolved" | "failed"
+          status?: "pending" | "processing" | "resolved" | "failed" | "probation"
           source?: "scraper" | "recipe"
           recipe_ingredient_id?: string | null
           needs_ingredient_review?: boolean
@@ -677,6 +682,7 @@ export type Database = {
           resolved_quantity?: number | null
           unit_confidence?: number | null
           quantity_confidence?: number | null
+          is_food_item?: boolean | null
           resolved_by?: string | null
           processing_started_at?: string | null
           processing_lease_expires_at?: string | null
@@ -692,7 +698,7 @@ export type Database = {
           cleaned_name?: string
           best_fuzzy_match?: string | null
           fuzzy_score?: number | null
-          status?: "pending" | "processing" | "resolved" | "failed"
+          status?: "pending" | "processing" | "resolved" | "failed" | "probation"
           source?: "scraper" | "recipe"
           recipe_ingredient_id?: string | null
           needs_ingredient_review?: boolean
@@ -703,6 +709,7 @@ export type Database = {
           resolved_quantity?: number | null
           unit_confidence?: number | null
           quantity_confidence?: number | null
+          is_food_item?: boolean | null
           resolved_by?: string | null
           processing_started_at?: string | null
           processing_lease_expires_at?: string | null

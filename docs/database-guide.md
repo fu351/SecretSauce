@@ -5,7 +5,7 @@
 - `Doc Kind`: `reference`
 - `Canonicality`: `reference`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-14`
+- `Last Reviewed`: `2026-02-23`
 - `Primary Surfaces`: `lib/database/`, `supabase/migrations/`, `migrations/`
 - `Update Trigger`: Schema, triggers, RPCs, enums, or key table ownership changes.
 
@@ -460,6 +460,17 @@ LLM Queue Processor (external)
 | `fn_backfill_resolved_confidence()` | Backfills resolved unit/quantity confidence values to `product_mappings`. |
 | `fn_ingredient_ecosystem(text)` | Backup/restore/reset all ingredient-related tables. |
 | `check_pricing_health()` | Diagnostic: unit conversion coverage, data quality, shopping list coverage. |
+
+### Matching Diagnostics
+
+| Function | Purpose | Key Parameters |
+|----------|---------|----------------|
+| `fn_matching_health_summary()` | Full system dashboard in one call. | none |
+| `fn_matching_confidence_distribution(store, category)` | Histogram of ingredient + unit confidence per `0.1` band. | optional `store`, optional `category` filter |
+| `fn_matching_store_breakdown()` | Per-store quality metrics: confidence, low-confidence count, queue backlog, pricing coverage. | none |
+| `fn_matching_weak_mappings(limit, store, min_conf, max_conf)` | Ranked list of worst matches for manual review or re-queuing. | defaults: top `50`, confidence `< 0.4`; optional `store`, `min_conf`, `max_conf` |
+| `fn_matching_ingredient_coverage()` | Per canonical ingredient: stores with price, confidence spread, missing stores. | none |
+| `fn_matching_queue_age_analysis()` | Pending queue items bucketed by age and review type. | none |
 
 ### Location
 

@@ -40,12 +40,18 @@ export const NORMALIZATION_RULES_SECTION = `
    f) **Lowercase Everything:**
       - All canonical names must be lowercase
 
-   g) **Strip Packaging / Retail Noise:**
+   g) **Normalize Accented Characters:**
+      - Convert accented Latin letters to plain ASCII where applicable
+      - "jalapeño" -> "jalapeno"
+      - "piñon" -> "pinon"
+      - "crème fraîche" -> "creme fraiche"
+
+   h) **Strip Packaging / Retail Noise:**
       - Remove counts and packaging units: "12 slices", "6 ct", "24 pack", "750ml", "1 gal", "5.5oz"
       - Remove merchandising words: deli, family-size, value pack, party size, microwavable, ready-to-eat
       - Remove grade/marketing labels: grade aa, cage free, premium, classic, original, homestyle
 
-   h) **No Product-Title Canonicals:**
+   i) **No Product-Title Canonicals:**
       - canonicalName should be concise and ingredient-like, usually 1-4 words
       - Do NOT include vintage/year/model-like tokens ("2024", "vintage", "limited edition")
       - If the cleaned phrase is still a full product title, reduce to base ingredient/product archetype
@@ -55,7 +61,7 @@ export const NORMALIZATION_RULES_SECTION = `
 
 export const CATEGORY_ASSIGNMENT_SECTION = `
 **5. CATEGORY ASSIGNMENT** (use EXACT enum values):
-   - **produce**: fruits, vegetables, fresh herbs
+   - **produce**: fruits, vegetables, fresh herbs, fresh chili peppers (jalapeno, serrano, habanero)
    - **dairy**: milk, cheese, yogurt, butter, eggs, cream
    - **meat_seafood**: all meats, poultry, fish, seafood
    - **pantry_staples**: sugar, salt, oil, rice, pasta, beans, canned goods, grains
@@ -95,6 +101,11 @@ EXAMPLES OF PROPER NORMALIZATION:
   -> canonicalName: "basil"
   -> category: "produce"
   -> confidence: 0.95
+
+[OK] "jalapeño pepper"
+  -> canonicalName: "jalapeno"
+  -> category: "produce"
+  -> confidence: 0.94
 
 [OK] "Kraft extra sharp cheddar cheese" 
   -> canonicalName: "cheddar cheese"
@@ -213,6 +224,7 @@ Return ONLY valid JSON (no markdown, no code blocks, no preamble) as an array:
     "id": "input-id",
     "originalName": "original input text",
     "canonicalName": "cleaned canonical name",
+    "isFoodItem": true,
     "category": "category_enum_value or null",
     "confidence": 0.92
   }
@@ -224,6 +236,7 @@ Return ONLY valid JSON (no markdown, no code blocks, no preamble) as an array:
     "id": "123-1",
     "originalName": "salt and pepper",
     "canonicalName": "salt",
+    "isFoodItem": true,
     "category": "pantry_staples",
     "confidence": 0.95
   },
@@ -231,17 +244,19 @@ Return ONLY valid JSON (no markdown, no code blocks, no preamble) as an array:
     "id": "123-2",
     "originalName": "salt and pepper",
     "canonicalName": "pepper",
+    "isFoodItem": true,
     "category": "pantry_staples",
     "confidence": 0.95
   }
 ]
 
-**For non-food items**, still return them with category: null and confidence near 0:
+**For non-food items**, always set isFoodItem to false plus category: null and confidence near 0:
 [
   {
     "id": "456",
     "originalName": "paper towels",
     "canonicalName": "paper towel",
+    "isFoodItem": false,
     "category": null,
     "confidence": 0.0
   }

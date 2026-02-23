@@ -5,13 +5,14 @@ import { normalizeCanonicalName } from "../../scripts/utils/canonical-matching"
 import { normalizeSpaces } from "../../lib/utils/string"
 import { normalizeConfidence } from "../../lib/utils/number"
 
-export const INGREDIENT_LOCAL_CACHE_VERSION = "ingredient-standardizer-v1"
+export const INGREDIENT_LOCAL_CACHE_VERSION = "ingredient-standardizer-v2"
 export const INGREDIENT_LOCAL_CACHE_MAX_AGE_DAYS = 30
 const MIN_CACHEABLE_INGREDIENT_CONFIDENCE = 0.65
 const TRAILING_NUMERIC_TOKEN_PATTERN = /\b\d+(?:\.\d+)?$/
 
 export type IngredientLocalCachePayload = {
   canonicalName: string
+  isFoodItem: boolean
   category: string | null
   confidence: number
 }
@@ -39,6 +40,7 @@ export function toIngredientLocalCachePayload(
 
   return {
     canonicalName,
+    isFoodItem: result.isFoodItem !== false,
     category: result.category?.trim() || null,
     confidence,
   }
@@ -57,13 +59,18 @@ export function fromIngredientLocalCachePayload(
   if (confidence < MIN_CACHEABLE_INGREDIENT_CONFIDENCE) return null
 
   const categoryRaw = (payload as IngredientLocalCachePayload)?.category
+  const isFoodItemRaw = (payload as IngredientLocalCachePayload)?.isFoodItem
+  const isFoodItem = typeof isFoodItemRaw === "boolean" ? isFoodItemRaw : true
   const category =
-    typeof categoryRaw === "string" && categoryRaw.trim().length > 0 ? categoryRaw.trim().toLowerCase() : null
+    isFoodItem && typeof categoryRaw === "string" && categoryRaw.trim().length > 0
+      ? categoryRaw.trim().toLowerCase()
+      : null
 
   return {
     id,
     originalName,
     canonicalName,
+    isFoodItem,
     category,
     confidence,
   }

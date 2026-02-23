@@ -1,7 +1,7 @@
 import { BaseTable } from "./base-db"
 import type { Database } from "./supabase"
 
-export type IngredientMatchQueueStatus = "pending" | "processing" | "resolved" | "failed"
+export type IngredientMatchQueueStatus = "pending" | "processing" | "resolved" | "failed" | "probation"
 export type IngredientMatchQueueReviewMode = "ingredient" | "unit" | "any"
 export type IngredientMatchQueueSource = "scraper" | "recipe"
 export type IngredientMatchQueueRow = Database["public"]["Tables"]["ingredient_match_queue"]["Row"]
@@ -240,6 +240,7 @@ class IngredientMatchQueueTable extends BaseTable<
     resolvedQuantity?: number | null
     unitConfidence?: number | null
     quantityConfidence?: number | null
+    isFoodItem?: boolean | null
     clearIngredientReviewFlag?: boolean
     clearUnitReviewFlag?: boolean
   }): Promise<boolean> {
@@ -254,6 +255,7 @@ class IngredientMatchQueueTable extends BaseTable<
       resolvedQuantity,
       unitConfidence,
       quantityConfidence,
+      isFoodItem,
       clearIngredientReviewFlag = true,
       clearUnitReviewFlag = true,
     } = params
@@ -287,6 +289,10 @@ class IngredientMatchQueueTable extends BaseTable<
 
     if (quantityConfidence !== undefined) {
       payload.quantity_confidence = quantityConfidence
+    }
+
+    if (isFoodItem !== undefined) {
+      payload.is_food_item = isFoodItem
     }
 
     if (clearIngredientReviewFlag) {
@@ -331,6 +337,27 @@ class IngredientMatchQueueTable extends BaseTable<
     return true
   }
 
+  async markProbation(rowId: string, resolver?: string, errorMessage?: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from(this.tableName)
+      .update({
+        status: "probation",
+        resolved_by: resolver ?? null,
+        resolved_at: new Date().toISOString(),
+        processing_started_at: null,
+        processing_lease_expires_at: null,
+        last_error: errorMessage ?? null,
+      })
+      .eq("id", rowId)
+
+    if (error) {
+      this.handleError(error, "markProbation")
+      return false
+    }
+
+    return true
+  }
+
   async markIngredientResolvedPendingUnit(params: {
     rowId: string
     resolvedIngredientId: string
@@ -349,6 +376,7 @@ class IngredientMatchQueueTable extends BaseTable<
         resolved_ingredient_id: resolvedIngredientId,
         best_fuzzy_match: canonicalName,
         fuzzy_score: confidence,
+        is_food_item: true,
         needs_ingredient_review: false,
         needs_unit_review: true,
         processing_started_at: null,

@@ -13,6 +13,17 @@ const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const SUPABASE_SEED_AUTHOR_ID = process.env.SUPABASE_SEED_AUTHOR_ID
 const DRY_RUN = process.argv.includes("--dry-run")
+const INCLUDE_QUEUE_DRIFT_ARG = process.argv.includes("--include-queue-drift-stress")
+
+function readBooleanEnv(value: string | undefined): boolean {
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  return ["1", "true", "yes", "on"].includes(normalized)
+}
+
+function isQueueDriftStressRecipeTitle(title: string): boolean {
+  return /^Queue Drift Stress Test \d+$/i.test(title.trim())
+}
 
 if (!NEXT_PUBLIC_SUPABASE_URL) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL.")
@@ -35,6 +46,22 @@ async function main(): Promise<void> {
     throw new Error("Missing SUPABASE_SEED_AUTHOR_ID.")
   }
 
+  const includeQueueDriftStressRecipes =
+    INCLUDE_QUEUE_DRIFT_ARG || readBooleanEnv(process.env.INCLUDE_QUEUE_DRIFT_STRESS_RECIPES)
+  const recipesToSeed = includeQueueDriftStressRecipes
+    ? MOCK_RECIPES
+    : MOCK_RECIPES.filter((recipe) => !isQueueDriftStressRecipeTitle(recipe.title))
+
+  if (!includeQueueDriftStressRecipes) {
+    const excluded = MOCK_RECIPES.length - recipesToSeed.length
+    if (excluded > 0) {
+      console.log(
+        `[seed-mock-recipes] Skipping ${excluded} queue drift stress recipe(s). ` +
+          `Use --include-queue-drift-stress or INCLUDE_QUEUE_DRIFT_STRESS_RECIPES=true to include them.`
+      )
+    }
+  }
+
   const supabase = createClient<Database>(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       autoRefreshToken: false,
@@ -46,7 +73,7 @@ async function main(): Promise<void> {
   })
   let succeeded = 0
 
-  for (const recipe of MOCK_RECIPES) {
+  for (const recipe of recipesToSeed) {
     const payload: UpsertRecipeRpcArgs = buildMockRecipePayload(recipe, seedAuthorId)
 
     if (DRY_RUN) {
@@ -64,7 +91,9 @@ async function main(): Promise<void> {
     console.log(`[seed-mock-recipes] Upserted ${data?.title ?? recipe.title} (${data?.id})`)
   }
 
-  console.log(`\n[seed-mock-recipes] Completed ${succeeded}/${MOCK_RECIPES.length} recipes.${DRY_RUN ? " (dry run only)" : ""}`)
+  console.log(
+    `\n[seed-mock-recipes] Completed ${succeeded}/${recipesToSeed.length} recipes.${DRY_RUN ? " (dry run only)" : ""}`
+  )
 }
 
 void main().catch((error) => {

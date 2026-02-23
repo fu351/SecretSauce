@@ -3,6 +3,11 @@ name: Initiating Workflow
 on:
   workflow_call:
     inputs:
+      use_mock_recipe_generator:
+        description: "Run optional generated mock recipes in addition to hardcoded seed recipes"
+        required: false
+        type: boolean
+        default: false
       use_recipe_generator:
         description: "Generate mock recipes before queueing (false = use preseeded recipes)"
         required: false
@@ -130,6 +135,11 @@ on:
         default: "2"
   workflow_dispatch:
     inputs:
+      use_mock_recipe_generator:
+        description: "Run optional generated mock recipes in addition to hardcoded seed recipes"
+        required: false
+        type: boolean
+        default: false
       use_recipe_generator:
         description: "Generate mock recipes before queueing (unchecked = use preseeded recipes)"
         required: false
@@ -330,9 +340,24 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SEED_AUTHOR_ID: ${{ steps.resolve-author.outputs.author_id }}
+          INCLUDE_QUEUE_DRIFT_STRESS_RECIPES: "false"
         run: |
           set -euo pipefail
           ./scripts/node_modules/.bin/tsx scripts/seed-mock-recipes.ts
+
+      - name: Seed generated mock recipes (optional)
+        if: ${{ inputs.use_mock_recipe_generator }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SEED_AUTHOR_ID: ${{ steps.resolve-author.outputs.author_id }}
+        run: |
+          set -euo pipefail
+          if [ -f "scripts/seed-generated-mock-recipes.ts" ]; then
+            ./scripts/node_modules/.bin/tsx scripts/seed-generated-mock-recipes.ts
+          else
+            echo "No generated mock recipe script found at scripts/seed-generated-mock-recipes.ts; skipping optional generator."
+          fi
 
   pre-queue:
     name: Pre-Scrape Ingredient Queue
