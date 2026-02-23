@@ -51,15 +51,13 @@ export function ScrollSection({
     >
       {/* Warm amber background for highlighted sections */}
       {warmBg && (
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1a1508]/90 via-[#1a1508]/60 to-[#0B0B0B] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1a1508]/90 via-[#1a1508]/60 to-[#010101] pointer-events-none" />
       )}
 
-      <div
-        className={`relative z-10 max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 items-center gap-10 md:gap-20`}
-      >
-        {/* Text content */}
+      <div className="relative max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 items-center gap-10 md:gap-20">
+        {/* Text content — above vine (z-20) */}
         <div
-          className={`${textOrder} transition-all duration-700 ease-out ${
+          className={`relative z-20 ${textOrder} transition-all duration-700 ease-out ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
@@ -79,10 +77,10 @@ export function ScrollSection({
           )}
         </div>
 
-        {/* Accent visual */}
+        {/* Accent visual — below vine (z-[5]) */}
         {accent && (
           <div
-            className={`${accentOrder} flex justify-center transition-all duration-700 ease-out delay-150 ${
+            className={`relative z-[5] ${accentOrder} flex justify-center transition-all duration-700 ease-out delay-150 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >

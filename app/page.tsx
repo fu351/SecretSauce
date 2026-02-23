@@ -17,7 +17,7 @@ export default function HomePage() {
   // can use the header "Home" link to go to /home.
   if (!mounted || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0B0B0B]">
+      <div className="min-h-screen flex items-center justify-center bg-[#010101]">
         <div className="animate-pulse relative size-[120px]">
           <Image
             src="/logo-dark.png"
