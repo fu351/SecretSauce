@@ -329,6 +329,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SEED_AUTHOR_ID: ${{ steps.resolve-author.outputs.author_id }}
+          INCLUDE_QUEUE_DRIFT_STRESS_RECIPES: "false"
         run: |
           set -euo pipefail
           ./scripts/node_modules/.bin/tsx scripts/seed-mock-recipes.ts
