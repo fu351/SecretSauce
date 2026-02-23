@@ -3,8 +3,21 @@ export interface CanonicalCandidate {
   category: string | null
 }
 
-export function normalizeCanonicalName(value: string): string {
+function foldLatinCharacters(value: string): string {
   return value
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .replace(/ß/g, "ss")
+    .replace(/[Ææ]/g, "ae")
+    .replace(/[Œœ]/g, "oe")
+    .replace(/[Øø]/g, "o")
+    .replace(/[Łł]/g, "l")
+    .replace(/[Đđ]/g, "d")
+    .replace(/[Þþ]/g, "th")
+}
+
+export function normalizeCanonicalName(value: string): string {
+  return foldLatinCharacters(value)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")

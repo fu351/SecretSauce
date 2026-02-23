@@ -40,7 +40,20 @@ class StandardizedIngredientsTable extends BaseTable<
   }
 
   private normalizeCanonicalName(value: string): string {
-    return value.trim().toLowerCase().replace(/\s+/g, " ")
+    return value
+      .normalize("NFKD")
+      .replace(/\p{M}+/gu, "")
+      .replace(/ß/g, "ss")
+      .replace(/[Ææ]/g, "ae")
+      .replace(/[Œœ]/g, "oe")
+      .replace(/[Øø]/g, "o")
+      .replace(/[Łł]/g, "l")
+      .replace(/[Đđ]/g, "d")
+      .replace(/[Þþ]/g, "th")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
   }
 
   private normalizeCategoryValue(value?: string | null): string | null {
