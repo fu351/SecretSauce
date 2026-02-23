@@ -198,7 +198,7 @@ jobs:
 
           echo "Status breakdown by source:"
           for source in scraper recipe; do
-            for status in pending processing success failed; do
+            for status in pending processing resolved failed probation; do
               count=$(get_count "source=eq.${source}&status=eq.${status}")
               [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
             done

@@ -29,13 +29,13 @@ The `claim_ingredient_match_queue` RPC (defined in [migration 0011](../supabase/
 
 ### Workflow Retry Logic
 
-The workflow's `retry_failed()` function manually resets failed rows to pending:
+The workflow's `retry_failed()` function manually resets failed/probation rows to pending:
 - Explicitly clears lease metadata (`processing_lease_expires_at = null`)
 - Clears resolver tracking (`resolved_by = null`, `resolved_at = null`)
 - Sets informative error message for audit trail: `"Retry requested by nightly workflow"`
 
 This is safe because:
-- Failed rows have already completed processing (status='failed', no active lease)
+- Failed/probation rows have already completed processing (no active lease)
 - The manual reset is intentional (user requested retry via `QUEUE_RETRY_FAILED=true`)
 - Next claim cycle will pick them up via normal pending query
 
@@ -76,7 +76,7 @@ The queue resolver now applies multiple safety layers before writing canonical i
 5. New-canonical creation gate:
    - If canonical does not already exist, long/noisy/low-confidence names can be blocked from creation.
    - This prevents raw retail product titles from being inserted into `standardized_ingredients`.
-   - Blocked rows are surfaced as queue failures for follow-up or remap workflows.
+   - Blocked rows are surfaced as queue failures/probation holds for follow-up or remap workflows.
    - New-canonical probation requires repeated evidence before first insert:
      - table: `public.canonical_creation_probation_events`
      - RPC: `public.fn_track_canonical_creation_probation(...)`

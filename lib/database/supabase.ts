@@ -624,7 +624,8 @@ export type Database = {
        *           'pending'::text,
        *           'processing'::text,
        *           'resolved'::text,
-       *           'failed'::text
+       *           'failed'::text,
+       *           'probation'::text
        *         ]
        *       )
        *     )
@@ -643,7 +644,7 @@ export type Database = {
           cleaned_name: string
           best_fuzzy_match: string | null
           fuzzy_score: number | null
-          status: "pending" | "processing" | "resolved" | "failed"
+          status: "pending" | "processing" | "resolved" | "failed" | "probation"
           source: "scraper" | "recipe"
           recipe_ingredient_id: string | null
           needs_ingredient_review: boolean
@@ -670,7 +671,7 @@ export type Database = {
           cleaned_name: string
           best_fuzzy_match?: string | null
           fuzzy_score?: number | null
-          status?: "pending" | "processing" | "resolved" | "failed"
+          status?: "pending" | "processing" | "resolved" | "failed" | "probation"
           source?: "scraper" | "recipe"
           recipe_ingredient_id?: string | null
           needs_ingredient_review?: boolean
@@ -697,7 +698,7 @@ export type Database = {
           cleaned_name?: string
           best_fuzzy_match?: string | null
           fuzzy_score?: number | null
-          status?: "pending" | "processing" | "resolved" | "failed"
+          status?: "pending" | "processing" | "resolved" | "failed" | "probation"
           source?: "scraper" | "recipe"
           recipe_ingredient_id?: string | null
           needs_ingredient_review?: boolean

@@ -147,6 +147,10 @@ function inferIngredientSemanticRejectReason(errorMessage: string): string | nul
   return null
 }
 
+function isCanonicalProbationHoldError(errorMessage: string): boolean {
+  return errorMessage.toLowerCase().includes("canonical probation hold")
+}
+
 function getCanonicalFallback(row: IngredientMatchQueueRow): string {
   const fallback = row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "unknown ingredient"
   return normalizeCanonicalName(fallback) || "unknown ingredient"
@@ -1038,12 +1042,20 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       if (!row) return
 
       const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason)
-      console.error(`[QueueResolver] ${row.id} failed to resolve:`, errorMessage)
+      const isProbationHold = isCanonicalProbationHoldError(errorMessage)
+      if (isProbationHold) {
+        console.warn(`[QueueResolver] ${row.id} placed on probation:`, errorMessage)
+      } else {
+        console.error(`[QueueResolver] ${row.id} failed to resolve:`, errorMessage)
+      }
       if (row.needs_unit_review && isUnitResolutionError(errorMessage)) {
         unitMetrics.aiError += 1
       }
       if (!config.dryRun) {
-        ingredientMatchQueueDB.markFailed(row.id, config.resolverName, errorMessage).catch(console.error)
+        const persistStatusPromise = isProbationHold
+          ? ingredientMatchQueueDB.markProbation(row.id, config.resolverName, errorMessage)
+          : ingredientMatchQueueDB.markFailed(row.id, config.resolverName, errorMessage)
+        persistStatusPromise.catch(console.error)
       }
       if (config.dryRun && detailedResults) {
         detailedResults.push({

@@ -1,7 +1,7 @@
 import { BaseTable } from "./base-db"
 import type { Database } from "./supabase"
 
-export type IngredientMatchQueueStatus = "pending" | "processing" | "resolved" | "failed"
+export type IngredientMatchQueueStatus = "pending" | "processing" | "resolved" | "failed" | "probation"
 export type IngredientMatchQueueReviewMode = "ingredient" | "unit" | "any"
 export type IngredientMatchQueueSource = "scraper" | "recipe"
 export type IngredientMatchQueueRow = Database["public"]["Tables"]["ingredient_match_queue"]["Row"]
@@ -331,6 +331,27 @@ class IngredientMatchQueueTable extends BaseTable<
 
     if (error) {
       this.handleError(error, "markFailed")
+      return false
+    }
+
+    return true
+  }
+
+  async markProbation(rowId: string, resolver?: string, errorMessage?: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from(this.tableName)
+      .update({
+        status: "probation",
+        resolved_by: resolver ?? null,
+        resolved_at: new Date().toISOString(),
+        processing_started_at: null,
+        processing_lease_expires_at: null,
+        last_error: errorMessage ?? null,
+      })
+      .eq("id", rowId)
+
+    if (error) {
+      this.handleError(error, "markProbation")
       return false
     }
 
