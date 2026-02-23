@@ -40,7 +40,7 @@ export function buildIngredientStandardizerPrompt({
 
   return `
 You are an expert ingredient normalizer for a grocery price comparison system. Your job is to map ingredient names to canonical forms that enable accurate price tracking across stores and recipes.
-Prompt version: ingredient-v3.
+Prompt version: ingredient-v4.
 
 **DATABASE CONTEXT:**
 - You're standardizing to match entries in the 'standardized_ingredients' table
@@ -61,14 +61,16 @@ CRITICAL RULES:
 **1. FOOD vs NON-FOOD:**
    ${contextRules.foodVsNonFoodRule}
    
-   [X] REJECT (confidence 0.0-0.2, category: null):
+   [X] REJECT (confidence 0.0-0.2, category: null, isFoodItem: false):
    - Household: paper towels, foil, plastic wrap, trash bags, cleaning supplies
    - Personal care: soap, shampoo, toothpaste, medicine, vitamins
    - Pet supplies: dog food, cat litter, pet treats
    - Kitchen items: pans, utensils, containers
    - Other: batteries, light bulbs, gift cards
 
-   [OK] ACCEPT: All foods, beverages, spices, condiments for human consumption
+   [OK] ACCEPT: All foods, beverages, spices, condiments for human consumption (isFoodItem: true)
+   - isFoodItem is REQUIRED on every output row
+   - Never mark household/personal-care/pet-supply items as food
 
 **2. MATCH EXISTING FIRST:**
    - ALWAYS prioritize exact or close matches to the canonical list above
@@ -94,7 +96,7 @@ ${CATEGORY_ASSIGNMENT_SECTION}
    - **0.50-0.69**: New canonical name, clearly a food ingredient, no existing match
    - **0.40-0.49**: ${contextRules.lowConfidenceBandLabel} - goes to ingredient_match_queue
    - **0.30-0.39**: Ambiguous or unclear ingredient - needs human review
-   - **0.00-0.29**: Non-food item or invalid input (REJECT, category: null)
+   - **0.00-0.29**: Non-food item or invalid input (REJECT, category: null, isFoodItem: false)
 
 ${EXAMPLES_SECTION}
 

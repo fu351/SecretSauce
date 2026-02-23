@@ -164,7 +164,7 @@ class StandardizedIngredientsTable extends BaseTable<
       // Create new
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .insert({ canonical_name: normalizedCanonicalName, category: normalizedCategory })
+        .insert({ canonical_name: normalizedCanonicalName, category: normalizedCategory, is_food_item: true })
         .select()
         .single()
 
@@ -189,7 +189,7 @@ class StandardizedIngredientsTable extends BaseTable<
 
           const { data: retryData, error: retryError } = await this.supabase
             .from(this.tableName)
-            .insert({ canonical_name: normalizedCanonicalName, category: "other" })
+            .insert({ canonical_name: normalizedCanonicalName, category: "other", is_food_item: true })
             .select()
             .single()
 
@@ -231,7 +231,7 @@ class StandardizedIngredientsTable extends BaseTable<
       if (items.length === 0) return result
 
       // Normalize + de-duplicate canonical names to avoid avoidable conflicts.
-      const deduped = new Map<string, { canonical_name: string; category: string | null }>()
+      const deduped = new Map<string, { canonical_name: string; category: string | null; is_food_item: boolean }>()
       let invalidCategoryFallbackCount = 0
       for (const item of items) {
         const normalized = this.normalizeCanonicalName(item.canonicalName)
@@ -250,6 +250,7 @@ class StandardizedIngredientsTable extends BaseTable<
           deduped.set(normalized, {
             canonical_name: normalized,
             category: safeCategory,
+            is_food_item: true,
           })
         }
       }

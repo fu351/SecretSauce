@@ -47,6 +47,7 @@ interface ResolveBatchResult {
     rowId: string
     originalName: string
     canonicalName: string
+    isFoodItem: boolean | null
     category: string | null
     confidence: number
     resolvedUnit?: string | null
@@ -573,6 +574,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         let ingredientCategory: string | null = null
         let ingredientConfidence = normalizeConfidence(row.fuzzy_score, 0.5)
         let sourceSearchTerm = getSearchTerm(row)
+        let isFoodItem: boolean | null = null
         let rawIngredientConfidence: number | null = null
         let calibratedIngredientConfidence: number | null = null
         let confidenceTokenCount: number | null = null
@@ -590,6 +592,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             }
 
             sourceSearchTerm = getIngredientSearchTerm(row, unitByRowId.get(row.id))
+            isFoodItem = ingredientResult.isFoodItem !== false
             let normalizedCanonical = normalizeCanonicalName(ingredientResult.canonicalName)
 
             const formRetention = maybeRetainFormSpecificCanonical({
@@ -627,50 +630,65 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               throw new Error(`Invalid canonical name "${normalizedCanonical}" returned by ingredient resolver`)
             }
 
-            let resolvedIngredientCategory = ingredientResult.category?.trim() || null
-            if (!resolvedIngredientCategory) {
-              const existingCanonical = await standardizedIngredientsDB.findByCanonicalName(normalizedCanonical)
-              resolvedIngredientCategory = existingCanonical?.category ?? null
-            }
-            if (!resolvedIngredientCategory) {
-              resolvedIngredientCategory = "other"
-              console.warn(
-                `[QueueResolver] Missing ingredient category for "${normalizedCanonical}". Falling back to "other".`
-              )
-            }
-
             rawIngredientConfidence = normalizeConfidence(ingredientResult.confidence, 0.5)
-            const confidenceCalibration = confidenceCalibrator.calibrate(rawIngredientConfidence)
-            calibratedIngredientConfidence = confidenceCalibration.calibrated
-            ingredientConfidence = calibratedIngredientConfidence
+            if (isFoodItem) {
+              let resolvedIngredientCategory = ingredientResult.category?.trim() || null
+              if (!resolvedIngredientCategory) {
+                const existingCanonical = await standardizedIngredientsDB.findByCanonicalName(normalizedCanonical)
+                resolvedIngredientCategory =
+                  existingCanonical && existingCanonical.is_food_item !== false
+                    ? existingCanonical.category
+                    : null
+              }
+              if (!resolvedIngredientCategory) {
+                resolvedIngredientCategory = "other"
+                console.warn(
+                  `[QueueResolver] Missing ingredient category for "${normalizedCanonical}". Falling back to "other".`
+                )
+              }
 
-            if (Math.abs(confidenceCalibration.calibrated - rawIngredientConfidence) >= 0.08) {
-              console.log(
-                `[QueueResolver] Confidence calibrated "${normalizedCanonical}" ` +
-                  `raw=${rawIngredientConfidence.toFixed(3)} -> calibrated=${confidenceCalibration.calibrated.toFixed(3)} ` +
-                  `(bin=${confidenceCalibration.binStart.toFixed(2)}, samples=${confidenceCalibration.binSamples}, ` +
-                  `empirical=${confidenceCalibration.empiricalAcceptanceRate.toFixed(3)})`
+              const confidenceCalibration = confidenceCalibrator.calibrate(rawIngredientConfidence)
+              calibratedIngredientConfidence = confidenceCalibration.calibrated
+              ingredientConfidence = calibratedIngredientConfidence
+
+              if (Math.abs(confidenceCalibration.calibrated - rawIngredientConfidence) >= 0.08) {
+                console.log(
+                  `[QueueResolver] Confidence calibrated "${normalizedCanonical}" ` +
+                    `raw=${rawIngredientConfidence.toFixed(3)} -> calibrated=${confidenceCalibration.calibrated.toFixed(3)} ` +
+                    `(bin=${confidenceCalibration.binStart.toFixed(2)}, samples=${confidenceCalibration.binSamples}, ` +
+                    `empirical=${confidenceCalibration.empiricalAcceptanceRate.toFixed(3)})`
+                )
+              }
+
+              canonicalForWrite = await resolveCanonicalWithDoubleCheck(
+                normalizedCanonical,
+                resolvedIngredientCategory,
+                ingredientConfidence,
+                config
               )
-            }
+              if (!canonicalForWrite) {
+                throw new Error("Canonical name became empty after double-check")
+              }
 
-            canonicalForWrite = await resolveCanonicalWithDoubleCheck(
-              normalizedCanonical,
-              resolvedIngredientCategory,
-              ingredientConfidence,
-              config
-            )
-            if (!canonicalForWrite) {
-              throw new Error("Canonical name became empty after double-check")
+              ingredientCategory = resolvedIngredientCategory
+            } else {
+              ingredientCategory = null
+              calibratedIngredientConfidence = rawIngredientConfidence
+              ingredientConfidence = rawIngredientConfidence
+              canonicalForWrite = normalizedCanonical
             }
 
             confidenceTokenCount = normalizeCanonicalName(canonicalForWrite).split(" ").filter(Boolean).length
-            ingredientCategory = resolvedIngredientCategory
           }
 
           let unitResult = needsUnit ? unitByRowId.get(row.id) : undefined
           const shouldWriteUnit = config.enableUnitResolution && !config.unitDryRun
+          const skipUnitForNonFood = needsIngredient && isFoodItem === false
+          if (skipUnitForNonFood) {
+            unitResult = undefined
+          }
 
-          if (needsUnit && shouldWriteUnit) {
+          if (needsUnit && shouldWriteUnit && !skipUnitForNonFood) {
             let fallbackReason: string | null = null
 
             if (!unitResult) {
@@ -693,17 +711,41 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             }
           }
 
-          const usedPackagedUnitFallback = needsUnit && isPackagedUnitFallbackResult(row, unitResult)
+          const usedPackagedUnitFallback =
+            needsUnit && !skipUnitForNonFood && isPackagedUnitFallbackResult(row, unitResult)
           const unitConfidence = normalizeConfidence(unitResult?.confidence, 0)
           const unitLowConfidence =
             needsUnit &&
+            !skipUnitForNonFood &&
             shouldWriteUnit &&
             unitResult?.status === "success" &&
             unitConfidence < config.unitMinConfidence
 
           if (!config.dryRun) {
-            if (needsIngredient) {
+            if (needsIngredient && isFoodItem === false) {
+              const success = await ingredientMatchQueueDB.markResolved({
+                rowId: row.id,
+                canonicalName: canonicalForWrite,
+                resolvedIngredientId: null,
+                confidence: ingredientConfidence,
+                resolver: config.resolverName,
+                isFoodItem: false,
+                clearIngredientReviewFlag: true,
+                clearUnitReviewFlag: true,
+              })
+
+              if (!success) {
+                throw new Error("Failed to persist non-food queue resolution status")
+              }
+
+              console.log(`[QueueResolver] ${row.id} classified as non-food -> ${canonicalForWrite}`)
+            } else if (needsIngredient) {
               let existingCanonical = await standardizedIngredientsDB.findByCanonicalName(canonicalForWrite)
+              if (existingCanonical?.is_food_item === false) {
+                throw new Error(
+                  `Canonical "${canonicalForWrite}" is marked non-food and cannot be used for food resolution`
+                )
+              }
               if (!existingCanonical) {
                 let risk = assessNewCanonicalRisk({
                   canonicalName: canonicalForWrite,
@@ -780,6 +822,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                   resolvedIngredientId: standardized.id,
                   confidence: ingredientConfidence,
                   resolver: config.resolverName,
+                  isFoodItem: true,
                   resolvedUnit: unitResult.resolvedUnit,
                   resolvedQuantity: unitResult.resolvedQuantity,
                   unitConfidence: unitResult.confidence,
@@ -826,6 +869,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                   resolvedIngredientId: standardized.id,
                   confidence: ingredientConfidence,
                   resolver: config.resolverName,
+                  isFoodItem: true,
                   clearIngredientReviewFlag: true,
                   clearUnitReviewFlag: true,
                 })
@@ -864,7 +908,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               throw new Error("Unit resolution is disabled for a unit-review row")
             }
           } else {
-            if (needsUnit && config.enableUnitResolution && unitResult?.status === "success") {
+            if (needsUnit && !skipUnitForNonFood && config.enableUnitResolution && unitResult?.status === "success") {
               const lowConfidenceNote = unitLowConfidence ? " [LOW CONFIDENCE]" : ""
               const fallbackNote = usedPackagedUnitFallback ? " [PACKAGED FALLBACK]" : ""
               console.log(
@@ -873,13 +917,15 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               )
             }
             if (needsIngredient) {
-              console.log(`[QueueResolver] [DRY RUN] ${row.id} -> ${canonicalForWrite}`)
+              const nonFoodNote = isFoodItem === false ? " [NON-FOOD]" : ""
+              console.log(`[QueueResolver] [DRY RUN] ${row.id} -> ${canonicalForWrite}${nonFoodNote}`)
             }
           }
 
           if (
             !config.dryRun &&
             needsIngredient &&
+            isFoodItem !== false &&
             rawIngredientConfidence !== null &&
             calibratedIngredientConfidence !== null
           ) {
@@ -911,6 +957,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             rowId: row.id,
             originalName: row.cleaned_name || row.raw_product_name || "",
             canonicalName: canonicalForWrite,
+            isFoodItem,
             category: ingredientCategory,
             confidence: ingredientConfidence,
             resolvedUnit: unitResult?.status === "success" ? unitResult.resolvedUnit : null,
@@ -928,6 +975,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
           if (
             !config.dryRun &&
             needsIngredient &&
+            isFoodItem !== false &&
             rawIngredientConfidence !== null &&
             calibratedIngredientConfidence !== null
           ) {
@@ -1002,6 +1050,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
           rowId: row.id,
           originalName: row.cleaned_name || row.raw_product_name || "",
           canonicalName: "",
+          isFoodItem: null,
           category: null,
           confidence: 0,
           status: "error",

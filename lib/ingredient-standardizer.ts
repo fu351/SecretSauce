@@ -32,6 +32,7 @@ export interface IngredientStandardizationResult {
   id: string
   originalName: string
   canonicalName: string
+  isFoodItem: boolean
   category?: string | null
   confidence: number
 }
@@ -183,6 +184,7 @@ function fallbackResults(inputs: StandardizerIngredientInput[]): IngredientStand
     id: item.id || String(index),
     originalName: item.name,
     canonicalName: item.name.toLowerCase(),
+    isFoodItem: true,
     category: null,
     confidence: 0.2,
   }))
@@ -306,7 +308,15 @@ export async function standardizeIngredientsWithAI(
       const confidence = useEntry
         ? parseConfidence(entry?.confidence ?? entry?.confidenceScore, 0.5)
         : 0.2
-      const category = useEntry && typeof entry?.category === "string" ? entry.category : null
+      const isFoodItem = useEntry
+        ? typeof entry?.isFoodItem === "boolean"
+          ? entry.isFoodItem
+          : typeof entry?.is_food_item === "boolean"
+            ? entry.is_food_item
+            : true
+        : true
+      const category =
+        isFoodItem && useEntry && typeof entry?.category === "string" ? entry.category : null
       const originalName =
         typeof entry?.originalName === "string" ? entry.originalName : input.name
 
@@ -316,6 +326,7 @@ export async function standardizeIngredientsWithAI(
         id: String(input.id ?? index),
         originalName,
         canonicalName,
+        isFoodItem,
         category,
         confidence,
       }

@@ -213,6 +213,7 @@ Return ONLY valid JSON (no markdown, no code blocks, no preamble) as an array:
     "id": "input-id",
     "originalName": "original input text",
     "canonicalName": "cleaned canonical name",
+    "isFoodItem": true,
     "category": "category_enum_value or null",
     "confidence": 0.92
   }
@@ -224,6 +225,7 @@ Return ONLY valid JSON (no markdown, no code blocks, no preamble) as an array:
     "id": "123-1",
     "originalName": "salt and pepper",
     "canonicalName": "salt",
+    "isFoodItem": true,
     "category": "pantry_staples",
     "confidence": 0.95
   },
@@ -231,17 +233,19 @@ Return ONLY valid JSON (no markdown, no code blocks, no preamble) as an array:
     "id": "123-2",
     "originalName": "salt and pepper",
     "canonicalName": "pepper",
+    "isFoodItem": true,
     "category": "pantry_staples",
     "confidence": 0.95
   }
 ]
 
-**For non-food items**, still return them with category: null and confidence near 0:
+**For non-food items**, always set isFoodItem to false plus category: null and confidence near 0:
 [
   {
     "id": "456",
     "originalName": "paper towels",
     "canonicalName": "paper towel",
+    "isFoodItem": false,
     "category": null,
     "confidence": 0.0
   }

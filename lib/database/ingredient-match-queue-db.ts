@@ -240,6 +240,7 @@ class IngredientMatchQueueTable extends BaseTable<
     resolvedQuantity?: number | null
     unitConfidence?: number | null
     quantityConfidence?: number | null
+    isFoodItem?: boolean | null
     clearIngredientReviewFlag?: boolean
     clearUnitReviewFlag?: boolean
   }): Promise<boolean> {
@@ -254,6 +255,7 @@ class IngredientMatchQueueTable extends BaseTable<
       resolvedQuantity,
       unitConfidence,
       quantityConfidence,
+      isFoodItem,
       clearIngredientReviewFlag = true,
       clearUnitReviewFlag = true,
     } = params
@@ -287,6 +289,10 @@ class IngredientMatchQueueTable extends BaseTable<
 
     if (quantityConfidence !== undefined) {
       payload.quantity_confidence = quantityConfidence
+    }
+
+    if (isFoodItem !== undefined) {
+      payload.is_food_item = isFoodItem
     }
 
     if (clearIngredientReviewFlag) {
@@ -349,6 +355,7 @@ class IngredientMatchQueueTable extends BaseTable<
         resolved_ingredient_id: resolvedIngredientId,
         best_fuzzy_match: canonicalName,
         fuzzy_score: confidence,
+        is_food_item: true,
         needs_ingredient_review: false,
         needs_unit_review: true,
         processing_started_at: null,
