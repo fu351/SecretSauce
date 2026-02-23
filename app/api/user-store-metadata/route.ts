@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { auth } from "@clerk/nextjs/server"
 import { createUserSupabaseClient } from "@/lib/database/supabase-server"
 import { getUserPreferredStores } from "@/lib/store/user-preferred-stores"
 import { groceryStoresDB } from "@/lib/database/grocery-stores-db"
 import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
 import { normalizeZipCode } from "@/lib/utils/zip"
+import { profileIdFromClerkUserId } from "@/lib/auth/clerk-profile-id"
 import type { Database } from "@/lib/database/supabase"
 
 const DEFAULT_STORE_KEYS = [
@@ -25,13 +27,22 @@ export async function GET(request: NextRequest) {
     const userIdParam = searchParams.get("userId")
     const fallbackZip = normalizeZipCode(searchParams.get("zipCode")) ?? ""
 
-    const supabaseClient = createUserSupabaseClient()
-    const { data: authUser } = await supabaseClient.auth.getUser()
-    const authUserId = authUser.user?.id ?? null
-
-    if (!authUserId) {
+    const authState = await auth()
+    const clerkUserId = authState.userId ?? null
+    if (!clerkUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+
+    const supabaseClient = createUserSupabaseClient()
+    const { data: profileRow, error: profileLookupError } = await supabaseClient
+      .from("profiles")
+      .select("id")
+      .eq("clerk_user_id", clerkUserId)
+      .maybeSingle()
+    if (profileLookupError) {
+      console.warn("[user-store-metadata] Failed to resolve profile by clerk_user_id:", profileLookupError)
+    }
+    const authUserId = profileRow?.id ?? profileIdFromClerkUserId(clerkUserId)
 
     if (userIdParam && userIdParam !== authUserId) {
       return NextResponse.json({ error: "Forbidden userId" }, { status: 403 })

@@ -71,7 +71,7 @@ export async function POST() {
       baseUpdate.email_verified = emailVerified
     }
 
-    const { data: byClerk } = await supabase
+    const { data: byClerk, error: byClerkError } = await supabase
       .from("profiles")
       .select("id, email, created_at")
       .eq("clerk_user_id", clerkUserId)
@@ -88,7 +88,7 @@ export async function POST() {
       })
     }
 
-    const { data: byEmail } = await supabase
+    const { data: byEmail, error: byEmailError } = await supabase
       .from("profiles")
       .select("id, email, created_at")
       .eq("email", email)

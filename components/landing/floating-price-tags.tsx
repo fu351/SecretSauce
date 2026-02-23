@@ -5,7 +5,7 @@ export function FloatingPriceTags() {
     { text: "$6.99", top: "5%",  left: "5%",  delay: "0s",   rotate: "-5deg" },
     { text: "$8.49", top: "15%", right: "8%", delay: "0.5s", rotate: "4deg" },
     { text: "$6.99", top: "45%", left: "0%",  delay: "0.3s", rotate: "-2deg" },
-    { text: "RAMEN", top: "35%", right: "5%", delay: "0.7s", rotate: "3deg" },
+    { text: "PASTA", top: "35%", right: "5%", delay: "0.7s", rotate: "3deg" },
     { text: "$12.99", bottom: "18%", left: "8%", delay: "1s", rotate: "-4deg" },
     { text: "$12.99", bottom: "8%", right: "3%", delay: "1.3s", rotate: "6deg" },
   ]

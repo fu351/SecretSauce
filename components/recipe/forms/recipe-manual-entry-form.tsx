@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
 import {
@@ -16,7 +17,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Trash2 } from "lucide-react"
+import { Trash2, PenLine, ClipboardList, Lock } from "lucide-react"
+import Link from "next/link"
+import { useHasAccess } from "@/hooks/use-subscription"
 import { RecipeBasicInfoPanel } from "./recipe-basic-info-panel"
 import { RecipeImageUpload } from "./recipe-image-upload"
 import { RecipeIngredientsForm } from "./recipe-ingredients-form"
@@ -24,6 +27,7 @@ import { RecipeInstructionsForm } from "./recipe-instructions-form"
 import { RecipeNutritionForm } from "./recipe-nutrition-form"
 import type { IngredientFormInput, NutritionFormInput, RecipeSubmissionData, Instruction, ImportedRecipe } from "@/lib/types"
 import { getRecipeImageUrl } from "@/lib/image-helper"
+import type { PasteData } from "@/components/recipe/import/recipe-import-paragraph"
 
 interface RecipeManualEntryFormProps {
   onSubmit: (data: RecipeSubmissionData) => Promise<void>
@@ -34,6 +38,7 @@ interface RecipeManualEntryFormProps {
   recipeId?: string
   onDelete?: () => Promise<void>
   deleting?: boolean
+  pasteSlot?: (onDataChange: (data: PasteData) => void) => React.ReactNode
 }
 
 export function RecipeManualEntryForm({
@@ -44,9 +49,30 @@ export function RecipeManualEntryForm({
   hideAmountAndUnit = false,
   onDelete,
   deleting = false,
+  pasteSlot,
 }: RecipeManualEntryFormProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const { hasAccess: hasPremium } = useHasAccess("premium")
+
+  // Holds the latest paste tab state without triggering re-renders
+  const pasteDataRef = useRef<PasteData | null>(null)
+  const handlePasteDataChange = useCallback((data: PasteData) => {
+    pasteDataRef.current = data
+  }, [])
+
+  const handleIngredientModeChange = (v: string) => {
+    const newMode = v as "manual" | "paste"
+    // Sync paste tab edits into the manual form when switching back
+    if (newMode === "manual" && pasteDataRef.current) {
+      const { ingredients: pi, instructions: inst, prep_time, cook_time } = pasteDataRef.current
+      if (pi.length > 0) setIngredients(pi)
+      if (inst.length > 0) setInstructions(inst)
+      if (prep_time) setPrep_time(prep_time.toString())
+      if (cook_time) setCook_time(cook_time.toString())
+    }
+    setIngredientMode(newMode)
+  }
 
   // Basic info state
   const [title, setTitle] = useState(initialData?.title || "")
@@ -112,6 +138,9 @@ export function RecipeManualEntryForm({
       : [{ step: 1, description: "" }]
   )
 
+  // Ingredient entry mode — "manual" shows the form, "paste" shows the pasteSlot
+  const [ingredientMode, setIngredientMode] = useState<"manual" | "paste">("manual")
+
   // Nutrition state
   const [nutrition, setNutrition] = useState<NutritionFormInput>({
     calories: initialData?.nutrition?.calories?.toString() || "",
@@ -141,6 +170,10 @@ export function RecipeManualEntryForm({
         : [{ name: "", amount: "", unit: "" }],
     )
     setInstructions(initialData.instructions?.length ? initialData.instructions : [{ step: 1, description: "" }])
+    // If new data has ingredients/instructions (e.g. from a paste import), switch back to manual view
+    if (initialData.ingredients?.length || initialData.instructions?.length) {
+      setIngredientMode("manual")
+    }
     setNutrition({
       calories: initialData.nutrition?.calories?.toString() || "",
       protein: initialData.nutrition?.protein?.toString() || "",
@@ -160,6 +193,16 @@ export function RecipeManualEntryForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // If submitting from the paste tab, pull directly from the paste ref
+    const activeIngredients =
+      ingredientMode === "paste" && pasteDataRef.current?.ingredients.length
+        ? pasteDataRef.current.ingredients
+        : ingredients
+    const activeInstructions =
+      ingredientMode === "paste" && pasteDataRef.current?.instructions.length
+        ? pasteDataRef.current.instructions
+        : instructions
+
     // Validation
     if (!title.trim()) {
       toast({
@@ -170,7 +213,7 @@ export function RecipeManualEntryForm({
       return
     }
 
-    const validIngredients = ingredients.filter((ing) => ing.name.trim())
+    const validIngredients = activeIngredients.filter((ing) => ing.name.trim())
     if (validIngredients.length === 0) {
       toast({
         title: "Missing information",
@@ -180,7 +223,7 @@ export function RecipeManualEntryForm({
       return
     }
 
-    const validInstructions = instructions.filter((inst) => inst.description.trim())
+    const validInstructions = activeInstructions.filter((inst) => inst.description.trim())
     if (validInstructions.length === 0) {
       toast({
         title: "Missing information",
@@ -207,7 +250,9 @@ export function RecipeManualEntryForm({
         standardizedName: ing.standardizedName,
       }
 
-      if (!hideAmountAndUnit) {
+      // In paste mode the LLM already parsed quantity/unit separately — always include them.
+      // hideAmountAndUnit only suppresses these fields for the manual entry flow.
+      if (!hideAmountAndUnit || ingredientMode === "paste") {
         ingredientPayload.quantity = ing.amount ? parseFloat(ing.amount) : undefined
         ingredientPayload.unit = ing.unit || undefined
       }
@@ -284,15 +329,62 @@ export function RecipeManualEntryForm({
           </div>
         </div>
 
-        {/* Ingredients Section */}
-        <RecipeIngredientsForm
-          ingredients={ingredients}
-          showAmountAndUnit={!hideAmountAndUnit}
-          onChange={setIngredients}
-        />
+        {/* Ingredients + Instructions — with optional paste tab */}
+        {pasteSlot ? (
+          <Tabs value={ingredientMode} onValueChange={handleIngredientModeChange}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="manual" className="flex items-center gap-2">
+                <PenLine className="h-4 w-4" />
+                Enter Manually
+              </TabsTrigger>
+              <TabsTrigger value="paste" className="flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Paste Recipe
+                {!hasPremium && <Lock className="h-3 w-3 ml-1 opacity-60" />}
+              </TabsTrigger>
+            </TabsList>
 
-        {/* Instructions Section */}
-        <RecipeInstructionsForm instructions={instructions} onChange={setInstructions} />
+            <TabsContent value="manual" className="space-y-8 mt-4">
+              <RecipeIngredientsForm
+                ingredients={ingredients}
+                showAmountAndUnit={!hideAmountAndUnit}
+                onChange={setIngredients}
+              />
+              <RecipeInstructionsForm instructions={instructions} onChange={setInstructions} />
+            </TabsContent>
+
+            <TabsContent value="paste" className="mt-4">
+              {hasPremium ? pasteSlot?.(handlePasteDataChange) : (
+                <div className="flex flex-col items-center gap-4 rounded-xl border border-border bg-card p-10 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                    <Lock className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Premium Feature</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Upgrade to Premium to paste and auto-parse recipe text.
+                    </p>
+                  </div>
+                  <Link
+                    href="/pricing?required=premium"
+                    className="inline-flex items-center rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    Upgrade to Premium
+                  </Link>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <>
+            <RecipeIngredientsForm
+              ingredients={ingredients}
+              showAmountAndUnit={!hideAmountAndUnit}
+              onChange={setIngredients}
+            />
+            <RecipeInstructionsForm instructions={instructions} onChange={setInstructions} />
+          </>
+        )}
 
         {/* Nutrition Section */}
         <RecipeNutritionForm nutrition={nutrition} onChange={handleNutritionChange} />

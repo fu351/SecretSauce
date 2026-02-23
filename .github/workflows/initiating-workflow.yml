@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      use_recipe_generator:
+        description: "Generate mock recipes before queueing (false = use preseeded recipes)"
+        required: false
+        type: boolean
+        default: true
       seed_author_id:
         description: "Author profile UUID for mock recipe seeding (blank = auto-resolve)"
         required: false
@@ -135,6 +140,11 @@ on:
         required: false
         type: boolean
         default: false
+      use_recipe_generator:
+        description: "Generate mock recipes before queueing (unchecked = use preseeded recipes)"
+        required: false
+        type: boolean
+        default: true
       seed_author_id:
         description: "Author profile UUID for mock recipe seeding (blank = auto-resolve)"
         required: false
@@ -268,6 +278,7 @@ on:
 jobs:
   seed-mock-recipes:
     name: Seed Mock Recipes
+    if: ${{ inputs.use_recipe_generator }}
     runs-on: ubuntu-latest
     outputs:
       seed_author_id: ${{ steps.resolve-author.outputs.author_id }}
@@ -351,7 +362,7 @@ jobs:
   pre-queue:
     name: Pre-Scrape Ingredient Queue
     needs: seed-mock-recipes
-    if: ${{ always() && (needs.seed-mock-recipes.result == 'success' || needs.seed-mock-recipes.result == 'skipped') }}
+    if: ${{ always() && (needs['seed-mock-recipes'].result == 'success' || needs['seed-mock-recipes'].result == 'skipped') }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:

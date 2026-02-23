@@ -358,14 +358,19 @@ html:not(.dark) .tutorial-highlight {
 
 /* ───────── Landing Page Animations ───────── */
 
-/* Slow breathing for scroll-down indicator */
+/* Slow breathing for scroll-down indicator (keep -50% X so centering isn’t overridden) */
 @keyframes landing-scroll-breathe {
-  0%, 100% { opacity: 1; transform: translateY(0); }
-  50% { opacity: 0.35; transform: translateY(6px); }
+  0%, 100% { opacity: 1; transform: translate(-50%, 0); }
+  50% { opacity: 0.35; transform: translate(-50%, 6px); }
 }
 
 .landing-scroll-breathe {
   animation: landing-scroll-breathe 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Very faint glow for scroll-down indicator */
+.landing-scroll-glow {
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.12));
 }
 
 /* Floating price tags */
