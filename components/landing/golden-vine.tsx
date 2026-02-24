@@ -107,6 +107,8 @@ function trunkX(y: number): number {
 
 /* Estimated total path length for the trunk */
 const TRUNK_LEN = 11500
+/* Flow should stop a bit before the very end so it dies out around the bottle in the final image */
+const FLOW_STOP_FACTOR = 0.9
 
 export function GoldenVine() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -133,7 +135,9 @@ export function GoldenVine() {
     const svgEl = container.querySelector("svg")
     if (svgEl) svgEl.style.opacity = "1"
 
-    const flow = Math.max(0, p * TRUNK_LEN)
+    const rawFlow = Math.max(0, p * TRUNK_LEN)
+    const maxFlow = TRUNK_LEN * FLOW_STOP_FACTOR
+    const flow = Math.min(maxFlow, rawFlow)
     const trail = TRUNK_LEN * 0.15 // length of the bright leading edge
 
     /* ── Update flow paths via direct style ── */
@@ -174,7 +178,11 @@ export function GoldenVine() {
 
     /* ── Reveal mask: vine grows from top with scroll (narrative progression) ── */
     const revealRect = container.querySelector<SVGRectElement>("[data-reveal-rect]")
-    if (revealRect) revealRect.setAttribute("height", String(Math.ceil(p * VH)))
+    if (revealRect) {
+      const maxReveal = VH * FLOW_STOP_FACTOR
+      const targetHeight = Math.min(p * VH, maxReveal)
+      revealRect.setAttribute("height", String(Math.ceil(targetHeight)))
+    }
 
     /* ── Update branches, tendrils, nodes ── */
     /* Branches illuminate when the flow reaches their Y position */
@@ -214,7 +222,7 @@ export function GoldenVine() {
   return (
     <div
       ref={containerRef}
-      className="absolute left-0 right-0 bottom-0 z-10 pointer-events-none block"
+      className="absolute left-0 right-0 bottom-0 z-[15] pointer-events-none block"
       style={{ top: "38vh" }}
       aria-hidden="true"
     >

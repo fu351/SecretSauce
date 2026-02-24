@@ -251,28 +251,34 @@ export function LandingPage() {
             />
           </div>
 
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold tracking-tight text-[#F5F2E8] mb-2 text-balance">
-            This is the secret.
-          </h2>
+          {/* Solid backing so sauce flow doesn't run under final CTA text */}
+          <div className="relative z-20 w-full bg-[#010101] pt-2">
+            {/* Fade starts below the image so the flow can connect into the splash */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-transparent to-[#010101]" />
 
-          <p className="text-[#CFC6B0]/50 text-base md:text-lg font-light mb-10 max-w-lg mx-auto leading-relaxed">
-            Built for students who want to eat better and spend less.
-          </p>
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold tracking-tight text-[#F5F2E8] mb-2 text-balance">
+              This is the secret.
+            </h2>
 
-          <Button
-            size="lg"
-            className="px-10 py-6 text-base font-normal bg-gradient-to-b from-[#D4AF37] to-[#B8962E] text-[#0B0B0B] hover:from-[#E0BF4A] hover:to-[#C5A028] shadow-lg shadow-[#D4AF37]/20 hover:shadow-[#D4AF37]/30 transition-all duration-300 rounded-xl"
-            asChild
-          >
-            <Link href="/auth/signup">
-              Get early access
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+            <p className="text-[#CFC6B0]/50 text-base md:text-lg font-light mb-10 max-w-lg mx-auto leading-relaxed">
+              Built for students who want to eat better and spend less.
+            </p>
 
-          <p className="mt-6 text-xs font-light tracking-wide text-[#CFC6B0]/30">
-            Join Berkeley students already using Secret Sauce
-          </p>
+            <Button
+              size="lg"
+              className="px-10 py-6 text-base font-normal bg-gradient-to-b from-[#D4AF37] to-[#B8962E] text-[#0B0B0B] hover:from-[#E0BF4A] hover:to-[#C5A028] shadow-lg shadow-[#D4AF37]/20 hover:shadow-[#D4AF37]/30 transition-all duration-300 rounded-xl"
+              asChild
+            >
+              <Link href="/auth/signup">
+                Get early access
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+
+            <p className="mt-6 text-xs font-light tracking-wide text-[#CFC6B0]/30">
+              Join Berkeley students already using Secret Sauce
+            </p>
+          </div>
         </div>
       </section>
 
