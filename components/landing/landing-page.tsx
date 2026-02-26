@@ -269,7 +269,11 @@ export function LandingPage() {
               className="px-10 py-6 text-base font-normal bg-gradient-to-b from-[#D4AF37] to-[#B8962E] text-[#0B0B0B] hover:from-[#E0BF4A] hover:to-[#C5A028] shadow-lg shadow-[#D4AF37]/20 hover:shadow-[#D4AF37]/30 transition-all duration-300 rounded-xl"
               asChild
             >
-              <Link href="/auth/signup">
+              <Link
+                href="https://docs.google.com/forms/d/e/1FAIpQLSdR9fx2HnkOOYKRHj5ylGQoTogCbx-OW2JiFqdCBMVxUcwMBA/viewform?usp=header"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Get early access
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
