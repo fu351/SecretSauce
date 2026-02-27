@@ -253,8 +253,8 @@ export function LandingPage() {
 
           {/* Solid backing so sauce flow doesn't run under final CTA text */}
           <div className="relative z-20 w-full bg-[#010101] pt-2">
-            {/* Fade starts below the image so the flow can connect into the splash */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-transparent to-[#010101]" />
+            {/* Short fade in padding only so "This is the secret." has no gradient overlay */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-b from-transparent to-[#010101]" />
 
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold tracking-tight text-[#F5F2E8] mb-2 text-balance">
               This is the secret.
@@ -270,7 +270,7 @@ export function LandingPage() {
               asChild
             >
               <Link
-                href="https://docs.google.com/forms/d/e/1FAIpQLSdR9fx2HnkOOYKRHj5ylGQoTogCbx-OW2JiFqdCBMVxUcwMBA/viewform?usp=header"
+                href="https://docs.google.com/forms/d/e/1FAIpQLSdg1GDVDx8PNL_R3-w3aaVbx9IL9CUQcy4CWQcFwMmzpwq-7Q/viewform?usp=publish-editor"
                 target="_blank"
                 rel="noopener noreferrer"
               >
