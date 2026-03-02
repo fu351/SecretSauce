@@ -1,9 +1,9 @@
 const playwright = require('playwright-core');
 const chromium = require('@sparticuz/chromium');
 const path = require('path');
-const { createScraperLogger } = require('./logger');
-const { withScraperTimeout } = require('./runtime-config');
-const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('./llm-fallback');
+const { createScraperLogger } = require('../utils/logger');
+const { withScraperTimeout } = require('../utils/runtime-config');
+const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('safeway');
 

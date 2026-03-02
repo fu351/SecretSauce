@@ -1,5 +1,5 @@
 import { normalizeZipCode } from "@/lib/utils/zip"
-import { resolveRawUnitWithDailyScraperPriority } from "@/lib/utils/daily-scraper-raw-unit"
+import { resolveRawUnitWithDailyScraperPriority } from "./utils/daily-scraper-raw-unit"
 
 interface GroceryItem {
   id: string

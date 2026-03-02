@@ -1,8 +1,8 @@
-import { type Database } from "./database/supabase"
-import { standardizedIngredientsDB } from "./database/standardized-ingredients-db"
-import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "./database/ingredients-db"
-import { normalizeScraperResults, type ScraperResult } from "./scrapers/types"
-import { normalizeZipCode } from "./utils/zip"
+import { type Database } from "../lib/database/supabase"
+import { standardizedIngredientsDB } from "../lib/database/standardized-ingredients-db"
+import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "../lib/database/ingredients-db"
+import { normalizeScraperResults, type ScraperResult } from "./types"
+import { normalizeZipCode } from "../lib/utils/zip"
 import type { StoreMetadataMap } from "./utils/store-metadata"
 
 type DB = Database["public"]["Tables"]
@@ -19,7 +19,7 @@ export type IngredientCacheResult = IngredientRecentRow & {
 export type {
   StoreMetadata,
   StoreMetadataMap
-} from "@/lib/utils/store-metadata"
+} from "./utils/store-metadata"
 
 type StoreLookupOptions = {
   zipCode?: string | null
@@ -40,7 +40,7 @@ async function runStoreScraper(
   try {
     console.log("[ingredient-pipeline] Running scraper", { store: normalizedStore, canonicalName, zip });
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const scrapers = require("./scrapers");
+    const scrapers = require(".");
 
     type ScraperFunction = (query: string, zip?: string | null) => Promise<unknown>;
 
@@ -205,7 +205,7 @@ export async function getOrRefreshIngredientPricesForStores(
   // 5. Batch insert into history via RPC; triggers sync recents
   if (rpcPayloads.length > 0) {
     const count = await ingredientsHistoryDB.batchInsertPricesRpc(rpcPayloads)
-    
+
     if (count > 0) {
       // Refresh results from recents to ensure we have the latest rows
       const freshScrapedData = await ingredientsRecentDB.findByStandardizedId(

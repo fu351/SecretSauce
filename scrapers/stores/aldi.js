@@ -1,8 +1,8 @@
 const path = require('path');
-const { createScraperLogger } = require('./logger');
-const { withScraperTimeout } = require('./runtime-config');
-const { fetchJinaReader } = require('./jina-client');
-const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('./llm-fallback');
+const { createScraperLogger } = require('../utils/logger');
+const { withScraperTimeout } = require('../utils/runtime-config');
+const { fetchJinaReader } = require('../utils/jina-client');
+const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('aldi');
 

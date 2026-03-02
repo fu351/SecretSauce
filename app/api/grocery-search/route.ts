@@ -2,16 +2,16 @@ import { type NextRequest, NextResponse } from "next/server"
 import {
   getOrRefreshIngredientPricesForStores,
   type IngredientCacheResult,
-} from "@/lib/ingredient-pipeline"
+} from "@/scrapers/ingredient-pipeline"
 import { auth } from "@clerk/nextjs/server"
 import { createAnonSupabaseClient, createUserSupabaseClient } from "@/lib/database/supabase-server"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
 import type { Database } from "@/lib/database/supabase"
-import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/utils/store-metadata"
-import { getUserPreferredStores, type StoreData } from "@/lib/store/user-preferred-stores"
-import { resolveRawUnitWithDailyScraperPriority } from "@/lib/utils/daily-scraper-raw-unit"
+import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/scrapers/utils/store-metadata"
+import { getUserPreferredStores, type StoreData } from "@/scrapers/utils/user-preferred-stores"
+import { resolveRawUnitWithDailyScraperPriority } from "@/scrapers/utils/daily-scraper-raw-unit"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",
@@ -39,11 +39,10 @@ async function withScraperRuntimeContext<T>(
 ): Promise<T> {
   if (!runtimeConfig) return fn()
 
-  const { runWithScraperRuntimeConfig } = require("@/lib/scrapers/runtime-config")
+  const { runWithScraperRuntimeConfig } = require("@/scrapers/utils/runtime-config")
   return runWithScraperRuntimeConfig(runtimeConfig, fn)
 }
 
-// getUserPreferredStores and StoreData type moved to @/lib/store/user-preferred-stores
 
 
 async function scrapeDirectFallback(
@@ -67,7 +66,7 @@ async function scrapeDirectFallback(
   }>
 > {
   try {
-    const scrapers = require("@/lib/scrapers")
+    const scrapers = require("@/scrapers")
     const scraperMap: Record<string, any> = {
       walmart: scrapers.searchWalmartAPI,
       target: scrapers.getTargetProducts,

@@ -13,13 +13,13 @@ require('dotenv').config({ path: require('path').join(__dirname, '../../.env') }
 const axios = require('axios');
 
 // Import scrapers
-const { getTargetProducts } = require('./target');
-const { Krogers } = require('./kroger');
-const { Meijers, getLocations } = require('./meijer');
-const { search99Ranch } = require('./99ranch');
-const { searchWalmartWithExa, searchWalmartAPI } = require('./walmart');
-const { searchTraderJoes } = require('./traderjoes');
-const { searchAldi } = require('./aldi');
+const { getTargetProducts } = require('../stores/target');
+const { Krogers } = require('../stores/kroger');
+const { Meijers, getLocations } = require('../stores/meijer');
+const { search99Ranch } = require('../stores/99ranch');
+const { searchWalmartWithExa, searchWalmartAPI } = require('../stores/walmart');
+const { searchTraderJoes } = require('../stores/traderjoes');
+const { searchAldi } = require('../stores/aldi');
 
 // Store location testing functions - these make the raw API calls to see full response
 async function testTargetStoreLocation(zipCode) {
@@ -181,7 +181,7 @@ async function testScraperProducts(storeName, searchTerm, zipCode) {
                 break;
             case 'walmart':
                 // Try direct first, then Exa fallback
-                const { searchWalmartDirect } = require('./walmart');
+                const { searchWalmartDirect } = require('../stores/walmart');
                 if (typeof searchWalmartDirect === 'function') {
                     products = await searchWalmartDirect(searchTerm, zipCode);
                 }
