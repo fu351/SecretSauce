@@ -19,6 +19,7 @@ import {
   resolveBlockedNewCanonicalFallback,
 } from "./canonical-risk"
 import { getIngredientConfidenceCalibrator } from "./confidence-calibration"
+import { getCanonicalTokenIdfScorer } from "./canonical-token-idf"
 import { localProbationCache } from "./probation-cache"
 import {
   INGREDIENT_LOCAL_CACHE_VERSION,
@@ -560,6 +561,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
   try {
     const learnedVarietySensitivity = await getLearnedVarietySensitivity()
     const confidenceCalibrator = await getIngredientConfidenceCalibrator()
+    const tokenIdfScorer = await getCanonicalTokenIdfScorer()
     const firstPassUnitByRowId = await resolveUnitCandidates(validRows, undefined, config)
     const ingredientByRowId = await resolveIngredientCandidates(validRows, config, firstPassUnitByRowId)
     const unitByRowId = await rerunUnitCandidatesWithIngredientContext(
@@ -755,6 +757,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                   canonicalName: canonicalForWrite,
                   category: ingredientCategory,
                   confidence: ingredientConfidence,
+                  tokenIdfScorer,
                 })
 
                 if (risk.blocked) {
@@ -780,6 +783,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                       canonicalName: canonicalForWrite,
                       category: ingredientCategory,
                       confidence: ingredientConfidence,
+                      tokenIdfScorer,
                     })
                   }
                 }

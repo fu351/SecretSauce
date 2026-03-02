@@ -1,6 +1,7 @@
 import { standardizedIngredientsDB } from "../../lib/database/standardized-ingredients-db"
 import { normalizeCanonicalName } from "../../scripts/utils/canonical-matching"
 import { toCanonicalTokens } from "./canonical-double-check"
+import type { CanonicalTokenIdfScorer } from "./canonical-token-idf"
 
 export const INVALID_CANONICAL_NAMES = new Set([
   "other",
@@ -66,21 +67,26 @@ export function assessNewCanonicalRisk(params: {
   canonicalName: string
   category: string | null | undefined
   confidence: number
+  tokenIdfScorer?: CanonicalTokenIdfScorer
 }): { blocked: boolean; reason: string } {
-  const { canonicalName, category, confidence } = params
+  const { canonicalName, category, confidence, tokenIdfScorer } = params
   const normalized = normalizeCanonicalName(canonicalName)
   const tokens = toCanonicalTokens(normalized)
   const tokenCount = tokens.length
   const hasNumericToken = /\b\d+\b/.test(normalized)
   const noiseHits = tokens.filter((token) => NEW_CANONICAL_NOISE_TOKENS.has(token)).length
   const categoryUnknown = !category || category === "other"
-  const minTokenConfidence = getDynamicTokenConfidenceFloor(tokenCount)
+
+  // Use IDF-based floor when the vocabulary is ready; fall back to token-count floor.
+  const idfFloor = tokenIdfScorer?.getFloor(canonicalName) ?? -1
+  const minTokenConfidence = idfFloor >= 0 ? idfFloor : getDynamicTokenConfidenceFloor(tokenCount)
+  const floorLabel = idfFloor >= 0 ? "idf_token_floor" : "dynamic_token_confidence_floor"
 
   if (minTokenConfidence > 0 && confidence < minTokenConfidence) {
     return {
       blocked: true,
       reason:
-        `dynamic_token_confidence_floor(min_confidence=${minTokenConfidence.toFixed(2)}, ` +
+        `${floorLabel}(min_confidence=${minTokenConfidence.toFixed(2)}, ` +
         `tokens=${tokenCount})`,
     }
   }
