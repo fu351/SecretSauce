@@ -1,14 +1,10 @@
 import axios from "axios"
-import { GoogleGenAI } from "@google/genai"
-import type { Database } from "./database/supabase"
-import { buildUnitStandardizerPrompt, type UnitStandardizerPromptInput } from "./prompts/unit-standardizer/build-prompt"
+import type { Database } from "../lib/database/supabase"
+import { buildUnitStandardizerPrompt, type UnitStandardizerPromptInput } from "./prompts/unit/build-prompt"
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim()
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview"
-const GEMINI_API_VERSION = process.env.GEMINI_API_VERSION?.trim()
 
 type UnitLabel = Database["public"]["Enums"]["unit_label"]
 
@@ -302,13 +298,6 @@ export function parseUnitStandardizationPayload(
   return parseParsedPayload(inputs, parsed)
 }
 
-const geminiClient = GEMINI_API_KEY
-  ? new GoogleGenAI({
-    apiKey: GEMINI_API_KEY,
-    ...(GEMINI_API_VERSION ? { apiVersion: GEMINI_API_VERSION } : {}),
-  })
-  : null
-
 async function callOpenAI(prompt: string): Promise<string | null> {
   if (!OPENAI_API_KEY) return null
 
@@ -345,30 +334,6 @@ async function callOpenAI(prompt: string): Promise<string | null> {
   }
 }
 
-async function callGemini(prompt: string): Promise<string | null> {
-  if (!geminiClient) return null
-
-  try {
-    const response = await withTimeout(
-      geminiClient.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: prompt,
-        config: {
-          temperature: 0,
-          maxOutputTokens: 1000,
-          responseMimeType: "application/json",
-        },
-      }),
-      20000
-    )
-
-    return response.text?.trim() ?? null
-  } catch (error) {
-    console.error("[UnitStandardizer] Gemini request failed:", error)
-    return null
-  }
-}
-
 export async function standardizeUnitsWithAI(
   inputs: UnitStandardizationInput[]
 ): Promise<UnitStandardizationResult[]> {
@@ -383,30 +348,24 @@ export async function standardizeUnitsWithAI(
     knownIngredientCanonicalName: input.knownIngredientCanonicalName ?? undefined,
   }))
 
-  const hasGemini = Boolean(GEMINI_API_KEY)
-  const hasOpenAI = Boolean(OPENAI_API_KEY)
-  if (!hasGemini && !hasOpenAI) {
-    console.warn("[UnitStandardizer] No AI provider configured; using deterministic fallback parser.")
+  if (!OPENAI_API_KEY) {
+    console.warn("[UnitStandardizer] OPENAI_API_KEY not configured; using deterministic fallback parser.")
     return inputs.map(buildHeuristicFallback)
   }
-
-  const useOpenAI = hasOpenAI
-  const aiProvider: "OpenAI" | "Gemini" = useOpenAI ? "OpenAI" : "Gemini"
-  const requestFn = useOpenAI ? callOpenAI : callGemini
 
   try {
     const prompt = buildUnitStandardizerPrompt({
       inputs: normalizedInputs,
       allowedUnits: [...SUPPORTED_UNIT_LABELS],
     })
-    const content = await withTimeout(requestFn(prompt), 20000)
+    const content = await withTimeout(callOpenAI(prompt), 20000)
     if (!content) {
-      return inputs.map((input) => errorResult(input.id, `${aiProvider} returned empty content`))
+      return inputs.map((input) => errorResult(input.id, "OpenAI returned empty content"))
     }
 
     const extracted = extractJSON(content)
     if (!extracted) {
-      return inputs.map((input) => errorResult(input.id, `${aiProvider} returned no parseable JSON`))
+      return inputs.map((input) => errorResult(input.id, "OpenAI returned no parseable JSON"))
     }
 
     let parsed: unknown

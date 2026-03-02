@@ -1,11 +1,11 @@
 export const NORMALIZATION_RULES_SECTION = `
 **3. NORMALIZATION RULES:**
-   
+
    a) **Strip Preparation Methods:**
       - Remove: chopped, minced, diced, sliced, grated, shredded, crushed
       - Remove: cooked, raw, steamed, boiled, roasted, grilled, fried
       - Example: "chopped yellow onion" -> "onion"
-   
+
    b) **Strip Non-Essential Qualifiers:**
       - Size: large, small, medium, jumbo
       - Quality: fresh, organic, premium, extra, fancy, free-range
@@ -13,7 +13,7 @@ export const NORMALIZATION_RULES_SECTION = `
       - Optional: to taste, optional, divided, if needed, as needed
       - Marketing: deluxe, gourmet, artisan, homestyle, restaurant-style
       - Example: "large organic roma tomatoes" -> "tomato"
-   
+
    c) **PRESERVE Important Varieties** (these matter for shopping):
       - Meat cuts: "chicken breast", "chicken thigh", "ground beef", "pork chop", "beef stew meat"
       - Cheese types: "cheddar cheese", "mozzarella cheese", "parmesan cheese", "cream cheese"
@@ -23,20 +23,20 @@ export const NORMALIZATION_RULES_SECTION = `
       - Produce varieties: "yellow onion", "red onion", "roma tomato", "cherry tomato"
       - Rice types: "white rice", "brown rice", "jasmine rice", "basmati rice"
       - Milk types: "whole milk", "2% milk", "almond milk", "oat milk"
-   
+
    d) **Remove Brand Names:**
       - "Kraft cheddar cheese" -> "cheddar cheese"
       - "Heinz ketchup" -> "ketchup"
       - "Campbell's tomato soup" -> "tomato soup"
       - "Philadelphia cream cheese" -> "cream cheese"
       - Remove brand-like tokens and possessive brand markers (e.g. "kinder's", "mccormick", "charles shaw")
-   
+
    e) **Singular Form:**
       - "tomatoes" -> "tomato"
       - "apples" -> "apple"
       - "eggs" -> "egg"
       - Exception: Items typically plural ("green beans", "black beans", "rice noodles")
-   
+
    f) **Lowercase Everything:**
       - All canonical names must be lowercase
 
@@ -71,7 +71,7 @@ export const CATEGORY_ASSIGNMENT_SECTION = `
    - **baking**: flour (all types), baking powder, baking soda, vanilla extract, chocolate chips, yeast
    - **spices**: dried spices and seasoning blends (paprika, cumin, turmeric, curry powder, chili flakes)
    - **other**: items that don't fit above categories
-   
+
    For NON-FOOD items: category = null
 `
 
@@ -82,22 +82,22 @@ EXAMPLES OF PROPER NORMALIZATION:
 
 **Standard Ingredient Normalization:**
 
-[OK] "2 large organic yellow onions, chopped" 
+[OK] "2 large organic yellow onions, chopped"
   -> canonicalName: "onion"
   -> category: "produce"
   -> confidence: 0.92
 
-[OK] "grated parmesan cheese, divided" 
+[OK] "grated parmesan cheese, divided"
   -> canonicalName: "parmesan cheese"
   -> category: "dairy"
   -> confidence: 0.88
 
-[OK] "boneless skinless chicken breast" 
+[OK] "boneless skinless chicken breast"
   -> canonicalName: "chicken breast"
   -> category: "meat_seafood"
   -> confidence: 0.90
 
-[OK] "1 lb fresh basil leaves" 
+[OK] "1 lb fresh basil leaves"
   -> canonicalName: "basil"
   -> category: "produce"
   -> confidence: 0.95
@@ -107,22 +107,22 @@ EXAMPLES OF PROPER NORMALIZATION:
   -> category: "produce"
   -> confidence: 0.94
 
-[OK] "Kraft extra sharp cheddar cheese" 
+[OK] "Kraft extra sharp cheddar cheese"
   -> canonicalName: "cheddar cheese"
   -> category: "dairy"
   -> confidence: 0.85
 
-[OK] "all-purpose flour" 
+[OK] "all-purpose flour"
   -> canonicalName: "all-purpose flour"
   -> category: "baking"
   -> confidence: 0.98
 
-[OK] "extra virgin olive oil, divided" 
+[OK] "extra virgin olive oil, divided"
   -> canonicalName: "olive oil"
   -> category: "pantry_staples"
   -> confidence: 0.92
 
-[OK] "kosher salt to taste" 
+[OK] "kosher salt to taste"
   -> canonicalName: "salt"
   -> category: "pantry_staples"
   -> confidence: 0.98
@@ -159,17 +159,17 @@ EXAMPLES OF PROPER NORMALIZATION:
 
 **Non-Food Items (ALL contexts):**
 
-[X] "Bounty paper towels" 
+[X] "Bounty paper towels"
   -> canonicalName: "paper towel"
   -> category: null
   -> confidence: 0.0
 
-[X] "Dawn dish soap" 
+[X] "Dawn dish soap"
   -> canonicalName: "dish soap"
   -> category: null
   -> confidence: 0.0
 
-[X] "Charmin toilet paper" 
+[X] "Charmin toilet paper"
   -> canonicalName: "toilet paper"
   -> category: null
   -> confidence: 0.0

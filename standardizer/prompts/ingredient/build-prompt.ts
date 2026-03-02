@@ -1,5 +1,4 @@
-import type { IngredientStandardizerContext } from "../../utils/ingredient-standardizer-context"
-import type { IngredientStandardizerContextRules } from "../../utils/ingredient-standardizer-context"
+import type { IngredientStandardizerContext, IngredientStandardizerContextRules } from "../../ingredient-standardizer"
 import {
   CATEGORY_ASSIGNMENT_SECTION,
   EDGE_CASES_SECTION,
@@ -60,7 +59,7 @@ CRITICAL RULES:
 
 **1. FOOD vs NON-FOOD:**
    ${contextRules.foodVsNonFoodRule}
-   
+
    [X] REJECT (confidence 0.0-0.2, category: null, isFoodItem: false):
    - Household: paper towels, foil, plastic wrap, trash bags, cleaning supplies
    - Personal care: soap, shampoo, toothpaste, medicine, vitamins
