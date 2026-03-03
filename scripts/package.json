@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts",
-    "queue-worker": "tsx ../queue/worker/runner.ts"
+    "queue-worker": "tsx ../queue/worker/runner.ts",
+    "regenerate-mappings": "node regenerate-mappings.js"
   },
   "dependencies": {
     "@google/genai": "latest",
