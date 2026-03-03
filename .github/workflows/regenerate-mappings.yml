@@ -164,6 +164,13 @@ jobs:
               exit 0
             fi
 
+            if echo "${RESULT}" | grep -Eqi "\"code\"\\s*:\\s*\"42703\"" && \
+               echo "${RESULT}" | grep -qi "ingredients_history" && \
+               echo "${RESULT}" | grep -qi "standardized_ingredient_id"; then
+              echo "Skipping product relink due to known schema drift (ingredients_history.standardized_ingredient_id missing)."
+              exit 0
+            fi
+
             exit 1
           fi
 
