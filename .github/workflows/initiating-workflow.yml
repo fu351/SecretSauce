@@ -128,11 +128,6 @@ on:
         required: false
         type: string
         default: "10"
-      queue_batch_delay_seconds:
-        description: "Delay between queue batches in seconds"
-        required: false
-        type: string
-        default: "2"
   workflow_dispatch:
     inputs:
       use_recipe_generator:
@@ -264,11 +259,6 @@ on:
         required: false
         type: string
         default: "10"
-      queue_batch_delay_seconds:
-        description: "Delay between queue batches in seconds"
-        required: false
-        type: string
-        default: "2"
 
 jobs:
   seed-mock-recipes:
