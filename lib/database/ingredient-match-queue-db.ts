@@ -31,6 +31,12 @@ export interface CanonicalCreationProbationStats {
   firstSeenAt: string | null
   lastSeenAt: string | null
 }
+export interface CanonicalTokenIdfRow {
+  document_count: number
+  token: string
+  doc_freq: number
+}
+
 export interface IngredientConfidenceCalibrationBinRow {
   bin_start: number
   sample_count: number
@@ -618,6 +624,21 @@ class IngredientMatchQueueTable extends BaseTable<
       sample_count: Number(row.sample_count ?? 0),
       accepted_count: Number(row.accepted_count ?? 0),
       acceptance_rate: Number(row.acceptance_rate ?? 0),
+    }))
+  }
+
+  async fetchCanonicalTokenIdf(): Promise<CanonicalTokenIdfRow[]> {
+    const { data, error } = await (this.supabase.rpc as any)("fn_get_canonical_token_idf")
+
+    if (error) {
+      this.handleError(error, "fetchCanonicalTokenIdf")
+      return []
+    }
+
+    return ((data || []) as CanonicalTokenIdfRow[]).map((row) => ({
+      document_count: Number(row.document_count ?? 0),
+      token: String(row.token ?? ""),
+      doc_freq: Number(row.doc_freq ?? 0),
     }))
   }
 

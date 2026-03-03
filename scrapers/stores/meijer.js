@@ -1,7 +1,7 @@
 require('dotenv').config();
 const axios = require('axios');
-const { createScraperLogger } = require('./logger');
-const { withScraperTimeout } = require('./runtime-config');
+const { createScraperLogger } = require('../utils/logger');
+const { withScraperTimeout } = require('../utils/runtime-config');
 const log = createScraperLogger('meijer');
 
 const DEFAULT_MEIJER_STORE_ID = Number(process.env.DEFAULT_MEIJER_STORE_ID || 319);

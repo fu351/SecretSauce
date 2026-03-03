@@ -1,7 +1,7 @@
 const axios = require('axios');
 const he = require('he');
-const { createScraperLogger } = require('./logger');
-const { withScraperTimeout } = require('./runtime-config');
+const { createScraperLogger } = require('../utils/logger');
+const { withScraperTimeout } = require('../utils/runtime-config');
 
 // Environment variables for configuration
 const TARGET_TIMEOUT_MS = Number(process.env.TARGET_TIMEOUT_MS || 10000);

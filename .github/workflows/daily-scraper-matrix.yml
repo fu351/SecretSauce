@@ -9,15 +9,15 @@ on:
         type: string
         default: ""
       scraper_state:
-        description: "2-letter state code filter (e.g., CA, AZ)"
+        description: "2-letter state override (blank = default)"
         required: false
         type: string
-        default: "CA"
+        default: ""
       scraper_cities_csv:
-        description: "Comma-separated Title Case cities (blank = all)"
+        description: "Comma-separated Title Case city override (blank = default)"
         required: false
         type: string
-        default: "San Francisco,Oakland,Berkeley"
+        default: ""
       scraper_zip_min:
         description: "Minimum ZIP filter (blank = no lower bound)"
         required: false
@@ -38,56 +38,6 @@ on:
         required: false
         type: string
         default: "0"
-      store_concurrency:
-        description: "Concurrent store scrapes per ingredient"
-        required: false
-        type: string
-        default: "20"
-      ingredient_delay_ms:
-        description: "Delay between ingredients in milliseconds"
-        required: false
-        type: string
-        default: "1000"
-      insert_batch_size:
-        description: "RPC insert batch size"
-        required: false
-        type: string
-        default: "500"
-      min_expected_rows:
-        description: "Fail verify step if below this row count"
-        required: false
-        type: string
-        default: "100"
-      request_timeout_ms:
-        description: "Per-request scraper timeout in milliseconds"
-        required: false
-        type: string
-        default: "20000"
-      scraper_timeout_minutes:
-        description: "Hard timeout per store job (minutes)"
-        required: false
-        type: string
-        default: "90"
-      scraper_batch_size:
-        description: "Default ingredient chunk size for all stores"
-        required: false
-        type: string
-        default: "20"
-      scraper_batch_concurrency:
-        description: "Default batch worker concurrency for all stores"
-        required: false
-        type: string
-        default: "4"
-      traderjoes_batch_size:
-        description: "Trader Joe's ingredient chunk size"
-        required: false
-        type: string
-        default: "20"
-      traderjoes_batch_concurrency:
-        description: "Trader Joe's batch worker concurrency"
-        required: false
-        type: string
-        default: "2"
   workflow_dispatch:
     inputs:
       stores_csv:
@@ -96,15 +46,15 @@ on:
         type: string
         default: ""
       scraper_state:
-        description: "2-letter state code filter (e.g., CA, AZ)"
+        description: "2-letter state override (blank = default)"
         required: false
         type: string
-        default: "CA"
+        default: ""
       scraper_cities_csv:
-        description: "Comma-separated Title Case cities (blank = all)"
+        description: "Comma-separated Title Case city override (blank = default)"
         required: false
         type: string
-        default: "San Francisco,Oakland,Berkeley"
+        default: ""
       scraper_zip_min:
         description: "Minimum ZIP filter (blank = no lower bound)"
         required: false
@@ -125,56 +75,6 @@ on:
         required: false
         type: string
         default: "0"
-      store_concurrency:
-        description: "Concurrent store scrapes per ingredient"
-        required: false
-        type: string
-        default: "20"
-      ingredient_delay_ms:
-        description: "Delay between ingredients in milliseconds"
-        required: false
-        type: string
-        default: "1000"
-      insert_batch_size:
-        description: "RPC insert batch size"
-        required: false
-        type: string
-        default: "500"
-      min_expected_rows:
-        description: "Fail verify step if below this row count"
-        required: false
-        type: string
-        default: "100"
-      request_timeout_ms:
-        description: "Per-request scraper timeout in milliseconds"
-        required: false
-        type: string
-        default: "20000"
-      scraper_timeout_minutes:
-        description: "Hard timeout per store job (minutes)"
-        required: false
-        type: string
-        default: "90"
-      scraper_batch_size:
-        description: "Default ingredient chunk size for all stores"
-        required: false
-        type: string
-        default: "20"
-      scraper_batch_concurrency:
-        description: "Default batch worker concurrency for all stores"
-        required: false
-        type: string
-        default: "4"
-      traderjoes_batch_size:
-        description: "Trader Joe's ingredient chunk size"
-        required: false
-        type: string
-        default: "20"
-      traderjoes_batch_concurrency:
-        description: "Trader Joe's batch worker concurrency"
-        required: false
-        type: string
-        default: "2"
 
 concurrency:
   # Dedupes overlapping runs for the same ref+store selection while allowing queued execution.
@@ -182,6 +82,56 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  load-config:
+    name: Load Pipeline Defaults
+    runs-on: ubuntu-latest
+    outputs:
+      scraper_state: ${{ steps.defaults.outputs.scraper_state }}
+      scraper_cities_csv: ${{ steps.defaults.outputs.scraper_cities_csv }}
+      store_concurrency: ${{ steps.defaults.outputs.store_concurrency }}
+      ingredient_delay_ms: ${{ steps.defaults.outputs.ingredient_delay_ms }}
+      insert_batch_size: ${{ steps.defaults.outputs.insert_batch_size }}
+      request_timeout_ms: ${{ steps.defaults.outputs.request_timeout_ms }}
+      scraper_timeout_minutes: ${{ steps.defaults.outputs.scraper_timeout_minutes }}
+      scraper_batch_size: ${{ steps.defaults.outputs.scraper_batch_size }}
+      scraper_batch_concurrency: ${{ steps.defaults.outputs.scraper_batch_concurrency }}
+      traderjoes_batch_size: ${{ steps.defaults.outputs.traderjoes_batch_size }}
+      traderjoes_batch_concurrency: ${{ steps.defaults.outputs.traderjoes_batch_concurrency }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read pipeline defaults
+        id: defaults
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          cfg = json.loads(Path(".github/workflows/config/pipeline-defaults.json").read_text(encoding="utf-8"))
+          section = cfg["daily_scraper_matrix"]
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          keys = (
+              "scraper_state",
+              "scraper_cities_csv",
+              "store_concurrency",
+              "ingredient_delay_ms",
+              "insert_batch_size",
+              "request_timeout_ms",
+              "scraper_timeout_minutes",
+              "scraper_batch_size",
+              "scraper_batch_concurrency",
+              "traderjoes_batch_size",
+              "traderjoes_batch_concurrency",
+          )
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              for key in keys:
+                  fh.write(f"{key}={section[key]}\n")
+          PY
+
   prepare-matrix:
     name: Prepare Store Matrix
     runs-on: ubuntu-latest
@@ -253,7 +203,7 @@ jobs:
 
   scrape-stores:
     name: Scrape ${{ matrix.store }}
-    needs: prepare-matrix
+    needs: [load-config, prepare-matrix]
     if: ${{ vars.DAILY_SCRAPER_FORCE_STOP != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -291,8 +241,8 @@ jobs:
         timeout-minutes: 170
         env:
           STORE_BRAND: ${{ matrix.store }}
-          STORE_STATE: ${{ inputs.scraper_state }}
-          STORE_CITIES_CSV: ${{ inputs.scraper_cities_csv }}
+          STORE_STATE: ${{ inputs.scraper_state || needs['load-config'].outputs.scraper_state }}
+          STORE_CITIES_CSV: ${{ inputs.scraper_cities_csv || needs['load-config'].outputs.scraper_cities_csv }}
           STORE_ZIP_MIN: ${{ inputs.scraper_zip_min }}
           STORE_ZIP_MAX: ${{ inputs.scraper_zip_max }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -301,15 +251,15 @@ jobs:
           JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
           INGREDIENT_LIMIT: ${{ inputs.ingredient_limit }}
           STORE_LIMIT: ${{ inputs.store_limit }}
-          STORE_CONCURRENCY: ${{ inputs.store_concurrency }}
-          INGREDIENT_DELAY_MS: ${{ inputs.ingredient_delay_ms }}
-          INSERT_BATCH_SIZE: ${{ inputs.insert_batch_size }}
-          SCRAPER_TIMEOUT_MS: ${{ inputs.request_timeout_ms }}
-          SCRAPER_TIMEOUT_MINUTES: ${{ inputs.scraper_timeout_minutes }}
-          SCRAPER_BATCH_SIZE: ${{ inputs.scraper_batch_size }}
-          SCRAPER_BATCH_CONCURRENCY: ${{ inputs.scraper_batch_concurrency }}
-          TRADERJOES_BATCH_SIZE: ${{ inputs.traderjoes_batch_size }}
-          TRADERJOES_BATCH_CONCURRENCY: ${{ inputs.traderjoes_batch_concurrency }}
+          STORE_CONCURRENCY: ${{ needs['load-config'].outputs.store_concurrency }}
+          INGREDIENT_DELAY_MS: ${{ needs['load-config'].outputs.ingredient_delay_ms }}
+          INSERT_BATCH_SIZE: ${{ needs['load-config'].outputs.insert_batch_size }}
+          SCRAPER_TIMEOUT_MS: ${{ needs['load-config'].outputs.request_timeout_ms }}
+          SCRAPER_TIMEOUT_MINUTES: ${{ needs['load-config'].outputs.scraper_timeout_minutes }}
+          SCRAPER_BATCH_SIZE: ${{ needs['load-config'].outputs.scraper_batch_size }}
+          SCRAPER_BATCH_CONCURRENCY: ${{ needs['load-config'].outputs.scraper_batch_concurrency }}
+          TRADERJOES_BATCH_SIZE: ${{ needs['load-config'].outputs.traderjoes_batch_size }}
+          TRADERJOES_BATCH_CONCURRENCY: ${{ needs['load-config'].outputs.traderjoes_batch_concurrency }}
         run: |
           set -euo pipefail
 

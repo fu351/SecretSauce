@@ -8,11 +8,6 @@ name: Nightly Ingredient Queue
 on:
   workflow_call:
     inputs:
-      queue_batch_limit:
-        description: "Queue batch size"
-        required: false
-        type: string
-        default: "100"
       queue_context:
         description: "Standardizer context (dynamic|pantry|recipe)"
         required: false
@@ -43,43 +38,8 @@ on:
         required: false
         type: string
         default: "false"
-      queue_enable_unit_resolution:
-        description: "Enable unit resolver writes"
-        required: false
-        type: string
-        default: "true"
-      queue_unit_min_confidence:
-        description: "Minimum confidence required for unit writes"
-        required: false
-        type: string
-        default: "0.75"
-      openai_model:
-        description: "OpenAI model"
-        required: false
-        type: string
-        default: "gpt-4o-mini"
-      gemini_model:
-        description: "Gemini model"
-        required: false
-        type: string
-        default: "gemini-3-flash-preview"
-      queue_max_batches:
-        description: "Maximum batch cycles to run"
-        required: false
-        type: string
-        default: "10"
-      queue_batch_delay_seconds:
-        description: "Delay between batches in seconds"
-        required: false
-        type: string
-        default: "2"
   workflow_dispatch:
     inputs:
-      queue_batch_limit:
-        description: "Queue batch size"
-        required: false
-        type: string
-        default: "100"
       queue_context:
         description: "Standardizer context (dynamic|pantry|recipe)"
         required: false
@@ -128,43 +88,53 @@ on:
           - "false"
           - "true"
         default: "false"
-      queue_enable_unit_resolution:
-        description: "Enable unit resolver writes"
-        required: false
-        type: choice
-        options:
-          - "false"
-          - "true"
-        default: "true"
-      queue_unit_min_confidence:
-        description: "Minimum confidence required for unit writes"
-        required: false
-        type: string
-        default: "0.75"
-      openai_model:
-        description: "OpenAI model"
-        required: false
-        type: string
-        default: "gpt-4o-mini"
-      gemini_model:
-        description: "Gemini model"
-        required: false
-        type: string
-        default: "gemini-3-flash-preview"
-      queue_max_batches:
-        description: "Maximum batch cycles to run"
-        required: false
-        type: string
-        default: "10"
-      queue_batch_delay_seconds:
-        description: "Delay between batches in seconds"
-        required: false
-        type: string
-        default: "2"
 
 jobs:
+  load-config:
+    name: Load Pipeline Defaults
+    runs-on: ubuntu-latest
+    outputs:
+      queue_batch_limit: ${{ steps.defaults.outputs.queue_batch_limit }}
+      queue_enable_unit_resolution: ${{ steps.defaults.outputs.queue_enable_unit_resolution }}
+      queue_unit_min_confidence: ${{ steps.defaults.outputs.queue_unit_min_confidence }}
+      openai_model: ${{ steps.defaults.outputs.openai_model }}
+      gemini_model: ${{ steps.defaults.outputs.gemini_model }}
+      queue_max_batches: ${{ steps.defaults.outputs.queue_max_batches }}
+      queue_batch_delay_seconds: ${{ steps.defaults.outputs.queue_batch_delay_seconds }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read pipeline defaults
+        id: defaults
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          cfg = json.loads(Path(".github/workflows/config/pipeline-defaults.json").read_text(encoding="utf-8"))
+          section = cfg["nightly_ingredient_queue"]
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          keys = (
+              "queue_batch_limit",
+              "queue_enable_unit_resolution",
+              "queue_unit_min_confidence",
+              "openai_model",
+              "gemini_model",
+              "queue_max_batches",
+              "queue_batch_delay_seconds",
+          )
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              for key in keys:
+                  fh.write(f"{key}={section[key]}\n")
+          PY
+
   resolve-ingredient-match-queue:
     name: Resolve Ingredient Match Queue
+    needs: load-config
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -172,22 +142,22 @@ jobs:
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       # Queue behavior
-      QUEUE_BATCH_LIMIT: ${{ inputs.queue_batch_limit }}
+      QUEUE_BATCH_LIMIT: ${{ needs['load-config'].outputs.queue_batch_limit }}
       QUEUE_STANDARDIZER_CONTEXT: ${{ inputs.queue_context }}
       QUEUE_SOURCE: ${{ inputs.queue_source }}
       QUEUE_REVIEW_MODE: ${{ inputs.queue_review_mode }}
       QUEUE_RETRY_FAILED: ${{ inputs.queue_retry_failed }}
       DRY_RUN: ${{ inputs.queue_dry_run }}
-      QUEUE_ENABLE_UNIT_RESOLUTION: ${{ inputs.queue_enable_unit_resolution }}
+      QUEUE_ENABLE_UNIT_RESOLUTION: ${{ needs['load-config'].outputs.queue_enable_unit_resolution }}
       QUEUE_UNIT_DRY_RUN: ${{ inputs.queue_dry_run }}
-      QUEUE_UNIT_MIN_CONFIDENCE: ${{ inputs.queue_unit_min_confidence }}
+      QUEUE_UNIT_MIN_CONFIDENCE: ${{ needs['load-config'].outputs.queue_unit_min_confidence }}
       QUEUE_RESOLVER_NAME: ${{ inputs.queue_resolver_name }}
 
       # Model/runtime
-      OPENAI_MODEL: ${{ inputs.openai_model }}
-      GEMINI_MODEL: ${{ inputs.gemini_model }}
-      QUEUE_MAX_BATCHES: ${{ inputs.queue_max_batches }}
-      QUEUE_BATCH_DELAY_SECONDS: ${{ inputs.queue_batch_delay_seconds }}
+      OPENAI_MODEL: ${{ needs['load-config'].outputs.openai_model }}
+      GEMINI_MODEL: ${{ needs['load-config'].outputs.gemini_model }}
+      QUEUE_MAX_BATCHES: ${{ needs['load-config'].outputs.queue_max_batches }}
+      QUEUE_BATCH_DELAY_SECONDS: ${{ needs['load-config'].outputs.queue_batch_delay_seconds }}
 
     steps:
       - name: Checkout source

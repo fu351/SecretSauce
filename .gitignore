@@ -59,5 +59,9 @@ supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql
 !supabase/migrations/20260219110000_add_canonical_probation_and_confidence_calibration.sql
 !supabase/migrations/20260223152000_add_queue_probation_status.sql
 
+<<<<<<< HEAD
+.clerk
+=======
 # clerk configuration (can include secrets)
 /.clerk/
+>>>>>>> origin/main

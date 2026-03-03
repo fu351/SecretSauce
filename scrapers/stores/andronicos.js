@@ -1,6 +1,6 @@
 const axios = require('axios');
-const { createScraperLogger } = require('./logger');
-const { withScraperTimeout } = require('./runtime-config');
+const { createScraperLogger } = require('../utils/logger');
+const { withScraperTimeout } = require('../utils/runtime-config');
 const log = createScraperLogger('andronicos');
 
 // Utility function to handle timeouts

@@ -1,6 +1,6 @@
-import { resolveIngredientStandardizerContext } from "../lib/utils/ingredient-standardizer-context"
+import { resolveIngredientStandardizerContext } from "../standardizer"
 import type { IngredientMatchQueueReviewMode, IngredientMatchQueueSource } from "../lib/database/ingredient-match-queue-db"
-import type { IngredientStandardizerContext } from "../lib/utils/ingredient-standardizer-context"
+import type { IngredientStandardizerContext } from "../standardizer"
 
 export type QueueStandardizerContextMode = IngredientStandardizerContext | "dynamic"
 

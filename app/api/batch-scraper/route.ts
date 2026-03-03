@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import {
   getOrRefreshIngredientPricesForStores,
   type IngredientCacheResult,
-} from "@/lib/ingredient-pipeline"
+} from "@/scrapers/ingredient-pipeline"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"

@@ -29,6 +29,62 @@ import type { IngredientFormInput, NutritionFormInput, RecipeSubmissionData, Ins
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import type { PasteData } from "@/components/recipe/import/recipe-import-paragraph"
 
+const INGREDIENT_LEADING_QUANTITY_RE =
+  /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)(?:\s*-\s*(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?))?\s*(.+)$/i
+
+const INGREDIENT_LEADING_UNIT_RE =
+  /^(fl\.?\s?oz|fluid\sounces?|tablespoons?|tbsp\.?|teaspoons?|tsp\.?|cups?|ounces?|oz\.?|pounds?|lbs?\.?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|litres?|l|cloves?|cans?|bunch(?:es)?|pinch(?:es)?|slices?|each|ea|ct|units?|sticks?|packages?|pkgs?|pkg)\b\.?\s*(.+)$/i
+
+function normalizeIngredientText(value: unknown): string {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : ""
+}
+
+function stringifyQuantity(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const fixed = Number.isInteger(value) ? value.toString() : value.toFixed(3)
+    return fixed.replace(/\.?0+$/, "")
+  }
+  return normalizeIngredientText(value)
+}
+
+function parseIngredientLine(line: string): { quantity: string; unit: string; name: string } {
+  const cleanLine = normalizeIngredientText(line)
+  if (!cleanLine) return { quantity: "", unit: "", name: "" }
+
+  const quantityMatch = cleanLine.match(INGREDIENT_LEADING_QUANTITY_RE)
+  if (!quantityMatch) return { quantity: "", unit: "", name: cleanLine }
+
+  const quantity = [quantityMatch[1], quantityMatch[2]].filter(Boolean).join("-")
+  const rest = normalizeIngredientText(quantityMatch[3])
+  const unitMatch = rest.match(INGREDIENT_LEADING_UNIT_RE)
+
+  if (!unitMatch) return { quantity, unit: "", name: rest }
+
+  return {
+    quantity,
+    unit: normalizeIngredientText(unitMatch[1]),
+    name: normalizeIngredientText(unitMatch[2]),
+  }
+}
+
+function toIngredientFormParts(ing: any): { name: string; amount: string; unit: string } {
+  const displayLine = normalizeIngredientText((ing as any).display_name || ing.name)
+  const parsed = parseIngredientLine(displayLine)
+  const amount = stringifyQuantity((ing as any).amount ?? ing.quantity) || parsed.quantity
+  const rawUnit = normalizeIngredientText(ing.unit || ing.units) || parsed.unit
+  const unit = amount && /^(each|ea)$/i.test(rawUnit) ? "" : rawUnit
+  const hasExplicitParts = Boolean(amount || unit)
+  const name = hasExplicitParts
+    ? normalizeIngredientText(parsed.name || displayLine)
+    : normalizeIngredientText(displayLine || parsed.name)
+
+  return {
+    name,
+    amount,
+    unit,
+  }
+}
+
 interface RecipeManualEntryFormProps {
   onSubmit: (data: RecipeSubmissionData) => Promise<void>
   loading: boolean
@@ -100,14 +156,12 @@ export function RecipeManualEntryForm({
   const [imagePreview, setImagePreview] = useState(() => resolveInitialImageUrl(initialData))
 
   const mapInitialIngredient = useCallback((ing: any): IngredientFormInput => {
-    const amountStr = String((ing as any).amount ?? (ing.quantity?.toString() ?? "")).trim()
-    const unitStr = (ing.unit || "").trim()
-    const nameStr = (ing.name || "").trim()
+    const { name, amount, unit } = toIngredientFormParts(ing)
 
     if (hideAmountAndUnit) {
-      const line = [amountStr, unitStr, nameStr].filter(Boolean).join(" ").trim()
+      const line = [amount, unit, name].filter(Boolean).join(" ").trim()
       return {
-        name: line || nameStr,
+        name: line || name,
         amount: "",
         unit: "",
         standardizedIngredientId: ing.standardizedIngredientId,
@@ -116,9 +170,9 @@ export function RecipeManualEntryForm({
     }
 
     return {
-      name: nameStr,
-      amount: amountStr,
-      unit: unitStr,
+      name,
+      amount,
+      unit,
       standardizedIngredientId: ing.standardizedIngredientId,
       standardizedName: ing.standardizedName,
     }

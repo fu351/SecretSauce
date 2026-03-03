@@ -88,7 +88,7 @@ if (ENABLE_REQUEST_TRACE) {
     };
 }
 
-const { getTargetProducts } = require('./target');
+const { getTargetProducts } = require('../stores/target');
 
 const TEST_ZIP_CODE = process.env.TARGET_TEST_ZIP || process.argv[2] || '94704';
 

@@ -282,5 +282,3 @@ jobs:
       scraper_state: "CA"
       ingredient_limit: "0"
       store_limit: "0"
-      queue_batch_limit: "100"
-      queue_max_batches: "10"

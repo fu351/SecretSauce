@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { standardizeIngredientsWithAI } from "@/lib/ingredient-standardizer"
+import { standardizeIngredientsWithAI } from "@/standardizer"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import { pantryItemsDB } from "@/lib/database/pantry-items-db"
 

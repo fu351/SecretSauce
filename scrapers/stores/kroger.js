@@ -1,6 +1,6 @@
 const axios = require('axios');
-const { createScraperLogger } = require('./logger');
-const { withScraperTimeout } = require('./runtime-config');
+const { createScraperLogger } = require('../utils/logger');
+const { withScraperTimeout } = require('../utils/runtime-config');
 require('dotenv').config();
 const log = createScraperLogger('kroger');
 

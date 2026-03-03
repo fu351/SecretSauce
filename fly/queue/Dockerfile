@@ -9,10 +9,8 @@ RUN npm --prefix ./scripts ci
 COPY tsconfig.json ./tsconfig.json
 COPY queue ./queue
 COPY lib/database ./lib/database
-COPY lib/prompts ./lib/prompts
-COPY lib/ingredient-standardizer.ts ./lib/ingredient-standardizer.ts
-COPY lib/unit-standardizer.ts ./lib/unit-standardizer.ts
-COPY lib/utils/ingredient-standardizer-context.ts ./lib/utils/ingredient-standardizer-context.ts
+COPY standardizer ./standardizer
+COPY lib/utils ./lib/utils
 COPY scripts/utils ./scripts/utils
 
 CMD ["npm", "--prefix", "scripts", "run", "queue-worker"]

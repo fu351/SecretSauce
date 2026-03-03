@@ -1,6 +1,6 @@
 const axios = require('axios');
-const { createScraperLogger } = require('./logger');
-const { withScraperTimeout } = require('./runtime-config');
+const { createScraperLogger } = require('../utils/logger');
+const { withScraperTimeout } = require('../utils/runtime-config');
 const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 5000);
 const log = createScraperLogger('99ranch');
 
