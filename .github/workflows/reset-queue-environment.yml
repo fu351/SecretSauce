@@ -1,0 +1,264 @@
+name: Reset Queue Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      queue_source:
+        description: "Queue source scope (scraper|recipe|any)"
+        required: false
+        type: choice
+        options:
+          - any
+          - scraper
+          - recipe
+        default: any
+      clear_learning_tables:
+        description: "Also clear queue learning tables (probation + confidence outcomes)"
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: "Preview counts only (no deletes)"
+        required: false
+        type: boolean
+        default: false
+      run_regenerate_mappings:
+        description: "Run regenerate-mappings workflow after reset"
+        required: false
+        type: boolean
+        default: false
+      confirm_reset:
+        description: "Type RESET_QUEUE_ENV to allow destructive reset"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  reset:
+    name: Reset Queue Data
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      QUEUE_SOURCE: ${{ inputs.queue_source || 'any' }}
+      CLEAR_LEARNING_TABLES: ${{ inputs.clear_learning_tables && 'true' || 'false' }}
+      DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+      RUN_REGENERATE_MAPPINGS: ${{ inputs.run_regenerate_mappings && 'true' || 'false' }}
+      CONFIRM_RESET: ${{ inputs.confirm_reset }}
+    steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_SERVICE_KEY}" ]; then
+            echo "Missing Supabase credentials (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)."
+            exit 1
+          fi
+
+          if [ "${DRY_RUN}" != "true" ] && [ "${CONFIRM_RESET}" != "RESET_QUEUE_ENV" ]; then
+            echo "Type RESET_QUEUE_ENV in confirm_reset for destructive runs."
+            exit 1
+          fi
+
+          echo "Reset scope:"
+          echo "  queue_source=${QUEUE_SOURCE}"
+          echo "  clear_learning_tables=${CLEAR_LEARNING_TABLES}"
+          echo "  dry_run=${DRY_RUN}"
+          echo "  run_regenerate_mappings=${RUN_REGENERATE_MAPPINGS}"
+
+      - name: Queue Summary (Before)
+        run: |
+          set -euo pipefail
+
+          get_count() {
+            local table="$1"
+            local select_col="$2"
+            local filter="${3:-}"
+            local url="${SUPABASE_URL}/rest/v1/${table}?select=${select_col}"
+
+            if [ -n "${filter}" ]; then
+              url="${url}&${filter}"
+            fi
+
+            curl -sI \
+              "${url}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          echo "=== Queue Status (Before) ==="
+          for source in scraper recipe; do
+            for status in pending processing resolved failed probation; do
+              count=$(get_count "ingredient_match_queue" "id" "source=eq.${source}&status=eq.${status}")
+              [ "${count}" != "0" ] && echo "  ${source}/${status}: ${count}"
+            done
+          done
+
+          if [ "${QUEUE_SOURCE}" = "any" ]; then
+            queue_scope_total=$(get_count "ingredient_match_queue" "id")
+          else
+            queue_scope_total=$(get_count "ingredient_match_queue" "id" "source=eq.${QUEUE_SOURCE}")
+          fi
+          echo "Queue rows in reset scope: ${queue_scope_total}"
+
+          probation_total=$(get_count "canonical_creation_probation_events" "canonical_name")
+          confidence_total=$(get_count "ingredient_confidence_outcomes" "id")
+          echo "canonical_creation_probation_events rows: ${probation_total}"
+          echo "ingredient_confidence_outcomes rows: ${confidence_total}"
+
+      - name: Reset Queue Environment
+        run: |
+          set -euo pipefail
+
+          count_rows() {
+            local table="$1"
+            local select_col="$2"
+            local filter="${3:-}"
+            local url="${SUPABASE_URL}/rest/v1/${table}?select=${select_col}"
+
+            if [ -n "${filter}" ]; then
+              url="${url}&${filter}"
+            fi
+
+            curl -sI \
+              "${url}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          delete_rows() {
+            local table="$1"
+            local filter="$2"
+
+            curl -sf -X DELETE \
+              "${SUPABASE_URL}/rest/v1/${table}?${filter}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: return=minimal"
+          }
+
+          queue_filter="id=not.is.null"
+          if [ "${QUEUE_SOURCE}" != "any" ]; then
+            queue_filter="source=eq.${QUEUE_SOURCE}"
+          fi
+
+          queue_before=$(count_rows "ingredient_match_queue" "id" "${queue_filter}")
+
+          probation_before=$(count_rows "canonical_creation_probation_events" "canonical_name")
+          confidence_before=$(count_rows "ingredient_confidence_outcomes" "id")
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "DRY RUN: no data deleted."
+            echo "Would delete ingredient_match_queue rows: ${queue_before}"
+            if [ "${CLEAR_LEARNING_TABLES}" = "true" ]; then
+              echo "Would delete canonical_creation_probation_events rows: ${probation_before}"
+              echo "Would delete ingredient_confidence_outcomes rows: ${confidence_before}"
+            fi
+            exit 0
+          fi
+
+          echo "Deleting ingredient_match_queue rows with filter: ${queue_filter}"
+          delete_rows "ingredient_match_queue" "${queue_filter}"
+
+          if [ "${CLEAR_LEARNING_TABLES}" = "true" ]; then
+            echo "Clearing queue learning tables..."
+            delete_rows "canonical_creation_probation_events" "canonical_name=not.is.null"
+            delete_rows "ingredient_confidence_outcomes" "id=not.is.null"
+          fi
+
+          queue_after=$(count_rows "ingredient_match_queue" "id" "${queue_filter}")
+          probation_after=$(count_rows "canonical_creation_probation_events" "canonical_name")
+          confidence_after=$(count_rows "ingredient_confidence_outcomes" "id")
+
+          echo "Deleted ingredient_match_queue rows: $((queue_before - queue_after))"
+          if [ "${CLEAR_LEARNING_TABLES}" = "true" ]; then
+            echo "Deleted canonical_creation_probation_events rows: $((probation_before - probation_after))"
+            echo "Deleted ingredient_confidence_outcomes rows: $((confidence_before - confidence_after))"
+          else
+            echo "Learning tables unchanged (clear_learning_tables=false)."
+          fi
+
+      - name: Queue Summary (After)
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+
+          get_count() {
+            local table="$1"
+            local select_col="$2"
+            local filter="${3:-}"
+            local url="${SUPABASE_URL}/rest/v1/${table}?select=${select_col}"
+
+            if [ -n "${filter}" ]; then
+              url="${url}&${filter}"
+            fi
+
+            curl -sI \
+              "${url}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          echo "=== Queue Status (After) ==="
+          for source in scraper recipe; do
+            for status in pending processing resolved failed probation; do
+              count=$(get_count "ingredient_match_queue" "id" "source=eq.${source}&status=eq.${status}")
+              [ "${count}" != "0" ] && echo "  ${source}/${status}: ${count}"
+            done
+          done
+
+          if [ "${QUEUE_SOURCE}" = "any" ]; then
+            queue_scope_total=$(get_count "ingredient_match_queue" "id")
+          else
+            queue_scope_total=$(get_count "ingredient_match_queue" "id" "source=eq.${QUEUE_SOURCE}")
+          fi
+          echo "Queue rows in reset scope: ${queue_scope_total}"
+
+          probation_total=$(get_count "canonical_creation_probation_events" "canonical_name")
+          confidence_total=$(get_count "ingredient_confidence_outcomes" "id")
+          echo "canonical_creation_probation_events rows: ${probation_total}"
+          echo "ingredient_confidence_outcomes rows: ${confidence_total}"
+
+  trigger-regenerate-mappings:
+    name: Trigger Regenerate Mappings
+    needs: reset
+    if: ${{ inputs.run_regenerate_mappings && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch regenerate-mappings workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "regenerate-mappings.yml",
+              ref: context.ref.replace("refs/heads/", ""),
+              inputs: {
+                wipe_queue: "false",
+                reset_all: "false",
+                run_recipe_relink: "true",
+                run_product_relink: "true",
+                run_initiating_workflow: "false",
+                run_drift_snapshot: "true"
+              }
+            })
+
+            core.info("Triggered regenerate-mappings.yml via workflow_dispatch.")
