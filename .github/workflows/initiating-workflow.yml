@@ -135,11 +135,6 @@ on:
         default: "2"
   workflow_dispatch:
     inputs:
-      use_mock_recipe_generator:
-        description: "Run optional generated mock recipes in addition to hardcoded seed recipes"
-        required: false
-        type: boolean
-        default: false
       use_recipe_generator:
         description: "Generate mock recipes before queueing (unchecked = use preseeded recipes)"
         required: false

@@ -8,16 +8,7 @@ import { Button } from "@/components/ui/button"
 import { useIsMobile } from "@/hooks"
 import { GoldenVine } from "./golden-vine"
 import { ScrollSection } from "./scroll-section"
-import { FloatingPriceTags } from "./floating-price-tags"
-import {
-  DecisionFatigueIllustration,
-  RecipeFrictionIllustration,
-  PantryDisconnectIllustration,
-  ConnectsEverythingIllustration,
-  MealPlanIllustration,
-  CostOptimizationIllustration,
-  EffortlessIllustration,
-} from "./section-illustrations"
+import { LandingSectionImage } from "./landing-section-image"
 
 export function LandingPage() {
   const [mounted, setMounted] = useState(false)
@@ -28,7 +19,7 @@ export function LandingPage() {
   }, [])
 
   return (
-    <div className="relative min-h-screen bg-[#0B0B0B] overflow-x-hidden">
+    <div className="relative min-h-screen bg-[#010101] overflow-x-hidden">
       {/* Subtle noise texture */}
       <div className="fixed inset-0 opacity-[0.015] pointer-events-none z-0">
         <div
@@ -126,7 +117,7 @@ export function LandingPage() {
         headline="Food shouldn't be this stressful."
         caption="Decision fatigue adds up."
         align="left"
-        accent={<DecisionFatigueIllustration />}
+        accent={<LandingSectionImage src="/Decision.png" alt="Decision fatigue — same question every day" />}
         body={
           <>
             <p>The same question gets asked every single day.</p>
@@ -141,7 +132,7 @@ export function LandingPage() {
         headline="Recipes are clickbait and ad-driven."
         caption="Built for clicks, not cooking."
         align="right"
-        accent={<RecipeFrictionIllustration />}
+        accent={<LandingSectionImage src="/recipe.png" alt="Recipes built for clicks, not cooking" />}
         body={
           <>
             <p>Popups. Ads. Endless scrolling.</p>
@@ -156,7 +147,7 @@ export function LandingPage() {
         headline="Groceries are overpriced."
         caption="Overpaying is the default."
         align="left"
-        accent={<FloatingPriceTags />}
+        accent={<LandingSectionImage src="/overprice.png" alt="Groceries overpriced — overpaying is the default" />}
         body={
           <>
             <p>The same cart costs more every week.</p>
@@ -171,7 +162,7 @@ export function LandingPage() {
         headline="Food gets wasted without you noticing."
         caption="Waste becomes normal."
         align="right"
-        accent={<PantryDisconnectIllustration />}
+        accent={<LandingSectionImage src="/pantry.png" alt="Food wasted without you noticing" />}
         body={
           <>
             <p>Ingredients expire quietly in the background.</p>
@@ -186,7 +177,7 @@ export function LandingPage() {
         headline="Secret Sauce connects everything."
         caption="The system becomes intelligent."
         align="left"
-        accent={<ConnectsEverythingIllustration />}
+        accent={<LandingSectionImage src="/connect.png" alt="Secret Sauce connects meals, groceries, and your real life" />}
         body={
           <>
             <p>Meals, groceries, and your real life.</p>
@@ -201,7 +192,7 @@ export function LandingPage() {
         headline="Meals plan themselves."
         caption="Planning disappears."
         align="right"
-        accent={<MealPlanIllustration />}
+        accent={<LandingSectionImage src="/plan.png" alt="Meals plan themselves — personalized to your taste, diet, and budget" />}
         body={
           <>
             <p>Personalized to your taste, diet, and budget.</p>
@@ -216,8 +207,7 @@ export function LandingPage() {
         headline="Stop overpaying for groceries."
         caption="Efficiency becomes automatic."
         align="left"
-        accent={<CostOptimizationIllustration />}
-        warmBg
+        accent={<LandingSectionImage src="/deals.png" alt="Value optimized baskets — stop overpaying for groceries" />}
         body={
           <>
             <p>Buy only what you need.</p>
@@ -232,7 +222,7 @@ export function LandingPage() {
         headline="Food stops being a problem."
         caption="Control replaces chaos."
         align="right"
-        accent={<EffortlessIllustration />}
+        accent={<LandingSectionImage src="/easy.png" alt="Food stops being a problem — everything just works" />}
         body={
           <>
             <p>Less stress. Less waste. Less effort.</p>
@@ -249,44 +239,50 @@ export function LandingPage() {
         </div>
 
         <div className="relative z-10 flex flex-col items-center text-center max-w-2xl mx-auto">
-          {/* Bottle — the vine path in the SVG ends right here */}
-          <div className="mb-10 flex justify-center relative">
-            <div className="relative">
-              {/* Multi-layered glow behind bottle */}
-              <div className="absolute inset-0 -z-10 rounded-full bg-[#D4AF37]/[0.06] blur-2xl scale-[2]" />
-              <div className="absolute inset-0 -z-10 rounded-full bg-[#D4AF37]/[0.12] blur-xl scale-[1.5]" />
-              <Image
-                src="/logo-dark.png"
-                alt="Secret Sauce"
-                width={isMobile ? 90 : 110}
-                height={isMobile ? 90 : 110}
-                className="opacity-90"
-              />
-            </div>
+        {/* Section 8 “easy” image replaces logo at bottom */}
+        <div className="mb-2 w-full">
+            <Image
+              src="/end.png"
+              alt="Secret Sauce"
+              width={1200}
+              height={800}
+              className="w-full h-auto object-contain"
+              sizes="100vw"
+            />
           </div>
 
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold tracking-tight text-[#F5F2E8] mb-5 text-balance">
-            This is the secret.
-          </h2>
+          {/* Solid backing so sauce flow doesn't run under final CTA text */}
+          <div className="relative z-20 w-full bg-[#010101] pt-2">
+            {/* Short fade in padding only so "This is the secret." has no gradient overlay */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-b from-transparent to-[#010101]" />
 
-          <p className="text-[#CFC6B0]/50 text-base md:text-lg font-light mb-10 max-w-lg mx-auto leading-relaxed">
-            Built for students who want to eat better and spend less.
-          </p>
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold tracking-tight text-[#F5F2E8] mb-2 text-balance">
+              This is the secret.
+            </h2>
 
-          <Button
-            size="lg"
-            className="px-10 py-6 text-base font-normal bg-gradient-to-b from-[#D4AF37] to-[#B8962E] text-[#0B0B0B] hover:from-[#E0BF4A] hover:to-[#C5A028] shadow-lg shadow-[#D4AF37]/20 hover:shadow-[#D4AF37]/30 transition-all duration-300 rounded-xl"
-            asChild
-          >
-            <Link href="/auth/signup">
-              Get early access
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+            <p className="text-[#CFC6B0]/50 text-base md:text-lg font-light mb-10 max-w-lg mx-auto leading-relaxed">
+              Built for students who want to eat better and spend less.
+            </p>
 
-          <p className="mt-6 text-xs font-light tracking-wide text-[#CFC6B0]/30">
-            Join Berkeley students already using Secret Sauce
-          </p>
+            <Button
+              size="lg"
+              className="px-10 py-6 text-base font-normal bg-gradient-to-b from-[#D4AF37] to-[#B8962E] text-[#0B0B0B] hover:from-[#E0BF4A] hover:to-[#C5A028] shadow-lg shadow-[#D4AF37]/20 hover:shadow-[#D4AF37]/30 transition-all duration-300 rounded-xl"
+              asChild
+            >
+              <Link
+                href="https://docs.google.com/forms/d/e/1FAIpQLSdg1GDVDx8PNL_R3-w3aaVbx9IL9CUQcy4CWQcFwMmzpwq-7Q/viewform?usp=publish-editor"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Get early access
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+
+            <p className="mt-6 text-xs font-light tracking-wide text-[#CFC6B0]/30">
+              Join Berkeley students already using Secret Sauce
+            </p>
+          </div>
         </div>
       </section>
 
