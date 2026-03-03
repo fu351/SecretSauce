@@ -220,8 +220,6 @@ jobs:
       scraper_state: "CA"
       ingredient_limit: "0"
       store_limit: ${{ inputs.initiating_store_limit || '5' }}
-      queue_batch_limit: "100"
-      queue_max_batches: "10"
 
   seed-mock-recipes-for-queue-modes:
     name: Seed Mock Recipes (Queue-Only Modes)
@@ -293,15 +291,10 @@ jobs:
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:
-      queue_batch_limit: "100"
       queue_context: "recipe"
       queue_source: recipe
       queue_resolver_name: "backup-initiating-pre-dryrun"
       queue_dry_run: "true"
-      openai_model: gpt-4o-mini
-      gemini_model: gemini-3-flash-preview
-      queue_max_batches: "10"
-      queue_batch_delay_seconds: "2"
 
   initiating-queue-only:
     name: Pre-Queue Only (No Scraper, No Post Queue)
@@ -312,12 +305,7 @@ jobs:
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:
-      queue_batch_limit: "100"
       queue_context: "recipe"
       queue_source: recipe
       queue_resolver_name: "backup-initiating-pre"
       queue_dry_run: "false"
-      openai_model: gpt-4o-mini
-      gemini_model: gemini-3-flash-preview
-      queue_max_batches: "10"
-      queue_batch_delay_seconds: "2"

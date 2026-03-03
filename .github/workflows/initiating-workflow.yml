@@ -24,15 +24,15 @@ on:
         type: string
         default: ""
       scraper_state:
-        description: "2-letter state code filter (e.g., CA, AZ)"
+        description: "2-letter state override (blank = default)"
         required: false
         type: string
-        default: "CA"
+        default: ""
       scraper_cities_csv:
-        description: "Comma-separated Title Case cities (blank = all)"
+        description: "Comma-separated Title Case city override (blank = default)"
         required: false
         type: string
-        default: "San Francisco,Oakland,Berkeley"
+        default: ""
       scraper_zip_min:
         description: "Minimum ZIP filter (blank = no lower bound)"
         required: false
@@ -53,56 +53,6 @@ on:
         required: false
         type: string
         default: "0"
-      store_concurrency:
-        description: "Concurrent store scrapes per ingredient"
-        required: false
-        type: string
-        default: "20"
-      ingredient_delay_ms:
-        description: "Delay between ingredients in milliseconds"
-        required: false
-        type: string
-        default: "1000"
-      insert_batch_size:
-        description: "RPC insert batch size"
-        required: false
-        type: string
-        default: "500"
-      min_expected_rows:
-        description: "Fail if below this row count"
-        required: false
-        type: string
-        default: "100"
-      scraper_batch_size:
-        description: "Default ingredient chunk size for all stores"
-        required: false
-        type: string
-        default: "20"
-      scraper_batch_concurrency:
-        description: "Default batch worker concurrency for all stores"
-        required: false
-        type: string
-        default: "4"
-      scraper_timeout_minutes:
-        description: "Hard timeout per store job (minutes)"
-        required: false
-        type: string
-        default: "120"
-      traderjoes_batch_size:
-        description: "Trader Joe's ingredient chunk size"
-        required: false
-        type: string
-        default: "20"
-      traderjoes_batch_concurrency:
-        description: "Trader Joe's batch worker concurrency"
-        required: false
-        type: string
-        default: "2"
-      queue_batch_limit:
-        description: "Queue batch size"
-        required: false
-        type: string
-        default: "100"
       pre_queue_context:
         description: "Queue context before scraping"
         required: false
@@ -123,13 +73,13 @@ on:
         required: false
         type: string
         default: "false"
-      queue_max_batches:
-        description: "Maximum queue batch cycles"
-        required: false
-        type: string
-        default: "10"
   workflow_dispatch:
     inputs:
+      use_mock_recipe_generator:
+        description: "Run optional generated mock recipes in addition to hardcoded seed recipes"
+        required: false
+        type: boolean
+        default: false
       use_recipe_generator:
         description: "Generate mock recipes before queueing (unchecked = use preseeded recipes)"
         required: false
@@ -146,15 +96,15 @@ on:
         type: string
         default: ""
       scraper_state:
-        description: "2-letter state code filter (e.g., CA, AZ)"
+        description: "2-letter state override (blank = default)"
         required: false
         type: string
-        default: "CA"
+        default: ""
       scraper_cities_csv:
-        description: "Comma-separated Title Case cities (blank = all)"
+        description: "Comma-separated Title Case city override (blank = default)"
         required: false
         type: string
-        default: "San Francisco,Oakland,Berkeley"
+        default: ""
       scraper_zip_min:
         description: "Minimum ZIP filter (blank = no lower bound)"
         required: false
@@ -175,56 +125,6 @@ on:
         required: false
         type: string
         default: "0"
-      store_concurrency:
-        description: "Concurrent store scrapes per ingredient"
-        required: false
-        type: string
-        default: "20"
-      ingredient_delay_ms:
-        description: "Delay between ingredients in milliseconds"
-        required: false
-        type: string
-        default: "1000"
-      insert_batch_size:
-        description: "RPC insert batch size"
-        required: false
-        type: string
-        default: "500"
-      min_expected_rows:
-        description: "Fail if below this row count"
-        required: false
-        type: string
-        default: "100"
-      scraper_batch_size:
-        description: "Default ingredient chunk size for all stores"
-        required: false
-        type: string
-        default: "20"
-      scraper_batch_concurrency:
-        description: "Default batch worker concurrency for all stores"
-        required: false
-        type: string
-        default: "4"
-      scraper_timeout_minutes:
-        description: "Hard timeout per store job (minutes)"
-        required: false
-        type: string
-        default: "120"
-      traderjoes_batch_size:
-        description: "Trader Joe's ingredient chunk size"
-        required: false
-        type: string
-        default: "20"
-      traderjoes_batch_concurrency:
-        description: "Trader Joe's batch worker concurrency"
-        required: false
-        type: string
-        default: "2"
-      queue_batch_limit:
-        description: "Queue batch size"
-        required: false
-        type: string
-        default: "100"
       pre_queue_context:
         description: "Queue context before scraping"
         required: false
@@ -254,13 +154,38 @@ on:
           - "false"
           - "true"
         default: "false"
-      queue_max_batches:
-        description: "Maximum queue batch cycles"
-        required: false
-        type: string
-        default: "10"
 
 jobs:
+  load-config:
+    name: Load Pipeline Defaults
+    runs-on: ubuntu-latest
+    outputs:
+      scraper_state: ${{ steps.defaults.outputs.scraper_state }}
+      scraper_cities_csv: ${{ steps.defaults.outputs.scraper_cities_csv }}
+      queue_resolver_name: ${{ steps.defaults.outputs.queue_resolver_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read pipeline defaults
+        id: defaults
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          cfg = json.loads(Path(".github/workflows/config/pipeline-defaults.json").read_text(encoding="utf-8"))
+          section = cfg["initiating_workflow"]
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          keys = ("scraper_state", "scraper_cities_csv", "queue_resolver_name")
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              for key in keys:
+                  fh.write(f"{key}={section[key]}\n")
+          PY
+
   seed-mock-recipes:
     name: Seed Mock Recipes
     if: ${{ inputs.use_recipe_generator }}
@@ -290,7 +215,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          INPUT_SEED_AUTHOR_ID: ${{ github.event.inputs.seed_author_id || '' }}
+          INPUT_SEED_AUTHOR_ID: ${{ inputs.seed_author_id || '' }}
           SECRET_SEED_AUTHOR_ID: ${{ secrets.SUPABASE_SEED_AUTHOR_ID }}
         run: |
           set -euo pipefail
@@ -346,20 +271,15 @@ jobs:
 
   pre-queue:
     name: Pre-Scrape Ingredient Queue
-    needs: seed-mock-recipes
+    needs: [load-config, seed-mock-recipes]
     if: ${{ always() && (needs['seed-mock-recipes'].result == 'success' || needs['seed-mock-recipes'].result == 'skipped') }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:
-      queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
-      queue_context: ${{ github.event.inputs.pre_queue_context || 'recipe' }}
+      queue_context: ${{ inputs.pre_queue_context || 'recipe' }}
       queue_source: recipe
-      queue_resolver_name: ${{ format('{0}-pre', github.event.inputs.queue_resolver_name || 'initiating-openai') }}
-      queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
-      openai_model: gpt-4o-mini
-      gemini_model: gemini-3-flash-preview
-      queue_max_batches: ${{ github.event.inputs.queue_max_batches || '10' }}
-      queue_batch_delay_seconds: ${{ github.event.inputs.queue_batch_delay_seconds || '2' }}
+      queue_resolver_name: ${{ format('{0}-pre', inputs.queue_resolver_name || needs['load-config'].outputs.queue_resolver_name) }}
+      queue_dry_run: ${{ inputs.queue_dry_run || 'false' }}
 
   scraper:
     name: Daily Scraper Matrix
@@ -368,22 +288,13 @@ jobs:
     uses: ./.github/workflows/daily-scraper-matrix.yml
     secrets: inherit
     with:
-      stores_csv: ${{ github.event.inputs.stores_csv || '' }}
-      scraper_state: ${{ github.event.inputs.scraper_state || 'CA' }}
-      scraper_cities_csv: ${{ github.event.inputs.scraper_cities_csv || 'San Francisco,Oakland,Berkeley' }}
-      scraper_zip_min: ${{ github.event.inputs.scraper_zip_min || '' }}
-      scraper_zip_max: ${{ github.event.inputs.scraper_zip_max || '' }}
-      ingredient_limit: ${{ github.event.inputs.ingredient_limit || '0' }}
-      store_limit: ${{ github.event.inputs.store_limit || '0' }}
-      store_concurrency: ${{ github.event.inputs.store_concurrency || '20' }}
-      ingredient_delay_ms: ${{ github.event.inputs.ingredient_delay_ms || '1000' }}
-      insert_batch_size: ${{ github.event.inputs.insert_batch_size || '500' }}
-      min_expected_rows: ${{ github.event.inputs.min_expected_rows || '100' }}
-      scraper_batch_size: ${{ github.event.inputs.scraper_batch_size || '20' }}
-      scraper_batch_concurrency: ${{ github.event.inputs.scraper_batch_concurrency || '4' }}
-      scraper_timeout_minutes: ${{ github.event.inputs.scraper_timeout_minutes || '44' }}
-      traderjoes_batch_size: ${{ github.event.inputs.traderjoes_batch_size || '20' }}
-      traderjoes_batch_concurrency: ${{ github.event.inputs.traderjoes_batch_concurrency || '2' }}
+      stores_csv: ${{ inputs.stores_csv || '' }}
+      scraper_state: ${{ inputs.scraper_state || needs['load-config'].outputs.scraper_state }}
+      scraper_cities_csv: ${{ inputs.scraper_cities_csv || needs['load-config'].outputs.scraper_cities_csv }}
+      scraper_zip_min: ${{ inputs.scraper_zip_min || '' }}
+      scraper_zip_max: ${{ inputs.scraper_zip_max || '' }}
+      ingredient_limit: ${{ inputs.ingredient_limit || '0' }}
+      store_limit: ${{ inputs.store_limit || '0' }}
 
   post-queue:
     name: Post-Scrape Ingredient Queue
@@ -392,15 +303,10 @@ jobs:
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:
-      queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
-      queue_context: ${{ github.event.inputs.post_queue_context || 'pantry' }}
+      queue_context: ${{ inputs.post_queue_context || 'pantry' }}
       queue_source: scraper
-      queue_resolver_name: ${{ format('{0}-post', github.event.inputs.queue_resolver_name || 'initiating-openai') }}
-      queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
-      openai_model: gpt-4o-mini
-      gemini_model: gemini-3-flash-preview
-      queue_max_batches: ${{ github.event.inputs.queue_max_batches || '10' }}
-      queue_batch_delay_seconds: ${{ github.event.inputs.queue_batch_delay_seconds || '2' }}
+      queue_resolver_name: ${{ format('{0}-post', inputs.queue_resolver_name || needs['load-config'].outputs.queue_resolver_name) }}
+      queue_dry_run: ${{ inputs.queue_dry_run || 'false' }}
 
   update-unit-estimates:
     name: Update Unit Weight Estimates

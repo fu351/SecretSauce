@@ -1,0 +1,34 @@
+{
+  "nightly_workflow": {
+    "scraper_state": "CA",
+    "scraper_cities_csv": "Alameda,Albany,American Canyon,Antioch,Atherton,Belmont,Belvedere,Benicia,Berkeley,Brentwood,Brisbane,Burlingame,Calistoga,Campbell,Clayton,Cloverdale,Colma,Concord,Corte Madera,Cotati,Cupertino,Daly City,Danville,Dixon,Dublin,East Palo Alto,El Cerrito,Emeryville,Fairfax,Fairfield,Foster City,Fremont,Gilroy,Half Moon Bay,Hayward,Healdsburg,Hercules,Hillsborough,Lafayette,Larkspur,Livermore,Los Altos,Los Altos Hills,Los Gatos,Martinez,Menlo Park,Mill Valley,Millbrae,Milpitas,Monte Sereno,Moraga,Morgan Hill,Mountain View,Napa,Newark,Novato,Oakland,Oakley,Orinda,Pacifica,Palo Alto,Petaluma,Piedmont,Pinole,Pittsburg,Pleasant Hill,Pleasanton,Portola Valley,Redwood City,Richmond,Rio Vista,Rohnert Park,Ross,San Anselmo,San Bruno,San Carlos,San Francisco,San Jose,San Leandro,San Mateo,San Pablo,San Rafael,San Ramon,Santa Clara,Santa Rosa,Saratoga,Sausalito,Sebastopol,Sonoma,South San Francisco,Suisun City,Sunnyvale,Tiburon,Union City,Vacaville,Vallejo,Walnut Creek,Windsor,Woodside,Yountville,St. Helena,Saint Helena",
+    "queue_resolver_name": "nightly-openai"
+  },
+  "initiating_workflow": {
+    "scraper_state": "CA",
+    "scraper_cities_csv": "San Francisco,Oakland,Berkeley",
+    "queue_resolver_name": "initiating-openai"
+  },
+  "daily_scraper_matrix": {
+    "scraper_state": "CA",
+    "scraper_cities_csv": "San Francisco,Oakland,Berkeley",
+    "store_concurrency": "20",
+    "ingredient_delay_ms": "1000",
+    "insert_batch_size": "500",
+    "request_timeout_ms": "20000",
+    "scraper_timeout_minutes": "90",
+    "scraper_batch_size": "20",
+    "scraper_batch_concurrency": "4",
+    "traderjoes_batch_size": "20",
+    "traderjoes_batch_concurrency": "2"
+  },
+  "nightly_ingredient_queue": {
+    "queue_batch_limit": "100",
+    "queue_enable_unit_resolution": "true",
+    "queue_unit_min_confidence": "0.75",
+    "openai_model": "gpt-4o-mini",
+    "gemini_model": "gemini-3-flash-preview",
+    "queue_max_batches": "10",
+    "queue_batch_delay_seconds": "2"
+  }
+}

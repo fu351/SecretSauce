@@ -20,21 +20,32 @@ on:
         required: false
         type: boolean
         default: false
+      run_mode:
+        description: "Execution control mode"
+        required: false
+        type: choice
+        options:
+          - normal
+          - stop_after_purge
+          - stop_after_scraper
+          - stop_after_update
+          - emergency_stop
+        default: normal
       stores_csv:
         description: "Comma-separated stores (blank = all)"
         required: false
         type: string
         default: ""
       scraper_state:
-        description: "2-letter state code filter (e.g., CA, AZ)"
+        description: "2-letter state override (blank = default)"
         required: false
         type: string
-        default: "CA"
+        default: ""
       scraper_cities_csv:
-        description: "Comma-separated Title Case cities (blank = all)"
+        description: "Comma-separated Title Case city override (blank = default)"
         required: false
         type: string
-        default: "Alameda,Albany,American Canyon,Antioch,Atherton,Belmont,Belvedere,Benicia,Berkeley,Brentwood,Brisbane,Burlingame,Calistoga,Campbell,Clayton,Cloverdale,Colma,Concord,Corte Madera,Cotati,Cupertino,Daly City,Danville,Dixon,Dublin,East Palo Alto,El Cerrito,Emeryville,Fairfax,Fairfield,Foster City,Fremont,Gilroy,Half Moon Bay,Hayward,Healdsburg,Hercules,Hillsborough,Lafayette,Larkspur,Livermore,Los Altos,Los Altos Hills,Los Gatos,Martinez,Menlo Park,Mill Valley,Millbrae,Milpitas,Monte Sereno,Moraga,Morgan Hill,Mountain View,Napa,Newark,Novato,Oakland,Oakley,Orinda,Pacifica,Palo Alto,Petaluma,Piedmont,Pinole,Pittsburg,Pleasant Hill,Pleasanton,Portola Valley,Redwood City,Richmond,Rio Vista,Rohnert Park,Ross,San Anselmo,San Bruno,San Carlos,San Francisco,San Jose,San Leandro,San Mateo,San Pablo,San Rafael,San Ramon,Santa Clara,Santa Rosa,Saratoga,Sausalito,Sebastopol,Sonoma,South San Francisco,Suisun City,Sunnyvale,Tiburon,Union City,Vacaville,Vallejo,Walnut Creek,Windsor,Woodside,Yountville,St. Helena,Saint Helena"
+        default: ""
       scraper_zip_min:
         description: "Minimum ZIP filter (blank = no lower bound)"
         required: false
@@ -55,56 +66,6 @@ on:
         required: false
         type: string
         default: "0"
-      store_concurrency:
-        description: "Concurrent store scrapes per ingredient"
-        required: false
-        type: string
-        default: "20"
-      ingredient_delay_ms:
-        description: "Delay between ingredients in milliseconds"
-        required: false
-        type: string
-        default: "1000"
-      insert_batch_size:
-        description: "RPC insert batch size"
-        required: false
-        type: string
-        default: "500"
-      min_expected_rows:
-        description: "Fail if below this row count"
-        required: false
-        type: string
-        default: "100"
-      scraper_batch_size:
-        description: "Default ingredient chunk size for all stores"
-        required: false
-        type: string
-        default: "20"
-      scraper_batch_concurrency:
-        description: "Default batch worker concurrency for all stores"
-        required: false
-        type: string
-        default: "4"
-      scraper_timeout_minutes:
-        description: "Hard timeout per store job (minutes)"
-        required: false
-        type: string
-        default: "120"
-      traderjoes_batch_size:
-        description: "Trader Joe's ingredient chunk size"
-        required: false
-        type: string
-        default: "20"
-      traderjoes_batch_concurrency:
-        description: "Trader Joe's batch worker concurrency"
-        required: false
-        type: string
-        default: "2"
-      queue_batch_limit:
-        description: "Queue batch size"
-        required: false
-        type: string
-        default: "100"
       queue_context:
         description: "Queue context (dynamic|pantry|recipe)"
         required: false
@@ -127,80 +88,75 @@ on:
           - "false"
           - "true"
         default: "false"
-      queue_max_batches:
-        description: "Maximum queue batch cycles"
-        required: false
-        type: string
-        default: "10"
-      queue_batch_delay_seconds:
-        description: "Delay between queue batches in seconds"
-        required: false
-        type: string
-        default: "2"
-      run_mode:
-        description: "Execution control mode"
-        required: false
-        type: choice
-        options:
-          - normal
-          - stop_after_purge
-          - stop_after_scraper
-          - stop_after_update
-          - emergency_stop
-        default: normal
 
 jobs:
+  load-config:
+    name: Load Pipeline Defaults
+    runs-on: ubuntu-latest
+    outputs:
+      scraper_state: ${{ steps.defaults.outputs.scraper_state }}
+      scraper_cities_csv: ${{ steps.defaults.outputs.scraper_cities_csv }}
+      queue_resolver_name: ${{ steps.defaults.outputs.queue_resolver_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read pipeline defaults
+        id: defaults
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          cfg = json.loads(Path(".github/workflows/config/pipeline-defaults.json").read_text(encoding="utf-8"))
+          section = cfg["nightly_workflow"]
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          keys = ("scraper_state", "scraper_cities_csv", "queue_resolver_name")
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              for key in keys:
+                  fh.write(f"{key}={section[key]}\n")
+          PY
+
   purge:
     name: Daily Purge
-    if: ${{ (github.event.inputs.run_mode || 'normal') != 'emergency_stop' && (github.event_name != 'workflow_dispatch' || !inputs.skip_purge) }}
+    if: ${{ (inputs.run_mode || 'normal') != 'emergency_stop' && (github.event_name != 'workflow_dispatch' || !inputs.skip_purge) }}
     uses: ./.github/workflows/daily-purge.yml
     secrets: inherit
     with:
-      purge_mode: ${{ github.event.inputs.purge_mode || 'execute' }}
+      purge_mode: ${{ inputs.purge_mode || 'execute' }}
 
   scraper:
     name: Daily Scraper Matrix
-    needs: purge
-    if: ${{ always() && (needs.purge.result == 'success' || needs.purge.result == 'skipped') && !contains(fromJson('["emergency_stop","stop_after_purge"]'), github.event.inputs.run_mode || 'normal') }}
+    needs: [load-config, purge]
+    if: ${{ always() && (needs.purge.result == 'success' || needs.purge.result == 'skipped') && !contains(fromJson('["emergency_stop","stop_after_purge"]'), inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/daily-scraper-matrix.yml
     secrets: inherit
     with:
-      stores_csv: ${{ github.event.inputs.stores_csv || '' }}
-      scraper_state: ${{ github.event.inputs.scraper_state || 'CA' }}
-      scraper_cities_csv: ${{ github.event.inputs.scraper_cities_csv || 'Alameda,Albany,American Canyon,Antioch,Atherton,Belmont,Belvedere,Benicia,Berkeley,Brentwood,Brisbane,Burlingame,Calistoga,Campbell,Clayton,Cloverdale,Colma,Concord,Corte Madera,Cotati,Cupertino,Daly City,Danville,Dixon,Dublin,East Palo Alto,El Cerrito,Emeryville,Fairfax,Fairfield,Foster City,Fremont,Gilroy,Half Moon Bay,Hayward,Healdsburg,Hercules,Hillsborough,Lafayette,Larkspur,Livermore,Los Altos,Los Altos Hills,Los Gatos,Martinez,Menlo Park,Mill Valley,Millbrae,Milpitas,Monte Sereno,Moraga,Morgan Hill,Mountain View,Napa,Newark,Novato,Oakland,Oakley,Orinda,Pacifica,Palo Alto,Petaluma,Piedmont,Pinole,Pittsburg,Pleasant Hill,Pleasanton,Portola Valley,Redwood City,Richmond,Rio Vista,Rohnert Park,Ross,San Anselmo,San Bruno,San Carlos,San Francisco,San Jose,San Leandro,San Mateo,San Pablo,San Rafael,San Ramon,Santa Clara,Santa Rosa,Saratoga,Sausalito,Sebastopol,Sonoma,South San Francisco,Suisun City,Sunnyvale,Tiburon,Union City,Vacaville,Vallejo,Walnut Creek,Windsor,Woodside,Yountville,St. Helena,Saint Helena' }}
-      scraper_zip_min: ${{ github.event.inputs.scraper_zip_min || '' }}
-      scraper_zip_max: ${{ github.event.inputs.scraper_zip_max || '' }}
-      ingredient_limit: ${{ github.event.inputs.ingredient_limit || '0' }}
-      store_limit: ${{ github.event.inputs.store_limit || '0' }}
-      store_concurrency: ${{ github.event.inputs.store_concurrency || '20' }}
-      ingredient_delay_ms: ${{ github.event.inputs.ingredient_delay_ms || '1000' }}
-      insert_batch_size: ${{ github.event.inputs.insert_batch_size || '500' }}
-      min_expected_rows: ${{ github.event.inputs.min_expected_rows || '100' }}
-      scraper_batch_size: ${{ github.event.inputs.scraper_batch_size || '20' }}
-      scraper_batch_concurrency: ${{ github.event.inputs.scraper_batch_concurrency || '4' }}
-      scraper_timeout_minutes: ${{ github.event.inputs.scraper_timeout_minutes || '120' }}
-      traderjoes_batch_size: ${{ github.event.inputs.traderjoes_batch_size || '20' }}
-      traderjoes_batch_concurrency: ${{ github.event.inputs.traderjoes_batch_concurrency || '2' }}
+      stores_csv: ${{ inputs.stores_csv || '' }}
+      scraper_state: ${{ inputs.scraper_state || needs['load-config'].outputs.scraper_state }}
+      scraper_cities_csv: ${{ inputs.scraper_cities_csv || needs['load-config'].outputs.scraper_cities_csv }}
+      scraper_zip_min: ${{ inputs.scraper_zip_min || '' }}
+      scraper_zip_max: ${{ inputs.scraper_zip_max || '' }}
+      ingredient_limit: ${{ inputs.ingredient_limit || '0' }}
+      store_limit: ${{ inputs.store_limit || '0' }}
 
   update-unit-estimates:
     name: Update Unit Weight Estimates
     needs: scraper
-    if: ${{ always() && needs.scraper.result == 'success' && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper"]'), github.event.inputs.run_mode || 'normal') }}
+    if: ${{ always() && needs.scraper.result == 'success' && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper"]'), inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/update-unit-weight-estimates.yml
     secrets: inherit
 
   queue:
     name: Nightly Ingredient Queue
-    needs: update-unit-estimates
-    if: ${{ always() && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update"]'), github.event.inputs.run_mode || 'normal') }}
+    needs: [load-config, update-unit-estimates]
+    if: ${{ always() && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update"]'), inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/nightly-ingredient-queue.yml
     secrets: inherit
     with:
-      queue_batch_limit: ${{ github.event.inputs.queue_batch_limit || '100' }}
-      queue_context: ${{ github.event.inputs.queue_context || 'dynamic' }}
-      queue_resolver_name: ${{ github.event.inputs.queue_resolver_name || 'nightly-openai' }}
-      queue_dry_run: ${{ github.event.inputs.queue_dry_run || 'false' }}
-      openai_model: ${{ github.event.inputs.openai_model || 'gpt-4o-mini' }}
-      gemini_model: ${{ github.event.inputs.gemini_model || 'gemini-3-flash-preview' }}
-      queue_max_batches: ${{ github.event.inputs.queue_max_batches || '10' }}
-      queue_batch_delay_seconds: ${{ github.event.inputs.queue_batch_delay_seconds || '2' }}
+      queue_context: ${{ inputs.queue_context || 'dynamic' }}
+      queue_resolver_name: ${{ inputs.queue_resolver_name || needs['load-config'].outputs.queue_resolver_name }}
+      queue_dry_run: ${{ inputs.queue_dry_run || 'false' }}
