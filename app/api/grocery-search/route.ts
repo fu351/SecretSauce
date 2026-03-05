@@ -358,7 +358,7 @@ export async function GET(request: NextRequest) {
       }
 
       return NextResponse.json({
-        results: directItems.map((item) => ({
+        results: limitResultsPerStore(directItems.map((item) => ({
           id: item.id,
           title: item.title,
           brand: "",
@@ -370,7 +370,7 @@ export async function GET(request: NextRequest) {
           provider: mapStoreKeyToName(item.provider.toLowerCase()),
           location: item.location || `${mapStoreKeyToName(item.provider.toLowerCase())} Grocery`,
           category: "Grocery",
-        })),
+        }))),
         cached: false,
         source: "scraper-force-refresh",
       })
@@ -524,7 +524,7 @@ export async function GET(request: NextRequest) {
         }))
 
       return NextResponse.json({
-        results: directItems.map((item) => ({
+        results: limitResultsPerStore(directItems.map((item) => ({
           id: item.id,
           title: item.title,
           brand: "",
@@ -536,7 +536,7 @@ export async function GET(request: NextRequest) {
           provider: mapStoreKeyToName(item.provider.toLowerCase()),
           location: `${mapStoreKeyToName(item.provider.toLowerCase())} Grocery`,
           category: "Grocery",
-        })),
+        }))),
         cached: false,
         source: "scraper-direct",
       })
@@ -560,10 +560,23 @@ export async function GET(request: NextRequest) {
   })
 
   return NextResponse.json({
-    results: formatted,
+    results: limitResultsPerStore(formatted),
     cached: true,
     source: "supabase-cache",
     standardizedIngredientId,
+  })
+}
+
+const ROUTE_MAX_RESULTS_PER_STORE = Number(process.env.SCRAPER_MAX_RESULTS || 10)
+
+function limitResultsPerStore<T extends { provider: string }>(items: T[]): T[] {
+  if (ROUTE_MAX_RESULTS_PER_STORE <= 0) return items
+  const seen = new Map<string, number>()
+  return items.filter((item) => {
+    const count = seen.get(item.provider) ?? 0
+    if (count >= ROUTE_MAX_RESULTS_PER_STORE) return false
+    seen.set(item.provider, count + 1)
+    return true
   })
 }
 

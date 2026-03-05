@@ -12,6 +12,8 @@ const OPENAI_API_KEY = getOpenAIApiKey();
 const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 15000);
 const WALMART_TIMEOUT_MS = Number(process.env.WALMART_TIMEOUT_MS || 15000);
 const WALMART_MAX_RETRIES = Number(process.env.WALMART_MAX_RETRIES || 2);
+// 0 means no cap: return all parsed products.
+const WALMART_MAX_RESULTS = Number(process.env.WALMART_MAX_RESULTS || process.env.SCRAPER_MAX_RESULTS || 0);
 const WALMART_RETRY_DELAY_MS = Number(process.env.WALMART_RETRY_DELAY_MS || 1000);
 
 // Rate limiting configuration
@@ -723,9 +725,8 @@ Return only the JSON array, no other text.`;
         }
         
         // Validate and format products
-        return products
-            .filter(product => product.title && product.price && product.price > 0)
-            .slice(0, 5)  // Ensure max 5 products
+        const filtered = products.filter(product => product.title && product.price && product.price > 0);
+        return (WALMART_MAX_RESULTS > 0 ? filtered.slice(0, WALMART_MAX_RESULTS) : filtered)
             .map(product => {
                 const productName = String(product.title || "").trim();
                 const productIdRaw = product.id ?? null;
