@@ -73,7 +73,7 @@ export function assessNewCanonicalRisk(params: {
   const normalized = normalizeCanonicalName(canonicalName)
   const tokens = toCanonicalTokens(normalized)
   const tokenCount = tokens.length
-  const hasNumericToken = /\b\d+\b/.test(normalized)
+  const hasNumericToken = /\b\d+[a-z]*\b/.test(normalized)
   const noiseHits = tokens.filter((token) => NEW_CANONICAL_NOISE_TOKENS.has(token)).length
   const categoryUnknown = !category || category === "other"
 
@@ -85,14 +85,16 @@ export function assessNewCanonicalRisk(params: {
   if (minTokenConfidence > 0 && confidence < minTokenConfidence) {
     // Bypass when the LLM returned a specific (non-"other") category with adequate
     // confidence — specialty/foreign ingredients have novel tokens but are real food.
-    if (!categoryUnknown && confidence >= 0.4) {
-      return { blocked: false, reason: "category_specific_idf_bypass" }
-    }
-    return {
-      blocked: true,
-      reason:
-        `${floorLabel}(min_confidence=${minTokenConfidence.toFixed(2)}, ` +
-        `tokens=${tokenCount})`,
+    // Fall through rather than returning early so structural checks (retail_title_like
+    // etc.) still run — a known-category name can still be a product title.
+    const categoryBypass = !categoryUnknown && confidence >= 0.4
+    if (!categoryBypass) {
+      return {
+        blocked: true,
+        reason:
+          `${floorLabel}(min_confidence=${minTokenConfidence.toFixed(2)}, ` +
+          `tokens=${tokenCount})`,
+      }
     }
   }
 
