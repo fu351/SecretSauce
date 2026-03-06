@@ -2,6 +2,7 @@ import {
   ingredientMatchQueueDB,
   type IngredientConfidenceCalibrationBinRow,
 } from "../../lib/database/ingredient-match-queue-db"
+import { makeRefreshingCache } from "./refreshing-cache"
 
 const CALIBRATION_LOOKBACK_DAYS = 30
 const CALIBRATION_BIN_SIZE = 0.1
@@ -54,8 +55,13 @@ const IDENTITY_CALIBRATOR: IngredientConfidenceCalibrator = {
   },
 }
 
-let cachedCalibration: IngredientConfidenceCalibrator = IDENTITY_CALIBRATOR
-let inflightCalibrationLoad: Promise<IngredientConfidenceCalibrator> | null = null
+const calibrationCache = makeRefreshingCache({
+  refreshIntervalMs: CALIBRATION_REFRESH_MS,
+  fallback: IDENTITY_CALIBRATOR,
+  load: loadCalibration,
+  onError: (error) =>
+    console.warn("[QueueResolver] Failed to load confidence calibrator; using identity fallback:", error),
+})
 
 function clampConfidence(value: number): number {
   if (!Number.isFinite(value)) return 0
@@ -148,31 +154,5 @@ async function loadCalibration(): Promise<IngredientConfidenceCalibrator> {
 }
 
 export async function getIngredientConfidenceCalibrator(forceRefresh = false): Promise<IngredientConfidenceCalibrator> {
-  const now = Date.now()
-  if (
-    !forceRefresh &&
-    cachedCalibration.loadedAt > 0 &&
-    now - cachedCalibration.loadedAt < CALIBRATION_REFRESH_MS
-  ) {
-    return cachedCalibration
-  }
-
-  if (inflightCalibrationLoad) {
-    return inflightCalibrationLoad
-  }
-
-  inflightCalibrationLoad = loadCalibration()
-    .then((calibrator) => {
-      cachedCalibration = calibrator
-      return calibrator
-    })
-    .catch((error) => {
-      console.warn("[QueueResolver] Failed to load confidence calibrator; using identity fallback:", error)
-      return cachedCalibration
-    })
-    .finally(() => {
-      inflightCalibrationLoad = null
-    })
-
-  return inflightCalibrationLoad
+  return calibrationCache.get(forceRefresh)
 }

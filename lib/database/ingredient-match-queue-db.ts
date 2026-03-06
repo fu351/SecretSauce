@@ -37,6 +37,12 @@ export interface CanonicalTokenIdfRow {
   doc_freq: number
 }
 
+export interface SensitivityPairStatsRow {
+  source_canonical: string
+  target_canonical: string
+  total_events: number
+}
+
 export interface IngredientConfidenceCalibrationBinRow {
   bin_start: number
   sample_count: number
@@ -639,6 +645,26 @@ class IngredientMatchQueueTable extends BaseTable<
       document_count: Number(row.document_count ?? 0),
       token: String(row.token ?? ""),
       doc_freq: Number(row.doc_freq ?? 0),
+    }))
+  }
+
+  async fetchSensitivityPairStats(params?: {
+    minEventCount?: number
+  }): Promise<SensitivityPairStatsRow[]> {
+    const { minEventCount = 1 } = params || {}
+    const { data, error } = await (this.supabase.rpc as any)("fn_get_sensitivity_pair_stats", {
+      p_min_event_count: Math.max(1, minEventCount),
+    })
+
+    if (error) {
+      this.handleError(error, "fetchSensitivityPairStats")
+      return []
+    }
+
+    return ((data || []) as SensitivityPairStatsRow[]).map((row) => ({
+      source_canonical: String(row.source_canonical ?? ""),
+      target_canonical: String(row.target_canonical ?? ""),
+      total_events: Number(row.total_events ?? 0),
     }))
   }
 
