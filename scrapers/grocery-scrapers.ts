@@ -81,9 +81,10 @@ export async function searchGroceryStores(
       })
 
       // Convert to StoreResults format
+      const maxResults = Number(process.env.SCRAPER_MAX_RESULTS || 0)
       const results: StoreResults[] = Array.from(storeMap.entries()).map(([store, items]) => ({
         store,
-        items: items.slice(0, 10), // Limit to 10 items per store
+        items: maxResults > 0 ? items.slice(0, maxResults) : items,
         total: items.reduce((sum, item) => sum + item.price, 0),
       }))
 

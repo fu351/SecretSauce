@@ -92,7 +92,7 @@ const TJ_CACHE_TTL_MS = Number(process.env.TRADERJOES_CACHE_TTL_MS || 5 * 60 * 1
 const DEFAULT_BATCH_CONCURRENCY = Number(process.env.TRADERJOES_BATCH_CONCURRENCY || 3);
 const MAX_BATCH_CONCURRENCY = 8;
 // 0 (default) means no cap: return all parsed products.
-const TJ_MAX_RESULTS = Number(process.env.TRADERJOES_MAX_RESULTS || 0);
+const TJ_MAX_RESULTS = Number(process.env.TRADERJOES_MAX_RESULTS || process.env.SCRAPER_MAX_RESULTS || 0);
 const TJ_LLM_PRODUCT_FALLBACK_LIMIT = Number(process.env.TRADERJOES_LLM_PRODUCT_FALLBACK_LIMIT || 8);
 
 let traderJoesConsecutive429 = 0;

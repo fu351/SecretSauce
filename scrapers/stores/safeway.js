@@ -12,6 +12,8 @@ const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
 
 // Environment variables
 const OPENAI_API_KEY = getOpenAIApiKey();
+// 0 means no cap: return all scraped items.
+const SAFEWAY_MAX_RESULTS = Number(process.env.SAFEWAY_MAX_RESULTS || process.env.SCRAPER_MAX_RESULTS || 0);
 
 // Function to fetch RAW data (Text + Images) from Instacart via Playwright
 async function fetchRawInstacartData(keyword, zipCode) {
@@ -81,7 +83,7 @@ async function fetchRawInstacartData(keyword, zipCode) {
 
         let count = 0;
         for (const item of items) {
-            if (count >= 10) break; // Limit to top 10 to save tokens
+            if (SAFEWAY_MAX_RESULTS > 0 && count >= SAFEWAY_MAX_RESULTS) break;
 
             const text = (await item.innerText()).trim();
             
