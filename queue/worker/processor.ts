@@ -74,6 +74,8 @@ interface UnitMetrics {
   aiError: number
 }
 
+const LOG_SAMPLE_LIMIT = 3
+
 function emptyUnitMetrics(): UnitMetrics {
   return {
     mapMissThenFallback: 0,
@@ -150,6 +152,13 @@ function inferIngredientSemanticRejectReason(errorMessage: string): string | nul
 
 function isCanonicalProbationHoldError(errorMessage: string): boolean {
   return errorMessage.toLowerCase().includes("canonical probation hold")
+}
+
+function formatSampleList(values: string[], limit = LOG_SAMPLE_LIMIT): string {
+  if (!values.length) return ""
+  const sample = values.slice(0, limit)
+  const suffix = values.length > sample.length ? `, +${values.length - sample.length} more` : ""
+  return `${sample.join(", ")}${suffix}`
 }
 
 function getCanonicalFallback(row: IngredientMatchQueueRow): string {
@@ -541,6 +550,7 @@ async function rerunUnitCandidatesWithIngredientContext(
 async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorkerConfig): Promise<ResolveBatchResult> {
   const detailedResults: ResolveBatchResult["results"] = config.dryRun ? [] : undefined
   const unitMetrics = emptyUnitMetrics()
+  const missingCategoryFallbackCanonicals = new Set<string>()
   const validRows = rows.filter((row) => {
     const searchTerm = getSearchTerm(row)
     if (!searchTerm) {
@@ -648,9 +658,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               }
               if (!resolvedIngredientCategory) {
                 resolvedIngredientCategory = "other"
-                console.warn(
-                  `[QueueResolver] Missing ingredient category for "${normalizedCanonical}". Falling back to "other".`
-                )
+                missingCategoryFallbackCanonicals.add(normalizedCanonical)
               }
 
               const confidenceCalibration = confidenceCalibrator.calibrate(rawIngredientConfidence)
@@ -1022,6 +1030,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
     let resolved = 0
     let failed = 0
+    const failedByReason = new Map<string, { count: number; sampleRowIds: string[]; probationHold: boolean }>()
 
     results.forEach((result, idx) => {
       if (result.status === "fulfilled") {
@@ -1047,10 +1056,18 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
       const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason)
       const isProbationHold = isCanonicalProbationHoldError(errorMessage)
-      if (isProbationHold) {
-        console.warn(`[QueueResolver] ${row.id} placed on probation:`, errorMessage)
+      const existingFailure = failedByReason.get(errorMessage)
+      if (!existingFailure) {
+        failedByReason.set(errorMessage, {
+          count: 1,
+          sampleRowIds: [row.id],
+          probationHold: isProbationHold,
+        })
       } else {
-        console.error(`[QueueResolver] ${row.id} failed to resolve:`, errorMessage)
+        existingFailure.count += 1
+        if (existingFailure.sampleRowIds.length < LOG_SAMPLE_LIMIT) {
+          existingFailure.sampleRowIds.push(row.id)
+        }
       }
       if (row.needs_unit_review && isUnitResolutionError(errorMessage)) {
         unitMetrics.aiError += 1
@@ -1074,6 +1091,23 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         })
       }
     })
+
+    if (missingCategoryFallbackCanonicals.size > 0) {
+      const fallbackCanonicals = Array.from(missingCategoryFallbackCanonicals).map((canonical) => `"${canonical}"`)
+      console.warn(
+        `[QueueResolver] Missing ingredient category fallback -> "other" for ` +
+          `${missingCategoryFallbackCanonicals.size} canonical(s): ${formatSampleList(fallbackCanonicals)}`
+      )
+    }
+
+    for (const [reason, summary] of failedByReason.entries()) {
+      const logger = summary.probationHold ? console.warn : console.error
+      const failureLabel = summary.probationHold ? "placed on probation" : "failed to resolve"
+      logger(
+        `[QueueResolver] ${summary.count} row(s) ${failureLabel} ` +
+          `(sample_row_ids=${formatSampleList(summary.sampleRowIds)}): ${reason}`
+      )
+    }
 
     return { resolved, failed: failed + (rows.length - validRows.length), unitMetrics, results: detailedResults }
   } catch (error) {
@@ -1107,12 +1141,15 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
   }
 
   const mode = config.dryRun ? "[DRY RUN]" : ""
-  console.log(`[QueueResolver] ${mode} Starting run (limit ${config.batchLimit})`)
+  const modePrefix = mode ? `${mode} ` : ""
+  console.log(`[QueueResolver] ${modePrefix}Starting run (limit ${config.batchLimit})`)
   console.log(
-    `[QueueResolver] ${mode} Canonical double-check: enabled (min_confidence=${config.doubleCheckMinConfidence}, min_similarity=${config.doubleCheckMinSimilarity})`
+    `[QueueResolver] ${modePrefix}Canonical double-check: enabled ` +
+      `(min_confidence=${config.doubleCheckMinConfidence}, min_similarity=${config.doubleCheckMinSimilarity})`
   )
   console.log(
-    `[QueueResolver] ${mode} Unit resolver: enabled=${config.enableUnitResolution}, unit_dry_run=${config.unitDryRun}, unit_min_confidence=${config.unitMinConfidence}`
+    `[QueueResolver] ${modePrefix}Unit resolver: enabled=${config.enableUnitResolution}, ` +
+      `unit_dry_run=${config.unitDryRun}, unit_min_confidence=${config.unitMinConfidence}`
   )
 
   let cycle = 0
@@ -1123,7 +1160,7 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
 
   while (true) {
     if (config.maxCycles > 0 && cycle >= config.maxCycles) {
-      console.log(`[QueueResolver] ${mode} Reached max cycle limit (${config.maxCycles})`)
+      console.log(`[QueueResolver] ${modePrefix}Reached max cycle limit (${config.maxCycles})`)
       break
     }
 
@@ -1133,11 +1170,11 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
         "Lease expired before completion"
       )
       if (requeued > 0) {
-        console.log(`[QueueResolver] ${mode} Requeued ${requeued} expired processing row(s)`)
+        console.log(`[QueueResolver] ${modePrefix}Requeued ${requeued} expired processing row(s)`)
       }
     }
 
-    console.log(`[QueueResolver] ${mode} Fetch cycle ${cycle + 1} (limit ${config.batchLimit})`)
+    console.log(`[QueueResolver] ${modePrefix}Fetch cycle ${cycle + 1} (limit ${config.batchLimit})`)
     const pending = config.dryRun
       ? await ingredientMatchQueueDB.fetchPendingFiltered({
         limit: config.batchLimit,
@@ -1154,9 +1191,9 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
 
     if (!pending.length) {
       if (cycle === 0) {
-        console.log(`[QueueResolver] ${mode} No pending matches`)
+        console.log(`[QueueResolver] ${modePrefix}No pending matches`)
       } else {
-        console.log(`[QueueResolver] ${mode} Queue drained after ${cycle} cycle(s)`)
+        console.log(`[QueueResolver] ${modePrefix}Queue drained after ${cycle} cycle(s)`)
       }
       break
     }
@@ -1165,14 +1202,18 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
 
     const chunks = chunkItems(pending, config.chunkSize)
     console.log(
-      `[QueueResolver] ${mode} Processing ${pending.length} items in ${chunks.length} chunk(s), concurrency=${config.chunkConcurrency}`
+      `[QueueResolver] ${modePrefix}Processing ${pending.length} items in ` +
+        `${chunks.length} chunk(s), concurrency=${config.chunkConcurrency}`
     )
 
     const chunkResults = await mapWithConcurrency(chunks, config.chunkConcurrency, async (chunk, index) => {
-      console.log(`[QueueResolver] ${mode} Processing chunk ${index + 1}/${chunks.length} (${chunk.length} items)`)
+      console.log(
+        `[QueueResolver] ${modePrefix}Processing chunk ${index + 1}/${chunks.length} (${chunk.length} items)`
+      )
       const result = await resolveBatch(chunk, config)
       console.log(
-        `[QueueResolver] ${mode} Chunk ${index + 1} complete (resolved=${result.resolved}, failed=${result.failed})`
+        `[QueueResolver] ${modePrefix}Chunk ${index + 1} complete ` +
+          `(resolved=${result.resolved}, failed=${result.failed})`
       )
       return result
     })
@@ -1198,25 +1239,30 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
     totalUnitMetrics.aiSuccess += cycleUnitMetrics.aiSuccess
     totalUnitMetrics.aiError += cycleUnitMetrics.aiError
 
-    console.log(`[QueueResolver] ${mode} Cycle ${cycle} complete (resolved=${cycleResolved}, failed=${cycleFailed})`)
     console.log(
-      `[QueueResolver] ${mode} Cycle ${cycle} unit metrics ` +
+      `[QueueResolver] ${modePrefix}Cycle ${cycle} complete (resolved=${cycleResolved}, failed=${cycleFailed})`
+    )
+    console.log(
+      `[QueueResolver] ${modePrefix}Cycle ${cycle} unit metrics ` +
         `(unit_map_miss_then_fallback=${cycleUnitMetrics.mapMissThenFallback}, ` +
         `unit_ai_success=${cycleUnitMetrics.aiSuccess}, unit_ai_error=${cycleUnitMetrics.aiError})`
     )
 
     if (config.dryRun) {
-      console.log(`[QueueResolver] ${mode} Dry run stopping after one cycle before clearing the rest of the queue.`)
+      console.log(
+        `[QueueResolver] ${modePrefix}Dry run stopping after one cycle before clearing the rest of the queue.`
+      )
       break
     }
   }
 
   if (cycle > 0) {
     console.log(
-      `[QueueResolver] ${mode} Completed ${cycle} cycle(s) (total_resolved=${totalResolved}, total_failed=${totalFailed})`
+      `[QueueResolver] ${modePrefix}Completed ${cycle} cycle(s) ` +
+        `(total_resolved=${totalResolved}, total_failed=${totalFailed})`
     )
     console.log(
-      `[QueueResolver] ${mode} Unit metrics total ` +
+      `[QueueResolver] ${modePrefix}Unit metrics total ` +
         `(unit_map_miss_then_fallback=${totalUnitMetrics.mapMissThenFallback}, ` +
         `unit_ai_success=${totalUnitMetrics.aiSuccess}, unit_ai_error=${totalUnitMetrics.aiError})`
     )
