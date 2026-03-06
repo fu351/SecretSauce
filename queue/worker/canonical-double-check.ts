@@ -16,7 +16,7 @@ const CROSS_CATEGORY_MIN_SIMILARITY_FLOOR = 0.98
 const CROSS_CATEGORY_MIN_SIMILARITY_BUFFER = 0.03
 const GENERIC_TO_SPECIFIC_MIN_CONFIDENCE = 0.95
 const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR = 0.9
-const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER = 0.2
+const GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER = 0.02
 const SPECIFIC_TO_GENERIC_SCORE_PENALTY = 0.1
 const SPECIFIC_TO_GENERIC_MIN_CONFIDENCE = 0.9
 const SPECIFIC_TO_GENERIC_MIN_SIMILARITY_FLOOR = 0.98
@@ -71,12 +71,9 @@ export function meetsAsymmetricRemapPolicy(
 ): { allowed: boolean; minConfidence: number; minSimilarity: number } {
   if (direction === "generic_to_specific") {
     const minConfidence = Math.max(config.doubleCheckMinConfidence, GENERIC_TO_SPECIFIC_MIN_CONFIDENCE)
-    const minSimilarity = Math.min(
-      1.0,
-      Math.max(
-        config.doubleCheckMinSimilarity + GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER,
-        GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR
-      )
+    const minSimilarity = Math.max(
+      config.doubleCheckMinSimilarity + GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER,
+      GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR
     )
     return {
       allowed: confidence >= minConfidence && similarity >= minSimilarity,
