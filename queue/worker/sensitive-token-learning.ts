@@ -1,12 +1,11 @@
 import {
   ingredientMatchQueueDB,
-  type CanonicalDoubleCheckDailyStatsRow,
+  type SensitivityPairStatsRow,
 } from "../../lib/database/ingredient-match-queue-db"
 import { singularizeCanonicalName } from "../../scripts/utils/canonical-matching"
+import { makeRefreshingCache } from "./refreshing-cache"
 
-const DRIFT_LOOKBACK_DAYS = 30
 const DRIFT_REFRESH_MS = 10 * 60 * 1000
-const DRIFT_MAX_ROWS = 5000
 const MIN_TOKEN_EVENT_COUNT = 3
 const MIN_TOKEN_DISTINCT_PAIRS = 2
 const STRONG_TOKEN_EVENT_COUNT = 8
@@ -26,27 +25,18 @@ const EMPTY_SENSITIVITY: LearnedVarietySensitivity = {
   modifiersByHead: new Map<string, ReadonlySet<string>>(),
 }
 
-let cachedSensitivity: LearnedVarietySensitivity = EMPTY_SENSITIVITY
-let inflightLoad: Promise<LearnedVarietySensitivity> | null = null
-
 function canonicalTokens(value: string): string[] {
   return singularizeCanonicalName(value)
     .split(" ")
     .filter(Boolean)
 }
 
-function toPairKey(row: CanonicalDoubleCheckDailyStatsRow): string {
-  return `${row.source_canonical} -> ${row.target_canonical}`
-}
-
-function buildSensitivity(rows: CanonicalDoubleCheckDailyStatsRow[]): LearnedVarietySensitivity {
+function buildSensitivity(rows: SensitivityPairStatsRow[]): LearnedVarietySensitivity {
   const modifierWeightByHead = new Map<string, Map<string, number>>()
-  const modifierPairsByHead = new Map<string, Map<string, Set<string>>>()
+  const modifierPairCountByHead = new Map<string, Map<string, number>>()
   const totalWeightByHead = new Map<string, number>()
 
   for (const row of rows) {
-    if (row.direction !== "specific_to_generic") continue
-
     const sourceTokens = canonicalTokens(row.source_canonical)
     const targetTokens = canonicalTokens(row.target_canonical)
     if (!sourceTokens.length || !targetTokens.length) continue
@@ -58,7 +48,8 @@ function buildSensitivity(rows: CanonicalDoubleCheckDailyStatsRow[]): LearnedVar
     const droppedTokens = sourceTokens.filter((token) => token.length >= 3 && !targetTokenSet.has(token))
     if (!droppedTokens.length) continue
 
-    const weight = Math.max(1, Number(row.event_count || 0))
+    // Each row is already a unique (source, target) pair — total_events is the summed weight.
+    const weight = Math.max(1, Number(row.total_events || 0))
     totalWeightByHead.set(head, (totalWeightByHead.get(head) || 0) + weight)
 
     let modifierWeights = modifierWeightByHead.get(head)
@@ -67,21 +58,16 @@ function buildSensitivity(rows: CanonicalDoubleCheckDailyStatsRow[]): LearnedVar
       modifierWeightByHead.set(head, modifierWeights)
     }
 
-    let modifierPairs = modifierPairsByHead.get(head)
-    if (!modifierPairs) {
-      modifierPairs = new Map<string, Set<string>>()
-      modifierPairsByHead.set(head, modifierPairs)
+    let modifierPairCounts = modifierPairCountByHead.get(head)
+    if (!modifierPairCounts) {
+      modifierPairCounts = new Map<string, number>()
+      modifierPairCountByHead.set(head, modifierPairCounts)
     }
 
-    const pairKey = toPairKey(row)
     for (const token of droppedTokens) {
       modifierWeights.set(token, (modifierWeights.get(token) || 0) + weight)
-      let pairSet = modifierPairs.get(token)
-      if (!pairSet) {
-        pairSet = new Set<string>()
-        modifierPairs.set(token, pairSet)
-      }
-      pairSet.add(pairKey)
+      // Each input row is one unique (source, target) pair, so increment by 1.
+      modifierPairCounts.set(token, (modifierPairCounts.get(token) || 0) + 1)
     }
   }
 
@@ -93,10 +79,10 @@ function buildSensitivity(rows: CanonicalDoubleCheckDailyStatsRow[]): LearnedVar
     if (headTotalWeight <= 0) continue
 
     const selectedModifiers = new Set<string>()
-    const modifierPairs = modifierPairsByHead.get(head) || new Map<string, Set<string>>()
+    const modifierPairCounts = modifierPairCountByHead.get(head) || new Map<string, number>()
 
     for (const [modifier, weight] of modifierWeights.entries()) {
-      const pairCount = modifierPairs.get(modifier)?.size || 0
+      const pairCount = modifierPairCounts.get(modifier) || 0
       const relativeWeight = weight / headTotalWeight
       const isFrequentAndDistributed =
         weight >= MIN_TOKEN_EVENT_COUNT &&
@@ -124,13 +110,7 @@ function buildSensitivity(rows: CanonicalDoubleCheckDailyStatsRow[]): LearnedVar
 }
 
 async function loadSensitivityFromDrift(): Promise<LearnedVarietySensitivity> {
-  const rows = await ingredientMatchQueueDB.fetchCanonicalDoubleCheckDailyStats({
-    daysBack: DRIFT_LOOKBACK_DAYS,
-    directions: ["specific_to_generic"],
-    decisions: ["remapped", "skipped"],
-    minEventCount: 1,
-    limit: DRIFT_MAX_ROWS,
-  })
+  const rows = await ingredientMatchQueueDB.fetchSensitivityPairStats({ minEventCount: 1 })
 
   const learned = buildSensitivity(rows)
   const totalModifiers = Array.from(learned.modifiersByHead.values()).reduce(
@@ -143,28 +123,14 @@ async function loadSensitivityFromDrift(): Promise<LearnedVarietySensitivity> {
   return learned
 }
 
+const sensitivityCache = makeRefreshingCache({
+  refreshIntervalMs: DRIFT_REFRESH_MS,
+  fallback: EMPTY_SENSITIVITY,
+  load: loadSensitivityFromDrift,
+  onError: (error) =>
+    console.warn("[QueueResolver] Failed to learn sensitivity tokens from drift telemetry:", error),
+})
+
 export async function getLearnedVarietySensitivity(forceRefresh = false): Promise<LearnedVarietySensitivity> {
-  const now = Date.now()
-  if (!forceRefresh && cachedSensitivity.loadedAt > 0 && now - cachedSensitivity.loadedAt < DRIFT_REFRESH_MS) {
-    return cachedSensitivity
-  }
-
-  if (inflightLoad) {
-    return inflightLoad
-  }
-
-  inflightLoad = loadSensitivityFromDrift()
-    .then((learned) => {
-      cachedSensitivity = learned
-      return learned
-    })
-    .catch((error) => {
-      console.warn("[QueueResolver] Failed to learn sensitivity tokens from drift telemetry:", error)
-      return cachedSensitivity
-    })
-    .finally(() => {
-      inflightLoad = null
-    })
-
-  return inflightLoad
+  return sensitivityCache.get(forceRefresh)
 }

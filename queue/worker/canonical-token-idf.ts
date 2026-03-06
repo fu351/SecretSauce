@@ -1,6 +1,7 @@
 import { ingredientMatchQueueDB } from "../../lib/database/ingredient-match-queue-db"
 import { normalizeCanonicalName } from "../../scripts/utils/canonical-matching"
 import { toCanonicalTokens } from "./canonical-double-check"
+import { makeRefreshingCache } from "./refreshing-cache"
 
 // Don't trust the vocabulary until we have enough distinct canonical documents.
 const IDF_VOCABULARY_MIN_DOCUMENTS = 200
@@ -35,8 +36,13 @@ const FALLBACK_SCORER: CanonicalTokenIdfScorer = {
   getFloor: () => -1,
 }
 
-let cachedScorer: CanonicalTokenIdfScorer = FALLBACK_SCORER
-let inflightLoad: Promise<CanonicalTokenIdfScorer> | null = null
+const scorerCache = makeRefreshingCache({
+  refreshIntervalMs: IDF_VOCABULARY_REFRESH_MS,
+  fallback: FALLBACK_SCORER,
+  load: loadScorer,
+  onError: (error) =>
+    console.warn("[QueueResolver] Failed to load token IDF vocabulary; using fallback floor:", error),
+})
 
 function buildScorer(
   documentCount: number,
@@ -95,29 +101,5 @@ async function loadScorer(): Promise<CanonicalTokenIdfScorer> {
 }
 
 export async function getCanonicalTokenIdfScorer(forceRefresh = false): Promise<CanonicalTokenIdfScorer> {
-  const now = Date.now()
-  if (
-    !forceRefresh &&
-    cachedScorer.loadedAt > 0 &&
-    now - cachedScorer.loadedAt < IDF_VOCABULARY_REFRESH_MS
-  ) {
-    return cachedScorer
-  }
-
-  if (inflightLoad) return inflightLoad
-
-  inflightLoad = loadScorer()
-    .then((scorer) => {
-      cachedScorer = scorer
-      return scorer
-    })
-    .catch((error) => {
-      console.warn("[QueueResolver] Failed to load token IDF vocabulary; using fallback floor:", error)
-      return cachedScorer
-    })
-    .finally(() => {
-      inflightLoad = null
-    })
-
-  return inflightLoad
+  return scorerCache.get(forceRefresh)
 }
