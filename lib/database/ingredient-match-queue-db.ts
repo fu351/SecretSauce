@@ -642,6 +642,26 @@ class IngredientMatchQueueTable extends BaseTable<
     }))
   }
 
+  async fetchKnownNonFoodProductMappingIds(productMappingIds: string[]): Promise<Set<string>> {
+    if (!productMappingIds.length) return new Set()
+
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select("product_mapping_id")
+      .in("product_mapping_id", productMappingIds)
+      .eq("is_food_item", false)
+      .eq("status", "resolved")
+
+    if (error) {
+      this.handleError(error, "fetchKnownNonFoodProductMappingIds")
+      return new Set()
+    }
+
+    return new Set(
+      (data || []).map((row) => row.product_mapping_id).filter(Boolean) as string[]
+    )
+  }
+
   async requeueExpired(limit = 1000, errorMessage?: string): Promise<number> {
     const { data, error } = await (this.supabase.rpc as any)("requeue_expired_ingredient_match_queue", {
       p_limit: limit,

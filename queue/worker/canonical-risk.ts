@@ -83,6 +83,11 @@ export function assessNewCanonicalRisk(params: {
   const floorLabel = idfFloor >= 0 ? "idf_token_floor" : "dynamic_token_confidence_floor"
 
   if (minTokenConfidence > 0 && confidence < minTokenConfidence) {
+    // Bypass when the LLM returned a specific (non-"other") category with adequate
+    // confidence — specialty/foreign ingredients have novel tokens but are real food.
+    if (!categoryUnknown && confidence >= 0.4) {
+      return { blocked: false, reason: "category_specific_idf_bypass" }
+    }
     return {
       blocked: true,
       reason:

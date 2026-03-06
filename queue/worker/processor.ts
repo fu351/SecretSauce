@@ -572,17 +572,60 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
     const learnedVarietySensitivity = await getLearnedVarietySensitivity()
     const confidenceCalibrator = await getIngredientConfidenceCalibrator()
     const tokenIdfScorer = await getCanonicalTokenIdfScorer()
-    const firstPassUnitByRowId = await resolveUnitCandidates(validRows, undefined, config)
-    const ingredientByRowId = await resolveIngredientCandidates(validRows, config, firstPassUnitByRowId)
+    // Non-food short-circuit: skip LLM for rows whose product_mapping_id was already
+    // resolved as non-food in a prior queue run.
+    const mappingIdsToCheck = validRows
+      .filter((row) => row.needs_ingredient_review && row.product_mapping_id)
+      .map((row) => row.product_mapping_id as string)
+    const knownNonFoodMappingIds = mappingIdsToCheck.length
+      ? await ingredientMatchQueueDB.fetchKnownNonFoodProductMappingIds(mappingIdsToCheck)
+      : new Set<string>()
+
+    const nonFoodShortCircuitRowIds = new Set<string>()
+    for (const row of validRows) {
+      if (
+        row.needs_ingredient_review &&
+        row.product_mapping_id &&
+        knownNonFoodMappingIds.has(row.product_mapping_id)
+      ) {
+        nonFoodShortCircuitRowIds.add(row.id)
+        if (!config.dryRun) {
+          await ingredientMatchQueueDB.markResolved({
+            rowId: row.id,
+            canonicalName:
+              normalizeCanonicalName(row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "") ||
+              "unknown",
+            resolvedIngredientId: null,
+            confidence: 0,
+            resolver: config.resolverName,
+            isFoodItem: false,
+            clearIngredientReviewFlag: true,
+            clearUnitReviewFlag: true,
+          })
+        }
+        console.log(
+          `[QueueResolver]${config.dryRun ? " [DRY RUN]" : ""} ${row.id} non-food short-circuit ` +
+            `(product_mapping_id=${row.product_mapping_id})`
+        )
+      }
+    }
+
+    const shortCircuitResolvedCount = nonFoodShortCircuitRowIds.size
+    const processableRows = shortCircuitResolvedCount
+      ? validRows.filter((row) => !nonFoodShortCircuitRowIds.has(row.id))
+      : validRows
+
+    const firstPassUnitByRowId = await resolveUnitCandidates(processableRows, undefined, config)
+    const ingredientByRowId = await resolveIngredientCandidates(processableRows, config, firstPassUnitByRowId)
     const unitByRowId = await rerunUnitCandidatesWithIngredientContext(
-      validRows,
+      processableRows,
       firstPassUnitByRowId,
       ingredientByRowId,
       config
     )
 
     const results = await Promise.allSettled(
-      validRows.map(async (row) => {
+      processableRows.map(async (row) => {
         const needsIngredient = row.needs_ingredient_review === true
         const needsUnit = row.needs_unit_review === true
         const rowContext = resolveRowStandardizerContext(row, config.standardizerContext)
@@ -812,9 +855,11 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                   minDistinctSourcesForLongTtl: NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES,
                 })
 
+                const categorySpecific = ingredientCategory && ingredientCategory !== "other"
                 if (
                   probationStats &&
-                  probationStats.distinctSources < NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES
+                  probationStats.distinctSources < NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES &&
+                  !(categorySpecific && ingredientConfidence >= 0.65)
                 ) {
                   throw new Error(
                     `Canonical probation hold for "${canonicalForWrite}" ` +
@@ -1028,7 +1073,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       })
     )
 
-    let resolved = 0
+    let resolved = shortCircuitResolvedCount
     let failed = 0
     const failedByReason = new Map<string, { count: number; sampleRowIds: string[]; probationHold: boolean }>()
 
@@ -1051,7 +1096,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       }
 
       failed += 1
-      const row = validRows[idx]
+      const row = processableRows[idx]
       if (!row) return
 
       const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason)
