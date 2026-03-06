@@ -172,7 +172,23 @@ class StandardizedIngredientsTable extends BaseTable<
 
       // Try to find existing
       const existing = await this.findByCanonicalName(normalizedCanonicalName)
-      if (existing) return existing
+      if (existing) {
+        if (
+          existing.category === "other" &&
+          normalizedCategory &&
+          normalizedCategory !== "other" &&
+          this.isValidItemCategoryEnum(normalizedCategory)
+        ) {
+          const { data: updated, error: updateError } = await this.supabase
+            .from(this.tableName)
+            .update({ category: normalizedCategory })
+            .eq("id", existing.id)
+            .select()
+            .single()
+          if (!updateError && updated) return updated
+        }
+        return existing
+      }
 
       // Create new
       const { data, error } = await this.supabase

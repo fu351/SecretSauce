@@ -568,6 +568,9 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
     return { resolved: 0, failed: rows.length, unitMetrics, results: detailedResults }
   }
 
+  let processableRows: IngredientMatchQueueRow[] = validRows
+  let shortCircuitResolvedCount = 0
+
   try {
     const learnedVarietySensitivity = await getLearnedVarietySensitivity()
     const confidenceCalibrator = await getIngredientConfidenceCalibrator()
@@ -582,6 +585,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       : new Set<string>()
 
     const nonFoodShortCircuitRowIds = new Set<string>()
+    const shortCircuitWritePromises: Promise<unknown>[] = []
     for (const row of validRows) {
       if (
         row.needs_ingredient_review &&
@@ -590,18 +594,20 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       ) {
         nonFoodShortCircuitRowIds.add(row.id)
         if (!config.dryRun) {
-          await ingredientMatchQueueDB.markResolved({
-            rowId: row.id,
-            canonicalName:
-              normalizeCanonicalName(row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "") ||
-              "unknown",
-            resolvedIngredientId: null,
-            confidence: 0,
-            resolver: config.resolverName,
-            isFoodItem: false,
-            clearIngredientReviewFlag: true,
-            clearUnitReviewFlag: true,
-          })
+          shortCircuitWritePromises.push(
+            ingredientMatchQueueDB.markResolved({
+              rowId: row.id,
+              canonicalName:
+                normalizeCanonicalName(row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "") ||
+                "unknown",
+              resolvedIngredientId: null,
+              confidence: 0,
+              resolver: config.resolverName,
+              isFoodItem: false,
+              clearIngredientReviewFlag: true,
+              clearUnitReviewFlag: true,
+            })
+          )
         }
         console.log(
           `[QueueResolver]${config.dryRun ? " [DRY RUN]" : ""} ${row.id} non-food short-circuit ` +
@@ -609,9 +615,12 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         )
       }
     }
+    if (shortCircuitWritePromises.length) {
+      await Promise.allSettled(shortCircuitWritePromises)
+    }
 
-    const shortCircuitResolvedCount = nonFoodShortCircuitRowIds.size
-    const processableRows = shortCircuitResolvedCount
+    shortCircuitResolvedCount = nonFoodShortCircuitRowIds.size
+    processableRows = shortCircuitResolvedCount
       ? validRows.filter((row) => !nonFoodShortCircuitRowIds.has(row.id))
       : validRows
 
@@ -1159,7 +1168,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
     console.error("[QueueResolver] Batch processing failed:", error)
     if (!config.dryRun) {
       await Promise.allSettled(
-        validRows.map((row) =>
+        processableRows.map((row) =>
           ingredientMatchQueueDB.markFailed(
             row.id,
             config.resolverName,
@@ -1168,7 +1177,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         )
       )
     }
-    return { resolved: 0, failed: rows.length, unitMetrics, results: detailedResults }
+    return { resolved: shortCircuitResolvedCount, failed: rows.length - shortCircuitResolvedCount, unitMetrics, results: detailedResults }
   }
 }
 

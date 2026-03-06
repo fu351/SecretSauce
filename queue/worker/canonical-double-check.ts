@@ -71,9 +71,12 @@ export function meetsAsymmetricRemapPolicy(
 ): { allowed: boolean; minConfidence: number; minSimilarity: number } {
   if (direction === "generic_to_specific") {
     const minConfidence = Math.max(config.doubleCheckMinConfidence, GENERIC_TO_SPECIFIC_MIN_CONFIDENCE)
-    const minSimilarity = Math.max(
-      config.doubleCheckMinSimilarity + GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER,
-      GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR
+    const minSimilarity = Math.min(
+      1.0,
+      Math.max(
+        config.doubleCheckMinSimilarity + GENERIC_TO_SPECIFIC_MIN_SIMILARITY_BUFFER,
+        GENERIC_TO_SPECIFIC_MIN_SIMILARITY_FLOOR
+      )
     )
     return {
       allowed: confidence >= minConfidence && similarity >= minSimilarity,
