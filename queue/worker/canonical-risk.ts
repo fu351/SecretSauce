@@ -12,6 +12,8 @@ export const INVALID_CANONICAL_NAMES = new Set([
   "na",
   "misc",
   "miscellaneous",
+  // Too generic — use specific variants (turkey deli meat, roast beef deli meat, etc.)
+  "deli meat",
 ])
 
 const NEW_CANONICAL_DYNAMIC_TOKEN_BASE_MIN_CONFIDENCE = 0.55
