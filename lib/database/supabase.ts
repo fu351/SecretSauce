@@ -599,6 +599,108 @@ export type Database = {
           product_mapping_id?: string | null
         }
       }
+      embedding_queue: {
+        Row: {
+          id: string
+          source_type: "recipe" | "ingredient"
+          source_id: string
+          input_text: string
+          status: "pending" | "processing" | "completed" | "failed"
+          processing_started_at: string | null
+          processing_lease_expires_at: string | null
+          attempt_count: number
+          last_error: string | null
+          model: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          source_type: "recipe" | "ingredient"
+          source_id: string
+          input_text: string
+          status?: "pending" | "processing" | "completed" | "failed"
+          processing_started_at?: string | null
+          processing_lease_expires_at?: string | null
+          attempt_count?: number
+          last_error?: string | null
+          model?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          source_type?: "recipe" | "ingredient"
+          source_id?: string
+          input_text?: string
+          status?: "pending" | "processing" | "completed" | "failed"
+          processing_started_at?: string | null
+          processing_lease_expires_at?: string | null
+          attempt_count?: number
+          last_error?: string | null
+          model?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      recipe_embeddings: {
+        Row: {
+          id: string
+          recipe_id: string
+          embedding: number[]
+          input_text: string
+          model: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          recipe_id: string
+          embedding: number[]
+          input_text: string
+          model?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          recipe_id?: string
+          embedding?: number[]
+          input_text?: string
+          model?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      ingredient_embeddings: {
+        Row: {
+          id: string
+          standardized_ingredient_id: string
+          embedding: number[]
+          input_text: string
+          model: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          standardized_ingredient_id: string
+          embedding: number[]
+          input_text: string
+          model?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          standardized_ingredient_id?: string
+          embedding?: number[]
+          input_text?: string
+          model?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
       /**
        * Supabase schema reference:
        * create table public.ingredient_match_queue (
@@ -1142,6 +1244,14 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_embedding_queue: {
+        Args: {
+          p_limit?: number
+          p_lease_seconds?: number
+          p_source_type?: string | null
+        }
+        Returns: Database["public"]["Tables"]["embedding_queue"]["Row"][]
+      }
       claim_ingredient_match_queue: {
         Args: {
           p_limit?: number
@@ -1171,6 +1281,13 @@ export type Database = {
         }>
       }
       requeue_expired_ingredient_match_queue: {
+        Args: {
+          p_limit?: number
+          p_error?: string | null
+        }
+        Returns: number
+      }
+      requeue_expired_embedding_queue: {
         Args: {
           p_limit?: number
           p_error?: string | null

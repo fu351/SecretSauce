@@ -156,9 +156,9 @@ Acceptance criteria:
 
 ## Checklist
 
-- [ ] Verify embedding queue DB contracts are migration-backed.
-- [ ] Define idempotent enqueue strategy for `embedding_queue`.
-- [ ] Implement isolated embedding worker runtime tree.
-- [ ] Add isolated scripts and package commands.
+- [x] Verify embedding queue DB contracts are migration-backed.
+- [x] Define idempotent enqueue strategy for `embedding_queue`.
+- [x] Implement isolated embedding worker runtime tree.
+- [x] Add isolated scripts and package commands.
 - [ ] Add process-specific operational docs and alerts.
 - [ ] Validate failure isolation in staging.
