@@ -1,0 +1,212 @@
+# Nightly Embedding Queue Resolver
+#
+# Embeds newly created canonicals using the OpenAI embeddings API.
+# Runs after the ingredient queue so canonicals created during that run
+# are available for vector fast-path matching in subsequent nightly runs.
+
+name: Nightly Embedding Queue
+
+on:
+  workflow_call:
+    inputs:
+      embedding_dry_run:
+        description: "Dry run mode"
+        required: false
+        type: string
+        default: "false"
+      embedding_source_type:
+        description: "Source type filter (ingredient|recipe|any)"
+        required: false
+        type: string
+        default: "ingredient"
+  workflow_dispatch:
+    inputs:
+      embedding_dry_run:
+        description: "Dry run mode"
+        required: false
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+      embedding_source_type:
+        description: "Source type filter"
+        required: false
+        type: choice
+        options:
+          - ingredient
+          - recipe
+          - any
+        default: ingredient
+
+jobs:
+  load-config:
+    name: Load Pipeline Defaults
+    runs-on: ubuntu-latest
+    outputs:
+      embedding_batch_limit: ${{ steps.defaults.outputs.embedding_batch_limit }}
+      embedding_max_batches: ${{ steps.defaults.outputs.embedding_max_batches }}
+      embedding_batch_delay_seconds: ${{ steps.defaults.outputs.embedding_batch_delay_seconds }}
+      embedding_model: ${{ steps.defaults.outputs.embedding_model }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read pipeline defaults
+        id: defaults
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          cfg = json.loads(Path(".github/workflows/config/pipeline-defaults.json").read_text(encoding="utf-8"))
+          section = cfg["nightly_embedding_queue"]
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          keys = (
+              "embedding_batch_limit",
+              "embedding_max_batches",
+              "embedding_batch_delay_seconds",
+              "embedding_model",
+          )
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              for key in keys:
+                  fh.write(f"{key}={section[key]}\n")
+          PY
+
+  resolve-embedding-queue:
+    name: Resolve Embedding Queue
+    needs: load-config
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      EMBEDDING_QUEUE_BATCH_LIMIT: ${{ needs['load-config'].outputs.embedding_batch_limit }}
+      EMBEDDING_MAX_BATCHES: ${{ needs['load-config'].outputs.embedding_max_batches }}
+      EMBEDDING_BATCH_DELAY_SECONDS: ${{ needs['load-config'].outputs.embedding_batch_delay_seconds }}
+      EMBEDDING_OPENAI_MODEL: ${{ needs['load-config'].outputs.embedding_model }}
+      EMBEDDING_WORKER_SOURCE_TYPE: ${{ inputs.embedding_source_type }}
+      EMBEDDING_DRY_RUN: ${{ inputs.embedding_dry_run }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --prefix scripts
+
+      - name: Expose scripts dependencies to shared imports
+        run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
+
+      - name: Embedding Queue Summary (Before)
+        run: |
+          echo "=== Embedding Queue Status (Before) ==="
+
+          get_count() {
+            local filter="$1"
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/embedding_queue?select=id&${filter}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          echo "Status breakdown by source_type:"
+          for source in ingredient recipe; do
+            for status in pending processing completed failed; do
+              count=$(get_count "source_type=eq.${source}&status=eq.${status}")
+              [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
+            done
+          done
+
+          pending_total=$(get_count "status=eq.pending")
+          echo "Total pending rows: ${pending_total}"
+
+      - name: Resolve pending embeddings (Batched)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+
+          max_batches="$EMBEDDING_MAX_BATCHES"
+          delay_seconds="$EMBEDDING_BATCH_DELAY_SECONDS"
+
+          if [ "$EMBEDDING_DRY_RUN" = "true" ]; then
+            echo "EMBEDDING_DRY_RUN=true -> forcing max_batches=1"
+            max_batches="1"
+          fi
+
+          SOURCE_FILTER=""
+          if [ "${EMBEDDING_WORKER_SOURCE_TYPE}" != "any" ]; then
+            SOURCE_FILTER="&source_type=eq.${EMBEDDING_WORKER_SOURCE_TYPE}"
+          fi
+
+          for batch in $(seq 1 "$max_batches"); do
+            echo "=== Embedding Batch ${batch}/${max_batches} ==="
+
+            EMBEDDING_QUEUE_MAX_CYCLES="1" npm --prefix scripts run resolve-embedding-queue
+
+            PENDING_COUNT=$(curl -sI \
+              "${SUPABASE_URL}/rest/v1/embedding_queue?select=id&status=eq.pending${SOURCE_FILTER}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0")
+
+            echo "Pending rows after batch ${batch} (source_type=${EMBEDDING_WORKER_SOURCE_TYPE}): ${PENDING_COUNT}"
+
+            if [ "$PENDING_COUNT" -eq 0 ]; then
+              echo "Embedding queue drained. Stopping early."
+              break
+            fi
+
+            if [ "$batch" -lt "$max_batches" ]; then
+              sleep "$delay_seconds"
+            fi
+          done
+
+      - name: Embedding Queue Summary (After)
+        run: |
+          echo "=== Embedding Queue Status (After) ==="
+
+          get_count() {
+            local filter="$1"
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/embedding_queue?select=id&${filter}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' || echo "0"
+          }
+
+          echo "Status breakdown by source_type:"
+          for source in ingredient recipe; do
+            for status in pending processing completed failed; do
+              count=$(get_count "source_type=eq.${source}&status=eq.${status}")
+              [ "$count" != "0" ] && echo "  ${source}/${status}: ${count}"
+            done
+          done
+
+          pending_total=$(get_count "status=eq.pending")
+          echo "Total pending rows: ${pending_total}"

@@ -29,6 +29,7 @@ on:
           - stop_after_purge
           - stop_after_scraper
           - stop_after_update
+          - stop_after_queue
           - emergency_stop
         default: normal
       stores_csv:
@@ -82,6 +83,14 @@ on:
         default: "nightly-openai"
       queue_dry_run:
         description: "Dry run queue stage"
+        required: false
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+      embedding_dry_run:
+        description: "Dry run embedding queue stage"
         required: false
         type: choice
         options:
@@ -160,3 +169,13 @@ jobs:
       queue_context: ${{ inputs.queue_context || 'dynamic' }}
       queue_resolver_name: ${{ inputs.queue_resolver_name || needs['load-config'].outputs.queue_resolver_name }}
       queue_dry_run: ${{ inputs.queue_dry_run || 'false' }}
+
+  embedding-queue:
+    name: Nightly Embedding Queue
+    needs: [queue]
+    if: ${{ always() && (needs.queue.result == 'success' || needs.queue.result == 'skipped') && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update","stop_after_queue"]'), inputs.run_mode || 'normal') }}
+    uses: ./.github/workflows/nightly-embedding-queue.yml
+    secrets: inherit
+    with:
+      embedding_dry_run: ${{ inputs.embedding_dry_run || 'false' }}
+      embedding_source_type: "ingredient"

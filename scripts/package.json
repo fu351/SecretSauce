@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts",
+    "resolve-embedding-queue": "tsx resolve-embedding-queue.ts",
     "queue-worker": "tsx ../queue/ingredient-worker/runner.ts",
     "regenerate-mappings": "node regenerate-mappings.js"
   },
