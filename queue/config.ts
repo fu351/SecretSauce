@@ -1,6 +1,7 @@
 import { resolveIngredientStandardizerContext } from "../standardizer"
 import type { IngredientMatchQueueReviewMode, IngredientMatchQueueSource } from "../lib/database/ingredient-match-queue-db"
 import type { IngredientStandardizerContext } from "../standardizer"
+import { readPositiveInt, readBoundedFloat, readBoolean } from "./env-utils"
 
 export type QueueStandardizerContextMode = IngredientStandardizerContext | "dynamic"
 
@@ -28,26 +29,6 @@ export interface QueueWorkerConfig {
 const HARD_CODED_DOUBLE_CHECK_MIN_CONFIDENCE = 0.85
 const HARD_CODED_DOUBLE_CHECK_MIN_SIMILARITY = 0.96
 
-function readPositiveInt(value: string | undefined, fallback: number): number {
-  const parsed = Number(value ?? "")
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback
-  return Math.floor(parsed)
-}
-
-function readBoundedFloat(value: string | undefined, fallback: number, min: number, max: number): number {
-  const parsed = Number(value ?? "")
-  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return fallback
-  return parsed
-}
-
-function readBoolean(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined) return fallback
-
-  const normalized = value.trim().toLowerCase()
-  if (["1", "true", "yes", "on"].includes(normalized)) return true
-  if (["0", "false", "no", "off"].includes(normalized)) return false
-  return fallback
-}
 
 function resolveReviewMode(value: string | undefined): IngredientMatchQueueReviewMode {
   if (value === "unit" || value === "any" || value === "ingredient") return value

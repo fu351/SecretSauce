@@ -1,5 +1,5 @@
 import { getQueueWorkerConfigFromEnv, type QueueWorkerConfig } from "./config"
-import { runIngredientQueueResolver, type QueueRunSummary } from "./worker/processor"
+import { runIngredientQueueResolver, type QueueRunSummary } from "./ingredient-worker/processor"
 
 function requireSupabaseEnv(): void {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
