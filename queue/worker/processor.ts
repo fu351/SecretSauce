@@ -206,8 +206,19 @@ function maybeRetainFormSpecificCanonical(params: {
   const sharedBaseTokens = sourceBaseTokens.filter((token) => modelTokens.has(token))
   if (!sharedBaseTokens.length) return null
 
+  // If the source has significantly more tokens than the model output it is
+  // likely a retail product title (brand name, size, marketing copy) rather
+  // than a clean ingredient-form name. Returning it wholesale would write
+  // garbage like "huy fong sriracha chili sauce hot 17oz" as a canonical.
+  // Instead, construct a clean name by appending the missing form token(s)
+  // to the model canonical — preserving the form signal without the noise.
+  const retainedCanonical =
+    sourceTokens.length <= modelTokens.size + 2
+      ? sourceCanonical
+      : [modelCanonical, ...missingFormTokens].join(" ")
+
   return {
-    canonicalName: sourceCanonical,
+    canonicalName: retainedCanonical,
     reason: `form_retention(missing_forms=${missingFormTokens.join("|")})`,
   }
 }
