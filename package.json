@@ -8,6 +8,9 @@
     "lint": "next lint",
     "start": "next start",
     "resolve-ingredient-match-queue": "tsx scripts/resolve-ingredient-match-queue.ts",
+    "resolve-embedding-queue": "tsx scripts/resolve-embedding-queue.ts",
+    "embedding-queue-worker": "tsx queue/embedding-worker/runner.ts",
+    "backfill-embedding-queue": "tsx scripts/backfill-embedding-queue.ts",
     "cleanup-recent-standardized-ingredients": "tsx scripts/cleanup-recent-standardized-ingredients.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -20,7 +23,7 @@
     "test:api": "vitest run app/api/",
     "test:traderjoes-scraper": "node scripts/test-traderjoes-scraper.js",
     "test:99ranch-scraper": "node scripts/test-99ranch-scraper.js",
-    "queue-worker": "tsx queue/worker/runner.ts",
+    "queue-worker": "tsx queue/ingredient-worker/runner.ts",
     "backfill-clerk-user-ids": "tsx scripts/backfill-clerk-user-ids.ts"
   },
   "dependencies": {
