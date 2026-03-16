@@ -337,21 +337,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     }
   }, [profile])
 
-  // Auto-start tutorial if appropriate
-  useEffect(() => {
-    if (!user || !profile) return
-    if (profile.tutorial_completed === true && !isActive) return
-    if (profile.primary_goal && !isActive && !isCompleted && !wasDismissed) {
-      const pathMap: Record<string, TutorialPathId> = {
-        cooking: "cooking",
-        budgeting: "budgeting",
-        both: "health",
-      }
-      const pathId = pathMap[profile.primary_goal]
-      if (pathId) startTutorial(pathId)
-    }
-  }, [user, profile, isActive, isCompleted, wasDismissed, startTutorial])
-
   // -------------------
   // Context Value
   // -------------------
