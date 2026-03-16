@@ -2,10 +2,9 @@
 
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ChefHat, DollarSign, Users, X } from "lucide-react"
+import { ChefHat, DollarSign, Heart, X } from "lucide-react"
 import clsx from "clsx"
 
 interface TutorialSelectionModalProps {
@@ -30,7 +29,7 @@ const tutorials = [
     id: "health" as const,
     title: "Elevate Your Journey",
     description: "Save time and prioritize your health",
-    icon: Users,
+    icon: Heart,
   },
 ]
 
@@ -40,13 +39,11 @@ export function TutorialSelectionModal({
 }: TutorialSelectionModalProps) {
   const { startTutorial } = useTutorial()
   const { theme } = useTheme()
-  const router = useRouter()
   const isDark = theme === "dark"
 
   const handleSelectTutorial = (tutorialId: "cooking" | "budgeting" | "health") => {
     startTutorial(tutorialId)
     onClose()
-    router.push("/dashboard")
   }
 
   if (!isOpen) return null

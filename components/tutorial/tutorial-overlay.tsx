@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
 import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
 
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -22,9 +23,11 @@ export function TutorialOverlay() {
     prevStep,
     skipTutorial,
   } = useTutorial()
+  const { toast } = useToast()
 
   const { theme } = useTheme()
   const pathname = usePathname()
+  const router = useRouter()
 
   // --- State Management ---
   const [isMinimized, setIsMinimized] = useState(false)
@@ -33,12 +36,12 @@ export function TutorialOverlay() {
   const [isChangingPage, setIsChangingPage] = useState(false)
   const [isPageLocked, setIsPageLocked] = useState(false)
   
-  // Retry Logic: Attempt to find element 10 times (1s apart) before timing out
+  // Retry Logic: Attempt to find element before timing out
   const [syncRetries, setSyncRetries] = useState(0)
   const [hasSyncTimedOut, setHasSyncTimedOut] = useState(false)
   const [isPageLoading, setIsPageLoading] = useState(false)
 
-  const MAX_RETRIES = 10;
+  const MAX_RETRIES = 15;
   const overlayRef = useRef<HTMLDivElement>(null);
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -209,9 +212,20 @@ export function TutorialOverlay() {
    * 4. Stabilized Highlight Engine
    * Includes retry logic with exponential backoff to "wait" for elements that might be slow to hydrate.
    * Skips attempts while page is loading to avoid finding skeleton/placeholder elements.
+   * For "explore" action substeps/steps, skips element-finding entirely.
    */
   const updateHighlight = useCallback((shouldScroll = false) => {
     if (!isActive || !currentStep || isMinimized || isPageLoading) return;
+
+    // "explore" action: no element highlight needed — just show the step content freely
+    const currentAction = currentSubstep?.action ?? currentStep?.action;
+    if (currentAction === "explore") {
+      setTargetRect(null);
+      setIsChangingPage(false);
+      setHasSyncTimedOut(false);
+      setSyncRetries(0);
+      return;
+    }
 
     const selector = currentSubstep?.highlightSelector ?? currentStep?.highlightSelector;
     if (!selector) {
@@ -232,8 +246,8 @@ export function TutorialOverlay() {
       // Retry Logic: Try to find the element again with exponential backoff
       // But only retry if page is not loading (to wait for content to render)
       if (syncRetries < MAX_RETRIES && !isPageLoading) {
-        // Use exponential backoff: 1s, 2s, 4s, etc. to reduce spamming
-        const delayMs = Math.min(1000 * Math.pow(1.5, syncRetries), 10000);
+        // Exponential backoff with a 2s floor: 2s, 3s, 4.5s, 6.75s … capped at 10s
+        const delayMs = Math.min(Math.max(2000, 1000 * Math.pow(1.5, syncRetries)), 10000);
         const retryTimer = setTimeout(() => {
           setSyncRetries(prev => prev + 1);
           updateHighlight(shouldScroll);
@@ -332,6 +346,7 @@ export function TutorialOverlay() {
   const totalUnits = currentPath.steps.reduce((sum, s) => sum + (s.substeps?.length || 1), 0);
   const completedUnits = currentPath.steps.slice(0, currentStepIndex).reduce((sum, s) => sum + (s.substeps?.length || 1), 0) + (currentSubstepIndex + 1);
   const progress = (completedUnits / totalUnits) * 100;
+  const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore";
 
   return (
     <>
@@ -375,6 +390,7 @@ export function TutorialOverlay() {
       {/* Main Control Card - Strict Bottom Right */}
       <div
         ref={overlayRef}
+        data-testid="tutorial-overlay"
         className={clsx(
           "fixed bottom-8 right-8 z-50 transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
           isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900",
@@ -391,7 +407,9 @@ export function TutorialOverlay() {
               {isChangingPage || isPageLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
             </div>
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
-              {isMinimized ? "Explore Mode" : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : currentPath.name))}
+              {isMinimized
+                ? `Paused · Step ${currentStepIndex + 1} of ${currentPath.steps.length}`
+                : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : currentPath.name))}
             </span>
           </div>
           <div className="flex gap-1">
@@ -420,19 +438,44 @@ export function TutorialOverlay() {
               <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
               <p className="text-sm font-medium opacity-60">Preparing next step...</p>
             </div>
+          ) : !targetRect && !hasSyncTimedOut && !isExploreMode ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+              <p className="text-sm font-medium opacity-70">Scanning for element…</p>
+              <p className="text-[10px] opacity-40 mt-1">
+                Attempt {syncRetries + 1} of {MAX_RETRIES}
+              </p>
+            </div>
           ) : hasSyncTimedOut ? (
             <div className="flex flex-col items-center justify-center py-4 text-center">
               <AlertCircle className="w-10 h-10 text-amber-500 mb-3" />
-              <h4 className="font-bold text-lg mb-1">Element Not Found</h4>
-              <p className="text-xs opacity-60 mb-6">We couldn't locate the UI element for this step.</p>
-              <div className="flex gap-3 w-full">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => { window.location.reload(); }}>
-                  Retry
-                </Button>
-                <Button size="sm" className="flex-1 bg-blue-600" onClick={nextStep}>
-                  Skip Step
-                </Button>
-              </div>
+              <h4 className="font-bold text-lg mb-1">We lost track</h4>
+              {pathname !== currentStep?.page ? (
+                <>
+                  <p className="text-xs opacity-60 mb-1">Not on the right page?</p>
+                  <p className="text-[10px] opacity-40 mb-6">Expected: <span className="font-mono">{currentStep?.page}</span> · Current: <span className="font-mono">{pathname}</span></p>
+                  <div className="flex gap-3 w-full">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); router.push(currentStep!.page) }}>
+                      Go There
+                    </Button>
+                    <Button size="sm" className="flex-1 bg-blue-600" onClick={nextStep}>
+                      Continue Anyway
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs opacity-60 mb-6">We couldn't find the UI element for this step. Try the options below.</p>
+                  <div className="flex gap-3 w-full">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); updateHighlight(true); }}>
+                      Retry
+                    </Button>
+                    <Button size="sm" className="flex-1 bg-blue-600" onClick={nextStep}>
+                      Continue Anyway
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -462,7 +505,10 @@ export function TutorialOverlay() {
             <h2 className="text-2xl font-bold mb-2">End Tutorial?</h2>
             <div className="flex gap-3 mt-8">
               <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowSkipConfirmation(false)}>Keep Going</Button>
-              <Button variant="destructive" className="flex-1 rounded-xl" onClick={skipTutorial}>Exit</Button>
+              <Button variant="destructive" className="flex-1 rounded-xl" onClick={() => {
+                skipTutorial()
+                toast({ title: "Tutorial ended", description: "You can restart it anytime from Settings → Learning & Tutorials." })
+              }}>Exit</Button>
             </div>
           </div>
         </div>

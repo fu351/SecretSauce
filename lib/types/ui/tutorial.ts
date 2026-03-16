@@ -36,7 +36,7 @@ export interface TutorialStep {
   tips?: string[]
   page: string
   highlightSelector?: string
-  action?: 'navigate' | 'click' | 'highlight'
+  action?: 'navigate' | 'click' | 'highlight' | 'explore'
   actionTarget?: string
   nextButtonText?: string
   estimatedSeconds?: number

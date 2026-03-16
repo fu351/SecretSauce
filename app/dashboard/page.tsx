@@ -47,7 +47,7 @@ export default function DashboardPage() {
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false)
   const { user, profile } = useAuth()
   const { theme } = useTheme()
-  const { isActive } = useTutorial()
+  const { isActive, resetTutorial } = useTutorial()
   const isDark = theme === "dark"
 
   useEffect(() => {
@@ -145,6 +145,7 @@ export default function DashboardPage() {
   }
 
   const handleStartTutorial = () => {
+    resetTutorial()
     setShowTutorialPrompt(false)
     setShowTutorialModal(true)
   }

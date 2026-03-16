@@ -71,6 +71,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const { trackEvent } = useAnalytics()
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
+  // Bump this when the payload shape changes; old payloads will be silently discarded
+  const TUTORIAL_STATE_VERSION = 1
 
   const currentPath = currentPathId ? tutorialPaths[currentPathId] : null
   const currentStep = currentPath ? currentPath.steps[currentStepIndex] : null
@@ -88,6 +90,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(
       TUTORIAL_STATE_KEY,
       JSON.stringify({
+        version: TUTORIAL_STATE_VERSION,
         pathId: currentPathId,
         stepIndex: currentStepIndex,
         substepIndex: currentSubstepIndex,
@@ -106,6 +109,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (stored) {
       try {
         const state = JSON.parse(stored)
+        if (state.version !== TUTORIAL_STATE_VERSION) {
+          window.localStorage.removeItem(TUTORIAL_STATE_KEY)
+          return
+        }
         if (!isTutorialPathId(state.pathId)) {
           window.localStorage.removeItem(TUTORIAL_STATE_KEY)
           return
@@ -137,7 +144,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     setIsActive(true)
     setIsCompleted(false)
     trackEvent("tutorial_started", { path: pathId })
-  }, [trackEvent])
+    // Navigate to the first step's page so the overlay starts on the correct route
+    const firstPage = tutorialPaths[pathId].steps[0].page
+    router.push(firstPage)
+  }, [trackEvent, router])
 
   const completeTutorial = useCallback(async () => {
     if (!user || !currentPathId) return
@@ -297,7 +307,9 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.removeItem(TUTORIAL_STATE_KEY)
       setWasDismissed(false)
     }
-    setIsActive(true)
+    // Fully clear tutorial state — startTutorial() is responsible for re-activating
+    setIsActive(false)
+    setCurrentPathId(null)
     setCurrentStepIndex(0)
     setCurrentSubstepIndex(0)
     setIsCompleted(false)

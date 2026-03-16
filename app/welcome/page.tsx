@@ -55,12 +55,8 @@ function WelcomePageContent() {
     })
 
     if (tutorialPath) {
-      console.log('[Welcome] Starting tutorial and navigating to dashboard')
+      console.log('[Welcome] Starting tutorial and navigating to first step')
       startTutorial(tutorialPath)
-      // Give the tutorial state time to update before navigation
-      setTimeout(() => {
-        router.push("/dashboard")
-      }, 300)
     } else {
       console.warn('[Welcome] No tutorial path found for primary_goal:', profile.primary_goal)
       router.push("/dashboard")

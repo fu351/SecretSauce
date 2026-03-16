@@ -37,6 +37,7 @@ function SettingsPageContent() {
     tutorialCompleted: contextTutorialCompleted,
     tutorialPath: contextTutorialPath,
     tutorialCompletedAt: contextTutorialCompletedAt,
+    resetTutorial,
   } = useTutorial()
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
@@ -292,6 +293,7 @@ function SettingsPageContent() {
   }, [updateProfile, user])
 
   const handleRewatchTutorial = () => {
+    resetTutorial()
     setShowTutorialModal(true)
   }
 
@@ -843,9 +845,8 @@ function SettingsPageContent() {
             </div>
           </CardContent>
         </Card>
-        {/* Learning & Tutorials - Only appears if tutorial is completed */}
-        {tutorialCompleted && (
-          <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
+        {/* Learning & Tutorials */}
+        <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
             <CardHeader>
               <div className="flex items-center gap-3">
                 <BookOpen className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
@@ -854,7 +855,7 @@ function SettingsPageContent() {
                     Learning & Tutorials
                   </CardTitle>
                   <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                    Rewatch your onboarding tutorial anytime
+                    Explore the guided tutorial for any path at any time
                   </CardDescription>
                 </div>
               </div>
@@ -900,7 +901,6 @@ function SettingsPageContent() {
               </div>
             </CardContent>
           </Card>
-        )}
         {/* Profile Settings */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
           <CardHeader>

@@ -3,7 +3,7 @@ import { TutorialPath } from "../../lib/types/tutorial"
 export const healthPath: TutorialPath = {
   id: "health",
   name: "Elevate Your Journey",
-  description: "Prioritize your well-wellbeing with precise data and planning.",
+  description: "Prioritize your wellbeing with precise data and planning.",
   steps: [
     {
       id: 1,

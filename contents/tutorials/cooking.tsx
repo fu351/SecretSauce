@@ -27,7 +27,7 @@ export const cookingPath: TutorialPath = {
         },
         {
           id: 3,
-          instruction: "Access your personalized hall-of-fame via your 'Favorites'.",
+          instruction: "Use the Actions panel to quickly jump to your most-used features.",
           highlightSelector: "[data-tutorial='dashboard-actions']",
           action: "highlight",
         }
@@ -63,7 +63,7 @@ export const cookingPath: TutorialPath = {
           id: 4,
           instruction: "Interact with a Recipe Card to see detailed instructions.",
           highlightSelector: "[data-tutorial='recipe-card']",
-          action: "highlight",
+          action: "explore",
         }
       ]
     },
@@ -77,19 +77,19 @@ export const cookingPath: TutorialPath = {
       substeps: [
         {
           id: 1,
-          instruction: "View your broader weekly pannel for an overview of your meals.",
+          instruction: "View your broader weekly panel for an overview of your meals.",
           highlightSelector: "[data-tutorial='planner-overview']",
           action: "highlight",
         },
         {
           id: 2,
-          instruction: "Use the sidebar to see available recipes you can drag into your week.",
+          instruction: "Open the recipe sidebar (tap the panel icon on mobile, or find it on the right on desktop) to browse recipes you can add to your week.",
           highlightSelector: "[data-tutorial='planner-sidebar']",
-          action: "highlight",
+          action: "explore",
         },
         {
           id: 3,
-          instruction: "Need a snack? Use the 'Add' button to manually insert items.",
+          instruction: "Use the 'Add' button to manually insert meals or items into your plan.",
           highlightSelector: "[data-tutorial='planner-add']",
           action: "highlight",
         }
