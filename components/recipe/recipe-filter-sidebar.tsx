@@ -102,10 +102,10 @@ export function RecipeFilterSidebar({
   }
 
   return (
-    <div className="sticky top-6">
+    <div className="sticky top-6" data-tutorial="recipe-filter">
       <div className="rounded-2xl border bg-card shadow-sm p-4 space-y-5">
         <div className="space-y-3">
-          <div className="relative">
+          <div className="relative" data-tutorial="recipe-search">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
               placeholder="Search recipes..."

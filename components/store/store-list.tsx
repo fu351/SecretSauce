@@ -583,7 +583,7 @@ export function ShoppingListSection({
               {uniqueList.length > 0 && (
                 <>
                   <div
-                    data-tutorial= "store-sort"
+                    data-tutorial="store-sort"
                     className={`flex items-center p-1 rounded-md border ${
                       theme === "dark" ? "border-[#e8dcc4]/20 bg-[#181813]" : "border-gray-200 bg-gray-50"
                     }`}>

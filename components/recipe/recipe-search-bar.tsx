@@ -27,7 +27,7 @@ export function RecipeSearchBar({
   }
 
   return (
-    <div className="relative flex gap-2 items-center mb-8" data-tutorial="recipe-search">
+    <div className="relative flex gap-2 items-center mb-8">
       <div className="relative flex-1 max-w-2xl">
         <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
         <Input

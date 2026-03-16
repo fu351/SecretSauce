@@ -47,7 +47,7 @@ export function RecipeFilters({
   }
 
   return (
-    <Card className="mb-8 bg-card backdrop-blur-sm shadow-lg" data-tutorial="recipe-filter">
+    <Card className="mb-8 bg-card backdrop-blur-sm shadow-lg">
       <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <Select value={selectedDifficulty} onValueChange={onDifficultyChange}>
