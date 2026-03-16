@@ -318,7 +318,9 @@ export default function ShoppingReceiptPage() {
 
         itemIds.forEach((id) => {
           const shoppingItem = shoppingList.find((si) => si.id === id)
-          effectiveQty += Math.max(1, Number(shoppingItem?.quantity) || 1)
+          if (shoppingItem) {
+            effectiveQty += Math.max(1, Number(shoppingItem.quantity) || 1)
+          }
         })
 
         if (effectiveQty <= 0) {

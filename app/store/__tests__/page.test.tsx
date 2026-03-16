@@ -361,16 +361,37 @@ describe('ShoppingReceiptPage', () => {
   // Checkout
   // -------------------------------------------------------------------------
 
+  // Helper: parse the URL that router.push was called with
+  function getCheckoutParams(push: ReturnType<typeof vi.fn>) {
+    const url: string = push.mock.calls[0][0]
+    const search = url.split('?')[1] ?? ''
+    const params = new URLSearchParams(search)
+    const cartItemsRaw = params.get('cartItems')
+    return {
+      total: params.get('total'),
+      items: params.get('items'),
+      cartItems: cartItemsRaw ? JSON.parse(decodeURIComponent(cartItemsRaw)) : null,
+    }
+  }
+
   describe('checkout', () => {
-    it('navigates to /checkout when checkout is triggered with no store data', async () => {
+    it('navigates to /checkout with zero total when no store data exists', async () => {
       const { push } = vi.mocked(useRouter)()
+      mockStoreComparisonWith({ results: [] })
       render(<ShoppingReceiptPage />)
       await waitFor(() => screen.getByTestId('checkout-btn'))
       await userEvent.click(screen.getByTestId('checkout-btn'))
-      expect(push).toHaveBeenCalledWith(expect.stringContaining('/checkout'))
+      const { total, items, cartItems } = getCheckoutParams(push)
+      expect(total).toBe('0.00')
+      expect(items).toBe('0')
+      expect(cartItems).toBeNull()
     })
 
-    it('includes total and items count in checkout URL', async () => {
+    it('uses package-based pricing to calculate the total', async () => {
+      // item_1 quantity=2 in shoppingList
+      // store item: quantity=1, packagesToBuy=2, packagePrice=0.99
+      // packagesPerQuantity = 2/1 = 2 → adjustedPackages = ceil(2 * 2) = 4
+      // total = 0.99 * 4 = 3.96
       const { push } = vi.mocked(useRouter)()
       mockShoppingListWith({ items: sampleItems as any })
       mockStoreComparisonWith({
@@ -381,14 +402,96 @@ describe('ShoppingReceiptPage', () => {
       render(<ShoppingReceiptPage />)
       await waitFor(() => screen.getByTestId('checkout-btn'))
       await userEvent.click(screen.getByTestId('checkout-btn'))
-      await waitFor(() => {
-        expect(push).toHaveBeenCalledWith(
-          expect.stringMatching(/\/checkout\?.*total=/)
-        )
-      })
+      const { total, items } = getCheckoutParams(push)
+      expect(total).toBe('3.96')
+      expect(items).toBe('1')
     })
 
-    it('includes cartItems in checkout URL when store has items with productMappingId', async () => {
+    it('falls back to price * quantity when no package pricing is set', async () => {
+      // price=2.50, no packagePrice/packagesToBuy → total = 2.50 * 3 = 7.50
+      const { push } = vi.mocked(useRouter)()
+      const listItem = { ...sampleItems[0], id: 'item_2', quantity: 3 }
+      const storeItem = {
+        shoppingItemId: 'item_2',
+        shoppingItemIds: ['item_2'],
+        productMappingId: 'prod_2',
+        title: 'Bananas',
+        price: 2.5,
+        quantity: 1,
+        packagesToBuy: 0,  // disabled → simple price path
+        packagePrice: 0,
+        unit: 'each',
+      }
+      mockShoppingListWith({ items: [listItem] as any })
+      mockStoreComparisonWith({
+        results: [{ store: 'Walmart', groceryStoreId: 'store_1', items: [storeItem] }] as any,
+        activeStoreIndex: 0,
+        hasFetched: true,
+      })
+      render(<ShoppingReceiptPage />)
+      await waitFor(() => screen.getByTestId('checkout-btn'))
+      await userEvent.click(screen.getByTestId('checkout-btn'))
+      const { total, items } = getCheckoutParams(push)
+      expect(total).toBe('7.50')
+      expect(items).toBe('1')
+    })
+
+    it('falls back to item.quantity when shoppingList has no matching item', async () => {
+      // shoppingList is empty — no match for 'orphan_item'
+      // effectiveQty stays 0 → fallback: effectiveQty = item.quantity = 3
+      // total = 2.00 * 3 = 6.00
+      const { push } = vi.mocked(useRouter)()
+      const storeItem = {
+        shoppingItemId: 'orphan_item',
+        shoppingItemIds: ['orphan_item'],
+        productMappingId: 'prod_orphan',
+        title: 'Mystery Item',
+        price: 2.0,
+        quantity: 3,
+        packagesToBuy: 0,
+        packagePrice: 0,
+        unit: 'each',
+      }
+      mockShoppingListWith({ items: [] })
+      mockStoreComparisonWith({
+        results: [{ store: 'Walmart', groceryStoreId: 'store_1', items: [storeItem] }] as any,
+        activeStoreIndex: 0,
+        hasFetched: true,
+      })
+      render(<ShoppingReceiptPage />)
+      await waitFor(() => screen.getByTestId('checkout-btn'))
+      await userEvent.click(screen.getByTestId('checkout-btn'))
+      const { total } = getCheckoutParams(push)
+      expect(total).toBe('6.00')
+    })
+
+    it('sums multiple store items correctly', async () => {
+      // item A: price=1.00, qty=2 → 2.00; item B: price=3.00, qty=1 → 3.00; total=5.00
+      const { push } = vi.mocked(useRouter)()
+      const listItems = [
+        { ...sampleItems[0], id: 'a', quantity: 2 },
+        { ...sampleItems[0], id: 'b', quantity: 1 },
+      ]
+      const storeItems = [
+        { shoppingItemId: 'a', shoppingItemIds: ['a'], productMappingId: 'p_a', title: 'A', price: 1.0, quantity: 1, packagesToBuy: 0, packagePrice: 0, unit: 'each' },
+        { shoppingItemId: 'b', shoppingItemIds: ['b'], productMappingId: 'p_b', title: 'B', price: 3.0, quantity: 1, packagesToBuy: 0, packagePrice: 0, unit: 'each' },
+      ]
+      mockShoppingListWith({ items: listItems as any })
+      mockStoreComparisonWith({
+        results: [{ store: 'Walmart', groceryStoreId: 'store_1', items: storeItems }] as any,
+        activeStoreIndex: 0,
+        hasFetched: true,
+      })
+      render(<ShoppingReceiptPage />)
+      await waitFor(() => screen.getByTestId('checkout-btn'))
+      await userEvent.click(screen.getByTestId('checkout-btn'))
+      const { total, items } = getCheckoutParams(push)
+      expect(total).toBe('5.00')
+      expect(items).toBe('2')
+    })
+
+    it('builds correct cartItems structure with package pricing', async () => {
+      // item_1 qty=2, packagesToBuy=2 per quantity=1 → adjustedPackages=4
       const { push } = vi.mocked(useRouter)()
       mockShoppingListWith({ items: sampleItems as any })
       mockStoreComparisonWith({
@@ -399,11 +502,81 @@ describe('ShoppingReceiptPage', () => {
       render(<ShoppingReceiptPage />)
       await waitFor(() => screen.getByTestId('checkout-btn'))
       await userEvent.click(screen.getByTestId('checkout-btn'))
-      await waitFor(() => {
-        expect(push).toHaveBeenCalledWith(
-          expect.stringMatching(/cartItems=/)
-        )
+      const { cartItems } = getCheckoutParams(push)
+      expect(cartItems).toEqual([
+        { item_id: 'item_1', product_id: 'prod_1', num_pkgs: 4, frontend_price: 0.99 },
+      ])
+    })
+
+    it('omits cartItems from URL when productMappingId is missing', async () => {
+      const { push } = vi.mocked(useRouter)()
+      const storeItem = {
+        shoppingItemId: 'item_1',
+        shoppingItemIds: ['item_1'],
+        productMappingId: null,   // missing → should not be included
+        title: 'Apples',
+        price: 1.0,
+        quantity: 1,
+        packagesToBuy: 0,
+        packagePrice: 0,
+        unit: 'each',
+      }
+      mockShoppingListWith({ items: sampleItems as any })
+      mockStoreComparisonWith({
+        results: [{ store: 'Walmart', groceryStoreId: 'store_1', items: [storeItem] }] as any,
+        activeStoreIndex: 0,
+        hasFetched: true,
       })
+      render(<ShoppingReceiptPage />)
+      await waitFor(() => screen.getByTestId('checkout-btn'))
+      await userEvent.click(screen.getByTestId('checkout-btn'))
+      const { cartItems } = getCheckoutParams(push)
+      expect(cartItems).toBeNull()
+    })
+
+    it('uses the active store (by index) not always the first store', async () => {
+      // Two stores; activeStoreIndex=1 → should use Kroger's price (5.00), not Walmart's (1.00)
+      const { push } = vi.mocked(useRouter)()
+      const storeItem = (store: string, price: number) => ({
+        store,
+        groceryStoreId: `store_${store}`,
+        items: [{
+          shoppingItemId: 'item_1',
+          shoppingItemIds: ['item_1'],
+          productMappingId: `prod_${store}`,
+          title: 'Apples',
+          price,
+          quantity: 1,
+          packagesToBuy: 0,
+          packagePrice: 0,
+          unit: 'each',
+        }],
+      })
+      mockShoppingListWith({ items: [{ ...sampleItems[0], quantity: 1 }] as any })
+      mockStoreComparisonWith({
+        results: [storeItem('Walmart', 1.0), storeItem('Kroger', 5.0)] as any,
+        activeStoreIndex: 1,
+        hasFetched: true,
+      })
+      render(<ShoppingReceiptPage />)
+      await waitFor(() => screen.getByTestId('checkout-btn'))
+      await userEvent.click(screen.getByTestId('checkout-btn'))
+      const { total } = getCheckoutParams(push)
+      expect(total).toBe('5.00')
+    })
+
+    it('calls scrollToStore(0) when no store is selected but comparisons exist', async () => {
+      // activeStoreIndex=0 but results=[] → selectedStore=null, then results become non-empty
+      // Simulate: results has entries but activeStoreIndex points beyond them (selectedStore=null)
+      mockStoreComparisonWith({
+        results: sampleStoreComparisons as any,
+        activeStoreIndex: 99, // out of bounds → selectedStore will be null
+        hasFetched: true,
+      })
+      render(<ShoppingReceiptPage />)
+      await waitFor(() => screen.getByTestId('checkout-btn'))
+      await userEvent.click(screen.getByTestId('checkout-btn'))
+      expect(mockScrollToStore).toHaveBeenCalledWith(0)
     })
   })
 
