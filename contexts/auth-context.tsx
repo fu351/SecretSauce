@@ -79,10 +79,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setBrowserAccessTokenProvider(async () => {
       if (!clerkLoaded) return null
-      let token = await getToken({ template: "supabase" })
+      let token = await getToken()
 
       if (token && isJwtExpiredOrExpiring(token)) {
-        token = await getToken({ template: "supabase", skipCache: true })
+        token = await getToken({ skipCache: true })
       }
 
       if (!token || isJwtExpiredOrExpiring(token, 0)) {
