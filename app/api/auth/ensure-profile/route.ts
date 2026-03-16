@@ -123,6 +123,26 @@ export async function POST() {
       .select("id, email, created_at")
       .single()
 
+    // Race condition: another concurrent request already created this profile.
+    // Fall back to fetching the existing row by clerk_user_id.
+    if (createError?.code === "23505") {
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id, email, created_at")
+        .eq("clerk_user_id", clerkUserId)
+        .maybeSingle()
+
+      if (existing?.id) {
+        return NextResponse.json({
+          profile: {
+            id: existing.id,
+            email: existing.email,
+            created_at: existing.created_at ?? null,
+          },
+        })
+      }
+    }
+
     if (createError || !created) {
       console.error("[ensure-profile] Failed creating deterministic profile", {
         clerkUserId,

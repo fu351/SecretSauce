@@ -4,7 +4,6 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
 import { useAuth as useClerkAuth, useClerk } from "@clerk/nextjs"
 import { setBrowserAccessTokenProvider } from "@/lib/database/supabase"
-import { profileDB } from "@/lib/database/profile-db"
 
 type AuthUser = {
   id: string
@@ -201,30 +200,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = async (updates: any) => {
     if (!user?.id || !user.email || !mounted.current) return
 
-    const startTime = performance.now()
-    console.log("[v0] Updating profile...")
+    const response = await fetch("/api/auth/update-profile", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    })
 
-    try {
-      const updatedProfile = await profileDB.upsertProfile({
-        id: user.id,
-        email: user.email,
-        ...updates,
-      })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      throw new Error(payload?.detail ?? payload?.error ?? "Failed to update profile")
+    }
 
-      const duration = performance.now() - startTime
-      console.log(`[v0] Profile update completed in ${duration.toFixed(2)}ms`)
-
-      if (!updatedProfile) {
-        throw new Error("Failed to update profile")
-      }
-
-      if (mounted.current) {
-        setProfile(updatedProfile)
-      }
-    } catch (error) {
-      const duration = performance.now() - startTime
-      console.error(`[v0] Profile update exception after ${duration.toFixed(2)}ms:`, error)
-      throw error
+    const payload = await response.json()
+    if (mounted.current && payload?.profile) {
+      setProfile(payload.profile)
     }
   }
 

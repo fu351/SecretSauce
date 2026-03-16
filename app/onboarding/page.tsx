@@ -179,11 +179,12 @@ export default function OnboardingPage() {
   }, [])
 
   useEffect(() => {
-    // Force dark theme for onboarding experience on initial mount
-    // User can change to warm mode in the theme selection question
+    // Force dark theme for onboarding experience on initial mount only.
+    // User can change to warm mode in the theme selection question.
     setTheme("dark")
     setSelectedTheme("dark")
-  }, [setTheme])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Keep global theme in sync with selectedTheme when navigating between steps
   useEffect(() => {
@@ -652,9 +653,10 @@ export default function OnboardingPage() {
       router.push("/welcome")
     } catch (error) {
       console.error("[Onboarding] Error saving preferences:", error)
+      const msg = error instanceof Error ? error.message : "Failed to save preferences. Please try again."
       toast({
         title: "Error",
-        description: "Failed to save preferences. Please try again.",
+        description: msg,
         variant: "destructive",
       })
     } finally {
