@@ -1,0 +1,141 @@
+name: Store Data Maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Which one-time task to run"
+        required: true
+        type: choice
+        options:
+          - import
+          - geo_fix
+          - backfill
+        default: "import"
+      brands:
+        description: "Optional comma/space-separated store_enum brands (e.g. target,walmart)"
+        required: false
+        default: ""
+      max_spiders:
+        description: "Max brands per run for import/geo_fix scripts (default: 2)"
+        required: false
+        default: "2"
+      zip_codes:
+        description: "Optional ZIP list (comma-separated) for import/backfill"
+        required: false
+        default: ""
+      run_update_target_zipcodes:
+        description: "Run update_target_zipcodes before import (true/false)"
+        required: false
+        default: "true"
+      neighbor_radius:
+        description: "Neighbor ZIP radius for update_target_zipcodes (default: 5)"
+        required: false
+        default: "5"
+      import_all_zipcodes:
+        description: "Import stores across all ZIPs (true/false)"
+        required: false
+        default: "false"
+      mark_events_completed:
+        description: "Mark scraping_events as completed for import ZIPs (true/false)"
+        required: false
+        default: "true"
+      backfill_limit:
+        description: "Backfill batch size (default: 100)"
+        required: false
+        default: "100"
+      backfill_delay:
+        description: "Backfill delay between API calls in seconds (default: 0.1)"
+        required: false
+        default: "0.1"
+      backfill_loop:
+        description: "Backfill in loop mode until done (true/false)"
+        required: false
+        default: "false"
+      backfill_max_batches:
+        description: "Stop after this many backfill batches when looping (0 = unlimited)"
+        required: false
+        default: "0"
+      backfill_concurrency:
+        description: "Parallel ZIP metadata requests for backfill (default: 10)"
+        required: false
+        default: "10"
+
+jobs:
+  maintenance:
+    name: Store Maintenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    concurrency:
+      group: store-maintenance
+      cancel-in-progress: true
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+      WORKFLOW_MODE: ${{ github.event.inputs.mode }}
+      BRANDS: ${{ github.event.inputs.brands || '' }}
+      MAX_SPIDERS: ${{ github.event.inputs.max_spiders || '2' }}
+      ZIP_CODES: ${{ github.event.inputs.zip_codes || '' }}
+      RUN_UPDATE_TARGET_ZIPCODES: ${{ github.event.inputs.run_update_target_zipcodes || 'true' }}
+      NEIGHBOR_RADIUS: ${{ github.event.inputs.neighbor_radius || '5' }}
+      IMPORT_ALL_ZIPCODES: ${{ github.event.inputs.import_all_zipcodes || 'false' }}
+      MARK_EVENTS_COMPLETED: ${{ github.event.inputs.mark_events_completed || 'true' }}
+      BACKFILL_LIMIT: ${{ github.event.inputs.backfill_limit || '100' }}
+      BACKFILL_DELAY: ${{ github.event.inputs.backfill_delay || '0.1' }}
+      BACKFILL_LOOP: ${{ github.event.inputs.backfill_loop || 'false' }}
+      BACKFILL_MAX_BATCHES: ${{ github.event.inputs.backfill_max_batches || '0' }}
+      BACKFILL_CONCURRENCY: ${{ github.event.inputs.backfill_concurrency || '10' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install supabase requests ijson urllib3
+
+      - name: Validate and normalize mode
+        id: mode
+        run: |
+          set -euo pipefail
+          mode=$(echo "${WORKFLOW_MODE}" | tr '[:upper:]' '[:lower:]' | xargs)
+          case "$mode" in
+            import|geo_fix|backfill) ;;
+            *)
+              echo "❌ Unsupported mode: $mode"
+              echo "Supported: import, geo_fix, backfill"
+              exit 1
+              ;;
+          esac
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "Running mode: $mode"
+
+      - name: Run Store Maintenance
+        run: |
+          set -euo pipefail
+          args=(
+            --mode "${{ steps.mode.outputs.mode }}"
+            --max-spiders "$MAX_SPIDERS"
+            --run-update-target-zipcodes "$RUN_UPDATE_TARGET_ZIPCODES"
+            --neighbor-radius "$NEIGHBOR_RADIUS"
+            --mark-events-completed "$MARK_EVENTS_COMPLETED"
+            --backfill-limit "$BACKFILL_LIMIT"
+            --backfill-delay "$BACKFILL_DELAY"
+            --backfill-loop "$BACKFILL_LOOP"
+            --backfill-max-batches "$BACKFILL_MAX_BATCHES"
+            --backfill-concurrency "$BACKFILL_CONCURRENCY"
+          )
+          if [ -n "${BRANDS// }" ]; then
+            args+=(--brands "$BRANDS")
+          fi
+          if [ -n "${ZIP_CODES// }" ]; then
+            args+=(--zipcodes "$ZIP_CODES")
+          fi
+          if [ "${IMPORT_ALL_ZIPCODES,,}" = "true" ]; then
+            args+=(--import-all-zipcodes)
+          fi
+          python scripts/store_maintenance.py "${args[@]}"

@@ -1,5 +1,5 @@
 """
-Common utilities and functions shared between import_new_stores.py and geoscraper.py.
+Common utilities and functions shared by store-maintenance scripts.
 
 This module provides:
 - Supabase client initialization

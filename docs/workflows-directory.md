@@ -63,16 +63,13 @@ Trigger: manual (`workflow_dispatch`) only.
 | `.github/workflows/daily-purge.yml` | `workflow_call`, `workflow_dispatch` | Wipe `ingredients_recent` (or dry-run count) | Supabase delete from `ingredients_recent` |
 | `.github/workflows/update-unit-weight-estimates.yml` | `workflow_call`, `workflow_dispatch` | Recompute/verify unit weight estimates | RPC `scheduled_update_unit_estimates`, `check_pricing_health` |
 | `.github/workflows/regenerate-mappings.yml` | `schedule`, `workflow_dispatch` | Relink recipe/product mappings and resolve queue | RPC `fn_relink_recipe_ingredients`, `fn_relink_product_mappings`; queue resolver |
-| `.github/workflows/backfill-scraped-zipcodes.yml` | `schedule`, `workflow_dispatch` | Backfill `scraped_zipcodes` city/state/geom | `python scripts/backfill_scraped_zipcodes.py` |
-| `.github/workflows/import_stores.yml` | `workflow_dispatch` | Refresh target ZIP priorities and import stores | `python scripts/update_target_zipcodes.py`; `python scripts/import_new_stores.py` |
-| `.github/workflows/geoscraper.yml` | `workflow_dispatch` | Matrix geoscrape by selected stores; mark events complete | `python scripts/geoscraper.py` |
-| `.github/workflows/geo_fix.yml` | `workflow_dispatch` | Backfill missing store geometry in `grocery_stores` | `python scripts/fix_missing_geo.py` |
+| `.github/workflows/store_maintenance.yml` | `workflow_dispatch` | One-time store maintenance (import, geo fix, ZIP backfill) | `python scripts/store_maintenance.py` |
 | `.github/workflows/test-ingredient-queue.yml` | `workflow_dispatch` | Dry-run queue resolver smoke test | `npm run resolve-ingredient-match-queue` |
 | `.github/workflows/back-up.yml` | `workflow_dispatch` | Backup/reset/restore ingredient ecosystem via RPC | RPC `fn_ingredient_ecosystem` |
 
 ## Operational Notes
 
-- `import_stores.yml` and `geo_fix.yml` are manual-only maintenance workflows (`workflow_dispatch`).
+- `store_maintenance.yml` is a manual-only maintenance workflow (`workflow_dispatch`).
 - Queue workflow defaults are `queue_source=any`, `queue_review_mode=any`, `queue_context=dynamic`, with unit resolution enabled by default.
 
 ## Where To Start By Task
@@ -85,4 +82,4 @@ Trigger: manual (`workflow_dispatch`) only.
   - `nightly-ingredient-queue.yml` + `queue/` + `docs/ingredient-queue-realtime-plan.md`
   - Queue concurrency/race protection: `docs/queue-processing.md`
 - Store footprint/geo maintenance:
-  - `import_stores.yml`, `geoscraper.yml`, `geo_fix.yml`, `backfill-scraped-zipcodes.yml`
+  - `store_maintenance.yml`

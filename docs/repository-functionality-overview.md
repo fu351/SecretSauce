@@ -197,7 +197,7 @@ This document provides a broad, implementation-grounded map of what this reposit
 
 - `scripts/` contains data engineering and scraper operations:
   - daily scraper orchestration
-  - geoscraper/import scripts for store data
+  - import and geo-maintenance scripts for store data
   - queue/mapping maintenance scripts
 - `.github/workflows/` contains scheduled and manual pipelines for scraping, cleanup, and mapping regeneration.
 - `python-api/main.py` provides FastAPI endpoints consumed by Next API routes for import parsing tasks.

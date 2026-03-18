@@ -37,8 +37,8 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | Resolve ingredient match queue | `scripts/resolve-ingredient-match-queue.ts` | Thin shim to `queue/` runtime (`runQueueResolverFromEnv`). Use root `npm run resolve-ingredient-match-queue` or `npm --prefix scripts run resolve-ingredient-match-queue`. |
 | Cleanup recently created standardized ingredients | `scripts/cleanup-recent-standardized-ingredients.ts` | Dry-run by default. Finds recent `standardized_ingredients`, reports hard/soft references, and optionally applies safe resets + deletions for remap/recovery workflows. |
 | Run persistent queue worker | `queue/worker/runner.ts` (via scripts package) | Use `npm run queue-worker` (root) or `npm --prefix scripts run queue-worker`. |
-| Import/refresh grocery stores from AllThePlaces | `scripts/import_new_stores.py` | Defaults to target ZIP strategy (`target_zipcodes`); supports `--brand` and `--all-zipcodes`. |
-| Real-time ZIP-triggered store scraping | `scripts/geoscraper.py` | Event/webhook-oriented; accepts ZIP input via flags or `REALTIME_TARGET_ZIPCODES`. |
+| Run one-time store maintenance modes | `scripts/store_maintenance.py` | Single entrypoint for `import`, `geo_fix`, and `backfill` modes used by workflow dispatch. |
+| Import/refresh grocery stores from AllThePlaces | `scripts/import_new_stores.py` | Defaults to target ZIP strategy (`target_zipcodes`); supports `--brand`, `--all-zipcodes`, and explicit ZIP targeting. |
 | Build target ZIP list from user profiles | `scripts/update_target_zipcodes.py` | Calls DB RPCs `update_target_zipcodes` and optional `add_neighbor_zipcodes`. |
 | Backfill `scraped_zipcodes` city/state/geom | `scripts/backfill_scraped_zipcodes.py` | Uses Zippopotam API, supports `--loop`, `--concurrency`, `--dry-run`. |
 | Fix missing/centroid store geometry in `grocery_stores` | `scripts/fix_missing_geo.py` | Uses AllThePlaces first; optional Google geocode ZIP fallback (`GOOGLE_MAPS_API_KEY`). |
@@ -57,8 +57,8 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | `scripts/resolve-ingredient-match-queue.ts` | TSX | Executes queue resolver pipeline. |
 | `scripts/cleanup-recent-standardized-ingredients.ts` | TSX | Scans recent canonical rows, writes JSON report, optionally resets soft references and deletes safe candidates. |
 | `scripts/seed-mock-recipes.ts` | TSX | Upserts recipe data in DB. |
+| `scripts/store_maintenance.py` | Python | Orchestrates store maintenance modes (`import`, `geo_fix`, `backfill`). |
 | `scripts/import_new_stores.py` | Python | Inserts new rows into `grocery_stores`; updates `scraped_zipcodes`. |
-| `scripts/geoscraper.py` | Python | Inserts ZIP-scoped store rows; updates `scraped_zipcodes`. |
 | `scripts/update_target_zipcodes.py` | Python | Rebuilds/expands `target_zipcodes`. |
 | `scripts/backfill_scraped_zipcodes.py` | Python | Updates metadata/geography in `scraped_zipcodes`. |
 | `scripts/fix_missing_geo.py` | Python | Updates `grocery_stores.geom`; adjusts failure counters in run logic. |
@@ -67,7 +67,7 @@ Quick routing for operational scripts in `scripts/`: what each script does, when
 | `scripts/analyze-404s.js` | Node | Read-only analysis of `target_404_log`. |
 | `scripts/test-ingredient-404s.js` | Node | Read-only test calls to scraper APIs + DB reads. |
 | `scripts/test-traderjoes-scraper.js` | Node | Read-only test harness for Trader Joe's scraper using one DB-backed store + canonical ingredient sample. |
-| `scripts/scraper_common.py` | Python module | Shared helper module for store import/geoscraper/backfill flows. |
+| `scripts/scraper_common.py` | Python module | Shared helper module for store import/backfill flows. |
 | `scripts/utils/daily-scraper-utils.js` | JS module | Shared helper module for daily scraper batching/filtering/normalization. |
 | `scripts/utils/canonical-matching.ts` | TS module | Shared canonical-name similarity helpers. |
 
@@ -93,6 +93,9 @@ node scripts/daily-scraper.js
 python scripts/update_target_zipcodes.py --neighbor-radius 5
 python scripts/import_new_stores.py
 
+# Run store maintenance import mode end-to-end
+python scripts/store_maintenance.py --mode import --max-spiders 2
+
 # Safe preview: backfill Target store IDs
 node scripts/backfill-target-store-ids.js --dry-run --limit 20
 ```
@@ -103,7 +106,4 @@ These scripts are actively used by CI workflows:
 
 - `scripts/daily-scraper.js`: `.github/workflows/daily-scraper-matrix.yml`
 - `scripts/resolve-ingredient-match-queue.ts`: `.github/workflows/nightly-ingredient-queue.yml`, `.github/workflows/test-ingredient-queue.yml`, `.github/workflows/regenerate-mappings.yml`
-- `scripts/geoscraper.py`: `.github/workflows/geoscraper.yml`
-- `scripts/import_new_stores.py` + `scripts/update_target_zipcodes.py`: `.github/workflows/import_stores.yml`
-- `scripts/backfill_scraped_zipcodes.py`: `.github/workflows/backfill-scraped-zipcodes.yml`
-- `scripts/fix_missing_geo.py`: `.github/workflows/geo_fix.yml`
+- `scripts/store_maintenance.py` (or mode-specific wrappers): `.github/workflows/store_maintenance.yml`
