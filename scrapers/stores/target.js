@@ -454,10 +454,10 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
 
     // Create a new request promise and store it in the in-flight map
     const requestPromise = (async () => {
+        let resolvedStoreInfo = null;
+        let storeId = null;
+        let storeIdSource = 'explicit'; // Track how store ID was resolved
         try {
-            let resolvedStoreInfo = null;
-            let storeId = null;
-            let storeIdSource = 'explicit'; // Track how store ID was resolved
 
             if (storeMetadata && typeof storeMetadata === "object") {
                 resolvedStoreInfo = storeMetadata;

@@ -48,7 +48,8 @@ export default defineConfig({
       'dist',
       '.next',
       'coverage',
-      '**/*.config.*'
+      '**/*.config.*',
+      'e2e/**',         // Playwright E2E tests — run via `playwright test`, not vitest
     ],
 
     // Timeouts

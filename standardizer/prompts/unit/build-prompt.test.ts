@@ -16,7 +16,7 @@ describe("buildUnitStandardizerPrompt", () => {
       ],
     })
 
-    expect(prompt).toContain("Prompt version: unit-v1")
+    expect(prompt).toContain("Prompt version: unit-v2")
     expect(prompt).toContain("Return ONLY valid JSON")
     expect(prompt).toContain("oz, lb, unit")
     expect(prompt).toContain("\"id\": \"q1\"")
