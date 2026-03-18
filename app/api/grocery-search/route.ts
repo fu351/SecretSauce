@@ -238,11 +238,9 @@ export async function GET(request: NextRequest) {
 
   // Only use profile zip_code as fallback if no zipcode was explicitly provided
   let profileZip: string | null = null
-  let userId: string | null = null
+  let userId: string | null = clerkAuthState.userId || null
   if (hasClerkSession) {
     try {
-      const { data: authUserRes } = await supabaseClient.auth.getUser()
-      userId = authUserRes?.user?.id || null
       if (userId && !zipToUse) {
         // Only use profile zip if no zipcode was explicitly provided
         const profile = await profileDB.fetchProfileFields(userId, ["zip_code"])
