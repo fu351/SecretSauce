@@ -1,8 +1,6 @@
 import argparse
 import os
-import io
 import time
-import ijson
 import requests
 from supabase import Client
 
@@ -19,6 +17,7 @@ from scraper_common import (
     create_stats_dict,
     print_stats_summary,
 )
+from store_maintenance_utils.alltheplaces import fetch_features_with_fallback
 
 # 1. Setup
 supabase: Client = get_supabase_client()
@@ -30,32 +29,6 @@ DELAY_AFTER_ERROR = 60     # seconds to wait after server errors before continui
 # Batch processing configuration
 MAX_SPIDERS_PER_RUN = int(os.environ.get("MAX_SPIDERS_PER_RUN", "0")) or None  # None = no limit
 BATCH_SIZE = 100  # Insert in batches of 100
-
-# Primary + fallback output locations for AllThePlaces data.
-# You can override/add the primary URL with ALLTHEPLACES_OUTPUT_BASE.
-ALLTHEPLACES_OUTPUT_BASES = [
-    os.environ.get("ALLTHEPLACES_OUTPUT_BASE"),
-    "https://data.alltheplaces.xyz/runs/latest/output",
-    "https://alltheplaces-data.openaddresses.io/runs/latest/output",
-]
-ALLTHEPLACES_OUTPUT_BASES = [
-    base.rstrip("/")
-    for base in ALLTHEPLACES_OUTPUT_BASES
-    if base
-]
-
-# Known spider aliases in case a *_us name is missing from a particular run.
-SPIDER_ALIASES: dict[str, list[str]] = {
-    "aldi_us": ["aldi"],
-    "kroger_us": ["kroger"],
-    "meijer_us": ["meijer"],
-    "target_us": ["target"],
-    "walmart_us": ["walmart"],
-    "trader_joes_us": ["trader_joes"],
-    "99_ranch_market_us": ["99_ranch_market"],
-    "whole_foods": ["whole_foods_us"],
-}
-
 
 def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str]:
     """Collect ZIP codes from CLI, comma-separated strings, or an env var."""
@@ -78,65 +51,6 @@ def gather_zipcodes_from_args(args: argparse.Namespace) -> set[str]:
                 expanded.append(candidate)
 
     return set(expanded) if expanded else set()
-
-
-def build_spider_candidates(spider_name: str) -> list[str]:
-    """Return spider-name candidates in priority order, deduped."""
-    candidates: list[str] = [spider_name]
-    candidates.extend(SPIDER_ALIASES.get(spider_name, []))
-
-    if spider_name.endswith("_us"):
-        candidates.append(spider_name[:-3])
-    else:
-        candidates.append(f"{spider_name}_us")
-
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        cleaned = candidate.strip()
-        if not cleaned or cleaned in seen:
-            continue
-        seen.add(cleaned)
-        deduped.append(cleaned)
-    return deduped
-
-
-def fetch_features_with_fallback(session: requests.Session, spider_name: str, timeout: int = 120):
-    """
-    Fetch GeoJSON features trying multiple spider aliases and base URLs.
-    Raises RequestException only after all candidates are exhausted.
-    """
-    attempted_urls: list[str] = []
-    status_by_url: list[tuple[str, int]] = []
-    request_errors: list[tuple[str, str]] = []
-
-    for candidate in build_spider_candidates(spider_name):
-        for base_url in ALLTHEPLACES_OUTPUT_BASES:
-            url = f"{base_url}/{candidate}.geojson"
-            attempted_urls.append(url)
-            try:
-                with session.get(url, timeout=timeout) as response:
-                    if response.status_code != 200:
-                        status_by_url.append((url, response.status_code))
-                        continue
-                    features = ijson.items(io.BytesIO(response.content), "features.item")
-                    return candidate, url, features
-            except requests.exceptions.RequestException as error:
-                request_errors.append((url, f"{type(error).__name__}: {error}"))
-                continue
-
-    attempted = "\n".join(f"      - {url}" for url in attempted_urls)
-    status_lines = "\n".join(f"      - {url} -> HTTP {status}" for url, status in status_by_url)
-    request_error_lines = "\n".join(f"      - {url} -> {message}" for url, message in request_errors)
-    details = [
-        f"Unable to fetch spider '{spider_name}'. URLs attempted:",
-        attempted,
-    ]
-    if status_lines:
-        details.extend(["HTTP results:", status_lines])
-    if request_error_lines:
-        details.extend(["Request errors:", request_error_lines])
-    raise requests.exceptions.RequestException("\n".join(details))
 
 
 def _load_target_zipcodes_from_db() -> set[str] | None:
