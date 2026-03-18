@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/database/supabase"
-
 type LatLng = { lat: number; lng: number }
 
 type GoogleGeocodeResult = {
@@ -102,19 +100,18 @@ export async function updateLocation(userId: string): Promise<UpdateLocationResu
     }
   }
 
-  const { error: profileError } = await (supabase.from("profiles") as any)
-    .update({
-      latitude: location.lat,
-      longitude: location.lng,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", resolvedUserId)
+  const response = await fetch("/api/location", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lat: location.lat, lng: location.lng }),
+  })
 
-  if (profileError) {
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
     return {
       success: false,
       location,
-      error: `Failed to update profile coordinates: ${profileError.message}`,
+      error: `Failed to update profile coordinates: ${(data as any)?.error ?? response.statusText}`,
     }
   }
 
