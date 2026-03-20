@@ -225,6 +225,39 @@ function rerankCandidates(
  *   - No candidates above VECTOR_MIN_COSINE_FLOOR.
  *   - DB query fails.
  */
+/**
+ * Returns up to `limit` candidates in the mid-confidence band
+ * (VECTOR_MATCH_MID_CONFIDENCE ≤ finalScore < VECTOR_MATCH_HIGH_CONFIDENCE).
+ * Used for LLM context augmentation (Phase 3b): the caller passes these names
+ * into the prompt so the model converges toward existing vocabulary.
+ * Returns an empty array on embedding failure — silently degrades to the
+ * standard LLM path.
+ */
+export async function resolveVectorCandidates(
+  searchTerm: string,
+  model: string,
+  limit = 3,
+  queryCategory?: string | null,
+): Promise<VectorMatchCandidate[]> {
+  let embedding: number[] | null
+  try {
+    embedding = await embedText(searchTerm, model)
+  } catch {
+    return []
+  }
+
+  if (!embedding) return []
+
+  const rawRows = await ingredientEmbeddingsDB.matchVector({ embedding, limit: VECTOR_MATCH_K, model })
+  const aboveFloor = rawRows.filter((r) => r.confidence >= VECTOR_MIN_COSINE_FLOOR)
+  if (!aboveFloor.length) return []
+
+  const ranked = rerankCandidates(searchTerm, aboveFloor, queryCategory)
+  return ranked
+    .filter((c) => c.finalScore >= VECTOR_MATCH_MID_CONFIDENCE && c.finalScore < VECTOR_MATCH_HIGH_CONFIDENCE)
+    .slice(0, limit)
+}
+
 export async function resolveVectorMatch(
   searchTerm: string,
   model: string,

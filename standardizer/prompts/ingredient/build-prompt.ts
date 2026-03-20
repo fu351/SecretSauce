@@ -13,6 +13,7 @@ export interface IngredientStandardizerPromptInput {
   name: string
   amount?: string
   unit?: string
+  vectorCandidates?: string[]
 }
 
 interface BuildIngredientStandardizerPromptParams {
@@ -35,6 +36,7 @@ export function buildIngredientStandardizerPrompt({
     name: item.name,
     amount: item.amount || "",
     unit: item.unit || "",
+    ...(item.vectorCandidates?.length ? { suggestedCandidates: item.vectorCandidates } : {}),
   }))
 
   return `
@@ -102,6 +104,11 @@ ${EXAMPLES_SECTION}
 ${EDGE_CASES_SECTION}
 
 ${OUTPUT_FORMAT_SECTION}
+
+**7. VECTOR HINTS (suggestedCandidates):**
+   - Some inputs include a \`suggestedCandidates\` field — semantically similar existing canonicals identified via embedding search.
+   - If any candidate closely matches the ingredient concept, use it as the canonicalName and score as an existing match (confidence 0.85–0.95).
+   - Overrule the hint only when none of the candidates are a reasonable match for the input.
 
 ===============================================================
 INPUTS TO PROCESS (Context: ${context}):

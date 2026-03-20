@@ -180,6 +180,7 @@ interface StandardizerIngredientInput {
   name: string
   amount?: string
   unit?: string
+  vectorCandidates?: string[]
 }
 
 function normalizeCanonicalOutput(value: string): string {

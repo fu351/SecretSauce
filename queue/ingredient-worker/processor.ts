@@ -33,6 +33,7 @@ import { localQueueAICache } from "./cache/local-ai-cache"
 import { getLearnedVarietySensitivity, type LearnedVarietySensitivity } from "./scoring/sensitive-token-learning"
 import {
   resolveVectorMatch,
+  resolveVectorCandidates,
   getEmbeddingModel,
   VECTOR_MATCH_HIGH_CONFIDENCE,
   SEMANTIC_DEDUP_THRESHOLD,
@@ -384,8 +385,39 @@ async function resolveIngredientCandidates(
       }
     }
 
+    // LLM context augmentation (Phase 3b): for remaining AI-bound inputs, gather
+    // mid-confidence vector candidates and attach them as suggestedCandidates in
+    // the prompt.  The model converges toward existing vocabulary rather than
+    // inventing synonyms.  Embeddings are cached, so items checked during
+    // fast-path above incur no extra API call here.  Silently degrades on failure.
+    const vectorHintsByKey = new Map<string, string[]>()
+    if (!config.dryRun && aiInputs.length > 0) {
+      const embeddingModel = getEmbeddingModel()
+      let hintCount = 0
+      for (const input of aiInputs) {
+        try {
+          const candidates = await resolveVectorCandidates(input.name, embeddingModel)
+          if (candidates.length > 0) {
+            vectorHintsByKey.set(input.id, candidates.map((c) => c.matchedName))
+            hintCount++
+          }
+        } catch {
+          // Silently skip — LLM will proceed without hints for this input
+        }
+      }
+      if (hintCount > 0) {
+        console.log(`[QueueResolver] Vector context augmentation: ${hintCount}/${aiInputs.length} input(s) have mid-confidence hints`)
+      }
+    }
+
     if (aiInputs.length > 0) {
-      const aiResults = await standardizeIngredientsWithAI(aiInputs, context)
+      const aiInputsWithHints = vectorHintsByKey.size > 0
+        ? aiInputs.map((input) => {
+            const hints = vectorHintsByKey.get(input.id)
+            return hints ? { ...input, vectorCandidates: hints } : input
+          })
+        : aiInputs
+      const aiResults = await standardizeIngredientsWithAI(aiInputsWithHints, context)
       for (const result of aiResults) {
         aiResultByKey.set(result.id, result)
       }
