@@ -5,7 +5,7 @@
 - `Doc Kind`: `migration-plan`
 - `Canonicality`: `advisory`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-03-09`
+- `Last Reviewed`: `2026-03-20`
 - `Primary Surfaces`: `queue/worker/processor.ts`, `queue/embedding-worker/`, `lib/database/embedding-queue-db.ts`, `supabase/migrations/`, `public.fn_match_ingredient`
 - `Update Trigger`: Matching architecture, embedding model, or queue worker flow changes.
 
@@ -154,6 +154,8 @@ Track these counters per cycle:
 
 ## Phase 1 — Populate `ingredient_embeddings`
 
+**Status:** Complete. Infrastructure shipped in the `vector-embeddings` branch.
+
 **Migration:** `20260309000000_ensure_ingredient_embeddings.sql`
 **Gate to next:** All canonical ingredients have a row in `ingredient_embeddings`.
 
@@ -167,6 +169,8 @@ Track these counters per cycle:
 ---
 
 ## Phase 2 — Vector Search DB Function
+
+**Status:** Complete. `fn_match_ingredient_vector` RPC and `lib/database/ingredient-embeddings-db.ts` wrapper shipped in the `vector-embeddings` branch. Application-side rerank policy implemented in `queue/ingredient-worker/scoring/vector-match.ts`.
 
 **Migration:** `20260309010000_fn_match_ingredient_vector.sql`
 **Gate to next:** Score-parity spot-checks pass; semantic deduplication confirmed on known near-duplicate pairs.
@@ -215,6 +219,8 @@ No index needed at 467 rows — sequential cosine scan is ~0.1ms. Add IVFFlat wh
 ---
 
 ## Phase 3 — Wire Vector Match into Queue Worker
+
+**Status:** Deferred. All helper modules are ready (`vector-match.ts`, `ingredient-embeddings-db.ts`) but the integration points in `queue/ingredient-worker/processor.ts` are not yet wired. Phase 3 is the next planned PR after embeddings are fully populated (Phase 1 gate).
 
 **Gate to next:** LLM call rate measurably reduced; no match-quality regression.
 
@@ -308,9 +314,9 @@ Remove passes 2-4 from `fn_match_ingredient`. The function becomes: exact → ta
 
 ---
 
-## Open Questions
+## Resolved Decisions
 
-- **Embedding input text:** Should `input_text` be the bare canonical name (`"peanut butter"`) or include category (`"peanut butter [nut butter]"`)? Category-augmented text likely improves separation between near-identical names in different categories (e.g., `"sauce"` in condiments vs. stir-fry).
-- **Model lock-in:** `text-embedding-3-small` vectors are not portable across model versions. `model` is already stored per row — re-queue all on model change.
+- **Embedding input text:** Category-augmented format chosen. `input_text` is `canonical_name + "\ncategory: {category}" + "\nis_food_item: {true|false}"`. Implemented in `scripts/backfill-embedding-queue.ts` (`buildIngredientEmbeddingInput`). Improves vector separation for same-surface-form ingredients in different categories (e.g., `"sauce"` in condiments vs. stir-fry).
+- **Model lock-in:** `text-embedding-3-small` vectors are not portable across model versions. `model` is stored per row in `ingredient_embeddings` — re-queue all rows on model change.
 - **Cold-start gap:** Between a canonical being promoted from probation and its embedding being computed, it's unreachable via the vector path. Trigram `best_fuzzy_match` covers this gap — acceptable.
-- **Semantic dedup threshold calibration:** 0.92 is a starting estimate. Run the dedup query offline against the current vocabulary to check for false positives before enabling in production.
+- **Semantic dedup threshold calibration:** Starting at 0.92. Run the dedup query offline against the current vocabulary to check for false positives before enabling Phase 3 in production.

@@ -5,7 +5,7 @@
 - `Doc Kind`: `operations-guide`
 - `Canonicality`: `implementation-guide`
 - `Owner`: `Application Engineering`
-- `Last Reviewed`: `2026-02-23`
+- `Last Reviewed`: `2026-03-20`
 - `Primary Surfaces`: `supabase/migrations/embedding_queue.sql`, `supabase/migrations/recipe_embeddings.sql`, `supabase/migrations/ingredient_embeddings.sql`, `lib/database/embedding-queue-db.ts`, `queue/embedding-worker/`
 - `Update Trigger`: Queue schema/RPC contract, worker lifecycle, or embedding provider settings change.
 
@@ -108,14 +108,17 @@ Create `queue/embedding-worker/config.ts` to read:
 - `EMBEDDING_QUEUE_LEASE_SECONDS` (default `180`)
 - `EMBEDDING_WORKER_INTERVAL_SECONDS` (default `300`)
 - `EMBEDDING_QUEUE_MAX_CYCLES` (default `0` for loop-until-empty or runner-controlled)
+- `EMBEDDING_QUEUE_REQUEUE_LIMIT` (default `500`) — max rows unlocked per requeue pass
 - `EMBEDDING_OPENAI_MODEL` (default `text-embedding-3-small`)
+- `EMBEDDING_WORKER_REQUEST_TIMEOUT_MS` (default `30000`) — OpenAI API call timeout
 - `EMBEDDING_WORKER_SOURCE_TYPE` (optional filter: `recipe`, `ingredient`, `any`)
-- `EMBEDDING_DRY_RUN` (`true/false`)
+- `EMBEDDING_DRY_RUN` (`true/false`) — fetch and log pending rows without claiming or writing
 
 How it works:
 
 - All behavior can be tuned without code edits.
 - Config parser applies safe defaults and basic validation.
+- Dry-run mode is useful for verifying queue state before a rollout or debugging stale leases without side effects.
 
 ### Step 4: Add Embedding Provider Client Logic
 
