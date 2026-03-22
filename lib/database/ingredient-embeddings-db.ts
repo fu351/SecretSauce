@@ -1,5 +1,13 @@
 import { supabase } from "./supabase"
 
+export interface VectorDoubleCheckCandidateRow {
+  source_canonical: string
+  target_canonical: string
+  source_category: string | null
+  target_category: string | null
+  similarity: number
+}
+
 export interface VectorMatchRow {
   matched_id: string
   matched_name: string
@@ -46,6 +54,31 @@ class IngredientEmbeddingsDB {
       match_strategy: String(row.match_strategy ?? "vector_low"),
       matched_category: row.matched_category != null ? String(row.matched_category) : null,
       embedding_model: String(row.embedding_model ?? ""),
+    }))
+  }
+
+  async findDoubleCheckCandidates(params: {
+    threshold?: number
+    limit?: number
+    model?: string
+  }): Promise<VectorDoubleCheckCandidateRow[]> {
+    const { data, error } = await (supabase.rpc as any)("fn_find_vector_double_check_candidates", {
+      p_threshold: params.threshold ?? 0.88,
+      p_limit: params.limit ?? 100,
+      p_model: params.model ?? "text-embedding-3-small",
+    })
+
+    if (error) {
+      console.error("[IngredientEmbeddingsDB] findDoubleCheckCandidates error:", error.message)
+      return []
+    }
+
+    return ((data as any[]) || []).map((row) => ({
+      source_canonical: String(row.source_canonical ?? ""),
+      target_canonical: String(row.target_canonical ?? ""),
+      source_category: row.source_category != null ? String(row.source_category) : null,
+      target_category: row.target_category != null ? String(row.target_category) : null,
+      similarity: Number(row.similarity ?? 0),
     }))
   }
 }
