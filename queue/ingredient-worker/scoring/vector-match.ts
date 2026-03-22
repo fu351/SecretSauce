@@ -1,7 +1,7 @@
 /**
  * Vector-based ingredient matching.
  *
- * Implements the rerank policy from docs/vector-matching-plan.md:
+ * Implements the rerank policy documented in docs/queue-and-standardization.md:
  *   final_score = cosine + head_bonus + lexical_bonus + category_penalty + form_penalty
  *
  * Used in three places in processor.ts:
@@ -18,7 +18,7 @@ import { ingredientEmbeddingsDB, type VectorMatchRow } from "../../../lib/databa
 import { fetchEmbeddings } from "../../../lib/openai/embeddings"
 
 // ---------------------------------------------------------------------------
-// Constants (from docs/vector-matching-plan.md)
+// Constants (documented in docs/queue-and-standardization.md)
 // ---------------------------------------------------------------------------
 
 export const VECTOR_MATCH_HIGH_CONFIDENCE = 0.93
