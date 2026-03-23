@@ -1,0 +1,17 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install deps from the scripts sub-package (tsx + runtime deps)
+COPY scripts/package.json scripts/package-lock.json ./scripts/
+RUN npm --prefix ./scripts ci --omit=dev
+
+COPY tsconfig.json ./tsconfig.json
+COPY queue ./queue
+COPY lib/database ./lib/database
+COPY lib/ollama ./lib/ollama
+COPY lib/openai ./lib/openai
+COPY lib/utils ./lib/utils
+COPY scripts ./scripts
+
+CMD ["npm", "--prefix", "scripts", "run", "resolve-embedding-queue"]

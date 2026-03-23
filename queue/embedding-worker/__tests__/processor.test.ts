@@ -65,7 +65,9 @@ const baseConfig: EmbeddingWorkerConfig = {
   requeueLimit: 500,
   sourceType: "any",
   dryRun: false,
+  embeddingProvider: "openai",
   embeddingModel: "text-embedding-3-small",
+  ollamaBaseUrl: "http://localhost:11434",
   requestTimeoutMs: 30000,
 }
 
