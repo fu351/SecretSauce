@@ -30,5 +30,11 @@
     "gemini_model": "gemini-3-flash-preview",
     "queue_max_batches": "10",
     "queue_batch_delay_seconds": "2"
+  },
+  "nightly_embedding_queue": {
+    "embedding_batch_limit": "100",
+    "embedding_max_batches": "5",
+    "embedding_batch_delay_seconds": "1",
+    "embedding_model": "text-embedding-3-small"
   }
 }

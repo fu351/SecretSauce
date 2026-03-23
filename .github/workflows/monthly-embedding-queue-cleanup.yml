@@ -1,0 +1,154 @@
+name: Monthly Embedding Queue Cleanup
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'  # 3am UTC on the 1st of every month
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "dry-run previews deletions without executing"
+        required: false
+        type: choice
+        options:
+          - dry-run
+          - execute
+        default: dry-run
+
+jobs:
+  cleanup-orphaned-embedding-jobs:
+    name: Remove Orphaned Embedding Queue Rows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install Supabase client (isolated)
+        run: |
+          mkdir -p /tmp/supabase-client
+          npm install --no-save --no-package-lock --legacy-peer-deps --prefix /tmp/supabase-client @supabase/supabase-js
+
+      - name: Clean up orphaned embedding queue rows
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run || 'execute' }}
+        run: |
+          node - <<'NODE'
+          const { createClient } = require('/tmp/supabase-client/node_modules/@supabase/supabase-js')
+
+          const supabaseUrl = process.env.SUPABASE_URL
+          const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          const isDryRun = (process.env.DRY_RUN || 'execute') !== 'execute'
+
+          if (!supabaseUrl || !supabaseKey) {
+            console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+            process.exit(1)
+          }
+
+          const supabase = createClient(supabaseUrl, supabaseKey)
+
+          async function countOrphans(sourceType, parentTable, parentColumn) {
+            const { data, error } = await supabase.rpc('fn_count_orphaned_embedding_jobs', {
+              p_source_type: sourceType,
+              p_parent_table: parentTable,
+              p_parent_column: parentColumn,
+            })
+            if (error) throw error
+            return Number(data ?? 0)
+          }
+
+          async function deleteOrphans(sourceType, parentTable) {
+            const { data, error } = await supabase.rpc('fn_delete_orphaned_embedding_jobs', {
+              p_source_type: sourceType,
+              p_parent_table: parentTable,
+            })
+            if (error) throw error
+            return Number(data ?? 0)
+          }
+
+          async function run() {
+            const sources = [
+              { sourceType: 'ingredient', parentTable: 'standardized_ingredients' },
+              { sourceType: 'recipe',     parentTable: 'recipes' },
+            ]
+
+            let totalOrphans = 0
+
+            for (const { sourceType, parentTable } of sources) {
+              const { data: rows, error } = await supabase
+                .from('embedding_queue')
+                .select('source_id')
+                .eq('source_type', sourceType)
+
+              if (error) {
+                console.error(`❌ Failed to query embedding_queue for source_type=${sourceType}:`, error.message)
+                process.exit(1)
+              }
+
+              if (!rows || rows.length === 0) {
+                console.log(`✅ No ${sourceType} jobs in queue — skipping.`)
+                continue
+              }
+
+              const ids = rows.map(r => r.source_id)
+
+              // Check which source_ids are missing from the parent table
+              const { data: existing, error: parentError } = await supabase
+                .from(parentTable)
+                .select('id')
+                .in('id', ids)
+
+              if (parentError) {
+                console.error(`❌ Failed to query ${parentTable}:`, parentError.message)
+                process.exit(1)
+              }
+
+              const existingSet = new Set((existing || []).map(r => r.id))
+              const orphanIds = ids.filter(id => !existingSet.has(id))
+
+              console.log(`[${sourceType}] queue=${ids.length} orphaned=${orphanIds.length}`)
+              totalOrphans += orphanIds.length
+
+              if (orphanIds.length === 0) continue
+
+              if (isDryRun) {
+                console.log(`🧪 DRY RUN: would delete ${orphanIds.length} orphaned ${sourceType} job(s)`)
+                continue
+              }
+
+              const { error: deleteError } = await supabase
+                .from('embedding_queue')
+                .delete()
+                .eq('source_type', sourceType)
+                .in('source_id', orphanIds)
+
+              if (deleteError) {
+                console.error(`❌ Failed to delete orphaned ${sourceType} jobs:`, deleteError.message)
+                process.exit(1)
+              }
+
+              console.log(`🧹 Deleted ${orphanIds.length} orphaned ${sourceType} job(s)`)
+            }
+
+            if (totalOrphans === 0) {
+              console.log('✅ No orphaned embedding jobs found.')
+            } else if (isDryRun) {
+              console.log(`🧪 DRY RUN complete — ${totalOrphans} orphaned job(s) would be deleted.`)
+            } else {
+              console.log(`✅ Cleanup complete — ${totalOrphans} orphaned job(s) deleted.`)
+            }
+          }
+
+          run().catch(err => {
+            console.error('❌ Unexpected error:', err)
+            process.exit(1)
+          })
+          NODE

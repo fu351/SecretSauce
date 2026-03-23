@@ -7,8 +7,11 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "resolve-ingredient-match-queue": "tsx scripts/resolve-ingredient-match-queue.ts",
-    "cleanup-recent-standardized-ingredients": "tsx scripts/cleanup-recent-standardized-ingredients.ts",
+    "resolve-ingredient-match-queue": "tsx --env-file=.env.local scripts/resolve-ingredient-match-queue.ts",
+    "resolve-embedding-queue": "tsx --env-file=.env.local scripts/resolve-embedding-queue.ts",
+    "embedding-queue-worker": "tsx --env-file=.env.local queue/embedding-worker/runner.ts",
+    "backfill-embedding-queue": "tsx --env-file=.env.local scripts/backfill-embedding-queue.ts",
+    "cleanup-recent-standardized-ingredients": "tsx --env-file=.env.local scripts/cleanup-recent-standardized-ingredients.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
@@ -24,8 +27,9 @@
     "test:api": "vitest run app/api/",
     "test:traderjoes-scraper": "node scripts/test-traderjoes-scraper.js",
     "test:99ranch-scraper": "node scripts/test-99ranch-scraper.js",
-    "queue-worker": "tsx queue/worker/runner.ts",
-    "backfill-clerk-user-ids": "tsx scripts/backfill-clerk-user-ids.ts"
+    "queue-worker": "tsx --env-file=.env.local queue/ingredient-worker/runner.ts",
+    "vector-double-check-worker": "tsx --env-file=.env.local queue/vector-double-check-worker/runner.ts",
+    "backfill-clerk-user-ids": "tsx --env-file=.env.local scripts/backfill-clerk-user-ids.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.31.1",
@@ -99,6 +103,7 @@
     "recharts": "latest",
     "sonner": "latest",
     "stripe": "^20.3.1",
+    "supabase": "^2.83.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^6.0.1",
