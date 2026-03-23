@@ -16,6 +16,11 @@ on:
         required: false
         type: string
         default: '0.50'
+      absolute_threshold:
+        description: 'Ingredient confidence at/above this is flagged for overconfidence review (0–1)'
+        required: false
+        type: string
+        default: '0.995'
       fail_on_critical:
         description: 'Fail the workflow if any critical-confidence mappings exist'
         required: false
@@ -32,12 +37,13 @@ jobs:
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       LOW_THRESHOLD: ${{ inputs.low_threshold || '0.75' }}
       CRITICAL_THRESHOLD: ${{ inputs.critical_threshold || '0.50' }}
+      ABSOLUTE_THRESHOLD: ${{ inputs.absolute_threshold || '0.995' }}
       FAIL_ON_CRITICAL: ${{ inputs.fail_on_critical || 'false' }}
 
     steps:
       - name: Validate inputs
         run: |
-          for val in "${LOW_THRESHOLD}" "${CRITICAL_THRESHOLD}"; do
+          for val in "${LOW_THRESHOLD}" "${CRITICAL_THRESHOLD}" "${ABSOLUTE_THRESHOLD}"; do
             if ! echo "${val}" | grep -Eq '^0(\.[0-9]+)?$|^1(\.0+)?$'; then
               echo "Invalid threshold value: ${val} (expected 0–1)"
               exit 1
@@ -104,6 +110,7 @@ jobs:
           # Export for use in later steps
           echo "CRITICAL_COUNT=${critical}" >> "$GITHUB_ENV"
           echo "LOW_COUNT=${low}" >> "$GITHUB_ENV"
+          echo "VERY_HIGH_COUNT=${very_high}" >> "$GITHUB_ENV"
 
       - name: Unit & quantity confidence distribution (non-manual)
         run: |
@@ -187,6 +194,157 @@ jobs:
               | @tsv
             '
 
+      - name: Critical analysis for high/absolute confidence mappings
+        run: |
+          echo ""
+          echo "=== High-Confidence Critical Analysis (non-manual rows) ==="
+          echo "Absolute confidence should be rare because queue confidence is calibrated and clamped."
+          echo "Thresholds: very_high>=0.93, absolute>=${ABSOLUTE_THRESHOLD}"
+          echo ""
+
+          get_count() {
+            local filter="$1"
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/product_mappings?select=id&ingredient_confidence=not.is.null&manual_override=not.is.true${filter:+&${filter}}" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' \
+              || echo "0"
+          }
+
+          absolute=$(get_count "ingredient_confidence=gte.${ABSOLUTE_THRESHOLD}")
+          exact_one=$(get_count "ingredient_confidence=eq.1")
+
+          unit_exact_one=$(
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/product_mappings?select=id&unit_confidence=eq.1&manual_override=not.is.true" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' \
+              || echo "0"
+          )
+
+          qty_exact_one=$(
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/product_mappings?select=id&quantity_confidence=eq.1&manual_override=not.is.true" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' \
+              || echo "0"
+          )
+
+          triple_exact_one=$(
+            curl -sI \
+              "${SUPABASE_URL}/rest/v1/product_mappings?select=id&ingredient_confidence=eq.1&unit_confidence=eq.1&quantity_confidence=eq.1&manual_override=not.is.true" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Prefer: count=exact" \
+              -H "Range: 0-0" \
+              | grep -i '^content-range' \
+              | sed -E 's/.*\/([0-9]+).*/\1/' \
+              || echo "0"
+          )
+
+          echo "Very high ingredient confidence count (>=0.93):   ${VERY_HIGH_COUNT}"
+          echo "Absolute ingredient confidence count (>=${ABSOLUTE_THRESHOLD}): ${absolute}"
+          echo "Exact ingredient confidence=1.000 count:           ${exact_one}"
+          echo "Exact unit_confidence=1.000 count:                 ${unit_exact_one}"
+          echo "Exact quantity_confidence=1.000 count:             ${qty_exact_one}"
+          echo "Exact triple (ingredient+unit+quantity)=1.000:     ${triple_exact_one}"
+
+          echo "ABSOLUTE_COUNT=${absolute}" >> "$GITHUB_ENV"
+          echo "ABSOLUTE_EXACT_ONE_COUNT=${exact_one}" >> "$GITHUB_ENV"
+
+          if [ "${absolute}" -eq 0 ]; then
+            echo ""
+            echo "✅ No absolute-confidence ingredient mappings found."
+            exit 0
+          fi
+
+          echo ""
+          echo "=== Sample absolute-confidence mappings (top 25) ==="
+
+          absolute_json=$(
+            curl -sf \
+              "${SUPABASE_URL}/rest/v1/product_mappings?select=id,raw_product_name,ingredient_confidence,unit_confidence,quantity_confidence,store_brand,standardized_ingredient_id,last_seen_at&ingredient_confidence=not.is.null&ingredient_confidence=gte.${ABSOLUTE_THRESHOLD}&manual_override=not.is.true&order=ingredient_confidence.desc,last_seen_at.desc&limit=60" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}"
+          )
+
+          echo "${absolute_json}" | jq -r '
+            ["ingredient_conf", "unit_conf", "qty_conf", "store", "raw_product_name", "ingredient_id"],
+            ["---------------", "---------", "--------", "-----", "----------------", "-----------"],
+            (.[:25][] | [
+              (.ingredient_confidence // "null" | tostring),
+              (.unit_confidence // "null" | tostring),
+              (.quantity_confidence // "null" | tostring),
+              (.store_brand // "?"),
+              (.raw_product_name // "(none)"),
+              (.standardized_ingredient_id // "(unmapped)")
+            ])
+            | @tsv
+          '
+
+          ids_csv=$(echo "${absolute_json}" | jq -r '.[].id' | paste -sd, -)
+          if [ -z "${ids_csv}" ]; then
+            echo ""
+            echo "No mapping IDs available for queue drill-down."
+            exit 0
+          fi
+
+          queue_json=$(
+            curl -sf \
+              "${SUPABASE_URL}/rest/v1/ingredient_match_queue?select=product_mapping_id,resolved_at,resolved_by,fuzzy_score,is_food_item,needs_ingredient_review,needs_unit_review,status&product_mapping_id=in.(${ids_csv})&status=eq.resolved&order=resolved_at.desc&limit=2000" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}"
+          )
+
+          latest_queue=$(echo "${queue_json}" | jq '
+            sort_by(.product_mapping_id, (.resolved_at // ""))
+            | group_by(.product_mapping_id)
+            | map(last)
+          ')
+
+          sampled_count=$(echo "${absolute_json}" | jq 'length')
+          latest_count=$(echo "${latest_queue}" | jq 'length')
+
+          echo ""
+          echo "=== ingredient_match_queue drill-down (latest resolved row per sampled mapping) ==="
+          echo "Mappings sampled: ${sampled_count}"
+          echo "Mappings with resolved queue evidence: ${latest_count}"
+
+          echo "${latest_queue}" | jq --argjson abs "${ABSOLUTE_THRESHOLD}" -r '
+            if length == 0 then
+              "No resolved queue rows found for sampled mappings."
+            else
+              (
+                "Resolver breakdown:",
+                (group_by(.resolved_by // "unknown")
+                  | map({resolver: (.[0].resolved_by // "unknown"), count: length})
+                  | sort_by(-.count)
+                  | .[]
+                  | "  \(.count)\t\(.resolver)"
+                ),
+                "",
+                "Queue fuzzy_score signals:",
+                "  fuzzy_score == 1.000: " + (([.[] | select((.fuzzy_score // -1) == 1)] | length) | tostring),
+                "  fuzzy_score >= absolute threshold: " + (([.[] | select((.fuzzy_score // -1) >= $abs)] | length) | tostring),
+                "  is_food_item=false: " + (([.[] | select(.is_food_item == false)] | length) | tostring),
+                "  needs_ingredient_review=true (unexpected): " + (([.[] | select(.needs_ingredient_review == true)] | length) | tostring),
+                "  needs_unit_review=true (unit unresolved): " + (([.[] | select(.needs_unit_review == true)] | length) | tostring)
+              )
+            end
+          '
+
       - name: Mappings with no ingredient_confidence (not yet resolved)
         run: |
           echo ""
@@ -243,6 +401,9 @@ jobs:
           echo "=== Audit Summary ==="
           echo "  Critical (< ${CRITICAL_THRESHOLD}): ${CRITICAL_COUNT}"
           echo "  Low      (${CRITICAL_THRESHOLD}–${LOW_THRESHOLD}): ${LOW_COUNT}"
+          echo "  Very high (>= 0.93): ${VERY_HIGH_COUNT}"
+          echo "  Absolute (>= ${ABSOLUTE_THRESHOLD}): ${ABSOLUTE_COUNT:-0}"
+          echo "  Exact ingredient_confidence=1.000: ${ABSOLUTE_EXACT_ONE_COUNT:-0}"
 
           if [ "${CRITICAL_COUNT}" -gt 0 ]; then
             echo ""
@@ -253,6 +414,12 @@ jobs:
           if [ "${LOW_COUNT}" -gt 0 ]; then
             echo ""
             echo "ℹ️  ${LOW_COUNT} mapping(s) have low-but-not-critical confidence."
+          fi
+
+          if [ "${ABSOLUTE_COUNT:-0}" -gt 0 ]; then
+            echo ""
+            echo "⚠️  ${ABSOLUTE_COUNT} mapping(s) are at/above absolute threshold (${ABSOLUTE_THRESHOLD})."
+            echo "   Review resolver clustering and queue fuzzy_score=1.000 rates from the drill-down above."
           fi
 
           if [ "${CRITICAL_COUNT}" -eq 0 ] && [ "${LOW_COUNT}" -eq 0 ]; then

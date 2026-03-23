@@ -32,6 +32,10 @@ describe("workflow contracts for embedding infrastructure", () => {
     const workflow = readWorkflow(".github/workflows/product-mapping-confidence-audit.yml")
 
     expect(workflow).toContain("name: Product Mapping Confidence Audit")
+    expect(workflow).toContain("absolute_threshold:")
+    expect(workflow).toContain("default: '0.995'")
+    expect(workflow).toContain("High-Confidence Critical Analysis")
+    expect(workflow).toContain("ingredient_match_queue drill-down")
     expect(workflow).toContain("fail_on_critical:")
     expect(workflow).toContain("default: false")
     expect(workflow).toContain("if: ${{ env.FAIL_ON_CRITICAL == 'true' && env.CRITICAL_COUNT != '0' }}")
