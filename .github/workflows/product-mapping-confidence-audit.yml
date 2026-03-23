@@ -345,6 +345,34 @@ jobs:
             end
           '
 
+          # --- Regression metrics ---
+          no_queue_evidence=$((sampled_count - latest_count))
+          if [ "${sampled_count}" -gt 0 ]; then
+            no_evidence_pct=$(echo "scale=1; ${no_queue_evidence} * 100 / ${sampled_count}" | bc)
+          else
+            no_evidence_pct="0.0"
+          fi
+
+          # Count absolute-confidence mappings whose latest resolved queue row has fuzzy_score < 0.995
+          low_fuzzy_count=$(echo "${latest_queue}" | jq '[.[] | select((.fuzzy_score // -1) < 0.995)] | length')
+          if [ "${latest_count}" -gt 0 ]; then
+            low_fuzzy_pct=$(echo "scale=1; ${low_fuzzy_count} * 100 / ${latest_count}" | bc)
+          else
+            low_fuzzy_pct="0.0"
+          fi
+
+          echo ""
+          echo "=== Regression metrics ==="
+          echo "  Absolute-confidence rows with NO queue evidence:"
+          echo "    ${no_queue_evidence} / ${sampled_count} (${no_evidence_pct}%)"
+          echo "    Indicates mappings set to confidence=1.0 by a path that bypasses the queue"
+          echo "    (e.g. fn_relink_product_mappings direct-apply or fn_bulk_insert_ingredient_history)."
+          echo ""
+          echo "  Absolute-confidence rows where latest queue fuzzy_score < 0.995:"
+          echo "    ${low_fuzzy_count} / ${latest_count} (${low_fuzzy_pct}%)"
+          echo "    Indicates mapping confidence is higher than the queue score that produced it —"
+          echo "    confidence may be stale or overwritten by a relink/direct-apply pass."
+
       - name: Mappings with no ingredient_confidence (not yet resolved)
         run: |
           echo ""
