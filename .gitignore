@@ -58,13 +58,11 @@ docs/profiles-clerk-bridge-migrations.sql
 supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql
 !supabase/migrations/20260219110000_add_canonical_probation_and_confidence_calibration.sql
 !supabase/migrations/20260223152000_add_queue_probation_status.sql
+!supabase/migrations/20260320000000_fn_vector_double_check_candidates.sql
+!supabase/migrations/20260323000000_fix_product_mapping_confidence.sql
 
-<<<<<<< HEAD
-.clerk
-=======
 # clerk configuration (can include secrets)
 /.clerk/
->>>>>>> origin/main
 e2e/.auth/
 playwright-report/
 test-results/
