@@ -109,6 +109,106 @@ async function crawlAldiWithJina(keyword, zipCode) {
     }
 }
 
+// Function to parse products from Jina markdown using regex (runs before LLM fallback)
+// Aldi's Jina markdown typically has product cards with a linked name, price, and image.
+// Handles multiple common patterns Jina produces from Aldi's search results page.
+function parseProductsWithRegex(crawledContent, keyword) {
+    const content = String(crawledContent || "");
+    if (!content) return { products: [], hasUnresolved: true };
+
+    const products = [];
+
+    // Pattern: ### [Product Name](url) ... $X.XX ... ![img](url)
+    // or      ## [Product Name](url) ... $X.XX
+    // Aldi Jina markdown uses heading + link blocks for each product card.
+    // We capture a window of lines after each heading-link and look for a price.
+    const headingLinkRegex = /#{1,4}\s+\[([^\]]{3,120})\]\((https?:\/\/[^\s)]+)\)/gi;
+
+    let match;
+    while ((match = headingLinkRegex.exec(content)) !== null) {
+        const productName = toOptionalString(match[1]);
+        if (!productName) continue;
+
+        // Search the next ~400 chars for a price
+        const windowEnd = Math.min(content.length, match.index + match[0].length + 400);
+        const window = content.slice(match.index, windowEnd);
+
+        const priceMatch = window.match(/\$\s*(\d+(?:\.\d{1,2})?)/);
+        const price = toPriceNumber(priceMatch?.[1]);
+        if (!price || price <= 0) continue;
+
+        // Look for an image URL in the same window
+        const imgMatch = window.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
+        const imageUrl = imgMatch ? imgMatch[1] : "/placeholder.svg";
+
+        // Avoid duplicates by name+price
+        const isDupe = products.some(
+            p => p.title.toLowerCase() === productName.toLowerCase() && p.price === price
+        );
+        if (isDupe) continue;
+
+        products.push({
+            id: `aldi-${Math.random().toString(36).substring(7)}`,
+            title: productName,
+            brand: "ALDI",
+            price,
+            pricePerUnit: "",
+            unit: "",
+            rawUnit: "",
+            image_url: imageUrl,
+            provider: "Aldi",
+            location: "Aldi Grocery",
+            category: "Grocery"
+        });
+    }
+
+    // Secondary pattern: plain price line near a bold/plain product name
+    // Catches cards where Jina didn't produce a heading+link (e.g. text-only cards)
+    if (products.length === 0) {
+        const priceLineRegex = /\$\s*(\d+(?:\.\d{1,2})?)\s*(?:\/\s*([^\n]{1,30}))?\s*\n/g;
+        let priceMatch2;
+        while ((priceMatch2 = priceLineRegex.exec(content)) !== null) {
+            const price = toPriceNumber(priceMatch2[1]);
+            if (!price || price <= 0) continue;
+
+            // Look backwards up to 200 chars for a product name (non-empty line)
+            const before = content.slice(Math.max(0, priceMatch2.index - 200), priceMatch2.index);
+            const nameLines = before.split("\n").map(l => l.replace(/[#*_[\]()]/g, "").trim()).filter(Boolean);
+            const productName = toOptionalString(nameLines[nameLines.length - 1]);
+            if (!productName || productName.length < 4) continue;
+
+            const isDupe = products.some(
+                p => p.title.toLowerCase() === productName.toLowerCase() && p.price === price
+            );
+            if (isDupe) continue;
+
+            const windowEnd = Math.min(content.length, priceMatch2.index + 400);
+            const window = content.slice(priceMatch2.index, windowEnd);
+            const imgMatch = window.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
+
+            products.push({
+                id: `aldi-${Math.random().toString(36).substring(7)}`,
+                title: productName,
+                brand: "ALDI",
+                price,
+                pricePerUnit: priceMatch2[2] ? `$${price}/${priceMatch2[2].trim()}` : "",
+                unit: priceMatch2[2] ? priceMatch2[2].trim() : "",
+                rawUnit: priceMatch2[2] ? priceMatch2[2].trim() : "",
+                image_url: imgMatch ? imgMatch[1] : "/placeholder.svg",
+                provider: "Aldi",
+                location: "Aldi Grocery",
+                category: "Grocery"
+            });
+
+            if (products.length >= 5) break;
+        }
+    }
+
+    const limited = products.slice(0, 5);
+    // hasUnresolved = true tells the caller to still run LLM as a fallback if regex found nothing
+    return { products: limited, hasUnresolved: limited.length === 0 };
+}
+
 // Function to parse products from crawled content using LLM
 async function parseProductsWithLLM(crawledContent, keyword) {
     try {
@@ -197,16 +297,27 @@ async function searchAldi(keyword, zipCode) {
             return [];
         }
 
-        // Step 2: Parse products using LLM
-        const products = await parseProductsWithLLM(crawledContent, keyword);
-
-        if (products.length === 0) {
-            log.debug("LLM failed to extract products, real-time prices unavailable");
-            return [];
+        // Step 2: Try regex extraction first (fast, free, no API call)
+        const { products: regexProducts, hasUnresolved } = parseProductsWithRegex(crawledContent, keyword);
+        if (regexProducts.length > 0) {
+            log.debug(`Regex extracted ${regexProducts.length} products from Aldi`);
+            return regexProducts.sort((a, b) => a.price - b.price);
         }
 
-        log.debug(`Successfully extracted ${products.length} products from Aldi`);
-        return products.sort((a, b) => a.price - b.price);
+        // Step 3: Regex found nothing — fall back to LLM
+        if (hasUnresolved) {
+            log.debug("Regex found no products, falling back to LLM");
+            const products = await parseProductsWithLLM(crawledContent, keyword);
+            if (products.length === 0) {
+                log.debug("LLM failed to extract products, real-time prices unavailable");
+                return [];
+            }
+            log.debug(`LLM extracted ${products.length} products from Aldi`);
+            return products.sort((a, b) => a.price - b.price);
+        }
+
+        log.debug("No products found from Aldi");
+        return [];
 
     } catch (error) {
         log.error("Error in Aldi search:", error.message, "- real-time prices unavailable");
