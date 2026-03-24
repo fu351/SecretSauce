@@ -2,8 +2,14 @@ FROM node:20-slim
 
 WORKDIR /app
 
-COPY package.json ./package.json
-RUN npm install --omit=dev --no-audit --no-fund
+# Install only the lean scraper dependencies (mirrors the GitHub Actions workflow).
+# We install into scripts/node_modules and symlink to the workspace root so that
+# both scripts/ (ESM) and scrapers/ (CJS) can resolve packages via Node's upward
+# node_modules walk without needing the full Next.js dependency tree.
+COPY scripts/package.json ./scripts/package.json
+COPY scripts/package-lock.json ./scripts/package-lock.json
+RUN npm ci --prefix scripts --omit=dev --no-audit --no-fund \
+    && ln -sfn /app/scripts/node_modules /app/node_modules
 
 COPY scrapers ./scrapers
 COPY scripts ./scripts
