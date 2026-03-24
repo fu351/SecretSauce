@@ -29,7 +29,21 @@ describe("assessConsolidationCandidate", () => {
   it("allows trivial plural-singular lateral merges", () => {
     expect(assessConsolidationCandidate(buildRow({}))).toEqual({
       allowed: true,
-      reason: "singularized_match",
+      reason: "simple_plural_s_match",
+    })
+  })
+
+  it("allows trailing-s plural pairs like cookie and cookies", () => {
+    expect(
+      assessConsolidationCandidate(
+        buildRow({
+          source_canonical: "butter cookie",
+          target_canonical: "butter cookies",
+        })
+      )
+    ).toEqual({
+      allowed: true,
+      reason: "simple_plural_s_match",
     })
   })
 

@@ -6,6 +6,14 @@ export interface ConsolidationCandidateAssessment {
   reason: string
 }
 
+function stripSimplePluralS(value: string): string {
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .map((token) => (token.endsWith("s") && !token.endsWith("ss") ? token.slice(0, -1) : token))
+    .join(" ")
+}
+
 export function assessConsolidationCandidate(
   row: CanonicalDoubleCheckDailyStatsRow
 ): ConsolidationCandidateAssessment {
@@ -29,6 +37,10 @@ export function assessConsolidationCandidate(
 
   if (normalizedSource === normalizedTarget) {
     return { allowed: true, reason: "exact_normalized_match" }
+  }
+
+  if (stripSimplePluralS(normalizedSource) === stripSimplePluralS(normalizedTarget)) {
+    return { allowed: true, reason: "simple_plural_s_match" }
   }
 
   if (singularizeCanonicalName(normalizedSource) === singularizeCanonicalName(normalizedTarget)) {
