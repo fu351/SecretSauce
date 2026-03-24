@@ -1,8 +1,17 @@
 const axios = require('axios');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
 require('dotenv').config();
 const log = createScraperLogger('kroger');
+
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: Number(process.env.KROGER_REQUESTS_PER_SECOND || 3),
+    minIntervalMs: Number(process.env.KROGER_MIN_REQUEST_INTERVAL_MS || 400),
+    enableJitter: process.env.KROGER_ENABLE_JITTER !== 'false',
+    log,
+    label: '[kroger]',
+});
 
 const searchTerm = process.argv[2];
 const zipCode = process.argv[3];
@@ -29,6 +38,7 @@ async function getAuthToken() {
 
         const requestBody = "grant_type=client_credentials&scope=product.compact";
 
+        await enforceRateLimit();
         const response = await withTimeout(
             axios.post(
                 "https://api.kroger.com/v1/connect/oauth2/token",
@@ -60,6 +70,7 @@ async function getAuthToken() {
 // Function to resolve nearest store/location by ZIP
 async function getNearestStore(zipCode, authToken) {
     try {
+        await enforceRateLimit();
         const response = await withTimeout(
             axios.get("https://api.kroger.com/v1/locations", {
                 params: {
@@ -111,6 +122,7 @@ async function getProducts(searchTerm, locationId, authToken, brand = '') {
             return [];
         }
 
+        await enforceRateLimit();
         const response = await withTimeout(
             axios.get(`https://api.kroger.com/v1/products`, {
                 params: {

@@ -2,6 +2,7 @@ const axios = require('axios');
 const path = require('path');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('walmart');
@@ -24,54 +25,14 @@ const WALMART_ENABLE_JITTER = process.env.WALMART_ENABLE_JITTER !== 'false'; // 
 // User-Agent rotation configuration
 const WALMART_ROTATE_USER_AGENT = process.env.WALMART_ROTATE_USER_AGENT !== 'false'; // Enabled by default
 
-// Rate limiter state
-const rateLimiter = {
-    lastRequestTime: 0,
-    requestCount: 0,
-    windowStart: Date.now(),
-    windowDuration: 1000, // 1 second window
-};
-
-// Rate limiting function
-async function enforceRateLimit() {
-    const now = Date.now();
-
-    // Reset window if it's been more than windowDuration
-    if (now - rateLimiter.windowStart >= rateLimiter.windowDuration) {
-        rateLimiter.windowStart = now;
-        rateLimiter.requestCount = 0;
-    }
-
-    // Check if we've hit the requests per second limit
-    if (rateLimiter.requestCount >= WALMART_REQUESTS_PER_SECOND) {
-        const waitTime = rateLimiter.windowDuration - (now - rateLimiter.windowStart);
-        if (waitTime > 0) {
-            log.debug(`[walmart] Rate limit: ${rateLimiter.requestCount} requests in window, waiting ${waitTime}ms`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            // Reset window after waiting
-            rateLimiter.windowStart = Date.now();
-            rateLimiter.requestCount = 0;
-        }
-    }
-
-    // Enforce minimum interval between requests
-    const timeSinceLastRequest = now - rateLimiter.lastRequestTime;
-    if (timeSinceLastRequest < WALMART_MIN_REQUEST_INTERVAL_MS) {
-        const waitTime = WALMART_MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest;
-
-        // Add jitter (randomize delay by ±20%) to appear more human-like
-        const jitter = WALMART_ENABLE_JITTER
-            ? waitTime * (0.8 + Math.random() * 0.4)
-            : waitTime;
-
-        log.debug(`[walmart] Rate limit: enforcing ${Math.round(jitter)}ms delay between requests`);
-        await new Promise(resolve => setTimeout(resolve, jitter));
-    }
-
-    // Update state
-    rateLimiter.lastRequestTime = Date.now();
-    rateLimiter.requestCount++;
-}
+// Rate limiter
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: WALMART_REQUESTS_PER_SECOND,
+    minIntervalMs: WALMART_MIN_REQUEST_INTERVAL_MS,
+    enableJitter: WALMART_ENABLE_JITTER,
+    log,
+    label: '[walmart]',
+});
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);

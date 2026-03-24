@@ -3,6 +3,7 @@ const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { fetchJinaReader } = require('../utils/jina-client');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
+const { createRateLimiter } = require('../utils/rate-limiter');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('traderjoes');
 
@@ -97,6 +98,14 @@ const TJ_LLM_PRODUCT_FALLBACK_LIMIT = Number(process.env.TRADERJOES_LLM_PRODUCT_
 
 let traderJoesConsecutive429 = 0;
 let traderJoes429CooldownUntilMs = 0;
+
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: Number(process.env.TRADERJOES_REQUESTS_PER_SECOND || 1),
+    minIntervalMs: Number(process.env.TRADERJOES_MIN_REQUEST_INTERVAL_MS || 1000),
+    enableJitter: process.env.TRADERJOES_ENABLE_JITTER !== 'false',
+    log,
+    label: '[traderjoes]',
+});
 
 // In-memory dedupe + cache to avoid duplicate crawl/LLM calls for identical queries.
 const traderJoesResultCache = new Map();
@@ -433,6 +442,7 @@ async function crawlTraderJoesWithJina(keyword) {
         // Call Jina AI Reader API with retry logic and dynamic timeouts
         const response = await withTimeout(withRetry(async (currentTimeout, attempt) => {
             log.debug(`Jina AI request for Trader Joe's (attempt ${attempt + 1})`);
+            await enforceRateLimit();
 
             // Calculate axios timeout as 90% of total timeout to allow for cleanup
             const axiosTimeout = Math.floor(currentTimeout * 0.9);

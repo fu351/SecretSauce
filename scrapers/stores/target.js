@@ -2,6 +2,7 @@ const axios = require('axios');
 const he = require('he');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
 
 // Environment variables for configuration
 const TARGET_TIMEOUT_MS = Number(process.env.TARGET_TIMEOUT_MS || 10000);
@@ -20,13 +21,14 @@ function targetDebug(...args) {
     if (TARGET_DEBUG) log.debug(...args);
 }
 
-// Rate limiter state
-const rateLimiter = {
-    lastRequestTime: 0,
-    requestCount: 0,
-    windowStart: Date.now(),
-    windowDuration: 1000, // 1 second window
-};
+// Rate limiter
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: TARGET_REQUESTS_PER_SECOND,
+    minIntervalMs: TARGET_MIN_REQUEST_INTERVAL_MS,
+    enableJitter: TARGET_ENABLE_JITTER,
+    log,
+    label: '[target]',
+});
 
 // Store cache to avoid redundant lookups for the same ZIP code
 // Maps ZIP code -> store info object
@@ -83,47 +85,6 @@ async function log404ToDatabase({
     // Don't let logging failures break the scraper
     targetDebug('[target] Failed to log 404 to database:', logError.message);
   }
-}
-
-// Rate limiting function
-async function enforceRateLimit() {
-    const now = Date.now();
-
-    // Reset window if it's been more than windowDuration
-    if (now - rateLimiter.windowStart >= rateLimiter.windowDuration) {
-        rateLimiter.windowStart = now;
-        rateLimiter.requestCount = 0;
-    }
-
-    // Check if we've hit the requests per second limit
-    if (rateLimiter.requestCount >= TARGET_REQUESTS_PER_SECOND) {
-        const waitTime = rateLimiter.windowDuration - (now - rateLimiter.windowStart);
-        if (waitTime > 0) {
-            targetDebug(`[target] Rate limit: ${rateLimiter.requestCount} requests in window, waiting ${waitTime}ms`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            // Reset window after waiting
-            rateLimiter.windowStart = Date.now();
-            rateLimiter.requestCount = 0;
-        }
-    }
-
-    // Enforce minimum interval between requests
-    const timeSinceLastRequest = now - rateLimiter.lastRequestTime;
-    if (timeSinceLastRequest < TARGET_MIN_REQUEST_INTERVAL_MS) {
-        const waitTime = TARGET_MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest;
-
-        // Add jitter (randomize delay by ±20%) to appear more human-like
-        const jitter = TARGET_ENABLE_JITTER
-            ? waitTime * (0.8 + Math.random() * 0.4)
-            : waitTime;
-
-        targetDebug(`[target] Rate limit: enforcing ${Math.round(jitter)}ms delay between requests`);
-        await new Promise(resolve => setTimeout(resolve, jitter));
-    }
-
-    // Update state
-    rateLimiter.lastRequestTime = Date.now();
-    rateLimiter.requestCount++;
 }
 
 // Utility function to handle timeouts

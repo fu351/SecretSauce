@@ -296,7 +296,16 @@ async function searchSafeway(keyword, zipCode) {
 
     // Temporarily disabled real implementation:
     /*
+    const { createRateLimiter } = require('../utils/rate-limiter');
+    const { enforceRateLimit } = createRateLimiter({
+        requestsPerSecond: Number(process.env.SAFEWAY_REQUESTS_PER_SECOND || 1),
+        minIntervalMs: Number(process.env.SAFEWAY_MIN_REQUEST_INTERVAL_MS || 2000),
+        enableJitter: process.env.SAFEWAY_ENABLE_JITTER !== 'false',
+        log,
+        label: '[safeway]',
+    });
     try {
+        await enforceRateLimit();
         const rawData = await fetchRawInstacartData(keyword, zipCode);
         if (!rawData || rawData.length === 0) {
             log.debug("Failed to fetch raw data via Playwright, using mock data");

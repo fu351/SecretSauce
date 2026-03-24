@@ -2,7 +2,16 @@ require('dotenv').config();
 const axios = require('axios');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
 const log = createScraperLogger('meijer');
+
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: Number(process.env.MEIJER_REQUESTS_PER_SECOND || 2),
+    minIntervalMs: Number(process.env.MEIJER_MIN_REQUEST_INTERVAL_MS || 500),
+    enableJitter: process.env.MEIJER_ENABLE_JITTER !== 'false',
+    log,
+    label: '[meijer]',
+});
 
 const DEFAULT_MEIJER_STORE_ID = Number(process.env.DEFAULT_MEIJER_STORE_ID || 319);
 
@@ -25,6 +34,7 @@ async function getLocations(zipCode) {
             }
         };
 
+        await enforceRateLimit();
         const response = await withTimeout(axios(config), 5000); // Timeout after 5 seconds
         return response.data;
     } catch (error) {
@@ -47,6 +57,7 @@ async function Meijers(zipCode = 47906, searchTerm) {
         const storeId = storeInfo?.id || DEFAULT_MEIJER_STORE_ID;
         const storeLocationLabel = formatMeijerStoreLocation(storeInfo, zipCode);
 
+        await enforceRateLimit();
         const response = await withTimeout(
             axios.get(`https://ac.cnstrc.com/search/${encodeURIComponent(searchTerm)}`, {
                 params: {

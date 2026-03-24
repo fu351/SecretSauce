@@ -1,14 +1,24 @@
 const axios = require('axios');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
 const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 5000);
 const log = createScraperLogger('99ranch');
+
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: Number(process.env.RANCH99_REQUESTS_PER_SECOND || 2),
+    minIntervalMs: Number(process.env.RANCH99_MIN_REQUEST_INTERVAL_MS || 600),
+    enableJitter: process.env.RANCH99_ENABLE_JITTER !== 'false',
+    log,
+    label: '[99ranch]',
+});
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
 
 async function getNearestStore(zip) {
     try {
+        await enforceRateLimit();
         const res = await withTimeout(axios.post(
             "https://www.99ranch.com/be-api/store/web/nearby/stores",
             {
@@ -67,6 +77,7 @@ async function getBuildId() {
     }
 
     try {
+        await enforceRateLimit();
         const res = await axios.get("https://www.99ranch.com/en_US", {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
@@ -95,6 +106,7 @@ async function searchProducts(store, keyword, zipCode) {
     const cookie = [`storeid=${store.id}`, `zipcode=${zipCode}`, "deliveryType=1"].join("; ");
 
     try {
+        await enforceRateLimit();
         const res = await withTimeout(
             axios.post(
                 "https://www.99ranch.com/be-api/search/web/products",

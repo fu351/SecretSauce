@@ -3,8 +3,17 @@ const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { fetchJinaReader } = require('../utils/jina-client');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
+const { createRateLimiter } = require('../utils/rate-limiter');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('aldi');
+
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: Number(process.env.ALDI_REQUESTS_PER_SECOND || 1),
+    minIntervalMs: Number(process.env.ALDI_MIN_REQUEST_INTERVAL_MS || 1500),
+    enableJitter: process.env.ALDI_ENABLE_JITTER !== 'false',
+    log,
+    label: '[aldi]',
+});
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
@@ -76,6 +85,7 @@ async function crawlAldiWithJina(keyword, zipCode) {
         // Call Jina AI Reader API with retry logic and dynamic timeouts
         const response = await withRetry(async (currentTimeout, attempt) => {
             log.debug(`Jina AI request for Aldi (attempt ${attempt + 1})`);
+            await enforceRateLimit();
 
             // Calculate axios timeout as 90% of total timeout to allow for cleanup
             const axiosTimeout = Math.floor(currentTimeout * 0.9);
