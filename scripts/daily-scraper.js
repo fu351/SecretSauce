@@ -509,38 +509,27 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
 }
 
 async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
-  const pendingResults = []
-  let totalScrapedCount = 0
-  let totalInsertedCount = 0
   let skippedStoreCount = 0
-  const scrapeStats = {
-    target404s: []
-  }
+  const scrapeStats = { target404s: [] }
 
-  async function flushPendingResults(force = false, reason = 'buffer checkpoint') {
-    if (!pendingResults.length) return
+  async function processStore(store, storeIndex) {
+    const pendingResults = []
+    let localScrapedCount = 0
+    let localInsertedCount = 0
 
-    if (!force && pendingResults.length < INSERT_BATCH_SIZE) {
-      return
-    }
+    async function flushPendingResults(force = false, reason = 'buffer checkpoint') {
+      if (!pendingResults.length) return
+      if (!force && pendingResults.length < INSERT_BATCH_SIZE) return
 
-    while (pendingResults.length >= INSERT_BATCH_SIZE || (force && pendingResults.length > 0)) {
-      const take = pendingResults.length >= INSERT_BATCH_SIZE
-        ? INSERT_BATCH_SIZE
-        : pendingResults.length
-      const batch = pendingResults.splice(0, take)
-      console.log(`💾 Flushing ${batch.length} buffered items (${reason})`)
-      const inserted = await bulkInsertIngredientHistory(batch)
-      totalInsertedCount += inserted
-
-      if (pendingResults.length > 0) {
-        await sleep(1000)
+      while (pendingResults.length >= INSERT_BATCH_SIZE || (force && pendingResults.length > 0)) {
+        const take = pendingResults.length >= INSERT_BATCH_SIZE ? INSERT_BATCH_SIZE : pendingResults.length
+        const batch = pendingResults.splice(0, take)
+        console.log(`💾 Flushing ${batch.length} buffered items (${reason})`)
+        const inserted = await bulkInsertIngredientHistory(batch)
+        localInsertedCount += inserted
       }
     }
-  }
 
-  for (let storeIndex = 0; storeIndex < stores.length; storeIndex += 1) {
-    const store = stores[storeIndex]
     const storeEnum = normalizeStoreEnum(store.store_enum)
     const zipCode = normalizeZipCode(store.zip_code)
     const batchSize = SCRAPER_BATCH_SIZE
@@ -550,10 +539,11 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
     let skippedForErrors = false
     let stopReason = ''
     let lastErrorMessage = ''
+    const storeTarget404s = []
 
     if (!zipCode) {
       console.warn(`⚠️ Skipping store ${storeEnum} (${store.id || 'unknown-id'}) due to invalid zip_code`)
-      continue
+      return { scrapedCount: 0, insertedCount: 0, skippedForErrors: false, target404s: [] }
     }
 
     console.log(`\n🏬 Store ${storeIndex + 1}/${stores.length}: ${storeEnum} (${zipCode || 'no-zip'})`)
@@ -570,12 +560,13 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
         console.log(`[DEBUG] Calling runBatchedScraperForStore with metadata:`, JSON.stringify(normalizedTargetMetadata))
       }
 
+      const localScrapeStats = { target404s: storeTarget404s }
       const { resultsByIngredient, errorFlags, errorMessages, http404Flags, errorCodes } = await runBatchedScraperForStore(
         storeEnum,
         chunk,
         zipCode,
         batchConcurrency,
-        scrapeStats,
+        localScrapeStats,
         normalizedTargetMetadata
       )
 
@@ -636,7 +627,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
             rawUnit: result.rawUnit || result.unit || result.size || null,
             unit: result.unit || null
           })
-          totalScrapedCount += 1
+          localScrapedCount += 1
         }
         chunkPriceHits += validResults.length
       }
@@ -647,7 +638,6 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
       await flushPendingResults(false, `threshold reached at ${storeEnum} (${zipCode})`)
 
       if (skippedForErrors) {
-        skippedStoreCount += 1
         if (stopReason === 'http_404') {
           console.warn(
             `   ⏭️ Stopping scrape for ${storeEnum} (${zipCode}) immediately after HTTP 404 ` +
@@ -679,13 +669,30 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
     }
 
     await flushPendingResults(true, `store completed: ${storeEnum} (${zipCode})`)
+
+    return {
+      scrapedCount: localScrapedCount,
+      insertedCount: localInsertedCount,
+      skippedForErrors,
+      target404s: storeTarget404s,
+    }
+  }
+
+  const storeResults = await mapWithConcurrency(stores, STORE_CONCURRENCY, processStore)
+
+  let totalScrapedCount = 0
+  let totalInsertedCount = 0
+  for (const result of storeResults) {
+    if (!result) continue
+    totalScrapedCount += result.scrapedCount
+    totalInsertedCount += result.insertedCount
+    if (result.skippedForErrors) skippedStoreCount += 1
+    scrapeStats.target404s.push(...result.target404s)
   }
 
   if (skippedStoreCount > 0) {
     console.warn(`\n⚠️ Skipped ${skippedStoreCount} store location(s) due to scraper stop conditions.`)
   }
-
-  await flushPendingResults(true, 'final run completion')
 
   return {
     scrapedCount: totalScrapedCount,
