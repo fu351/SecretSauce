@@ -68,7 +68,7 @@ services:
     env_file:
       - .env.local
     environment:
-      - CONSOLIDATION_DRY_RUN=true
+      - CONSOLIDATION_DRY_RUN=false
       - CONSOLIDATION_MIN_SIMILARITY=0.92
       - CONSOLIDATION_MIN_EVENT_COUNT=1
 

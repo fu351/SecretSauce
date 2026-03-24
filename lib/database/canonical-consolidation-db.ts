@@ -1,6 +1,9 @@
 import { supabaseWorker as supabase } from "./supabase-worker"
 import type { CanonicalDoubleCheckDirection, CanonicalDoubleCheckDailyStatsRow } from "./ingredient-match-queue-db"
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
 interface ConsolidateResult {
   success: boolean
   reason?: string
@@ -56,16 +59,28 @@ class CanonicalConsolidationDB {
   }): Promise<ConsolidateResult> {
     const { survivorCanonical, loserCanonical, dryRun = false } = params
 
-    const { data, error } = await (supabase.rpc as any)("fn_consolidate_canonical", {
-      p_survivor_canonical: survivorCanonical,
-      p_loser_canonical: loserCanonical,
-      p_dry_run: dryRun,
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/fn_consolidate_canonical`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+      },
+      body: JSON.stringify({
+        p_survivor_canonical: survivorCanonical,
+        p_loser_canonical: loserCanonical,
+        p_dry_run: dryRun,
+      }),
     })
 
-    if (error) {
-      console.error("[CanonicalConsolidationDB] consolidateCanonical error:", error.message)
-      return { success: false, reason: error.message, rowsUpdated: {} }
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}))
+      const msg = (errBody as any)?.message ?? response.statusText
+      console.error("[CanonicalConsolidationDB] consolidateCanonical error:", JSON.stringify(errBody))
+      return { success: false, reason: msg, rowsUpdated: {} }
     }
+
+    const data = await response.json()
 
     const result = data as { dry_run?: boolean; skipped?: boolean; reason?: string; rows_updated?: Record<string, number> }
 
