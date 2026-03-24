@@ -127,6 +127,42 @@ describe('getTargetProducts', () => {
     expect(results[0].target_store_id).toBe('T999')
   })
 
+  it('reuses cached nearest-store lookup for subsequent searches in the same zip', async () => {
+    mockGet
+      .mockResolvedValueOnce(makeStoreResponse())
+      .mockResolvedValueOnce(makeProductsResponse([makeProduct({ tcin: 'P1', title: 'Milk' })]))
+      .mockResolvedValueOnce(makeProductsResponse([makeProduct({ tcin: 'P2', title: 'Bread' })]))
+
+    const milkResults = await getTargetProducts('milk', null, '94704')
+    const breadResults = await getTargetProducts('bread', null, '94704')
+
+    expect(milkResults[0].target_store_id).toBe('T001')
+    expect(breadResults[0].target_store_id).toBe('T001')
+    expect(mockGet).toHaveBeenCalledTimes(3)
+  })
+
+  it('uses the first nearby store returned by Target store lookup', async () => {
+    mockGet
+      .mockResolvedValueOnce(makeStoreResponse([
+        {
+          store_id: 'T100',
+          location_name: 'Target First',
+          mailing_address: { address_line1: '1 First St', city: 'Berkeley', region: 'CA', postal_code: '94704' },
+        },
+        {
+          store_id: 'T200',
+          location_name: 'Target Second',
+          mailing_address: { address_line1: '2 Second St', city: 'Oakland', region: 'CA', postal_code: '94601' },
+        },
+      ]))
+      .mockResolvedValueOnce(makeProductsResponse())
+
+    const results = await getTargetProducts('milk', null, '94704')
+
+    expect(results[0].target_store_id).toBe('T100')
+    expect(results[0].location).toBe('1 First St, Berkeley, CA, 94704')
+  })
+
   it('preserves API product order', async () => {
     setupHappyPath([
       makeProduct({ tcin: 'P3', title: 'Expensive Milk', price: 7.99 }),

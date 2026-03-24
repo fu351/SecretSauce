@@ -104,6 +104,45 @@ describe('search99Ranch', () => {
     expect(results[0].location).toBe('1025 University Ave, Berkeley, CA 94710')
   })
 
+  it('uses the first nearby 99 Ranch store for location and product search', async () => {
+    mockPost
+      .mockResolvedValueOnce(makeStoreResponse([
+        {
+          id: 'FIRST',
+          name: '99 Ranch First',
+          address: '1 First St, Berkeley, CA 94710',
+          city: 'Berkeley',
+          state: 'CA',
+          zipCode: '94710',
+        },
+        {
+          id: 'SECOND',
+          name: '99 Ranch Second',
+          address: '2 Second St, Oakland, CA 94601',
+          city: 'Oakland',
+          state: 'CA',
+          zipCode: '94601',
+        },
+      ]))
+      .mockResolvedValueOnce(makeProductResponse([makeProduct()]))
+
+    const results = await search99Ranch('rice', '94709')
+
+    expect(results[0].location).toBe('1 First St, Berkeley, CA 94710')
+    expect(mockPost.mock.calls[1][2].headers.storeid).toBe('FIRST')
+  })
+
+  it('requests one nearby 99 Ranch store for the provided zip code', async () => {
+    setupHappyPath()
+
+    await search99Ranch('rice', '94709')
+
+    const storeCall = mockPost.mock.calls[0]
+    expect(storeCall[1].zipCode).toBe('94709')
+    expect(storeCall[1].pageSize).toBe(1)
+    expect(storeCall[1].pageNum).toBe(1)
+  })
+
   it('preserves upstream product order', async () => {
     setupHappyPath([
       makeProduct({ productName: 'Expensive Rice', salePrice: 12.99, productId: 'R3' }),

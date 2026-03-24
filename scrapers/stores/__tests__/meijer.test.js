@@ -109,6 +109,41 @@ describe('Meijers', () => {
     expect(results[0].location).toContain('Lansing')
   })
 
+  it('uses the first resolved Meijer store and passes it into the product search filter', async () => {
+    mockAxios.mockResolvedValueOnce({
+      data: {
+        pointsOfService: [
+          {
+            name: '111',
+            displayName: 'First Meijer',
+            address: { line1: '1 First St', region: { isocode: 'US-MI' }, postalCode: '48917' },
+          },
+          {
+            name: '222',
+            displayName: 'Second Meijer',
+            address: { line1: '2 Second St', region: { isocode: 'US-MI' }, postalCode: '48917' },
+          },
+        ],
+      },
+    })
+    mockGet.mockResolvedValueOnce(makeProductsResponse())
+
+    const results = await Meijers('48917', 'milk')
+
+    expect(results[0].location).toBe('1 First St, First Meijer, MI, 48917')
+    expect(mockGet.mock.calls[0][1].params['filters[availableInStores]']).toBe('111')
+  })
+
+  it('requests nearby Meijer locations using the searched zip code and radius', async () => {
+    setupHappyPath()
+
+    await Meijers('48917', 'milk')
+
+    const locationCall = mockAxios.mock.calls[0][0]
+    expect(locationCall.url).toContain('locationQuery=48917')
+    expect(locationCall.url).toContain('radius=20')
+  })
+
   it('preserves upstream product order', async () => {
     setupHappyPath([
       makeProduct({ id: 'P3', description: 'expensive milk', value: 'Expensive Milk', price: 6.99 }),

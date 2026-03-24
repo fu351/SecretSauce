@@ -123,6 +123,43 @@ describe('Krogers', () => {
     expect(results[0].location).toBe('3500 State Rd 38 E, Lafayette, IN, 47905')
   })
 
+  it('uses the first nearby Kroger store and passes its locationId into product search', async () => {
+    mockPost.mockResolvedValueOnce({ data: { access_token: MOCK_TOKEN } })
+    mockGet
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              locationId: 'FIRST',
+              name: 'First Kroger',
+              address: { addressLine1: '1 First St', city: 'Lafayette', state: 'IN', zipCode: '47905' },
+            },
+            {
+              locationId: 'SECOND',
+              name: 'Second Kroger',
+              address: { addressLine1: '2 Second St', city: 'Lafayette', state: 'IN', zipCode: '47905' },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({ data: { data: [makeProduct()] } })
+
+    const results = await Krogers('47905', 'milk')
+
+    expect(results[0].location).toBe('1 First St, Lafayette, IN, 47905')
+    expect(mockGet.mock.calls[1][1].params['filter.locationId']).toBe('FIRST')
+  })
+
+  it('requests only one nearby Kroger store for the provided zip code', async () => {
+    setupHappyPath()
+
+    await Krogers('47905', 'milk')
+
+    const locationsCall = mockGet.mock.calls[0]
+    expect(locationsCall[1].params['filter.zipCode.near']).toBe('47905')
+    expect(locationsCall[1].params['filter.limit']).toBe(1)
+  })
+
   it('falls back to city/state label when no addressLine1', async () => {
     mockPost.mockResolvedValueOnce({ data: { access_token: MOCK_TOKEN } })
     mockGet
