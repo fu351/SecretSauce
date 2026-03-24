@@ -68,3 +68,4 @@ supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql
 e2e/.auth/
 playwright-report/
 test-results/
+supabase/.temp/
