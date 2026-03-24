@@ -5,6 +5,7 @@
  *   - TTL-based expiry (ttlMs=0 disables expiry)
  *   - Max-entries size cap (maxEntries=0 disables cap), evicts oldest first
  *   - In-flight dedup: concurrent identical requests share one Promise
+ *   - Generic item dedup helpers for scraper-specific result merging
  *   - Normalized cache key builder: `keyword::zipCode`
  *
  * Each call to createResultCache() returns an independent instance with its
@@ -73,7 +74,85 @@ function createResultCache({ ttlMs = DEFAULT_TTL_MS, maxEntries = 0 } = {}) {
   /** Removes the in-flight entry for key. */
   function deleteInFlight(key) { inFlight.delete(key); }
 
-  return { buildKey, get, set, sweep, getInFlight, setInFlight, deleteInFlight };
+  /**
+   * Creates a lightweight deduper for arrays or incremental result merging.
+   *
+   * @param {object} options
+   * @param {(item:any)=>string|null|undefined} options.getKey
+   * @param {(item:any,key:string)=>void} [options.onDuplicate]
+   * @param {boolean} [options.keepItemsWithoutKey=true]
+   */
+  function createDeduper({ getKey, onDuplicate, keepItemsWithoutKey = true } = {}) {
+    if (typeof getKey !== 'function') {
+      throw new TypeError('createDeduper requires a getKey function');
+    }
+
+    const seenKeys = new Set();
+    const values = [];
+
+    function add(item) {
+      if (!item) return false;
+
+      const rawKey = getKey(item);
+      const normalizedKey =
+        rawKey === null || rawKey === undefined ? '' : String(rawKey).trim();
+
+      if (!normalizedKey) {
+        if (!keepItemsWithoutKey) return false;
+        values.push(item);
+        return true;
+      }
+
+      if (seenKeys.has(normalizedKey)) {
+        if (typeof onDuplicate === 'function') {
+          onDuplicate(item, normalizedKey);
+        }
+        return false;
+      }
+
+      seenKeys.add(normalizedKey);
+      values.push(item);
+      return true;
+    }
+
+    function addMany(items) {
+      if (!Array.isArray(items)) return values;
+      for (const item of items) {
+        add(item);
+      }
+      return values;
+    }
+
+    function getValues() {
+      return values.slice();
+    }
+
+    return {
+      add,
+      addMany,
+      values: getValues,
+      hasKey: (key) => seenKeys.has(String(key || '').trim()),
+      size: () => values.length,
+    };
+  }
+
+  function dedupe(items, options) {
+    const deduper = createDeduper(options);
+    deduper.addMany(items);
+    return deduper.values();
+  }
+
+  return {
+    buildKey,
+    get,
+    set,
+    sweep,
+    getInFlight,
+    setInFlight,
+    deleteInFlight,
+    createDeduper,
+    dedupe,
+  };
 }
 
 module.exports = { createResultCache };

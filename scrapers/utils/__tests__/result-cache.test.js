@@ -49,4 +49,50 @@ describe('createResultCache', () => {
 
     expect(cache.getInFlight('milk::94704')).toBeUndefined()
   })
+
+  it('deduplicates items while preserving items without keys', () => {
+    const cache = createResultCache()
+    const onDuplicate = vi.fn()
+
+    const results = cache.dedupe(
+      [
+        { id: '1', title: 'Milk A' },
+        { id: '1', title: 'Milk B' },
+        { title: 'No Key A' },
+        { title: 'No Key B' },
+      ],
+      {
+        getKey: (item) => item.id,
+        onDuplicate,
+      },
+    )
+
+    expect(results).toEqual([
+      { id: '1', title: 'Milk A' },
+      { title: 'No Key A' },
+      { title: 'No Key B' },
+    ])
+    expect(onDuplicate).toHaveBeenCalledTimes(1)
+    expect(onDuplicate).toHaveBeenCalledWith({ id: '1', title: 'Milk B' }, '1')
+  })
+
+  it('supports incremental dedupe for merged scraper results', () => {
+    const cache = createResultCache()
+    const deduper = cache.createDeduper({
+      getKey: (item) => item.product_id || `${item.title}-${item.price}`,
+    })
+
+    deduper.addMany([
+      { product_id: 'A', title: 'Milk', price: 3.99 },
+      { product_id: 'A', title: 'Milk duplicate', price: 3.99 },
+    ])
+    deduper.add({ title: 'Bread', price: 2.49 })
+    deduper.add({ title: 'Bread', price: 2.49 })
+
+    expect(deduper.values()).toEqual([
+      { product_id: 'A', title: 'Milk', price: 3.99 },
+      { title: 'Bread', price: 2.49 },
+    ])
+    expect(deduper.size()).toBe(2)
+  })
 })

@@ -42,6 +42,11 @@ const { enforceRateLimit } = createRateLimiter({
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
 
+function getWalmartDedupeKey(item) {
+    if (!item) return '';
+    return item.product_id || item.id || `${item.title}-${item.price}`;
+}
+
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
@@ -499,16 +504,10 @@ function parseWalmartHtml(html, zipCode) {
         .map((item) => normalizeWalmartItem(item, storeLocationLabel))
         .filter(Boolean);
 
-    const seen = new Set();
-    const deduped = [];
-    for (const product of normalized) {
-        const dedupeKey = product.product_id || product.id || `${product.title}-${product.price}`;
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        deduped.push(product);
-    }
+    const deduper = resultCache.createDeduper({ getKey: getWalmartDedupeKey });
+    deduper.addMany(normalized);
 
-    if (deduped.length < 5 && state?.entities) {
+    if (deduper.size() < 5 && state?.entities) {
         const extraSources = [];
         if (state.entities.items) {
             extraSources.push(...Object.values(state.entities.items))
@@ -519,18 +518,14 @@ function parseWalmartHtml(html, zipCode) {
 
         for (const source of extraSources) {
             const normalizedExtra = normalizeWalmartItem(source, storeLocationLabel)
-            const extraDedupeKey = normalizedExtra?.product_id || normalizedExtra?.id || `${normalizedExtra?.title}-${normalizedExtra?.price}`
-            if (normalizedExtra && !seen.has(extraDedupeKey)) {
-                seen.add(extraDedupeKey)
-                deduped.push(normalizedExtra)
-            }
-            if (deduped.length >= 12) {
+            deduper.add(normalizedExtra)
+            if (deduper.size() >= 12) {
                 break
             }
         }
     }
 
-    return deduped.slice(0, 12);
+    return deduper.values().slice(0, 12);
 }
 
 async function searchWalmartDirect(keyword, zipCode) {
@@ -729,22 +724,14 @@ async function searchWalmart(keyword, zipCode) {
         const directResults = await searchWalmartDirect(keyword, zipCode);
         const exaResults = await searchWalmartWithExa(keyword, zipCode);
 
-        const merged = [];
-        const seenKeys = new Set();
-        const pushResult = (item) => {
-            if (!item) return;
-            const key = item.product_id || item.id || `${item.title}-${item.price}`;
-            if (seenKeys.has(key)) return;
-            seenKeys.add(key);
-            merged.push(item);
-        };
+        const merged = resultCache.createDeduper({ getKey: getWalmartDedupeKey });
+        merged.addMany(directResults);
+        merged.addMany(exaResults);
+        const mergedResults = merged.values();
 
-        directResults.forEach(pushResult);
-        exaResults.forEach(pushResult);
-
-        const results = merged.length === 0
+        const results = mergedResults.length === 0
             ? (directResults.length > 0 ? directResults : exaResults)
-            : merged.sort((a, b) => a.price - b.price);
+            : mergedResults.sort((a, b) => a.price - b.price);
 
         if (results.length > 0) resultCache.set(cacheKey, results);
         return results;

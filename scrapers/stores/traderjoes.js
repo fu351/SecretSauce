@@ -269,26 +269,16 @@ function scoreProductRelevance(productName, keyword) {
 }
 
 function dedupeProducts(products) {
-    const seen = new Set();
-    const deduped = [];
-
-    for (const product of products) {
-        const idKey = toOptionalString(product?.id || product?.product_id);
-        const nameKey = toOptionalString(product?.product_name || product?.title).toLowerCase();
-        const priceKey = Number(product?.price);
-        const compositeKey = idKey
-            ? `id:${idKey}`
-            : `name:${nameKey}|price:${Number.isFinite(priceKey) ? priceKey.toFixed(2) : "na"}`;
-
-        if (seen.has(compositeKey)) {
-            continue;
+    return resultCache.dedupe(products, {
+        getKey: (product) => {
+            const idKey = toOptionalString(product?.id || product?.product_id);
+            const nameKey = toOptionalString(product?.product_name || product?.title).toLowerCase();
+            const priceKey = Number(product?.price);
+            return idKey
+                ? `id:${idKey}`
+                : `name:${nameKey}|price:${Number.isFinite(priceKey) ? priceKey.toFixed(2) : "na"}`;
         }
-
-        seen.add(compositeKey);
-        deduped.push(product);
-    }
-
-    return deduped;
+    });
 }
 
 function rankAndLimitProducts(products, keyword, limit = TJ_MAX_RESULTS) {

@@ -69,7 +69,9 @@ function parseProductsWithRegex(crawledContent, keyword) {
     const content = String(crawledContent || "");
     if (!content) return { products: [], hasUnresolved: true };
 
-    const products = [];
+    const dedupedProducts = resultCache.createDeduper({
+        getKey: (product) => `${String(product?.title || "").trim().toLowerCase()}::${Number(product?.price).toFixed(2)}`
+    });
 
     // Pattern: ### [Product Name](url) ... $X.XX ... ![img](url)
     // or      ## [Product Name](url) ... $X.XX
@@ -94,13 +96,7 @@ function parseProductsWithRegex(crawledContent, keyword) {
         const imgMatch = window.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
         const imageUrl = imgMatch ? imgMatch[1] : "/placeholder.svg";
 
-        // Avoid duplicates by name+price
-        const isDupe = products.some(
-            p => p.title.toLowerCase() === productName.toLowerCase() && p.price === price
-        );
-        if (isDupe) continue;
-
-        products.push({
+        dedupedProducts.add({
             id: `aldi-${Math.random().toString(36).substring(7)}`,
             title: productName,
             brand: "ALDI",
@@ -117,7 +113,7 @@ function parseProductsWithRegex(crawledContent, keyword) {
 
     // Secondary pattern: plain price line near a bold/plain product name
     // Catches cards where Jina didn't produce a heading+link (e.g. text-only cards)
-    if (products.length === 0) {
+    if (dedupedProducts.size() === 0) {
         const priceLineRegex = /\$\s*(\d+(?:\.\d{1,2})?)\s*(?:\/\s*([^\n]{1,30}))?\s*\n/g;
         let priceMatch2;
         while ((priceMatch2 = priceLineRegex.exec(content)) !== null) {
@@ -130,16 +126,11 @@ function parseProductsWithRegex(crawledContent, keyword) {
             const productName = toOptionalString(nameLines[nameLines.length - 1]);
             if (!productName || productName.length < 4) continue;
 
-            const isDupe = products.some(
-                p => p.title.toLowerCase() === productName.toLowerCase() && p.price === price
-            );
-            if (isDupe) continue;
-
             const windowEnd = Math.min(content.length, priceMatch2.index + 400);
             const window = content.slice(priceMatch2.index, windowEnd);
             const imgMatch = window.match(/!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/);
 
-            products.push({
+            dedupedProducts.add({
                 id: `aldi-${Math.random().toString(36).substring(7)}`,
                 title: productName,
                 brand: "ALDI",
@@ -153,11 +144,11 @@ function parseProductsWithRegex(crawledContent, keyword) {
                 category: "Grocery"
             });
 
-            if (products.length >= 5) break;
+            if (dedupedProducts.size() >= 5) break;
         }
     }
 
-    const limited = products.slice(0, 5);
+    const limited = dedupedProducts.values().slice(0, 5);
     // hasUnresolved = true tells the caller to still run LLM as a fallback if regex found nothing
     return { products: limited, hasUnresolved: limited.length === 0 };
 }

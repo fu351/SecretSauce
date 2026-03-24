@@ -441,17 +441,11 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
                 withoutPrice: cleanedProducts.length - withPrice.length
             });
 
-            // Remove duplicates based on product_id
-            const seenIds = new Set();
-            const deduplicated = withPrice.filter(product => {
-                const id = product.product_id || product.id;
-                if (!id) return true; // Keep products without IDs (shouldn't happen, but safe)
-                if (seenIds.has(id)) {
+            const deduplicated = resultCache.dedupe(withPrice, {
+                getKey: (product) => product.product_id || product.id,
+                onDuplicate: (product, id) => {
                     targetDebug(`[target] Removing duplicate product: ${id} - ${product.title?.substring(0, 50)}`);
-                    return false;
                 }
-                seenIds.add(id);
-                return true;
             });
 
             targetDebug("[target] Deduplication", {
