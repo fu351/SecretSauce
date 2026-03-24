@@ -2,7 +2,13 @@ const axios = require('axios');
 const path = require('path');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+const { withExponentialBackoffRetry } = require('../utils/retry');
+
+const resultCache = createResultCache({ ttlMs: Number(process.env.WALMART_CACHE_TTL_MS || 5 * 60 * 1000) });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('walmart');
 
@@ -13,7 +19,6 @@ const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 15000);
 const WALMART_TIMEOUT_MS = Number(process.env.WALMART_TIMEOUT_MS || 15000);
 const WALMART_MAX_RETRIES = Number(process.env.WALMART_MAX_RETRIES || 2);
 // 0 means no cap: return all parsed products.
-const WALMART_MAX_RESULTS = Number(process.env.WALMART_MAX_RESULTS || process.env.SCRAPER_MAX_RESULTS || 0);
 const WALMART_RETRY_DELAY_MS = Number(process.env.WALMART_RETRY_DELAY_MS || 1000);
 
 // Rate limiting configuration
@@ -24,118 +29,21 @@ const WALMART_ENABLE_JITTER = process.env.WALMART_ENABLE_JITTER !== 'false'; // 
 // User-Agent rotation configuration
 const WALMART_ROTATE_USER_AGENT = process.env.WALMART_ROTATE_USER_AGENT !== 'false'; // Enabled by default
 
-// Rate limiter state
-const rateLimiter = {
-    lastRequestTime: 0,
-    requestCount: 0,
-    windowStart: Date.now(),
-    windowDuration: 1000, // 1 second window
-};
-
-// Rate limiting function
-async function enforceRateLimit() {
-    const now = Date.now();
-
-    // Reset window if it's been more than windowDuration
-    if (now - rateLimiter.windowStart >= rateLimiter.windowDuration) {
-        rateLimiter.windowStart = now;
-        rateLimiter.requestCount = 0;
-    }
-
-    // Check if we've hit the requests per second limit
-    if (rateLimiter.requestCount >= WALMART_REQUESTS_PER_SECOND) {
-        const waitTime = rateLimiter.windowDuration - (now - rateLimiter.windowStart);
-        if (waitTime > 0) {
-            log.debug(`[walmart] Rate limit: ${rateLimiter.requestCount} requests in window, waiting ${waitTime}ms`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            // Reset window after waiting
-            rateLimiter.windowStart = Date.now();
-            rateLimiter.requestCount = 0;
-        }
-    }
-
-    // Enforce minimum interval between requests
-    const timeSinceLastRequest = now - rateLimiter.lastRequestTime;
-    if (timeSinceLastRequest < WALMART_MIN_REQUEST_INTERVAL_MS) {
-        const waitTime = WALMART_MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest;
-
-        // Add jitter (randomize delay by ±20%) to appear more human-like
-        const jitter = WALMART_ENABLE_JITTER
-            ? waitTime * (0.8 + Math.random() * 0.4)
-            : waitTime;
-
-        log.debug(`[walmart] Rate limit: enforcing ${Math.round(jitter)}ms delay between requests`);
-        await new Promise(resolve => setTimeout(resolve, jitter));
-    }
-
-    // Update state
-    rateLimiter.lastRequestTime = Date.now();
-    rateLimiter.requestCount++;
-}
+// Rate limiter
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: WALMART_REQUESTS_PER_SECOND,
+    minIntervalMs: WALMART_MIN_REQUEST_INTERVAL_MS,
+    enableJitter: WALMART_ENABLE_JITTER,
+    log,
+    label: '[walmart]',
+});
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
 
-// Utility function for exponential backoff retry
-async function withRetry(fn, options = {}) {
-    const {
-        maxRetries = WALMART_MAX_RETRIES,
-        baseDelay = WALMART_RETRY_DELAY_MS,
-        maxDelay = 10000,
-        timeoutMultiplier = 1.5,
-        initialTimeout = WALMART_TIMEOUT_MS,
-        retryOn404 = false // Don't retry 404s by default
-    } = options;
-
-    let lastError;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            // Calculate dynamic timeout: increases with each retry
-            const currentTimeout = Math.min(
-                initialTimeout * Math.pow(timeoutMultiplier, attempt),
-                initialTimeout * 3 // Cap at 3x the initial timeout
-            );
-
-            log.debug(`[walmart] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
-
-            return await fn(currentTimeout, attempt);
-        } catch (error) {
-            lastError = error;
-
-            // Check if we should skip retrying based on error type
-            if (error.response) {
-                const status = error.response.status;
-
-                // Don't retry 404s unless explicitly requested
-                if (status === 404 && !retryOn404) {
-                    log.warn(`[walmart] Received 404 error, not retrying (attempt ${attempt + 1})`);
-                    break;
-                }
-
-                // Don't retry client errors (400-499) except 429 (rate limit)
-                if (status >= 400 && status < 500 && status !== 429) {
-                    log.warn(`[walmart] Client error ${status}, not retrying (attempt ${attempt + 1})`);
-                    break;
-                }
-            }
-
-            // Don't retry on the last attempt
-            if (attempt === maxRetries) {
-                break;
-            }
-
-            // Calculate delay with exponential backoff
-            const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-
-            log.debug(`[walmart] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
-
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-
-    throw lastError;
+function getWalmartDedupeKey(item) {
+    if (!item) return '';
+    return item.product_id || item.id || `${item.title}-${item.price}`;
 }
 
 const DEFAULT_USER_AGENT =
@@ -211,7 +119,7 @@ async function fetchWalmartSearchHtml(keyword, zipCode) {
     const url = `https://www.walmart.com/search?${params.toString()}`;
 
     try {
-        const response = await withRetry(async (currentTimeout, attempt) => {
+        const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
             // Get User-Agent for this request (random or default)
             const userAgent = getUserAgent();
             const userAgentPreview = userAgent.substring(0, 50);
@@ -247,19 +155,43 @@ async function fetchWalmartSearchHtml(keyword, zipCode) {
             initialTimeout: WALMART_TIMEOUT_MS,
             maxRetries: WALMART_MAX_RETRIES,
             baseDelay: WALMART_RETRY_DELAY_MS,
-            retryOn404: false
+            onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
+                log.debug(`[walmart] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
+            },
+            getRetryDecision: ({ error, attempt, maxRetries, defaultDelay }) => {
+                if (error.response) {
+                    const status = error.response.status;
+                    if (status === 404) {
+                        log.warn(`[walmart] Received 404 error, not retrying (attempt ${attempt + 1})`);
+                        return { shouldRetry: false };
+                    }
+                    if (status >= 400 && status < 500 && status !== 429) {
+                        log.warn(`[walmart] Client error ${status}, not retrying (attempt ${attempt + 1})`);
+                        return { shouldRetry: false };
+                    }
+                }
+
+                if (attempt === maxRetries) {
+                    return { shouldRetry: false };
+                }
+
+                log.debug(`[walmart] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${defaultDelay}ms...`);
+                return { shouldRetry: true, delayMs: defaultDelay };
+            }
         });
 
         // Check response status
         if (response.status === 404) {
             log.error(`[walmart] Walmart returned 404 for keyword "${keyword}"`);
             log.error(`[walmart] URL: ${url}`);
+            await logHttpErrorToDatabase({ storeEnum: 'walmart', zipCode, ingredientName: keyword, httpStatus: 404, requestUrl: url, errorMessage: `Walmart returned 404 for "${keyword}"` });
             return null;
         }
 
         if (response.status !== 200) {
             log.error(`[walmart] Walmart returned status ${response.status} for keyword "${keyword}"`);
             log.error(`[walmart] Response length: ${response.data?.length || 0} chars`);
+            await logHttpErrorToDatabase({ storeEnum: 'walmart', zipCode, ingredientName: keyword, httpStatus: response.status, requestUrl: url, errorMessage: `Walmart returned ${response.status} for "${keyword}"` });
             return null;
         }
 
@@ -273,6 +205,7 @@ async function fetchWalmartSearchHtml(keyword, zipCode) {
             log.error(`[walmart] HTTP error ${error.response.status} fetching search page:`, error.message);
             log.error(`[walmart] Request details: Keyword: "${keyword}", ZIP: ${zipCode || 'none'}`);
             log.error(`[walmart] URL: ${url}`);
+            await logHttpErrorToDatabase({ storeEnum: 'walmart', zipCode, ingredientName: keyword, httpStatus: error.response.status, requestUrl: url, errorMessage: error.message });
 
             // Log response data for debugging
             if (error.response.data) {
@@ -570,16 +503,10 @@ function parseWalmartHtml(html, zipCode) {
         .map((item) => normalizeWalmartItem(item, storeLocationLabel))
         .filter(Boolean);
 
-    const seen = new Set();
-    const deduped = [];
-    for (const product of normalized) {
-        const dedupeKey = product.product_id || product.id || `${product.title}-${product.price}`;
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        deduped.push(product);
-    }
+    const deduper = resultCache.createDeduper({ getKey: getWalmartDedupeKey });
+    deduper.addMany(normalized);
 
-    if (deduped.length < 5 && state?.entities) {
+    if (deduper.size() < 5 && state?.entities) {
         const extraSources = [];
         if (state.entities.items) {
             extraSources.push(...Object.values(state.entities.items))
@@ -590,18 +517,14 @@ function parseWalmartHtml(html, zipCode) {
 
         for (const source of extraSources) {
             const normalizedExtra = normalizeWalmartItem(source, storeLocationLabel)
-            const extraDedupeKey = normalizedExtra?.product_id || normalizedExtra?.id || `${normalizedExtra?.title}-${normalizedExtra?.price}`
-            if (normalizedExtra && !seen.has(extraDedupeKey)) {
-                seen.add(extraDedupeKey)
-                deduped.push(normalizedExtra)
-            }
-            if (deduped.length >= 12) {
+            deduper.add(normalizedExtra)
+            if (deduper.size() >= 12) {
                 break
             }
         }
     }
 
-    return deduped.slice(0, 12);
+    return deduper.values().slice(0, 12);
 }
 
 async function searchWalmartDirect(keyword, zipCode) {
@@ -726,7 +649,7 @@ Return only the JSON array, no other text.`;
         
         // Validate and format products
         const filtered = products.filter(product => product.title && product.price && product.price > 0);
-        return (WALMART_MAX_RESULTS > 0 ? filtered.slice(0, WALMART_MAX_RESULTS) : filtered)
+        return filtered
             .map(product => {
                 const productName = String(product.title || "").trim();
                 const productIdRaw = product.id ?? null;
@@ -780,7 +703,7 @@ async function searchWalmartWithExa(keyword, zipCode) {
         }
 
         log.debug(`Successfully extracted ${products.length} products from Walmart`);
-        return products.sort((a, b) => a.price - b.price);  // Sort by price
+        return products;
 
     } catch (error) {
         log.error("Error in Walmart Exa search:", error.message, "- real-time prices unavailable");
@@ -789,27 +712,21 @@ async function searchWalmartWithExa(keyword, zipCode) {
 }
 
 async function searchWalmart(keyword, zipCode) {
-    const directResults = await searchWalmartDirect(keyword, zipCode);
-    const exaResults = await searchWalmartWithExa(keyword, zipCode);
+    const cacheKey = resultCache.buildKey(keyword, zipCode);
+    return resultCache.runCached(cacheKey, async () => {
+        const directResults = await searchWalmartDirect(keyword, zipCode);
+        const exaResults = await searchWalmartWithExa(keyword, zipCode);
 
-    const merged = [];
-    const seenKeys = new Set();
-    const pushResult = (item) => {
-        if (!item) return;
-        const key = item.product_id || item.id || `${item.title}-${item.price}`;
-        if (seenKeys.has(key)) return;
-        seenKeys.add(key);
-        merged.push(item);
-    };
+        const merged = resultCache.createDeduper({ getKey: getWalmartDedupeKey });
+        merged.addMany(directResults);
+        merged.addMany(exaResults);
+        const mergedResults = merged.values();
 
-    directResults.forEach(pushResult);
-    exaResults.forEach(pushResult);
-
-    if (merged.length === 0) {
-        return directResults.length > 0 ? directResults : exaResults;
-    }
-
-    return merged.sort((a, b) => a.price - b.price);
+        const results = mergedResults.length === 0
+            ? (directResults.length > 0 ? directResults : exaResults)
+            : mergedResults;
+        return results;
+    });
 }
 
 // Legacy function for backwards compatibility
@@ -820,92 +737,6 @@ async function searchWalmartProducts(keyword, zipCode) {
 // Legacy function for backwards compatibility  
 async function searchWalmartAPI(keyword, zipCode) {
     return await searchWalmart(keyword, zipCode);
-}
-
-// Function to generate fallback mock data if APIs fail
-function generateMockWalmartData(keyword) {
-    log.debug("Generating mock Walmart data as fallback...");
-
-    const basePrice = Math.random() * 8 + 1;
-    const timestamp = Date.now();
-
-    return [
-        {
-            product_id: `walmart-mock-1-${timestamp}`,
-            id: `walmart-mock-1-${timestamp}`,
-            product_name: `Great Value ${keyword}`,
-            title: `Great Value ${keyword}`,
-            brand: "Great Value",
-            price: Math.round(basePrice * 100) / 100,
-            pricePerUnit: "$" + Math.round(basePrice * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        },
-        {
-            product_id: `walmart-mock-2-${timestamp}`,
-            id: `walmart-mock-2-${timestamp}`,
-            product_name: `Fresh ${keyword}`,
-            title: `Fresh ${keyword}`,
-            brand: "Walmart",
-            price: Math.round((basePrice + 0.5) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 0.5) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        },
-        {
-            product_id: `walmart-mock-3-${timestamp}`,
-            id: `walmart-mock-3-${timestamp}`,
-            product_name: `Premium ${keyword}`,
-            title: `Premium ${keyword}`,
-            brand: "Name Brand",
-            price: Math.round((basePrice + 1) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 1) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        },
-        {
-            product_id: `walmart-mock-4-${timestamp}`,
-            id: `walmart-mock-4-${timestamp}`,
-            product_name: `Organic ${keyword}`,
-            title: `Organic ${keyword}`,
-            brand: "Organic Select",
-            price: Math.round((basePrice + 1.5) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 1.5) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        },
-        {
-            product_id: `walmart-mock-5-${timestamp}`,
-            id: `walmart-mock-5-${timestamp}`,
-            product_name: `Store Brand ${keyword}`,
-            title: `Store Brand ${keyword}`,
-            brand: "Walmart Value",
-            price: Math.round((basePrice - 0.5) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice - 0.5) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        }
-    ];
 }
 
 // Main function to execute the script
@@ -923,7 +754,7 @@ async function main() {
     if (EXA_API_KEY === "your_exa_api_key_here" || !hasConfiguredOpenAIKey(OPENAI_API_KEY)) {
         log.warn("⚠️  Missing API keys - using mock data");
         log.warn("Set EXA_API_KEY and OPENAI_API_KEY environment variables for real data");
-        console.log(JSON.stringify(generateMockWalmartData(keyword)));
+        console.log(JSON.stringify([], null, 2));
         return;
     }
 

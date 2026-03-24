@@ -97,23 +97,23 @@ describe('searchAldi', () => {
     expect(results[0].id).toMatch(/^aldi-/)
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves scraper result order', async () => {
     setupHappyPath([
       makeProduct({ title: 'Expensive', price: 8.99, id: 'e1' }),
       makeProduct({ title: 'Cheap', price: 2.99, id: 'c1' }),
       makeProduct({ title: 'Mid', price: 4.99, id: 'm1' }),
     ])
     const results = await searchAldi('milk', '94704')
-    expect(results.map((r) => r.price)).toEqual([2.99, 4.99, 8.99])
+    expect(results.map((r) => r.id)).toEqual(['e1', 'c1', 'm1'])
   })
 
-  it('limits results to 5 products', async () => {
+  it('does not cap results in the scraper', async () => {
     const products = Array.from({ length: 8 }, (_, i) =>
       makeProduct({ title: `Milk ${i}`, price: i + 1, id: `p${i}` })
     )
     setupHappyPath(products)
     const results = await searchAldi('milk', '94704')
-    expect(results).toHaveLength(5)
+    expect(results).toHaveLength(8)
   })
 
   it('uses /placeholder.svg when product has no image_url', async () => {
