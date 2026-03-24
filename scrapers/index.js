@@ -1,7 +1,7 @@
 // Export all scraper functions
 const { searchMeijer, Meijers, getLocations } = require('./stores/meijer.js');
 const { searchKroger, Krogers } = require('./stores/kroger.js');
-const { searchTarget, getTargetProducts } = require('./stores/target.js');
+const { searchTarget, getTargetProducts, getNearestStore: getTargetNearestStore } = require('./stores/target.js');
 const { search99Ranch } = require('./stores/99ranch.js');
 const { searchWalmartAPI } = require('./stores/walmart.js');
 const { searchAndronicos } = require('./stores/andronicos.js');
@@ -18,6 +18,7 @@ module.exports = {
   Krogers,
   searchTarget,
   getTargetProducts,
+  getNearestStore: getTargetNearestStore,
   search99Ranch,
   searchWalmartAPI,
   searchAndronicos,

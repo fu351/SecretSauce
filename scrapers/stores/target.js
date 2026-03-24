@@ -211,12 +211,47 @@ function resolveTargetStoreId(storeMetadata) {
     return normalized.length > 0 ? normalized : null;
 }
 
+function resolveGroceryStoreId(storeMetadata) {
+    if (!storeMetadata || typeof storeMetadata !== "object") {
+        return null;
+    }
+
+    const groceryStoreId =
+        storeMetadata.grocery_store_id ??
+        storeMetadata.groceryStoreId ??
+        storeMetadata.raw?.grocery_store_id ??
+        storeMetadata.raw?.groceryStoreId ??
+        null;
+
+    if (groceryStoreId === null || groceryStoreId === undefined) {
+        return null;
+    }
+
+    const normalized = String(groceryStoreId).trim();
+    return normalized.length > 0 ? normalized : null;
+}
+
+function buildTargetRequestUrl(baseUrl, params) {
+    const searchParams = new URLSearchParams();
+
+    Object.entries(params || {}).forEach(([key, value]) => {
+        if (value === null || value === undefined) {
+            return;
+        }
+        searchParams.append(key, String(value));
+    });
+
+    const query = searchParams.toString();
+    return query ? `${baseUrl}?${query}` : baseUrl;
+}
+
 // Function to fetch products from Target API
 async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
     return resultCache.runCached(cacheKey, async () => {
         let resolvedStoreInfo = null;
         let storeId = null;
+        let groceryStoreId = resolveGroceryStoreId(storeMetadata);
         let storeIdSource = 'explicit'; // Track how store ID was resolved
         try {
 
@@ -282,6 +317,7 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
                 "Connection": "keep-alive",
                 "Upgrade-Insecure-Requests": "1"
             };
+            const requestUrl = buildTargetRequestUrl(baseUrl, params);
 
             const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
                 targetDebug(`[target] Fetching products for "${keyword}" at store ${storeId} (attempt ${attempt + 1})`);
@@ -339,13 +375,23 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
                     storeId,
                     storeIdSource,
                     ingredientName: keyword,
-                    errorMessage: `Target API returned 404 for "${keyword}" at store ${storeId}`,
-                    requestUrl: response.config?.url || null,
+                    groceryStoreId,
+                    errorMessage: `Target API returned 404 for "${keyword}" at store ${storeId} (${zipCode})`,
+                    requestUrl,
                 });
 
                 const error = new Error(`[target] API returned 404 for "${keyword}" at store ${storeId} (${zipCode})`);
                 error.code = "TARGET_HTTP_404";
                 error.status = 404;
+                error.debugContext = {
+                    keyword,
+                    zipCode,
+                    storeId: String(storeId),
+                    storeIdSource,
+                    groceryStoreId,
+                    requestUrl,
+                    responseStatus: response.status,
+                };
                 throw error;
             }
 
@@ -495,7 +541,7 @@ async function main() {
 const getTargetProducts = searchTarget;
 
 // Export for use as a module
-module.exports = { searchTarget, getTargetProducts };
+module.exports = { searchTarget, getTargetProducts, getNearestStore };
 
 // Run if called directly
 if (require.main === module) {
