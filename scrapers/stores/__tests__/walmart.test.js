@@ -109,7 +109,7 @@ describe('searchWalmartProducts', () => {
     expect(results[0].location).toBe('Walmart (94704)')
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves scraper result order', async () => {
     const items = [
       makeWalmartItem({ usItemId: 'W3', title: 'Expensive Milk', price: 6.99 }),
       makeWalmartItem({ usItemId: 'W1', title: 'Cheap Milk', price: 1.99 }),
@@ -117,7 +117,7 @@ describe('searchWalmartProducts', () => {
     ]
     mockGet.mockResolvedValueOnce({ status: 200, data: makeReduxHtml(items) })
     const results = await searchWalmartProducts('milk', '94704')
-    expect(results.map((r) => r.price)).toEqual([1.99, 3.49, 6.99])
+    expect(results.map((r) => r.product_id)).toEqual(['W3', 'W1', 'W2'])
   })
 
   it('deduplicates products by usItemId', async () => {

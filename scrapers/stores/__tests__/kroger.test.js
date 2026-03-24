@@ -22,9 +22,10 @@ patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
 
-// Force fresh load of source with mocked deps
-delete _require.cache[_require.resolve('../kroger.js')]
-const { Krogers } = _require('../kroger.js')
+function loadModule() {
+  delete _require.cache[_require.resolve('../kroger.js')]
+  return _require('../kroger.js').Krogers
+}
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -88,10 +89,15 @@ function setupHappyPath(products = [makeProduct()]) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('Krogers', () => {
+  let Krogers
+
   beforeEach(() => {
+    process.env.KROGER_CLIENT_ID = 'test-client-id'
+    process.env.KROGER_CLIENT_SECRET = 'test-client-secret'
     mockPost.mockReset()
     mockGet.mockReset()
     mockAxios.mockReset()
+    Krogers = loadModule()
   })
 
   // ── Happy path ──────────────────────────────────────────────────────────────
@@ -117,6 +123,43 @@ describe('Krogers', () => {
     setupHappyPath()
     const results = await Krogers('47905', 'milk')
     expect(results[0].location).toBe('3500 State Rd 38 E, Lafayette, IN, 47905')
+  })
+
+  it('uses the first nearby Kroger store and passes its locationId into product search', async () => {
+    mockPost.mockResolvedValueOnce({ data: { access_token: MOCK_TOKEN } })
+    mockGet
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              locationId: 'FIRST',
+              name: 'First Kroger',
+              address: { addressLine1: '1 First St', city: 'Lafayette', state: 'IN', zipCode: '47905' },
+            },
+            {
+              locationId: 'SECOND',
+              name: 'Second Kroger',
+              address: { addressLine1: '2 Second St', city: 'Lafayette', state: 'IN', zipCode: '47905' },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({ data: { data: [makeProduct()] } })
+
+    const results = await Krogers('47905', 'milk')
+
+    expect(results[0].location).toBe('1 First St, Lafayette, IN, 47905')
+    expect(mockGet.mock.calls[1][1].params['filter.locationId']).toBe('FIRST')
+  })
+
+  it('requests only one nearby Kroger store for the provided zip code', async () => {
+    setupHappyPath()
+
+    await Krogers('47905', 'milk')
+
+    const locationsCall = mockGet.mock.calls[0]
+    expect(locationsCall[1].params['filter.zipCode.near']).toBe('47905')
+    expect(locationsCall[1].params['filter.limit']).toBe(1)
   })
 
   it('falls back to city/state label when no addressLine1', async () => {
@@ -153,14 +196,14 @@ describe('Krogers', () => {
     expect(results[0].price).toBe(3.49)
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves upstream product order', async () => {
     setupHappyPath([
       makeProduct({ productId: 'P3', itemId: 'I3', description: 'Expensive Milk', regular: 6.99 }),
       makeProduct({ productId: 'P1', itemId: 'I1', description: 'Cheap Milk', regular: 2.99 }),
       makeProduct({ productId: 'P2', itemId: 'I2', description: 'Mid Milk', regular: 4.49 }),
     ])
     const results = await Krogers('47905', 'milk')
-    expect(results.map((r) => r.price)).toEqual([2.99, 4.49, 6.99])
+    expect(results.map((r) => r.id)).toEqual(['I3', 'I1', 'I2'])
   })
 
   it('filters out products with no price', async () => {
@@ -213,6 +256,35 @@ describe('Krogers', () => {
     mockPost.mockRejectedValueOnce(new Error('Network error'))
     const results = await Krogers('47905', 'milk')
     expect(results).toEqual([])
+  })
+
+  it('reuses a cached auth token across subsequent searches in the same module instance', async () => {
+    mockPost.mockResolvedValueOnce({ data: { access_token: MOCK_TOKEN, expires_in: 1800 } })
+    mockGet
+      .mockResolvedValueOnce({ data: { data: [MOCK_LOCATION] } })
+      .mockResolvedValueOnce({ data: { data: [makeProduct({ itemId: 'I1', description: 'Milk' })] } })
+      .mockResolvedValueOnce({ data: { data: [MOCK_LOCATION] } })
+      .mockResolvedValueOnce({ data: { data: [makeProduct({ itemId: 'I2', description: 'Bread' })] } })
+
+    const milkResults = await Krogers('47905', 'milk')
+    const breadResults = await Krogers('47905', 'bread')
+
+    expect(milkResults[0].id).toBe('I1')
+    expect(breadResults[0].id).toBe('I2')
+    expect(mockPost).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws a fatal Kroger auth-blocked error when the token endpoint returns Access Denied HTML', async () => {
+    const authError = new Error('Request failed with status code 403')
+    authError.response = {
+      status: 403,
+      data: '<html><title>Access Denied</title><body>Access Denied Reference #18.abc</body></html>',
+    }
+    mockPost.mockRejectedValueOnce(authError)
+
+    await expect(Krogers('47905', 'milk')).rejects.toMatchObject({
+      code: 'KROGER_AUTH_BLOCKED',
+    })
   })
 
   it('returns [] when auth response has no access_token', async () => {

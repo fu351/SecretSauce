@@ -8,6 +8,7 @@ const _require = createRequire(import.meta.url)
 
 const mockGet = vi.fn()
 const mockAxios = Object.assign(vi.fn(), { get: mockGet })
+const mockLogHttpErrorToDatabase = vi.fn()
 
 const patchCache = (id, exports) => {
   _require.cache[id] = { id, filename: id, loaded: true, exports }
@@ -22,6 +23,9 @@ patchCache(_require.resolve('../../utils/logger'), {
 })
 patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
+})
+patchCache(_require.resolve('../../utils/db-error-logger'), {
+  logHttpErrorToDatabase: mockLogHttpErrorToDatabase,
 })
 patchCache(_require.resolve('he'), {
   decode: (str) => str, // passthrough – no HTML entities in test data
@@ -86,6 +90,7 @@ describe('getTargetProducts', () => {
     mockGet.mockReset()
     mockAxios.mockReset()
     mockAxios.get = mockGet
+    mockLogHttpErrorToDatabase.mockReset()
     getTargetProducts = loadTargetModule()
   })
 
@@ -127,14 +132,50 @@ describe('getTargetProducts', () => {
     expect(results[0].target_store_id).toBe('T999')
   })
 
-  it('sorts results by price ascending', async () => {
+  it('reuses cached nearest-store lookup for subsequent searches in the same zip', async () => {
+    mockGet
+      .mockResolvedValueOnce(makeStoreResponse())
+      .mockResolvedValueOnce(makeProductsResponse([makeProduct({ tcin: 'P1', title: 'Milk' })]))
+      .mockResolvedValueOnce(makeProductsResponse([makeProduct({ tcin: 'P2', title: 'Bread' })]))
+
+    const milkResults = await getTargetProducts('milk', null, '94704')
+    const breadResults = await getTargetProducts('bread', null, '94704')
+
+    expect(milkResults[0].target_store_id).toBe('T001')
+    expect(breadResults[0].target_store_id).toBe('T001')
+    expect(mockGet).toHaveBeenCalledTimes(3)
+  })
+
+  it('uses the first nearby store returned by Target store lookup', async () => {
+    mockGet
+      .mockResolvedValueOnce(makeStoreResponse([
+        {
+          store_id: 'T100',
+          location_name: 'Target First',
+          mailing_address: { address_line1: '1 First St', city: 'Berkeley', region: 'CA', postal_code: '94704' },
+        },
+        {
+          store_id: 'T200',
+          location_name: 'Target Second',
+          mailing_address: { address_line1: '2 Second St', city: 'Oakland', region: 'CA', postal_code: '94601' },
+        },
+      ]))
+      .mockResolvedValueOnce(makeProductsResponse())
+
+    const results = await getTargetProducts('milk', null, '94704')
+
+    expect(results[0].target_store_id).toBe('T100')
+    expect(results[0].location).toBe('1 First St, Berkeley, CA, 94704')
+  })
+
+  it('preserves API product order', async () => {
     setupHappyPath([
       makeProduct({ tcin: 'P3', title: 'Expensive Milk', price: 7.99 }),
       makeProduct({ tcin: 'P1', title: 'Cheap Milk', price: 2.49 }),
       makeProduct({ tcin: 'P2', title: 'Mid Milk', price: 4.99 }),
     ])
     const results = await getTargetProducts('milk', null, '94704')
-    expect(results.map((r) => r.price)).toEqual([2.49, 4.99, 7.99])
+    expect(results.map((r) => r.product_id)).toEqual(['P3', 'P1', 'P2'])
   })
 
   it('filters out products with null price', async () => {
@@ -206,7 +247,57 @@ describe('getTargetProducts', () => {
       .mockResolvedValueOnce({ status: 404, data: {}, config: {} })
     await expect(getTargetProducts('milk', null, '94704')).rejects.toMatchObject({
       code: 'TARGET_HTTP_404',
+      status: 404,
+      debugContext: expect.objectContaining({
+        keyword: 'milk',
+        zipCode: '94704',
+        storeId: 'T001',
+        storeIdSource: 'getNearestStore',
+        responseStatus: 404,
+      }),
     })
+    expect(mockLogHttpErrorToDatabase).toHaveBeenCalledTimes(1)
+    expect(mockLogHttpErrorToDatabase).toHaveBeenCalledWith(expect.objectContaining({
+      storeEnum: 'target',
+      zipCode: '94704',
+      storeId: 'T001',
+      storeIdSource: 'getNearestStore',
+      ingredientName: 'milk',
+      groceryStoreId: null,
+      errorMessage: 'Target API returned 404 for "milk" at store T001 (94704)',
+      requestUrl: expect.stringContaining('https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2?'),
+    }))
+    expect(mockGet).toHaveBeenCalledTimes(2)
+  })
+
+  it('logs grocery_store_id and metadata-based store source for Target 404s', async () => {
+    const metadata = {
+      target_store_id: 'T999',
+      grocery_store_id: 'gs-123',
+      zip_code: '94601',
+    }
+    mockGet.mockResolvedValueOnce({ status: 404, data: {}, config: {} })
+
+    await expect(getTargetProducts('eggs', metadata, '94601')).rejects.toMatchObject({
+      code: 'TARGET_HTTP_404',
+      debugContext: expect.objectContaining({
+        keyword: 'eggs',
+        zipCode: '94601',
+        storeId: 'T999',
+        storeIdSource: 'db_metadata',
+        groceryStoreId: 'gs-123',
+      }),
+    })
+    expect(mockLogHttpErrorToDatabase).toHaveBeenCalledWith(expect.objectContaining({
+      storeEnum: 'target',
+      zipCode: '94601',
+      storeId: 'T999',
+      storeIdSource: 'db_metadata',
+      groceryStoreId: 'gs-123',
+      ingredientName: 'eggs',
+      requestUrl: expect.stringContaining('pricing_store_id=T999'),
+    }))
+    expect(mockGet).toHaveBeenCalledTimes(1)
   })
 
   it('returns [] when products request throws', async () => {

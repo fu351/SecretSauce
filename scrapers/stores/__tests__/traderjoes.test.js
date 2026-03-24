@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createRequire } from 'module'
 
 const _require = createRequire(import.meta.url)
@@ -77,12 +77,20 @@ describe('searchTraderJoes', () => {
   let searchTraderJoes, searchTraderJoesBatch
 
   beforeEach(() => {
+    delete process.env.TRADERJOES_CACHE_MAX_ENTRIES
+    delete process.env.TRADERJOES_JINA_MAX_CONSECUTIVE_429
+    delete process.env.TRADERJOES_JINA_MIN_429_RETRY_DELAY_MS
+    delete process.env.TRADERJOES_JINA_COOLDOWN_SLEEP_CAP_MS
     mockFetchJinaReader.mockReset()
     mockRequestOpenAIJson.mockReset()
     mockHasConfiguredOpenAIKey.mockReset()
     mockHasConfiguredOpenAIKey.mockReturnValue(true)
     mockGetOpenAIApiKey.mockReturnValue('sk-test')
     ;({ searchTraderJoes, searchTraderJoesBatch } = loadModule())
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   // ── Regex parsing (happy path) ──────────────────────────────────────────────
@@ -108,7 +116,7 @@ describe('searchTraderJoes', () => {
     expect(item.location).toBe("Trader Joe's Store")
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves parser order from markdown', async () => {
     const markdown = [
       makeMarkdownBlock({ name: 'Expensive Milk', productUrl: 'https://www.traderjoes.com/home/products/pdp/exp-10001', price: '7.99', unit: '1 gal' }),
       makeMarkdownBlock({ name: 'Cheap Milk', productUrl: 'https://www.traderjoes.com/home/products/pdp/chp-10002', price: '2.99', unit: '1 qt' }),
@@ -116,7 +124,7 @@ describe('searchTraderJoes', () => {
     ].join('\n')
     mockFetchJinaReader.mockResolvedValueOnce({ data: markdown })
     const results = await searchTraderJoes('milk', '94704')
-    expect(results.map((r) => r.price)).toEqual([2.99, 4.99, 7.99])
+    expect(results.map((r) => r.id)).toEqual(['10001', '10002', '10003'])
   })
 
   it('deduplicates products by id', async () => {
@@ -176,6 +184,32 @@ describe('searchTraderJoes', () => {
     await expect(searchTraderJoes('milk', '94704')).rejects.toMatchObject({ code: 'TJ_JINA_429' })
   })
 
+  it('waits for capped cooldown sleep before throwing when 429 enters cooldown', async () => {
+    vi.useFakeTimers()
+    process.env.TRADERJOES_JINA_MAX_CONSECUTIVE_429 = '1'
+    process.env.TRADERJOES_JINA_MIN_429_RETRY_DELAY_MS = '50'
+    process.env.TRADERJOES_JINA_COOLDOWN_SLEEP_CAP_MS = '25'
+    ;({ searchTraderJoes, searchTraderJoesBatch } = loadModule())
+
+    const rateLimitError = Object.assign(new Error('Rate limited'), { response: { status: 429, headers: {} } })
+    mockFetchJinaReader.mockRejectedValue(rateLimitError)
+
+    let settled = false
+    const promise = searchTraderJoes('milk', '94704')
+      .catch((error) => error)
+      .finally(() => {
+        settled = true
+      })
+
+    await vi.advanceTimersByTimeAsync(24)
+    expect(settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    const error = await promise
+
+    expect(error).toMatchObject({ code: 'TJ_JINA_COOLDOWN' })
+  })
+
   // ─── searchTraderJoesBatch ──────────────────────────────────────────────────
 
   it('processes multiple keywords and returns array of results', async () => {
@@ -207,5 +241,22 @@ describe('searchTraderJoes', () => {
     await expect(searchTraderJoesBatch(['milk', 'bread'], '94704')).rejects.toMatchObject({
       code: expect.stringMatching(/^TJ_JINA_/),
     })
+  })
+
+  it('evicts oldest cache entries after batch when cache exceeds size cap', async () => {
+    process.env.TRADERJOES_CACHE_MAX_ENTRIES = '2'
+    ;({ searchTraderJoes, searchTraderJoesBatch } = loadModule())
+
+    mockFetchJinaReader
+      .mockResolvedValueOnce({ data: makeMarkdownBlock({ name: 'Milk', productUrl: 'https://www.traderjoes.com/home/products/pdp/milk-10001', price: '4.99', unit: '1 gal' }) })
+      .mockResolvedValueOnce({ data: makeMarkdownBlock({ name: 'Bread', productUrl: 'https://www.traderjoes.com/home/products/pdp/bread-20001', price: '3.49', unit: '1 loaf' }) })
+      .mockResolvedValueOnce({ data: makeMarkdownBlock({ name: 'Eggs', productUrl: 'https://www.traderjoes.com/home/products/pdp/eggs-30001', price: '2.99', unit: '12 ct' }) })
+      .mockResolvedValueOnce({ data: makeMarkdownBlock({ name: 'Milk Again', productUrl: 'https://www.traderjoes.com/home/products/pdp/milk-10001', price: '4.99', unit: '1 gal' }) })
+
+    await searchTraderJoesBatch(['milk', 'bread'], '94704')
+    await searchTraderJoesBatch(['eggs'], '94704')
+    await searchTraderJoes('milk', '94704')
+
+    expect(mockFetchJinaReader).toHaveBeenCalledTimes(4)
   })
 })

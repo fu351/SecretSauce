@@ -2,7 +2,20 @@ require('dotenv').config();
 const axios = require('axios');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+
+const resultCache = createResultCache({ ttlMs: Number(process.env.MEIJER_CACHE_TTL_MS || 5 * 60 * 1000) });
 const log = createScraperLogger('meijer');
+
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: Number(process.env.MEIJER_REQUESTS_PER_SECOND || 2),
+    minIntervalMs: Number(process.env.MEIJER_MIN_REQUEST_INTERVAL_MS || 500),
+    enableJitter: process.env.MEIJER_ENABLE_JITTER !== 'false',
+    log,
+    label: '[meijer]',
+});
 
 const DEFAULT_MEIJER_STORE_ID = Number(process.env.DEFAULT_MEIJER_STORE_ID || 319);
 
@@ -25,6 +38,7 @@ async function getLocations(zipCode) {
             }
         };
 
+        await enforceRateLimit();
         const response = await withTimeout(axios(config), 5000); // Timeout after 5 seconds
         return response.data;
     } catch (error) {
@@ -34,7 +48,13 @@ async function getLocations(zipCode) {
 }
 
 // Function to fetch products from Meijer
-async function Meijers(zipCode = 47906, searchTerm) {
+async function searchMeijer(zipCode = 47906, searchTerm) {
+    const cacheKey = resultCache.buildKey(searchTerm, zipCode);
+    return resultCache.runCached(cacheKey, () => searchMeijerUncached(zipCode, searchTerm));
+}
+
+async function searchMeijerUncached(zipCode, searchTerm) {
+    let storeId = DEFAULT_MEIJER_STORE_ID;
     try {
         let storeInfo = null;
         try {
@@ -44,9 +64,10 @@ async function Meijers(zipCode = 47906, searchTerm) {
             log.warn("Unable to resolve nearest Meijer location:", locationError.message || locationError);
         }
 
-        const storeId = storeInfo?.id || DEFAULT_MEIJER_STORE_ID;
+        storeId = storeInfo?.id || DEFAULT_MEIJER_STORE_ID;
         const storeLocationLabel = formatMeijerStoreLocation(storeInfo, zipCode);
 
+        await enforceRateLimit();
         const response = await withTimeout(
             axios.get(`https://ac.cnstrc.com/search/${encodeURIComponent(searchTerm)}`, {
                 params: {
@@ -125,14 +146,12 @@ async function Meijers(zipCode = 47906, searchTerm) {
             provider: "Meijer"
         }));
 
-        const sortedDetails = details
-            .filter(item => item.price !== null)
-            .sort((a, b) => a.price - b.price)
-            .slice(0, 10);
-
-        return sortedDetails;
+        return details.filter(item => item.price !== null);
     } catch (error) {
         log.error("Error fetching products:", error.response?.data || error.message);
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({ storeEnum: 'meijer', zipCode, storeId: String(storeId), ingredientName: searchTerm, httpStatus: error.response.status, errorMessage: error.message });
+        }
         throw new Error("Failed to fetch products from Meijer.");
     }
 }
@@ -145,14 +164,15 @@ if (require.main === module) {
         process.exit(1);
     }
 
-    Meijers(zip, searchTerm).then(results => {
+    searchMeijer(zip, searchTerm).then(results => {
         console.log(JSON.stringify(results));
     }).catch(err => {
         log.error("❌", err.message);
     });
 }
 
-module.exports = { Meijers, getLocations };
+const Meijers = searchMeijer;
+module.exports = { searchMeijer, Meijers, getLocations };
 
 function extractNearestStore(locationsResponse) {
     if (!locationsResponse) {

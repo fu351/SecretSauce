@@ -1,0 +1,18 @@
+name: backfill-target-store-ids
+
+services:
+  backfill-target-store-ids:
+    build:
+      context: ../../..
+      dockerfile: docker/Dockerfile.daily-scraper
+    command: ["node", "scripts/backfill-target-store-ids.js"]
+    env_file:
+      - ../../../.env.local
+      - ./daily-scraper.shared.env
+    environment:
+      # Passes through from host; defaults to true (dry-run) in the script
+      BACKFILL_DRY_RUN:
+      BACKFILL_STORE_CONCURRENCY: "4"
+      # Uncomment to limit scope:
+      # STORE_STATE: "CA"
+      # BACKFILL_STORE_LIMIT: "50"

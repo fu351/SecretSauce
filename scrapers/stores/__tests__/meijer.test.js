@@ -22,8 +22,10 @@ patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
 
-delete _require.cache[_require.resolve('../meijer.js')]
-const { Meijers } = _require('../meijer.js')
+function loadModule() {
+  delete _require.cache[_require.resolve('../meijer.js')]
+  return _require('../meijer.js').Meijers
+}
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -72,11 +74,14 @@ function setupHappyPath(products) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('Meijers', () => {
+  let Meijers
+
   beforeEach(() => {
     mockAxios.mockReset()
     mockGet.mockReset()
     // Restore .get after reset (reset doesn't delete properties)
     mockAxios.get = mockGet
+    Meijers = loadModule()
   })
 
   // ── Happy path ──────────────────────────────────────────────────────────────
@@ -104,23 +109,58 @@ describe('Meijers', () => {
     expect(results[0].location).toContain('Lansing')
   })
 
-  it('sorts results by price ascending', async () => {
+  it('uses the first resolved Meijer store and passes it into the product search filter', async () => {
+    mockAxios.mockResolvedValueOnce({
+      data: {
+        pointsOfService: [
+          {
+            name: '111',
+            displayName: 'First Meijer',
+            address: { line1: '1 First St', region: { isocode: 'US-MI' }, postalCode: '48917' },
+          },
+          {
+            name: '222',
+            displayName: 'Second Meijer',
+            address: { line1: '2 Second St', region: { isocode: 'US-MI' }, postalCode: '48917' },
+          },
+        ],
+      },
+    })
+    mockGet.mockResolvedValueOnce(makeProductsResponse())
+
+    const results = await Meijers('48917', 'milk')
+
+    expect(results[0].location).toBe('1 First St, First Meijer, MI, 48917')
+    expect(mockGet.mock.calls[0][1].params['filters[availableInStores]']).toBe('111')
+  })
+
+  it('requests nearby Meijer locations using the searched zip code and radius', async () => {
+    setupHappyPath()
+
+    await Meijers('48917', 'milk')
+
+    const locationCall = mockAxios.mock.calls[0][0]
+    expect(locationCall.url).toContain('locationQuery=48917')
+    expect(locationCall.url).toContain('radius=20')
+  })
+
+  it('preserves upstream product order', async () => {
     setupHappyPath([
       makeProduct({ id: 'P3', description: 'expensive milk', value: 'Expensive Milk', price: 6.99 }),
       makeProduct({ id: 'P1', description: 'cheap milk', value: 'Cheap Milk', price: 1.99 }),
       makeProduct({ id: 'P2', description: 'mid milk', value: 'Mid Milk', price: 4.49 }),
     ])
     const results = await Meijers('47906', 'milk')
-    expect(results.map((r) => r.price)).toEqual([1.99, 4.49, 6.99])
+    expect(results.map((r) => r.id)).toEqual(['P3', 'P1', 'P2'])
   })
 
-  it('limits results to 10 items', async () => {
+  it('does not cap results in the scraper', async () => {
     const products = Array.from({ length: 15 }, (_, i) =>
       makeProduct({ id: `P${i}`, description: `milk ${i}`, value: `Milk ${i}`, price: i + 1 })
     )
     setupHappyPath(products)
     const results = await Meijers('47906', 'milk')
-    expect(results).toHaveLength(10)
+    expect(results).toHaveLength(15)
   })
 
   // ── Filtering ───────────────────────────────────────────────────────────────

@@ -1,14 +1,28 @@
 const axios = require('axios');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+
+const resultCache = createResultCache({ ttlMs: Number(process.env.RANCH99_CACHE_TTL_MS || 5 * 60 * 1000) });
 const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 5000);
 const log = createScraperLogger('99ranch');
+
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: Number(process.env.RANCH99_REQUESTS_PER_SECOND || 2),
+    minIntervalMs: Number(process.env.RANCH99_MIN_REQUEST_INTERVAL_MS || 600),
+    enableJitter: process.env.RANCH99_ENABLE_JITTER !== 'false',
+    log,
+    label: '[99ranch]',
+});
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
 
 async function getNearestStore(zip) {
     try {
+        await enforceRateLimit();
         const res = await withTimeout(axios.post(
             "https://www.99ranch.com/be-api/store/web/nearby/stores",
             {
@@ -67,6 +81,7 @@ async function getBuildId() {
     }
 
     try {
+        await enforceRateLimit();
         const res = await axios.get("https://www.99ranch.com/en_US", {
             headers: {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
@@ -95,6 +110,7 @@ async function searchProducts(store, keyword, zipCode) {
     const cookie = [`storeid=${store.id}`, `zipcode=${zipCode}`, "deliveryType=1"].join("; ");
 
     try {
+        await enforceRateLimit();
         const res = await withTimeout(
             axios.post(
                 "https://www.99ranch.com/be-api/search/web/products",
@@ -128,6 +144,9 @@ async function searchProducts(store, keyword, zipCode) {
         return res.data?.data?.list || [];
     } catch (error) {
         log.error("Error searching 99 Ranch products via API:", error.message);
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({ storeEnum: '99ranch', zipCode, storeId: String(store?.id), ingredientName: keyword, httpStatus: error.response.status, errorMessage: error.message });
+        }
         return [];
     }
 }
@@ -153,50 +172,51 @@ function format99RanchStoreLocation(storeInfo, fallbackZip) {
 }
 
 async function search99Ranch(keyword, zipCode) {
-    try {
-        const userZip = (zipCode && zipCode.trim()) || DEFAULT_99_RANCH_ZIP
-        let store = await getNearestStore(userZip);
-        if (!store && userZip !== DEFAULT_99_RANCH_ZIP) {
-            log.warn(`No 99 Ranch store near ${userZip}, falling back to ${DEFAULT_99_RANCH_ZIP}`)
-            store = await getNearestStore(DEFAULT_99_RANCH_ZIP)
-        }
-        if (!store?.id) {
-            log.warn("No nearby 99 Ranch store found for zip code:", zipCode);
+    const cacheKey = resultCache.buildKey(keyword, zipCode);
+    return resultCache.runCached(cacheKey, async () => {
+        try {
+            const userZip = (zipCode && zipCode.trim()) || DEFAULT_99_RANCH_ZIP;
+            let store = await getNearestStore(userZip);
+            if (!store && userZip !== DEFAULT_99_RANCH_ZIP) {
+                log.warn(`No 99 Ranch store near ${userZip}, falling back to ${DEFAULT_99_RANCH_ZIP}`);
+                store = await getNearestStore(DEFAULT_99_RANCH_ZIP);
+            }
+            if (!store?.id) {
+                log.warn("No nearby 99 Ranch store found for zip code:", zipCode);
+                return [];
+            }
+
+            const products = await searchProducts(store, keyword, userZip);
+            const storeLocation = format99RanchStoreLocation(store, userZip);
+            return products
+                .map((p) => {
+                    const productName = (p.productName || p.productNameEN || "").trim();
+                    const price = Number.parseFloat(String(p.salePrice ?? p.price ?? ""));
+                    const productIdRaw = p.productId ?? p.id ?? p.sku ?? p.upc ?? null;
+                    const productId = productIdRaw == null ? null : String(productIdRaw);
+
+                    return {
+                        product_name: productName,
+                        title: productName || "Unknown Product",
+                        brand: p.brandName || p.brandNameEN || "",
+                        price: Number.isFinite(price) ? price : null,
+                        pricePerUnit: p.saleUom || "",
+                        unit: p.variantName || p.variantNameEN || "",
+                        rawUnit: p.variantName || p.variantNameEN || "",
+                        image_url: p.image || p.productImage?.path || "",
+                        provider: "99 Ranch",
+                        product_id: productId,
+                        id: productId,
+                        location: storeLocation,
+                        category: p.category || "Grocery",
+                    };
+                })
+                .filter((p) => p.price != null && p.price > 0 && p.product_name);
+        } catch (error) {
+            log.error("Error in 99 Ranch scraper:", error.message);
             return [];
         }
-
-        const products = await searchProducts(store, keyword, userZip);
-        const storeLocation = format99RanchStoreLocation(store, userZip);
-        const cleaned = products
-            .map((p) => {
-                const productName = (p.productName || p.productNameEN || "").trim();
-                const price = Number.parseFloat(String(p.salePrice ?? p.price ?? ""));
-                const productIdRaw = p.productId ?? p.id ?? p.sku ?? p.upc ?? null;
-                const productId = productIdRaw == null ? null : String(productIdRaw);
-
-                return {
-                    product_name: productName,
-                    title: productName || "Unknown Product",
-                    brand: p.brandName || p.brandNameEN || "",
-                    price: Number.isFinite(price) ? price : null,
-                    pricePerUnit: p.saleUom || "",
-                    unit: p.variantName || p.variantNameEN || "",
-                    rawUnit: p.variantName || p.variantNameEN || "",
-                    image_url: p.image || p.productImage?.path || "",
-                    provider: "99 Ranch",
-                    product_id: productId,
-                    id: productId,
-                    location: storeLocation,
-                    category: p.category || "Grocery"
-                };
-            })
-            .filter((p) => p.price != null && p.price > 0 && p.product_name);
-
-        return cleaned.sort((a, b) => a.price - b.price);
-    } catch (error) {
-        log.error("Error in 99 Ranch scraper:", error.message);
-        return [];
-    }
+    });
 }
 
 // Export the function for use in other modules

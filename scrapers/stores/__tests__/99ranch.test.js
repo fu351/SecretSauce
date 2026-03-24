@@ -21,8 +21,10 @@ patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
 
-delete _require.cache[_require.resolve('../99ranch.js')]
-const { search99Ranch } = _require('../99ranch.js')
+function loadModule() {
+  delete _require.cache[_require.resolve('../99ranch.js')]
+  return _require('../99ranch.js').search99Ranch
+}
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -67,10 +69,13 @@ function setupHappyPath(products = [makeProduct()]) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('search99Ranch', () => {
+  let search99Ranch
+
   beforeEach(() => {
     mockPost.mockReset()
     mockAxios.mockReset()
     mockAxios.post = mockPost
+    search99Ranch = loadModule()
   })
 
   // ── Happy path ──────────────────────────────────────────────────────────────
@@ -99,14 +104,53 @@ describe('search99Ranch', () => {
     expect(results[0].location).toBe('1025 University Ave, Berkeley, CA 94710')
   })
 
-  it('sorts results by price ascending', async () => {
+  it('uses the first nearby 99 Ranch store for location and product search', async () => {
+    mockPost
+      .mockResolvedValueOnce(makeStoreResponse([
+        {
+          id: 'FIRST',
+          name: '99 Ranch First',
+          address: '1 First St, Berkeley, CA 94710',
+          city: 'Berkeley',
+          state: 'CA',
+          zipCode: '94710',
+        },
+        {
+          id: 'SECOND',
+          name: '99 Ranch Second',
+          address: '2 Second St, Oakland, CA 94601',
+          city: 'Oakland',
+          state: 'CA',
+          zipCode: '94601',
+        },
+      ]))
+      .mockResolvedValueOnce(makeProductResponse([makeProduct()]))
+
+    const results = await search99Ranch('rice', '94709')
+
+    expect(results[0].location).toBe('1 First St, Berkeley, CA 94710')
+    expect(mockPost.mock.calls[1][2].headers.storeid).toBe('FIRST')
+  })
+
+  it('requests one nearby 99 Ranch store for the provided zip code', async () => {
+    setupHappyPath()
+
+    await search99Ranch('rice', '94709')
+
+    const storeCall = mockPost.mock.calls[0]
+    expect(storeCall[1].zipCode).toBe('94709')
+    expect(storeCall[1].pageSize).toBe(1)
+    expect(storeCall[1].pageNum).toBe(1)
+  })
+
+  it('preserves upstream product order', async () => {
     setupHappyPath([
       makeProduct({ productName: 'Expensive Rice', salePrice: 12.99, productId: 'R3' }),
       makeProduct({ productName: 'Cheap Rice', salePrice: 4.99, productId: 'R1' }),
       makeProduct({ productName: 'Mid Rice', salePrice: 7.99, productId: 'R2' }),
     ])
     const results = await search99Ranch('rice', '94709')
-    expect(results.map((r) => r.price)).toEqual([4.99, 7.99, 12.99])
+    expect(results.map((r) => r.product_id)).toEqual(['R3', 'R1', 'R2'])
   })
 
   it('uses productNameEN when productName is missing', async () => {

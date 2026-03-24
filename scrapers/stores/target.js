@@ -2,6 +2,10 @@ const axios = require('axios');
 const he = require('he');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
+const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+const { withExponentialBackoffRetry } = require('../utils/retry');
 
 // Environment variables for configuration
 const TARGET_TIMEOUT_MS = Number(process.env.TARGET_TIMEOUT_MS || 10000);
@@ -20,266 +24,24 @@ function targetDebug(...args) {
     if (TARGET_DEBUG) log.debug(...args);
 }
 
-// Rate limiter state
-const rateLimiter = {
-    lastRequestTime: 0,
-    requestCount: 0,
-    windowStart: Date.now(),
-    windowDuration: 1000, // 1 second window
-};
+// Rate limiter
+const { enforceRateLimit } = createRateLimiter({
+    requestsPerSecond: TARGET_REQUESTS_PER_SECOND,
+    minIntervalMs: TARGET_MIN_REQUEST_INTERVAL_MS,
+    enableJitter: TARGET_ENABLE_JITTER,
+    log,
+    label: '[target]',
+});
 
 // Store cache to avoid redundant lookups for the same ZIP code
 // Maps ZIP code -> store info object
 const storeCache = new Map();
 
-// Result cache to avoid redundant product searches
-// Maps cache key (keyword::zipCode) -> { fetchedAt, results }
-const targetResultCache = new Map();
+const resultCache = createResultCache({ ttlMs: TARGET_CACHE_TTL_MS });
 
-// In-flight request tracking to prevent duplicate concurrent requests
-// Maps cache key -> Promise
-const targetInFlight = new Map();
-
-// Helper function to log 404 errors to database for analysis
-async function log404ToDatabase({
-  storeEnum,
-  zipCode,
-  targetStoreId,
-  storeIdSource,
-  ingredientName,
-  groceryStoreId = null,
-  errorMessage,
-  requestUrl = null
-}) {
-  try {
-    // Only log if Supabase credentials are available
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      targetDebug('[target] Skipping 404 logging - Supabase not configured');
-      return;
-    }
-
-    const { createClient } = require('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const { error } = await supabase
-      .from('target_404_log')
-      .insert({
-        store_enum: storeEnum,
-        zip_code: zipCode,
-        target_store_id: targetStoreId,
-        store_id_source: storeIdSource,
-        ingredient_name: ingredientName,
-        grocery_store_id: groceryStoreId,
-        error_message: errorMessage,
-        http_status: 404,
-        request_url: requestUrl
-      });
-
-    if (error) throw error;
-  } catch (logError) {
-    // Don't let logging failures break the scraper
-    targetDebug('[target] Failed to log 404 to database:', logError.message);
-  }
-}
-
-// Rate limiting function
-async function enforceRateLimit() {
-    const now = Date.now();
-
-    // Reset window if it's been more than windowDuration
-    if (now - rateLimiter.windowStart >= rateLimiter.windowDuration) {
-        rateLimiter.windowStart = now;
-        rateLimiter.requestCount = 0;
-    }
-
-    // Check if we've hit the requests per second limit
-    if (rateLimiter.requestCount >= TARGET_REQUESTS_PER_SECOND) {
-        const waitTime = rateLimiter.windowDuration - (now - rateLimiter.windowStart);
-        if (waitTime > 0) {
-            targetDebug(`[target] Rate limit: ${rateLimiter.requestCount} requests in window, waiting ${waitTime}ms`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            // Reset window after waiting
-            rateLimiter.windowStart = Date.now();
-            rateLimiter.requestCount = 0;
-        }
-    }
-
-    // Enforce minimum interval between requests
-    const timeSinceLastRequest = now - rateLimiter.lastRequestTime;
-    if (timeSinceLastRequest < TARGET_MIN_REQUEST_INTERVAL_MS) {
-        const waitTime = TARGET_MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest;
-
-        // Add jitter (randomize delay by ±20%) to appear more human-like
-        const jitter = TARGET_ENABLE_JITTER
-            ? waitTime * (0.8 + Math.random() * 0.4)
-            : waitTime;
-
-        targetDebug(`[target] Rate limit: enforcing ${Math.round(jitter)}ms delay between requests`);
-        await new Promise(resolve => setTimeout(resolve, jitter));
-    }
-
-    // Update state
-    rateLimiter.lastRequestTime = Date.now();
-    rateLimiter.requestCount++;
-}
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
-
-// Utility function for exponential backoff retry
-async function withRetry(fn, options = {}) {
-    const {
-        maxRetries = TARGET_MAX_RETRIES,
-        baseDelay = TARGET_RETRY_DELAY_MS,
-        maxDelay = 10000,
-        timeoutMultiplier = 1.5,
-        initialTimeout = TARGET_TIMEOUT_MS,
-        retryOn404 = false // Don't retry 404s by default
-    } = options;
-
-    let lastError;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            // Calculate dynamic timeout: increases with each retry
-            const currentTimeout = Math.min(
-                initialTimeout * Math.pow(timeoutMultiplier, attempt),
-                initialTimeout * 3 // Cap at 3x the initial timeout
-            );
-
-            targetDebug(`[target] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
-
-            return await fn(currentTimeout, attempt);
-        } catch (error) {
-            lastError = error;
-
-            // Check if we should skip retrying based on error type
-            if (error.response) {
-                const status = error.response.status;
-
-                // Don't retry 404s unless explicitly requested
-                if (status === 404 && !retryOn404) {
-                    targetDebug(`[target] Received 404 error, not retrying (attempt ${attempt + 1})`);
-                    break;
-                }
-
-                // Don't retry client errors (400-499) except 429 (rate limit)
-                if (status >= 400 && status < 500 && status !== 429) {
-                    targetDebug(`[target] Client error ${status}, not retrying (attempt ${attempt + 1})`);
-                    break;
-                }
-            }
-
-            // Don't retry on the last attempt
-            if (attempt === maxRetries) {
-                break;
-            }
-
-            // Calculate delay with exponential backoff
-            const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-
-            targetDebug(`[target] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
-
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-
-    throw lastError;
-}
-
-// Normalize keyword for consistent cache keys
-function normalizeKeyword(keyword) {
-    return String(keyword || "").trim().toLowerCase();
-}
-
-// Check if product title is relevant to the search keywords
-function isRelevantProduct(title, keywords) {
-    const normalizedTitle = normalizeKeyword(title || '');
-    
-    // For single keyword searches, be more lenient (allow singular/plural)
-    if (keywords.length === 1) {
-        const keyword = keywords[0];
-        const keywordBase = keyword.replace(/s$/, ''); // Remove trailing 's' for plural
-        
-        // Check exact match, singular form, or plural form
-        if (normalizedTitle.includes(keyword)) return true;
-        if (normalizedTitle.includes(keywordBase)) return true;
-        if (normalizedTitle.includes(keywordBase + 's')) return true;
-        
-        return false;
-    }
-    
-    // For multi-keyword searches, require at least one significant keyword match
-    // This filters out completely irrelevant results while allowing related products
-    const significantKeywords = keywords.filter(w => w.length > 3); // Focus on meaningful words
-    if (significantKeywords.length === 0) return true; // No significant keywords, keep all
-    
-    // Check if title contains at least one significant keyword (with singular/plural handling)
-    // For very specific searches (like "organic eggs"), we want products that match the intent
-    const matches = significantKeywords.map(keyword => {
-        const keywordBase = keyword.replace(/s$/, '');
-        return normalizedTitle.includes(keyword) || 
-               normalizedTitle.includes(keywordBase) ||
-               normalizedTitle.includes(keywordBase + 's');
-    });
-    
-    // Require at least one match, but prefer matches on more specific/less common words
-    // For "organic eggs", "eggs" is more specific than "organic"
-    const hasMatch = matches.some(m => m);
-    if (!hasMatch) return false;
-    
-    // If we have multiple keywords and only common words match, be more selective
-    // For example, "chicken breast" - if only "chicken" matches but not "breast", it's less relevant
-    if (keywords.length >= 2 && matches.filter(m => m).length === 1) {
-        // Check if the unmatched keyword is more specific (longer or less common)
-        const matchedIndex = matches.findIndex(m => m);
-        const matchedKeyword = significantKeywords[matchedIndex];
-        const unmatchedKeywords = significantKeywords.filter((_, i) => i !== matchedIndex);
-        
-        // If unmatched keywords are longer/more specific, the match is less relevant
-        const unmatchedMoreSpecific = unmatchedKeywords.some(k => k.length > matchedKeyword.length);
-        if (unmatchedMoreSpecific) {
-            // Still keep it, but it's a borderline case
-            return true;
-        }
-    }
-    
-    return true;
-}
-
-// Build cache key from keyword and zipCode
-function buildCacheKey(keyword, zipCode) {
-    return `${normalizeKeyword(keyword)}::${String(zipCode || "").trim()}`;
-}
-
-// Get cached result if available and not expired
-function getCachedResult(cacheKey) {
-    const cached = targetResultCache.get(cacheKey);
-    if (!cached) return null;
-
-    // Check if cache entry has expired
-    if (Date.now() - cached.fetchedAt > TARGET_CACHE_TTL_MS) {
-        targetResultCache.delete(cacheKey);
-        targetDebug(`[target] Cache expired for key: ${cacheKey}`);
-        return null;
-    }
-
-    targetDebug(`[target] Cache hit for key: ${cacheKey} (age: ${Date.now() - cached.fetchedAt}ms)`);
-    return cached.results;
-}
-
-// Store result in cache
-function setCachedResult(cacheKey, results) {
-    targetResultCache.set(cacheKey, {
-        fetchedAt: Date.now(),
-        results,
-    });
-    targetDebug(`[target] Cached ${results.length} results for key: ${cacheKey}`);
-}
 
 async function getNearestStore(zipCode) {
     // Check cache first to avoid redundant API calls
@@ -308,7 +70,7 @@ async function getNearestStore(zipCode) {
     };
 
     try {
-        const response = await withRetry(async (currentTimeout, attempt) => {
+        const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
             targetDebug(`[target] Fetching nearest store for ZIP ${zipCode} (attempt ${attempt + 1})`);
 
             // Enforce rate limiting before making request
@@ -321,7 +83,26 @@ async function getNearestStore(zipCode) {
         }, {
             initialTimeout: TARGET_TIMEOUT_MS,
             maxRetries: TARGET_MAX_RETRIES,
-            baseDelay: TARGET_RETRY_DELAY_MS
+            baseDelay: TARGET_RETRY_DELAY_MS,
+            onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
+                targetDebug(`[target] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
+            },
+            getRetryDecision: ({ error, attempt, maxRetries, defaultDelay }) => {
+                if (error.response) {
+                    const status = error.response.status;
+                    if (status >= 400 && status < 500 && status !== 429) {
+                        targetDebug(`[target] Client error ${status}, not retrying (attempt ${attempt + 1})`);
+                        return { shouldRetry: false };
+                    }
+                }
+
+                if (attempt === maxRetries) {
+                    return { shouldRetry: false };
+                }
+
+                targetDebug(`[target] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${defaultDelay}ms...`);
+                return { shouldRetry: true, delayMs: defaultDelay };
+            }
         });
 
         if (!response.data?.data?.nearby_stores?.stores || response.data.data.nearby_stores.stores.length === 0) {
@@ -430,32 +211,47 @@ function resolveTargetStoreId(storeMetadata) {
     return normalized.length > 0 ? normalized : null;
 }
 
-// Function to fetch products from Target API
-async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "price") {
-    // Build cache key for result caching
-    const cacheKey = buildCacheKey(keyword, zipCode);
-
-    // Check cache first
-    const cachedResult = getCachedResult(cacheKey);
-    if (cachedResult) {
-        return cachedResult;
+function resolveGroceryStoreId(storeMetadata) {
+    if (!storeMetadata || typeof storeMetadata !== "object") {
+        return null;
     }
 
-    // Check if there's already an in-flight request for the same search
-    if (targetInFlight.has(cacheKey)) {
-        targetDebug(`[target] Waiting for in-flight request: ${cacheKey}`);
-        try {
-            return await targetInFlight.get(cacheKey);
-        } catch (error) {
-            // If the in-flight request failed, we'll retry below
-            targetDebug(`[target] In-flight request failed for ${cacheKey}, retrying`);
+    const groceryStoreId =
+        storeMetadata.grocery_store_id ??
+        storeMetadata.groceryStoreId ??
+        storeMetadata.raw?.grocery_store_id ??
+        storeMetadata.raw?.groceryStoreId ??
+        null;
+
+    if (groceryStoreId === null || groceryStoreId === undefined) {
+        return null;
+    }
+
+    const normalized = String(groceryStoreId).trim();
+    return normalized.length > 0 ? normalized : null;
+}
+
+function buildTargetRequestUrl(baseUrl, params) {
+    const searchParams = new URLSearchParams();
+
+    Object.entries(params || {}).forEach(([key, value]) => {
+        if (value === null || value === undefined) {
+            return;
         }
-    }
+        searchParams.append(key, String(value));
+    });
 
-    // Create a new request promise and store it in the in-flight map
-    const requestPromise = (async () => {
+    const query = searchParams.toString();
+    return query ? `${baseUrl}?${query}` : baseUrl;
+}
+
+// Function to fetch products from Target API
+async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
+    const cacheKey = resultCache.buildKey(keyword, zipCode);
+    return resultCache.runCached(cacheKey, async () => {
         let resolvedStoreInfo = null;
         let storeId = null;
+        let groceryStoreId = resolveGroceryStoreId(storeMetadata);
         let storeIdSource = 'explicit'; // Track how store ID was resolved
         try {
 
@@ -490,27 +286,31 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
 
             targetDebug("[target] Store resolved", { storeId, zipCode, storeName: resolvedStoreInfo?.name, fullAddress: resolvedStoreInfo?.fullAddress });
 
-            const baseUrl = "https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2";
+            const baseUrl = "https://cdui-orchestrations.target.com/cdui_orchestrations/v1/pages/slp";
             const params = {
-        key: "9f36aeafbe60771e321a7cc95a78140772ab3e96",
-        channel: "WEB",
-        count: 10,
-        default_purchasability_filter: "true",
-        include_dmc_dmr: "true",
-        include_sponsored: "true",
-        include_review_summarization: "false",
-        keyword,
-        new_search: "true",
-        offset: 0,
-        page: `/s/${encodeURIComponent(keyword)}`,
-        platform: "desktop",
-        pricing_store_id: storeId,
-        spellcheck: "true",
-        store_ids: storeId,
-        useragent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-        visitor_id: "019669F54C3102019409F15469E30DAF",
-        zip: zipCode,
-                is_bot: "false",
+                key: "9f36aeafbe60771e321a7cc95a78140772ab3e96",
+                channel: "WEB",
+                sapphire_channel: "WEB",
+                sapphire_page: `/s/${encodeURIComponent(keyword)}`,
+                page: `/s/${encodeURIComponent(keyword)}`,
+                platform: "WEB",
+                count: 24,
+                default_purchasability_filter: "true",
+                include_sponsored: "false",
+                keyword,
+                new_search: "true",
+                offset: 0,
+                spellcheck: "true",
+                store_id: storeId,
+                store_ids: storeId,
+                purchasable_store_ids: storeId,
+                scheduled_delivery_store_id: storeId,
+                zip: zipCode,
+                has_pending_inputs: "false",
+                is_seo_bot: "false",
+                timezone: "UTC",
+                include_data_source_modules: "true",
+                visitor_id: "019669F54C3102019409F15469E30DAF",
             };
 
             const headers = {
@@ -521,8 +321,9 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                 "Connection": "keep-alive",
                 "Upgrade-Insecure-Requests": "1"
             };
+            const requestUrl = buildTargetRequestUrl(baseUrl, params);
 
-            const response = await withRetry(async (currentTimeout, attempt) => {
+            const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
                 targetDebug(`[target] Fetching products for "${keyword}" at store ${storeId} (attempt ${attempt + 1})`);
 
                 // Enforce rate limiting before making request
@@ -544,25 +345,57 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                 initialTimeout: TARGET_TIMEOUT_MS,
                 maxRetries: TARGET_MAX_RETRIES,
                 baseDelay: TARGET_RETRY_DELAY_MS,
-                retryOn404: false // Don't retry 404s
+                onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
+                    targetDebug(`[target] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
+                },
+                getRetryDecision: ({ error, attempt, maxRetries, defaultDelay }) => {
+                    if (error.response) {
+                        const status = error.response.status;
+                        if (status === 404) {
+                            targetDebug(`[target] Received 404 error, not retrying (attempt ${attempt + 1})`);
+                            return { shouldRetry: false };
+                        }
+                        if (status >= 400 && status < 500 && status !== 429) {
+                            targetDebug(`[target] Client error ${status}, not retrying (attempt ${attempt + 1})`);
+                            return { shouldRetry: false };
+                        }
+                    }
+
+                    if (attempt === maxRetries) {
+                        return { shouldRetry: false };
+                    }
+
+                    targetDebug(`[target] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${defaultDelay}ms...`);
+                    return { shouldRetry: true, delayMs: defaultDelay };
+                }
             });
 
             // Check response status
             if (response.status === 404) {
                 // Log to database for analysis
-                await log404ToDatabase({
+                await logHttpErrorToDatabase({
                     storeEnum: 'target',
-                    zipCode: zipCode,
-                    targetStoreId: storeId,
-                    storeIdSource: storeIdSource,
+                    zipCode,
+                    storeId,
+                    storeIdSource,
                     ingredientName: keyword,
-                    errorMessage: `Target API returned 404 for "${keyword}" at store ${storeId}`,
-                    requestUrl: response.config?.url || null
+                    groceryStoreId,
+                    errorMessage: `Target API returned 404 for "${keyword}" at store ${storeId} (${zipCode})`,
+                    requestUrl,
                 });
 
                 const error = new Error(`[target] API returned 404 for "${keyword}" at store ${storeId} (${zipCode})`);
                 error.code = "TARGET_HTTP_404";
                 error.status = 404;
+                error.debugContext = {
+                    keyword,
+                    zipCode,
+                    storeId: String(storeId),
+                    storeIdSource,
+                    groceryStoreId,
+                    requestUrl,
+                    responseStatus: response.status,
+                };
                 throw error;
             }
 
@@ -574,26 +407,21 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                 return [];
             }
 
-            const topLevelKeys = response.data ? Object.keys(response.data) : [];
-            const dataKeys = response.data?.data ? Object.keys(response.data.data) : [];
-            const searchKeys = response.data?.data?.search ? Object.keys(response.data.data.search) : [];
             targetDebug("[target] Response shape", {
                 status: response.status,
-                topLevelKeys,
-                dataKeys,
-                searchKeys,
-                productCount: response.data?.data?.search?.products?.length ?? "missing"
+                topLevelKeys: response.data ? Object.keys(response.data) : [],
+                productCount: response.data?.data_source_modules?.[0]?.module_data?.search_response?.products?.length ?? "missing"
             });
 
-            if (!response.data?.data?.search?.products) {
+            const products = response.data?.data_source_modules?.[0]?.module_data?.search_response?.products;
+
+            if (!products) {
                 log.warn(`[target] No products payload for "${keyword}" at store ${storeId} (${zipCode})`);
                 if (TARGET_DEBUG && response.data) {
                     log.warn("[target] Full response structure:", JSON.stringify(response.data).substring(0, 1000));
                 }
                 return [];
             }
-
-            const products = response.data.data.search.products;
 
             if (products.length === 0) {
                 log.warn(`[target] No products found for keyword "${keyword}" at store ${storeId}`);
@@ -622,7 +450,7 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                     unit: product.price?.formatted_unit_price_suffix || "",
                     rawUnit: product.price?.formatted_unit_price_suffix || "",
                     provider: "Target",
-                    image_url: product.item?.enrichment?.images?.primary_image_url || "",
+                    image_url: product.item?.enrichment?.image_info?.primary_image?.url || "",
                     category: product.item?.product_classification?.item_type?.name || "",
                     product_id: productId || null,
                     id: productId,
@@ -638,17 +466,11 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                 withoutPrice: cleanedProducts.length - withPrice.length
             });
 
-            // Remove duplicates based on product_id
-            const seenIds = new Set();
-            const deduplicated = withPrice.filter(product => {
-                const id = product.product_id || product.id;
-                if (!id) return true; // Keep products without IDs (shouldn't happen, but safe)
-                if (seenIds.has(id)) {
+            const deduplicated = resultCache.dedupe(withPrice, {
+                getKey: (product) => product.product_id || product.id,
+                onDuplicate: (product, id) => {
                     targetDebug(`[target] Removing duplicate product: ${id} - ${product.title?.substring(0, 50)}`);
-                    return false;
                 }
-                seenIds.add(id);
-                return true;
             });
 
             targetDebug("[target] Deduplication", {
@@ -657,33 +479,7 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                 removed: withPrice.length - deduplicated.length
             });
 
-            // Filter for relevance: products should be relevant to the search term
-            const keywordWords = normalizeKeyword(keyword).split(/\s+/).filter(w => w.length > 2); // Ignore words <= 2 chars
-            const relevantProducts = deduplicated.filter(product => {
-                const title = product.title || product.product_name || '';
-                const isRelevant = isRelevantProduct(title, keywordWords);
-                if (!isRelevant) {
-                    targetDebug(`[target] Filtering irrelevant product: "${title.substring(0, 60)}"`);
-                }
-                return isRelevant;
-            });
-
-            // If filtering removed too many results (>40%), keep the original results
-            // This handles cases where the API returns related but not exact matches
-            const relevanceFilterRatio = relevantProducts.length / deduplicated.length;
-            const filteredProducts = relevanceFilterRatio >= 0.4 ? relevantProducts : deduplicated;
-
-            if (relevanceFilterRatio < 0.4) {
-                targetDebug(`[target] Relevance filter too aggressive (kept ${(relevanceFilterRatio * 100).toFixed(1)}%), using all deduplicated results`);
-            } else {
-                targetDebug("[target] Relevance filtering", {
-                    before: deduplicated.length,
-                    after: relevantProducts.length,
-                    removed: deduplicated.length - relevantProducts.length
-                });
-            }
-
-            filteredProducts.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+            const filteredProducts = deduplicated;
             targetDebug(`[target] Successfully fetched ${filteredProducts.length} products with prices`);
             return filteredProducts;
 
@@ -713,25 +509,7 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
 
             return [];
         }
-    })();
-
-    // Store the promise in the in-flight map
-    targetInFlight.set(cacheKey, requestPromise);
-
-    try {
-        // Wait for the request to complete
-        const results = await requestPromise;
-
-        // Cache the results if successful
-        if (results && results.length > 0) {
-            setCachedResult(cacheKey, results);
-        }
-
-        return results;
-    } finally {
-        // Always clean up the in-flight map
-        targetInFlight.delete(cacheKey);
-    }
+    }, { retryOnInFlightError: true });
 }
 
 // Main function to execute the script
@@ -751,7 +529,7 @@ async function main() {
             process.exit(1);
         }
 
-        const data = await getTargetProducts(searchTerm, nearestStore, zipCode);
+        const data = await searchTarget(searchTerm, nearestStore, zipCode);
         console.log(JSON.stringify(data));
     } catch (err) {
         log.error(err);
@@ -759,8 +537,10 @@ async function main() {
     }
 }
 
+const getTargetProducts = searchTarget;
+
 // Export for use as a module
-module.exports = { getTargetProducts };
+module.exports = { searchTarget, getTargetProducts, getNearestStore };
 
 // Run if called directly
 if (require.main === module) {
