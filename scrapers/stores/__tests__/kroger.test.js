@@ -92,6 +92,8 @@ describe('Krogers', () => {
   let Krogers
 
   beforeEach(() => {
+    process.env.KROGER_CLIENT_ID = 'test-client-id'
+    process.env.KROGER_CLIENT_SECRET = 'test-client-secret'
     mockPost.mockReset()
     mockGet.mockReset()
     mockAxios.mockReset()
@@ -254,6 +256,35 @@ describe('Krogers', () => {
     mockPost.mockRejectedValueOnce(new Error('Network error'))
     const results = await Krogers('47905', 'milk')
     expect(results).toEqual([])
+  })
+
+  it('reuses a cached auth token across subsequent searches in the same module instance', async () => {
+    mockPost.mockResolvedValueOnce({ data: { access_token: MOCK_TOKEN, expires_in: 1800 } })
+    mockGet
+      .mockResolvedValueOnce({ data: { data: [MOCK_LOCATION] } })
+      .mockResolvedValueOnce({ data: { data: [makeProduct({ itemId: 'I1', description: 'Milk' })] } })
+      .mockResolvedValueOnce({ data: { data: [MOCK_LOCATION] } })
+      .mockResolvedValueOnce({ data: { data: [makeProduct({ itemId: 'I2', description: 'Bread' })] } })
+
+    const milkResults = await Krogers('47905', 'milk')
+    const breadResults = await Krogers('47905', 'bread')
+
+    expect(milkResults[0].id).toBe('I1')
+    expect(breadResults[0].id).toBe('I2')
+    expect(mockPost).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws a fatal Kroger auth-blocked error when the token endpoint returns Access Denied HTML', async () => {
+    const authError = new Error('Request failed with status code 403')
+    authError.response = {
+      status: 403,
+      data: '<html><title>Access Denied</title><body>Access Denied Reference #18.abc</body></html>',
+    }
+    mockPost.mockRejectedValueOnce(authError)
+
+    await expect(Krogers('47905', 'milk')).rejects.toMatchObject({
+      code: 'KROGER_AUTH_BLOCKED',
+    })
   })
 
   it('returns [] when auth response has no access_token', async () => {

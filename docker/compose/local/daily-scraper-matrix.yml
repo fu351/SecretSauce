@@ -10,10 +10,10 @@ x-daily-scraper-base: &daily-scraper-base
   environment: &daily-scraper-env
     STORE_STATE: "CA"
     STORE_CITIES_CSV: "San Francisco,Oakland,Berkeley"
-    STORE_LIMIT: "1"
-    INGREDIENT_LIMIT: "5"
-    STORE_CONCURRENCY: "1"
-    SCRAPER_BATCH_CONCURRENCY: "1"
+    STORE_LIMIT: "10"
+    INGREDIENT_LIMIT: "0"
+    STORE_CONCURRENCY: "5"
+    SCRAPER_BATCH_CONCURRENCY: "5"
 
 services:
   daily-scraper-target:

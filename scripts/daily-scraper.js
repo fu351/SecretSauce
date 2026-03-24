@@ -476,6 +476,7 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
         const code = String(error?.code || '').toUpperCase()
         const isTarget404 = storeEnum === 'target' && (status === 404 || code === 'TARGET_HTTP_404')
         const isHttp404 = status === 404 || code.includes('404')
+        const isFatalAuthBlocked = code === 'KROGER_AUTH_BLOCKED' || code === 'KROGER_AUTH_MISSING_CREDS'
 
         if (isTarget404) {
           console.warn(
@@ -499,6 +500,16 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
         }
 
         console.error(`❌ Scraper failed for ${storeEnum} (${zipCode}) ingredient "${ingredientName}": ${message}`)
+        if (isFatalAuthBlocked) {
+          return {
+            results: [],
+            hadError: true,
+            errorMessage: message,
+            isHttp404: false,
+            errorCode: code,
+          }
+        }
+
         return {
           results: [],
           hadError: true,
@@ -610,6 +621,12 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
             lastErrorMessage = errorMessages[idx]
           }
 
+          if (errorCodes[idx] === 'KROGER_AUTH_BLOCKED' || errorCodes[idx] === 'KROGER_AUTH_MISSING_CREDS') {
+            skippedForErrors = true
+            stopReason = 'auth_blocked'
+            break
+          }
+
           if (MAX_CONSECUTIVE_STORE_ERRORS > 0 && consecutiveStoreErrors > MAX_CONSECUTIVE_STORE_ERRORS) {
             skippedForErrors = true
             stopReason = 'consecutive_errors'
@@ -677,8 +694,14 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
         consecutiveErrors: consecutiveStoreErrors,
         skippedForErrors,
         lastErrorMessage,
-        errorType: stopReason === 'http_404' ? 'http_404' : undefined,
-        status: stopReason === 'http_404' ? 'skipped_after_http_404' : undefined,
+        errorType:
+          stopReason === 'http_404'
+            ? 'http_404'
+            : (stopReason === 'auth_blocked' ? 'auth_blocked' : undefined),
+        status:
+          stopReason === 'http_404'
+            ? 'skipped_after_http_404'
+            : (stopReason === 'auth_blocked' ? 'skipped_after_auth_blocked' : undefined),
       })
     }
 
