@@ -130,7 +130,7 @@ export async function runCanonicalConsolidation(
     totalSkipped += result.skipped
     totalFailed += result.failed
 
-    if (result.considered < config.batchLimit || result.consolidated === 0) break
+    if (result.considered < config.batchLimit) break
   }
 
   console.log(
