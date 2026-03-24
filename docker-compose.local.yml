@@ -32,7 +32,7 @@ services:
   embedding-worker:
     build:
       context: .
-      dockerfile: Dockerfile.embedding-worker
+      dockerfile: docker/Dockerfile.embedding-worker
     depends_on:
       ollama-init:
         condition: service_completed_successfully
@@ -48,7 +48,7 @@ services:
   vector-double-check-worker:
     build:
       context: .
-      dockerfile: Dockerfile.embedding-worker
+      dockerfile: docker/Dockerfile.embedding-worker
     command: ["node_modules/.bin/tsx", "scripts/resolve-vector-double-check.ts"]
     env_file:
       - .env.local
@@ -63,7 +63,7 @@ services:
   canonical-consolidation-worker:
     build:
       context: .
-      dockerfile: Dockerfile.embedding-worker
+      dockerfile: docker/Dockerfile.embedding-worker
     command: ["node_modules/.bin/tsx", "scripts/resolve-canonical-consolidation.ts"]
     env_file:
       - .env.local
