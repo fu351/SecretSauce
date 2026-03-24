@@ -20,11 +20,12 @@ interface CycleResult {
   failed: number
 }
 
-async function runCycle(config: CanonicalConsolidationWorkerConfig): Promise<CycleResult> {
+async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: number): Promise<CycleResult> {
   const filtered = await canonicalConsolidationDB.fetchCandidates({
     minSimilarity: config.minSimilarity,
     minEventCount: config.minEventCount,
     limit: config.batchLimit,
+    offset,
   })
 
   if (!filtered.length) {
@@ -123,7 +124,7 @@ export async function runCanonicalConsolidation(
   let totalFailed = 0
 
   while (cycles < maxCycles) {
-    const result = await runCycle(config)
+    const result = await runCycle(config, totalConsidered)
     cycles++
     totalConsidered += result.considered
     totalConsolidated += result.consolidated

@@ -25,6 +25,7 @@ class CanonicalConsolidationDB {
     minSimilarity: number
     minEventCount: number
     limit: number
+    offset?: number
   }): Promise<CanonicalDoubleCheckDailyStatsRow[]> {
     const cutoffDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
@@ -39,7 +40,7 @@ class CanonicalConsolidationDB {
       .in("decision", ["skipped"])
       .eq("reason", "vector_candidate_discovery")
       .order("max_similarity", { ascending: false })
-      .limit(Math.max(1, params.limit))
+      .range(params.offset ?? 0, (params.offset ?? 0) + Math.max(1, params.limit) - 1)
 
     if (error) {
       console.error("[CanonicalConsolidationDB] fetchCandidates error:", error.message)
