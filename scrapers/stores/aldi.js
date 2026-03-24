@@ -6,6 +6,10 @@ const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
 const { createJinaCrawler } = require('../utils/jina-crawler');
+const {
+    createFullPageJinaLlmParser,
+    parseJinaProductsWithFallbacks,
+} = require('../utils/jina-product-parsing');
 
 const resultCache = createResultCache({ ttlMs: Number(process.env.ALDI_CACHE_TTL_MS || 5 * 60 * 1000) });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
@@ -67,7 +71,9 @@ async function crawlAldiWithJina(keyword, zipCode) {
 // Handles multiple common patterns Jina produces from Aldi's search results page.
 function parseProductsWithRegex(crawledContent, keyword) {
     const content = String(crawledContent || "");
-    if (!content) return { products: [], hasUnresolved: true };
+    if (!content) {
+        return { products: [], shouldTryFullPageLlm: true };
+    }
 
     const dedupedProducts = resultCache.createDeduper({
         getKey: (product) => `${String(product?.title || "").trim().toLowerCase()}::${Number(product?.price).toFixed(2)}`
@@ -149,21 +155,20 @@ function parseProductsWithRegex(crawledContent, keyword) {
     }
 
     const limited = dedupedProducts.values().slice(0, 5);
-    // hasUnresolved = true tells the caller to still run LLM as a fallback if regex found nothing
-    return { products: limited, hasUnresolved: limited.length === 0 };
+    return {
+        products: limited,
+        shouldTryFullPageLlm: limited.length === 0,
+    };
 }
 
-// Function to parse products from crawled content using LLM
-async function parseProductsWithLLM(crawledContent, keyword) {
-    try {
-        log.debug(`Parsing Aldi products with LLM for keyword: ${keyword}`);
-
-        if (!hasConfiguredOpenAIKey(OPENAI_API_KEY)) {
-            log.warn("Missing OPENAI_API_KEY, cannot parse Aldi products with LLM");
-            return [];
-        }
-        
-        const prompt = `
+const parseProductsWithLLM = createFullPageJinaLlmParser({
+    log,
+    storeLabel: "Aldi",
+    hasOpenAiKey: hasConfiguredOpenAIKey,
+    openAiApiKey: OPENAI_API_KEY,
+    requestOpenAIJson,
+    requestTimeoutMs: REQUEST_TIMEOUT_MS,
+    buildPrompt: (crawledContent, keyword) => `
 You are a web scraping assistant. Extract the top 5 grocery/food products and their prices from this Aldi search page content.
 
 Search keyword: "${keyword}"
@@ -187,24 +192,11 @@ Instructions:
 ]
 
 Aldi page content:
-${crawledContent.substring(0, 30000)}
+${String(crawledContent || "").substring(0, 30000)}
 
-Return only the JSON array, no other text.`;
-
-        const products = await requestOpenAIJson({
-            prompt,
-            openAiApiKey: OPENAI_API_KEY,
-            maxTokens: 2000,
-            temperature: 0.1,
-            timeoutMs: Math.min(REQUEST_TIMEOUT_MS, 20000),
-        });
-
-        if (!Array.isArray(products)) {
-            log.warn("No content returned from LLM");
-            return [];
-        }
-        
-        return products
+Return only the JSON array, no other text.`,
+    normalizeProducts: (products) =>
+        products
             .filter(product => product.title && product.price && product.price > 0)
             .slice(0, 5)
             .map(product => ({
@@ -217,18 +209,10 @@ Return only the JSON array, no other text.`;
                 rawUnit: "",
                 image_url: product.image_url || "/placeholder.svg",
                 provider: "Aldi",
-                location: "Aldi Grocery", 
+                location: "Aldi Grocery",
                 category: "Grocery"
-            }));
-
-    } catch (error) {
-        log.error("Error parsing products with LLM:", error.message);
-        if (error?.response?.data) {
-            log.error("LLM Error Response:", error.response.data);
-        }
-        return [];
-    }
-}
+            })),
+});
 
 // Main Aldi search function
 async function searchAldi(keyword, zipCode) {
@@ -250,30 +234,35 @@ async function searchAldi(keyword, zipCode) {
         }
 
         // Step 2: Try regex extraction first (fast, free, no API call)
-        const { products: regexProducts, hasUnresolved } = parseProductsWithRegex(crawledContent, keyword);
-        if (regexProducts.length > 0) {
-            log.debug(`Regex extracted ${regexProducts.length} products from Aldi`);
-            const results = regexProducts.sort((a, b) => a.price - b.price);
-            resultCache.set(cacheKey, results);
-            return results;
+        const regexPreview = parseProductsWithRegex(crawledContent, keyword);
+        if (regexPreview.products.length > 0) {
+            log.debug(`Regex extracted ${regexPreview.products.length} products from Aldi`);
+        } else if (regexPreview.shouldTryFullPageLlm) {
+            log.debug("Regex found no products, falling back to LLM");
         }
 
         // Step 3: Regex found nothing — fall back to LLM
-        if (hasUnresolved) {
-            log.debug("Regex found no products, falling back to LLM");
-            const products = await parseProductsWithLLM(crawledContent, keyword);
-            if (products.length === 0) {
-                log.debug("LLM failed to extract products, real-time prices unavailable");
-                return [];
-            }
-            log.debug(`LLM extracted ${products.length} products from Aldi`);
-            const results = products.sort((a, b) => a.price - b.price);
-            resultCache.set(cacheKey, results);
-            return results;
+        const products = await parseJinaProductsWithFallbacks({
+            crawledContent,
+            keyword,
+            parseWithRegex: parseProductsWithRegex,
+            parseFullPageWithLLM: parseProductsWithLLM,
+        });
+
+        if (products.length === 0) {
+            log.debug(regexPreview.shouldTryFullPageLlm
+                ? "LLM failed to extract products, real-time prices unavailable"
+                : "No products found from Aldi");
+            return [];
         }
 
-        log.debug("No products found from Aldi");
-        return [];
+        if (regexPreview.products.length === 0) {
+            log.debug(`LLM extracted ${products.length} products from Aldi`);
+        }
+
+        const results = products.sort((a, b) => a.price - b.price);
+        resultCache.set(cacheKey, results);
+        return results;
 
     } catch (error) {
         log.error("Error in Aldi search:", error.message, "- real-time prices unavailable");

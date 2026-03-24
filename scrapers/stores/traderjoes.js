@@ -6,6 +6,11 @@ const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
 const { createJinaCrawler } = require('../utils/jina-crawler');
+const {
+    createBlockJinaLlmParser,
+    createFullPageJinaLlmParser,
+    parseJinaProductsWithFallbacks,
+} = require('../utils/jina-product-parsing');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('traderjoes');
 
@@ -307,7 +312,7 @@ async function crawlTraderJoesWithJina(keyword) {
 function parseProductsWithRegex(crawledContent, keyword) {
     const content = String(crawledContent || "");
     if (!content) {
-        return { products: [], unresolvedBlocks: [] };
+        return { products: [], llmFallbackBlocks: [], shouldTryFullPageLlm: true };
     }
 
     // Example block we target:
@@ -354,15 +359,20 @@ function parseProductsWithRegex(crawledContent, keyword) {
     }
 
     const ranked = rankAndLimitProducts(dedupeProducts(products), keyword, TJ_MAX_RESULTS);
-    return { products: ranked, unresolvedBlocks };
+    return {
+        products: ranked,
+        llmFallbackBlocks: unresolvedBlocks,
+        shouldTryFullPageLlm: true,
+    };
 }
 
-async function parseSingleProductBlockWithLLM(productBlockMarkdown, keyword) {
-    if (!hasConfiguredOpenAIKey(OPENAI_API_KEY)) {
-        return null;
-    }
-
-    const prompt = `
+const parseMissingProductsWithLLM = createBlockJinaLlmParser({
+    log,
+    hasOpenAiKey: hasConfiguredOpenAIKey,
+    openAiApiKey: OPENAI_API_KEY,
+    requestOpenAIJson,
+    requestTimeoutMs: REQUEST_TIMEOUT_MS,
+    buildPrompt: (productBlockMarkdown, keyword) => `
 You are a web scraping assistant. Extract exactly one Trader Joe's product from this markdown block.
 
 Search keyword: "${keyword}"
@@ -382,60 +392,19 @@ If no valid product can be extracted, return null.
 
 Markdown block:
 ${String(productBlockMarkdown || "").slice(0, 4000)}
-`;
-
-    const parsed = await requestOpenAIJson({
-        prompt,
-        systemPrompt: "You extract one product from markdown and return only strict JSON.",
-        openAiApiKey: OPENAI_API_KEY,
-        maxTokens: 700,
-        temperature: 0,
-        timeoutMs: Math.min(REQUEST_TIMEOUT_MS, 20000),
-    });
-
-    if (!parsed) return null;
-    if (parsed === "null") return null;
-    return normalizeTraderJoesProduct(parsed);
-}
-
-async function parseMissingProductsWithLLM(unresolvedBlocks, keyword) {
-    if (!Array.isArray(unresolvedBlocks) || unresolvedBlocks.length === 0) {
-        return [];
-    }
-
-    if (!hasConfiguredOpenAIKey(OPENAI_API_KEY)) {
-        return [];
-    }
-
-    const maxFallbacks = Math.max(0, Math.min(TJ_LLM_PRODUCT_FALLBACK_LIMIT, unresolvedBlocks.length));
-    if (maxFallbacks === 0) return [];
-
-    const llmResolved = [];
-    for (const rawBlock of unresolvedBlocks.slice(0, maxFallbacks)) {
-        try {
-            const parsed = await parseSingleProductBlockWithLLM(rawBlock, keyword);
-            if (parsed) {
-                llmResolved.push(parsed);
-            }
-        } catch (error) {
-            log.warn(`[traderjoes] LLM block fallback failed: ${error?.message || error}`);
-        }
-    }
-
-    return llmResolved;
-}
+`,
+    normalizeProduct: (product) => normalizeTraderJoesProduct(product),
+});
 
 // Full-page LLM fallback when regex parsing cannot recover enough products.
-async function parseProductsWithLLM(crawledContent, keyword) {
-    try {
-        log.debug(`Parsing products with LLM for keyword: ${keyword}`);
-
-        if (!hasConfiguredOpenAIKey(OPENAI_API_KEY)) {
-            log.warn("Missing OPENAI_API_KEY, cannot parse Trader Joe's products with LLM");
-            return [];
-        }
-        
-        const prompt = `
+const parseProductsWithLLM = createFullPageJinaLlmParser({
+    log,
+    storeLabel: "Trader Joe's",
+    hasOpenAiKey: hasConfiguredOpenAIKey,
+    openAiApiKey: OPENAI_API_KEY,
+    requestOpenAIJson,
+    requestTimeoutMs: REQUEST_TIMEOUT_MS,
+    buildPrompt: (crawledContent, keyword) => `
 You are a web scraping assistant. Extract the top 5 grocery/food products and their prices from this Trader Joe's search page content.
 
 Search keyword: "${keyword}"
@@ -465,36 +434,16 @@ Instructions:
 ]
 
 Trader Joe's page content:
-${crawledContent.substring(0, 30000)}  // Limit content to stay within token limits
+${String(crawledContent || "").substring(0, 30000)}
 
-Return only the JSON array, no other text.`;
-
-        const products = await requestOpenAIJson({
-            prompt,
-            openAiApiKey: OPENAI_API_KEY,
-            maxTokens: 2000,
-            temperature: 0.1,
-            timeoutMs: Math.min(REQUEST_TIMEOUT_MS, 20000),
-        });
-
-        if (!Array.isArray(products)) {
-            log.warn("No content returned from LLM");
-            return [];
-        }
+Return only the JSON array, no other text.`,
+    normalizeProducts: (products, keyword) => {
         const normalized = Array.isArray(products)
             ? products.map(normalizeTraderJoesProduct).filter(Boolean)
             : [];
-
         return rankAndLimitProducts(dedupeProducts(normalized), keyword, TJ_MAX_RESULTS);
-
-    } catch (error) {
-        log.error("Error parsing products with LLM:", error.message);
-        if (error.response?.data) {
-            log.error("LLM Error Response:", error.response.data);
-        }
-        return [];
-    }
-}
+    },
+});
 
 // Main Trader Joe's search function
 async function searchTraderJoes(keyword, zipCode) {
@@ -532,26 +481,23 @@ async function searchTraderJoes(keyword, zipCode) {
             return [];
         }
 
-        // Step 2: Parse products using regex first.
-        const regexParsed = parseProductsWithRegex(crawledContent, keyword);
-        let products = regexParsed.products;
-
-        // Step 3: If regex couldn't parse some entries, attempt per-product LLM fallback.
-        if (regexParsed.unresolvedBlocks.length > 0) {
-            const llmProductFallbacks = await parseMissingProductsWithLLM(regexParsed.unresolvedBlocks, keyword);
-            if (llmProductFallbacks.length > 0) {
-                products = rankAndLimitProducts(
-                    dedupeProducts([...products, ...llmProductFallbacks]),
-                    keyword,
+        const products = await parseJinaProductsWithFallbacks({
+            crawledContent,
+            keyword,
+            parseWithRegex: parseProductsWithRegex,
+            parseFallbackBlocksWithLLM: (blocks, currentKeyword) =>
+                parseMissingProductsWithLLM(blocks, currentKeyword, {
+                    limit: TJ_LLM_PRODUCT_FALLBACK_LIMIT,
+                    logLabel: "traderjoes",
+                }),
+            parseFullPageWithLLM: parseProductsWithLLM,
+            mergeProducts: (regexProducts, llmProducts, currentKeyword) =>
+                rankAndLimitProducts(
+                    dedupeProducts([...(regexProducts || []), ...(llmProducts || [])]),
+                    currentKeyword,
                     TJ_MAX_RESULTS
-                );
-            }
-        }
-
-        // Step 4: Last resort full-page LLM fallback.
-        if (products.length === 0) {
-            products = await parseProductsWithLLM(crawledContent, keyword);
-        }
+                ),
+        });
 
         if (products.length === 0) {
             log.debug("Regex + LLM fallback failed to extract products, real-time prices unavailable");
