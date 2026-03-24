@@ -623,47 +623,6 @@ async function searchTraderJoesBatch(keywords, zipCode, options = {}) {
     }
 }
 
-// Function to generate fallback mock data
-function generateMockTraderJoesData(keyword) {
-    log.debug("Generating mock Trader Joe's data as fallback...");
-
-    const basePrice = Math.random() * 8 + 2;
-    const timestamp = Date.now();
-
-    return [
-        {
-            product_id: `tj-mock-1-${timestamp}`,
-            product_name: `Trader Joe's ${keyword}`,
-            price: Math.round(basePrice * 100) / 100,
-            image_url: "/placeholder.svg"
-        },
-        {
-            product_id: `tj-mock-2-${timestamp}`,
-            product_name: `Organic ${keyword}`,
-            price: Math.round((basePrice + 0.75) * 100) / 100,
-            image_url: "/placeholder.svg"
-        },
-        {
-            product_id: `tj-mock-3-${timestamp}`,
-            product_name: `${keyword} Blend`,
-            price: Math.round((basePrice + 1.25) * 100) / 100,
-            image_url: "/placeholder.svg"
-        },
-        {
-            product_id: `tj-mock-4-${timestamp}`,
-            product_name: `Fresh ${keyword}`,
-            price: Math.round((basePrice - 0.5) * 100) / 100,
-            image_url: "/placeholder.svg"
-        },
-        {
-            product_id: `tj-mock-5-${timestamp}`,
-            product_name: `Premium ${keyword}`,
-            price: Math.round((basePrice + 2) * 100) / 100,
-            image_url: "/placeholder.svg"
-        }
-    ];
-}
-
 // Main function to execute the script
 async function main() {
     const keyword = process.argv[2];
@@ -678,7 +637,7 @@ async function main() {
     if (!hasConfiguredOpenAIKey(OPENAI_API_KEY)) {
         log.warn("⚠️  Missing OPENAI_API_KEY - using mock data");
         log.warn("Set OPENAI_API_KEY environment variable for real data");
-        console.log(JSON.stringify(generateMockTraderJoesData(keyword), null, 2));
+        console.log(JSON.stringify([], null, 2));
         return;
     }
 

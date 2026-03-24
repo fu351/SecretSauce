@@ -289,82 +289,6 @@ async function searchAldi(keyword, zipCode) {
     }
 }
 
-// Function to generate fallback mock data
-function generateMockAldiData(keyword) {
-    log.debug("Generating mock Aldi data as fallback...");
-
-    const basePrice = Math.random() * 7 + 1.5;
-    const timestamp = Date.now();
-
-    return [
-        {
-            id: `aldi-mock-1-${timestamp}`,
-            title: `Aldi ${keyword}`,
-            brand: "ALDI",
-            price: Math.round(basePrice * 100) / 100,
-            pricePerUnit: "$" + Math.round(basePrice * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Aldi",
-            location: "Aldi Grocery",
-            category: "Grocery"
-        },
-        {
-            id: `aldi-mock-2-${timestamp}`,
-            title: `Organic ${keyword}`,
-            brand: "Simply Nature",
-            price: Math.round((basePrice + 0.75) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 0.75) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Aldi",
-            location: "Aldi Grocery",
-            category: "Grocery"
-        },
-        {
-            id: `aldi-mock-3-${timestamp}`,
-            title: `Premium ${keyword}`,
-            brand: "Specially Selected",
-            price: Math.round((basePrice + 1.5) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 1.5) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Aldi",
-            location: "Aldi Grocery",
-            category: "Grocery"
-        },
-        {
-            id: `aldi-mock-4-${timestamp}`,
-            title: `${keyword} Blend`,
-            brand: "ALDI",
-            price: Math.round((basePrice - 0.25) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice - 0.25) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Aldi",
-            location: "Aldi Grocery",
-            category: "Grocery"
-        },
-        {
-            id: `aldi-mock-5-${timestamp}`,
-            title: `Fresh ${keyword}`,
-            brand: "Earth Grown",
-            price: Math.round((basePrice + 1) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 1) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Aldi",
-            location: "Aldi Grocery",
-            category: "Grocery"
-        }
-    ];
-}
-
 // Main function to execute the script
 async function main() {
     const keyword = process.argv[2];
@@ -379,7 +303,7 @@ async function main() {
     if (OPENAI_API_KEY === "your_openai_api_key_here") {
         log.warn("⚠️  Missing OPENAI_API_KEY - using mock data");
         log.warn("Set OPENAI_API_KEY environment variable for real data");
-        console.log(JSON.stringify(generateMockAldiData(keyword), null, 2));
+        console.log(JSON.stringify([], null, 2));
         return;
     }
 

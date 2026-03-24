@@ -254,39 +254,6 @@ Rules:
     }
 }
 
-// Function to generate fallback mock data
-function generateMockSafewayData(keyword) {
-    log.debug("Generating mock Safeway data as fallback...");
-    return [
-        {
-            id: `sw-mock-1-${Date.now()}`,
-            title: `Safeway Select ${keyword}`,
-            brand: "Signature Select",
-            price: 5.99,
-            pricePerUnit: "",
-            unit: "",
-            rawUnit: "",
-            image_url: "https://www.instacart.com/assets/domains/product-image/placeholder.jpg",
-            provider: "Safeway",
-            location: "Safeway Store",
-            category: "Grocery"
-        },
-        {
-            id: `sw-mock-2-${Date.now()}`,
-            title: `Organic ${keyword}`,
-            brand: "O Organics",
-            price: 6.99,
-            pricePerUnit: "",
-            unit: "",
-            rawUnit: "",
-            image_url: "/placeholder.svg",
-            provider: "Safeway",
-            location: "Safeway Store", 
-            category: "Grocery"
-        }
-    ];
-}
-
 // Main Safeway search function
 async function searchSafeway(keyword, zipCode) {
     const dummySafewayScraper = async (kw, zip) => {
@@ -308,8 +275,8 @@ async function searchSafeway(keyword, zipCode) {
         await enforceRateLimit();
         const rawData = await fetchRawInstacartData(keyword, zipCode);
         if (!rawData || rawData.length === 0) {
-            log.debug("Failed to fetch raw data via Playwright, using mock data");
-            return generateMockSafewayData(keyword);
+            log.debug("Failed to fetch raw data via Playwright");
+            return [];
         }
 
         // Step 1: Try regex extraction (fast, no API call)
@@ -323,15 +290,15 @@ async function searchSafeway(keyword, zipCode) {
         log.debug("Regex found no products, falling back to LLM");
         const products = await parseProductsWithLLM(rawData, keyword);
         if (products.length === 0) {
-            log.debug("LLM failed to parse products, using mock data");
-            return generateMockSafewayData(keyword);
+            log.debug("LLM failed to parse products");
+            return [];
         }
 
         log.debug(`LLM extracted ${products.length} products from Safeway`);
         return products.sort((a, b) => a.price - b.price);
     } catch (error) {
         log.error("Error in Safeway search:", error.message);
-        return generateMockSafewayData(keyword);
+        return [];
     }
     */
 

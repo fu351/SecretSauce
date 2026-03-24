@@ -755,92 +755,6 @@ async function searchWalmartAPI(keyword, zipCode) {
     return await searchWalmart(keyword, zipCode);
 }
 
-// Function to generate fallback mock data if APIs fail
-function generateMockWalmartData(keyword) {
-    log.debug("Generating mock Walmart data as fallback...");
-
-    const basePrice = Math.random() * 8 + 1;
-    const timestamp = Date.now();
-
-    return [
-        {
-            product_id: `walmart-mock-1-${timestamp}`,
-            id: `walmart-mock-1-${timestamp}`,
-            product_name: `Great Value ${keyword}`,
-            title: `Great Value ${keyword}`,
-            brand: "Great Value",
-            price: Math.round(basePrice * 100) / 100,
-            pricePerUnit: "$" + Math.round(basePrice * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        },
-        {
-            product_id: `walmart-mock-2-${timestamp}`,
-            id: `walmart-mock-2-${timestamp}`,
-            product_name: `Fresh ${keyword}`,
-            title: `Fresh ${keyword}`,
-            brand: "Walmart",
-            price: Math.round((basePrice + 0.5) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 0.5) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        },
-        {
-            product_id: `walmart-mock-3-${timestamp}`,
-            id: `walmart-mock-3-${timestamp}`,
-            product_name: `Premium ${keyword}`,
-            title: `Premium ${keyword}`,
-            brand: "Name Brand",
-            price: Math.round((basePrice + 1) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 1) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        },
-        {
-            product_id: `walmart-mock-4-${timestamp}`,
-            id: `walmart-mock-4-${timestamp}`,
-            product_name: `Organic ${keyword}`,
-            title: `Organic ${keyword}`,
-            brand: "Organic Select",
-            price: Math.round((basePrice + 1.5) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice + 1.5) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        },
-        {
-            product_id: `walmart-mock-5-${timestamp}`,
-            id: `walmart-mock-5-${timestamp}`,
-            product_name: `Store Brand ${keyword}`,
-            title: `Store Brand ${keyword}`,
-            brand: "Walmart Value",
-            price: Math.round((basePrice - 0.5) * 100) / 100,
-            pricePerUnit: "$" + Math.round((basePrice - 0.5) * 100) / 100 + "/lb",
-            unit: "lb",
-            rawUnit: "lb",
-            image_url: "/placeholder.svg",
-            provider: "Walmart",
-            location: "Walmart Grocery",
-            category: "Grocery"
-        }
-    ];
-}
-
 // Main function to execute the script
 async function main() {
     const keyword = process.argv[2];
@@ -856,7 +770,7 @@ async function main() {
     if (EXA_API_KEY === "your_exa_api_key_here" || !hasConfiguredOpenAIKey(OPENAI_API_KEY)) {
         log.warn("⚠️  Missing API keys - using mock data");
         log.warn("Set EXA_API_KEY and OPENAI_API_KEY environment variables for real data");
-        console.log(JSON.stringify(generateMockWalmartData(keyword)));
+        console.log(JSON.stringify([], null, 2));
         return;
     }
 
