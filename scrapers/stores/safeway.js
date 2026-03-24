@@ -124,6 +124,55 @@ async function fetchRawInstacartData(keyword, zipCode) {
     return rawData;
 }
 
+// Function to parse products from Playwright raw items using regex (runs before LLM fallback).
+// Each rawDataObject has { text: string, img: string } where text is the full inner text
+// of an Instacart/Safeway product card (multi-line, messy).
+// Typical card text:
+//   "Signature SELECT Ice Cream\nAssorted varieties, 48 oz\n$3.99\n$0.08/oz"
+function parseRawItemsWithRegex(rawDataObjects) {
+    const products = [];
+
+    for (const item of rawDataObjects) {
+        const text = String(item.text || "").trim();
+        if (!text) continue;
+
+        // Extract the first dollar-sign price (unit price, not per-oz price)
+        // We want "$3.99" not "$0.08/oz" — match the largest price to avoid per-unit prices
+        const priceMatches = [...text.matchAll(/\$\s*(\d+(?:\.\d{1,2})?)/g)];
+        if (priceMatches.length === 0) continue;
+
+        // Pick the largest price value (most likely the item price, not per-unit)
+        const price = Math.max(...priceMatches.map(m => parseFloat(m[1])));
+        if (!price || price <= 0) continue;
+
+        // Extract pricePerUnit if present (e.g. "$0.83/oz")
+        const ppuMatch = text.match(/\$[\d.]+\s*\/\s*([^\n$]{1,20})/);
+        const pricePerUnit = ppuMatch ? ppuMatch[0].trim() : "";
+        const unit = ppuMatch ? ppuMatch[1].trim() : "";
+
+        // First non-empty, non-price line = product title
+        const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+        const titleLine = lines.find(l => !l.startsWith("$") && l.length > 3);
+        if (!titleLine) continue;
+
+        products.push({
+            id: `sw-${Math.floor(Math.random() * 90000) + 10000}`,
+            title: titleLine,
+            brand: "Safeway",
+            price,
+            pricePerUnit,
+            unit,
+            rawUnit: unit,
+            image_url: item.img || "/placeholder.svg",
+            provider: "Safeway",
+            location: "Safeway Store",
+            category: "Grocery"
+        });
+    }
+
+    return products;
+}
+
 // Function to parse products from raw data using LLM
 async function parseProductsWithLLM(rawDataObjects, keyword) {
     try {
@@ -254,13 +303,22 @@ async function searchSafeway(keyword, zipCode) {
             return generateMockSafewayData(keyword);
         }
 
+        // Step 1: Try regex extraction (fast, no API call)
+        const regexProducts = parseRawItemsWithRegex(rawData);
+        if (regexProducts.length > 0) {
+            log.debug(`Regex extracted ${regexProducts.length} products from Safeway`);
+            return regexProducts.sort((a, b) => a.price - b.price);
+        }
+
+        // Step 2: Regex found nothing — fall back to LLM
+        log.debug("Regex found no products, falling back to LLM");
         const products = await parseProductsWithLLM(rawData, keyword);
         if (products.length === 0) {
             log.debug("LLM failed to parse products, using mock data");
             return generateMockSafewayData(keyword);
         }
 
-        log.debug(`Successfully extracted ${products.length} products from Safeway`);
+        log.debug(`LLM extracted ${products.length} products from Safeway`);
         return products.sort((a, b) => a.price - b.price);
     } catch (error) {
         log.error("Error in Safeway search:", error.message);
