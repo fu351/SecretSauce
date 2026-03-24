@@ -6,6 +6,24 @@ export function getIntEnv(name, fallback, minValue = 0) {
   return fallback
 }
 
+export function getBooleanEnv(name, fallback = false) {
+  const raw = process.env[name]
+  if (raw === undefined || raw === null || raw === '') {
+    return fallback
+  }
+
+  const normalized = String(raw).trim().toLowerCase()
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) {
+    return true
+  }
+
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) {
+    return false
+  }
+
+  return fallback
+}
+
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }

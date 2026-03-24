@@ -1,0 +1,67 @@
+name: daily-scraper-local-matrix
+
+x-daily-scraper-base: &daily-scraper-base
+  build:
+    context: ../../..
+    dockerfile: docker/Dockerfile.daily-scraper
+  env_file:
+    - ../../../.env.local
+  environment: &daily-scraper-env
+    DAILY_SCRAPER_DRY_RUN: "true"
+    DAILY_SCRAPER_SUMMARY_MODE: "detailed"
+    STORE_STATE: "CA"
+    STORE_CITIES_CSV: "San Francisco,Oakland,Berkeley"
+    STORE_LIMIT: "1"
+    INGREDIENT_LIMIT: "5"
+    STORE_CONCURRENCY: "1"
+    SCRAPER_BATCH_CONCURRENCY: "1"
+    SCRAPER_BATCH_SIZE: "5"
+    INGREDIENT_DELAY_MS: "0"
+
+services:
+  daily-scraper-target:
+    <<: *daily-scraper-base
+    environment:
+      <<: *daily-scraper-env
+      STORE_BRAND: "target"
+
+  daily-scraper-kroger:
+    <<: *daily-scraper-base
+    environment:
+      <<: *daily-scraper-env
+      STORE_BRAND: "kroger"
+
+  daily-scraper-aldi:
+    <<: *daily-scraper-base
+    environment:
+      <<: *daily-scraper-env
+      STORE_BRAND: "aldi"
+
+  # Keep Trader Joe's behind Aldi so the two Jina-backed scrapers do not
+  # compete locally when the whole matrix is started at once.
+  daily-scraper-traderjoes:
+    <<: *daily-scraper-base
+    depends_on:
+      daily-scraper-aldi:
+        condition: service_completed_successfully
+    environment:
+      <<: *daily-scraper-env
+      STORE_BRAND: "traderjoes"
+
+  daily-scraper-andronicos:
+    <<: *daily-scraper-base
+    environment:
+      <<: *daily-scraper-env
+      STORE_BRAND: "andronicos"
+
+  daily-scraper-meijer:
+    <<: *daily-scraper-base
+    environment:
+      <<: *daily-scraper-env
+      STORE_BRAND: "meijer"
+
+  daily-scraper-99ranch:
+    <<: *daily-scraper-base
+    environment:
+      <<: *daily-scraper-env
+      STORE_BRAND: "99ranch"

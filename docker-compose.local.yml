@@ -72,5 +72,25 @@ services:
       - CONSOLIDATION_MIN_SIMILARITY=0.92
       - CONSOLIDATION_MIN_EVENT_COUNT=1
 
+  # Local daily scraper smoke test - dry-run only, with small limits so we can
+  # validate scraper orchestration without writing any database changes.
+  # For a matrix-style local setup with one service per brand, use:
+  # docker/compose/local/daily-scraper-matrix.yml
+  daily-scraper-local:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.daily-scraper
+    env_file:
+      - .env.local
+    environment:
+      - DAILY_SCRAPER_DRY_RUN=true
+      - DAILY_SCRAPER_SUMMARY_MODE=detailed
+      - STORE_LIMIT=10
+      - INGREDIENT_LIMIT=5
+      - STORE_CONCURRENCY=5
+      - SCRAPER_BATCH_CONCURRENCY=5
+      - SCRAPER_BATCH_SIZE=5
+      - INGREDIENT_DELAY_MS=0
+
 volumes:
   ollama-data:

@@ -19,6 +19,7 @@ import {
   buildStoreFilterContext,
   emptyBatchResults,
   formatStoreFilterSummary,
+  getBooleanEnv,
   getIntEnv,
   getProductName,
   hasStoreRangeFilters,
@@ -48,6 +49,10 @@ const STORE_STATE = process.env.STORE_STATE || null
 const STORE_CITIES_CSV = process.env.STORE_CITIES_CSV || null
 const STORE_ZIP_MIN = process.env.STORE_ZIP_MIN || null
 const STORE_ZIP_MAX = process.env.STORE_ZIP_MAX || null
+const DAILY_SCRAPER_DRY_RUN = getBooleanEnv('DAILY_SCRAPER_DRY_RUN', getBooleanEnv('DRY_RUN', false))
+const SUMMARY_MODE = String(process.env.DAILY_SCRAPER_SUMMARY_MODE || 'basic').trim().toLowerCase() === 'detailed'
+  ? 'detailed'
+  : 'basic'
 
 const INGREDIENT_LIMIT = getIntEnv('INGREDIENT_LIMIT', 0, 0)
 const STORE_LIMIT = getIntEnv('STORE_LIMIT', 0, 0)
@@ -158,6 +163,13 @@ function normalizeTargetStoreMetadata(store, fallbackZipCode = '') {
 }
 
 async function appendStoreFailureMetadata(store, details) {
+  if (DAILY_SCRAPER_DRY_RUN) {
+    console.log(
+      `   [DRY RUN] Skipping failed_scrapes_log write for ${normalizeStoreEnum(store?.store_enum)} (${normalizeZipCode(store?.zip_code) || 'no-zip'})`
+    )
+    return
+  }
+
   if (!store?.id) return
 
   const nowIso = new Date().toISOString()
@@ -213,6 +225,13 @@ async function appendStoreFailureMetadata(store, details) {
 }
 
 async function appendStoreHttp404Metadata(store, details) {
+  if (DAILY_SCRAPER_DRY_RUN) {
+    console.log(
+      `   [DRY RUN] Skipping grocery_stores metadata update for ${normalizeStoreEnum(store?.store_enum)} (${normalizeZipCode(store?.zip_code) || 'no-zip'})`
+    )
+    return
+  }
+
   if (!store?.id) return
 
   const nowIso = new Date().toISOString()
@@ -510,12 +529,16 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
 
 async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
   let skippedStoreCount = 0
-  const scrapeStats = { target404s: [] }
+  const scrapeStats = { target404s: [], stores: [] }
 
   async function processStore(store, storeIndex) {
     const pendingResults = []
     let localScrapedCount = 0
     let localInsertedCount = 0
+    let localChunkCount = 0
+    let localIngredientsAttempted = 0
+    let localIngredientsWithHits = 0
+    const storeStartTime = Date.now()
 
     async function flushPendingResults(force = false, reason = 'buffer checkpoint') {
       if (!pendingResults.length) return
@@ -569,11 +592,13 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
         localScrapeStats,
         normalizedTargetMetadata
       )
+      localChunkCount += 1
 
       let chunkPriceHits = 0
       let chunkIngredientHits = 0
       for (let idx = 0; idx < chunk.length; idx += 1) {
         const ingredientName = chunk[idx]
+        localIngredientsAttempted += 1
 
         if (http404Flags[idx]) {
           totalStoreErrors += 1
@@ -614,6 +639,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
 
         if (validResults.length === 0) continue
         chunkIngredientHits += 1
+        localIngredientsWithHits += 1
 
         for (const result of validResults) {
           pendingResults.push({
@@ -671,6 +697,16 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
     await flushPendingResults(true, `store completed: ${storeEnum} (${zipCode})`)
 
     return {
+      storeEnum,
+      storeId: store.id || null,
+      zipCode,
+      durationMs: Date.now() - storeStartTime,
+      chunkCount: localChunkCount,
+      ingredientsAttempted: localIngredientsAttempted,
+      ingredientsWithHits: localIngredientsWithHits,
+      errorCount: totalStoreErrors,
+      stopReason,
+      lastErrorMessage: lastErrorMessage || '',
       scrapedCount: localScrapedCount,
       insertedCount: localInsertedCount,
       skippedForErrors,
@@ -688,6 +724,22 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
     totalInsertedCount += result.insertedCount
     if (result.skippedForErrors) skippedStoreCount += 1
     scrapeStats.target404s.push(...result.target404s)
+    scrapeStats.stores.push({
+      storeEnum: result.storeEnum,
+      storeId: result.storeId,
+      zipCode: result.zipCode,
+      durationMs: result.durationMs,
+      chunkCount: result.chunkCount,
+      ingredientsAttempted: result.ingredientsAttempted,
+      ingredientsWithHits: result.ingredientsWithHits,
+      scrapedCount: result.scrapedCount,
+      insertedCount: result.insertedCount,
+      errorCount: result.errorCount,
+      skippedForErrors: result.skippedForErrors,
+      stopReason: result.stopReason,
+      lastErrorMessage: result.lastErrorMessage,
+      target404Count: result.target404s.length,
+    })
   }
 
   if (skippedStoreCount > 0) {
@@ -726,6 +778,11 @@ async function bulkInsertIngredientHistory(items) {
     return 0
   }
 
+  if (DAILY_SCRAPER_DRY_RUN) {
+    console.log(`[DRY RUN] Would insert ${payload.length} items via fn_bulk_insert_ingredient_history`)
+    return payload.length
+  }
+
   console.log(`💾 Inserting ${payload.length} items via RPC...`)
 
   const { data, error } = await getSupabase().rpc('fn_bulk_insert_ingredient_history', {
@@ -750,6 +807,8 @@ async function main() {
 
   console.log('🚀 Daily Ingredient Scraper Starting...')
   console.log(`   Store Brand: ${STORE_BRAND || 'ALL'}`)
+  console.log(`   Dry Run: ${DAILY_SCRAPER_DRY_RUN ? 'true' : 'false'}`)
+  console.log(`   Summary Mode: ${SUMMARY_MODE}`)
   console.log(`   Strategy: Direct RPC + store-batched scraping`)
   console.log(`   Store Concurrency: ${STORE_CONCURRENCY}`)
   console.log(`   Default Batch Size: ${SCRAPER_BATCH_SIZE}`)
@@ -782,7 +841,11 @@ async function main() {
   const { scrapedCount, insertedCount, scrapeStats } = await scrapeIngredientsAndInsertBatched(ingredients, stores)
   console.log(`\n✅ Scraped ${scrapedCount} total products`)
   const inserted = insertedCount
-  console.log(`\n✅ Inserted ${inserted} rows to database`)
+  if (DAILY_SCRAPER_DRY_RUN) {
+    console.log(`\n[DRY RUN] Would insert ${inserted} rows to database`)
+  } else {
+    console.log(`\n✅ Inserted ${inserted} rows to database`)
+  }
 
   const duration = (Date.now() - startTime) / 1000
   const successRate = scrapedCount > 0 ? (inserted / scrapedCount) * 100 : 0
@@ -794,10 +857,61 @@ async function main() {
   console.log(`Stores: ${stores.length}`)
   console.log(`Ingredients: ${ingredients.length}`)
   console.log(`Scraped: ${scrapedCount}`)
-  console.log(`Inserted: ${inserted}`)
+  console.log(`${DAILY_SCRAPER_DRY_RUN ? 'Would Insert' : 'Inserted'}: ${inserted}`)
   console.log(`Success Rate: ${successRate.toFixed(1)}%`)
   console.log(`Duration: ${duration.toFixed(1)}s`)
   console.log('='.repeat(60))
+
+  if (SUMMARY_MODE === 'detailed' && Array.isArray(scrapeStats?.stores) && scrapeStats.stores.length > 0) {
+    console.log('\n📋 DETAILED STORE SUMMARY')
+    console.log('='.repeat(60))
+
+    const slowestStores = [...scrapeStats.stores]
+      .sort((a, b) => b.durationMs - a.durationMs)
+      .slice(0, 10)
+
+    for (const storeStat of slowestStores) {
+      const hitRate = storeStat.ingredientsAttempted > 0
+        ? ((storeStat.ingredientsWithHits / storeStat.ingredientsAttempted) * 100).toFixed(1)
+        : '0.0'
+      const stopLabel = storeStat.stopReason || (storeStat.skippedForErrors ? 'skipped' : 'completed')
+
+      console.log(
+        `- ${storeStat.storeEnum} (${storeStat.zipCode || 'no-zip'}) ` +
+        `time=${(storeStat.durationMs / 1000).toFixed(1)}s ` +
+        `hits=${storeStat.ingredientsWithHits}/${storeStat.ingredientsAttempted} (${hitRate}%) ` +
+        `prices=${storeStat.scrapedCount} ` +
+        `${DAILY_SCRAPER_DRY_RUN ? 'would_insert' : 'inserted'}=${storeStat.insertedCount} ` +
+        `errors=${storeStat.errorCount} chunks=${storeStat.chunkCount} stop=${stopLabel}`
+      )
+
+      if (storeStat.lastErrorMessage) {
+        console.log(`  last_error: ${truncateText(storeStat.lastErrorMessage, 180)}`)
+      }
+    }
+
+    const totals = scrapeStats.stores.reduce((acc, storeStat) => {
+      acc.totalErrors += storeStat.errorCount
+      acc.totalHitIngredients += storeStat.ingredientsWithHits
+      acc.totalIngredients += storeStat.ingredientsAttempted
+      acc.totalTarget404s += storeStat.target404Count
+      return acc
+    }, {
+      totalErrors: 0,
+      totalHitIngredients: 0,
+      totalIngredients: 0,
+      totalTarget404s: 0,
+    })
+
+    const overallHitRate = totals.totalIngredients > 0
+      ? ((totals.totalHitIngredients / totals.totalIngredients) * 100).toFixed(1)
+      : '0.0'
+
+    console.log('\nSummary Totals:')
+    console.log(`  Ingredient hit rate: ${totals.totalHitIngredients}/${totals.totalIngredients} (${overallHitRate}%)`)
+    console.log(`  Store errors: ${totals.totalErrors}`)
+    console.log(`  Target 404 events: ${totals.totalTarget404s}`)
+  }
 
   // Print 404 summary if there were any Target 404s
   if (scrapeStats?.target404s?.length > 0) {
@@ -829,7 +943,7 @@ async function main() {
       .forEach(([k, c]) => console.log(`  ${k}: ${c}`))
   }
 
-  if (inserted < scrapedCount * 0.2) {
+  if (!DAILY_SCRAPER_DRY_RUN && inserted < scrapedCount * 0.2) {
     console.error('\n❌ CRITICAL: <20% insertion success rate')
     process.exit(1)
   }
