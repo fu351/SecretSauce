@@ -59,6 +59,8 @@ const STORE_LIMIT = getIntEnv('STORE_LIMIT', 0, 0)
 const STORE_CONCURRENCY = getIntEnv('STORE_CONCURRENCY', 20, 1)
 const INGREDIENT_DELAY_MS = getIntEnv('INGREDIENT_DELAY_MS', 1000, 0)
 const INSERT_BATCH_SIZE = getIntEnv('INSERT_BATCH_SIZE', 500, 1)
+const INSERT_CONCURRENCY = getIntEnv('INSERT_CONCURRENCY', 1, 1)
+const INSERT_QUEUE_MAX_SIZE = getIntEnv('INSERT_QUEUE_MAX_SIZE', 0, 0)
 const SCRAPER_BATCH_SIZE = getIntEnv('SCRAPER_BATCH_SIZE', 20, 1)
 const SCRAPER_BATCH_CONCURRENCY = getIntEnv('SCRAPER_BATCH_CONCURRENCY', STORE_CONCURRENCY, 1)
 const MAX_CONSECUTIVE_STORE_ERRORS = getIntEnv('MAX_CONSECUTIVE_STORE_ERRORS', 10, 0)
@@ -530,31 +532,110 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
   }
 }
 
+class GlobalInsertQueue {
+  constructor({ batchSize, maxQueueSize, insertConcurrency }) {
+    this._queue = []
+    this._batchSize = batchSize
+    this._maxQueueSize = maxQueueSize
+    this._insertConcurrency = insertConcurrency
+    this._totalInserted = 0
+    this._drainError = null
+    this._activeInserts = 0
+    this._backpressureWaiters = []
+    this._concurrencyWaiters = []
+  }
+
+  async push(items) {
+    if (this._drainError) throw this._drainError
+    if (this._maxQueueSize > 0) {
+      while (this._queue.length >= this._maxQueueSize) {
+        await new Promise(resolve => this._backpressureWaiters.push(resolve))
+        if (this._drainError) throw this._drainError
+      }
+    }
+    this._queue.push(...items)
+    this._maybeFlush()
+  }
+
+  async drain() {
+    // Flush all remaining full batches
+    this._maybeFlush()
+    // Flush tail (items < batchSize)
+    while (this._queue.length > 0 || this._activeInserts > 0) {
+      if (this._queue.length > 0 && this._activeInserts < this._insertConcurrency) {
+        const batch = this._queue.splice(0, this._queue.length)
+        this._runInsert(batch)
+      } else {
+        await new Promise(resolve => this._concurrencyWaiters.push(resolve))
+      }
+      if (this._drainError) throw this._drainError
+    }
+  }
+
+  get totalInserted() {
+    return this._totalInserted
+  }
+
+  _maybeFlush() {
+    while (
+      this._queue.length >= this._batchSize &&
+      this._activeInserts < this._insertConcurrency
+    ) {
+      const batch = this._queue.splice(0, this._batchSize)
+      this._runInsert(batch)
+    }
+    this._notifyBackpressureWaiters()
+  }
+
+  _runInsert(batch) {
+    this._activeInserts += 1
+    bulkInsertIngredientHistory(batch)
+      .then(inserted => { this._totalInserted += inserted })
+      .catch(err => {
+        if (!this._drainError) this._drainError = err
+        this._notifyBackpressureWaiters()
+        this._notifyConcurrencyWaiters()
+      })
+      .finally(() => {
+        this._activeInserts -= 1
+        this._notifyConcurrencyWaiters()
+        this._maybeFlush()
+      })
+  }
+
+  _notifyBackpressureWaiters() {
+    if (!this._backpressureWaiters.length) return
+    if (this._drainError || !this._maxQueueSize || this._queue.length < this._maxQueueSize) {
+      const waiters = this._backpressureWaiters.splice(0)
+      for (const resolve of waiters) resolve()
+    }
+  }
+
+  _notifyConcurrencyWaiters() {
+    if (!this._concurrencyWaiters.length) return
+    if (this._drainError || this._activeInserts < this._insertConcurrency) {
+      const waiters = this._concurrencyWaiters.splice(0)
+      for (const resolve of waiters) resolve()
+    }
+  }
+}
+
 async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
   let skippedStoreCount = 0
   const scrapeStats = { target404s: [], stores: [] }
 
+  const insertQueue = new GlobalInsertQueue({
+    batchSize: INSERT_BATCH_SIZE,
+    maxQueueSize: INSERT_QUEUE_MAX_SIZE,
+    insertConcurrency: INSERT_CONCURRENCY,
+  })
+
   async function processStore(store, storeIndex) {
-    const pendingResults = []
     let localScrapedCount = 0
-    let localInsertedCount = 0
     let localChunkCount = 0
     let localIngredientsAttempted = 0
     let localIngredientsWithHits = 0
     const storeStartTime = Date.now()
-
-    async function flushPendingResults(force = false, reason = 'buffer checkpoint') {
-      if (!pendingResults.length) return
-      if (!force && pendingResults.length < INSERT_BATCH_SIZE) return
-
-      while (pendingResults.length >= INSERT_BATCH_SIZE || (force && pendingResults.length > 0)) {
-        const take = pendingResults.length >= INSERT_BATCH_SIZE ? INSERT_BATCH_SIZE : pendingResults.length
-        const batch = pendingResults.splice(0, take)
-        console.log(`💾 Flushing ${batch.length} buffered items (${reason})`)
-        const inserted = await bulkInsertIngredientHistory(batch)
-        localInsertedCount += inserted
-      }
-    }
 
     const storeEnum = normalizeStoreEnum(store.store_enum)
     const zipCode = normalizeZipCode(store.zip_code)
@@ -569,7 +650,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
 
     if (!zipCode) {
       console.warn(`⚠️ Skipping store ${storeEnum} (${store.id || 'unknown-id'}) due to invalid zip_code`)
-      return { scrapedCount: 0, insertedCount: 0, skippedForErrors: false, target404s: [] }
+      return { scrapedCount: 0, skippedForErrors: false, target404s: [] }
     }
 
     console.log(`\n🏬 Store ${storeIndex + 1}/${stores.length}: ${storeEnum} (${zipCode || 'no-zip'})`)
@@ -646,28 +727,25 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
         chunkIngredientHits += 1
         localIngredientsWithHits += 1
 
-        for (const result of validResults) {
-          pendingResults.push({
-            store: storeEnum,
-            price: result._price,
-            imageUrl: result.image_url || result.imageUrl || null,
-            productName: getProductName(result, ingredientName),
-            productId: result.product_id || result.id || null,
-            zipCode,
-            store_id: store.id || null,
-            rawUnit: result.rawUnit || result.unit || result.size || null,
-            unit: result.unit || null
-          })
-          localScrapedCount += 1
-        }
+        const itemsToQueue = validResults.map(result => ({
+          store: storeEnum,
+          price: result._price,
+          imageUrl: result.image_url || result.imageUrl || null,
+          productName: getProductName(result, ingredientName),
+          productId: result.product_id || result.id || null,
+          zipCode,
+          store_id: store.id || null,
+          rawUnit: result.rawUnit || result.unit || result.size || null,
+          unit: result.unit || null,
+        }))
+        await insertQueue.push(itemsToQueue)
+        localScrapedCount += itemsToQueue.length
         chunkPriceHits += validResults.length
       }
 
       console.log(
         `   ✅ Found ${chunkPriceHits} prices across ${chunkIngredientHits}/${chunk.length} ingredients in chunk`
       )
-      await flushPendingResults(false, `threshold reached at ${storeEnum} (${zipCode})`)
-
       if (skippedForErrors) {
         if (stopReason === 'http_404') {
           console.warn(
@@ -705,8 +783,6 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
       })
     }
 
-    await flushPendingResults(true, `store completed: ${storeEnum} (${zipCode})`)
-
     return {
       storeEnum,
       storeId: store.id || null,
@@ -719,7 +795,6 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
       stopReason,
       lastErrorMessage: lastErrorMessage || '',
       scrapedCount: localScrapedCount,
-      insertedCount: localInsertedCount,
       skippedForErrors,
       target404s: storeTarget404s,
     }
@@ -727,12 +802,13 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
 
   const storeResults = await mapWithConcurrency(stores, STORE_CONCURRENCY, processStore)
 
+  await insertQueue.drain()
+
   let totalScrapedCount = 0
-  let totalInsertedCount = 0
+  const totalInsertedCount = insertQueue.totalInserted
   for (const result of storeResults) {
     if (!result) continue
     totalScrapedCount += result.scrapedCount
-    totalInsertedCount += result.insertedCount
     if (result.skippedForErrors) skippedStoreCount += 1
     scrapeStats.target404s.push(...result.target404s)
     scrapeStats.stores.push({
@@ -744,7 +820,6 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
       ingredientsAttempted: result.ingredientsAttempted,
       ingredientsWithHits: result.ingredientsWithHits,
       scrapedCount: result.scrapedCount,
-      insertedCount: result.insertedCount,
       errorCount: result.errorCount,
       skippedForErrors: result.skippedForErrors,
       stopReason: result.stopReason,
@@ -826,6 +901,8 @@ async function main() {
   console.log(`   Default Batch Concurrency: ${SCRAPER_BATCH_CONCURRENCY}`)
   console.log(`   Max Consecutive Store Errors: ${MAX_CONSECUTIVE_STORE_ERRORS > 0 ? MAX_CONSECUTIVE_STORE_ERRORS : 'disabled'}`)
   console.log(`   Insert Batch Size: ${INSERT_BATCH_SIZE}`)
+  console.log(`   Insert Concurrency: ${INSERT_CONCURRENCY}`)
+  console.log(`   Insert Queue Max: ${INSERT_QUEUE_MAX_SIZE > 0 ? INSERT_QUEUE_MAX_SIZE : 'unlimited'}`)
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
@@ -892,7 +969,6 @@ async function main() {
         `time=${(storeStat.durationMs / 1000).toFixed(1)}s ` +
         `hits=${storeStat.ingredientsWithHits}/${storeStat.ingredientsAttempted} (${hitRate}%) ` +
         `prices=${storeStat.scrapedCount} ` +
-        `${DAILY_SCRAPER_DRY_RUN ? 'would_insert' : 'inserted'}=${storeStat.insertedCount} ` +
         `errors=${storeStat.errorCount} chunks=${storeStat.chunkCount} stop=${stopLabel}`
       )
 
