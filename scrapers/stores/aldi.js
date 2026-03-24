@@ -4,6 +4,7 @@ const { withScraperTimeout } = require('../utils/runtime-config');
 const { fetchJinaReader } = require('../utils/jina-client');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('aldi');
 
@@ -115,6 +116,9 @@ async function crawlAldiWithJina(keyword, zipCode) {
 
     } catch (error) {
         log.error("Error crawling with Jina AI after all retries:", error.message);
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({ storeEnum: 'aldi', zipCode, ingredientName: keyword, httpStatus: error.response.status, requestUrl: error.config?.url, errorMessage: error.message });
+        }
         return null;
     }
 }

@@ -4,6 +4,7 @@ const { withScraperTimeout } = require('../utils/runtime-config');
 const { fetchJinaReader } = require('../utils/jina-client');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('traderjoes');
 
@@ -90,6 +91,7 @@ const JINA_429_COOLDOWN_MS = Number(process.env.TRADERJOES_JINA_429_COOLDOWN_MS 
 const JINA_MAX_CONSECUTIVE_429 = Number(process.env.TRADERJOES_JINA_MAX_CONSECUTIVE_429 || 5);
 const JINA_COOLDOWN_SLEEP_CAP_MS = Number(process.env.TRADERJOES_JINA_COOLDOWN_SLEEP_CAP_MS || 10000);
 const TJ_CACHE_TTL_MS = Number(process.env.TRADERJOES_CACHE_TTL_MS || 5 * 60 * 1000);
+const TJ_CACHE_MAX_ENTRIES = Number(process.env.TRADERJOES_CACHE_MAX_ENTRIES || 5000);
 const DEFAULT_BATCH_CONCURRENCY = Number(process.env.TRADERJOES_BATCH_CONCURRENCY || 3);
 const MAX_BATCH_CONCURRENCY = 8;
 // 0 (default) means no cap: return all parsed products.
@@ -215,6 +217,28 @@ function setCachedResult(cacheKey, results) {
         fetchedAt: Date.now(),
         results,
     });
+}
+
+function sweepExpiredCacheEntries(now = Date.now()) {
+    for (const [cacheKey, entry] of traderJoesResultCache.entries()) {
+        if (now - entry.fetchedAt > TJ_CACHE_TTL_MS) {
+            traderJoesResultCache.delete(cacheKey);
+        }
+    }
+}
+
+function enforceTraderJoesCacheSizeCap() {
+    if (!Number.isFinite(TJ_CACHE_MAX_ENTRIES) || TJ_CACHE_MAX_ENTRIES <= 0) {
+        return;
+    }
+
+    while (traderJoesResultCache.size > TJ_CACHE_MAX_ENTRIES) {
+        const oldestCacheKey = traderJoesResultCache.keys().next().value;
+        if (oldestCacheKey === undefined) {
+            break;
+        }
+        traderJoesResultCache.delete(oldestCacheKey);
+    }
 }
 
 function toOptionalString(value) {
@@ -488,6 +512,9 @@ async function crawlTraderJoesWithJina(keyword) {
         }
 
         log.error("Error crawling with Jina AI after all retries:", error.message);
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({ storeEnum: 'traderjoes', ingredientName: keyword, httpStatus: error.response.status, requestUrl: error.config?.url, errorMessage: error.message });
+        }
         return null;
     }
 }
@@ -800,11 +827,16 @@ async function searchTraderJoesBatch(keywords, zipCode, options = {}) {
         }
     }
 
-    await Promise.all(Array.from({ length: concurrency }, () => worker()));
-    if (fatalRateLimitError) {
-        throw fatalRateLimitError;
+    try {
+        await Promise.all(Array.from({ length: concurrency }, () => worker()));
+        if (fatalRateLimitError) {
+            throw fatalRateLimitError;
+        }
+        return results;
+    } finally {
+        sweepExpiredCacheEntries();
+        enforceTraderJoesCacheSizeCap();
     }
-    return results;
 }
 
 // Function to generate fallback mock data

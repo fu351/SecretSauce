@@ -4,6 +4,7 @@ const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('walmart');
 
@@ -215,12 +216,14 @@ async function fetchWalmartSearchHtml(keyword, zipCode) {
         if (response.status === 404) {
             log.error(`[walmart] Walmart returned 404 for keyword "${keyword}"`);
             log.error(`[walmart] URL: ${url}`);
+            await logHttpErrorToDatabase({ storeEnum: 'walmart', zipCode, ingredientName: keyword, httpStatus: 404, requestUrl: url, errorMessage: `Walmart returned 404 for "${keyword}"` });
             return null;
         }
 
         if (response.status !== 200) {
             log.error(`[walmart] Walmart returned status ${response.status} for keyword "${keyword}"`);
             log.error(`[walmart] Response length: ${response.data?.length || 0} chars`);
+            await logHttpErrorToDatabase({ storeEnum: 'walmart', zipCode, ingredientName: keyword, httpStatus: response.status, requestUrl: url, errorMessage: `Walmart returned ${response.status} for "${keyword}"` });
             return null;
         }
 
@@ -234,6 +237,7 @@ async function fetchWalmartSearchHtml(keyword, zipCode) {
             log.error(`[walmart] HTTP error ${error.response.status} fetching search page:`, error.message);
             log.error(`[walmart] Request details: Keyword: "${keyword}", ZIP: ${zipCode || 'none'}`);
             log.error(`[walmart] URL: ${url}`);
+            await logHttpErrorToDatabase({ storeEnum: 'walmart', zipCode, ingredientName: keyword, httpStatus: error.response.status, requestUrl: url, errorMessage: error.message });
 
             // Log response data for debugging
             if (error.response.data) {

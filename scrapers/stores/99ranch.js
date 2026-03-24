@@ -2,6 +2,7 @@ const axios = require('axios');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 5000);
 const log = createScraperLogger('99ranch');
 
@@ -140,6 +141,9 @@ async function searchProducts(store, keyword, zipCode) {
         return res.data?.data?.list || [];
     } catch (error) {
         log.error("Error searching 99 Ranch products via API:", error.message);
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({ storeEnum: '99ranch', zipCode, storeId: String(store?.id), ingredientName: keyword, httpStatus: error.response.status, errorMessage: error.message });
+        }
         return [];
     }
 }

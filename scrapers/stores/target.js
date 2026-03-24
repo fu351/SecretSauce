@@ -3,6 +3,7 @@ const he = require('he');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 
 // Environment variables for configuration
 const TARGET_TIMEOUT_MS = Number(process.env.TARGET_TIMEOUT_MS || 10000);
@@ -42,50 +43,6 @@ const targetResultCache = new Map();
 // Maps cache key -> Promise
 const targetInFlight = new Map();
 
-// Helper function to log 404 errors to database for analysis
-async function log404ToDatabase({
-  storeEnum,
-  zipCode,
-  targetStoreId,
-  storeIdSource,
-  ingredientName,
-  groceryStoreId = null,
-  errorMessage,
-  requestUrl = null
-}) {
-  try {
-    // Only log if Supabase credentials are available
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      targetDebug('[target] Skipping 404 logging - Supabase not configured');
-      return;
-    }
-
-    const { createClient } = require('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const { error } = await supabase
-      .from('target_404_log')
-      .insert({
-        store_enum: storeEnum,
-        zip_code: zipCode,
-        target_store_id: targetStoreId,
-        store_id_source: storeIdSource,
-        ingredient_name: ingredientName,
-        grocery_store_id: groceryStoreId,
-        error_message: errorMessage,
-        http_status: 404,
-        request_url: requestUrl
-      });
-
-    if (error) throw error;
-  } catch (logError) {
-    // Don't let logging failures break the scraper
-    targetDebug('[target] Failed to log 404 to database:', logError.message);
-  }
-}
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
@@ -456,14 +413,14 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
             // Check response status
             if (response.status === 404) {
                 // Log to database for analysis
-                await log404ToDatabase({
+                await logHttpErrorToDatabase({
                     storeEnum: 'target',
-                    zipCode: zipCode,
-                    targetStoreId: storeId,
-                    storeIdSource: storeIdSource,
+                    zipCode,
+                    storeId,
+                    storeIdSource,
                     ingredientName: keyword,
                     errorMessage: `Target API returned 404 for "${keyword}" at store ${storeId}`,
-                    requestUrl: response.config?.url || null
+                    requestUrl: response.config?.url || null,
                 });
 
                 const error = new Error(`[target] API returned 404 for "${keyword}" at store ${storeId} (${zipCode})`);

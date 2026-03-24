@@ -2,6 +2,7 @@ const axios = require('axios');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 require('dotenv').config();
 const log = createScraperLogger('kroger');
 
@@ -201,6 +202,9 @@ async function getProducts(searchTerm, locationId, authToken, brand = '') {
         return withPrice;
     } catch (error) {
         log.error("[kroger] Error fetching products:", error.response?.data || error.message);
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({ storeEnum: 'kroger', storeId: locationId, ingredientName: searchTerm, httpStatus: error.response.status, errorMessage: error.message });
+        }
         return [];
     }
 }

@@ -3,6 +3,7 @@ const axios = require('axios');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
+const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const log = createScraperLogger('meijer');
 
 const { enforceRateLimit } = createRateLimiter({
@@ -144,6 +145,9 @@ async function searchMeijer(zipCode = 47906, searchTerm) {
         return sortedDetails;
     } catch (error) {
         log.error("Error fetching products:", error.response?.data || error.message);
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({ storeEnum: 'meijer', zipCode, storeId: String(storeId), ingredientName: searchTerm, httpStatus: error.response.status, errorMessage: error.message });
+        }
         throw new Error("Failed to fetch products from Meijer.");
     }
 }
