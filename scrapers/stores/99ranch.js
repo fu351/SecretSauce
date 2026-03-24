@@ -3,6 +3,9 @@ const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+
+const resultCache = createResultCache({ ttlMs: Number(process.env.RANCH99_CACHE_TTL_MS || 5 * 60 * 1000) });
 const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 5000);
 const log = createScraperLogger('99ranch');
 
@@ -169,6 +172,14 @@ function format99RanchStoreLocation(storeInfo, fallbackZip) {
 }
 
 async function search99Ranch(keyword, zipCode) {
+    const cacheKey = resultCache.buildKey(keyword, zipCode);
+    const cached = resultCache.get(cacheKey);
+    if (cached) return cached;
+
+    const inFlight = resultCache.getInFlight(cacheKey);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
     try {
         const userZip = (zipCode && zipCode.trim()) || DEFAULT_99_RANCH_ZIP
         let store = await getNearestStore(userZip);
@@ -208,10 +219,20 @@ async function search99Ranch(keyword, zipCode) {
             })
             .filter((p) => p.price != null && p.price > 0 && p.product_name);
 
-        return cleaned.sort((a, b) => a.price - b.price);
+        const results = cleaned.sort((a, b) => a.price - b.price);
+        if (results.length > 0) resultCache.set(cacheKey, results);
+        return results;
     } catch (error) {
         log.error("Error in 99 Ranch scraper:", error.message);
         return [];
+    }
+    })();
+
+    resultCache.setInFlight(cacheKey, promise);
+    try {
+        return await promise;
+    } finally {
+        resultCache.deleteInFlight(cacheKey);
     }
 }
 

@@ -5,6 +5,7 @@ const { fetchJinaReader } = require('../utils/jina-client');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('traderjoes');
 
@@ -109,9 +110,7 @@ const { enforceRateLimit } = createRateLimiter({
     label: '[traderjoes]',
 });
 
-// In-memory dedupe + cache to avoid duplicate crawl/LLM calls for identical queries.
-const traderJoesResultCache = new Map();
-const traderJoesInFlight = new Map();
+const resultCache = createResultCache({ ttlMs: TJ_CACHE_TTL_MS, maxEntries: TJ_CACHE_MAX_ENTRIES });
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -194,52 +193,6 @@ function normalizeKeyword(keyword) {
     return String(keyword || "").trim().toLowerCase();
 }
 
-function buildCacheKey(keyword, zipCode) {
-    return `${normalizeKeyword(keyword)}::${String(zipCode || "").trim()}`;
-}
-
-function getCachedResult(cacheKey) {
-    const cached = traderJoesResultCache.get(cacheKey);
-    if (!cached) {
-        return null;
-    }
-
-    if (Date.now() - cached.fetchedAt > TJ_CACHE_TTL_MS) {
-        traderJoesResultCache.delete(cacheKey);
-        return null;
-    }
-
-    return cached.results;
-}
-
-function setCachedResult(cacheKey, results) {
-    traderJoesResultCache.set(cacheKey, {
-        fetchedAt: Date.now(),
-        results,
-    });
-}
-
-function sweepExpiredCacheEntries(now = Date.now()) {
-    for (const [cacheKey, entry] of traderJoesResultCache.entries()) {
-        if (now - entry.fetchedAt > TJ_CACHE_TTL_MS) {
-            traderJoesResultCache.delete(cacheKey);
-        }
-    }
-}
-
-function enforceTraderJoesCacheSizeCap() {
-    if (!Number.isFinite(TJ_CACHE_MAX_ENTRIES) || TJ_CACHE_MAX_ENTRIES <= 0) {
-        return;
-    }
-
-    while (traderJoesResultCache.size > TJ_CACHE_MAX_ENTRIES) {
-        const oldestCacheKey = traderJoesResultCache.keys().next().value;
-        if (oldestCacheKey === undefined) {
-            break;
-        }
-        traderJoesResultCache.delete(oldestCacheKey);
-    }
-}
 
 function toOptionalString(value) {
     if (value === null || value === undefined) return "";
@@ -713,8 +666,8 @@ Return only the JSON array, no other text.`;
 
 // Main Trader Joe's search function
 async function searchTraderJoes(keyword, zipCode) {
-    const cacheKey = buildCacheKey(keyword, zipCode);
-    const cached = getCachedResult(cacheKey);
+    const cacheKey = resultCache.buildKey(keyword, zipCode);
+    const cached = resultCache.get(cacheKey);
     if (cached) {
         return cached;
     }
@@ -728,7 +681,7 @@ async function searchTraderJoes(keyword, zipCode) {
         );
     }
 
-    const existingInFlight = traderJoesInFlight.get(cacheKey);
+    const existingInFlight = resultCache.getInFlight(cacheKey);
     if (existingInFlight) {
         return existingInFlight;
     }
@@ -775,7 +728,7 @@ async function searchTraderJoes(keyword, zipCode) {
 
         log.debug(`Successfully extracted ${products.length} products from Trader Joe's`);
         const sorted = products.sort((a, b) => a.price - b.price);
-        setCachedResult(cacheKey, sorted);
+        resultCache.set(cacheKey, sorted);
         return sorted;
 
     } catch (error) {
@@ -787,11 +740,11 @@ async function searchTraderJoes(keyword, zipCode) {
     }
     })();
 
-    traderJoesInFlight.set(cacheKey, scrapePromise);
+    resultCache.setInFlight(cacheKey, scrapePromise);
     try {
         return await scrapePromise;
     } finally {
-        traderJoesInFlight.delete(cacheKey);
+        resultCache.deleteInFlight(cacheKey);
     }
 }
 
@@ -834,8 +787,7 @@ async function searchTraderJoesBatch(keywords, zipCode, options = {}) {
         }
         return results;
     } finally {
-        sweepExpiredCacheEntries();
-        enforceTraderJoesCacheSizeCap();
+        resultCache.sweep();
     }
 }
 

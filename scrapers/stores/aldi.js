@@ -5,6 +5,9 @@ const { fetchJinaReader } = require('../utils/jina-client');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+
+const resultCache = createResultCache({ ttlMs: Number(process.env.ALDI_CACHE_TTL_MS || 5 * 60 * 1000) });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('aldi');
 
@@ -302,6 +305,14 @@ Return only the JSON array, no other text.`;
 
 // Main Aldi search function
 async function searchAldi(keyword, zipCode) {
+    const cacheKey = resultCache.buildKey(keyword, zipCode);
+    const cached = resultCache.get(cacheKey);
+    if (cached) return cached;
+
+    const inFlight = resultCache.getInFlight(cacheKey);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
     try {
         // Step 1: Crawl Aldi page
         const crawledContent = await crawlAldiWithJina(keyword, zipCode);
@@ -315,7 +326,9 @@ async function searchAldi(keyword, zipCode) {
         const { products: regexProducts, hasUnresolved } = parseProductsWithRegex(crawledContent, keyword);
         if (regexProducts.length > 0) {
             log.debug(`Regex extracted ${regexProducts.length} products from Aldi`);
-            return regexProducts.sort((a, b) => a.price - b.price);
+            const results = regexProducts.sort((a, b) => a.price - b.price);
+            resultCache.set(cacheKey, results);
+            return results;
         }
 
         // Step 3: Regex found nothing — fall back to LLM
@@ -327,7 +340,9 @@ async function searchAldi(keyword, zipCode) {
                 return [];
             }
             log.debug(`LLM extracted ${products.length} products from Aldi`);
-            return products.sort((a, b) => a.price - b.price);
+            const results = products.sort((a, b) => a.price - b.price);
+            resultCache.set(cacheKey, results);
+            return results;
         }
 
         log.debug("No products found from Aldi");
@@ -336,6 +351,14 @@ async function searchAldi(keyword, zipCode) {
     } catch (error) {
         log.error("Error in Aldi search:", error.message, "- real-time prices unavailable");
         return [];
+    }
+    })();
+
+    resultCache.setInFlight(cacheKey, promise);
+    try {
+        return await promise;
+    } finally {
+        resultCache.deleteInFlight(cacheKey);
     }
 }
 

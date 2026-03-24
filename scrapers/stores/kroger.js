@@ -3,6 +3,9 @@ const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+
+const resultCache = createResultCache({ ttlMs: Number(process.env.KROGER_CACHE_TTL_MS || 5 * 60 * 1000) });
 require('dotenv').config();
 const log = createScraperLogger('kroger');
 
@@ -229,6 +232,14 @@ function formatKrogerStoreLocation(storeInfo, fallbackZip) {
 
 // Main function to fetch products from Kroger
 async function searchKroger(zipCode = 47906, searchTerm, brand = '') {
+    const cacheKey = resultCache.buildKey(searchTerm, zipCode);
+    const cached = resultCache.get(cacheKey);
+    if (cached) return cached;
+
+    const inFlight = resultCache.getInFlight(cacheKey);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
     try {
         const token = await getAuthToken();
         if (!token) {
@@ -254,13 +265,23 @@ async function searchKroger(zipCode = 47906, searchTerm, brand = '') {
         });
 
         const products = await getProducts(searchTerm, resolvedStore.locationId, token, brand);
-        return products.map((product) => ({
+        const results = products.map((product) => ({
             ...product,
             location: locationLabel,
         }));
+        if (results.length > 0) resultCache.set(cacheKey, results);
+        return results;
     } catch (error) {
         log.error("[kroger] Error in searchKroger function:", error.message || error);
         return [];
+    }
+    })();
+
+    resultCache.setInFlight(cacheKey, promise);
+    try {
+        return await promise;
+    } finally {
+        resultCache.deleteInFlight(cacheKey);
     }
 }
 

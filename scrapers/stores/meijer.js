@@ -4,6 +4,9 @@ const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+
+const resultCache = createResultCache({ ttlMs: Number(process.env.MEIJER_CACHE_TTL_MS || 5 * 60 * 1000) });
 const log = createScraperLogger('meijer');
 
 const { enforceRateLimit } = createRateLimiter({
@@ -46,6 +49,23 @@ async function getLocations(zipCode) {
 
 // Function to fetch products from Meijer
 async function searchMeijer(zipCode = 47906, searchTerm) {
+    const cacheKey = resultCache.buildKey(searchTerm, zipCode);
+    const cached = resultCache.get(cacheKey);
+    if (cached) return cached;
+
+    const inFlight = resultCache.getInFlight(cacheKey);
+    if (inFlight) return inFlight;
+
+    const promise = _searchMeijerUncached(zipCode, searchTerm, cacheKey);
+    resultCache.setInFlight(cacheKey, promise);
+    try {
+        return await promise;
+    } finally {
+        resultCache.deleteInFlight(cacheKey);
+    }
+}
+
+async function _searchMeijerUncached(zipCode, searchTerm, cacheKey) {
     try {
         let storeInfo = null;
         try {
@@ -142,6 +162,7 @@ async function searchMeijer(zipCode = 47906, searchTerm) {
             .sort((a, b) => a.price - b.price)
             .slice(0, 10);
 
+        if (sortedDetails.length > 0) resultCache.set(cacheKey, sortedDetails);
         return sortedDetails;
     } catch (error) {
         log.error("Error fetching products:", error.response?.data || error.message);

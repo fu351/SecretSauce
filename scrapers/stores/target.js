@@ -4,6 +4,7 @@ const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
 
 // Environment variables for configuration
 const TARGET_TIMEOUT_MS = Number(process.env.TARGET_TIMEOUT_MS || 10000);
@@ -35,13 +36,7 @@ const { enforceRateLimit } = createRateLimiter({
 // Maps ZIP code -> store info object
 const storeCache = new Map();
 
-// Result cache to avoid redundant product searches
-// Maps cache key (keyword::zipCode) -> { fetchedAt, results }
-const targetResultCache = new Map();
-
-// In-flight request tracking to prevent duplicate concurrent requests
-// Maps cache key -> Promise
-const targetInFlight = new Map();
+const resultCache = createResultCache({ ttlMs: TARGET_CACHE_TTL_MS });
 
 
 // Utility function to handle timeouts
@@ -109,40 +104,6 @@ async function withRetry(fn, options = {}) {
     throw lastError;
 }
 
-// Normalize keyword for consistent cache keys
-function normalizeKeyword(keyword) {
-    return String(keyword || "").trim().toLowerCase();
-}
-
-// Build cache key from keyword and zipCode
-function buildCacheKey(keyword, zipCode) {
-    return `${normalizeKeyword(keyword)}::${String(zipCode || "").trim()}`;
-}
-
-// Get cached result if available and not expired
-function getCachedResult(cacheKey) {
-    const cached = targetResultCache.get(cacheKey);
-    if (!cached) return null;
-
-    // Check if cache entry has expired
-    if (Date.now() - cached.fetchedAt > TARGET_CACHE_TTL_MS) {
-        targetResultCache.delete(cacheKey);
-        targetDebug(`[target] Cache expired for key: ${cacheKey}`);
-        return null;
-    }
-
-    targetDebug(`[target] Cache hit for key: ${cacheKey} (age: ${Date.now() - cached.fetchedAt}ms)`);
-    return cached.results;
-}
-
-// Store result in cache
-function setCachedResult(cacheKey, results) {
-    targetResultCache.set(cacheKey, {
-        fetchedAt: Date.now(),
-        results,
-    });
-    targetDebug(`[target] Cached ${results.length} results for key: ${cacheKey}`);
-}
 
 async function getNearestStore(zipCode) {
     // Check cache first to avoid redundant API calls
@@ -295,20 +256,20 @@ function resolveTargetStoreId(storeMetadata) {
 
 // Function to fetch products from Target API
 async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
-    // Build cache key for result caching
-    const cacheKey = buildCacheKey(keyword, zipCode);
+    const cacheKey = resultCache.buildKey(keyword, zipCode);
 
     // Check cache first
-    const cachedResult = getCachedResult(cacheKey);
+    const cachedResult = resultCache.get(cacheKey);
     if (cachedResult) {
         return cachedResult;
     }
 
     // Check if there's already an in-flight request for the same search
-    if (targetInFlight.has(cacheKey)) {
+    const existingInFlight = resultCache.getInFlight(cacheKey);
+    if (existingInFlight) {
         targetDebug(`[target] Waiting for in-flight request: ${cacheKey}`);
         try {
-            return await targetInFlight.get(cacheKey);
+            return await existingInFlight;
         } catch (error) {
             // If the in-flight request failed, we'll retry below
             targetDebug(`[target] In-flight request failed for ${cacheKey}, retrying`);
@@ -553,22 +514,18 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
         }
     })();
 
-    // Store the promise in the in-flight map
-    targetInFlight.set(cacheKey, requestPromise);
+    resultCache.setInFlight(cacheKey, requestPromise);
 
     try {
-        // Wait for the request to complete
         const results = await requestPromise;
 
-        // Cache the results if successful
         if (results && results.length > 0) {
-            setCachedResult(cacheKey, results);
+            resultCache.set(cacheKey, results);
         }
 
         return results;
     } finally {
-        // Always clean up the in-flight map
-        targetInFlight.delete(cacheKey);
+        resultCache.deleteInFlight(cacheKey);
     }
 }
 

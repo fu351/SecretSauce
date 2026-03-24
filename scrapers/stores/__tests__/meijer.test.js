@@ -22,8 +22,10 @@ patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
 
-delete _require.cache[_require.resolve('../meijer.js')]
-const { Meijers } = _require('../meijer.js')
+function loadModule() {
+  delete _require.cache[_require.resolve('../meijer.js')]
+  return _require('../meijer.js').Meijers
+}
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -72,11 +74,14 @@ function setupHappyPath(products) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('Meijers', () => {
+  let Meijers
+
   beforeEach(() => {
     mockAxios.mockReset()
     mockGet.mockReset()
     // Restore .get after reset (reset doesn't delete properties)
     mockAxios.get = mockGet
+    Meijers = loadModule()
   })
 
   // ── Happy path ──────────────────────────────────────────────────────────────

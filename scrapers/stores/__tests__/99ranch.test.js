@@ -21,8 +21,10 @@ patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
 
-delete _require.cache[_require.resolve('../99ranch.js')]
-const { search99Ranch } = _require('../99ranch.js')
+function loadModule() {
+  delete _require.cache[_require.resolve('../99ranch.js')]
+  return _require('../99ranch.js').search99Ranch
+}
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -67,10 +69,13 @@ function setupHappyPath(products = [makeProduct()]) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('search99Ranch', () => {
+  let search99Ranch
+
   beforeEach(() => {
     mockPost.mockReset()
     mockAxios.mockReset()
     mockAxios.post = mockPost
+    search99Ranch = loadModule()
   })
 
   // ── Happy path ──────────────────────────────────────────────────────────────

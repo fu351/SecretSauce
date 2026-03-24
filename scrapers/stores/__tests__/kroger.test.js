@@ -22,9 +22,10 @@ patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
 
-// Force fresh load of source with mocked deps
-delete _require.cache[_require.resolve('../kroger.js')]
-const { Krogers } = _require('../kroger.js')
+function loadModule() {
+  delete _require.cache[_require.resolve('../kroger.js')]
+  return _require('../kroger.js').Krogers
+}
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -88,10 +89,13 @@ function setupHappyPath(products = [makeProduct()]) {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('Krogers', () => {
+  let Krogers
+
   beforeEach(() => {
     mockPost.mockReset()
     mockGet.mockReset()
     mockAxios.mockReset()
+    Krogers = loadModule()
   })
 
   // ── Happy path ──────────────────────────────────────────────────────────────

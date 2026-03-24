@@ -5,6 +5,9 @@ const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
+const { createResultCache } = require('../utils/result-cache');
+
+const resultCache = createResultCache({ ttlMs: Number(process.env.WALMART_CACHE_TTL_MS || 5 * 60 * 1000) });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('walmart');
 
@@ -754,27 +757,44 @@ async function searchWalmartWithExa(keyword, zipCode) {
 }
 
 async function searchWalmart(keyword, zipCode) {
-    const directResults = await searchWalmartDirect(keyword, zipCode);
-    const exaResults = await searchWalmartWithExa(keyword, zipCode);
+    const cacheKey = resultCache.buildKey(keyword, zipCode);
+    const cached = resultCache.get(cacheKey);
+    if (cached) return cached;
 
-    const merged = [];
-    const seenKeys = new Set();
-    const pushResult = (item) => {
-        if (!item) return;
-        const key = item.product_id || item.id || `${item.title}-${item.price}`;
-        if (seenKeys.has(key)) return;
-        seenKeys.add(key);
-        merged.push(item);
-    };
+    const inFlight = resultCache.getInFlight(cacheKey);
+    if (inFlight) return inFlight;
 
-    directResults.forEach(pushResult);
-    exaResults.forEach(pushResult);
+    const promise = (async () => {
+        const directResults = await searchWalmartDirect(keyword, zipCode);
+        const exaResults = await searchWalmartWithExa(keyword, zipCode);
 
-    if (merged.length === 0) {
-        return directResults.length > 0 ? directResults : exaResults;
+        const merged = [];
+        const seenKeys = new Set();
+        const pushResult = (item) => {
+            if (!item) return;
+            const key = item.product_id || item.id || `${item.title}-${item.price}`;
+            if (seenKeys.has(key)) return;
+            seenKeys.add(key);
+            merged.push(item);
+        };
+
+        directResults.forEach(pushResult);
+        exaResults.forEach(pushResult);
+
+        const results = merged.length === 0
+            ? (directResults.length > 0 ? directResults : exaResults)
+            : merged.sort((a, b) => a.price - b.price);
+
+        if (results.length > 0) resultCache.set(cacheKey, results);
+        return results;
+    })();
+
+    resultCache.setInFlight(cacheKey, promise);
+    try {
+        return await promise;
+    } finally {
+        resultCache.deleteInFlight(cacheKey);
     }
-
-    return merged.sort((a, b) => a.price - b.price);
 }
 
 // Legacy function for backwards compatibility
