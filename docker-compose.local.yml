@@ -43,5 +43,34 @@ services:
       - OLLAMA_BASE_URL=http://ollama:11434
       - EMBEDDING_OPENAI_MODEL=nomic-embed-text
 
+  # Monthly vector double-check candidate discovery — scans for high-similarity
+  # ingredient pairs that haven't been reviewed yet and queues them for review.
+  vector-double-check-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.embedding-worker
+    command: ["node_modules/.bin/tsx", "scripts/resolve-vector-double-check.ts"]
+    env_file:
+      - .env.local
+    environment:
+      - EMBEDDING_OPENAI_MODEL=nomic-embed-text
+      - VECTOR_DC_DRY_RUN=false
+      - VECTOR_DC_SIMILARITY_THRESHOLD=0.9
+
+  # Canonical consolidation worker — merges duplicate/near-duplicate canonicals
+  # identified by the vector double-check worker. Defaults to dry-run; set
+  # CONSOLIDATION_DRY_RUN=false to apply merges.
+  canonical-consolidation-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.embedding-worker
+    command: ["node_modules/.bin/tsx", "scripts/resolve-canonical-consolidation.ts"]
+    env_file:
+      - .env.local
+    environment:
+      - CONSOLIDATION_DRY_RUN=true
+      - CONSOLIDATION_MIN_SIMILARITY=0.92
+      - CONSOLIDATION_MIN_EVENT_COUNT=1
+
 volumes:
   ollama-data:
