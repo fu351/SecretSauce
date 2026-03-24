@@ -232,7 +232,7 @@ jobs:
 
       - name: Install dependencies
         timeout-minutes: 15
-        run: npm install --legacy-peer-deps --prefix scripts
+        run: npm ci --prefix scripts
 
       - name: Expose scripts dependencies to shared imports
         run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
@@ -260,6 +260,7 @@ jobs:
           SCRAPER_BATCH_CONCURRENCY: ${{ needs['load-config'].outputs.scraper_batch_concurrency }}
           TRADERJOES_BATCH_SIZE: ${{ needs['load-config'].outputs.traderjoes_batch_size }}
           TRADERJOES_BATCH_CONCURRENCY: ${{ needs['load-config'].outputs.traderjoes_batch_concurrency }}
+          NODE_ENV: production
         run: |
           set -euo pipefail
 
