@@ -157,61 +157,6 @@ function normalizeKeyword(keyword) {
     return String(keyword || "").trim().toLowerCase();
 }
 
-// Check if product title is relevant to the search keywords
-function isRelevantProduct(title, keywords) {
-    const normalizedTitle = normalizeKeyword(title || '');
-    
-    // For single keyword searches, be more lenient (allow singular/plural)
-    if (keywords.length === 1) {
-        const keyword = keywords[0];
-        const keywordBase = keyword.replace(/s$/, ''); // Remove trailing 's' for plural
-        
-        // Check exact match, singular form, or plural form
-        if (normalizedTitle.includes(keyword)) return true;
-        if (normalizedTitle.includes(keywordBase)) return true;
-        if (normalizedTitle.includes(keywordBase + 's')) return true;
-        
-        return false;
-    }
-    
-    // For multi-keyword searches, require at least one significant keyword match
-    // This filters out completely irrelevant results while allowing related products
-    const significantKeywords = keywords.filter(w => w.length > 3); // Focus on meaningful words
-    if (significantKeywords.length === 0) return true; // No significant keywords, keep all
-    
-    // Check if title contains at least one significant keyword (with singular/plural handling)
-    // For very specific searches (like "organic eggs"), we want products that match the intent
-    const matches = significantKeywords.map(keyword => {
-        const keywordBase = keyword.replace(/s$/, '');
-        return normalizedTitle.includes(keyword) || 
-               normalizedTitle.includes(keywordBase) ||
-               normalizedTitle.includes(keywordBase + 's');
-    });
-    
-    // Require at least one match, but prefer matches on more specific/less common words
-    // For "organic eggs", "eggs" is more specific than "organic"
-    const hasMatch = matches.some(m => m);
-    if (!hasMatch) return false;
-    
-    // If we have multiple keywords and only common words match, be more selective
-    // For example, "chicken breast" - if only "chicken" matches but not "breast", it's less relevant
-    if (keywords.length >= 2 && matches.filter(m => m).length === 1) {
-        // Check if the unmatched keyword is more specific (longer or less common)
-        const matchedIndex = matches.findIndex(m => m);
-        const matchedKeyword = significantKeywords[matchedIndex];
-        const unmatchedKeywords = significantKeywords.filter((_, i) => i !== matchedIndex);
-        
-        // If unmatched keywords are longer/more specific, the match is less relevant
-        const unmatchedMoreSpecific = unmatchedKeywords.some(k => k.length > matchedKeyword.length);
-        if (unmatchedMoreSpecific) {
-            // Still keep it, but it's a borderline case
-            return true;
-        }
-    }
-    
-    return true;
-}
-
 // Build cache key from keyword and zipCode
 function buildCacheKey(keyword, zipCode) {
     return `${normalizeKeyword(keyword)}::${String(zipCode || "").trim()}`;
@@ -618,32 +563,7 @@ async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "pric
                 removed: withPrice.length - deduplicated.length
             });
 
-            // Filter for relevance: products should be relevant to the search term
-            const keywordWords = normalizeKeyword(keyword).split(/\s+/).filter(w => w.length > 2); // Ignore words <= 2 chars
-            const relevantProducts = deduplicated.filter(product => {
-                const title = product.title || product.product_name || '';
-                const isRelevant = isRelevantProduct(title, keywordWords);
-                if (!isRelevant) {
-                    targetDebug(`[target] Filtering irrelevant product: "${title.substring(0, 60)}"`);
-                }
-                return isRelevant;
-            });
-
-            // If filtering removed too many results (>40%), keep the original results
-            // This handles cases where the API returns related but not exact matches
-            const relevanceFilterRatio = relevantProducts.length / deduplicated.length;
-            const filteredProducts = relevanceFilterRatio >= 0.4 ? relevantProducts : deduplicated;
-
-            if (relevanceFilterRatio < 0.4) {
-                targetDebug(`[target] Relevance filter too aggressive (kept ${(relevanceFilterRatio * 100).toFixed(1)}%), using all deduplicated results`);
-            } else {
-                targetDebug("[target] Relevance filtering", {
-                    before: deduplicated.length,
-                    after: relevantProducts.length,
-                    removed: deduplicated.length - relevantProducts.length
-                });
-            }
-
+            const filteredProducts = deduplicated;
             filteredProducts.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
             targetDebug(`[target] Successfully fetched ${filteredProducts.length} products with prices`);
             return filteredProducts;
