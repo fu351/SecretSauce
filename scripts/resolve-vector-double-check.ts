@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "../queue/vector-double-check-worker/config"
-import * as processorModule from "../queue/vector-double-check-worker/processor"
-import type { VectorDoubleCheckWorkerConfig } from "../queue/vector-double-check-worker/config"
-import type { VectorDoubleCheckRunSummary } from "../queue/vector-double-check-worker/processor"
+import * as configModule from "../workers/vector-double-check-worker/config"
+import * as processorModule from "../workers/vector-double-check-worker/processor"
+import type { VectorDoubleCheckWorkerConfig } from "../workers/vector-double-check-worker/config"
+import type { VectorDoubleCheckRunSummary } from "../workers/vector-double-check-worker/processor"
 
 const getVectorDoubleCheckWorkerConfigFromEnv =
   (configModule as { getVectorDoubleCheckWorkerConfigFromEnv?: unknown }).getVectorDoubleCheckWorkerConfigFromEnv ??

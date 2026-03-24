@@ -6,10 +6,10 @@ Last verified: 2026-03-23.
 
 Core files:
 
-- `queue/index.ts`
-- `queue/config.ts`
-- `queue/ingredient-worker/processor.ts`
-- `queue/ingredient-worker/runner.ts`
+- `workers/index.ts`
+- `workers/config.ts`
+- `workers/ingredient-worker/processor.ts`
+- `workers/ingredient-worker/runner.ts`
 
 ### Responsibilities
 
@@ -29,7 +29,7 @@ Core files:
 
 Vector matching policy is implemented in:
 
-- `queue/ingredient-worker/scoring/vector-match.ts`
+- `workers/ingredient-worker/scoring/vector-match.ts`
 
 The effective score combines cosine similarity with bonuses/penalties (head/lexical/category/form) and is used for fast-path and semantic dedup flows.
 
@@ -37,9 +37,9 @@ The effective score combines cosine similarity with bonuses/penalties (head/lexi
 
 Core files:
 
-- `queue/embedding-worker/config.ts`
-- `queue/embedding-worker/processor.ts`
-- `queue/embedding-worker/runner.ts`
+- `workers/embedding-worker/config.ts`
+- `workers/embedding-worker/processor.ts`
+- `workers/embedding-worker/runner.ts`
 - `scripts/resolve-embedding-queue.ts`
 
 Responsibilities:
@@ -61,9 +61,9 @@ Note: the DB vector columns are currently sized for `vector(768)` (Ollama/nomic-
 
 Core files:
 
-- `queue/vector-double-check-worker/config.ts`
-- `queue/vector-double-check-worker/processor.ts`
-- `queue/vector-double-check-worker/runner.ts`
+- `workers/vector-double-check-worker/config.ts`
+- `workers/vector-double-check-worker/processor.ts`
+- `workers/vector-double-check-worker/runner.ts`
 - `scripts/resolve-vector-double-check.ts`
 
 Purpose:
@@ -79,10 +79,10 @@ Run via `docker compose -f docker-compose.local.yml run --rm vector-double-check
 
 Core files:
 
-- `queue/canonical-consolidation-worker/config.ts`
-- `queue/canonical-consolidation-worker/processor.ts`
-- `queue/canonical-consolidation-worker/runner.ts`
-- `queue/canonical-consolidation-worker/survivor.ts`
+- `workers/canonical-consolidation-worker/config.ts`
+- `workers/canonical-consolidation-worker/processor.ts`
+- `workers/canonical-consolidation-worker/runner.ts`
+- `workers/canonical-consolidation-worker/survivor.ts`
 - `scripts/resolve-canonical-consolidation.ts`
 - `lib/database/canonical-consolidation-db.ts`
 
