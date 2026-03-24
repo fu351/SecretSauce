@@ -82,15 +82,12 @@ services:
       dockerfile: docker/Dockerfile.daily-scraper
     env_file:
       - .env.local
+      - docker/compose/local/daily-scraper.shared.env
     environment:
-      - DAILY_SCRAPER_DRY_RUN=true
-      - DAILY_SCRAPER_SUMMARY_MODE=detailed
       - STORE_LIMIT=10
-      - INGREDIENT_LIMIT= 0
+      - INGREDIENT_LIMIT=0
       - STORE_CONCURRENCY=5
       - SCRAPER_BATCH_CONCURRENCY=5
-      - SCRAPER_BATCH_SIZE=5
-      - INGREDIENT_DELAY_MS=0
 
 volumes:
   ollama-data:
