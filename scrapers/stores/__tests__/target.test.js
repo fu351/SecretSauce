@@ -127,14 +127,14 @@ describe('getTargetProducts', () => {
     expect(results[0].target_store_id).toBe('T999')
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves API product order', async () => {
     setupHappyPath([
       makeProduct({ tcin: 'P3', title: 'Expensive Milk', price: 7.99 }),
       makeProduct({ tcin: 'P1', title: 'Cheap Milk', price: 2.49 }),
       makeProduct({ tcin: 'P2', title: 'Mid Milk', price: 4.99 }),
     ])
     const results = await getTargetProducts('milk', null, '94704')
-    expect(results.map((r) => r.price)).toEqual([2.49, 4.99, 7.99])
+    expect(results.map((r) => r.product_id)).toEqual(['P3', 'P1', 'P2'])
   })
 
   it('filters out products with null price', async () => {

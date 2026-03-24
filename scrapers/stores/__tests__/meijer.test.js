@@ -109,23 +109,23 @@ describe('Meijers', () => {
     expect(results[0].location).toContain('Lansing')
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves upstream product order', async () => {
     setupHappyPath([
       makeProduct({ id: 'P3', description: 'expensive milk', value: 'Expensive Milk', price: 6.99 }),
       makeProduct({ id: 'P1', description: 'cheap milk', value: 'Cheap Milk', price: 1.99 }),
       makeProduct({ id: 'P2', description: 'mid milk', value: 'Mid Milk', price: 4.49 }),
     ])
     const results = await Meijers('47906', 'milk')
-    expect(results.map((r) => r.price)).toEqual([1.99, 4.49, 6.99])
+    expect(results.map((r) => r.id)).toEqual(['P3', 'P1', 'P2'])
   })
 
-  it('limits results to 10 items', async () => {
+  it('does not cap results in the scraper', async () => {
     const products = Array.from({ length: 15 }, (_, i) =>
       makeProduct({ id: `P${i}`, description: `milk ${i}`, value: `Milk ${i}`, price: i + 1 })
     )
     setupHappyPath(products)
     const results = await Meijers('47906', 'milk')
-    expect(results).toHaveLength(10)
+    expect(results).toHaveLength(15)
   })
 
   // ── Filtering ───────────────────────────────────────────────────────────────

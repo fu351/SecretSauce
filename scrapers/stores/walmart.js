@@ -19,7 +19,6 @@ const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 15000);
 const WALMART_TIMEOUT_MS = Number(process.env.WALMART_TIMEOUT_MS || 15000);
 const WALMART_MAX_RETRIES = Number(process.env.WALMART_MAX_RETRIES || 2);
 // 0 means no cap: return all parsed products.
-const WALMART_MAX_RESULTS = Number(process.env.WALMART_MAX_RESULTS || process.env.SCRAPER_MAX_RESULTS || 0);
 const WALMART_RETRY_DELAY_MS = Number(process.env.WALMART_RETRY_DELAY_MS || 1000);
 
 // Rate limiting configuration
@@ -650,7 +649,7 @@ Return only the JSON array, no other text.`;
         
         // Validate and format products
         const filtered = products.filter(product => product.title && product.price && product.price > 0);
-        return (WALMART_MAX_RESULTS > 0 ? filtered.slice(0, WALMART_MAX_RESULTS) : filtered)
+        return filtered
             .map(product => {
                 const productName = String(product.title || "").trim();
                 const productIdRaw = product.id ?? null;
@@ -704,7 +703,7 @@ async function searchWalmartWithExa(keyword, zipCode) {
         }
 
         log.debug(`Successfully extracted ${products.length} products from Walmart`);
-        return products.sort((a, b) => a.price - b.price);  // Sort by price
+        return products;
 
     } catch (error) {
         log.error("Error in Walmart Exa search:", error.message, "- real-time prices unavailable");
@@ -731,7 +730,7 @@ async function searchWalmart(keyword, zipCode) {
 
         const results = mergedResults.length === 0
             ? (directResults.length > 0 ? directResults : exaResults)
-            : mergedResults.sort((a, b) => a.price - b.price);
+            : mergedResults;
 
         if (results.length > 0) resultCache.set(cacheKey, results);
         return results;

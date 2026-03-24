@@ -116,7 +116,7 @@ describe('searchTraderJoes', () => {
     expect(item.location).toBe("Trader Joe's Store")
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves parser order from markdown', async () => {
     const markdown = [
       makeMarkdownBlock({ name: 'Expensive Milk', productUrl: 'https://www.traderjoes.com/home/products/pdp/exp-10001', price: '7.99', unit: '1 gal' }),
       makeMarkdownBlock({ name: 'Cheap Milk', productUrl: 'https://www.traderjoes.com/home/products/pdp/chp-10002', price: '2.99', unit: '1 qt' }),
@@ -124,7 +124,7 @@ describe('searchTraderJoes', () => {
     ].join('\n')
     mockFetchJinaReader.mockResolvedValueOnce({ data: markdown })
     const results = await searchTraderJoes('milk', '94704')
-    expect(results.map((r) => r.price)).toEqual([2.99, 4.99, 7.99])
+    expect(results.map((r) => r.id)).toEqual(['10001', '10002', '10003'])
   })
 
   it('deduplicates products by id', async () => {

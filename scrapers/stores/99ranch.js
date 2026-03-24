@@ -219,7 +219,7 @@ async function search99Ranch(keyword, zipCode) {
             })
             .filter((p) => p.price != null && p.price > 0 && p.product_name);
 
-        const results = cleaned.sort((a, b) => a.price - b.price);
+        const results = cleaned;
         if (results.length > 0) resultCache.set(cacheKey, results);
         return results;
     } catch (error) {

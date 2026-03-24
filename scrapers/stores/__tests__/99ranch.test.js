@@ -104,14 +104,14 @@ describe('search99Ranch', () => {
     expect(results[0].location).toBe('1025 University Ave, Berkeley, CA 94710')
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves upstream product order', async () => {
     setupHappyPath([
       makeProduct({ productName: 'Expensive Rice', salePrice: 12.99, productId: 'R3' }),
       makeProduct({ productName: 'Cheap Rice', salePrice: 4.99, productId: 'R1' }),
       makeProduct({ productName: 'Mid Rice', salePrice: 7.99, productId: 'R2' }),
     ])
     const results = await search99Ranch('rice', '94709')
-    expect(results.map((r) => r.price)).toEqual([4.99, 7.99, 12.99])
+    expect(results.map((r) => r.product_id)).toEqual(['R3', 'R1', 'R2'])
   })
 
   it('uses productNameEN when productName is missing', async () => {

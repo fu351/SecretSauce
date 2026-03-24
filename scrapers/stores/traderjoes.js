@@ -40,7 +40,6 @@ const TJ_CACHE_MAX_ENTRIES = Number(process.env.TRADERJOES_CACHE_MAX_ENTRIES || 
 const DEFAULT_BATCH_CONCURRENCY = Number(process.env.TRADERJOES_BATCH_CONCURRENCY || 3);
 const MAX_BATCH_CONCURRENCY = 8;
 // 0 (default) means no cap: return all parsed products.
-const TJ_MAX_RESULTS = Number(process.env.TRADERJOES_MAX_RESULTS || process.env.SCRAPER_MAX_RESULTS || 0);
 const TJ_LLM_PRODUCT_FALLBACK_LIMIT = Number(process.env.TRADERJOES_LLM_PRODUCT_FALLBACK_LIMIT || 8);
 
 const { enforceRateLimit } = createRateLimiter({
@@ -251,28 +250,6 @@ function normalizeTraderJoesProduct(rawProduct) {
     };
 }
 
-function scoreProductRelevance(productName, keyword) {
-    const name = toOptionalString(productName).toLowerCase();
-    const normalizedKeyword = normalizeKeyword(keyword);
-    if (!name || !normalizedKeyword) return 0;
-
-    const tokens = normalizedKeyword.split(/\s+/).filter(Boolean);
-    let score = 0;
-
-    if (name.includes(normalizedKeyword)) {
-        score += 100;
-    }
-
-    for (const token of tokens) {
-        if (token.length < 2) continue;
-        if (name.includes(token)) {
-            score += 10;
-        }
-    }
-
-    return score;
-}
-
 function dedupeProducts(products) {
     return resultCache.dedupe(products, {
         getKey: (product) => {
@@ -284,24 +261,6 @@ function dedupeProducts(products) {
                 : `name:${nameKey}|price:${Number.isFinite(priceKey) ? priceKey.toFixed(2) : "na"}`;
         }
     });
-}
-
-function rankAndLimitProducts(products, keyword, limit = TJ_MAX_RESULTS) {
-    const ranked = products
-        .map(product => ({
-            ...product,
-            _relevanceScore: scoreProductRelevance(product?.product_name || product?.title, keyword),
-        }))
-        .sort((a, b) => {
-            if (b._relevanceScore !== a._relevanceScore) {
-                return b._relevanceScore - a._relevanceScore;
-            }
-            return Number(a.price || 0) - Number(b.price || 0);
-        });
-    const normalizedLimit = Number(limit);
-    const shouldLimit = Number.isFinite(normalizedLimit) && normalizedLimit > 0;
-    return (shouldLimit ? ranked.slice(0, Math.floor(normalizedLimit)) : ranked)
-        .map(({ _relevanceScore, ...product }) => product);
 }
 
 // Function to crawl Trader Joe's search page using Jina AI Reader API
@@ -358,9 +317,8 @@ function parseProductsWithRegex(crawledContent, keyword) {
         });
     }
 
-    const ranked = rankAndLimitProducts(dedupeProducts(products), keyword, TJ_MAX_RESULTS);
     return {
-        products: ranked,
+        products: dedupeProducts(products),
         llmFallbackBlocks: unresolvedBlocks,
         shouldTryFullPageLlm: true,
     };
@@ -441,7 +399,7 @@ Return only the JSON array, no other text.`,
         const normalized = Array.isArray(products)
             ? products.map(normalizeTraderJoesProduct).filter(Boolean)
             : [];
-        return rankAndLimitProducts(dedupeProducts(normalized), keyword, TJ_MAX_RESULTS);
+        return dedupeProducts(normalized);
     },
 });
 
@@ -491,12 +449,8 @@ async function searchTraderJoes(keyword, zipCode) {
                     logLabel: "traderjoes",
                 }),
             parseFullPageWithLLM: parseProductsWithLLM,
-            mergeProducts: (regexProducts, llmProducts, currentKeyword) =>
-                rankAndLimitProducts(
-                    dedupeProducts([...(regexProducts || []), ...(llmProducts || [])]),
-                    currentKeyword,
-                    TJ_MAX_RESULTS
-                ),
+            mergeProducts: (regexProducts, llmProducts) =>
+                dedupeProducts([...(regexProducts || []), ...(llmProducts || [])]),
         });
 
         if (products.length === 0) {
@@ -505,9 +459,8 @@ async function searchTraderJoes(keyword, zipCode) {
         }
 
         log.debug(`Successfully extracted ${products.length} products from Trader Joe's`);
-        const sorted = products.sort((a, b) => a.price - b.price);
-        resultCache.set(cacheKey, sorted);
-        return sorted;
+        resultCache.set(cacheKey, products);
+        return products;
 
     } catch (error) {
         if (isTraderJoesRateLimitError(error)) {

@@ -201,7 +201,6 @@ async function getProducts(searchTerm, locationId, authToken, brand = '') {
                 product.product_name
         );
 
-        withPrice.sort((a, b) => a.price - b.price);
         return withPrice;
     } catch (error) {
         log.error("[kroger] Error fetching products:", error.response?.data || error.message);

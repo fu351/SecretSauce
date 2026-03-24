@@ -157,13 +157,11 @@ async function _searchMeijerUncached(zipCode, searchTerm, cacheKey) {
             provider: "Meijer"
         }));
 
-        const sortedDetails = details
-            .filter(item => item.price !== null)
-            .sort((a, b) => a.price - b.price)
-            .slice(0, 10);
+        const filteredDetails = details
+            .filter(item => item.price !== null);
 
-        if (sortedDetails.length > 0) resultCache.set(cacheKey, sortedDetails);
-        return sortedDetails;
+        if (filteredDetails.length > 0) resultCache.set(cacheKey, filteredDetails);
+        return filteredDetails;
     } catch (error) {
         log.error("Error fetching products:", error.response?.data || error.message);
         if (error.response?.status) {

@@ -154,10 +154,9 @@ function parseProductsWithRegex(crawledContent, keyword) {
         }
     }
 
-    const limited = dedupedProducts.values().slice(0, 5);
     return {
-        products: limited,
-        shouldTryFullPageLlm: limited.length === 0,
+        products: dedupedProducts.values(),
+        shouldTryFullPageLlm: dedupedProducts.size() === 0,
     };
 }
 
@@ -198,7 +197,6 @@ Return only the JSON array, no other text.`,
     normalizeProducts: (products) =>
         products
             .filter(product => product.title && product.price && product.price > 0)
-            .slice(0, 5)
             .map(product => ({
                 id: product.id || `aldi-${Math.random().toString(36).substring(7)}`,
                 title: product.title,
@@ -260,9 +258,8 @@ async function searchAldi(keyword, zipCode) {
             log.debug(`LLM extracted ${products.length} products from Aldi`);
         }
 
-        const results = products.sort((a, b) => a.price - b.price);
-        resultCache.set(cacheKey, results);
-        return results;
+        resultCache.set(cacheKey, products);
+        return products;
 
     } catch (error) {
         log.error("Error in Aldi search:", error.message, "- real-time prices unavailable");

@@ -455,7 +455,6 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
             });
 
             const filteredProducts = deduplicated;
-            filteredProducts.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
             targetDebug(`[target] Successfully fetched ${filteredProducts.length} products with prices`);
             return filteredProducts;
 

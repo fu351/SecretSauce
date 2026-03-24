@@ -157,14 +157,14 @@ describe('Krogers', () => {
     expect(results[0].price).toBe(3.49)
   })
 
-  it('sorts results by price ascending', async () => {
+  it('preserves upstream product order', async () => {
     setupHappyPath([
       makeProduct({ productId: 'P3', itemId: 'I3', description: 'Expensive Milk', regular: 6.99 }),
       makeProduct({ productId: 'P1', itemId: 'I1', description: 'Cheap Milk', regular: 2.99 }),
       makeProduct({ productId: 'P2', itemId: 'I2', description: 'Mid Milk', regular: 4.49 }),
     ])
     const results = await Krogers('47905', 'milk')
-    expect(results.map((r) => r.price)).toEqual([2.99, 4.49, 6.99])
+    expect(results.map((r) => r.id)).toEqual(['I3', 'I1', 'I2'])
   })
 
   it('filters out products with no price', async () => {
