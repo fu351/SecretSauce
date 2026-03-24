@@ -9,7 +9,7 @@
 CREATE OR REPLACE FUNCTION public.fn_find_vector_double_check_candidates(
   p_threshold  numeric  DEFAULT 0.88,
   p_limit      integer  DEFAULT 100,
-  p_model      text     DEFAULT 'text-embedding-3-small'
+  p_model      text     DEFAULT 'nomic-embed-text'
 )
 RETURNS TABLE (
   source_canonical  text,
@@ -20,6 +20,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql STABLE PARALLEL SAFE SECURITY DEFINER
 SET search_path = public
+SET statement_timeout = '300000'
 AS $$
   SELECT
     a.canonical_name                                    AS source_canonical,
