@@ -77,6 +77,7 @@ describe('searchTraderJoes', () => {
   let searchTraderJoes, searchTraderJoesBatch
 
   beforeEach(() => {
+    delete process.env.TRADERJOES_CACHE_MAX_ENTRIES
     mockFetchJinaReader.mockReset()
     mockRequestOpenAIJson.mockReset()
     mockHasConfiguredOpenAIKey.mockReset()
@@ -207,5 +208,22 @@ describe('searchTraderJoes', () => {
     await expect(searchTraderJoesBatch(['milk', 'bread'], '94704')).rejects.toMatchObject({
       code: expect.stringMatching(/^TJ_JINA_/),
     })
+  })
+
+  it('evicts oldest cache entries after batch when cache exceeds size cap', async () => {
+    process.env.TRADERJOES_CACHE_MAX_ENTRIES = '2'
+    ;({ searchTraderJoes, searchTraderJoesBatch } = loadModule())
+
+    mockFetchJinaReader
+      .mockResolvedValueOnce({ data: makeMarkdownBlock({ name: 'Milk', productUrl: 'https://www.traderjoes.com/home/products/pdp/milk-10001', price: '4.99', unit: '1 gal' }) })
+      .mockResolvedValueOnce({ data: makeMarkdownBlock({ name: 'Bread', productUrl: 'https://www.traderjoes.com/home/products/pdp/bread-20001', price: '3.49', unit: '1 loaf' }) })
+      .mockResolvedValueOnce({ data: makeMarkdownBlock({ name: 'Eggs', productUrl: 'https://www.traderjoes.com/home/products/pdp/eggs-30001', price: '2.99', unit: '12 ct' }) })
+      .mockResolvedValueOnce({ data: makeMarkdownBlock({ name: 'Milk Again', productUrl: 'https://www.traderjoes.com/home/products/pdp/milk-10001', price: '4.99', unit: '1 gal' }) })
+
+    await searchTraderJoesBatch(['milk', 'bread'], '94704')
+    await searchTraderJoesBatch(['eggs'], '94704')
+    await searchTraderJoes('milk', '94704')
+
+    expect(mockFetchJinaReader).toHaveBeenCalledTimes(4)
   })
 })
