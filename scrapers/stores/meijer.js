@@ -50,22 +50,11 @@ async function getLocations(zipCode) {
 // Function to fetch products from Meijer
 async function searchMeijer(zipCode = 47906, searchTerm) {
     const cacheKey = resultCache.buildKey(searchTerm, zipCode);
-    const cached = resultCache.get(cacheKey);
-    if (cached) return cached;
-
-    const inFlight = resultCache.getInFlight(cacheKey);
-    if (inFlight) return inFlight;
-
-    const promise = _searchMeijerUncached(zipCode, searchTerm, cacheKey);
-    resultCache.setInFlight(cacheKey, promise);
-    try {
-        return await promise;
-    } finally {
-        resultCache.deleteInFlight(cacheKey);
-    }
+    return resultCache.runCached(cacheKey, () => searchMeijerUncached(zipCode, searchTerm));
 }
 
-async function _searchMeijerUncached(zipCode, searchTerm, cacheKey) {
+async function searchMeijerUncached(zipCode, searchTerm) {
+    let storeId = DEFAULT_MEIJER_STORE_ID;
     try {
         let storeInfo = null;
         try {
@@ -75,7 +64,7 @@ async function _searchMeijerUncached(zipCode, searchTerm, cacheKey) {
             log.warn("Unable to resolve nearest Meijer location:", locationError.message || locationError);
         }
 
-        const storeId = storeInfo?.id || DEFAULT_MEIJER_STORE_ID;
+        storeId = storeInfo?.id || DEFAULT_MEIJER_STORE_ID;
         const storeLocationLabel = formatMeijerStoreLocation(storeInfo, zipCode);
 
         await enforceRateLimit();
@@ -157,11 +146,7 @@ async function _searchMeijerUncached(zipCode, searchTerm, cacheKey) {
             provider: "Meijer"
         }));
 
-        const filteredDetails = details
-            .filter(item => item.price !== null);
-
-        if (filteredDetails.length > 0) resultCache.set(cacheKey, filteredDetails);
-        return filteredDetails;
+        return details.filter(item => item.price !== null);
     } catch (error) {
         log.error("Error fetching products:", error.response?.data || error.message);
         if (error.response?.status) {

@@ -232,56 +232,40 @@ function formatKrogerStoreLocation(storeInfo, fallbackZip) {
 // Main function to fetch products from Kroger
 async function searchKroger(zipCode = 47906, searchTerm, brand = '') {
     const cacheKey = resultCache.buildKey(searchTerm, zipCode);
-    const cached = resultCache.get(cacheKey);
-    if (cached) return cached;
+    return resultCache.runCached(cacheKey, async () => {
+        try {
+            if (!searchTerm || !String(searchTerm).trim()) {
+                log.warn("[kroger] Missing searchTerm");
+                return [];
+            }
 
-    const inFlight = resultCache.getInFlight(cacheKey);
-    if (inFlight) return inFlight;
+            const token = await getAuthToken();
+            if (!token) {
+                return [];
+            }
 
-    const promise = (async () => {
-    try {
-        const token = await getAuthToken();
-        if (!token) {
+            const resolvedStore = await getNearestStore(zipCode, token);
+            if (!resolvedStore?.locationId) {
+                return [];
+            }
+
+            const locationLabel = formatKrogerStoreLocation(resolvedStore, zipCode);
+            log.debug("[kroger] Store resolved", {
+                locationId: resolvedStore.locationId,
+                zipCode,
+                storeName: resolvedStore.name,
+                fullAddress: resolvedStore.fullAddress,
+            });
+
+            return (await getProducts(searchTerm, resolvedStore.locationId, token, brand)).map((product) => ({
+                ...product,
+                location: locationLabel,
+            }));
+        } catch (error) {
+            log.error("[kroger] Error in searchKroger function:", error.message || error);
             return [];
         }
-
-        if (!searchTerm || !String(searchTerm).trim()) {
-            log.warn("[kroger] Missing searchTerm");
-            return [];
-        }
-
-        const resolvedStore = await getNearestStore(zipCode, token);
-        if (!resolvedStore?.locationId) {
-            return [];
-        }
-
-        const locationLabel = formatKrogerStoreLocation(resolvedStore, zipCode);
-        log.debug("[kroger] Store resolved", {
-            locationId: resolvedStore.locationId,
-            zipCode,
-            storeName: resolvedStore.name,
-            fullAddress: resolvedStore.fullAddress,
-        });
-
-        const products = await getProducts(searchTerm, resolvedStore.locationId, token, brand);
-        const results = products.map((product) => ({
-            ...product,
-            location: locationLabel,
-        }));
-        if (results.length > 0) resultCache.set(cacheKey, results);
-        return results;
-    } catch (error) {
-        log.error("[kroger] Error in searchKroger function:", error.message || error);
-        return [];
-    }
-    })();
-
-    resultCache.setInFlight(cacheKey, promise);
-    try {
-        return await promise;
-    } finally {
-        resultCache.deleteInFlight(cacheKey);
-    }
+    });
 }
 
 const Krogers = searchKroger;

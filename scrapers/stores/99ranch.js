@@ -173,67 +173,50 @@ function format99RanchStoreLocation(storeInfo, fallbackZip) {
 
 async function search99Ranch(keyword, zipCode) {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
-    const cached = resultCache.get(cacheKey);
-    if (cached) return cached;
+    return resultCache.runCached(cacheKey, async () => {
+        try {
+            const userZip = (zipCode && zipCode.trim()) || DEFAULT_99_RANCH_ZIP;
+            let store = await getNearestStore(userZip);
+            if (!store && userZip !== DEFAULT_99_RANCH_ZIP) {
+                log.warn(`No 99 Ranch store near ${userZip}, falling back to ${DEFAULT_99_RANCH_ZIP}`);
+                store = await getNearestStore(DEFAULT_99_RANCH_ZIP);
+            }
+            if (!store?.id) {
+                log.warn("No nearby 99 Ranch store found for zip code:", zipCode);
+                return [];
+            }
 
-    const inFlight = resultCache.getInFlight(cacheKey);
-    if (inFlight) return inFlight;
+            const products = await searchProducts(store, keyword, userZip);
+            const storeLocation = format99RanchStoreLocation(store, userZip);
+            return products
+                .map((p) => {
+                    const productName = (p.productName || p.productNameEN || "").trim();
+                    const price = Number.parseFloat(String(p.salePrice ?? p.price ?? ""));
+                    const productIdRaw = p.productId ?? p.id ?? p.sku ?? p.upc ?? null;
+                    const productId = productIdRaw == null ? null : String(productIdRaw);
 
-    const promise = (async () => {
-    try {
-        const userZip = (zipCode && zipCode.trim()) || DEFAULT_99_RANCH_ZIP
-        let store = await getNearestStore(userZip);
-        if (!store && userZip !== DEFAULT_99_RANCH_ZIP) {
-            log.warn(`No 99 Ranch store near ${userZip}, falling back to ${DEFAULT_99_RANCH_ZIP}`)
-            store = await getNearestStore(DEFAULT_99_RANCH_ZIP)
-        }
-        if (!store?.id) {
-            log.warn("No nearby 99 Ranch store found for zip code:", zipCode);
+                    return {
+                        product_name: productName,
+                        title: productName || "Unknown Product",
+                        brand: p.brandName || p.brandNameEN || "",
+                        price: Number.isFinite(price) ? price : null,
+                        pricePerUnit: p.saleUom || "",
+                        unit: p.variantName || p.variantNameEN || "",
+                        rawUnit: p.variantName || p.variantNameEN || "",
+                        image_url: p.image || p.productImage?.path || "",
+                        provider: "99 Ranch",
+                        product_id: productId,
+                        id: productId,
+                        location: storeLocation,
+                        category: p.category || "Grocery",
+                    };
+                })
+                .filter((p) => p.price != null && p.price > 0 && p.product_name);
+        } catch (error) {
+            log.error("Error in 99 Ranch scraper:", error.message);
             return [];
         }
-
-        const products = await searchProducts(store, keyword, userZip);
-        const storeLocation = format99RanchStoreLocation(store, userZip);
-        const cleaned = products
-            .map((p) => {
-                const productName = (p.productName || p.productNameEN || "").trim();
-                const price = Number.parseFloat(String(p.salePrice ?? p.price ?? ""));
-                const productIdRaw = p.productId ?? p.id ?? p.sku ?? p.upc ?? null;
-                const productId = productIdRaw == null ? null : String(productIdRaw);
-
-                return {
-                    product_name: productName,
-                    title: productName || "Unknown Product",
-                    brand: p.brandName || p.brandNameEN || "",
-                    price: Number.isFinite(price) ? price : null,
-                    pricePerUnit: p.saleUom || "",
-                    unit: p.variantName || p.variantNameEN || "",
-                    rawUnit: p.variantName || p.variantNameEN || "",
-                    image_url: p.image || p.productImage?.path || "",
-                    provider: "99 Ranch",
-                    product_id: productId,
-                    id: productId,
-                    location: storeLocation,
-                    category: p.category || "Grocery"
-                };
-            })
-            .filter((p) => p.price != null && p.price > 0 && p.product_name);
-
-        const results = cleaned;
-        if (results.length > 0) resultCache.set(cacheKey, results);
-        return results;
-    } catch (error) {
-        log.error("Error in 99 Ranch scraper:", error.message);
-        return [];
-    }
-    })();
-
-    resultCache.setInFlight(cacheKey, promise);
-    try {
-        return await promise;
-    } finally {
-        resultCache.deleteInFlight(cacheKey);
-    }
+    });
 }
 
 // Export the function for use in other modules

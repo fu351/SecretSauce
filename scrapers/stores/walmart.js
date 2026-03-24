@@ -713,13 +713,7 @@ async function searchWalmartWithExa(keyword, zipCode) {
 
 async function searchWalmart(keyword, zipCode) {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
-    const cached = resultCache.get(cacheKey);
-    if (cached) return cached;
-
-    const inFlight = resultCache.getInFlight(cacheKey);
-    if (inFlight) return inFlight;
-
-    const promise = (async () => {
+    return resultCache.runCached(cacheKey, async () => {
         const directResults = await searchWalmartDirect(keyword, zipCode);
         const exaResults = await searchWalmartWithExa(keyword, zipCode);
 
@@ -731,17 +725,8 @@ async function searchWalmart(keyword, zipCode) {
         const results = mergedResults.length === 0
             ? (directResults.length > 0 ? directResults : exaResults)
             : mergedResults;
-
-        if (results.length > 0) resultCache.set(cacheKey, results);
         return results;
-    })();
-
-    resultCache.setInFlight(cacheKey, promise);
-    try {
-        return await promise;
-    } finally {
-        resultCache.deleteInFlight(cacheKey);
-    }
+    });
 }
 
 // Legacy function for backwards compatibility

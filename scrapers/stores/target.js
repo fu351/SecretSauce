@@ -214,27 +214,7 @@ function resolveTargetStoreId(storeMetadata) {
 // Function to fetch products from Target API
 async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
-
-    // Check cache first
-    const cachedResult = resultCache.get(cacheKey);
-    if (cachedResult) {
-        return cachedResult;
-    }
-
-    // Check if there's already an in-flight request for the same search
-    const existingInFlight = resultCache.getInFlight(cacheKey);
-    if (existingInFlight) {
-        targetDebug(`[target] Waiting for in-flight request: ${cacheKey}`);
-        try {
-            return await existingInFlight;
-        } catch (error) {
-            // If the in-flight request failed, we'll retry below
-            targetDebug(`[target] In-flight request failed for ${cacheKey}, retrying`);
-        }
-    }
-
-    // Create a new request promise and store it in the in-flight map
-    const requestPromise = (async () => {
+    return resultCache.runCached(cacheKey, async () => {
         let resolvedStoreInfo = null;
         let storeId = null;
         let storeIdSource = 'explicit'; // Track how store ID was resolved
@@ -484,21 +464,7 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
 
             return [];
         }
-    })();
-
-    resultCache.setInFlight(cacheKey, requestPromise);
-
-    try {
-        const results = await requestPromise;
-
-        if (results && results.length > 0) {
-            resultCache.set(cacheKey, results);
-        }
-
-        return results;
-    } finally {
-        resultCache.deleteInFlight(cacheKey);
-    }
+    }, { retryOnInFlightError: true });
 }
 
 // Main function to execute the script

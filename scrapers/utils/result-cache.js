@@ -142,6 +142,48 @@ function createResultCache({ ttlMs = DEFAULT_TTL_MS, maxEntries = 0 } = {}) {
     return deduper.values();
   }
 
+  async function runCached(key, loadResults, options = {}) {
+    const { retryOnInFlightError = false, shouldCache } = options;
+
+    const cached = get(key);
+    if (cached !== null) {
+      return cached;
+    }
+
+    const existingInFlight = getInFlight(key);
+    if (existingInFlight) {
+      try {
+        return await existingInFlight;
+      } catch (error) {
+        if (!retryOnInFlightError) {
+          throw error;
+        }
+      }
+    }
+
+    const promise = (async () => {
+      const results = await loadResults();
+      const shouldStore = typeof shouldCache === 'function'
+        ? shouldCache(results)
+        : Array.isArray(results)
+          ? results.length > 0
+          : Boolean(results);
+
+      if (shouldStore) {
+        set(key, results);
+      }
+
+      return results;
+    })();
+
+    setInFlight(key, promise);
+    try {
+      return await promise;
+    } finally {
+      deleteInFlight(key);
+    }
+  }
+
   return {
     buildKey,
     get,
@@ -152,6 +194,7 @@ function createResultCache({ ttlMs = DEFAULT_TTL_MS, maxEntries = 0 } = {}) {
     deleteInFlight,
     createDeduper,
     dedupe,
+    runCached,
   };
 }
 

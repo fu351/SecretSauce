@@ -95,4 +95,31 @@ describe('createResultCache', () => {
     ])
     expect(deduper.size()).toBe(2)
   })
+
+  it('shares in-flight work and caches successful results through runCached', async () => {
+    const cache = createResultCache()
+    const loadResults = vi.fn(async () => ['milk'])
+
+    const first = cache.runCached('milk::94704', loadResults)
+    const second = cache.runCached('milk::94704', loadResults)
+
+    await expect(first).resolves.toEqual(['milk'])
+    await expect(second).resolves.toEqual(['milk'])
+    expect(loadResults).toHaveBeenCalledTimes(1)
+    expect(cache.get('milk::94704')).toEqual(['milk'])
+  })
+
+  it('can retry after an in-flight failure when configured', async () => {
+    const cache = createResultCache()
+    const firstLoad = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const secondLoad = vi.fn(async () => ['bread'])
+
+    await expect(cache.runCached('bread::94704', firstLoad)).rejects.toThrow('boom')
+    await expect(
+      cache.runCached('bread::94704', secondLoad, { retryOnInFlightError: true }),
+    ).resolves.toEqual(['bread'])
+    expect(secondLoad).toHaveBeenCalledTimes(1)
+  })
 })

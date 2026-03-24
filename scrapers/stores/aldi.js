@@ -215,13 +215,7 @@ Return only the JSON array, no other text.`,
 // Main Aldi search function
 async function searchAldi(keyword, zipCode) {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
-    const cached = resultCache.get(cacheKey);
-    if (cached) return cached;
-
-    const inFlight = resultCache.getInFlight(cacheKey);
-    if (inFlight) return inFlight;
-
-    const promise = (async () => {
+    return resultCache.runCached(cacheKey, async () => {
     try {
         // Step 1: Crawl Aldi page
         const crawledContent = await crawlAldiWithJina(keyword, zipCode);
@@ -258,21 +252,13 @@ async function searchAldi(keyword, zipCode) {
             log.debug(`LLM extracted ${products.length} products from Aldi`);
         }
 
-        resultCache.set(cacheKey, products);
         return products;
 
     } catch (error) {
         log.error("Error in Aldi search:", error.message, "- real-time prices unavailable");
         return [];
     }
-    })();
-
-    resultCache.setInFlight(cacheKey, promise);
-    try {
-        return await promise;
-    } finally {
-        resultCache.deleteInFlight(cacheKey);
-    }
+    });
 }
 
 // Main function to execute the script

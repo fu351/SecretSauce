@@ -406,11 +406,6 @@ Return only the JSON array, no other text.`,
 // Main Trader Joe's search function
 async function searchTraderJoes(keyword, zipCode) {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
-    const cached = resultCache.get(cacheKey);
-    if (cached) {
-        return cached;
-    }
-
     if (isJinaCooldownActive()) {
         await sleepDuringJinaCooldown("search");
         throw buildTraderJoesRateLimitError(
@@ -420,63 +415,47 @@ async function searchTraderJoes(keyword, zipCode) {
         );
     }
 
-    const existingInFlight = resultCache.getInFlight(cacheKey);
-    if (existingInFlight) {
-        return existingInFlight;
-    }
+    return resultCache.runCached(cacheKey, async () => {
+        try {
+            if (!normalizeKeyword(keyword)) {
+                return [];
+            }
 
-    const scrapePromise = (async () => {
-    try {
-        if (!normalizeKeyword(keyword)) {
+            const crawledContent = await crawlTraderJoesWithJina(keyword);
+            if (!crawledContent) {
+                log.debug("Failed to crawl Trader Joe's page, real-time prices unavailable");
+                return [];
+            }
+
+            const products = await parseJinaProductsWithFallbacks({
+                crawledContent,
+                keyword,
+                parseWithRegex: parseProductsWithRegex,
+                parseFallbackBlocksWithLLM: (blocks, currentKeyword) =>
+                    parseMissingProductsWithLLM(blocks, currentKeyword, {
+                        limit: TJ_LLM_PRODUCT_FALLBACK_LIMIT,
+                        logLabel: "traderjoes",
+                    }),
+                parseFullPageWithLLM: parseProductsWithLLM,
+                mergeProducts: (regexProducts, llmProducts) =>
+                    dedupeProducts([...(regexProducts || []), ...(llmProducts || [])]),
+            });
+
+            if (products.length === 0) {
+                log.debug("Regex + LLM fallback failed to extract products, real-time prices unavailable");
+                return [];
+            }
+
+            log.debug(`Successfully extracted ${products.length} products from Trader Joe's`);
+            return products;
+        } catch (error) {
+            if (isTraderJoesRateLimitError(error)) {
+                throw error;
+            }
+            log.error("Error in Trader Joe's search:", error.message, "- real-time prices unavailable");
             return [];
         }
-
-        // Step 1: Crawl Trader Joe's page
-        const crawledContent = await crawlTraderJoesWithJina(keyword);
-
-        if (!crawledContent) {
-            log.debug("Failed to crawl Trader Joe's page, real-time prices unavailable");
-            return [];
-        }
-
-        const products = await parseJinaProductsWithFallbacks({
-            crawledContent,
-            keyword,
-            parseWithRegex: parseProductsWithRegex,
-            parseFallbackBlocksWithLLM: (blocks, currentKeyword) =>
-                parseMissingProductsWithLLM(blocks, currentKeyword, {
-                    limit: TJ_LLM_PRODUCT_FALLBACK_LIMIT,
-                    logLabel: "traderjoes",
-                }),
-            parseFullPageWithLLM: parseProductsWithLLM,
-            mergeProducts: (regexProducts, llmProducts) =>
-                dedupeProducts([...(regexProducts || []), ...(llmProducts || [])]),
-        });
-
-        if (products.length === 0) {
-            log.debug("Regex + LLM fallback failed to extract products, real-time prices unavailable");
-            return [];
-        }
-
-        log.debug(`Successfully extracted ${products.length} products from Trader Joe's`);
-        resultCache.set(cacheKey, products);
-        return products;
-
-    } catch (error) {
-        if (isTraderJoesRateLimitError(error)) {
-            throw error;
-        }
-        log.error("Error in Trader Joe's search:", error.message, "- real-time prices unavailable");
-        return [];
-    }
-    })();
-
-    resultCache.setInFlight(cacheKey, scrapePromise);
-    try {
-        return await scrapePromise;
-    } finally {
-        resultCache.deleteInFlight(cacheKey);
-    }
+    });
 }
 
 async function searchTraderJoesBatch(keywords, zipCode, options = {}) {
