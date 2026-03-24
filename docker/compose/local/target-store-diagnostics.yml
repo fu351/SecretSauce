@@ -1,0 +1,23 @@
+name: target-store-diagnostics
+
+services:
+  target-store-diagnostics:
+    build:
+      context: ../../..
+      dockerfile: docker/Dockerfile.daily-scraper
+    command: ["node", "scripts/target-store-diagnostics.js"]
+    env_file:
+      - ../../../.env.local
+      - ./daily-scraper.shared.env
+    environment:
+      STORE_STATE: "CA"
+      TARGET_DIAGNOSTIC_STORE_LIMIT: "0"
+      TARGET_DIAGNOSTIC_STORE_CONCURRENCY: "4"
+      TARGET_DIAGNOSTIC_INGREDIENT_CONCURRENCY: "4"
+      TARGET_DIAGNOSTIC_HISTORY_LIMIT: "5"
+      TARGET_DIAGNOSTIC_BASELINE_INGREDIENT_LIMIT: "5"
+      TARGET_DIAGNOSTIC_INCLUDE_HISTORY: "true"
+      TARGET_DIAGNOSTIC_INCLUDE_BASELINE: "true"
+      TARGET_DIAGNOSTIC_OUTPUT_PATH: "/app/docker/diagnostics-output/target-store-diagnostics.json"
+    volumes:
+      - ../../../docker/diagnostics-output:/app/docker/diagnostics-output
