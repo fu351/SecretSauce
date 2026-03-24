@@ -1,12 +1,11 @@
 const path = require('path');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
-const { fetchJinaReader } = require('../utils/jina-client');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
-const { sleep, parseRetryAfterHeaderToMs, withExponentialBackoffRetry } = require('../utils/retry');
+const { createJinaCrawler } = require('../utils/jina-crawler');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('traderjoes');
 
@@ -39,9 +38,6 @@ const MAX_BATCH_CONCURRENCY = 8;
 const TJ_MAX_RESULTS = Number(process.env.TRADERJOES_MAX_RESULTS || process.env.SCRAPER_MAX_RESULTS || 0);
 const TJ_LLM_PRODUCT_FALLBACK_LIMIT = Number(process.env.TRADERJOES_LLM_PRODUCT_FALLBACK_LIMIT || 8);
 
-let traderJoesConsecutive429 = 0;
-let traderJoes429CooldownUntilMs = 0;
-
 const { enforceRateLimit } = createRateLimiter({
     requestsPerSecond: Number(process.env.TRADERJOES_REQUESTS_PER_SECOND || 1),
     minIntervalMs: Number(process.env.TRADERJOES_MIN_REQUEST_INTERVAL_MS || 1000),
@@ -52,63 +48,66 @@ const { enforceRateLimit } = createRateLimiter({
 
 const resultCache = createResultCache({ ttlMs: TJ_CACHE_TTL_MS, maxEntries: TJ_CACHE_MAX_ENTRIES });
 
+function normalizeKeyword(keyword) {
+    return String(keyword || "").trim().toLowerCase();
+}
+
+const TRADER_JOES_JINA_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+};
+
+const jinaCrawler = createJinaCrawler({
+    log,
+    withTimeout,
+    enforceRateLimit,
+    buildSearchUrl: (keyword) => `https://www.traderjoes.com/home/search?q=${encodeURIComponent(keyword)}&section=products&global=yes`,
+    headers: TRADER_JOES_JINA_HEADERS,
+    requestTimeoutMs: JINA_TIMEOUT_MS,
+    totalTimeoutMs: JINA_TOTAL_TIMEOUT_MS,
+    maxRetries: JINA_MAX_RETRIES,
+    baseDelayMs: JINA_RETRY_DELAY_MS,
+    min429RetryDelayMs: JINA_MIN_RETRY_DELAY_MS,
+    cooldownMs: JINA_429_COOLDOWN_MS,
+    maxConsecutive429: JINA_MAX_CONSECUTIVE_429,
+    cooldownSleepCapMs: JINA_COOLDOWN_SLEEP_CAP_MS,
+    rateLimitErrorPrefix: "TJ_JINA",
+    requestLabel: "traderjoes",
+    describeSearch: (keyword) => keyword,
+    onError: async (error, { keyword, requestUrl }) => {
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({
+                storeEnum: 'traderjoes',
+                ingredientName: keyword,
+                httpStatus: error.response.status,
+                requestUrl,
+                errorMessage: error.message
+            });
+        }
+    },
+});
+
 function isJinaCooldownActive() {
-    return Date.now() < traderJoes429CooldownUntilMs;
+    return jinaCrawler.isCooldownActive();
 }
 
 function getJinaCooldownRemainingMs() {
-    return Math.max(0, traderJoes429CooldownUntilMs - Date.now());
+    return jinaCrawler.getCooldownRemainingMs();
 }
 
 async function sleepDuringJinaCooldown(contextLabel) {
-    if (!isJinaCooldownActive()) {
-        return;
-    }
-
-    const remainingMs = getJinaCooldownRemainingMs();
-    const sleepMs = Math.max(0, Math.min(remainingMs, JINA_COOLDOWN_SLEEP_CAP_MS));
-    if (sleepMs <= 0) {
-        return;
-    }
-
-    log.warn(`[traderjoes] ${contextLabel}: Jina cooldown active, sleeping ${sleepMs}ms before continuing`);
-    await sleep(sleepMs);
-}
-
-function registerJina429AndMaybeEnterCooldown(suggestedDelayMs = 0) {
-    traderJoesConsecutive429 += 1;
-
-    if (traderJoesConsecutive429 < JINA_MAX_CONSECUTIVE_429) {
-        return false;
-    }
-
-    const cooldownMs = Math.max(JINA_429_COOLDOWN_MS, suggestedDelayMs || 0);
-    traderJoes429CooldownUntilMs = Date.now() + cooldownMs;
-    return true;
+    await jinaCrawler.sleepDuringCooldown(contextLabel);
 }
 
 function resetJina429State() {
-    traderJoesConsecutive429 = 0;
-    if (!isJinaCooldownActive()) {
-        traderJoes429CooldownUntilMs = 0;
-    }
+    jinaCrawler.reset429State();
 }
 
 function buildTraderJoesRateLimitError(message, code = "TJ_JINA_RATE_LIMIT", status = 429) {
-    const err = new Error(message);
-    err.code = code;
-    err.status = status;
-    return err;
+    return jinaCrawler.buildRateLimitError(message, code.replace(/^TJ_JINA_/, ""), status);
 }
 
 function isTraderJoesRateLimitError(error) {
-    if (!error) return false;
-    const status = error?.status ?? error?.response?.status;
-    return status === 429 || String(error?.code || "").startsWith("TJ_JINA_");
-}
-
-function normalizeKeyword(keyword) {
-    return String(keyword || "").trim().toLowerCase();
+    return jinaCrawler.isRateLimitError(error);
 }
 
 
@@ -312,121 +311,7 @@ function rankAndLimitProducts(products, keyword, limit = TJ_MAX_RESULTS) {
 
 // Function to crawl Trader Joe's search page using Jina AI Reader API
 async function crawlTraderJoesWithJina(keyword) {
-    try {
-        if (isJinaCooldownActive()) {
-            await sleepDuringJinaCooldown("crawl");
-            const remainingMs = getJinaCooldownRemainingMs();
-            throw buildTraderJoesRateLimitError(
-                `[traderjoes] Jina cooldown active for ${remainingMs}ms`,
-                "TJ_JINA_COOLDOWN",
-                429
-            );
-        }
-
-        log.debug(`Crawling Trader Joe's search page for: ${keyword} using Jina AI`);
-
-        // Build Trader Joe's search URL
-        const searchUrl = `https://www.traderjoes.com/home/search?q=${encodeURIComponent(keyword)}&section=products&global=yes`;
-        const jinaReaderUrl = `https://r.jina.ai/${searchUrl}`;
-
-        const headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            // We are NOT setting "X-Retain-Images": "none" to get image URLs
-        };
-
-        // Call Jina AI Reader API with retry logic and dynamic timeouts
-        const response = await withTimeout(withExponentialBackoffRetry(async (currentTimeout, attempt) => {
-            log.debug(`Jina AI request for Trader Joe's (attempt ${attempt + 1})`);
-            await enforceRateLimit();
-
-            // Calculate axios timeout as 90% of total timeout to allow for cleanup
-            const axiosTimeout = Math.floor(currentTimeout * 0.9);
-
-            return await withTimeout(
-                fetchJinaReader(jinaReaderUrl, {
-                    headers: headers,
-                    timeoutMs: axiosTimeout,
-                }),
-                currentTimeout
-            );
-        }, {
-            initialTimeout: JINA_TIMEOUT_MS,
-            maxRetries: JINA_MAX_RETRIES,
-            baseDelay: JINA_RETRY_DELAY_MS,
-            onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
-                log.debug(`Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
-            },
-            getRetryDecision: ({ error, attempt, maxRetries, defaultDelay }) => {
-                const status = error?.response?.status ?? error?.status;
-                let delay = defaultDelay;
-
-                if (status === 429) {
-                    const retryAfterMs = parseRetryAfterHeaderToMs(error?.response?.headers?.["retry-after"]);
-                    delay = Math.max(defaultDelay, JINA_MIN_RETRY_DELAY_MS, retryAfterMs || 0);
-
-                    const cooldownEntered = registerJina429AndMaybeEnterCooldown(retryAfterMs || delay);
-                    log.warn(
-                        `[traderjoes] Jina rate limit (429) on attempt ${attempt + 1}/${maxRetries + 1}; ` +
-                        `retrying in ${delay}ms${cooldownEntered ? " (entering cooldown)" : ""}`
-                    );
-
-                    if (cooldownEntered || attempt === maxRetries) {
-                        return {
-                            shouldRetry: false,
-                            breakDelayMs: cooldownEntered
-                                ? Math.min(delay, JINA_COOLDOWN_SLEEP_CAP_MS)
-                                : 0,
-                        };
-                    }
-
-                    log.debug(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
-                    return { shouldRetry: true, delayMs: delay };
-                }
-
-                resetJina429State();
-
-                if (attempt === maxRetries) {
-                    return { shouldRetry: false };
-                }
-
-                log.debug(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
-                return { shouldRetry: true, delayMs: delay };
-            }
-        }), JINA_TOTAL_TIMEOUT_MS);
-
-        if (!response.data) {
-            log.warn("No content retrieved from Jina AI API");
-            return null;
-        }
-
-        log.debug(`Successfully retrieved content from Jina AI (${response.data.length} chars)`);
-        resetJina429State();
-
-        // Jina returns the clean markdown text directly
-        return response.data;
-
-    } catch (error) {
-        if (isTraderJoesRateLimitError(error)) {
-            const remainingMs = getJinaCooldownRemainingMs();
-
-            log.warn(
-                `[traderjoes] Jina rate-limited for "${keyword}" ` +
-                `(consecutive_429=${traderJoesConsecutive429}${remainingMs > 0 ? `, cooldown_ms=${remainingMs}` : ""})`
-            );
-
-            throw buildTraderJoesRateLimitError(
-                `[traderjoes] Jina 429 for "${keyword}"`,
-                isJinaCooldownActive() ? "TJ_JINA_COOLDOWN" : "TJ_JINA_429",
-                429
-            );
-        }
-
-        log.error("Error crawling with Jina AI after all retries:", error.message);
-        if (error.response?.status) {
-            await logHttpErrorToDatabase({ storeEnum: 'traderjoes', ingredientName: keyword, httpStatus: error.response.status, requestUrl: error.config?.url, errorMessage: error.message });
-        }
-        return null;
-    }
+    return jinaCrawler.crawl(keyword, null, { contextLabel: "crawl" });
 }
 
 function parseProductsWithRegex(crawledContent, keyword) {

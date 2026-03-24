@@ -1,12 +1,11 @@
 const path = require('path');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
-const { fetchJinaReader } = require('../utils/jina-client');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
-const { withExponentialBackoffRetry } = require('../utils/retry');
+const { createJinaCrawler } = require('../utils/jina-crawler');
 
 const resultCache = createResultCache({ ttlMs: Number(process.env.ALDI_CACHE_TTL_MS || 5 * 60 * 1000) });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
@@ -29,69 +28,38 @@ const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 25000);
 const JINA_TIMEOUT_MS = Number(process.env.JINA_TIMEOUT_MS || 30000);
 const JINA_MAX_RETRIES = Number(process.env.JINA_MAX_RETRIES || 2);
 const JINA_RETRY_DELAY_MS = Number(process.env.JINA_RETRY_DELAY_MS || 1000);
+const ALDI_JINA_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+};
+
+const jinaCrawler = createJinaCrawler({
+    log,
+    withTimeout,
+    enforceRateLimit,
+    buildSearchUrl: (keyword) => `https://aldi.us/results?q=${encodeURIComponent(keyword)}`,
+    headers: ALDI_JINA_HEADERS,
+    requestTimeoutMs: JINA_TIMEOUT_MS,
+    maxRetries: JINA_MAX_RETRIES,
+    baseDelayMs: JINA_RETRY_DELAY_MS,
+    requestLabel: 'Jina AI',
+    describeSearch: (keyword, zipCode) => `${keyword} in ${zipCode}`,
+    onError: async (error, { keyword, zipCode, requestUrl }) => {
+        if (error.response?.status) {
+            await logHttpErrorToDatabase({
+                storeEnum: 'aldi',
+                zipCode,
+                ingredientName: keyword,
+                httpStatus: error.response.status,
+                requestUrl,
+                errorMessage: error.message
+            });
+        }
+    },
+});
 
 // Function to crawl Aldi search page using Jina AI Reader API
 async function crawlAldiWithJina(keyword, zipCode) {
-    try {
-        log.debug(`Crawling Aldi search page for: ${keyword} in ${zipCode} using Jina AI`);
-
-        // Aldi's search URL. We include the zip code as a query parameter.
-        const searchUrl = `https://aldi.us/results?q=${encodeURIComponent(keyword)}`;
-        const jinaReaderUrl = `https://r.jina.ai/${searchUrl}`;
-
-        const headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        };
-
-        // Call Jina AI Reader API with retry logic and dynamic timeouts
-        const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
-            log.debug(`Jina AI request for Aldi (attempt ${attempt + 1})`);
-            await enforceRateLimit();
-
-            // Calculate axios timeout as 90% of total timeout to allow for cleanup
-            const axiosTimeout = Math.floor(currentTimeout * 0.9);
-
-            return await withTimeout(
-                fetchJinaReader(jinaReaderUrl, {
-                    headers: headers,
-                    timeoutMs: axiosTimeout,
-                }),
-                currentTimeout
-            );
-        }, {
-            initialTimeout: JINA_TIMEOUT_MS,
-            maxRetries: JINA_MAX_RETRIES,
-            baseDelay: JINA_RETRY_DELAY_MS,
-            onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
-                log.debug(`Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
-            },
-            getRetryDecision: ({ attempt, maxRetries, defaultDelay, error }) => {
-                if (attempt === maxRetries) {
-                    return { shouldRetry: false };
-                }
-
-                log.debug(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${defaultDelay}ms...`);
-                return { shouldRetry: true, delayMs: defaultDelay };
-            }
-        });
-
-        if (!response.data) {
-            log.warn("No content retrieved from Jina AI API");
-            return null;
-        }
-
-        log.debug(`Successfully retrieved content from Jina AI (${response.data.length} chars)`);
-
-        // Jina returns the clean markdown text directly
-        return response.data;
-
-    } catch (error) {
-        log.error("Error crawling with Jina AI after all retries:", error.message);
-        if (error.response?.status) {
-            await logHttpErrorToDatabase({ storeEnum: 'aldi', zipCode, ingredientName: keyword, httpStatus: error.response.status, requestUrl: error.config?.url, errorMessage: error.message });
-        }
-        return null;
-    }
+    return jinaCrawler.crawl(keyword, zipCode);
 }
 
 // Function to parse products from Jina markdown using regex (runs before LLM fallback)
