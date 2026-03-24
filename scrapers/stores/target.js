@@ -286,27 +286,31 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
 
             targetDebug("[target] Store resolved", { storeId, zipCode, storeName: resolvedStoreInfo?.name, fullAddress: resolvedStoreInfo?.fullAddress });
 
-            const baseUrl = "https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2";
+            const baseUrl = "https://cdui-orchestrations.target.com/cdui_orchestrations/v1/pages/slp";
             const params = {
-        key: "9f36aeafbe60771e321a7cc95a78140772ab3e96",
-        channel: "WEB",
-        count: 10,
-        default_purchasability_filter: "true",
-        include_dmc_dmr: "true",
-        include_sponsored: "true",
-        include_review_summarization: "false",
-        keyword,
-        new_search: "true",
-        offset: 0,
-        page: `/s/${encodeURIComponent(keyword)}`,
-        platform: "desktop",
-        pricing_store_id: storeId,
-        spellcheck: "true",
-        store_ids: storeId,
-        useragent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-        visitor_id: "019669F54C3102019409F15469E30DAF",
-        zip: zipCode,
-                is_bot: "false",
+                key: "9f36aeafbe60771e321a7cc95a78140772ab3e96",
+                channel: "WEB",
+                sapphire_channel: "WEB",
+                sapphire_page: `/s/${encodeURIComponent(keyword)}`,
+                page: `/s/${encodeURIComponent(keyword)}`,
+                platform: "WEB",
+                count: 24,
+                default_purchasability_filter: "true",
+                include_sponsored: "false",
+                keyword,
+                new_search: "true",
+                offset: 0,
+                spellcheck: "true",
+                store_id: storeId,
+                store_ids: storeId,
+                purchasable_store_ids: storeId,
+                scheduled_delivery_store_id: storeId,
+                zip: zipCode,
+                has_pending_inputs: "false",
+                is_seo_bot: "false",
+                timezone: "UTC",
+                include_data_source_modules: "true",
+                visitor_id: "019669F54C3102019409F15469E30DAF",
             };
 
             const headers = {
@@ -403,26 +407,21 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
                 return [];
             }
 
-            const topLevelKeys = response.data ? Object.keys(response.data) : [];
-            const dataKeys = response.data?.data ? Object.keys(response.data.data) : [];
-            const searchKeys = response.data?.data?.search ? Object.keys(response.data.data.search) : [];
             targetDebug("[target] Response shape", {
                 status: response.status,
-                topLevelKeys,
-                dataKeys,
-                searchKeys,
-                productCount: response.data?.data?.search?.products?.length ?? "missing"
+                topLevelKeys: response.data ? Object.keys(response.data) : [],
+                productCount: response.data?.data_source_modules?.[0]?.module_data?.search_response?.products?.length ?? "missing"
             });
 
-            if (!response.data?.data?.search?.products) {
+            const products = response.data?.data_source_modules?.[0]?.module_data?.search_response?.products;
+
+            if (!products) {
                 log.warn(`[target] No products payload for "${keyword}" at store ${storeId} (${zipCode})`);
                 if (TARGET_DEBUG && response.data) {
                     log.warn("[target] Full response structure:", JSON.stringify(response.data).substring(0, 1000));
                 }
                 return [];
             }
-
-            const products = response.data.data.search.products;
 
             if (products.length === 0) {
                 log.warn(`[target] No products found for keyword "${keyword}" at store ${storeId}`);
@@ -451,7 +450,7 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
                     unit: product.price?.formatted_unit_price_suffix || "",
                     rawUnit: product.price?.formatted_unit_price_suffix || "",
                     provider: "Target",
-                    image_url: product.item?.enrichment?.images?.primary_image_url || "",
+                    image_url: product.item?.enrichment?.image_info?.primary_image?.url || "",
                     category: product.item?.product_classification?.item_type?.name || "",
                     product_id: productId || null,
                     id: productId,
