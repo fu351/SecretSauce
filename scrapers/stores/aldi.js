@@ -6,6 +6,7 @@ const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
+const { withExponentialBackoffRetry } = require('../utils/retry');
 
 const resultCache = createResultCache({ ttlMs: Number(process.env.ALDI_CACHE_TTL_MS || 5 * 60 * 1000) });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
@@ -21,50 +22,6 @@ const { enforceRateLimit } = createRateLimiter({
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
-
-// Utility function for exponential backoff retry
-async function withRetry(fn, options = {}) {
-    const {
-        maxRetries = JINA_MAX_RETRIES,
-        baseDelay = JINA_RETRY_DELAY_MS,
-        maxDelay = 10000,
-        timeoutMultiplier = 1.5,
-        initialTimeout = JINA_TIMEOUT_MS
-    } = options;
-
-    let lastError;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            // Calculate dynamic timeout: increases with each retry
-            const currentTimeout = Math.min(
-                initialTimeout * Math.pow(timeoutMultiplier, attempt),
-                initialTimeout * 3 // Cap at 3x the initial timeout
-            );
-
-            log.debug(`Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
-
-            return await fn(currentTimeout, attempt);
-        } catch (error) {
-            lastError = error;
-
-            // Don't retry on the last attempt
-            if (attempt === maxRetries) {
-                break;
-            }
-
-            // Calculate delay with exponential backoff
-            const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-
-            log.debug(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
-
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-
-    throw lastError;
-}
 
 // Environment variables for API keys
 const OPENAI_API_KEY = getOpenAIApiKey();
@@ -87,7 +44,7 @@ async function crawlAldiWithJina(keyword, zipCode) {
         };
 
         // Call Jina AI Reader API with retry logic and dynamic timeouts
-        const response = await withRetry(async (currentTimeout, attempt) => {
+        const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
             log.debug(`Jina AI request for Aldi (attempt ${attempt + 1})`);
             await enforceRateLimit();
 
@@ -104,7 +61,18 @@ async function crawlAldiWithJina(keyword, zipCode) {
         }, {
             initialTimeout: JINA_TIMEOUT_MS,
             maxRetries: JINA_MAX_RETRIES,
-            baseDelay: JINA_RETRY_DELAY_MS
+            baseDelay: JINA_RETRY_DELAY_MS,
+            onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
+                log.debug(`Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
+            },
+            getRetryDecision: ({ attempt, maxRetries, defaultDelay, error }) => {
+                if (attempt === maxRetries) {
+                    return { shouldRetry: false };
+                }
+
+                log.debug(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${defaultDelay}ms...`);
+                return { shouldRetry: true, delayMs: defaultDelay };
+            }
         });
 
         if (!response.data) {

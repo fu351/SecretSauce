@@ -6,6 +6,7 @@ const { createRateLimiter } = require('../utils/rate-limiter');
 const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
+const { withExponentialBackoffRetry } = require('../utils/retry');
 
 const resultCache = createResultCache({ ttlMs: Number(process.env.WALMART_CACHE_TTL_MS || 5 * 60 * 1000) });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
@@ -40,68 +41,6 @@ const { enforceRateLimit } = createRateLimiter({
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
-
-// Utility function for exponential backoff retry
-async function withRetry(fn, options = {}) {
-    const {
-        maxRetries = WALMART_MAX_RETRIES,
-        baseDelay = WALMART_RETRY_DELAY_MS,
-        maxDelay = 10000,
-        timeoutMultiplier = 1.5,
-        initialTimeout = WALMART_TIMEOUT_MS,
-        retryOn404 = false // Don't retry 404s by default
-    } = options;
-
-    let lastError;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            // Calculate dynamic timeout: increases with each retry
-            const currentTimeout = Math.min(
-                initialTimeout * Math.pow(timeoutMultiplier, attempt),
-                initialTimeout * 3 // Cap at 3x the initial timeout
-            );
-
-            log.debug(`[walmart] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
-
-            return await fn(currentTimeout, attempt);
-        } catch (error) {
-            lastError = error;
-
-            // Check if we should skip retrying based on error type
-            if (error.response) {
-                const status = error.response.status;
-
-                // Don't retry 404s unless explicitly requested
-                if (status === 404 && !retryOn404) {
-                    log.warn(`[walmart] Received 404 error, not retrying (attempt ${attempt + 1})`);
-                    break;
-                }
-
-                // Don't retry client errors (400-499) except 429 (rate limit)
-                if (status >= 400 && status < 500 && status !== 429) {
-                    log.warn(`[walmart] Client error ${status}, not retrying (attempt ${attempt + 1})`);
-                    break;
-                }
-            }
-
-            // Don't retry on the last attempt
-            if (attempt === maxRetries) {
-                break;
-            }
-
-            // Calculate delay with exponential backoff
-            const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-
-            log.debug(`[walmart] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
-
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-
-    throw lastError;
-}
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -176,7 +115,7 @@ async function fetchWalmartSearchHtml(keyword, zipCode) {
     const url = `https://www.walmart.com/search?${params.toString()}`;
 
     try {
-        const response = await withRetry(async (currentTimeout, attempt) => {
+        const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
             // Get User-Agent for this request (random or default)
             const userAgent = getUserAgent();
             const userAgentPreview = userAgent.substring(0, 50);
@@ -212,7 +151,29 @@ async function fetchWalmartSearchHtml(keyword, zipCode) {
             initialTimeout: WALMART_TIMEOUT_MS,
             maxRetries: WALMART_MAX_RETRIES,
             baseDelay: WALMART_RETRY_DELAY_MS,
-            retryOn404: false
+            onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
+                log.debug(`[walmart] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
+            },
+            getRetryDecision: ({ error, attempt, maxRetries, defaultDelay }) => {
+                if (error.response) {
+                    const status = error.response.status;
+                    if (status === 404) {
+                        log.warn(`[walmart] Received 404 error, not retrying (attempt ${attempt + 1})`);
+                        return { shouldRetry: false };
+                    }
+                    if (status >= 400 && status < 500 && status !== 429) {
+                        log.warn(`[walmart] Client error ${status}, not retrying (attempt ${attempt + 1})`);
+                        return { shouldRetry: false };
+                    }
+                }
+
+                if (attempt === maxRetries) {
+                    return { shouldRetry: false };
+                }
+
+                log.debug(`[walmart] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${defaultDelay}ms...`);
+                return { shouldRetry: true, delayMs: defaultDelay };
+            }
         });
 
         // Check response status

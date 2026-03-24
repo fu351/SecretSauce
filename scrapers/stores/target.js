@@ -5,6 +5,7 @@ const { withScraperTimeout } = require('../utils/runtime-config');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
+const { withExponentialBackoffRetry } = require('../utils/retry');
 
 // Environment variables for configuration
 const TARGET_TIMEOUT_MS = Number(process.env.TARGET_TIMEOUT_MS || 10000);
@@ -42,69 +43,6 @@ const resultCache = createResultCache({ ttlMs: TARGET_CACHE_TTL_MS });
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
 
-// Utility function for exponential backoff retry
-async function withRetry(fn, options = {}) {
-    const {
-        maxRetries = TARGET_MAX_RETRIES,
-        baseDelay = TARGET_RETRY_DELAY_MS,
-        maxDelay = 10000,
-        timeoutMultiplier = 1.5,
-        initialTimeout = TARGET_TIMEOUT_MS,
-        retryOn404 = false // Don't retry 404s by default
-    } = options;
-
-    let lastError;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            // Calculate dynamic timeout: increases with each retry
-            const currentTimeout = Math.min(
-                initialTimeout * Math.pow(timeoutMultiplier, attempt),
-                initialTimeout * 3 // Cap at 3x the initial timeout
-            );
-
-            targetDebug(`[target] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
-
-            return await fn(currentTimeout, attempt);
-        } catch (error) {
-            lastError = error;
-
-            // Check if we should skip retrying based on error type
-            if (error.response) {
-                const status = error.response.status;
-
-                // Don't retry 404s unless explicitly requested
-                if (status === 404 && !retryOn404) {
-                    targetDebug(`[target] Received 404 error, not retrying (attempt ${attempt + 1})`);
-                    break;
-                }
-
-                // Don't retry client errors (400-499) except 429 (rate limit)
-                if (status >= 400 && status < 500 && status !== 429) {
-                    targetDebug(`[target] Client error ${status}, not retrying (attempt ${attempt + 1})`);
-                    break;
-                }
-            }
-
-            // Don't retry on the last attempt
-            if (attempt === maxRetries) {
-                break;
-            }
-
-            // Calculate delay with exponential backoff
-            const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-
-            targetDebug(`[target] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
-
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-
-    throw lastError;
-}
-
-
 async function getNearestStore(zipCode) {
     // Check cache first to avoid redundant API calls
     if (storeCache.has(zipCode)) {
@@ -132,7 +70,7 @@ async function getNearestStore(zipCode) {
     };
 
     try {
-        const response = await withRetry(async (currentTimeout, attempt) => {
+        const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
             targetDebug(`[target] Fetching nearest store for ZIP ${zipCode} (attempt ${attempt + 1})`);
 
             // Enforce rate limiting before making request
@@ -145,7 +83,26 @@ async function getNearestStore(zipCode) {
         }, {
             initialTimeout: TARGET_TIMEOUT_MS,
             maxRetries: TARGET_MAX_RETRIES,
-            baseDelay: TARGET_RETRY_DELAY_MS
+            baseDelay: TARGET_RETRY_DELAY_MS,
+            onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
+                targetDebug(`[target] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
+            },
+            getRetryDecision: ({ error, attempt, maxRetries, defaultDelay }) => {
+                if (error.response) {
+                    const status = error.response.status;
+                    if (status >= 400 && status < 500 && status !== 429) {
+                        targetDebug(`[target] Client error ${status}, not retrying (attempt ${attempt + 1})`);
+                        return { shouldRetry: false };
+                    }
+                }
+
+                if (attempt === maxRetries) {
+                    return { shouldRetry: false };
+                }
+
+                targetDebug(`[target] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${defaultDelay}ms...`);
+                return { shouldRetry: true, delayMs: defaultDelay };
+            }
         });
 
         if (!response.data?.data?.nearby_stores?.stores || response.data.data.nearby_stores.stores.length === 0) {
@@ -346,7 +303,7 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
                 "Upgrade-Insecure-Requests": "1"
             };
 
-            const response = await withRetry(async (currentTimeout, attempt) => {
+            const response = await withExponentialBackoffRetry(async (currentTimeout, attempt) => {
                 targetDebug(`[target] Fetching products for "${keyword}" at store ${storeId} (attempt ${attempt + 1})`);
 
                 // Enforce rate limiting before making request
@@ -368,7 +325,29 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
                 initialTimeout: TARGET_TIMEOUT_MS,
                 maxRetries: TARGET_MAX_RETRIES,
                 baseDelay: TARGET_RETRY_DELAY_MS,
-                retryOn404: false // Don't retry 404s
+                onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
+                    targetDebug(`[target] Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
+                },
+                getRetryDecision: ({ error, attempt, maxRetries, defaultDelay }) => {
+                    if (error.response) {
+                        const status = error.response.status;
+                        if (status === 404) {
+                            targetDebug(`[target] Received 404 error, not retrying (attempt ${attempt + 1})`);
+                            return { shouldRetry: false };
+                        }
+                        if (status >= 400 && status < 500 && status !== 429) {
+                            targetDebug(`[target] Client error ${status}, not retrying (attempt ${attempt + 1})`);
+                            return { shouldRetry: false };
+                        }
+                    }
+
+                    if (attempt === maxRetries) {
+                        return { shouldRetry: false };
+                    }
+
+                    targetDebug(`[target] Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${defaultDelay}ms...`);
+                    return { shouldRetry: true, delayMs: defaultDelay };
+                }
             });
 
             // Check response status

@@ -6,72 +6,12 @@ const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
+const { sleep, parseRetryAfterHeaderToMs, withExponentialBackoffRetry } = require('../utils/retry');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('traderjoes');
 
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
-
-// Utility function for exponential backoff retry
-async function withRetry(fn, options = {}) {
-    const {
-        maxRetries = JINA_MAX_RETRIES,
-        baseDelay = JINA_RETRY_DELAY_MS,
-        maxDelay = 10000,
-        timeoutMultiplier = 1.5,
-        initialTimeout = JINA_TIMEOUT_MS
-    } = options;
-
-    let lastError;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            // Calculate dynamic timeout: increases with each retry
-            const currentTimeout = Math.min(
-                initialTimeout * Math.pow(timeoutMultiplier, attempt),
-                initialTimeout * 3 // Cap at 3x the initial timeout
-            );
-
-            log.debug(`Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
-
-            return await fn(currentTimeout, attempt);
-        } catch (error) {
-            lastError = error;
-
-            const status = error?.response?.status ?? error?.status;
-            let delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-
-            if (status === 429) {
-                const retryAfterMs = parseRetryAfterHeaderToMs(error?.response?.headers?.["retry-after"]);
-                delay = Math.max(delay, JINA_MIN_RETRY_DELAY_MS, retryAfterMs || 0);
-
-                const cooldownEntered = registerJina429AndMaybeEnterCooldown(retryAfterMs || delay);
-                log.warn(
-                    `[traderjoes] Jina rate limit (429) on attempt ${attempt + 1}/${maxRetries + 1}; ` +
-                    `retrying in ${delay}ms${cooldownEntered ? " (entering cooldown)" : ""}`
-                );
-
-                if (cooldownEntered) {
-                    break;
-                }
-            } else {
-                resetJina429State();
-            }
-
-            // Don't retry on the last attempt
-            if (attempt === maxRetries) {
-                break;
-            }
-
-            log.debug(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
-
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-
-    throw lastError;
-}
 
 // Environment variables for API keys
 const OPENAI_API_KEY = getOpenAIApiKey();
@@ -111,28 +51,6 @@ const { enforceRateLimit } = createRateLimiter({
 });
 
 const resultCache = createResultCache({ ttlMs: TJ_CACHE_TTL_MS, maxEntries: TJ_CACHE_MAX_ENTRIES });
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function parseRetryAfterHeaderToMs(retryAfterValue) {
-    if (!retryAfterValue) {
-        return 0;
-    }
-
-    const asNumber = Number(retryAfterValue);
-    if (Number.isFinite(asNumber) && asNumber > 0) {
-        return Math.round(asNumber * 1000);
-    }
-
-    const asDateMs = Date.parse(String(retryAfterValue));
-    if (Number.isFinite(asDateMs)) {
-        return Math.max(0, asDateMs - Date.now());
-    }
-
-    return 0;
-}
 
 function isJinaCooldownActive() {
     return Date.now() < traderJoes429CooldownUntilMs;
@@ -417,7 +335,7 @@ async function crawlTraderJoesWithJina(keyword) {
         };
 
         // Call Jina AI Reader API with retry logic and dynamic timeouts
-        const response = await withTimeout(withRetry(async (currentTimeout, attempt) => {
+        const response = await withTimeout(withExponentialBackoffRetry(async (currentTimeout, attempt) => {
             log.debug(`Jina AI request for Trader Joe's (attempt ${attempt + 1})`);
             await enforceRateLimit();
 
@@ -434,7 +352,46 @@ async function crawlTraderJoesWithJina(keyword) {
         }, {
             initialTimeout: JINA_TIMEOUT_MS,
             maxRetries: JINA_MAX_RETRIES,
-            baseDelay: JINA_RETRY_DELAY_MS
+            baseDelay: JINA_RETRY_DELAY_MS,
+            onAttempt: ({ attempt, maxRetries, currentTimeout }) => {
+                log.debug(`Attempt ${attempt + 1}/${maxRetries + 1} with timeout ${currentTimeout}ms`);
+            },
+            getRetryDecision: ({ error, attempt, maxRetries, defaultDelay }) => {
+                const status = error?.response?.status ?? error?.status;
+                let delay = defaultDelay;
+
+                if (status === 429) {
+                    const retryAfterMs = parseRetryAfterHeaderToMs(error?.response?.headers?.["retry-after"]);
+                    delay = Math.max(defaultDelay, JINA_MIN_RETRY_DELAY_MS, retryAfterMs || 0);
+
+                    const cooldownEntered = registerJina429AndMaybeEnterCooldown(retryAfterMs || delay);
+                    log.warn(
+                        `[traderjoes] Jina rate limit (429) on attempt ${attempt + 1}/${maxRetries + 1}; ` +
+                        `retrying in ${delay}ms${cooldownEntered ? " (entering cooldown)" : ""}`
+                    );
+
+                    if (cooldownEntered || attempt === maxRetries) {
+                        return {
+                            shouldRetry: false,
+                            breakDelayMs: cooldownEntered
+                                ? Math.min(delay, JINA_COOLDOWN_SLEEP_CAP_MS)
+                                : 0,
+                        };
+                    }
+
+                    log.debug(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
+                    return { shouldRetry: true, delayMs: delay };
+                }
+
+                resetJina429State();
+
+                if (attempt === maxRetries) {
+                    return { shouldRetry: false };
+                }
+
+                log.debug(`Attempt ${attempt + 1} failed: ${error.message}. Retrying in ${delay}ms...`);
+                return { shouldRetry: true, delayMs: delay };
+            }
         }), JINA_TOTAL_TIMEOUT_MS);
 
         if (!response.data) {

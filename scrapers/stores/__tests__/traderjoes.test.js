@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createRequire } from 'module'
 
 const _require = createRequire(import.meta.url)
@@ -78,12 +78,19 @@ describe('searchTraderJoes', () => {
 
   beforeEach(() => {
     delete process.env.TRADERJOES_CACHE_MAX_ENTRIES
+    delete process.env.TRADERJOES_JINA_MAX_CONSECUTIVE_429
+    delete process.env.TRADERJOES_JINA_MIN_429_RETRY_DELAY_MS
+    delete process.env.TRADERJOES_JINA_COOLDOWN_SLEEP_CAP_MS
     mockFetchJinaReader.mockReset()
     mockRequestOpenAIJson.mockReset()
     mockHasConfiguredOpenAIKey.mockReset()
     mockHasConfiguredOpenAIKey.mockReturnValue(true)
     mockGetOpenAIApiKey.mockReturnValue('sk-test')
     ;({ searchTraderJoes, searchTraderJoesBatch } = loadModule())
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   // ── Regex parsing (happy path) ──────────────────────────────────────────────
@@ -175,6 +182,32 @@ describe('searchTraderJoes', () => {
     const rateLimitError = Object.assign(new Error('Rate limited'), { response: { status: 429, headers: {} } })
     mockFetchJinaReader.mockRejectedValue(rateLimitError)
     await expect(searchTraderJoes('milk', '94704')).rejects.toMatchObject({ code: 'TJ_JINA_429' })
+  })
+
+  it('waits for capped cooldown sleep before throwing when 429 enters cooldown', async () => {
+    vi.useFakeTimers()
+    process.env.TRADERJOES_JINA_MAX_CONSECUTIVE_429 = '1'
+    process.env.TRADERJOES_JINA_MIN_429_RETRY_DELAY_MS = '50'
+    process.env.TRADERJOES_JINA_COOLDOWN_SLEEP_CAP_MS = '25'
+    ;({ searchTraderJoes, searchTraderJoesBatch } = loadModule())
+
+    const rateLimitError = Object.assign(new Error('Rate limited'), { response: { status: 429, headers: {} } })
+    mockFetchJinaReader.mockRejectedValue(rateLimitError)
+
+    let settled = false
+    const promise = searchTraderJoes('milk', '94704')
+      .catch((error) => error)
+      .finally(() => {
+        settled = true
+      })
+
+    await vi.advanceTimersByTimeAsync(24)
+    expect(settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    const error = await promise
+
+    expect(error).toMatchObject({ code: 'TJ_JINA_COOLDOWN' })
   })
 
   // ─── searchTraderJoesBatch ──────────────────────────────────────────────────
