@@ -58,9 +58,35 @@ async function runCycle(config: VectorDoubleCheckWorkerConfig): Promise<CycleRes
   for (const candidate of candidates) {
     const direction = resolveRemapDirection(candidate.source_canonical, candidate.target_canonical)
 
+    if (direction === "generic_to_specific") {
+      // Log to stats so the NOT EXISTS check excludes this pair in future runs
+      await ingredientMatchQueueDB.logCanonicalDoubleCheckDaily({
+        sourceCanonical: candidate.source_canonical,
+        targetCanonical: candidate.target_canonical,
+        decision: "skipped",
+        reason: "vector_candidate_discovery",
+        direction,
+        similarity: candidate.similarity,
+        sourceCategory: candidate.source_category,
+        targetCategory: candidate.target_category,
+      })
+      skipped++
+      continue
+    }
+
+    // For lateral pairs, always put the shorter name as source
+    const sourceCanonical =
+      direction === "lateral" && candidate.target_canonical.length < candidate.source_canonical.length
+        ? candidate.target_canonical
+        : candidate.source_canonical
+    const targetCanonical =
+      direction === "lateral" && candidate.target_canonical.length < candidate.source_canonical.length
+        ? candidate.source_canonical
+        : candidate.target_canonical
+
     const ok = await ingredientMatchQueueDB.logCanonicalDoubleCheckDaily({
-      sourceCanonical: candidate.source_canonical,
-      targetCanonical: candidate.target_canonical,
+      sourceCanonical,
+      targetCanonical,
       decision: "skipped",
       reason: "vector_candidate_discovery",
       direction,
@@ -73,13 +99,13 @@ async function runCycle(config: VectorDoubleCheckWorkerConfig): Promise<CycleRes
     if (ok) {
       logged++
       console.log(
-        `[VectorDoubleCheck] Logged ${candidate.source_canonical} → ${candidate.target_canonical} ` +
+        `[VectorDoubleCheck] Logged ${sourceCanonical} → ${targetCanonical} ` +
           `(similarity=${candidate.similarity.toFixed(4)}, direction=${direction})`
       )
     } else {
       skipped++
       console.warn(
-        `[VectorDoubleCheck] Failed to log ${candidate.source_canonical} → ${candidate.target_canonical}`
+        `[VectorDoubleCheck] Failed to log ${sourceCanonical} → ${targetCanonical}`
       )
     }
   }
@@ -103,8 +129,9 @@ export async function runVectorDoubleCheckDiscovery(
     totalLogged += result.logged
     totalSkipped += result.skipped
 
-    // If we got fewer candidates than the batch limit, the backlog is clear —
-    // no need to run another cycle immediately.
+    // Stop when fewer candidates than the batch limit — backlog is clear.
+    // Skipped pairs are now written to the stats table, so the next cycle
+    // will always return different candidates (no infinite loop risk).
     if (result.discovered < config.batchLimit) break
   }
 

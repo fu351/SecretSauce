@@ -1,15 +1,15 @@
 # Queue and Standardization
 
-Last verified: 2026-03-20.
+Last verified: 2026-03-23.
 
 ## Ingredient queue worker
 
 Core files:
 
-- `queue/index.ts`
-- `queue/config.ts`
-- `queue/ingredient-worker/processor.ts`
-- `queue/ingredient-worker/runner.ts`
+- `workers/index.ts`
+- `workers/config.ts`
+- `workers/ingredient-worker/processor.ts`
+- `workers/ingredient-worker/runner.ts`
 
 ### Responsibilities
 
@@ -29,7 +29,7 @@ Core files:
 
 Vector matching policy is implemented in:
 
-- `queue/ingredient-worker/scoring/vector-match.ts`
+- `workers/ingredient-worker/scoring/vector-match.ts`
 
 The effective score combines cosine similarity with bonuses/penalties (head/lexical/category/form) and is used for fast-path and semantic dedup flows.
 
@@ -37,34 +37,69 @@ The effective score combines cosine similarity with bonuses/penalties (head/lexi
 
 Core files:
 
-- `queue/embedding-worker/config.ts`
-- `queue/embedding-worker/processor.ts`
-- `queue/embedding-worker/runner.ts`
+- `workers/embedding-worker/config.ts`
+- `workers/embedding-worker/processor.ts`
+- `workers/embedding-worker/runner.ts`
 - `scripts/resolve-embedding-queue.ts`
 
 Responsibilities:
 
 - Claims/requeues embedding queue rows.
-- Fetches embeddings.
+- Fetches embeddings via OpenAI or Ollama (controlled by `EMBEDDING_PROVIDER`).
 - Upserts into `recipe_embeddings` / `ingredient_embeddings`.
 - Marks queue rows completed/failed.
 
+Embedding provider:
+
+- `EMBEDDING_PROVIDER=openai` (default): uses `text-embedding-3-small`, produces `vector(1536)`.
+- `EMBEDDING_PROVIDER=ollama`: uses `nomic-embed-text` by default, produces `vector(768)`.
+- `OLLAMA_BASE_URL` defaults to `http://localhost:11434`.
+
+Note: the DB vector columns are currently sized for `vector(768)` (Ollama/nomic-embed-text). Switching back to OpenAI requires a migration to resize to `vector(1536)`.
+
 ## Vector double-check candidate discovery
 
-Present in repository:
+Core files:
 
-- `queue/vector-double-check-worker/config.ts`
-- `queue/vector-double-check-worker/processor.ts`
-- `queue/vector-double-check-worker/runner.ts`
+- `workers/vector-double-check-worker/config.ts`
+- `workers/vector-double-check-worker/processor.ts`
+- `workers/vector-double-check-worker/runner.ts`
+- `scripts/resolve-vector-double-check.ts`
 
 Purpose:
 
-- Discovers high-similarity canonical pairs not yet logged in daily double-check stats.
-- Logs candidates for manual/review pipeline visibility.
+- Scans `ingredient_embeddings` for canonical pairs with cosine similarity ≥ `VECTOR_DC_SIMILARITY_THRESHOLD` (default 0.9) that haven't been logged yet.
+- Logs `lateral` and `specific_to_generic` pairs to `canonical_double_check_daily_stats` for downstream consolidation.
+- Filters out `generic_to_specific` pairs (logs them as skipped so they don't re-surface).
+- For `lateral` pairs, always records the shorter name as `source_canonical`.
 
-Note:
+Run via `docker compose -f docker-compose.local.yml run --rm vector-double-check-worker`.
 
-- This worker is present in the tree but not currently exposed in top-level `package.json` scripts.
+## Canonical consolidation worker
+
+Core files:
+
+- `workers/canonical-consolidation-worker/config.ts`
+- `workers/canonical-consolidation-worker/processor.ts`
+- `workers/canonical-consolidation-worker/runner.ts`
+- `workers/canonical-consolidation-worker/survivor.ts`
+- `scripts/resolve-canonical-consolidation.ts`
+- `lib/database/canonical-consolidation-db.ts`
+
+Purpose:
+
+- Reads high-similarity `lateral` and `specific_to_generic` pairs from `canonical_double_check_daily_stats`.
+- Selects the survivor canonical (`lateral` → shorter name; `specific_to_generic` → the generic).
+- Calls `fn_consolidate_canonical` to atomically re-point all downstream references and delete the loser canonical.
+- Logs each merge to `canonical_consolidation_log` for audit.
+
+Key config:
+
+- `CONSOLIDATION_DRY_RUN` (default `true`) — set to `false` to apply merges.
+- `CONSOLIDATION_MIN_SIMILARITY` (default `0.92`) — minimum `max_similarity` from stats.
+- `CONSOLIDATION_MIN_EVENT_COUNT` (default `1`).
+
+Note: uses a service-role Supabase client (`lib/database/supabase-worker.ts`) to bypass RLS on `canonical_double_check_daily_stats`.
 
 ## Standardizer modules
 
@@ -102,4 +137,7 @@ Queue/scoring docs are aligned to current migrations in `supabase/migrations/*`,
 - canonical creation probation/confidence outcomes
 - token IDF cache and bigram/PPMI collocation wiring
 - product mapping `is_ingredient` sync
+- `fn_find_vector_double_check_candidates` — vector similarity scan with 5-min statement timeout
+- `fn_consolidate_canonical` — atomic canonical merge across all downstream tables
+- `canonical_consolidation_log` — audit table for consolidation events
 

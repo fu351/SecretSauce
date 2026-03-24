@@ -22,7 +22,7 @@ vi.mock("@/lib/database/ingredient-match-queue-db", () => ({
   },
 }))
 
-vi.mock("@/queue/ingredient-worker/canonical/double-check", () => ({
+vi.mock("@/workers/ingredient-worker/canonical/double-check", () => ({
   resolveRemapDirection: mockResolveRemapDirection,
 }))
 

@@ -1,0 +1,76 @@
+services:
+  # Local Ollama server — stores pulled models in a named volume so they
+  # survive container restarts.
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  # One-shot init container: pulls nomic-embed-text before the worker starts.
+  # Skipped automatically on subsequent runs if the model is already cached.
+  ollama-init:
+    image: ollama/ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["ollama", "pull", "nomic-embed-text"]
+    volumes:
+      - ollama-data:/root/.ollama
+
+  # Embedding queue worker — drains pending rows using the local Ollama model.
+  # Requires Supabase credentials in .env.local (or set them in environment:).
+  embedding-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.embedding-worker
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env.local
+    environment:
+      - EMBEDDING_PROVIDER=ollama
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - EMBEDDING_OPENAI_MODEL=nomic-embed-text
+
+  # Monthly vector double-check candidate discovery — scans for high-similarity
+  # ingredient pairs that haven't been reviewed yet and queues them for review.
+  vector-double-check-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.embedding-worker
+    command: ["node_modules/.bin/tsx", "scripts/resolve-vector-double-check.ts"]
+    env_file:
+      - .env.local
+    environment:
+      - EMBEDDING_OPENAI_MODEL=nomic-embed-text
+      - VECTOR_DC_DRY_RUN=false
+      - VECTOR_DC_SIMILARITY_THRESHOLD=0.9
+
+  # Canonical consolidation worker — merges duplicate/near-duplicate canonicals
+  # identified by the vector double-check worker. Defaults to dry-run; set
+  # CONSOLIDATION_DRY_RUN=false to apply merges.
+  canonical-consolidation-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.embedding-worker
+    command: ["node_modules/.bin/tsx", "scripts/resolve-canonical-consolidation.ts"]
+    env_file:
+      - .env.local
+    environment:
+      - CONSOLIDATION_DRY_RUN=false
+      - CONSOLIDATION_MIN_SIMILARITY=0.92
+      - CONSOLIDATION_MIN_EVENT_COUNT=1
+
+volumes:
+  ollama-data:
