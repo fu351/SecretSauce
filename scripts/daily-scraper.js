@@ -459,14 +459,6 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
     batchConcurrency,
     async ingredientName => {
       try {
-        // Special handling for Target to pass store metadata
-        if (storeEnum === 'target') {
-          console.log(
-            `[DEBUG] Target scrape for ${ingredientName}: ` +
-            `target_store_id=${normalizedTargetMetadata?.target_store_id || 'none'}, ` +
-            `grocery_store_id=${normalizedTargetMetadata?.grocery_store_id || 'none'}, zip=${zipCode}`
-          )
-        }
         const results = storeEnum === 'target'
           ? await scrapers.searchTarget(ingredientName, normalizedTargetMetadata, zipCode)
           : await singleScraper(ingredientName, zipCode)
@@ -578,10 +570,6 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
       const chunk = ingredients.slice(i, i + batchSize)
       const chunkLabel = `${i + 1}-${Math.min(i + chunk.length, ingredients.length)}`
       console.log(`   📦 Batched ingredients ${chunkLabel}/${ingredients.length}`)
-
-      if (storeEnum === 'target') {
-        console.log(`[DEBUG] Calling runBatchedScraperForStore with metadata:`, JSON.stringify(normalizedTargetMetadata))
-      }
 
       const localScrapeStats = { target404s: storeTarget404s }
       const { resultsByIngredient, errorFlags, errorMessages, http404Flags, errorCodes } = await runBatchedScraperForStore(
