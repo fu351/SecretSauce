@@ -52,9 +52,9 @@ async function runStoreScraper(
       wholefoods: scrapers.searchWholeFoods,
       whole_foods: scrapers.searchWholeFoods,
       aldi: scrapers.searchAldi,
-      kroger: (query, zipCode) => scrapers.Krogers(zipCode, query),
-      meijer: (query, zipCode) => scrapers.Meijers(zipCode, query),
-      target: (query, zipCode) => scrapers.getTargetProducts(query, null, zipCode),
+      kroger: (query, zipCode) => scrapers.searchKroger(zipCode, query),
+      meijer: (query, zipCode) => scrapers.searchMeijer(zipCode, query),
+      target: (query, zipCode) => scrapers.searchTarget(query, null, zipCode),
       ranch99: scrapers.search99Ranch,
       "99ranch": scrapers.search99Ranch,
     };

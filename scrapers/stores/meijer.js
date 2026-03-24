@@ -44,7 +44,7 @@ async function getLocations(zipCode) {
 }
 
 // Function to fetch products from Meijer
-async function Meijers(zipCode = 47906, searchTerm) {
+async function searchMeijer(zipCode = 47906, searchTerm) {
     try {
         let storeInfo = null;
         try {
@@ -156,14 +156,15 @@ if (require.main === module) {
         process.exit(1);
     }
 
-    Meijers(zip, searchTerm).then(results => {
+    searchMeijer(zip, searchTerm).then(results => {
         console.log(JSON.stringify(results));
     }).catch(err => {
         log.error("❌", err.message);
     });
 }
 
-module.exports = { Meijers, getLocations };
+const Meijers = searchMeijer;
+module.exports = { searchMeijer, Meijers, getLocations };
 
 function extractNearestStore(locationsResponse) {
     if (!locationsResponse) {

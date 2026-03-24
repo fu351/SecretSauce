@@ -69,9 +69,9 @@ async function scrapeDirectFallback(
     const scrapers = require("@/scrapers")
     const scraperMap: Record<string, any> = {
       walmart: scrapers.searchWalmartAPI,
-      target: scrapers.getTargetProducts,
-      kroger: scrapers.Krogers,
-      meijer: scrapers.Meijers,
+      target: scrapers.searchTarget,
+      kroger: scrapers.searchKroger,
+      meijer: scrapers.searchMeijer,
       "99ranch": scrapers.search99Ranch,
       ranch99: scrapers.search99Ranch,
       traderjoes: scrapers.searchTraderJoes,

@@ -337,7 +337,7 @@ function resolveTargetStoreId(storeMetadata) {
 }
 
 // Function to fetch products from Target API
-async function getTargetProducts(keyword, storeMetadata, zipCode, sortBy = "price") {
+async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
     // Build cache key for result caching
     const cacheKey = buildCacheKey(keyword, zipCode);
 
@@ -632,7 +632,7 @@ async function main() {
             process.exit(1);
         }
 
-        const data = await getTargetProducts(searchTerm, nearestStore, zipCode);
+        const data = await searchTarget(searchTerm, nearestStore, zipCode);
         console.log(JSON.stringify(data));
     } catch (err) {
         log.error(err);
@@ -640,8 +640,10 @@ async function main() {
     }
 }
 
+const getTargetProducts = searchTarget;
+
 // Export for use as a module
-module.exports = { getTargetProducts };
+module.exports = { searchTarget, getTargetProducts };
 
 // Run if called directly
 if (require.main === module) {

@@ -224,7 +224,7 @@ function formatKrogerStoreLocation(storeInfo, fallbackZip) {
 }
 
 // Main function to fetch products from Kroger
-async function Krogers(zipCode = 47906, searchTerm, brand = '') {
+async function searchKroger(zipCode = 47906, searchTerm, brand = '') {
     try {
         const token = await getAuthToken();
         if (!token) {
@@ -255,20 +255,22 @@ async function Krogers(zipCode = 47906, searchTerm, brand = '') {
             location: locationLabel,
         }));
     } catch (error) {
-        log.error("[kroger] Error in Krogers function:", error.message || error);
+        log.error("[kroger] Error in searchKroger function:", error.message || error);
         return [];
     }
 }
 
+const Krogers = searchKroger;
+
 // Export for use as a module
-module.exports = { Krogers };
+module.exports = { searchKroger, Krogers };
 
 // Run if called directly
 if (require.main === module) {
-  // Call Krogers and print result
+  // Call searchKroger and print result
   (async () => {
     try {
-      const data = await Krogers(zipCode, searchTerm);
+      const data = await searchKroger(zipCode, searchTerm);
       console.log(JSON.stringify(data));
     } catch (err) {
       log.error(err);

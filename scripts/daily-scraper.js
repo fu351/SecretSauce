@@ -75,9 +75,9 @@ const SCRAPER_MAP = {
   wholefoods: scrapers.searchWholeFoods,
   whole_foods: scrapers.searchWholeFoods,
   aldi: scrapers.searchAldi,
-  kroger: (query, zip) => scrapers.Krogers(zip, query),
-  meijer: (query, zip) => scrapers.Meijers(zip, query),
-  target: (query, zip) => scrapers.getTargetProducts(query, null, zip),
+  kroger: (query, zip) => scrapers.searchKroger(zip, query),
+  meijer: (query, zip) => scrapers.searchMeijer(zip, query),
+  target: (query, zip) => scrapers.searchTarget(query, null, zip),
   ranch99: scrapers.search99Ranch,
   '99ranch': scrapers.search99Ranch,
 }
@@ -449,7 +449,7 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
           )
         }
         const results = storeEnum === 'target'
-          ? await scrapers.getTargetProducts(ingredientName, normalizedTargetMetadata, zipCode)
+          ? await scrapers.searchTarget(ingredientName, normalizedTargetMetadata, zipCode)
           : await singleScraper(ingredientName, zipCode)
 
         return {
