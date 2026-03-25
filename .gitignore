@@ -64,6 +64,7 @@ supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql
 !supabase/migrations/20260323020000_fix_token_idf_cache_delete.sql
 !supabase/migrations/20260324000000_fn_bulk_insert_statement_timeout.sql
 !supabase/migrations/20260324010000_fn_bulk_insert_skip_known_products.sql
+!supabase/migrations/20260324020000_idx_product_mappings_ingredient_store.sql
 supabase/.temp/
 
 # clerk configuration (can include secrets)

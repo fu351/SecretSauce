@@ -164,6 +164,31 @@ function normalizeTargetStoreMetadata(store, fallbackZipCode = '') {
   }
 }
 
+function normalizeProductNameForDedupe(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+function buildInsertDedupKey(item) {
+  const store = normalizeStoreEnum(item?.store)
+  const zipCode = normalizeZipCode(item?.zipCode)
+  const productId = toNonEmptyString(item?.productId)
+
+  if (productId) {
+    return `${store}|${zipCode}|id|${productId}`
+  }
+
+  const productName = normalizeProductNameForDedupe(item?.productName)
+  const price = toPriceNumber(item?.price)
+  if (!productName || price === null) {
+    return ''
+  }
+
+  return `${store}|${zipCode}|name|${productName}|price|${price.toFixed(2)}`
+}
+
 async function appendStoreFailureMetadata(store, details) {
   if (DAILY_SCRAPER_DRY_RUN) {
     console.log(
@@ -549,17 +574,47 @@ class GlobalInsertQueue {
     this._activeInserts = 0
     this._backpressureWaiters = []
     this._concurrencyWaiters = []
+    this._inFlightKeys = new Set()
+    this._totalDeduped = 0
   }
 
   async push(items) {
     if (this._drainError) throw this._drainError
+    const uniqueItems = []
+
+    for (const item of items) {
+      const dedupeKey = buildInsertDedupKey(item)
+      if (dedupeKey && this._inFlightKeys.has(dedupeKey)) {
+        this._totalDeduped += 1
+        continue
+      }
+
+      if (dedupeKey) {
+        this._inFlightKeys.add(dedupeKey)
+      }
+
+      uniqueItems.push({
+        ...item,
+        _dedupeKey: dedupeKey,
+      })
+    }
+
+    if (uniqueItems.length === 0) {
+      return
+    }
+
+    const skippedCount = items.length - uniqueItems.length
+    if (skippedCount > 0) {
+      console.log(`   🔁 Skipped ${skippedCount} in-flight duplicate item(s) before queueing`)
+    }
+
     if (this._maxQueueSize > 0) {
-      while (this._queue.length >= this._maxQueueSize) {
+      while (this._queue.length + uniqueItems.length > this._maxQueueSize) {
         await new Promise(resolve => this._backpressureWaiters.push(resolve))
         if (this._drainError) throw this._drainError
       }
     }
-    this._queue.push(...items)
+    this._queue.push(...uniqueItems)
     this._maybeFlush()
   }
 
@@ -580,6 +635,10 @@ class GlobalInsertQueue {
 
   get totalInserted() {
     return this._totalInserted
+  }
+
+  get totalDeduped() {
+    return this._totalDeduped
   }
 
   _maybeFlush() {
@@ -603,6 +662,11 @@ class GlobalInsertQueue {
         this._notifyConcurrencyWaiters()
       })
       .finally(() => {
+        for (const item of batch) {
+          if (item?._dedupeKey) {
+            this._inFlightKeys.delete(item._dedupeKey)
+          }
+        }
         this._activeInserts -= 1
         this._notifyConcurrencyWaiters()
         this._maybeFlush()
@@ -812,6 +876,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
 
   let totalScrapedCount = 0
   const totalInsertedCount = insertQueue.totalInserted
+  const totalDedupedCount = insertQueue.totalDeduped
   for (const result of storeResults) {
     if (!result) continue
     totalScrapedCount += result.scrapedCount
@@ -841,6 +906,7 @@ async function scrapeIngredientsAndInsertBatched(ingredients, stores) {
   return {
     scrapedCount: totalScrapedCount,
     insertedCount: totalInsertedCount,
+    dedupedCount: totalDedupedCount,
     scrapeStats,
   }
 }
@@ -932,13 +998,16 @@ async function main() {
     process.exit(1)
   }
 
-  const { scrapedCount, insertedCount, scrapeStats } = await scrapeIngredientsAndInsertBatched(ingredients, stores)
+  const { scrapedCount, insertedCount, dedupedCount, scrapeStats } = await scrapeIngredientsAndInsertBatched(ingredients, stores)
   console.log(`\n✅ Scraped ${scrapedCount} total products`)
   const inserted = insertedCount
   if (DAILY_SCRAPER_DRY_RUN) {
     console.log(`\n[DRY RUN] Would insert ${inserted} rows to database`)
   } else {
     console.log(`\n✅ Inserted ${inserted} rows to database`)
+  }
+  if (dedupedCount > 0) {
+    console.log(`🔁 Deduped ${dedupedCount} in-flight queue item(s)`)
   }
 
   const duration = (Date.now() - startTime) / 1000
@@ -952,6 +1021,7 @@ async function main() {
   console.log(`Ingredients: ${ingredients.length}`)
   console.log(`Scraped: ${scrapedCount}`)
   console.log(`${DAILY_SCRAPER_DRY_RUN ? 'Would Insert' : 'Inserted'}: ${inserted}`)
+  console.log(`Deduped In Flight: ${dedupedCount}`)
   console.log(`Success Rate: ${successRate.toFixed(1)}%`)
   console.log(`Duration: ${duration.toFixed(1)}s`)
   console.log('='.repeat(60))
