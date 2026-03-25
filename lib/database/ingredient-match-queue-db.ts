@@ -650,9 +650,11 @@ class IngredientMatchQueueTable extends BaseTable<
 
   async fetchSensitivityPairStats(params?: {
     minEventCount?: number
+    daysBack?: number
   }): Promise<SensitivityPairStatsRow[]> {
-    const { minEventCount = 1 } = params || {}
+    const { minEventCount = 1, daysBack = 90 } = params || {}
     const { data, error } = await (this.supabase.rpc as any)("fn_get_sensitivity_pair_stats", {
+      p_days_back: daysBack,
       p_min_event_count: Math.max(1, minEventCount),
     })
 
