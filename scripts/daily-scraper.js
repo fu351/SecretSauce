@@ -420,11 +420,17 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
     } catch (error) {
       const message = error?.message || String(error)
       const code = String(error?.code || '')
+      const normalizedCode = code.toLowerCase()
+      const normalizedMessage = message.toLowerCase()
       const isRateLimitFailure =
-        code.toLowerCase().includes('rate_limit') ||
-        code.toLowerCase().includes('429') ||
-        message.toLowerCase().includes('429') ||
-        message.toLowerCase().includes('rate limit')
+        normalizedCode.includes('rate_limit') ||
+        normalizedCode.includes('cooldown') ||
+        normalizedCode.includes('429') ||
+        normalizedCode.includes('jina') ||
+        normalizedMessage.includes('429') ||
+        normalizedMessage.includes('rate limit') ||
+        normalizedMessage.includes('cooldown active') ||
+        normalizedMessage.includes('jina cooldown')
 
       if (isRateLimitFailure) {
         console.warn(
