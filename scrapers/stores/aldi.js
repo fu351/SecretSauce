@@ -32,6 +32,10 @@ const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 25000);
 const JINA_TIMEOUT_MS = Number(process.env.JINA_TIMEOUT_MS || 30000);
 const JINA_MAX_RETRIES = Number(process.env.JINA_MAX_RETRIES || 2);
 const JINA_RETRY_DELAY_MS = Number(process.env.JINA_RETRY_DELAY_MS || 1000);
+const JINA_MIN_RETRY_DELAY_MS = Number(process.env.JINA_MIN_429_RETRY_DELAY_MS || 5000);
+const JINA_429_COOLDOWN_MS = Number(process.env.JINA_429_COOLDOWN_MS || 90000);
+const JINA_MAX_CONSECUTIVE_429 = Number(process.env.JINA_MAX_CONSECUTIVE_429 || 5);
+const JINA_COOLDOWN_SLEEP_CAP_MS = Number(process.env.JINA_COOLDOWN_SLEEP_CAP_MS || 10000);
 const ALDI_JINA_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
 };
@@ -45,6 +49,11 @@ const jinaCrawler = createJinaCrawler({
     requestTimeoutMs: JINA_TIMEOUT_MS,
     maxRetries: JINA_MAX_RETRIES,
     baseDelayMs: JINA_RETRY_DELAY_MS,
+    min429RetryDelayMs: JINA_MIN_RETRY_DELAY_MS,
+    cooldownMs: JINA_429_COOLDOWN_MS,
+    maxConsecutive429: JINA_MAX_CONSECUTIVE_429,
+    cooldownSleepCapMs: JINA_COOLDOWN_SLEEP_CAP_MS,
+    cooldownScope: "jina-global",
     requestLabel: 'Jina AI',
     describeSearch: (keyword, zipCode) => `${keyword} in ${zipCode}`,
     onError: async (error, { keyword, zipCode, requestUrl }) => {

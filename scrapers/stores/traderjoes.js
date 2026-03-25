@@ -74,6 +74,7 @@ const jinaCrawler = createJinaCrawler({
     cooldownMs: JINA_429_COOLDOWN_MS,
     maxConsecutive429: JINA_MAX_CONSECUTIVE_429,
     cooldownSleepCapMs: JINA_COOLDOWN_SLEEP_CAP_MS,
+    cooldownScope: "jina-global",
     rateLimitErrorPrefix: "TJ_JINA",
     requestLabel: "traderjoes",
     describeSearch: (keyword) => keyword,

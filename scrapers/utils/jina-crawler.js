@@ -5,6 +5,33 @@ const {
   withExponentialBackoffRetry,
 } = require("./retry");
 
+const sharedCooldownStates = new Map();
+
+function getSharedCooldownState(scope = "global") {
+  const normalizedScope = String(scope || "global").trim() || "global";
+  const existing = sharedCooldownStates.get(normalizedScope);
+  if (existing) {
+    return existing;
+  }
+
+  const state = {
+    consecutive429: 0,
+    cooldownUntilMs: 0,
+  };
+  sharedCooldownStates.set(normalizedScope, state);
+  return state;
+}
+
+function resetSharedCooldownState(scope) {
+  if (scope === undefined) {
+    sharedCooldownStates.clear();
+    return;
+  }
+
+  const normalizedScope = String(scope || "global").trim() || "global";
+  sharedCooldownStates.delete(normalizedScope);
+}
+
 function createJinaRateLimitError(message, code = "JINA_RATE_LIMIT", status = 429) {
   const error = new Error(message);
   error.code = code;
@@ -28,19 +55,19 @@ function createJinaCrawler({
   cooldownSleepCapMs = 0,
   rateLimitErrorPrefix = "JINA",
   requestLabel = "Jina AI",
+  cooldownScope = "global",
   describeSearch = (keyword, zipCode) =>
     zipCode ? `${keyword} in ${zipCode}` : `${keyword}`,
   onError,
 }) {
-  let consecutive429 = 0;
-  let cooldownUntilMs = 0;
+  const cooldownState = getSharedCooldownState(cooldownScope);
 
   function isCooldownActive() {
-    return Date.now() < cooldownUntilMs;
+    return Date.now() < cooldownState.cooldownUntilMs;
   }
 
   function getCooldownRemainingMs() {
-    return Math.max(0, cooldownUntilMs - Date.now());
+    return Math.max(0, cooldownState.cooldownUntilMs - Date.now());
   }
 
   async function sleepDuringCooldown(contextLabel) {
@@ -67,19 +94,20 @@ function createJinaCrawler({
       return false;
     }
 
-    consecutive429 += 1;
-    if (consecutive429 < maxConsecutive429) {
+    cooldownState.consecutive429 += 1;
+    if (cooldownState.consecutive429 < maxConsecutive429) {
       return false;
     }
 
-    cooldownUntilMs = Date.now() + Math.max(cooldownMs, suggestedDelayMs || 0);
+    cooldownState.cooldownUntilMs =
+      Date.now() + Math.max(cooldownMs, suggestedDelayMs || 0);
     return true;
   }
 
   function reset429State() {
-    consecutive429 = 0;
+    cooldownState.consecutive429 = 0;
     if (!isCooldownActive()) {
-      cooldownUntilMs = 0;
+      cooldownState.cooldownUntilMs = 0;
     }
   }
 
@@ -199,7 +227,7 @@ function createJinaCrawler({
         const remainingMs = getCooldownRemainingMs();
         log.warn(
           `[${requestLabel.toLowerCase()}] rate-limited for "${keyword}"` +
-            `(consecutive_429=${consecutive429}${remainingMs > 0 ? `, cooldown_ms=${remainingMs}` : ""})`
+            `(consecutive_429=${cooldownState.consecutive429}${remainingMs > 0 ? `, cooldown_ms=${remainingMs}` : ""})`
         );
 
         throw buildRateLimitError(
@@ -230,4 +258,5 @@ function createJinaCrawler({
 
 module.exports = {
   createJinaCrawler,
+  resetSharedCooldownState,
 };
