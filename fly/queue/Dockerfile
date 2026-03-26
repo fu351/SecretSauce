@@ -7,9 +7,8 @@ COPY backend/scripts/package.json backend/scripts/package-lock.json ./backend/sc
 RUN npm --prefix ./backend/scripts ci
 
 COPY tsconfig.json ./tsconfig.json
-COPY queue ./queue
+COPY workers ./workers
 COPY lib/database ./lib/database
-COPY standardizer ./standardizer
 COPY lib/utils ./lib/utils
 COPY backend/scripts/utils ./backend/scripts/utils
 

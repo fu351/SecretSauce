@@ -1,5 +1,5 @@
 import type { IngredientMatchQueueRow } from "../../lib/database/ingredient-match-queue-db"
-import type { UnitStandardizationResult } from "../../standardizer"
+import type { UnitStandardizationResult } from "../standardizer-worker"
 import { escapeRegExp, normalizeSpaces } from "../../lib/utils/string"
 
 export const UNIT_FALLBACK_CONFIDENCE = 0.2

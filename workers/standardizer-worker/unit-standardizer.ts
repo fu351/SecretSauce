@@ -1,5 +1,5 @@
 import axios from "axios"
-import type { Database } from "../lib/database/supabase"
+import type { Database } from "../../lib/database/supabase"
 import { buildUnitStandardizerPrompt, type UnitStandardizerPromptInput } from "./prompts/unit/build-prompt"
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY

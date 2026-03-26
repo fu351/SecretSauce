@@ -1,5 +1,5 @@
 import axios from "axios"
-import { standardizedIngredientsDB } from "../lib/database/standardized-ingredients-db"
+import { standardizedIngredientsDB } from "../../lib/database/standardized-ingredients-db"
 import { buildIngredientStandardizerPrompt } from "./prompts/ingredient/build-prompt"
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY

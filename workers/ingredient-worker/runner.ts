@@ -17,7 +17,7 @@ export async function runQueueWorkerLoop(overrides?: Partial<QueueWorkerConfig>)
   }
 }
 
-if (process.argv[1] && process.argv[1].includes("queue/ingredient-worker/runner")) {
+if (process.argv[1] && process.argv[1].includes("workers/ingredient-worker/runner")) {
   runQueueWorkerLoop().catch((error) => {
     console.error("[QueueRunner] Unhandled error:", error)
     process.exit(1)

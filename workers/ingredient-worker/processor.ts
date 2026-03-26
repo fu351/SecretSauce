@@ -4,10 +4,10 @@ import {
   type IngredientMatchQueueUpdate,
 } from "../../lib/database/ingredient-match-queue-db"
 import { standardizedIngredientsDB } from "../../lib/database/standardized-ingredients-db"
-import { standardizeIngredientsWithAI, type IngredientStandardizationResult } from "../../standardizer"
-import { standardizeUnitsWithAI, type UnitStandardizationResult } from "../../standardizer"
+import { standardizeIngredientsWithAI, type IngredientStandardizationResult } from "../standardizer-worker"
+import { standardizeUnitsWithAI, type UnitStandardizationResult } from "../standardizer-worker"
 import { normalizeConfidence } from "../../lib/utils/number"
-import type { IngredientStandardizerContext } from "../../standardizer"
+import type { IngredientStandardizerContext } from "../standardizer-worker"
 import { normalizeCanonicalName, singularizeCanonicalName } from "../../backend/scripts/utils/canonical-matching"
 import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"

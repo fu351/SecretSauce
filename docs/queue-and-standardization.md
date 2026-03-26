@@ -105,10 +105,10 @@ Note: uses a service-role Supabase client (`lib/database/supabase-worker.ts`) to
 
 Core files:
 
-- `standardizer/ingredient-standardizer.ts`
-- `standardizer/unit-standardizer.ts`
-- `standardizer/prompts/ingredient/*`
-- `standardizer/prompts/unit/*`
+- `workers/standardizer-worker/ingredient-standardizer.ts`
+- `workers/standardizer-worker/unit-standardizer.ts`
+- `workers/standardizer-worker/prompts/ingredient/*`
+- `workers/standardizer-worker/prompts/unit/*`
 
 Key points:
 

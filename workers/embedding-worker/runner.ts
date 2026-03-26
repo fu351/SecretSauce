@@ -46,7 +46,7 @@ export async function runEmbeddingQueueWorkerLoop(
   }
 }
 
-if (process.argv[1] && process.argv[1].includes("queue/embedding-worker/runner")) {
+if (process.argv[1] && process.argv[1].includes("workers/embedding-worker/runner")) {
   runEmbeddingQueueWorkerLoop().catch((error) => {
     console.error("[EmbeddingQueueRunner] Unhandled error:", error)
     process.exit(1)

@@ -19,7 +19,7 @@ Last verified: 2026-03-20.
 - `hooks/`: client hooks (shopping, recipe, analytics, auth, subscription, experiments).
 - `lib/`: database wrappers, auth helpers, analytics, parsing helpers, shared types/utilities.
 - `workers/`: long-running worker modules (ingredient, embedding, vector double-check, canonical consolidation, scraper, store maintenance).
-- `standardizer/`: ingredient/unit standardizer services + prompts.
+- `workers/standardizer-worker/`: ingredient/unit standardizer services + prompts.
 - `scrapers/`: scraper adapters, store implementations, and scraper utilities.
 - `backend/scripts/`: one-off and scheduled operational scripts.
 - `python-api/`: FastAPI service for URL/Instagram/OCR recipe import.
@@ -71,5 +71,5 @@ These are actively relevant to current queue matching/scoring behavior.
 The current code uses:
 
 - `scrapers/*` (not `lib/scrapers/*`)
-- `standardizer/*` (not `lib/ingredient-standardizer.ts` / `lib/unit-standardizer.ts`)
-- `queue/ingredient-worker/*` and `queue/embedding-worker/*` (not `queue/worker/*`)
+- `workers/standardizer-worker/*` (not `lib/ingredient-standardizer.ts` / `lib/unit-standardizer.ts`)
+- `workers/ingredient-worker/*` and `workers/embedding-worker/*` (not `queue/worker/*`)
