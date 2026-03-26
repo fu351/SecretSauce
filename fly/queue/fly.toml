@@ -2,7 +2,7 @@ app = "secretsauce-queue"
 primary_region = "ord"
 
 [build]
-  dockerfile = "fly/queue/Dockerfile"
+  dockerfile = "backend/docker/Dockerfile.fly-queue"
 
 [env]
   WORKER_INTERVAL_SECONDS = "300"

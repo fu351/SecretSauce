@@ -3,7 +3,7 @@ name: daily-scraper-local-matrix
 x-daily-scraper-base: &daily-scraper-base
   build:
     context: ../../..
-    dockerfile: docker/Dockerfile.daily-scraper
+    dockerfile: backend/docker/Dockerfile.daily-scraper
   env_file:
     - ../../../.env.local
     - ./daily-scraper.shared.env

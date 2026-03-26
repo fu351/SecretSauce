@@ -30,7 +30,7 @@ node backend/scripts/daily-scraper.js
 Docker image:
 
 ```bash
-docker build -f docker/Dockerfile.daily-scraper .
+docker build -f backend/docker/Dockerfile.daily-scraper .
 ```
 
 Local compose matrix:

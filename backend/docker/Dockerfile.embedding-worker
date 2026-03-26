@@ -8,7 +8,7 @@ COPY backend/scripts/package-lock.json ./package-lock.json
 RUN npm ci --omit=dev
 
 COPY tsconfig.json ./tsconfig.json
-COPY workers ./workers
+COPY backend/workers ./backend/workers
 COPY lib/database ./lib/database
 COPY lib/ollama ./lib/ollama
 COPY lib/openai ./lib/openai

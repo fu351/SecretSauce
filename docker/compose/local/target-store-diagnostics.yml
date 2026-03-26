@@ -4,7 +4,7 @@ services:
   target-store-diagnostics:
     build:
       context: ../../..
-      dockerfile: docker/Dockerfile.daily-scraper
+      dockerfile: backend/docker/Dockerfile.daily-scraper
     command: ["node", "backend/scripts/temp/target-store-diagnostics.js"]
     env_file:
       - ../../../.env.local
