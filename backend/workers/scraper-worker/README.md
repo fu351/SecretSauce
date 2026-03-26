@@ -8,7 +8,7 @@ Central scraper worker that hosts all store scrapers and shared scraper runtime 
 - `stores/*` - store-specific scrapers and optional batch variants.
 - `utils/*` - shared crawler, logging, retry, rate-limit, and normalization utilities.
 - `ingredient-pipeline.ts` - canonical ingredient -> multi-store pricing pipeline.
-- `grocery-scrapers.ts` - frontend-facing grocery-search helper.
+- `grocery-scrapers.ts` - compatibility wrapper that re-exports frontend helper from `frontend-scraper-worker`.
 - `universal-controls.js` - worker-wide runtime controls for live activation and timeout behavior.
 
 ## Universal Controls
