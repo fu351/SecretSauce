@@ -13,7 +13,7 @@ import {
   getIntEnv,
   mapWithConcurrency,
   normalizeZipCode,
-} from '../../../workers/daily-scraper-worker/utils.js'
+} from '../../workers/daily-scraper-worker/utils.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

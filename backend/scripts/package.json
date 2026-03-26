@@ -6,9 +6,9 @@
   "scripts": {
     "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts",
     "resolve-embedding-queue": "tsx resolve-embedding-queue.ts",
-    "resolve-vector-double-check": "tsx ../../workers/vector-double-check-worker/resolve-vector-double-check.ts",
-    "resolve-canonical-consolidation": "tsx ../../workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts",
-    "queue-worker": "tsx ../../workers/ingredient-worker/runner.ts",
+    "resolve-vector-double-check": "tsx ../workers/vector-double-check-worker/resolve-vector-double-check.ts",
+    "resolve-canonical-consolidation": "tsx ../workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts",
+    "queue-worker": "tsx ../workers/ingredient-worker/runner.ts",
     "regenerate-mappings": "node regenerate-mappings.js"
   },
   "dependencies": {

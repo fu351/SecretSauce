@@ -18,8 +18,8 @@ Last verified: 2026-03-20.
 - `components/`: domain UI components.
 - `hooks/`: client hooks (shopping, recipe, analytics, auth, subscription, experiments).
 - `lib/`: database wrappers, auth helpers, analytics, parsing helpers, shared types/utilities.
-- `workers/`: long-running worker modules (ingredient, embedding, vector double-check, canonical consolidation, scraper, store maintenance).
-- `workers/standardizer-worker/`: ingredient/unit standardizer services + prompts.
+- `backend/workers/`: long-running worker modules (ingredient, embedding, vector double-check, canonical consolidation, scraper, store maintenance).
+- `backend/workers/standardizer-worker/`: ingredient/unit standardizer services + prompts.
 - `scrapers/`: scraper adapters, store implementations, and scraper utilities.
 - `backend/scripts/`: one-off and scheduled operational scripts.
 - `python-api/`: FastAPI service for URL/Instagram/OCR recipe import.
@@ -43,14 +43,14 @@ Current API routes are under `app/api/*` and documented in [`api-and-integration
 
 ### Worker/runtime surface
 
-- Ingredient queue worker: `workers/ingredient-worker/*`.
-- Embedding queue worker: `workers/embedding-worker/*`.
+- Ingredient queue worker: `backend/workers/ingredient-worker/*`.
+- Embedding queue worker: `backend/workers/embedding-worker/*`.
 - Queue runner entry points:
   - `backend/scripts/resolve-ingredient-match-queue.ts`
-  - `workers/ingredient-worker/runner.ts`
+  - `backend/workers/ingredient-worker/runner.ts`
   - `backend/scripts/resolve-embedding-queue.ts`
-  - `workers/embedding-worker/runner.ts`
-- Vector double-check candidate worker (present in tree): `workers/vector-double-check-worker/*`.
+  - `backend/workers/embedding-worker/runner.ts`
+- Vector double-check candidate worker (present in tree): `backend/workers/vector-double-check-worker/*`.
 
 ### Data/migrations surface
 
@@ -71,5 +71,5 @@ These are actively relevant to current queue matching/scoring behavior.
 The current code uses:
 
 - `scrapers/*` (not `lib/scrapers/*`)
-- `workers/standardizer-worker/*` (not `lib/ingredient-standardizer.ts` / `lib/unit-standardizer.ts`)
-- `workers/ingredient-worker/*` and `workers/embedding-worker/*` (not `queue/worker/*`)
+- `backend/workers/standardizer-worker/*` (not `lib/ingredient-standardizer.ts` / `lib/unit-standardizer.ts`)
+- `backend/workers/ingredient-worker/*` and `backend/workers/embedding-worker/*` (not `queue/worker/*`)

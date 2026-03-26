@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "../../workers/embedding-worker/config"
-import * as processorModule from "../../workers/embedding-worker/processor"
-import type { EmbeddingWorkerConfig } from "../../workers/embedding-worker/config"
-import type { EmbeddingQueueRunSummary } from "../../workers/embedding-worker/processor"
+import * as configModule from "../workers/embedding-worker/config"
+import * as processorModule from "../workers/embedding-worker/processor"
+import type { EmbeddingWorkerConfig } from "../workers/embedding-worker/config"
+import type { EmbeddingQueueRunSummary } from "../workers/embedding-worker/processor"
 
 const getEmbeddingWorkerConfigFromEnv =
   (configModule as { getEmbeddingWorkerConfigFromEnv?: unknown }).getEmbeddingWorkerConfigFromEnv ??

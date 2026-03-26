@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install only the lean scraper dependencies (mirrors the GitHub Actions workflow).
 # We install into backend/scripts/node_modules and symlink to the workspace root so that
-# both backend/scripts/ and workers/ (ESM) plus scrapers/ (CJS) can resolve packages via
+# both backend/scripts/ and backend/workers/ (ESM) plus scrapers/ (CJS) can resolve packages via
 # Node's upward node_modules walk without needing the full Next.js dependency tree.
 COPY backend/scripts/package.json ./backend/scripts/package.json
 COPY backend/scripts/package-lock.json ./backend/scripts/package-lock.json
@@ -25,4 +25,4 @@ ENV STORE_LIMIT=1
 ENV INGREDIENT_LIMIT=5
 ENV INGREDIENT_DELAY_MS=0
 
-CMD ["node", "workers/daily-scraper-worker/runner.js"]
+CMD ["node", "backend/workers/daily-scraper-worker/runner.js"]

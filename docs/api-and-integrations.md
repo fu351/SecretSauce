@@ -98,5 +98,5 @@ Configured by `PYTHON_SERVICE_URL` (or `NEXT_PUBLIC_PYTHON_SERVICE_URL`).
 - Clerk: server keys + webhook secret (for webhook route)
 - Stripe: `STRIPE_SECRET_KEY`, `STRIPE_PREMIUM_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`
 - Python import service: `PYTHON_SERVICE_URL` (or public fallback var)
-- OpenAI (workers/standardizer-worker): `OPENAI_API_KEY`, optional model vars
+- OpenAI (backend/workers/standardizer-worker): `OPENAI_API_KEY`, optional model vars
 - Maps proxy: one of `GOOGLE_MAPS_SERVER_KEY`, `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`

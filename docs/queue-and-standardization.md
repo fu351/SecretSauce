@@ -6,10 +6,10 @@ Last verified: 2026-03-23.
 
 Core files:
 
-- `workers/index.ts`
-- `workers/config.ts`
-- `workers/ingredient-worker/processor.ts`
-- `workers/ingredient-worker/runner.ts`
+- `backend/workers/index.ts`
+- `backend/workers/config.ts`
+- `backend/workers/ingredient-worker/processor.ts`
+- `backend/workers/ingredient-worker/runner.ts`
 
 ### Responsibilities
 
@@ -29,7 +29,7 @@ Core files:
 
 Vector matching policy is implemented in:
 
-- `workers/ingredient-worker/scoring/vector-match.ts`
+- `backend/workers/ingredient-worker/scoring/vector-match.ts`
 
 The effective score combines cosine similarity with bonuses/penalties (head/lexical/category/form) and is used for fast-path and semantic dedup flows.
 
@@ -37,9 +37,9 @@ The effective score combines cosine similarity with bonuses/penalties (head/lexi
 
 Core files:
 
-- `workers/embedding-worker/config.ts`
-- `workers/embedding-worker/processor.ts`
-- `workers/embedding-worker/runner.ts`
+- `backend/workers/embedding-worker/config.ts`
+- `backend/workers/embedding-worker/processor.ts`
+- `backend/workers/embedding-worker/runner.ts`
 - `backend/scripts/resolve-embedding-queue.ts`
 
 Responsibilities:
@@ -61,10 +61,10 @@ Note: the DB vector columns are currently sized for `vector(768)` (Ollama/nomic-
 
 Core files:
 
-- `workers/vector-double-check-worker/config.ts`
-- `workers/vector-double-check-worker/processor.ts`
-- `workers/vector-double-check-worker/runner.ts`
-- `workers/vector-double-check-worker/resolve-vector-double-check.ts`
+- `backend/workers/vector-double-check-worker/config.ts`
+- `backend/workers/vector-double-check-worker/processor.ts`
+- `backend/workers/vector-double-check-worker/runner.ts`
+- `backend/workers/vector-double-check-worker/resolve-vector-double-check.ts`
 
 Purpose:
 
@@ -79,11 +79,11 @@ Run via `docker compose -f docker-compose.local.yml run --rm vector-double-check
 
 Core files:
 
-- `workers/canonical-consolidation-worker/config.ts`
-- `workers/canonical-consolidation-worker/processor.ts`
-- `workers/canonical-consolidation-worker/runner.ts`
-- `workers/canonical-consolidation-worker/survivor.ts`
-- `workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts`
+- `backend/workers/canonical-consolidation-worker/config.ts`
+- `backend/workers/canonical-consolidation-worker/processor.ts`
+- `backend/workers/canonical-consolidation-worker/runner.ts`
+- `backend/workers/canonical-consolidation-worker/survivor.ts`
+- `backend/workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts`
 - `lib/database/canonical-consolidation-db.ts`
 
 Purpose:
@@ -105,10 +105,10 @@ Note: uses a service-role Supabase client (`lib/database/supabase-worker.ts`) to
 
 Core files:
 
-- `workers/standardizer-worker/ingredient-standardizer.ts`
-- `workers/standardizer-worker/unit-standardizer.ts`
-- `workers/standardizer-worker/prompts/ingredient/*`
-- `workers/standardizer-worker/prompts/unit/*`
+- `backend/workers/standardizer-worker/ingredient-standardizer.ts`
+- `backend/workers/standardizer-worker/unit-standardizer.ts`
+- `backend/workers/standardizer-worker/prompts/ingredient/*`
+- `backend/workers/standardizer-worker/prompts/unit/*`
 
 Key points:
 

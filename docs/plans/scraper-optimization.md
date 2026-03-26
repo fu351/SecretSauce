@@ -8,7 +8,7 @@ This plan addresses the critical, high, and medium issues found in the scraper s
 
 ## PR 1 — Core Orchestration Fixes
 
-**Files:** `workers/daily-scraper-worker/runner.js`, `.github/workflows/config/pipeline-defaults.json`
+**Files:** `backend/workers/daily-scraper-worker/runner.js`, `.github/workflows/config/pipeline-defaults.json`
 
 ### Issue 1 (CRITICAL) — Store Concurrency
 
@@ -135,7 +135,7 @@ The same unit-extraction logic exists in four places with slight variations:
 
 ## PR 5 — Parallel Store Pagination
 
-**File:** `workers/daily-scraper-worker/runner.js`
+**File:** `backend/workers/daily-scraper-worker/runner.js`
 
 ### Issue 9 (MEDIUM) — Sequential N+1 DB Queries for Store Fetching
 

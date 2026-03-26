@@ -9,9 +9,9 @@ import {
   type UpsertRecipeRpcArgs,
 } from "../../../lib/dev/mock-recipes"
 
-const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const SUPABASE_SEED_AUTHOR_ID = process.env.SUPABASE_SEED_AUTHOR_ID
+const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
+const SUPABASE_SEED_AUTHOR_ID = process.env.SUPABASE_SEED_AUTHOR_ID ?? ""
 const DRY_RUN = process.argv.includes("--dry-run")
 const INCLUDE_QUEUE_DRIFT_ARG = process.argv.includes("--include-queue-drift-stress")
 
@@ -81,14 +81,23 @@ async function main(): Promise<void> {
       continue
     }
 
-    const { data, error } = await supabase.rpc(RPC_NAME, payload)
+    const { data, error } = await (supabase as unknown as {
+      rpc: (name: string, args: UpsertRecipeRpcArgs) => Promise<{ data: unknown; error: { message: string } | null }>
+    }).rpc(
+      RPC_NAME,
+      payload
+    )
     if (error) {
       console.error(`[seed-mock-recipes] Failed to upsert ${recipe.title}:`, error.message)
       continue
     }
 
+    const result = data && typeof data === "object" && !Array.isArray(data)
+      ? (data as { title?: string | null; id?: string | null })
+      : null
+
     succeeded += 1
-    console.log(`[seed-mock-recipes] Upserted ${data?.title ?? recipe.title} (${data?.id})`)
+    console.log(`[seed-mock-recipes] Upserted ${result?.title ?? recipe.title} (${result?.id ?? "unknown-id"})`)
   }
 
   console.log(

@@ -20,11 +20,11 @@ Last verified: 2026-03-20.
 - `npm run embedding-queue-worker`
 - `npm run backfill-embedding-queue`
 
-### Scraper/data scripts (`backend/scripts/` and `workers/`)
+### Scraper/data scripts (`backend/scripts/` and `backend/workers/`)
 
 JavaScript/TypeScript:
 
-- `workers/daily-scraper-worker/runner.js` (canonical entrypoint)
+- `backend/workers/daily-scraper-worker/runner.js` (canonical entrypoint)
 - `backend/scripts/daily-scraper.js` (legacy compatibility shim)
 - `backend/scripts/resolve-ingredient-match-queue.ts`
 - `backend/scripts/resolve-embedding-queue.ts`
@@ -36,17 +36,17 @@ JavaScript/TypeScript:
 
 Python:
 
-- `workers/store-maintenance-worker/runner.py`
-- `workers/store-maintenance-worker/import_new_stores.py`
-- `workers/store-maintenance-worker/update_target_zipcodes.py`
-- `workers/store-maintenance-worker/fix_missing_geo.py`
-- `workers/store-maintenance-worker/backfill_scraped_zipcodes.py`
+- `backend/workers/store-maintenance-worker/runner.py`
+- `backend/workers/store-maintenance-worker/import_new_stores.py`
+- `backend/workers/store-maintenance-worker/update_target_zipcodes.py`
+- `backend/workers/store-maintenance-worker/fix_missing_geo.py`
+- `backend/workers/store-maintenance-worker/backfill_scraped_zipcodes.py`
 
 ## GitHub workflows (`.github/workflows`)
 
 Current workflows include:
 
-- `daily-scraper-matrix.yml` (runs `workers/daily-scraper-worker/runner.js`)
+- `daily-scraper-matrix.yml` (runs `backend/workers/daily-scraper-worker/runner.js`)
 - `nightly-workflow.yml`
 - `nightly-ingredient-queue.yml`
 - `nightly-embedding-queue.yml`

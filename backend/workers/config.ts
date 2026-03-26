@@ -1,0 +1,71 @@
+import { resolveIngredientStandardizerContext, type IngredientStandardizerContext } from "./standardizer-worker"
+import type { IngredientMatchQueueReviewMode, IngredientMatchQueueSource } from "../../lib/database/ingredient-match-queue-db"
+import { readPositiveInt, readBoundedFloat, readBoolean } from "./env-utils"
+
+export type QueueStandardizerContextMode = IngredientStandardizerContext | "dynamic"
+
+export interface QueueWorkerConfig {
+  resolverName: string
+  batchLimit: number
+  maxCycles: number
+  chunkSize: number
+  chunkConcurrency: number
+  leaseSeconds: number
+  workerIntervalSeconds: number
+  dryRun: boolean
+  standardizerContext: QueueStandardizerContextMode
+  reviewMode: IngredientMatchQueueReviewMode
+  queueSource: IngredientMatchQueueSource | "any"
+  doubleCheckMinConfidence: number
+  doubleCheckMinSimilarity: number
+  enableUnitResolution: boolean
+  unitDryRun: boolean
+  unitMinConfidence: number
+}
+
+// Keep these hard-coded so CI/CD environment vars can't silently weaken
+// canonical remap safeguards.
+const HARD_CODED_DOUBLE_CHECK_MIN_CONFIDENCE = 0.85
+const HARD_CODED_DOUBLE_CHECK_MIN_SIMILARITY = 0.96
+
+
+function resolveReviewMode(value: string | undefined): IngredientMatchQueueReviewMode {
+  if (value === "unit" || value === "any" || value === "ingredient") return value
+  return "ingredient"
+}
+
+function resolveQueueSource(value: string | undefined): IngredientMatchQueueSource | "any" {
+  if (value === "scraper" || value === "recipe" || value === "any") return value
+  return "scraper"
+}
+
+function resolveStandardizerContextMode(value: string | undefined): QueueStandardizerContextMode {
+  const normalized = String(value ?? "").trim().toLowerCase()
+  if (normalized === "dynamic") return "dynamic"
+  return resolveIngredientStandardizerContext(value)
+}
+
+export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfig>): QueueWorkerConfig {
+  const defaultMaxCycles = readPositiveInt(process.env.QUEUE_MAX_CYCLES, 0)
+  const dryRun = readBoolean(process.env.DRY_RUN, false)
+
+  return {
+    resolverName: process.env.QUEUE_RESOLVER_NAME || "queue-worker",
+    batchLimit: readPositiveInt(process.env.QUEUE_BATCH_LIMIT, 25),
+    maxCycles: overrides?.maxCycles ?? defaultMaxCycles,
+    chunkSize: readPositiveInt(process.env.QUEUE_CHUNK_SIZE, 10),
+    chunkConcurrency: readPositiveInt(process.env.QUEUE_CHUNK_CONCURRENCY, 1),
+    leaseSeconds: readPositiveInt(process.env.QUEUE_LEASE_SECONDS, 180),
+    workerIntervalSeconds: readPositiveInt(process.env.WORKER_INTERVAL_SECONDS, 300),
+    dryRun,
+    standardizerContext: resolveStandardizerContextMode(process.env.QUEUE_STANDARDIZER_CONTEXT),
+    reviewMode: resolveReviewMode(process.env.QUEUE_REVIEW_MODE),
+    queueSource: resolveQueueSource(process.env.QUEUE_SOURCE),
+    doubleCheckMinConfidence: HARD_CODED_DOUBLE_CHECK_MIN_CONFIDENCE,
+    doubleCheckMinSimilarity: HARD_CODED_DOUBLE_CHECK_MIN_SIMILARITY,
+    enableUnitResolution: readBoolean(process.env.QUEUE_ENABLE_UNIT_RESOLUTION, true),
+    unitDryRun: readBoolean(process.env.QUEUE_UNIT_DRY_RUN, dryRun),
+    unitMinConfidence: readBoundedFloat(process.env.QUEUE_UNIT_MIN_CONFIDENCE, 0.75, 0, 1),
+    ...overrides,
+  }
+}
