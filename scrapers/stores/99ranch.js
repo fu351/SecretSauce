@@ -9,6 +9,9 @@ const resultCache = createResultCache({ ttlMs: Number(process.env.RANCH99_CACHE_
 const REQUEST_TIMEOUT_MS = Number(process.env.SCRAPER_TIMEOUT_MS || 5000);
 const log = createScraperLogger('99ranch');
 
+const DEFAULT_BATCH_CONCURRENCY = Number(process.env.RANCH99_BATCH_CONCURRENCY || 3);
+const MAX_BATCH_CONCURRENCY = 8;
+
 const { enforceRateLimit } = createRateLimiter({
     requestsPerSecond: Number(process.env.RANCH99_REQUESTS_PER_SECOND || 2),
     minIntervalMs: Number(process.env.RANCH99_MIN_REQUEST_INTERVAL_MS || 600),
@@ -219,8 +222,43 @@ async function search99Ranch(keyword, zipCode) {
     });
 }
 
+async function search99RanchBatch(keywords, zipCode, options = {}) {
+    if (!Array.isArray(keywords) || keywords.length === 0) {
+        return [];
+    }
+
+    const requestedConcurrency = Number(options?.concurrency || DEFAULT_BATCH_CONCURRENCY);
+    const concurrency = Math.max(1, Math.min(MAX_BATCH_CONCURRENCY, requestedConcurrency));
+
+    const results = new Array(keywords.length);
+    let cursor = 0;
+    let fatalError = null;
+
+    async function worker() {
+        while (cursor < keywords.length) {
+            if (fatalError) {
+                return;
+            }
+            const index = cursor++;
+            const keyword = keywords[index];
+            try {
+                results[index] = await search99Ranch(keyword, zipCode);
+            } catch (error) {
+                log.error('[99ranch] Batch worker error:', error.message || error);
+                results[index] = [];
+            }
+        }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    if (fatalError) {
+        throw fatalError;
+    }
+    return results;
+}
+
 // Export the function for use in other modules
-module.exports = { search99Ranch };
+module.exports = { search99Ranch, search99RanchBatch };
 
 // Run if called directly
 if (require.main === module) {

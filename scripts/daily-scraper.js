@@ -96,6 +96,10 @@ const SCRAPER_MAP = {
 
 const STORE_BATCH_SCRAPER_MAP = {
   traderjoes: scrapers.searchTraderJoesBatch,
+  kroger: (keywords, zip, opts) => scrapers.searchKrogerBatch(keywords, zip, opts),
+  meijer: scrapers.searchMeijerBatch,
+  ranch99: scrapers.search99RanchBatch,
+  '99ranch': scrapers.search99RanchBatch,
 }
 
 let supabase = null
