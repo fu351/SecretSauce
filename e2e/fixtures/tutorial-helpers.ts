@@ -32,7 +32,6 @@ export async function startTutorialPath(
   // Select the path in the modal
   await expect(page.getByText(pathName)).toBeVisible({ timeout: 5_000 })
   await page.getByText(pathName).click()
-  await page.getByRole("button", { name: /start|begin/i }).click()
 }
 
 /** Asserts the tutorial overlay is visible with the expected step title. */

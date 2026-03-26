@@ -1,7 +1,7 @@
 /**
  * E2E smoke test: Cooking tutorial path ("Mastering the Craft")
  *
- * Steps: Dashboard (3 substeps) → Recipes (4 substeps) → Meal Planner (3 substeps)
+ * Steps: Dashboard (2 substeps) → Recipes (2 substeps) → Meal Planner (2 substeps) → Store (2 substeps)
  */
 
 import { test, expect } from "@playwright/test"
@@ -13,7 +13,7 @@ test.describe("Cooking tutorial path", () => {
     await resetTutorialState(page)
   })
 
-  test("completes all 3 steps without timing out", async ({ page }) => {
+  test("completes all 4 steps without timing out", async ({ page }) => {
     // --- Start tutorial ---
     await page.goto("/settings")
     await page.getByRole("button", { name: /rewatch|start|tutorial/i }).first().click()
@@ -26,48 +26,41 @@ test.describe("Cooking tutorial path", () => {
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
     await page.waitForURL(/\/dashboard/)
 
-    // --- Step 1: Command Center (3 substeps) ---
+    // --- Step 1: Dashboard (2 substeps) ---
     await expect(page.locator("[data-tutorial='dashboard-overview']")).toBeVisible({ timeout: 8_000 })
-
-    // Substep 1 → 2 → 3
-    await page.getByRole("button", { name: /next/i }).click()
-    await expect(page.locator("[data-tutorial='dashboard-recents']")).toBeVisible({ timeout: 8_000 })
 
     await page.getByRole("button", { name: /next/i }).click()
     await expect(page.locator("[data-tutorial='dashboard-actions']")).toBeVisible({ timeout: 8_000 })
 
-    // Advance to Step 2 — should navigate to /recipes
+    // Advance to Step 2 — /recipes
     await page.getByRole("button", { name: /next/i }).click()
     await page.waitForURL(/\/recipes/, { timeout: 10_000 })
 
-    // --- Step 2: Advanced Recipe Discovery (4 substeps) ---
+    // --- Step 2: Recipes (2 substeps) ---
     await expect(page.locator("[data-tutorial='recipe-overview']")).toBeVisible({ timeout: 8_000 })
 
     await page.getByRole("button", { name: /next/i }).click()
     await expect(page.locator("[data-tutorial='recipe-search']")).toBeVisible({ timeout: 8_000 })
 
-    await page.getByRole("button", { name: /next/i }).click()
-    await expect(page.locator("[data-tutorial='recipe-filter']")).toBeVisible({ timeout: 8_000 })
-
-    await page.getByRole("button", { name: /next/i }).click()
-    // recipe-card may only exist if recipes are loaded — wait for it or skip
-    await expect(page.locator("[data-tutorial='recipe-card']").or(
-      page.getByText(/recipe-card|couldn't locate|not found/i)
-    )).toBeVisible({ timeout: 10_000 })
-
     // Advance to Step 3 — should navigate to /meal-planner
     await page.getByRole("button", { name: /next/i }).click()
     await page.waitForURL(/\/meal-planner/, { timeout: 10_000 })
 
-    // --- Step 3: The Weekly Planner (3 substeps) ---
+    // --- Step 3: Meal Planner (2 substeps) ---
     await expect(page.locator("[data-tutorial='planner-overview']")).toBeVisible({ timeout: 8_000 })
 
     await page.getByRole("button", { name: /next/i }).click()
-    // Substep 2 is now "explore" mode (sidebar may be closed on mobile) — just check overlay persists
-    await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 5_000 })
+    await expect(page.locator("[data-tutorial='planner-smart']")).toBeVisible({ timeout: 8_000 })
+
+    // Advance to Step 4 — /store
+    await page.getByRole("button", { name: /next/i }).click()
+    await page.waitForURL(/\/store/, { timeout: 10_000 })
+
+    // --- Step 4: Store (2 substeps) ---
+    await expect(page.locator("[data-tutorial='store-overview']")).toBeVisible({ timeout: 8_000 })
 
     await page.getByRole("button", { name: /next/i }).click()
-    await expect(page.locator("[data-tutorial='planner-add']")).toBeVisible({ timeout: 8_000 })
+    await expect(page.locator("[data-tutorial='store-selector']")).toBeVisible({ timeout: 8_000 })
 
     // Final next → tutorial completes
     await page.getByRole("button", { name: /next|finish|done/i }).click()
@@ -86,7 +79,7 @@ test.describe("Cooking tutorial path", () => {
 
     // Advance one substep then go back
     await page.getByRole("button", { name: /next/i }).click()
-    await expect(page.locator("[data-tutorial='dashboard-recents']")).toBeVisible({ timeout: 8_000 })
+    await expect(page.locator("[data-tutorial='dashboard-actions']")).toBeVisible({ timeout: 8_000 })
 
     await page.getByRole("button", { name: /back|previous/i }).click()
     await expect(page.locator("[data-tutorial='dashboard-overview']")).toBeVisible({ timeout: 8_000 })

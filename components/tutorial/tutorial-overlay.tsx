@@ -48,10 +48,13 @@ export function TutorialOverlay() {
   const [syncRetries, setSyncRetries] = useState(0)
   const [hasSyncTimedOut, setHasSyncTimedOut] = useState(false)
   const [isPageLoading, setIsPageLoading] = useState(false)
+  const [pathTransitionLabel, setPathTransitionLabel] = useState<string | null>(null)
 
   const MAX_RETRIES = 15;
   const overlayRef = useRef<HTMLDivElement>(null);
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pathTransitionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const previousPlanIndexRef = useRef(0);
   const [headerHeight, setHeaderHeight] = useState(0);
   const isDark = theme === "dark"
 
@@ -88,6 +91,23 @@ export function TutorialOverlay() {
     currentSubstepIndex === visibleSubsteps.length - 1
 
   const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore";
+  const expectedSelector = currentSubstep?.highlightSelector ?? currentStep?.highlightSelector ?? null
+
+  const handleGoToExpectedPage = useCallback(() => {
+    if (!currentStep?.page) return
+    const expectedPage = currentStep.page
+    setSyncRetries(0)
+    setHasSyncTimedOut(false)
+    setIsChangingPage(true)
+    router.push(expectedPage)
+
+    // Fallback if client navigation fails to fire from the overlay context.
+    window.setTimeout(() => {
+      if (window.location.pathname !== expectedPage) {
+        window.location.assign(expectedPage)
+      }
+    }, 350)
+  }, [currentStep?.page, router])
 
   /**
    * 0. Detect Header Height
@@ -180,6 +200,32 @@ export function TutorialOverlay() {
     setIsPageLoading(false);
     setIsChangingPage(false);
   }, [isActive, currentStep?.page, pathname]);
+
+  /**
+   * 2c. Path Transition Banner (for ranked multi-path sessions)
+   */
+  useEffect(() => {
+    if (!isActive || !currentPath) return
+
+    const prevIndex = previousPlanIndexRef.current
+    if (currentPlanIndex > prevIndex) {
+      setPathTransitionLabel(currentPath.name)
+      if (pathTransitionTimerRef.current) {
+        clearTimeout(pathTransitionTimerRef.current)
+      }
+      pathTransitionTimerRef.current = setTimeout(() => {
+        setPathTransitionLabel(null)
+      }, 2200)
+    }
+
+    previousPlanIndexRef.current = currentPlanIndex
+
+    return () => {
+      if (pathTransitionTimerRef.current) {
+        clearTimeout(pathTransitionTimerRef.current)
+      }
+    }
+  }, [isActive, currentPath, currentPlanIndex])
 
   /**
    * 3. Page Navigation & Transition Management
@@ -373,9 +419,9 @@ export function TutorialOverlay() {
         ref={overlayRef}
         data-testid="tutorial-overlay"
         className={clsx(
-          "fixed bottom-8 right-8 z-50 transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
+          "fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-50 transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
           isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900",
-          isMinimized ? "w-72" : "w-[400px]"
+          isMinimized ? "w-72 max-w-[calc(100vw-2rem)]" : "w-[calc(100vw-2rem)] max-w-[400px]"
         )}
       >
         <div className="h-1.5 w-full bg-gray-200/20">
@@ -389,7 +435,7 @@ export function TutorialOverlay() {
             </div>
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
               {isMinimized
-                ? `Paused · Step ${currentStepIndex + 1} of ${currentPath.steps.length}`
+                ? `Paused · ${completedSessionUnits}/${totalSessionUnits}`
                 : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : pathLabel))}
             </span>
           </div>
@@ -436,7 +482,7 @@ export function TutorialOverlay() {
                   <p className="text-xs opacity-60 mb-1">Not on the right page?</p>
                   <p className="text-[10px] opacity-40 mb-6">Expected: <span className="font-mono">{currentStep?.page}</span> · Current: <span className="font-mono">{pathname}</span></p>
                   <div className="flex gap-3 w-full">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); router.push(currentStep!.page) }}>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={handleGoToExpectedPage}>
                       Go There
                     </Button>
                     <Button size="sm" className="flex-1 bg-blue-600" onClick={nextStep}>
@@ -446,7 +492,11 @@ export function TutorialOverlay() {
                 </>
               ) : (
                 <>
-                  <p className="text-xs opacity-60 mb-6">We couldn't find the UI element for this step. Try the options below.</p>
+                  <p className="text-xs opacity-60 mb-2">We couldn't find the UI element for this step.</p>
+                  <p className="text-[10px] opacity-40 mb-6">
+                    Step {completedSessionUnits} of {totalSessionUnits}
+                    {expectedSelector ? <> · Selector: <span className="font-mono">{expectedSelector}</span></> : null}
+                  </p>
                   <div className="flex gap-3 w-full">
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); updateHighlight(true); }}>
                       Retry
@@ -460,6 +510,18 @@ export function TutorialOverlay() {
             </div>
           ) : (
             <>
+              {pathTransitionLabel && (
+                <div className={clsx(
+                  "mb-4 rounded-lg px-3 py-2 text-xs font-medium",
+                  isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-700"
+                )}>
+                  Now starting: {pathTransitionLabel}
+                </div>
+              )}
+              <p className={clsx("text-[11px] uppercase tracking-[0.18em] mb-2 font-semibold", isDark ? "text-[#e8dcc4]/55" : "text-gray-500")}>
+                Progress {completedSessionUnits} / {totalSessionUnits}
+                {rankedGoals && rankedGoals.length > 1 ? ` • Track ${currentPlanIndex + 1} / ${rankedGoals.length}` : ""}
+              </p>
               <h3 className="text-xl font-bold mb-2 leading-tight">{currentStep.title}</h3>
               <p className={clsx("text-sm leading-relaxed", isDark ? "text-gray-400" : "text-gray-600", currentRank === 1 && currentStep.tips?.length ? "mb-4" : "mb-6")}>
                 {currentSubstep?.instruction ?? currentStep.description}

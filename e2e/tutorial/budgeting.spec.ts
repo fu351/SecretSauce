@@ -1,7 +1,7 @@
 /**
  * E2E smoke test: Budgeting tutorial path ("Optimize Resources")
  *
- * Steps: Dashboard (2 substeps) → Meal Planner (2 substeps) → Store (3 substeps)
+ * Steps: Dashboard (2 substeps) → Recipes (2 substeps) → Meal Planner (2 substeps) → Store (2 substeps)
  */
 
 import { test, expect } from "@playwright/test"
@@ -13,7 +13,7 @@ test.describe("Budgeting tutorial path", () => {
     await resetTutorialState(page)
   })
 
-  test("completes all 3 steps without timing out", async ({ page }) => {
+  test("completes all 4 steps without timing out", async ({ page }) => {
     await page.goto("/settings")
     await page.getByRole("button", { name: /rewatch|start|tutorial/i }).first().click()
 
@@ -29,25 +29,32 @@ test.describe("Budgeting tutorial path", () => {
     await page.getByRole("button", { name: /next/i }).click()
     await expect(page.locator("[data-tutorial='dashboard-stats']")).toBeVisible({ timeout: 8_000 })
 
-    // Advance to Step 2 — /meal-planner
+    // Advance to Step 2 — /recipes
+    await page.getByRole("button", { name: /next/i }).click()
+    await page.waitForURL(/\/recipes/, { timeout: 10_000 })
+
+    // --- Step 2: Recipes (2 substeps) ---
+    await expect(page.locator("[data-tutorial='recipe-overview']")).toBeVisible({ timeout: 8_000 })
+
+    await page.getByRole("button", { name: /next/i }).click()
+    await expect(page.locator("[data-tutorial='recipe-filter']")).toBeVisible({ timeout: 8_000 })
+
+    // Advance to Step 3 — /meal-planner
     await page.getByRole("button", { name: /next/i }).click()
     await page.waitForURL(/\/meal-planner/, { timeout: 10_000 })
 
-    // --- Step 2: Smart Budget Planning (2 substeps) ---
+    // --- Step 3: Smart Budget Planning (2 substeps) ---
     await expect(page.locator("[data-tutorial='planner-overview']")).toBeVisible({ timeout: 8_000 })
 
     await page.getByRole("button", { name: /next/i }).click()
     await expect(page.locator("[data-tutorial='planner-smart']")).toBeVisible({ timeout: 8_000 })
 
-    // Advance to Step 3 — /store
+    // Advance to Step 4 — /store
     await page.getByRole("button", { name: /next/i }).click()
     await page.waitForURL(/\/store/, { timeout: 10_000 })
 
-    // --- Step 3: Retail Comparison (3 substeps) ---
+    // --- Step 4: Retail Comparison (2 substeps) ---
     await expect(page.locator("[data-tutorial='store-overview']")).toBeVisible({ timeout: 8_000 })
-
-    await page.getByRole("button", { name: /next/i }).click()
-    await expect(page.locator("[data-tutorial='store-add']")).toBeVisible({ timeout: 8_000 })
 
     await page.getByRole("button", { name: /next/i }).click()
     await expect(page.locator("[data-tutorial='store-selector']")).toBeVisible({ timeout: 8_000 })
