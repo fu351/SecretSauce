@@ -25,7 +25,8 @@ function isTutorialPathId(value: unknown): value is TutorialPathId {
 function isRankedGoals(value: unknown): value is RankedGoals {
   return (
     Array.isArray(value) &&
-    value.length === 3 &&
+    value.length >= 1 &&
+    value.length <= 3 &&
     value.every(isTutorialPathId)
   )
 }
@@ -104,7 +105,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
   // Bump this when the payload shape changes; old payloads will be silently discarded
-  const TUTORIAL_STATE_VERSION = 2
+  const TUTORIAL_STATE_VERSION = 3
 
   // Derived state
   const currentPathId = rankedGoals ? rankedGoals[currentPlanIndex] : null
@@ -187,9 +188,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   }, [trackEvent, router])
 
   const startTutorial = useCallback((pathId: TutorialPathId) => {
-    const others = (["cooking", "budgeting", "health"] as TutorialPathId[]).filter(id => id !== pathId)
-    const ranked: RankedGoals = [pathId, others[0], others[1]]
-    startRankedSession(ranked)
+    startRankedSession([pathId])
   }, [startRankedSession])
 
   const completeTutorial = useCallback(async () => {

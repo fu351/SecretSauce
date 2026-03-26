@@ -73,10 +73,8 @@ export interface TutorialPath {
 export type GoalRank = 1 | 2 | 3
 
 /**
- * The full ordered session: exactly 3 path IDs where index 0 = rank 1.
+ * The ordered session: 1–3 path IDs where index 0 = rank 1.
+ * A single-element array runs only that path (used by the manual track picker).
+ * A 3-element array runs all paths in ranked order (used by onboarding drag-to-rank).
  */
-export type RankedGoals = [
-  'cooking' | 'budgeting' | 'health',
-  'cooking' | 'budgeting' | 'health',
-  'cooking' | 'budgeting' | 'health',
-]
+export type RankedGoals = ('cooking' | 'budgeting' | 'health')[]

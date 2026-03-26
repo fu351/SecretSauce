@@ -298,7 +298,7 @@ export default function OnboardingPage() {
       case "cookingTime":
         return !!cookingTimePreference
       case "location":
-        return !!formattedAddress || !!postalCode || (!!lat && !!lng)
+        return !!formattedAddress || !!postalCode || !!city
       case "theme":
         return !!selectedTheme
       default:
@@ -528,6 +528,7 @@ export default function OnboardingPage() {
             <div className="mb-8">
               <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
+              <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-800"}`}>At minimum, enter a city or postal code to continue.</p>
             </div>
             <div className="space-y-6">
               <div className="space-y-3">
