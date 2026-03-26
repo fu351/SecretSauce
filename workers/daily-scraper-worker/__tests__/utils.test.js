@@ -16,7 +16,9 @@ import {
   mapWithConcurrency,
   emptyBatchResults,
   normalizeBatchResultsShape,
-} from '../daily-scraper-utils.js'
+  parseCooldownMsFromMessage,
+  runBatchWithCooldownRetry,
+} from '../utils.js'
 
 // ---------------------------------------------------------------------------
 // getIntEnv
@@ -533,5 +535,120 @@ describe('normalizeBatchResultsShape', () => {
     expect(result).toHaveLength(3)
     expect(result[1]).toEqual([])
     expect(result[2]).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// parseCooldownMsFromMessage
+// ---------------------------------------------------------------------------
+describe('parseCooldownMsFromMessage', () => {
+  it('parses duration from traderjoes jina cooldown message', () => {
+    expect(parseCooldownMsFromMessage('[traderjoes] Jina cooldown active for 74746ms')).toBe(74746)
+  })
+
+  it('parses duration from generic jina-crawler cooldown message', () => {
+    expect(parseCooldownMsFromMessage('[traderjoes] cooldown active for 90000ms')).toBe(90000)
+  })
+
+  it('returns 0 when no duration is present', () => {
+    expect(parseCooldownMsFromMessage('rate limit exceeded')).toBe(0)
+  })
+
+  it('returns 0 for empty string', () => {
+    expect(parseCooldownMsFromMessage('')).toBe(0)
+  })
+
+  it('returns 0 for null/undefined', () => {
+    expect(parseCooldownMsFromMessage(null)).toBe(0)
+    expect(parseCooldownMsFromMessage(undefined)).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// runBatchWithCooldownRetry
+// ---------------------------------------------------------------------------
+describe('runBatchWithCooldownRetry', () => {
+  const baseOpts = {
+    storeEnum: 'traderjoes',
+    code: 'TJ_JINA_COOLDOWN',
+    ingredientCount: 3,
+  }
+
+  it('sleeps for cooldownRemainingMs + 2000 and returns retry results on success', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined)
+    const retryData = [
+      [{ product_name: 'Milk', price: 3.99 }],
+      [],
+      [{ product_name: 'Bread', price: 2.49 }],
+    ]
+    const runBatch = vi.fn().mockResolvedValue(retryData)
+
+    const result = await runBatchWithCooldownRetry({
+      ...baseOpts,
+      message: '[traderjoes] Jina cooldown active for 74746ms',
+      runBatch,
+      sleepFn,
+    })
+
+    expect(sleepFn).toHaveBeenCalledWith(76746) // 74746 + 2000
+    expect(runBatch).toHaveBeenCalledOnce()
+    expect(result._retrySucceeded).toBe(true)
+    expect(result.errorFlags).toEqual([false, false, false])
+    expect(result.errorMessages).toEqual(['', '', ''])
+    expect(result.resultsByIngredient).toHaveLength(3)
+  })
+
+  it('caps sleep at 120000ms even for very long cooldowns', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined)
+    const runBatch = vi.fn().mockResolvedValue([[], [], []])
+
+    await runBatchWithCooldownRetry({
+      ...baseOpts,
+      message: 'cooldown active for 200000ms',
+      runBatch,
+      sleepFn,
+    })
+
+    expect(sleepFn).toHaveBeenCalledWith(120000)
+  })
+
+  it('returns all errors when retry also fails', async () => {
+    const sleepFn = vi.fn().mockResolvedValue(undefined)
+    const runBatch = vi.fn().mockRejectedValue(new Error('still rate limited'))
+
+    const result = await runBatchWithCooldownRetry({
+      ...baseOpts,
+      message: '[traderjoes] Jina cooldown active for 5000ms',
+      runBatch,
+      sleepFn,
+    })
+
+    expect(sleepFn).toHaveBeenCalledOnce()
+    expect(runBatch).toHaveBeenCalledOnce()
+    expect(result._retrySucceeded).toBe(false)
+    expect(result.errorFlags).toEqual([true, true, true])
+    expect(result.errorMessages).toEqual([
+      '[traderjoes] Jina cooldown active for 5000ms',
+      '[traderjoes] Jina cooldown active for 5000ms',
+      '[traderjoes] Jina cooldown active for 5000ms',
+    ])
+    expect(result.errorCodes).toEqual(['TJ_JINA_COOLDOWN', 'TJ_JINA_COOLDOWN', 'TJ_JINA_COOLDOWN'])
+  })
+
+  it('skips sleep and retry when no cooldown duration in message', async () => {
+    const sleepFn = vi.fn()
+    const runBatch = vi.fn()
+
+    const result = await runBatchWithCooldownRetry({
+      ...baseOpts,
+      message: '429 Too Many Requests',
+      runBatch,
+      sleepFn,
+    })
+
+    expect(sleepFn).not.toHaveBeenCalled()
+    expect(runBatch).not.toHaveBeenCalled()
+    expect(result._retrySucceeded).toBe(false)
+    expect(result.errorFlags).toEqual([true, true, true])
   })
 })

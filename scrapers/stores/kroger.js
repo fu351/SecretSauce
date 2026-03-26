@@ -6,6 +6,9 @@ const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
 
 const resultCache = createResultCache({ ttlMs: Number(process.env.KROGER_CACHE_TTL_MS || 5 * 60 * 1000) });
+
+const DEFAULT_BATCH_CONCURRENCY = Number(process.env.KROGER_BATCH_CONCURRENCY || 3);
+const MAX_BATCH_CONCURRENCY = 8;
 require('dotenv').config();
 const log = createScraperLogger('kroger');
 
@@ -364,8 +367,50 @@ async function searchKroger(zipCode = 47906, searchTerm, brand = '') {
 
 const Krogers = searchKroger;
 
+async function searchKrogerBatch(keywords, zipCode, options = {}) {
+    if (!Array.isArray(keywords) || keywords.length === 0) {
+        return [];
+    }
+
+    const requestedConcurrency = Number(options?.concurrency || DEFAULT_BATCH_CONCURRENCY);
+    const concurrency = Math.max(1, Math.min(MAX_BATCH_CONCURRENCY, requestedConcurrency));
+
+    const results = new Array(keywords.length);
+    let cursor = 0;
+    let fatalError = null;
+
+    async function worker() {
+        while (cursor < keywords.length) {
+            if (fatalError) {
+                return;
+            }
+            const index = cursor++;
+            const keyword = keywords[index];
+            try {
+                results[index] = await searchKroger(zipCode, keyword);
+            } catch (error) {
+                if (
+                    error?.code === 'KROGER_AUTH_BLOCKED' ||
+                    error?.code === 'KROGER_AUTH_MISSING_CREDS'
+                ) {
+                    fatalError = error;
+                    return;
+                }
+                log.error('[kroger] Batch worker error:', error.message || error);
+                results[index] = [];
+            }
+        }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    if (fatalError) {
+        throw fatalError;
+    }
+    return results;
+}
+
 // Export for use as a module
-module.exports = { searchKroger, Krogers };
+module.exports = { searchKroger, Krogers, searchKrogerBatch };
 
 // Run if called directly
 if (require.main === module) {

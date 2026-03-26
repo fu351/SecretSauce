@@ -8,7 +8,7 @@ This plan addresses the critical, high, and medium issues found in the scraper s
 
 ## PR 1 — Core Orchestration Fixes
 
-**Files:** `scripts/daily-scraper.js`, `.github/workflows/config/pipeline-defaults.json`
+**Files:** `workers/daily-scraper-worker/runner.js`, `.github/workflows/config/pipeline-defaults.json`
 
 ### Issue 1 (CRITICAL) — Store Concurrency
 
@@ -20,7 +20,7 @@ This plan addresses the critical, high, and medium issues found in the scraper s
 - Give each store its own `pendingResults` buffer and flush independently to avoid cross-store race conditions
 - Aggregate totals after all stores complete
 
-**Lines:** `daily-scraper.js:542-682`
+**Lines:** `runner.js:542-682`
 
 ---
 
@@ -36,7 +36,7 @@ No wall-clock timeout inside Node. If stuck on a single store, the entire job ha
 - Call `deadlineTimer.unref()` so it doesn't prevent process exit
 - Add `scraper_total_timeout_ms` to `pipeline-defaults.json`
 
-**Lines:** `daily-scraper.js:511-695`
+**Lines:** `runner.js:511-695`
 
 ---
 
@@ -48,7 +48,7 @@ Hardcoded `await sleep(1000)` fires between every RPC insert batch. With 20 batc
 - Delete the `await sleep(1000)` in `flushPendingResults`
 - If inter-batch breathing room is ever needed, use a configurable `INSERT_BATCH_DELAY_MS` env var defaulting to `0`
 
-**Lines:** `daily-scraper.js:520-539`
+**Lines:** `runner.js:520-539`
 
 ---
 
@@ -60,7 +60,7 @@ Target 404s push to `scrapeStats` but don't consistently set `hadError: true`, w
 - Merge the `isTarget404` and `isHttp404` branches so both always return `hadError: true, isHttp404: true`
 - Preserve the `scrapeStats.target404s` push inside the merged branch for Target-specific tracking
 
-**Lines:** `daily-scraper.js:466-488`
+**Lines:** `runner.js:466-488`
 
 ---
 
@@ -135,7 +135,7 @@ The same unit-extraction logic exists in four places with slight variations:
 
 ## PR 5 — Parallel Store Pagination
 
-**File:** `scripts/daily-scraper.js`
+**File:** `workers/daily-scraper-worker/runner.js`
 
 ### Issue 9 (MEDIUM) — Sequential N+1 DB Queries for Store Fetching
 
@@ -147,7 +147,7 @@ Store fetching uses a serial `while` loop that queries 1000 rows at a time. For 
 - If `totalPages > 1`, issue pages 2–N in parallel with `Promise.all`, capped at 5 concurrent fetches to avoid overwhelming the DB connection pool
 - Flatten and return combined results
 
-**Lines:** `daily-scraper.js:300-330`
+**Lines:** `runner.js:300-330`
 
 ---
 
