@@ -1,6 +1,5 @@
-import { resolveIngredientStandardizerContext } from "./standardizer-worker"
+import { resolveIngredientStandardizerContext, type IngredientStandardizerContext } from "./standardizer-worker"
 import type { IngredientMatchQueueReviewMode, IngredientMatchQueueSource } from "../lib/database/ingredient-match-queue-db"
-import type { IngredientStandardizerContext } from "./standardizer-worker"
 import { readPositiveInt, readBoundedFloat, readBoolean } from "./env-utils"
 
 export type QueueStandardizerContextMode = IngredientStandardizerContext | "dynamic"

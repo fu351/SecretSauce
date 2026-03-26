@@ -4,10 +4,14 @@ import {
   type IngredientMatchQueueUpdate,
 } from "../../lib/database/ingredient-match-queue-db"
 import { standardizedIngredientsDB } from "../../lib/database/standardized-ingredients-db"
-import { standardizeIngredientsWithAI, type IngredientStandardizationResult } from "../standardizer-worker"
-import { standardizeUnitsWithAI, type UnitStandardizationResult } from "../standardizer-worker"
+import {
+  runStandardizerProcessor,
+  type IngredientStandardizerContext,
+  type IngredientStandardizationResult,
+  type UnitStandardizationInput,
+  type UnitStandardizationResult,
+} from "../standardizer-worker"
 import { normalizeConfidence } from "../../lib/utils/number"
-import type { IngredientStandardizerContext } from "../standardizer-worker"
 import { normalizeCanonicalName, singularizeCanonicalName } from "../../backend/scripts/utils/canonical-matching"
 import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"
@@ -417,7 +421,12 @@ async function resolveIngredientCandidates(
             return hints ? { ...input, vectorCandidates: hints } : input
           })
         : aiInputs
-      const aiResults = await standardizeIngredientsWithAI(aiInputsWithHints, context)
+      const standardizerResult = await runStandardizerProcessor({
+        mode: "ingredient",
+        inputs: aiInputsWithHints,
+        context,
+      })
+      const aiResults = standardizerResult.results
       for (const result of aiResults) {
         aiResultByKey.set(result.id, result)
       }
@@ -490,7 +499,7 @@ async function resolveUnitCandidates(
     return byRowId
   }
 
-  const uniqueInputByKey = new Map<string, Parameters<typeof standardizeUnitsWithAI>[0][number]>()
+  const uniqueInputByKey = new Map<string, UnitStandardizationInput>()
   const rowToInputKey = new Map<string, string>()
 
   for (const row of rowsRequiringAI) {
@@ -517,8 +526,11 @@ async function resolveUnitCandidates(
     rowToInputKey.set(row.id, dedupeKey)
   }
 
-  const aiResults = await standardizeUnitsWithAI(Array.from(uniqueInputByKey.values()))
-  const aiResultByKey = new Map(aiResults.map((result) => [result.id, result]))
+  const standardizerResult = await runStandardizerProcessor({
+    mode: "unit",
+    inputs: Array.from(uniqueInputByKey.values()),
+  })
+  const aiResultByKey = new Map(standardizerResult.results.map((result) => [result.id, result]))
   let postFailurePackagedFallbackCount = 0
 
   for (const row of rowsRequiringAI) {
