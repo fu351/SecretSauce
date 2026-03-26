@@ -65,14 +65,14 @@ function makeProduct({
     item: {
       product_description: { title },
       primary_brand: { name: brand },
-      enrichment: { images: { primary_image_url: imageUrl } },
+      enrichment: { image_info: { primary_image: { url: imageUrl } } },
       product_classification: { item_type: { name: category } },
     },
   }
 }
 
 function makeProductsResponse(products = [makeProduct()]) {
-  return { status: 200, data: { data: { search: { products } } } }
+  return { status: 200, data: { data_source_modules: [{ module_data: { search_response: { products } } }] } }
 }
 
 function setupHappyPath(products) {
@@ -265,7 +265,7 @@ describe('getTargetProducts', () => {
       ingredientName: 'milk',
       groceryStoreId: null,
       errorMessage: 'Target API returned 404 for "milk" at store T001 (94704)',
-      requestUrl: expect.stringContaining('https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2?'),
+      requestUrl: expect.stringContaining('https://cdui-orchestrations.target.com/cdui_orchestrations/v1/pages/slp'),
     }))
     expect(mockGet).toHaveBeenCalledTimes(2)
   })
@@ -295,7 +295,7 @@ describe('getTargetProducts', () => {
       storeIdSource: 'db_metadata',
       groceryStoreId: 'gs-123',
       ingredientName: 'eggs',
-      requestUrl: expect.stringContaining('pricing_store_id=T999'),
+      requestUrl: expect.stringContaining('store_id=T999'),
     }))
     expect(mockGet).toHaveBeenCalledTimes(1)
   })
