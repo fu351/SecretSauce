@@ -214,6 +214,7 @@ export default function RecipesPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+          <div data-tutorial="recipe-search">
           <RecipeFilterSidebar
             searchInput={searchInput}
             onSearchInputChange={setSearchInput}
@@ -268,6 +269,7 @@ export default function RecipesPage() {
             }}
             onClearFilters={handleClearFilters}
           />
+          </div>
 
           <div>
             <RecipeResultsHeader

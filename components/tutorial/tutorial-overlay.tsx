@@ -307,10 +307,7 @@ export function TutorialOverlay() {
 
   if (!isActive || !currentPath || !currentStep) return null;
 
-  // Path label: includes plan position when running multi-path session
-  const pathLabel = rankedGoals && rankedGoals.length > 1
-    ? `${currentPath.name} (${currentPlanIndex + 1}/${rankedGoals.length})`
-    : currentPath.name
+  const pathLabel = currentPath.name
 
   return (
     <>

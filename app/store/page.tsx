@@ -472,7 +472,7 @@ export default function ShoppingReceiptPage() {
           </div>
 
           {/* Right - Receipt View */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2" data-tutorial="store-overview">
             {/* Mobile: Quick add at top for easy access, receipt below */}
             {/* Desktop: Receipt takes full available height */}
             <div className="flex flex-col h-[calc(100vh-2rem)] lg:h-[calc(100vh-12rem)] gap-3">
