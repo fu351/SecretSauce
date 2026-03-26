@@ -10,6 +10,8 @@ import type {
   TutorialPath,
   TutorialStep,
   TutorialSubstep,
+  GoalRank,
+  RankedGoals,
 } from "../contents/tutorial-content"
 
 import { tutorialPaths } from "../contents/tutorial-content"
@@ -20,15 +22,43 @@ function isTutorialPathId(value: unknown): value is TutorialPathId {
   return value === "cooking" || value === "budgeting" || value === "health"
 }
 
+function isRankedGoals(value: unknown): value is RankedGoals {
+  return (
+    Array.isArray(value) &&
+    value.length === 3 &&
+    value.every(isTutorialPathId)
+  )
+}
+
+/**
+ * Returns substeps visible for a given rank.
+ * Rank 1: all substeps
+ * Rank 2: first substep only
+ * Rank 3: only essential substeps (fallback to first if none marked)
+ */
+export function getVisibleSubsteps(step: TutorialStep, rank: GoalRank): TutorialSubstep[] {
+  const substeps = step.substeps ?? []
+  if (substeps.length === 0) return []
+  if (rank === 1) return substeps
+  if (rank === 2) return substeps.slice(0, 1)
+  // rank === 3: essential only
+  const essential = substeps.filter(s => s.essential)
+  return essential.length > 0 ? essential : substeps.slice(0, 1)
+}
+
 interface TutorialContextType {
   isActive: boolean
   currentPath: TutorialPath | null
+  currentPlanIndex: number
+  currentRank: GoalRank
+  rankedGoals: RankedGoals | null
 
   currentStepIndex: number
   currentStep: TutorialStep | null
 
   currentSubstepIndex: number
   currentSubstep: TutorialSubstep | null
+  visibleSubsteps: TutorialSubstep[]
 
   isCompleted: boolean
   wasDismissed: boolean
@@ -36,6 +66,7 @@ interface TutorialContextType {
   tutorialPath: TutorialPathId | null
   tutorialCompletedAt: string | null
 
+  startRankedSession: (ranked: RankedGoals) => void
   startTutorial: (pathId: TutorialPathId) => void
   nextStep: () => void
   prevStep: () => void
@@ -57,7 +88,8 @@ export function useTutorial() {
 
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [isActive, setIsActive] = useState(false)
-  const [currentPathId, setCurrentPathId] = useState<TutorialPathId | null>(null)
+  const [rankedGoals, setRankedGoals] = useState<RankedGoals | null>(null)
+  const [currentPlanIndex, setCurrentPlanIndex] = useState(0)
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [currentSubstepIndex, setCurrentSubstepIndex] = useState(0)
   const [isCompleted, setIsCompleted] = useState(false)
@@ -72,17 +104,21 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
   // Bump this when the payload shape changes; old payloads will be silently discarded
-  const TUTORIAL_STATE_VERSION = 1
+  const TUTORIAL_STATE_VERSION = 2
 
+  // Derived state
+  const currentPathId = rankedGoals ? rankedGoals[currentPlanIndex] : null
   const currentPath = currentPathId ? tutorialPaths[currentPathId] : null
+  const currentRank = (Math.min(currentPlanIndex + 1, 3)) as GoalRank
   const currentStep = currentPath ? currentPath.steps[currentStepIndex] : null
-  const currentSubstep = currentStep?.substeps?.[currentSubstepIndex] ?? null
+  const visibleSubsteps = currentStep ? getVisibleSubsteps(currentStep, currentRank) : []
+  const currentSubstep = visibleSubsteps[currentSubstepIndex] ?? null
 
   // Save tutorial state to localStorage
   const saveTutorialState = useCallback(() => {
     if (typeof window === "undefined") return
 
-    if (!isActive || !currentPathId) {
+    if (!isActive || !rankedGoals) {
       window.localStorage.removeItem(TUTORIAL_STATE_KEY)
       return
     }
@@ -91,18 +127,18 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       TUTORIAL_STATE_KEY,
       JSON.stringify({
         version: TUTORIAL_STATE_VERSION,
-        pathId: currentPathId,
+        rankedGoals,
+        currentPlanIndex,
         stepIndex: currentStepIndex,
         substepIndex: currentSubstepIndex,
       })
     )
-  }, [currentPathId, currentStepIndex, currentSubstepIndex, isActive])
+  }, [rankedGoals, currentPlanIndex, currentStepIndex, currentSubstepIndex, isActive])
 
   // Restore tutorial state from localStorage
   const restoreTutorialState = useCallback(() => {
     if (typeof window === "undefined") return
 
-    // Respect explicit dismissal and avoid forcing a restore
     if (window.localStorage.getItem(DISMISS_KEY) === "1") return
 
     const stored = window.localStorage.getItem(TUTORIAL_STATE_KEY)
@@ -113,12 +149,13 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
           window.localStorage.removeItem(TUTORIAL_STATE_KEY)
           return
         }
-        if (!isTutorialPathId(state.pathId)) {
+        if (!isRankedGoals(state.rankedGoals)) {
           window.localStorage.removeItem(TUTORIAL_STATE_KEY)
           return
         }
 
-        setCurrentPathId(state.pathId)
+        setRankedGoals(state.rankedGoals)
+        setCurrentPlanIndex(Number.isInteger(state.currentPlanIndex) ? state.currentPlanIndex : 0)
         setCurrentStepIndex(Number.isInteger(state.stepIndex) ? state.stepIndex : 0)
         setCurrentSubstepIndex(Number.isInteger(state.substepIndex) ? state.substepIndex : 0)
         setIsActive(true)
@@ -133,31 +170,38 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   // Core Functions
   // -------------------
 
-  const startTutorial = useCallback((pathId: TutorialPathId) => {
+  const startRankedSession = useCallback((ranked: RankedGoals) => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(DISMISS_KEY)
       setWasDismissed(false)
     }
-    setCurrentPathId(pathId)
+    setRankedGoals(ranked)
+    setCurrentPlanIndex(0)
     setCurrentStepIndex(0)
     setCurrentSubstepIndex(0)
     setIsActive(true)
     setIsCompleted(false)
-    trackEvent("tutorial_started", { path: pathId })
-    // Navigate to the first step's page so the overlay starts on the correct route
-    const firstPage = tutorialPaths[pathId].steps[0].page
+    trackEvent("tutorial_started", { path: ranked[0] })
+    const firstPage = tutorialPaths[ranked[0]].steps[0].page
     router.push(firstPage)
   }, [trackEvent, router])
 
+  const startTutorial = useCallback((pathId: TutorialPathId) => {
+    const others = (["cooking", "budgeting", "health"] as TutorialPathId[]).filter(id => id !== pathId)
+    const ranked: RankedGoals = [pathId, others[0], others[1]]
+    startRankedSession(ranked)
+  }, [startRankedSession])
+
   const completeTutorial = useCallback(async () => {
-    if (!user || !currentPathId) return
+    if (!user || !currentPathId || !rankedGoals) return
     try {
       const completedAt = new Date().toISOString()
 
       await updateProfile({
         tutorial_completed: true,
         tutorial_completed_at: completedAt,
-        tutorial_path: currentPathId,
+        tutorial_path: rankedGoals[0],
+        tutorial_goals_ranking: [...rankedGoals],
       })
 
       if (typeof window !== "undefined") {
@@ -165,12 +209,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         window.localStorage.removeItem(DISMISS_KEY)
       }
 
-      console.log("Tutorial completed successfully")
-
       setIsActive(false)
       setIsCompleted(true)
       setTutorialCompleted(true)
-      setTutorialPath(currentPathId)
+      setTutorialPath(rankedGoals[0])
       setTutorialCompletedAt(completedAt)
       setWasDismissed(false)
 
@@ -185,26 +227,22 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error completing tutorial:", error)
     }
-  }, [user, currentPathId, updateProfile, currentPath, currentStepIndex, trackEvent, redirectAfterComplete, router])
+  }, [user, currentPathId, rankedGoals, updateProfile, currentPath, currentStepIndex, trackEvent, redirectAfterComplete, router])
 
   // -------------------
   // Navigation Functions
   // -------------------
 
   const nextStep = useCallback(() => {
-    if (!currentStep || !currentPath) return
+    if (!currentStep || !currentPath || !rankedGoals) return
 
-    const substeps = currentStep.substeps ?? []
-
-    // 1. Advance Substep (Stay on same page)
-    // We check if we are NOT at the last substep yet.
-    if (currentSubstepIndex < substeps.length - 1) {
+    // 1. Advance substep
+    if (currentSubstepIndex < visibleSubsteps.length - 1) {
       setCurrentSubstepIndex(prev => prev + 1)
       return
     }
 
-    // 2. Advance Main Step (Check for PAGE change)
-    // If we are at the end of substeps, we look for the next main Step.
+    // 2. Advance main step within current path
     if (currentStepIndex < currentPath.steps.length - 1) {
       const nextIndex = currentStepIndex + 1
       const nextStepData = currentPath.steps[nextIndex]
@@ -216,61 +254,75 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // AUTOLOAD: Check the 'page' property from your interface
-      // We normalize strings to ensure slight formatting differences don't break it
       const targetPage = nextStepData.page.toLowerCase()
       const currentPage = window.location.pathname.toLowerCase()
-
       if (targetPage && targetPage !== currentPage) {
         router.push(nextStepData.page)
       }
 
-      // Update state to the new Step, starting at the first Substep
       setCurrentStepIndex(nextIndex)
       setCurrentSubstepIndex(0)
+      return
+    }
+
+    // 3. End of current path — track and advance to next plan (silent transition)
+    if (currentPathId) {
+      trackEvent("tutorial_step_completed", {
+        path: currentPathId,
+        step_index: currentStepIndex + 1,
+      })
+    }
+
+    if (currentPlanIndex < rankedGoals.length - 1) {
+      const nextPlanIndex = currentPlanIndex + 1
+      const nextPathId = rankedGoals[nextPlanIndex]
+
+      trackEvent("tutorial_path_advanced", {
+        from_path: currentPathId!,
+        to_path: nextPathId,
+        plan_index: nextPlanIndex,
+      })
+      trackEvent("tutorial_started", { path: nextPathId })
+
+      setCurrentPlanIndex(nextPlanIndex)
+      setCurrentStepIndex(0)
+      setCurrentSubstepIndex(0)
+
+      // Silent transition: just navigate to next path's first page
+      const firstPage = tutorialPaths[nextPathId].steps[0].page
+      router.push(firstPage)
     } else {
-      if (currentPathId) {
-        trackEvent("tutorial_step_completed", {
-          path: currentPathId,
-          step_index: currentStepIndex + 1,
-        })
-      }
-      // 3. No more steps or substeps = Tutorial Complete
       completeTutorial()
     }
-  }, [currentStep, currentPath, currentPathId, currentSubstepIndex, currentStepIndex, trackEvent, completeTutorial, router])
+  }, [currentStep, currentPath, currentPathId, currentPlanIndex, rankedGoals, currentSubstepIndex, visibleSubsteps, currentStepIndex, trackEvent, completeTutorial, router])
 
   const prevStep = useCallback(() => {
     if (!currentStep || !currentPath) return
 
-    // 1. Go back a Substep (Stay on same page)
+    // 1. Go back a substep
     if (currentSubstepIndex > 0) {
       setCurrentSubstepIndex(prev => prev - 1)
       return
     }
 
-    // 2. Go back a Main Step (Check for PAGE change)
+    // 2. Go back a main step (no cross-path back navigation)
     if (currentStepIndex > 0) {
       const prevIndex = currentStepIndex - 1
       const prevStepData = currentPath.steps[prevIndex]
 
-      // AUTOLOAD: Check if the previous step requires a page change
       const targetPage = prevStepData.page.toLowerCase()
       const currentPage = window.location.pathname.toLowerCase()
-
       if (targetPage && targetPage !== currentPage) {
         router.push(prevStepData.page)
       }
 
       setCurrentStepIndex(prevIndex)
 
-      // UX Detail: When going BACK to a previous Step, we usually want to
-      // land on the LAST substep of that page, so the user feels like
-      // they are "rewinding" linearly.
-      const lastSubstepIndex = (prevStepData.substeps?.length ?? 1) - 1
-      setCurrentSubstepIndex(lastSubstepIndex)
+      // Land on last visible substep of the previous step when rewinding
+      const prevVisibleSubsteps = getVisibleSubsteps(prevStepData, currentRank)
+      setCurrentSubstepIndex(Math.max(0, prevVisibleSubsteps.length - 1))
     }
-  }, [currentStepIndex, currentSubstepIndex, currentPath, currentStep, router])
+  }, [currentStepIndex, currentSubstepIndex, currentPath, currentStep, currentRank, router])
 
   const goToStep = useCallback((stepIndex: number) => {
     if (currentPath && stepIndex >= 0 && stepIndex < currentPath.steps.length) {
@@ -307,9 +359,9 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.removeItem(TUTORIAL_STATE_KEY)
       setWasDismissed(false)
     }
-    // Fully clear tutorial state — startTutorial() is responsible for re-activating
     setIsActive(false)
-    setCurrentPathId(null)
+    setRankedGoals(null)
+    setCurrentPlanIndex(0)
     setCurrentStepIndex(0)
     setCurrentSubstepIndex(0)
     setIsCompleted(false)
@@ -319,7 +371,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   // Effects
   // -------------------
 
-  // Load dismissed state and restore tutorial state from localStorage
   useEffect(() => {
     if (typeof window === "undefined") return
     const stored = window.localStorage.getItem(DISMISS_KEY)
@@ -327,19 +378,16 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     restoreTutorialState()
   }, [restoreTutorialState])
 
-  // Save tutorial state whenever it changes
   useEffect(() => {
     saveTutorialState()
-  }, [currentPathId, currentStepIndex, currentSubstepIndex, isActive, saveTutorialState])
+  }, [rankedGoals, currentPlanIndex, currentStepIndex, currentSubstepIndex, isActive, saveTutorialState])
 
-  // Sync persisted tutorial state from profile
   useEffect(() => {
     if (!profile) return
     setTutorialCompleted(profile.tutorial_completed === true)
     setTutorialCompletedAt(profile.tutorial_completed_at ?? null)
     setTutorialPath(isTutorialPathId(profile.tutorial_path) ? profile.tutorial_path : null)
 
-    // Profile completion is source of truth; clear any stale in-progress local state
     if (profile.tutorial_completed === true) {
       setIsActive(false)
       setIsCompleted(true)
@@ -356,15 +404,20 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const value: TutorialContextType = {
     isActive,
     currentPath,
+    currentPlanIndex,
+    currentRank,
+    rankedGoals,
     currentStepIndex,
     currentStep,
     currentSubstepIndex,
     currentSubstep,
+    visibleSubsteps,
     isCompleted,
     wasDismissed,
     tutorialCompleted,
     tutorialPath,
     tutorialCompletedAt,
+    startRankedSession,
     startTutorial,
     nextStep,
     prevStep,
