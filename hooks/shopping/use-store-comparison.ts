@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useEffect } from "react"
+import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { useToast } from "../ui/use-toast"
 import type { StoreComparison, GroceryItem, ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import { useAuth } from "@/contexts/auth-context"
@@ -220,6 +220,7 @@ export function useStoreComparison(
   const [hasFetched, setHasFetched] = useState(false)
   const [activeStoreIndex, setActiveStoreIndex] = useState(0)
   const [sortMode, setSortMode] = useState<"cheapest" | "best-value" | "nearest">("cheapest")
+  const hasShownNoCacheToastRef = useRef(false)
   const resolvedZipCode = normalizeZipCode(zipCode) || undefined
 
   const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[], storeMetadata: StoreMetadataMap): StoreComparison[] => {
@@ -514,10 +515,13 @@ export function useStoreComparison(
         renderedCachedPricing = true
 
         if (options?.skipPricingGaps && cachedPricingData.length === 0) {
-          toast({
-            title: "No cached pricing in dev mode",
-            description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
-          })
+          if (!hasShownNoCacheToastRef.current) {
+            hasShownNoCacheToastRef.current = true
+            toast({
+              title: "No cached pricing in dev mode",
+              description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
+            })
+          }
         }
       }
 
@@ -547,10 +551,13 @@ export function useStoreComparison(
         logPricingData("final", pricingData)
 
         if (options?.skipPricingGaps && pricingData.length === 0 && !renderedCachedPricing) {
-          toast({
-            title: "No cached pricing in dev mode",
-            description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
-          })
+          if (!hasShownNoCacheToastRef.current) {
+            hasShownNoCacheToastRef.current = true
+            toast({
+              title: "No cached pricing in dev mode",
+              description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
+            })
+          }
         }
 
         const finalComparisons = buildFinalComparisons(pricingData, "final")

@@ -88,8 +88,9 @@ function SortableTutorialItem({
     <div
       ref={setNodeRef}
       style={style}
+      onClick={() => onQuickStart(tutorial.id)}
       className={clsx(
-        "w-full p-5 rounded-lg border transition-all duration-200",
+        "w-full p-5 rounded-lg border transition-all duration-200 cursor-pointer",
         isDark
           ? "bg-[#181813] border-[#e8dcc4]/20 text-[#e8dcc4]"
           : "bg-[#FFF8F0] border-orange-400 text-amber-950"
@@ -150,7 +151,10 @@ function SortableTutorialItem({
               ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10"
               : "border-orange-300 text-orange-800 hover:bg-orange-100"
           )}
-          onClick={() => onQuickStart(tutorial.id)}
+          onClick={(event) => {
+            event.stopPropagation()
+            onQuickStart(tutorial.id)
+          }}
         >
           Start
         </Button>
