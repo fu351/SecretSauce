@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from .config import gather_brands, gather_zip_codes
+from .cli import gather_brands, gather_zip_codes
 from .db import mark_scraping_events_completed
 from .utils import parse_bool
 

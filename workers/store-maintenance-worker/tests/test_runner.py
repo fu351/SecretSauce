@@ -6,7 +6,7 @@ import unittest
 from argparse import Namespace
 from unittest.mock import Mock, patch
 
-from workers.store_maintenance_worker import processor
+from workers.store_maintenance_worker import modes
 from workers.store_maintenance_worker import runner
 
 
@@ -21,9 +21,9 @@ class RunnerDispatchTests(unittest.TestCase):
     def test_main_dispatches_import_mode(self):
         args = Namespace(mode="import")
         with patch.object(runner, "parse_args", return_value=args):
-            with patch.object(processor, "run_import") as run_import:
-                with patch.object(processor, "run_geo_fix") as run_geo_fix:
-                    with patch.object(processor, "run_backfill") as run_backfill:
+            with patch.object(modes, "run_import") as run_import:
+                with patch.object(modes, "run_geo_fix") as run_geo_fix:
+                    with patch.object(modes, "run_backfill") as run_backfill:
                         runner.main()
         run_import.assert_called_once_with(args)
         run_geo_fix.assert_not_called()
@@ -32,9 +32,9 @@ class RunnerDispatchTests(unittest.TestCase):
     def test_main_dispatches_geo_fix_mode(self):
         args = Namespace(mode="geo_fix")
         with patch.object(runner, "parse_args", return_value=args):
-            with patch.object(processor, "run_import") as run_import:
-                with patch.object(processor, "run_geo_fix") as run_geo_fix:
-                    with patch.object(processor, "run_backfill") as run_backfill:
+            with patch.object(modes, "run_import") as run_import:
+                with patch.object(modes, "run_geo_fix") as run_geo_fix:
+                    with patch.object(modes, "run_backfill") as run_backfill:
                         runner.main()
         run_import.assert_not_called()
         run_geo_fix.assert_called_once_with(args)
@@ -70,8 +70,8 @@ class RunnerDispatchTests(unittest.TestCase):
                 "workers.store_maintenance_worker.update_target_zipcodes": fake_update_module,
             },
         ):
-            with patch.object(processor.db, "mark_scraping_events_completed", return_value=1) as mark_events:
-                processor.run_import(args)
+            with patch.object(modes.db, "mark_scraping_events_completed", return_value=1) as mark_events:
+                modes.run_import(args)
 
         update_target_zipcodes_mock.assert_called_once_with(add_neighbors=True, neighbor_radius=5)
         import_new_stores_mock.assert_called_once()

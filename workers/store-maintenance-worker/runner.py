@@ -9,18 +9,18 @@ Usage:
 
 from __future__ import annotations
 
-from . import processor
-from .config import parse_args
+from . import modes
+from .cli import parse_args
 
 
 def main() -> None:
     args = parse_args()
     if args.mode == "import":
-        processor.run_import(args)
+        modes.run_import(args)
     elif args.mode == "geo_fix":
-        processor.run_geo_fix(args)
+        modes.run_geo_fix(args)
     elif args.mode == "backfill":
-        processor.run_backfill(args)
+        modes.run_backfill(args)
     else:
         raise ValueError(f"Unsupported mode: {args.mode}")
 
