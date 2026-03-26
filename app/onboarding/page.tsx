@@ -7,33 +7,95 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight } from "lucide-react"
+import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight, GripVertical } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import { DIETARY_TAGS, CUISINE_TYPES, type DifficultyLevel } from "@/lib/types"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 const goals = [
   {
-    id: "cooking",
+    id: "cooking" as const,
     title: "Master the Craft",
     description: "Elevate your culinary skills with expert techniques",
     icon: ChefHat,
   },
   {
-    id: "budgeting",
+    id: "budgeting" as const,
     title: "Optimize Resources",
     description: "Discover premium ingredients at exceptional value",
     icon: DollarSign,
   },
   {
-    id: "both",
+    id: "health" as const,
     title: "Elevate Your Journey",
     description: "Save time and prioritize your health with smart planning",
     icon: Users,
   },
 ]
+
+type GoalId = "cooking" | "budgeting" | "health"
+
+function SortableGoalItem({
+  goal,
+  rank,
+  isDark,
+}: {
+  goal: typeof goals[number]
+  rank: number
+  isDark: boolean
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: goal.id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  const Icon = goal.icon
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`w-full p-5 rounded-lg border flex items-center gap-4 select-none ${
+        isDark ? "border-[#e8dcc4]/20 bg-[#181813]" : "border-orange-400 bg-[#FFF8F0]"
+      }`}
+    >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 touch-none">
+        <GripVertical className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]/30" : "text-orange-400"}`} />
+      </div>
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+        isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4]" : "bg-orange-100 text-orange-700"
+      }`}>
+        {rank}
+      </div>
+      <div className={`p-2 rounded-lg border ${isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-600 bg-orange-100"}`}>
+        <Icon className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-orange-700"}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h3 className={`font-light text-base ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{goal.title}</h3>
+        <p className={`text-xs font-light truncate ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{goal.description}</p>
+      </div>
+    </div>
+  )
+}
 
 const cookingLevels = [
   { id: "beginner" as DifficultyLevel, label: "Apprentice", description: "Beginning your culinary journey" },
@@ -137,8 +199,8 @@ const questionOrder = [
 type QuestionId = (typeof questionOrder)[number]["id"]
 
 export default function OnboardingPage() {
-  // selectedGoal maps to TutorialPath: "cooking" | "budgeting" | "both" (→ "health")
-  const [selectedGoal, setSelectedGoal] = useState("")
+  // goalRanking: ordered array where index 0 = rank 1 (most important)
+  const [goalRanking, setGoalRanking] = useState<GoalId[]>(["cooking", "budgeting", "health"])
   const [cookingLevel, setCookingLevel] = useState("")
   const [budgetRange, setBudgetRange] = useState("")
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
@@ -191,6 +253,22 @@ export default function OnboardingPage() {
     setTheme(selectedTheme)
   }, [selectedTheme, setTheme])
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleGoalDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      setGoalRanking(prev => {
+        const oldIndex = prev.indexOf(active.id as GoalId)
+        const newIndex = prev.indexOf(over.id as GoalId)
+        return arrayMove(prev, oldIndex, newIndex)
+      })
+    }
+  }
+
   const handleDietaryToggle = (option: string) => {
     setDietaryPreferences((prev) =>
       prev.includes(option) ? prev.filter((item) => item !== option) : [...prev, option],
@@ -208,7 +286,7 @@ export default function OnboardingPage() {
   const isStepComplete = (id: QuestionId) => {
     switch (id) {
       case "goal":
-        return !!selectedGoal
+        return goalRanking.length === 3
       case "cookingLevel":
         return !!cookingLevel
       case "budget":
@@ -266,40 +344,34 @@ export default function OnboardingPage() {
       case "goal":
         return (
           <Card className={`p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-8">
+            <div className="mb-6">
               <h2 className={`text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
+              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>Drag to rank your goals — most important first</p>
             </div>
-            <div className="space-y-4">
-              {goals.map((goal) => {
-                const Icon = goal.icon
-                return (
-                  <button
-                    key={goal.id}
-                    onClick={() => handleSingleSelect(setSelectedGoal, goal.id, "goal")}
-                    className={`w-full p-6 rounded-lg border text-left transition-all ${
-                      selectedGoal === goal.id
-                        ? isDark
-                          ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
-                          : "border-orange-600 bg-orange-100"
-                        : isDark
-                          ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
-                          : "border-orange-400 hover:border-orange-600 hover:bg-orange-100"
-                    }`}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className={`p-3 rounded-lg border ${isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-600 bg-orange-100"}`}>
-                        <Icon className={`h-6 w-6 ${isDark ? "text-[#e8dcc4]" : "text-orange-700"}`} />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className={`font-light text-lg mb-1 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{goal.title}</h3>
-                        <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{goal.description}</p>
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleGoalDragEnd}
+            >
+              <SortableContext items={goalRanking} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  {goalRanking.map((goalId, index) => {
+                    const goal = goals.find(g => g.id === goalId)!
+                    return (
+                      <SortableGoalItem
+                        key={goalId}
+                        goal={goal}
+                        rank={index + 1}
+                        isDark={isDark}
+                      />
+                    )
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
+            <p className={`text-xs mt-4 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>
+              Rank 1 gets the full deep-dive. Ranks 2 and 3 get progressively shorter tours.
+            </p>
           </Card>
         )
       case "cookingLevel":
@@ -612,7 +684,8 @@ export default function OnboardingPage() {
       const dbCuisinePreferences = cuisinePreferences.map(convertCuisineToDb)
 
       const onboardingData = {
-        primary_goal: selectedGoal,
+        primary_goal: goalRanking[0],
+        tutorial_goals_ranking: goalRanking,
         cooking_level: cookingLevel,
         budget_range: budgetRange,
         dietary_preferences: dbDietaryPreferences,
