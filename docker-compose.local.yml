@@ -64,7 +64,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.embedding-worker
-    command: ["node_modules/.bin/tsx", "scripts/resolve-canonical-consolidation.ts"]
+    command: ["node_modules/.bin/tsx", "workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts"]
     env_file:
       - .env.local
     environment:

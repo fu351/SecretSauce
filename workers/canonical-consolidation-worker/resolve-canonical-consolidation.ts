@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "../workers/canonical-consolidation-worker/config"
-import * as processorModule from "../workers/canonical-consolidation-worker/processor"
-import type { CanonicalConsolidationWorkerConfig } from "../workers/canonical-consolidation-worker/config"
-import type { CanonicalConsolidationRunSummary } from "../workers/canonical-consolidation-worker/processor"
+import * as configModule from "./config"
+import * as processorModule from "./processor"
+import type { CanonicalConsolidationWorkerConfig } from "./config"
+import type { CanonicalConsolidationRunSummary } from "./processor"
 
 const getCanonicalConsolidationWorkerConfigFromEnv =
   (configModule as { getCanonicalConsolidationWorkerConfigFromEnv?: unknown }).getCanonicalConsolidationWorkerConfigFromEnv ??

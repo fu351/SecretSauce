@@ -83,7 +83,7 @@ Core files:
 - `workers/canonical-consolidation-worker/processor.ts`
 - `workers/canonical-consolidation-worker/runner.ts`
 - `workers/canonical-consolidation-worker/survivor.ts`
-- `scripts/resolve-canonical-consolidation.ts`
+- `workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts`
 - `lib/database/canonical-consolidation-db.ts`
 
 Purpose:
