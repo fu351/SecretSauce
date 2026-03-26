@@ -18,6 +18,17 @@ function toPositiveNumber(value, fallback) {
   return parsed;
 }
 
+function toBoolean(value, fallback = false) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
 function getScraperRuntimeConfig() {
   return runtimeConfigStorage.getStore() || null;
 }
@@ -77,10 +88,40 @@ function withScraperTimeout(promise, ms) {
   return Promise.race([promise, timeout]);
 }
 
+function getUniversalScraperControlsFromEnv() {
+  return {
+    liveActivation: toBoolean(process.env.SCRAPER_WORKER_LIVE_ACTIVATION, false),
+    bypassTimeouts: toBoolean(process.env.SCRAPER_WORKER_BYPASS_TIMEOUTS, false),
+    timeoutMultiplier: toPositiveNumber(
+      process.env.SCRAPER_WORKER_TIMEOUT_MULTIPLIER,
+      toPositiveNumber(process.env.SCRAPER_LIVE_TIMEOUT_MULTIPLIER, 3)
+    ),
+    timeoutFloorMs: toPositiveNumber(
+      process.env.SCRAPER_WORKER_TIMEOUT_FLOOR_MS,
+      toPositiveNumber(process.env.SCRAPER_LIVE_TIMEOUT_FLOOR_MS, 45000)
+    ),
+  };
+}
+
+function mergeUniversalScraperControls(overrides) {
+  return {
+    ...getUniversalScraperControlsFromEnv(),
+    ...(overrides || {}),
+  };
+}
+
+function runWithUniversalScraperControls(overrides, fn) {
+  const merged = mergeUniversalScraperControls(overrides);
+  return runWithScraperRuntimeConfig(merged, fn);
+}
+
 module.exports = {
   getScraperRuntimeConfig,
   isLiveActivation,
   resolveTimeoutMs,
   runWithScraperRuntimeConfig,
   withScraperTimeout,
+  getUniversalScraperControlsFromEnv,
+  mergeUniversalScraperControls,
+  runWithUniversalScraperControls,
 };

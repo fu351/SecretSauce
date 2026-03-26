@@ -2,8 +2,10 @@ import { type Database } from "../../../lib/database/supabase"
 import { standardizedIngredientsDB } from "../../../lib/database/standardized-ingredients-db"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "../../../lib/database/ingredients-db"
 import { normalizeScraperResults, type ScraperResult } from "./types"
+import { runScraperWorkerProcessor } from "./processor"
 import { normalizeZipCode } from "../../../lib/utils/zip"
 import type { StoreMetadataMap } from "./utils/store-metadata"
+import type { ScraperRuntimeOverrides } from "./utils"
 
 type DB = Database["public"]["Tables"]
 type IngredientRecentRow = DB["ingredients_recent"]["Row"]
@@ -26,6 +28,7 @@ type StoreLookupOptions = {
   forceRefresh?: boolean
   allowRealTimeScraping?: boolean // If false, only return cached results
   storeMetadata?: StoreMetadataMap
+  runtime?: ScraperRuntimeOverrides
 }
 
 async function runStoreScraper(
@@ -39,33 +42,15 @@ async function runStoreScraper(
 
   try {
     console.log("[ingredient-pipeline] Running scraper", { store: normalizedStore, canonicalName, zip });
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const scrapers = require(".");
+    const processorResult = await runScraperWorkerProcessor({
+      store: normalizedStore,
+      query: canonicalName,
+      zipCode: zip,
+      targetStoreMetadata: normalizedStore === "target" ? (storeMeta ?? null) : undefined,
+      runtime: options.runtime,
+    })
 
-    type ScraperFunction = (query: string, zip?: string | null) => Promise<unknown>;
-
-    const scraperMap: Record<string, ScraperFunction> = {
-      walmart: scrapers.searchWalmartAPI,
-      safeway: scrapers.searchSafeway,
-      andronicos: scrapers.searchAndronicos,
-      traderjoes: scrapers.searchTraderJoes,
-      wholefoods: scrapers.searchWholeFoods,
-      whole_foods: scrapers.searchWholeFoods,
-      aldi: scrapers.searchAldi,
-      kroger: (query, zipCode) => scrapers.searchKroger(zipCode, query),
-      meijer: (query, zipCode) => scrapers.searchMeijer(zipCode, query),
-      target: (query, zipCode) => scrapers.searchTarget(query, null, zipCode),
-      ranch99: scrapers.search99Ranch,
-      "99ranch": scrapers.search99Ranch,
-    };
-
-    const scraper = scraperMap[normalizedStore];
-    if (!scraper) {
-      console.warn(`[ingredient-pipeline] No scraper configured for store ${store}`);
-      return [];
-    }
-
-    const rawResults = await scraper(canonicalName, zip);
+    const rawResults = Array.isArray(processorResult.results) ? processorResult.results : []
 
     if (!rawResults) {
       console.warn("[ingredient-pipeline] Scraper returned no results", { store: normalizedStore, canonicalName, zip });

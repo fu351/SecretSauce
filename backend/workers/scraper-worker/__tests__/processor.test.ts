@@ -109,6 +109,38 @@ describe("runScraperWorkerProcessor", () => {
     expect(result.totalItems).toBe(1)
   })
 
+  it("applies universal controls when wrapper is available without explicit runtime overrides", async () => {
+    const runWithUniversalScraperControls = vi.fn().mockImplementation(async (_overrides, fn) => fn())
+    const searchWalmartAPI = vi.fn().mockResolvedValue([{ id: "w1" }])
+
+    const loadModule = vi.fn().mockReturnValue({
+      searchWalmartAPI,
+      searchTarget: vi.fn(),
+      searchKroger: vi.fn(),
+      searchMeijer: vi.fn(),
+      search99Ranch: vi.fn(),
+      searchTraderJoes: vi.fn(),
+      searchAldi: vi.fn(),
+      searchAndronicos: vi.fn(),
+      searchWholeFoods: vi.fn(),
+      searchSafeway: vi.fn(),
+      runWithUniversalScraperControls,
+    })
+
+    const result = await runScraperWorkerProcessor(
+      {
+        store: "walmart",
+        query: "milk",
+        zipCode: "94103",
+      },
+      { loadModule }
+    )
+
+    expect(runWithUniversalScraperControls).toHaveBeenCalledWith({}, expect.any(Function))
+    expect(searchWalmartAPI).toHaveBeenCalledWith("milk", "94103")
+    expect(result.totalItems).toBe(1)
+  })
+
   it("throws for unsupported stores", async () => {
     const loadModule = vi.fn()
 

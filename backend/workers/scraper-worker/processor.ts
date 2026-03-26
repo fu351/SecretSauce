@@ -1,6 +1,5 @@
 import {
   countScraperResults,
-  hasRuntimeOverrides,
   resolveScraperWorkerMode,
   resolveScraperWorkerStore,
   sanitizeBatchQueries,
@@ -115,20 +114,16 @@ async function runBatchStoreQuery(
   return result.map((item) => (Array.isArray(item) ? item : []))
 }
 
-async function runWithOptionalRuntimeOverrides(
+async function runWithRuntimeControls(
   module: ScraperWorkerModule,
   runtime: ScraperRuntimeOverrides | undefined,
   fn: () => Promise<unknown[] | unknown[][]>
 ): Promise<unknown[] | unknown[][]> {
-  if (!hasRuntimeOverrides(runtime)) {
-    return fn()
-  }
-
   if (typeof module.runWithUniversalScraperControls !== "function") {
     return fn()
   }
 
-  const wrapped = await module.runWithUniversalScraperControls(runtime as ScraperRuntimeOverrides, fn)
+  const wrapped = await module.runWithUniversalScraperControls(runtime ?? {}, fn)
   if (!Array.isArray(wrapped)) {
     return []
   }
@@ -154,7 +149,7 @@ export async function runScraperWorkerProcessor(
       throw new Error("query is required for single mode")
     }
 
-    const results = (await runWithOptionalRuntimeOverrides(module, job.runtime, () =>
+    const results = (await runWithRuntimeControls(module, job.runtime, () =>
       runSingleStoreQuery(module, store, query, job)
     )) as unknown[]
 
@@ -172,7 +167,7 @@ export async function runScraperWorkerProcessor(
     throw new Error("queries is required for batch mode")
   }
 
-  const results = (await runWithOptionalRuntimeOverrides(module, job.runtime, () =>
+  const results = (await runWithRuntimeControls(module, job.runtime, () =>
     runBatchStoreQuery(module, store, queries, job)
   )) as unknown[][]
 
