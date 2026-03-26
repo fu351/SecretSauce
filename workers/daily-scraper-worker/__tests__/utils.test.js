@@ -18,7 +18,7 @@ import {
   normalizeBatchResultsShape,
   parseCooldownMsFromMessage,
   runBatchWithCooldownRetry,
-} from '../daily-scraper-utils.js'
+} from '../utils.js'
 
 // ---------------------------------------------------------------------------
 // getIntEnv
