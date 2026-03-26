@@ -1,6 +1,7 @@
 import { normalizeStoreEnum, truncateText } from './utils.js'
 import { getScraperConfigFromEnv } from './config.js'
-import { appendBrandFailureMetadata, runDailyScraper } from './processor.js'
+import { appendBrandFailureMetadata } from './db.js'
+import { runDailyScraper } from './processor.js'
 
 // ─── Summary printing ─────────────────────────────────────────────────────────
 
