@@ -4,12 +4,6 @@ import json
 import sys
 import types
 import unittest
-from pathlib import Path
-
-
-SCRIPTS_DIR = Path(__file__).resolve().parents[2]
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
 
 try:
     import requests  # type: ignore
@@ -42,7 +36,7 @@ except ModuleNotFoundError:
     ijson.items = _items  # type: ignore[attr-defined]
     sys.modules["ijson"] = ijson
 
-from store_maintenance_utils import alltheplaces  # noqa: E402
+from workers.store_maintenance_worker import alltheplaces  # noqa: E402
 
 
 class FakeResponse:
