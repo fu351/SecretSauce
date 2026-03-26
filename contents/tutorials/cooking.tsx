@@ -18,6 +18,7 @@ export const cookingPath: TutorialPath = {
           instruction: "Start with the dashboard overview to check your daily schedule.",
           highlightSelector: "[data-tutorial='dashboard-overview']",
           action: "highlight",
+          essential: true,
         },
         {
           id: 2,
@@ -46,6 +47,7 @@ export const cookingPath: TutorialPath = {
           instruction: "Enter the recipe library to see featured collections.",
           highlightSelector: "[data-tutorial='recipe-overview']",
           action: "highlight",
+          essential: true,
         },
         {
           id: 2,
@@ -80,6 +82,7 @@ export const cookingPath: TutorialPath = {
           instruction: "View your broader weekly panel for an overview of your meals.",
           highlightSelector: "[data-tutorial='planner-overview']",
           action: "highlight",
+          essential: true,
         },
         {
           id: 2,

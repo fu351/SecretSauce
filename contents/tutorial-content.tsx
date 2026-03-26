@@ -9,4 +9,4 @@ export const tutorialPaths = {
   budgeting: budgetingPath,
 }
 
-export type { TutorialPath, TutorialStep, TutorialSubstep } from "../lib/types/tutorial"
+export type { TutorialPath, TutorialStep, TutorialSubstep, GoalRank, RankedGoals } from "../lib/types/tutorial"
