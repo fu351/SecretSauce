@@ -175,7 +175,7 @@ export function getIngredientStandardizerContextRules(
  * Private interface kept separate from general ingredient types
  * to avoid conflicts with form-level IngredientFormInput.
  */
-interface StandardizerIngredientInput {
+export interface IngredientStandardizationInput {
   id: string
   name: string
   amount?: string
@@ -298,7 +298,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
   }
 }
 
-function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: string[], context: IngredientStandardizerContext) {
+function buildPrompt(inputs: IngredientStandardizationInput[], canonicalNames: string[], context: IngredientStandardizerContext) {
   const contextRules = getIngredientStandardizerContextRules(context)
   return buildIngredientStandardizerPrompt({
     inputs,
@@ -308,7 +308,7 @@ function buildPrompt(inputs: StandardizerIngredientInput[], canonicalNames: stri
   })
 }
 
-function fallbackResults(inputs: StandardizerIngredientInput[]): IngredientStandardizationResult[] {
+function fallbackResults(inputs: IngredientStandardizationInput[]): IngredientStandardizationResult[] {
   return inputs.map((item, index) => ({
     id: item.id || String(index),
     originalName: item.name,
@@ -320,7 +320,7 @@ function fallbackResults(inputs: StandardizerIngredientInput[]): IngredientStand
 }
 
 export async function standardizeIngredientsWithAI(
-  inputs: StandardizerIngredientInput[],
+  inputs: IngredientStandardizationInput[],
   context: IngredientStandardizerContext
 ): Promise<IngredientStandardizationResult[]> {
   if (!inputs || inputs.length === 0) {
