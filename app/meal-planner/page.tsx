@@ -370,7 +370,7 @@ function MealPlannerPageContent() {
             <div className="max-w-7xl mx-auto will-change-transform min-w-0">
               {/* Header - title/subtext moved to navbar */}
               <div className="flex flex-col gap-2 md:gap-4 mb-3 md:mb-6">
-                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3" data-tutorial="planner-actions">
                 <PlannerActions
                   onHeuristicPlan={handleGenerateHeuristicPlan}
                   onUpgradeForSmartPlanner={handleUpgradeForSmartPlanner}

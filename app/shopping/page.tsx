@@ -293,7 +293,7 @@ export default function ShoppingPage() {
         <div className="mb-8">
 
           {/* Shopping list card */}
-          <div data-shopping-list>
+          <div data-shopping-list data-tutorial="shopping-list">
             <Card className={`${styles.cardBgClass} overflow-hidden flex flex-col h-full`} style={{ minHeight: shoppingList.length === 0 ? '70vh' : 'auto' }}>
 
               {/* Header */}

@@ -310,10 +310,7 @@ export function TutorialOverlay() {
   if (isMobile) return null;
   if (!isActive || !currentPath || !currentStep) return null;
 
-  // Path label: includes plan position when running multi-path session
-  const pathLabel = rankedGoals && rankedGoals.length > 1
-    ? `${currentPath.name} (${currentPlanIndex + 1}/${rankedGoals.length})`
-    : currentPath.name
+  const pathLabel = currentPath.name
 
   // Avoid inline styles for the progress bar width (linter rule).
   // We bucket to 10% steps so Tailwind can statically include the classes.

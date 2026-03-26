@@ -3,82 +3,53 @@ import { TutorialPath } from "../../lib/types/tutorial"
 export const budgetingPath: TutorialPath = {
   id: "budgeting",
   name: "Optimize Resources",
-  description: "Advanced tools to track spending and lower your grocery bill.",
+  description: "Build your shopping list and find the best prices at local stores.",
   steps: [
     {
       id: 1,
-      title: "Financial Tracking",
-      description: "Analyze your spending habits.",
-      page: "/dashboard",
-      highlightSelector: "[data-tutorial='dashboard-overview']",
+      title: "Shopping List",
+      description: "Everything you need in one place.",
+      page: "/shopping",
+      highlightSelector: "[data-tutorial='shopping-list']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Begin with your dashboard for a high-level budget summary.",
-          highlightSelector: "[data-tutorial='dashboard-overview']",
+          instruction: "Your grocery list auto-populates from planned meals — ingredients are grouped and de-duped.",
+          highlightSelector: "[data-tutorial='shopping-list']",
           action: "highlight",
           essential: true,
         },
         {
           id: 2,
-          instruction: "Dive into your user stats to see where your money is going.",
-          highlightSelector: "[data-tutorial='dashboard-stats']",
+          instruction: "Tap Compare Prices to instantly see the total cost across nearby stores.",
+          highlightSelector: "[data-tutorial='store-compare']",
           action: "highlight",
-        }
-      ]
+        },
+      ],
     },
     {
       id: 2,
-      title: "Smart Budget Planning",
-      description: "Automate your savings via the meal planner.",
-      page: "/meal-planner",
-      highlightSelector: "[data-tutorial='planner-overview']",
-      action: "highlight",
-      substeps: [
-        {
-          id: 1,
-          instruction: "Start at the planner overview to see your current schedule.",
-          highlightSelector: "[data-tutorial='planner-overview']",
-          action: "highlight",
-          essential: true,
-        },
-        {
-          id: 2,
-          instruction: "Generate a plan optimized specifically for low local prices.",
-          highlightSelector: "[data-tutorial='planner-smart']",
-          action: "highlight",
-        }
-      ]
-    },
-    {
-      id: 3,
-      title: "Retail Comparison",
-      description: "Pick the best store for your specific list.",
+      title: "Store Comparison",
+      description: "Pick the store that wins on your specific list.",
       page: "/store",
       highlightSelector: "[data-tutorial='store-overview']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Check your shopping list item overview.",
+          instruction: "The receipt view shows a store-by-store price breakdown — switch tabs to compare totals.",
           highlightSelector: "[data-tutorial='store-overview']",
           action: "highlight",
           essential: true,
         },
         {
           id: 2,
-          instruction: "Open the menu to manually add extra household essentials.",
+          instruction: "Add any extra household items you need directly from this page.",
           highlightSelector: "[data-tutorial='store-add']",
           action: "highlight",
         },
-        {
-          id: 3,
-          instruction: "Compare the total cost of your items across different local stores.",
-          highlightSelector: "[data-tutorial='store-selector']",
-          action: "highlight",
-        }
-      ]
-    }
-  ]
+      ],
+    },
+  ],
 }

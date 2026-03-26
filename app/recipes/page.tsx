@@ -497,7 +497,7 @@ export default function RecipesPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-          <div className="hidden lg:block">
+          <div className="hidden lg:block" data-tutorial="recipe-search">
             <RecipeFilterSidebar
               searchInput={searchInput}
               onSearchInputChange={setSearchInput}
