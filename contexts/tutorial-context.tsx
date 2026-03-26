@@ -61,8 +61,6 @@ interface TutorialContextType {
   currentSubstep: TutorialSubstep | null
   visibleSubsteps: TutorialSubstep[]
 
-  isCompleted: boolean
-  wasDismissed: boolean
   tutorialCompleted: boolean
   tutorialPath: TutorialPathId | null
   tutorialCompletedAt: string | null
@@ -71,12 +69,9 @@ interface TutorialContextType {
   startTutorial: (pathId: TutorialPathId) => void
   nextStep: () => void
   prevStep: () => void
-  goToStep: (stepIndex: number) => void
 
   skipTutorial: () => void
-  completeTutorial: () => void
   resetTutorial: () => void
-  setRedirectAfterComplete: (path: string | null) => void
 }
 
 const TutorialContext = createContext<TutorialContextType | undefined>(undefined)
@@ -93,9 +88,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [currentPlanIndex, setCurrentPlanIndex] = useState(0)
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [currentSubstepIndex, setCurrentSubstepIndex] = useState(0)
-  const [isCompleted, setIsCompleted] = useState(false)
-  const [redirectAfterComplete, setRedirectAfterComplete] = useState<string | null>(null)
-  const [wasDismissed, setWasDismissed] = useState(false)
   const [tutorialCompleted, setTutorialCompleted] = useState(false)
   const [tutorialPath, setTutorialPath] = useState<TutorialPathId | null>(null)
   const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
@@ -174,14 +166,12 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const startRankedSession = useCallback((ranked: RankedGoals) => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(DISMISS_KEY)
-      setWasDismissed(false)
     }
     setRankedGoals(ranked)
     setCurrentPlanIndex(0)
     setCurrentStepIndex(0)
     setCurrentSubstepIndex(0)
     setIsActive(true)
-    setIsCompleted(false)
     trackEvent("tutorial_started", { path: ranked[0] })
     const firstPage = tutorialPaths[ranked[0]].steps[0].page
     router.push(firstPage)
@@ -209,24 +199,18 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       }
 
       setIsActive(false)
-      setIsCompleted(true)
       setTutorialCompleted(true)
       setTutorialPath(rankedGoals[0])
       setTutorialCompletedAt(completedAt)
-      setWasDismissed(false)
 
       trackEvent("tutorial_completed", {
         path: currentPathId,
         steps_completed: currentPath?.steps.length ?? currentStepIndex + 1,
       })
-
-      if (redirectAfterComplete) {
-        router.push(redirectAfterComplete)
-      }
     } catch (error) {
       console.error("Error completing tutorial:", error)
     }
-  }, [user, currentPathId, rankedGoals, updateProfile, currentPath, currentStepIndex, trackEvent, redirectAfterComplete, router])
+  }, [user, currentPathId, rankedGoals, updateProfile, currentPath, currentStepIndex, trackEvent])
 
   // -------------------
   // Navigation Functions
@@ -323,13 +307,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentStepIndex, currentSubstepIndex, currentPath, currentStep, currentRank, router])
 
-  const goToStep = useCallback((stepIndex: number) => {
-    if (currentPath && stepIndex >= 0 && stepIndex < currentPath.steps.length) {
-      setCurrentStepIndex(stepIndex)
-      setCurrentSubstepIndex(0)
-    }
-  }, [currentPath])
-
   const skipTutorial = useCallback(async () => {
     if (!user) return
     try {
@@ -341,11 +318,9 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       }
 
       setIsActive(false)
-      setIsCompleted(false)
       if (typeof window !== "undefined") {
         window.localStorage.setItem(DISMISS_KEY, "1")
         window.localStorage.removeItem(TUTORIAL_STATE_KEY)
-        setWasDismissed(true)
       }
     } catch (error) {
       console.error("Error skipping tutorial:", error)
@@ -356,14 +331,12 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(DISMISS_KEY)
       window.localStorage.removeItem(TUTORIAL_STATE_KEY)
-      setWasDismissed(false)
     }
     setIsActive(false)
     setRankedGoals(null)
     setCurrentPlanIndex(0)
     setCurrentStepIndex(0)
     setCurrentSubstepIndex(0)
-    setIsCompleted(false)
   }, [])
 
   // -------------------
@@ -371,9 +344,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   // -------------------
 
   useEffect(() => {
-    if (typeof window === "undefined") return
-    const stored = window.localStorage.getItem(DISMISS_KEY)
-    setWasDismissed(stored === "1")
     restoreTutorialState()
   }, [restoreTutorialState])
 
@@ -389,7 +359,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
     if (profile.tutorial_completed === true) {
       setIsActive(false)
-      setIsCompleted(true)
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(TUTORIAL_STATE_KEY)
       }
@@ -411,8 +380,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     currentSubstepIndex,
     currentSubstep,
     visibleSubsteps,
-    isCompleted,
-    wasDismissed,
     tutorialCompleted,
     tutorialPath,
     tutorialCompletedAt,
@@ -420,11 +387,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     startTutorial,
     nextStep,
     prevStep,
-    goToStep,
     skipTutorial,
-    completeTutorial,
     resetTutorial,
-    setRedirectAfterComplete,
   }
 
   return <TutorialContext.Provider value={value}>{children}</TutorialContext.Provider>

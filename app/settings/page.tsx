@@ -34,9 +34,8 @@ function SettingsPageContent() {
   const { user, updateProfile } = useAuth()
   const { theme, setTheme } = useTheme()
   const {
-    tutorialCompleted: contextTutorialCompleted,
-    tutorialPath: contextTutorialPath,
-    tutorialCompletedAt: contextTutorialCompletedAt,
+    tutorialPath,
+    tutorialCompletedAt,
     resetTutorial,
   } = useTutorial()
   const { toast } = useToast()
@@ -69,10 +68,6 @@ function SettingsPageContent() {
   const [lng, setLng] = useState<number | null>(null)
   const [groceryDistance, setGroceryDistance] = useState("10")
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
-  const [tutorialCompleted, setTutorialCompleted] = useState(false)
-  const [tutorialPath, setTutorialPath] = useState<string | null>(null)
-  const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
-  const [rewatchLoading, setRewatchLoading] = useState(false)
   const [showTutorialModal, setShowTutorialModal] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(theme === "dark" ? "dark" : "light")
   const preferencesRef = useRef<ProfileUpdates | null>(null)
@@ -134,18 +129,6 @@ function SettingsPageContent() {
     setSelectedTheme(theme === "dark" ? "dark" : "light")
   }, [theme])
 
-  // Sync tutorial completion state from context
-  useEffect(() => {
-    if (contextTutorialCompleted) {
-      setTutorialCompleted(contextTutorialCompleted)
-    }
-    if (contextTutorialPath) {
-      setTutorialPath(contextTutorialPath)
-    }
-    if (contextTutorialCompletedAt) {
-      setTutorialCompletedAt(contextTutorialCompletedAt)
-    }
-  }, [contextTutorialCompleted, contextTutorialPath, contextTutorialCompletedAt])
 
   useEffect(() => {
     const payload: ProfileUpdates = {
@@ -249,9 +232,6 @@ function SettingsPageContent() {
       setLng(profile.longitude ?? null)
       setGroceryDistance(String(profile.grocery_distance_miles || 10))
       setDietaryPreferences(profile.dietary_preferences || [])
-      setTutorialCompleted(profile.tutorial_completed || false)
-      setTutorialPath(profile.tutorial_path || null)
-      setTutorialCompletedAt(profile.tutorial_completed_at || null)
       setFullName(profile.full_name || "")
       setAvatarUrl(profile.avatar_url || null)
       setNewEmail(profile.email || "")
@@ -888,7 +868,6 @@ function SettingsPageContent() {
                 {/* Action Button */}
                 <Button
                   onClick={handleRewatchTutorial}
-                  disabled={rewatchLoading}
                   className={`w-full ${
                     isDark
                       ? "bg-[#e8dcc4]/10 text-[#e8dcc4] border border-[#e8dcc4]/30 hover:bg-[#e8dcc4]/20"
@@ -896,7 +875,7 @@ function SettingsPageContent() {
                   }`}
                   variant="outline"
                 >
-                  {rewatchLoading ? "Loading..." : "Rewatch Tutorial"}
+                  Rewatch Tutorial
                 </Button>
               </div>
             </CardContent>
