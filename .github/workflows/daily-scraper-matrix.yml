@@ -22,7 +22,7 @@ name: Daily Scraper Matrix
 #    set at the workflow level (from pipeline-defaults.json) and are overridden
 #    to tighter values for Jina-backed stores specifically to limit burst
 #    parallelism inside each job.  These complement — never replace — the
-#    per-scraper rate limiters inside daily-scraper.js.
+#    per-scraper rate limiters inside workers/daily-scraper-worker/runner.js.
 # ---------------------------------------------------------------------------
 
 on:
@@ -395,7 +395,7 @@ jobs:
           echo "   ZIP min/max: ${STORE_ZIP_MIN:-<none>} / ${STORE_ZIP_MAX:-<none>}"
 
           set +e
-          timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node scripts/daily-scraper.js
+          timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node workers/daily-scraper-worker/runner.js
           status=$?
           set -e
 

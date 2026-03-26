@@ -4,8 +4,8 @@ WORKDIR /app
 
 # Install only the lean scraper dependencies (mirrors the GitHub Actions workflow).
 # We install into scripts/node_modules and symlink to the workspace root so that
-# both scripts/ (ESM) and scrapers/ (CJS) can resolve packages via Node's upward
-# node_modules walk without needing the full Next.js dependency tree.
+# both scripts/ and workers/ (ESM) plus scrapers/ (CJS) can resolve packages via
+# Node's upward node_modules walk without needing the full Next.js dependency tree.
 COPY scripts/package.json ./scripts/package.json
 COPY scripts/package-lock.json ./scripts/package-lock.json
 RUN npm ci --prefix scripts --omit=dev --no-audit --no-fund \
@@ -13,6 +13,7 @@ RUN npm ci --prefix scripts --omit=dev --no-audit --no-fund \
 
 COPY scrapers ./scrapers
 COPY scripts ./scripts
+COPY workers ./workers
 
 ENV NODE_ENV=production
 ENV DAILY_SCRAPER_DRY_RUN=true
@@ -23,4 +24,4 @@ ENV STORE_LIMIT=1
 ENV INGREDIENT_LIMIT=5
 ENV INGREDIENT_DELAY_MS=0
 
-CMD ["node", "scripts/daily-scraper.js"]
+CMD ["node", "workers/daily-scraper-worker/runner.js"]
