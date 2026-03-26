@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -217,8 +217,8 @@ export default function OnboardingPage() {
   const [lng, setLng] = useState<number | null>(null)
   const [groceryDistance, setGroceryDistance] = useState("")
   const [loading, setLoading] = useState(false)
-  const { theme: currentTheme, setTheme } = useTheme()
-  const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(currentTheme === "dark" ? "dark" : "light")
+  const { setTheme } = useTheme()
+  const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">("dark")
   const [activeIndex, setActiveIndex] = useState(0)
   const lastStepIndex = questionOrder.length - 1
   const atLastStep = activeIndex === lastStepIndex
@@ -240,13 +240,14 @@ export default function OnboardingPage() {
     setLng(addr.lng ?? null)
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Force dark theme for onboarding experience on initial mount only.
     // User can change to warm mode in the theme selection question.
     setTheme("dark")
-    setSelectedTheme("dark")
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.add("dark")
+    }
+  }, [setTheme])
 
   // Keep global theme in sync with selectedTheme when navigating between steps
   useEffect(() => {
