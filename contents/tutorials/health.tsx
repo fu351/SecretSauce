@@ -18,6 +18,7 @@ export const healthPath: TutorialPath = {
           instruction: "Set your global preferences for meal restrictions and allergens.",
           highlightSelector: "[data-tutorial='settings-preferences']",
           action: "highlight",
+          essential: true,
         }
       ]
     },
@@ -34,6 +35,7 @@ export const healthPath: TutorialPath = {
           instruction: "Open the planner overview to see your weekly structure.",
           highlightSelector: "[data-tutorial='planner-overview']",
           action: "highlight",
+          essential: true,
         },
         {
           id: 2,
@@ -62,6 +64,7 @@ export const healthPath: TutorialPath = {
           instruction: "Review your full list to ensure all staples are present.",
           highlightSelector: "[data-tutorial='store-overview']",
           action: "highlight",
+          essential: true,
         },
         {
           id: 2,

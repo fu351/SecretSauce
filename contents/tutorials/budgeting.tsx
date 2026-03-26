@@ -18,6 +18,7 @@ export const budgetingPath: TutorialPath = {
           instruction: "Begin with your dashboard for a high-level budget summary.",
           highlightSelector: "[data-tutorial='dashboard-overview']",
           action: "highlight",
+          essential: true,
         },
         {
           id: 2,
@@ -40,6 +41,7 @@ export const budgetingPath: TutorialPath = {
           instruction: "Start at the planner overview to see your current schedule.",
           highlightSelector: "[data-tutorial='planner-overview']",
           action: "highlight",
+          essential: true,
         },
         {
           id: 2,
@@ -62,6 +64,7 @@ export const budgetingPath: TutorialPath = {
           instruction: "Check your shopping list item overview.",
           highlightSelector: "[data-tutorial='store-overview']",
           action: "highlight",
+          essential: true,
         },
         {
           id: 2,
