@@ -303,35 +303,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
     return data ? this.map(data) : null
   }
 
-  /**
-   * Update tutorial completion status
-   * Specialized operation for tutorial flow
-   * @param userId - User ID
-   * @param tutorialPath - Tutorial path (cooking, budgeting, health)
-   */
-  async updateTutorialCompletion(
-    userId: string,
-    tutorialPath: ProfileRow["tutorial_path"]
-  ): Promise<boolean> {
-
-    const updateData: Partial<ProfileUpdate> = {
-      tutorial_completed: true,
-      tutorial_completed_at: new Date().toISOString(),
-      tutorial_path: tutorialPath,
-      updated_at: new Date().toISOString(),
-    }
-
-    const { error } = await (this.supabase.from(this.tableName) as any)
-      .update(updateData)
-      .eq("id", userId)
-
-    if (error) {
-      this.handleError(error, "updateTutorialCompletion")
-      return false
-    }
-    
-    return true
-  }
 }
 
 // Export singleton instance
