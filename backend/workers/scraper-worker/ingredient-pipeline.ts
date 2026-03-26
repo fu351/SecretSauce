@@ -4,8 +4,8 @@ import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from ".
 import { normalizeScraperResults, type ScraperResult } from "./types"
 import { runScraperWorkerProcessor } from "./processor"
 import { normalizeZipCode } from "../../../lib/utils/zip"
-import type { StoreMetadataMap } from "./utils/store-metadata"
-import type { ScraperRuntimeOverrides } from "./utils"
+import type { StoreMetadataMap } from "@/lib/store/store-metadata"
+import type { ScraperRuntimeOverrides } from "./worker"
 
 type DB = Database["public"]["Tables"]
 type IngredientRecentRow = DB["ingredients_recent"]["Row"]
@@ -21,7 +21,7 @@ export type IngredientCacheResult = IngredientRecentRow & {
 export type {
   StoreMetadata,
   StoreMetadataMap
-} from "./utils/store-metadata"
+} from "@/lib/store/store-metadata"
 
 type StoreLookupOptions = {
   zipCode?: string | null

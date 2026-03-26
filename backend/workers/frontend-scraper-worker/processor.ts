@@ -10,8 +10,8 @@ import { profileDB } from "../../../lib/database/profile-db"
 import {
   buildStoreMetadataFromStoreData,
   type StoreMetadataMap,
-} from "../scraper-worker/utils/store-metadata"
-import { getUserPreferredStores, type StoreData } from "../scraper-worker/utils/user-preferred-stores"
+} from "@/lib/store/store-metadata"
+import { getUserPreferredStores, type StoreData } from "@/lib/store/user-preferred-stores"
 import { resolveRawUnitWithDailyScraperPriority } from "../scraper-worker/utils/daily-scraper-raw-unit"
 
 const DEFAULT_STORE_KEYS = [

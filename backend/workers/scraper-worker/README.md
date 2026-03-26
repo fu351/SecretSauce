@@ -5,8 +5,8 @@ Bare-bones scraper interface worker that hosts store adapters plus universal run
 ## Layout
 
 - `index.js` - exports all store scraper functions and universal control helpers.
-- `index.ts` - typed worker-style exports for scraper-worker `utils`, `processor`, and `runner`.
-- `utils.ts` - shared store/runtime/job types and normalization helpers for scraper-worker wrappers.
+- `index.ts` - typed worker-style exports for scraper-worker `worker`, `processor`, and `runner`.
+- `worker.ts` - shared store/runtime/job types and normalization helpers for scraper-worker wrappers.
 - `processor.ts` - thin universal store-query processor wrapper over `index.js` exports.
 - `runner.ts` - worker-style loop wrapper around `processor.ts` for one-shot or scheduled runs.
 - `stores/*` - store-specific scrapers and optional batch variants.

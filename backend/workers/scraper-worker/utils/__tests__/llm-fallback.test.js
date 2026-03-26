@@ -8,7 +8,7 @@ import {
   stripMarkdownCodeFences,
   parseJsonFromLlmText,
   requestOpenAIJson,
-} from '../llm-fallback'
+} from '../jina/llm-fallback'
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
 

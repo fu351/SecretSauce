@@ -1,9 +1,9 @@
-const { fetchJinaReader } = require("./jina-client");
+const { fetchJinaReader } = require("./client");
 const {
   sleep,
   parseRetryAfterHeaderToMs,
   withExponentialBackoffRetry,
-} = require("./retry");
+} = require("../retry");
 
 const sharedCooldownStates = new Map();
 

@@ -1,16 +1,16 @@
 const path = require('path');
 const { createScraperLogger } = require('../utils/logger');
 const { withScraperTimeout } = require('../utils/runtime-config');
-const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/llm-fallback');
+const { getOpenAIApiKey, hasConfiguredOpenAIKey, requestOpenAIJson } = require('../utils/jina/llm-fallback');
 const { createRateLimiter } = require('../utils/rate-limiter');
 const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
-const { createJinaCrawler } = require('../utils/jina-crawler');
+const { createJinaCrawler } = require('../utils/jina/crawler');
 const {
     createBlockJinaLlmParser,
     createFullPageJinaLlmParser,
     parseJinaProductsWithFallbacks,
-} = require('../utils/jina-product-parsing');
+} = require('../utils/jina/product-parsing');
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
 const log = createScraperLogger('traderjoes');
 

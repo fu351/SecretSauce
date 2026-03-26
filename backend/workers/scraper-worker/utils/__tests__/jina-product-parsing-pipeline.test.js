@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { parseJinaProductsWithFallbacks } from '../jina-product-parsing/pipeline'
+import { parseJinaProductsWithFallbacks } from '../jina/product-parsing/pipeline'
 
 describe('parseJinaProductsWithFallbacks', () => {
   it('returns empty array when crawledContent is falsy', async () => {

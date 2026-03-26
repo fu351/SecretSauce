@@ -8,7 +8,7 @@ import {
   type ScraperWorkerProcessorJob,
   type ScraperWorkerProcessorResult,
   type ScraperWorkerStore,
-} from "./utils"
+} from "./worker"
 
 interface ScraperWorkerModule {
   searchWalmartAPI: (query: string, zipCode?: string | null) => Promise<unknown>

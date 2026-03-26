@@ -1,6 +1,6 @@
 import { sleep } from "../env-utils"
 import { runScraperWorkerProcessor, type ScraperWorkerProcessorDependencies } from "./processor"
-import type { ScraperWorkerProcessorJob } from "./utils"
+import type { ScraperWorkerProcessorJob } from "./worker"
 
 export interface ScraperWorkerRunnerConfig {
   workerIntervalSeconds: number

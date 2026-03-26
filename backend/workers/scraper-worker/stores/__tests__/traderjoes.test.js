@@ -25,21 +25,21 @@ patchCache(_require.resolve('../../utils/logger'), {
 patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
-patchCache(_require.resolve('../../utils/jina-client'), {
+patchCache(_require.resolve('../../utils/jina/client'), {
   fetchJinaReader: mockFetchJinaReader,
 })
-patchCache(_require.resolve('../../utils/llm-fallback'), {
+patchCache(_require.resolve('../../utils/jina/llm-fallback'), {
   getOpenAIApiKey: mockGetOpenAIApiKey,
   hasConfiguredOpenAIKey: mockHasConfiguredOpenAIKey,
   requestOpenAIJson: mockRequestOpenAIJson,
 })
 
 // Reload per test — clears module-level result cache + rate-limit state.
-// jina-crawler.js must also be cleared so its module-level sharedCooldownStates
+// utils/jina/crawler.js must also be cleared so its module-level sharedCooldownStates
 // Map is reset; otherwise a cooldown set during a fake-timer test bleeds into
 // subsequent tests and causes sleepDuringCooldown to hang them.
 function loadModule() {
-  delete _require.cache[_require.resolve('../../utils/jina-crawler.js')]
+  delete _require.cache[_require.resolve('../../utils/jina/crawler.js')]
   delete _require.cache[_require.resolve('../traderjoes.js')]
   const m = _require('../traderjoes.js')
   return { searchTraderJoes: m.searchTraderJoes, searchTraderJoesBatch: m.searchTraderJoesBatch }

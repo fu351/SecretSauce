@@ -9,13 +9,13 @@ const patchCache = (id, exports) => {
   _require.cache[id] = { id, filename: id, loaded: true, exports }
 }
 
-patchCache(_require.resolve("../jina-client"), {
+patchCache(_require.resolve("../jina/client"), {
   fetchJinaReader: mockFetchJinaReader,
 })
 
 function loadModule() {
-  delete _require.cache[_require.resolve("../jina-crawler")]
-  return _require("../jina-crawler")
+  delete _require.cache[_require.resolve("../jina/crawler")]
+  return _require("../jina/crawler")
 }
 
 describe("createJinaCrawler shared cooldown", () => {

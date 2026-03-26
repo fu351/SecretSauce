@@ -1,5 +1,5 @@
 const axios = require("axios");
-const { withScraperTimeout } = require("./runtime-config");
+const { withScraperTimeout } = require("../runtime-config");
 
 const DEFAULT_OPENAI_API_KEY_PLACEHOLDER = "your_openai_api_key_here";
 

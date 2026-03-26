@@ -25,10 +25,10 @@ patchCache(_require.resolve('../../utils/logger'), {
 patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
-patchCache(_require.resolve('../../utils/jina-client'), {
+patchCache(_require.resolve('../../utils/jina/client'), {
   fetchJinaReader: mockFetchJinaReader,
 })
-patchCache(_require.resolve('../../utils/llm-fallback'), {
+patchCache(_require.resolve('../../utils/jina/llm-fallback'), {
   getOpenAIApiKey: mockGetOpenAIApiKey,
   hasConfiguredOpenAIKey: mockHasConfiguredOpenAIKey,
   requestOpenAIJson: mockRequestOpenAIJson,

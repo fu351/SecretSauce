@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import type { ShoppingListIngredient as ShoppingListItem, StoreComparison } from "@/lib/types/store"
 import { ingredientsRecentDB, type PricingResult } from "@/lib/database/ingredients-db"
-import type { StoreMetadataMap } from "@/backend/workers/scraper-worker/utils/store-metadata"
+import type { StoreMetadataMap } from "@/lib/store/store-metadata"
 
 const PRICING_DEBOUNCE_MS = 2000 // 2 seconds after shopping list changes
 const STALE_THRESHOLD_MS = 300000 // 5 minutes

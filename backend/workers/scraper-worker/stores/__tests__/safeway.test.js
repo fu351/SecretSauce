@@ -24,7 +24,7 @@ patchCache(_require.resolve('../../utils/logger'), {
 patchCache(_require.resolve('../../utils/runtime-config'), {
   withScraperTimeout: (promise) => promise,
 })
-patchCache(_require.resolve('../../utils/llm-fallback'), {
+patchCache(_require.resolve('../../utils/jina/llm-fallback'), {
   getOpenAIApiKey: () => 'sk-test',
   hasConfiguredOpenAIKey: () => true,
   requestOpenAIJson: vi.fn(),
