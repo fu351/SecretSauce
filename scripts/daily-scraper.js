@@ -28,6 +28,8 @@ import {
   normalizeResultsShape,
   normalizeStoreEnum,
   normalizeZipCode,
+  parseCooldownMsFromMessage,
+  runBatchWithCooldownRetry,
   sleep,
   toPriceNumber,
   truncateText,
@@ -461,41 +463,31 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
         normalizedMessage.includes('jina cooldown')
 
       if (isRateLimitFailure) {
-        const cooldownMatch = message.match(/for\s+(\d+)\s*ms/i)
-        const cooldownRemainingMs = cooldownMatch ? parseInt(cooldownMatch[1], 10) : 0
+        const cooldownRemainingMs = parseCooldownMsFromMessage(message)
         if (cooldownRemainingMs > 0) {
-          const sleepMs = Math.min(cooldownRemainingMs + 2000, 120000)
           console.warn(
             `⚠️ Native batch scraper rate-limited for ${storeEnum}: ${message}. ` +
-            `Sleeping ${sleepMs}ms for cooldown to expire, then retrying chunk...`
+            `Sleeping ${Math.min(cooldownRemainingMs + 2000, 120000)}ms for cooldown to expire, then retrying chunk...`
           )
-          await sleep(sleepMs)
-          try {
-            const retryResults = await nativeBatchScraper(ingredientChunk, zipCode, { concurrency: batchConcurrency })
-            return {
-              resultsByIngredient: normalizeBatchResultsShape(retryResults, ingredientChunk.length),
-              errorFlags: Array.from({ length: ingredientChunk.length }, () => false),
-              errorMessages: Array.from({ length: ingredientChunk.length }, () => ''),
-              http404Flags: Array.from({ length: ingredientChunk.length }, () => false),
-              errorCodes: Array.from({ length: ingredientChunk.length }, () => ''),
-            }
-          } catch (retryError) {
-            const retryMessage = retryError?.message || String(retryError)
-            console.warn(`⚠️ Retry after cooldown also failed for ${storeEnum}: ${retryMessage}. Marking chunk as errors.`)
-          }
         } else {
           console.warn(
             `⚠️ Native batch scraper rate-limited for ${storeEnum}: ${message}. ` +
             'Marking chunk as errors to avoid retry storms.'
           )
         }
-        return {
-          resultsByIngredient: emptyBatchResults(ingredientChunk.length),
-          errorFlags: Array.from({ length: ingredientChunk.length }, () => true),
-          errorMessages: Array.from({ length: ingredientChunk.length }, () => message),
-          http404Flags: Array.from({ length: ingredientChunk.length }, () => false),
-          errorCodes: Array.from({ length: ingredientChunk.length }, () => code.toUpperCase()),
+        const result = await runBatchWithCooldownRetry({
+          runBatch: () => nativeBatchScraper(ingredientChunk, zipCode, { concurrency: batchConcurrency }),
+          storeEnum,
+          message,
+          code,
+          ingredientCount: ingredientChunk.length,
+          sleepFn: sleep,
+        })
+        if (!result._retrySucceeded && cooldownRemainingMs > 0) {
+          console.warn(`⚠️ Retry after cooldown also failed for ${storeEnum}. Marking chunk as errors.`)
         }
+        const { _retrySucceeded: _, ...chunkResult } = result
+        return chunkResult
       }
 
       console.warn(`⚠️ Native batch scraper failed for ${storeEnum}: ${message}. Falling back to chunked single calls.`)
