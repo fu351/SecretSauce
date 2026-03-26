@@ -827,59 +827,60 @@ function SettingsPageContent() {
         </Card>
         {/* Learning & Tutorials */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <BookOpen className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
-                <div>
-                  <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>
-                    Learning & Tutorials
-                  </CardTitle>
-                  <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                    Explore the guided tutorial for any path at any time
-                  </CardDescription>
-                </div>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <BookOpen className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
+              <div>
+                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>
+                  Learning & Tutorials
+                </CardTitle>
+                <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
+                  Revisit your guided tour with the same path-first approach used in onboarding
+                </CardDescription>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Completion Stats */}
-                {tutorialPath && (
-                  <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
-                    <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
-                      <span className="font-medium">Last completed:</span>{" "}
-                      {tutorialPath === "cooking"
-                        ? "Mastering the Craft"
-                        : tutorialPath === "budgeting"
-                        ? "Optimize Resources"
-                        : "Elevate Your Journey"}
-                    </p>
-                    {tutorialCompletedAt && (
-                      <p className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
-                        {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </p>
-                    )}
-                  </div>
-                )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className={`rounded-lg p-3 ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
+                <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/70" : "text-orange-900/80"}`}>
+                  Choose your primary intention and jump right into the tutorial flow.
+                </p>
+              </div>
 
-                {/* Action Button */}
-                <Button
-                  onClick={handleRewatchTutorial}
-                  className={`w-full ${
-                    isDark
-                      ? "bg-[#e8dcc4]/10 text-[#e8dcc4] border border-[#e8dcc4]/30 hover:bg-[#e8dcc4]/20"
-                      : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
-                  }`}
-                  variant="outline"
-                >
-                  Rewatch Tutorial
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Completion Stats */}
+              {tutorialPath && (
+                <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
+                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
+                    <span className="font-medium">Last completed:</span>{" "}
+                    {tutorialPath === "cooking" ? "Mastering the Craft" : tutorialPath === "budgeting" ? "Optimize Resources" : "Elevate Your Journey"}
+                  </p>
+                  {tutorialCompletedAt && (
+                    <p className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
+                      {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Action Button */}
+              <Button
+                onClick={handleRewatchTutorial}
+                className={`w-full ${
+                  isDark
+                    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                    : "bg-orange-500 text-white hover:bg-orange-600"
+                }`}
+              >
+                Start Tutorial
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         {/* Profile Settings */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
           <CardHeader>
