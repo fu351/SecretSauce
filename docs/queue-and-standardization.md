@@ -64,7 +64,7 @@ Core files:
 - `workers/vector-double-check-worker/config.ts`
 - `workers/vector-double-check-worker/processor.ts`
 - `workers/vector-double-check-worker/runner.ts`
-- `scripts/resolve-vector-double-check.ts`
+- `workers/vector-double-check-worker/resolve-vector-double-check.ts`
 
 Purpose:
 
@@ -140,4 +140,3 @@ Queue/scoring docs are aligned to current migrations in `supabase/migrations/*`,
 - `fn_find_vector_double_check_candidates` — vector similarity scan with 5-min statement timeout
 - `fn_consolidate_canonical` — atomic canonical merge across all downstream tables
 - `canonical_consolidation_log` — audit table for consolidation events
-

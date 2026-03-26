@@ -49,7 +49,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.embedding-worker
-    command: ["node_modules/.bin/tsx", "scripts/resolve-vector-double-check.ts"]
+    command: ["node_modules/.bin/tsx", "workers/vector-double-check-worker/resolve-vector-double-check.ts"]
     env_file:
       - .env.local
     environment:

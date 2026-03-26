@@ -6,7 +6,7 @@
   "scripts": {
     "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts",
     "resolve-embedding-queue": "tsx resolve-embedding-queue.ts",
-    "resolve-vector-double-check": "tsx resolve-vector-double-check.ts",
+    "resolve-vector-double-check": "tsx ../workers/vector-double-check-worker/resolve-vector-double-check.ts",
     "resolve-canonical-consolidation": "tsx resolve-canonical-consolidation.ts",
     "queue-worker": "tsx ../queue/ingredient-worker/runner.ts",
     "regenerate-mappings": "node regenerate-mappings.js"
