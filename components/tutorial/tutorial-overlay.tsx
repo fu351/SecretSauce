@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { useTutorial } from "@/contexts/tutorial-context"
+import { useTutorial, getVisibleSubsteps } from "@/contexts/tutorial-context"
+import { tutorialPaths } from "@/contents/tutorial-content"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
 import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
+import type { GoalRank } from "@/lib/types/tutorial"
 
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -19,6 +21,10 @@ export function TutorialOverlay() {
     currentStepIndex,
     currentSubstep,
     currentSubstepIndex,
+    visibleSubsteps,
+    currentRank,
+    currentPlanIndex,
+    rankedGoals,
     nextStep,
     prevStep,
     skipTutorial,
@@ -35,7 +41,7 @@ export function TutorialOverlay() {
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
   const [isChangingPage, setIsChangingPage] = useState(false)
   const [isPageLocked, setIsPageLocked] = useState(false)
-  
+
   // Retry Logic: Attempt to find element before timing out
   const [syncRetries, setSyncRetries] = useState(0)
   const [hasSyncTimedOut, setHasSyncTimedOut] = useState(false)
@@ -48,8 +54,41 @@ export function TutorialOverlay() {
   const isDark = theme === "dark"
 
   /**
+   * Session-wide progress calculation.
+   * Spans all ranked plans, weighting each path by its depth-filtered substep count.
+   */
+  const totalSessionUnits = rankedGoals
+    ? rankedGoals.reduce((sum, pathId, planIdx) => {
+        const rank = (Math.min(planIdx + 1, 3)) as GoalRank
+        const path = tutorialPaths[pathId]
+        return sum + path.steps.reduce((s, step) => s + (getVisibleSubsteps(step, rank).length || 1), 0)
+      }, 0)
+    : (currentPath?.steps.reduce((sum, s) => sum + (s.substeps?.length || 1), 0) ?? 1)
+
+  const completedSessionUnits = rankedGoals
+    ? rankedGoals.slice(0, currentPlanIndex).reduce((sum, pathId, planIdx) => {
+        const rank = (Math.min(planIdx + 1, 3)) as GoalRank
+        const path = tutorialPaths[pathId]
+        return sum + path.steps.reduce((s, step) => s + (getVisibleSubsteps(step, rank).length || 1), 0)
+      }, 0)
+      + (currentPath?.steps.slice(0, currentStepIndex).reduce((s, step) => {
+          return s + (getVisibleSubsteps(step, currentRank).length || 1)
+        }, 0) ?? 0)
+      + (currentSubstepIndex + 1)
+    : (currentPath?.steps.slice(0, currentStepIndex).reduce((sum, s) => sum + (s.substeps?.length || 1), 0) ?? 0) + (currentSubstepIndex + 1)
+
+  const progress = totalSessionUnits > 0 ? (completedSessionUnits / totalSessionUnits) * 100 : 0
+
+  // Whether this is the very last step across the entire session
+  const isLastStepOfSession =
+    currentPlanIndex === (rankedGoals?.length ?? 1) - 1 &&
+    currentStepIndex === (currentPath?.steps.length ?? 1) - 1 &&
+    currentSubstepIndex === visibleSubsteps.length - 1
+
+  const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore";
+
+  /**
    * 0. Detect Header Height
-   * Dynamically measures the sticky header to properly offset scroll calculations.
    */
   useEffect(() => {
     const detectHeaderHeight = () => {
@@ -58,80 +97,51 @@ export function TutorialOverlay() {
         setHeaderHeight(header.offsetHeight);
       }
     };
-
-    // Initial detection
     detectHeaderHeight();
-
-    // Re-detect on resize (header height may change on responsive breakpoints)
     window.addEventListener('resize', detectHeaderHeight);
     return () => window.removeEventListener('resize', detectHeaderHeight);
   }, []);
 
   /**
    * 1. Stability-Aware Scroll Calculation
-   * Scrolls to make the highlighted element visible below the sticky header.
-   * Avoids excessive centering that can cause unwanted scrolling.
    */
   const scrollToTarget = useCallback((rect: DOMRect) => {
-    // Add extra padding beyond header height for comfortable viewing
     const EXTRA_PADDING = 20;
     const totalTopOffset = headerHeight + EXTRA_PADDING;
-
-    // Element's absolute position on the page
     const elementAbsoluteTop = rect.top + window.pageYOffset;
-
-    // If element is already visible below header, don't scroll
     if (rect.top > totalTopOffset && rect.top < window.innerHeight) {
-      return; // Element is already in comfortable viewing range
+      return;
     }
-
-    // Scroll to position element just below the header
     const scrollPosition = Math.max(0, elementAbsoluteTop - totalTopOffset);
-
-    window.scrollTo({
-      top: scrollPosition,
-      behavior: "smooth"
-    });
+    window.scrollTo({ top: scrollPosition, behavior: "smooth" });
   }, [headerHeight]);
 
   /**
    * 2. Loading State Detector
-   * Watches for loading spinners and skeleton loaders on the page.
-   * Prevents highlight attempts while page content is still loading.
-   * Excludes overlay elements to avoid false positives.
    */
   useEffect(() => {
     if (!isActive) return;
 
     const detectPageLoading = () => {
-      // Check for common loading indicators, but exclude overlay ref
       const getAllWithClass = (selector: string) => {
         return Array.from(document.querySelectorAll(selector)).filter(el => {
-          // Exclude overlay and its children
           return !overlayRef.current?.contains(el);
         });
       };
-
       const hasLoadingSpinner = getAllWithClass('[class*="animate-spin"]').length > 0;
       const hasSkeletonLoader = getAllWithClass('[class*="animate-pulse"]').length > 0;
       const hasLoadingClass = getAllWithClass('[class*="loading"]').length > 0;
-
-      const isLoading = !!(hasLoadingSpinner || hasSkeletonLoader || hasLoadingClass);
-      setIsPageLoading(isLoading);
+      setIsPageLoading(!!(hasLoadingSpinner || hasSkeletonLoader || hasLoadingClass));
     };
 
-    // Initial check
     detectPageLoading();
 
-    // Watch for loading state changes via MutationObserver
     let debounceTimer: NodeJS.Timeout | null = null;
     const observer = new MutationObserver(() => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(detectPageLoading, 150);
     });
-
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-
     return () => {
       observer.disconnect();
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -140,34 +150,24 @@ export function TutorialOverlay() {
 
   /**
    * 3. Explore Mode: Global Click Handler
-   * Minimizes if clicking outside, but BLOCKED during page changes or locks.
    */
   useEffect(() => {
     if (!isActive || isMinimized) return;
-
     const handleGlobalClick = (e: MouseEvent) => {
-      // Logic Guard: Prevent minimization if we are currently transitioning pages or loading
       if (isChangingPage || isPageLocked || isPageLoading) return;
-
       if (overlayRef.current && !overlayRef.current.contains(e.target as Node)) {
         setIsMinimized(true);
       }
     };
-
     window.addEventListener("click", handleGlobalClick, true);
     return () => window.removeEventListener("click", handleGlobalClick, true);
   }, [isActive, isMinimized, isChangingPage, isPageLocked, isPageLoading]);
 
   /**
    * 2b. Tutorial Activation State Reset
-   * Resets local overlay state when tutorial is activated/restarted.
-   * Clears any lingering UI states from previous session.
    */
   useEffect(() => {
     if (!isActive) return;
-
-    // Reset all local UI states when tutorial becomes active
-    // But preserve targetRect if we're on the correct page to avoid losing current highlight
     setShowSkipConfirmation(false);
     setIsMinimized(false);
     if (pathname !== currentStep?.page) {
@@ -181,43 +181,29 @@ export function TutorialOverlay() {
 
   /**
    * 3. Page Navigation & Transition Management
-   * Handles page transitions and shows loading state during navigation.
-   * Locks Explore Mode when arriving on tutorial page to let DOM settle.
    */
   useEffect(() => {
     if (!isActive || !currentStep) return;
-
     if (pathname !== currentStep.page) {
-      // User is on a different page than the tutorial step requires
-      // Show loading state to indicate we're waiting for page transition
       setIsChangingPage(true);
       setTargetRect(null);
       setSyncRetries(0);
       setHasSyncTimedOut(false);
-      // Keep loading state on while not on correct page
       setIsPageLoading(false);
     } else {
-      // Arrived on the tutorial step's page: clear the transition state
-      // and lock Explore Mode to let DOM fully settle before highlighting
       setIsChangingPage(false);
       setIsPageLocked(true);
-      const timer = setTimeout(() => {
-        setIsPageLocked(false);
-      }, 800);
+      const timer = setTimeout(() => setIsPageLocked(false), 800);
       return () => clearTimeout(timer);
     }
   }, [isActive, currentStep?.page, pathname]);
 
   /**
    * 4. Stabilized Highlight Engine
-   * Includes retry logic with exponential backoff to "wait" for elements that might be slow to hydrate.
-   * Skips attempts while page is loading to avoid finding skeleton/placeholder elements.
-   * For "explore" action substeps/steps, skips element-finding entirely.
    */
   const updateHighlight = useCallback((shouldScroll = false) => {
     if (!isActive || !currentStep || isMinimized || isPageLoading) return;
 
-    // "explore" action: no element highlight needed — just show the step content freely
     const currentAction = currentSubstep?.action ?? currentStep?.action;
     if (currentAction === "explore") {
       setTargetRect(null);
@@ -243,10 +229,7 @@ export function TutorialOverlay() {
     }) || candidates[0] || null
 
     if (!element) {
-      // Retry Logic: Try to find the element again with exponential backoff
-      // But only retry if page is not loading (to wait for content to render)
       if (syncRetries < MAX_RETRIES && !isPageLoading) {
-        // Exponential backoff with a 2s floor: 2s, 3s, 4.5s, 6.75s … capped at 10s
         const delayMs = Math.min(Math.max(2000, 1000 * Math.pow(1.5, syncRetries)), 10000);
         const retryTimer = setTimeout(() => {
           setSyncRetries(prev => prev + 1);
@@ -254,23 +237,18 @@ export function TutorialOverlay() {
         }, delayMs);
         return () => clearTimeout(retryTimer);
       } else if (!isPageLoading) {
-        // Stop spinning and show the fail-safe UI (only if page is fully loaded)
         setHasSyncTimedOut(true);
         setIsChangingPage(false);
         return;
       }
-      // If page is still loading, defer this attempt
       return;
     }
 
-    // Success: Found the element
     setIsChangingPage(false);
     setHasSyncTimedOut(false);
     setSyncRetries(0);
 
     const newRect = element.getBoundingClientRect();
-
-    // Prevent excessive updates if movement is sub-pixel
     const hasMoved = !targetRect ||
       Math.abs(newRect.top - targetRect.top) > 2 ||
       Math.abs(newRect.left - targetRect.left) > 2;
@@ -283,8 +261,6 @@ export function TutorialOverlay() {
 
   /**
    * 5. Filtered Mutation Observer
-   * Watches for DOM changes and re-syncs highlight position.
-   * Includes guards to prevent rapid re-triggering and excessive sync attempts.
    */
   useIsomorphicLayoutEffect(() => {
     if (!isActive || isMinimized) return;
@@ -292,29 +268,18 @@ export function TutorialOverlay() {
     let lastMutationTime = Date.now();
     let lastHighlightAttempt = 0;
     const DEBOUNCE_INTERVAL = 150;
-    const MIN_HIGHLIGHT_INTERVAL = 500; // Prevent spamming highlight attempts
+    const MIN_HIGHLIGHT_INTERVAL = 500;
 
     const observer = new MutationObserver((mutations) => {
       const isInternal = mutations.every(m => overlayRef.current?.contains(m.target));
       if (isInternal) return;
-
       const now = Date.now();
-
-      // Don't update if we just attempted highlight very recently
-      if (now - lastHighlightAttempt < MIN_HIGHLIGHT_INTERVAL) {
-        return;
-      }
-
+      if (now - lastHighlightAttempt < MIN_HIGHLIGHT_INTERVAL) return;
       if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
-
       const timeSinceLastMutation = now - lastMutationTime;
       const delay = Math.max(0, DEBOUNCE_INTERVAL - timeSinceLastMutation);
-
       stabilityTimerRef.current = setTimeout(() => {
-        // Mark attempt time before calling updateHighlight
         lastHighlightAttempt = Date.now();
-        // Only scroll on first successful highlight on the correct page
-        // Don't scroll on subsequent DOM mutations after we already have a target
         const shouldScroll = pathname === currentStep?.page && !targetRect;
         updateHighlight(shouldScroll);
         lastMutationTime = Date.now();
@@ -327,7 +292,6 @@ export function TutorialOverlay() {
     window.addEventListener("resize", handlePosUpdate);
     window.addEventListener("scroll", handlePosUpdate, { capture: true, passive: true });
 
-    // Initial sync when effect runs (only if we haven't just synced)
     if (Date.now() - lastHighlightAttempt > MIN_HIGHLIGHT_INTERVAL) {
       lastHighlightAttempt = Date.now();
       updateHighlight(pathname === currentStep?.page && !targetRect);
@@ -343,21 +307,19 @@ export function TutorialOverlay() {
 
   if (!isActive || !currentPath || !currentStep) return null;
 
-  const totalUnits = currentPath.steps.reduce((sum, s) => sum + (s.substeps?.length || 1), 0);
-  const completedUnits = currentPath.steps.slice(0, currentStepIndex).reduce((sum, s) => sum + (s.substeps?.length || 1), 0) + (currentSubstepIndex + 1);
-  const progress = (completedUnits / totalUnits) * 100;
-  const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore";
+  // Path label: includes plan position when running multi-path session
+  const pathLabel = rankedGoals && rankedGoals.length > 1
+    ? `${currentPath.name} (${currentPlanIndex + 1}/${rankedGoals.length})`
+    : currentPath.name
 
   return (
     <>
-      {/* Background Mask - Excludes header area to avoid overlap */}
+      {/* Background Mask */}
       {!isMinimized && !isChangingPage && !isPageLoading && targetRect && !hasSyncTimedOut && (
         <svg className="fixed inset-0 z-40 pointer-events-none w-full h-full">
           <defs>
             <mask id="tutorial-mask">
-              {/* White background - visible area */}
               <rect width="100%" height="100%" fill="white" />
-              {/* Black hole - the highlighted element (cut out from the dark overlay) */}
               <rect
                 x={targetRect.left - 10}
                 y={targetRect.top - 10}
@@ -367,14 +329,7 @@ export function TutorialOverlay() {
                 fill="black"
                 className="transition-all duration-300 ease-out"
               />
-              {/* Also cut out the header area to prevent overlap */}
-              <rect
-                x="0"
-                y="0"
-                width="100%"
-                height={headerHeight}
-                fill="black"
-              />
+              <rect x="0" y="0" width="100%" height={headerHeight} fill="black" />
             </mask>
           </defs>
           <rect
@@ -387,7 +342,7 @@ export function TutorialOverlay() {
         </svg>
       )}
 
-      {/* Main Control Card - Strict Bottom Right */}
+      {/* Main Control Card */}
       <div
         ref={overlayRef}
         data-testid="tutorial-overlay"
@@ -409,7 +364,7 @@ export function TutorialOverlay() {
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
               {isMinimized
                 ? `Paused · Step ${currentStepIndex + 1} of ${currentPath.steps.length}`
-                : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : currentPath.name))}
+                : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : pathLabel))}
             </span>
           </div>
           <div className="flex gap-1">
@@ -480,16 +435,28 @@ export function TutorialOverlay() {
           ) : (
             <>
               <h3 className="text-xl font-bold mb-2 leading-tight">{currentStep.title}</h3>
-              <p className={clsx("text-sm leading-relaxed mb-6", isDark ? "text-gray-400" : "text-gray-600")}>
+              <p className={clsx("text-sm leading-relaxed", isDark ? "text-gray-400" : "text-gray-600", currentRank === 1 && currentStep.tips?.length ? "mb-4" : "mb-6")}>
                 {currentSubstep?.instruction ?? currentStep.description}
               </p>
+
+              {/* Tips — only shown at rank 1 (primary goal) */}
+              {currentRank === 1 && currentStep.tips && currentStep.tips.length > 0 && (
+                <div className={clsx("mb-6 p-3 rounded-lg", isDark ? "bg-blue-500/10" : "bg-blue-50")}>
+                  <p className="text-xs font-semibold mb-1 opacity-60">Tips</p>
+                  <ul className="space-y-1">
+                    {currentStep.tips.map((tip, i) => (
+                      <li key={i} className="text-xs opacity-70">{tip}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentStepIndex === 0 && currentSubstepIndex === 0}>
                   <ChevronLeft className="w-4 h-4 mr-2" /> Back
                 </Button>
                 <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-500 text-white px-8">
-                  {currentStepIndex === currentPath.steps.length - 1 && (!currentStep.substeps || currentSubstepIndex === currentStep.substeps.length - 1) ? "Finish" : "Next"}
+                  {isLastStepOfSession ? "Finish" : "Next"}
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
