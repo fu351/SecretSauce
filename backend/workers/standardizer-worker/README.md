@@ -31,5 +31,8 @@ Import from:
 
 ## Tests
 
-- `backend/workers/standardizer-worker/unit-standardizer.test.ts`
-- `backend/workers/standardizer-worker/prompts/unit/build-prompt.test.ts`
+- `backend/workers/standardizer-worker/__tests__/unit-standardizer.test.ts`
+- `backend/workers/standardizer-worker/__tests__/build-prompt.test.ts`
+- `backend/workers/standardizer-worker/__tests__/processor.test.ts`
+- `backend/workers/standardizer-worker/__tests__/runner.test.ts`
+- `backend/workers/standardizer-worker/__tests__/utils.test.ts`

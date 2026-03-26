@@ -3,7 +3,7 @@ import {
   normalizeUnitLabel,
   parseUnitStandardizationPayload,
   type UnitStandardizationInput,
-} from "./unit-standardizer"
+} from "../unit-standardizer"
 
 describe("unit standardizer parser", () => {
   it("normalizes common aliases to canonical enum values", () => {

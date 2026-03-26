@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildUnitStandardizerPrompt } from "./build-prompt"
+import { buildUnitStandardizerPrompt } from "../prompts/unit/build-prompt"
 
 describe("buildUnitStandardizerPrompt", () => {
   it("includes allowed units and strict output requirements", () => {
