@@ -626,11 +626,6 @@ class GlobalInsertQueue {
       return
     }
 
-    const skippedCount = items.length - uniqueItems.length
-    if (skippedCount > 0) {
-      console.log(`   🔁 Skipped ${skippedCount} in-flight duplicate item(s) before queueing`)
-    }
-
     if (this._maxQueueSize > 0) {
       while (this._queue.length + uniqueItems.length > this._maxQueueSize) {
         await new Promise(resolve => this._backpressureWaiters.push(resolve))
@@ -1076,7 +1071,7 @@ async function main() {
     process.exit(1)
   }
 
-  const { scrapedCount, insertedCount, dedupedCount, scrapeStats } = await scrapeIngredientsAndInsertBatched(ingredients, stores)
+  const { scrapedCount, insertedCount, scrapeStats } = await scrapeIngredientsAndInsertBatched(ingredients, stores)
   console.log(`\n✅ Scraped ${scrapedCount} total products`)
   const inserted = insertedCount
   if (DAILY_SCRAPER_DRY_RUN) {
@@ -1084,10 +1079,6 @@ async function main() {
   } else {
     console.log(`\n✅ Inserted ${inserted} rows to database`)
   }
-  if (dedupedCount > 0) {
-    console.log(`🔁 Deduped ${dedupedCount} in-flight queue item(s)`)
-  }
-
   const duration = (Date.now() - startTime) / 1000
   const successRate = scrapedCount > 0 ? (inserted / scrapedCount) * 100 : 0
 
@@ -1099,7 +1090,6 @@ async function main() {
   console.log(`Ingredients: ${ingredients.length}`)
   console.log(`Scraped: ${scrapedCount}`)
   console.log(`${DAILY_SCRAPER_DRY_RUN ? 'Would Insert' : 'Inserted'}: ${inserted}`)
-  console.log(`Deduped In Flight: ${dedupedCount}`)
   console.log(`Success Rate: ${successRate.toFixed(1)}%`)
   console.log(`Duration: ${duration.toFixed(1)}s`)
   console.log('='.repeat(60))
