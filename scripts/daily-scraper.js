@@ -461,10 +461,34 @@ async function runBatchedScraperForStore(storeEnum, ingredientChunk, zipCode, ba
         normalizedMessage.includes('jina cooldown')
 
       if (isRateLimitFailure) {
-        console.warn(
-          `⚠️ Native batch scraper rate-limited for ${storeEnum}: ${message}. ` +
-          'Marking chunk as errors to avoid retry storms.'
-        )
+        const cooldownMatch = message.match(/for\s+(\d+)\s*ms/i)
+        const cooldownRemainingMs = cooldownMatch ? parseInt(cooldownMatch[1], 10) : 0
+        if (cooldownRemainingMs > 0) {
+          const sleepMs = Math.min(cooldownRemainingMs + 2000, 120000)
+          console.warn(
+            `⚠️ Native batch scraper rate-limited for ${storeEnum}: ${message}. ` +
+            `Sleeping ${sleepMs}ms for cooldown to expire, then retrying chunk...`
+          )
+          await sleep(sleepMs)
+          try {
+            const retryResults = await nativeBatchScraper(ingredientChunk, zipCode, { concurrency: batchConcurrency })
+            return {
+              resultsByIngredient: normalizeBatchResultsShape(retryResults, ingredientChunk.length),
+              errorFlags: Array.from({ length: ingredientChunk.length }, () => false),
+              errorMessages: Array.from({ length: ingredientChunk.length }, () => ''),
+              http404Flags: Array.from({ length: ingredientChunk.length }, () => false),
+              errorCodes: Array.from({ length: ingredientChunk.length }, () => ''),
+            }
+          } catch (retryError) {
+            const retryMessage = retryError?.message || String(retryError)
+            console.warn(`⚠️ Retry after cooldown also failed for ${storeEnum}: ${retryMessage}. Marking chunk as errors.`)
+          }
+        } else {
+          console.warn(
+            `⚠️ Native batch scraper rate-limited for ${storeEnum}: ${message}. ` +
+            'Marking chunk as errors to avoid retry storms.'
+          )
+        }
         return {
           resultsByIngredient: emptyBatchResults(ingredientChunk.length),
           errorFlags: Array.from({ length: ingredientChunk.length }, () => true),
