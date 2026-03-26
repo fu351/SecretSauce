@@ -12,7 +12,7 @@ Bare-bones scraper interface worker that hosts store adapters plus universal run
 - `stores/*` - store-specific scrapers and optional batch variants.
 - `utils/*` - shared crawler, logging, retry, rate-limit, and normalization utilities.
 - `ingredient-pipeline.ts` - canonical ingredient -> multi-store pricing pipeline.
-- `universal-controls.js` - worker-wide runtime controls for live activation and timeout behavior.
+- `utils/runtime-config.js` - worker-wide runtime controls for live activation and timeout behavior.
 
 This worker intentionally does not own batch/API orchestration. Orchestration lives in:
 
@@ -34,7 +34,7 @@ This worker intentionally does not own batch/API orchestration. Orchestration li
 
 ## Universal Controls
 
-`universal-controls.js` exposes:
+`utils/runtime-config.js` exposes:
 
 - `getUniversalScraperControlsFromEnv()`
 - `mergeUniversalScraperControls(overrides)`

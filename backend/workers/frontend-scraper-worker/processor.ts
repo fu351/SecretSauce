@@ -67,7 +67,7 @@ async function withScraperRuntimeContext<T>(
 ): Promise<T> {
   if (!runtimeConfig) return fn()
 
-  const { runWithUniversalScraperControls } = require("@/backend/workers/scraper-worker/universal-controls")
+  const { runWithUniversalScraperControls } = require("@/backend/workers/scraper-worker/utils/runtime-config")
   return runWithUniversalScraperControls(runtimeConfig, fn)
 }
 

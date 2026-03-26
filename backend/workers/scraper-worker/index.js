@@ -13,7 +13,7 @@ const {
   getUniversalScraperControlsFromEnv,
   mergeUniversalScraperControls,
   runWithUniversalScraperControls,
-} = require('./universal-controls.js');
+} = require('./utils/runtime-config.js');
 
 module.exports = {
   searchMeijer,

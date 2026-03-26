@@ -4,7 +4,7 @@ import {
   getUniversalScraperControlsFromEnv,
   mergeUniversalScraperControls,
   runWithUniversalScraperControls,
-} from '../../universal-controls'
+} from '../runtime-config'
 
 afterEach(() => {
   delete process.env.SCRAPER_WORKER_LIVE_ACTIVATION
