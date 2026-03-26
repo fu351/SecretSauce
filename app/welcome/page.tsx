@@ -38,7 +38,7 @@ function WelcomePageContent() {
 
     // Prefer explicit ranking saved during onboarding
     const ranking = profile.tutorial_goals_ranking
-    if (ranking && ranking.length === 3) {
+    if (ranking && ranking.length >= 1) {
       startRankedSession(ranking as RankedGoals)
       return
     }
@@ -51,8 +51,7 @@ function WelcomePageContent() {
       health: "health",
     }
     const primary = primaryMap[profile.primary_goal ?? ""] ?? "cooking"
-    const others = (["cooking", "budgeting", "health"] as const).filter(id => id !== primary) as ["cooking" | "budgeting" | "health", "cooking" | "budgeting" | "health"]
-    startRankedSession([primary, others[0], others[1]])
+    startRankedSession([primary])
   }
 
   const handleSkipTutorial = () => {
@@ -114,7 +113,7 @@ function WelcomePageContent() {
               Welcome to Secret Sauce!
             </h1>
             <p className={`text-lg font-light ${isDark ? "text-[#e8dcc4]/70" : "text-gray-700"}`}>
-              Your email has been verified. Let's get you started.
+              Your account is ready. Let's get you started.
             </p>
           </div>
 
