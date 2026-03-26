@@ -9,6 +9,7 @@ import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { AuthGate } from "@/components/auth/tier-gate"
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react"
+import type { RankedGoals } from "@/lib/types/tutorial"
 
 export default function WelcomePage() {
   return (
@@ -20,7 +21,7 @@ export default function WelcomePage() {
 
 function WelcomePageContent() {
   const { profile, loading } = useAuth()
-  const { startTutorial, skipTutorial, isActive } = useTutorial()
+  const { startRankedSession, skipTutorial, isActive } = useTutorial()
   const { theme } = useTheme()
   const router = useRouter()
   const [isStarting, setIsStarting] = useState(false)
@@ -28,39 +29,30 @@ function WelcomePageContent() {
   const isDark = theme === "dark"
 
   const handleStartTutorial = () => {
-    console.log('[Welcome] handleStartTutorial called', {
-      profile,
-      primaryGoal: profile?.primary_goal,
-      isActive
-    })
-
-    if (!profile?.primary_goal) {
-      console.warn('[Welcome] No primary_goal found, redirecting to dashboard')
+    if (!profile) {
       router.push("/dashboard")
       return
     }
 
     setIsStarting(true)
 
-    const pathMap: Record<string, "cooking" | "budgeting" | "health"> = {
+    // Prefer explicit ranking saved during onboarding
+    const ranking = profile.tutorial_goals_ranking
+    if (ranking && ranking.length === 3) {
+      startRankedSession(ranking as RankedGoals)
+      return
+    }
+
+    // Fallback for legacy users: derive from primary_goal
+    const primaryMap: Record<string, "cooking" | "budgeting" | "health"> = {
       cooking: "cooking",
       budgeting: "budgeting",
       both: "health",
+      health: "health",
     }
-
-    const tutorialPath = pathMap[profile.primary_goal]
-    console.log('[Welcome] Mapped primary_goal to tutorial path:', {
-      primaryGoal: profile.primary_goal,
-      tutorialPath
-    })
-
-    if (tutorialPath) {
-      console.log('[Welcome] Starting tutorial and navigating to first step')
-      startTutorial(tutorialPath)
-    } else {
-      console.warn('[Welcome] No tutorial path found for primary_goal:', profile.primary_goal)
-      router.push("/dashboard")
-    }
+    const primary = primaryMap[profile.primary_goal ?? ""] ?? "cooking"
+    const others = (["cooking", "budgeting", "health"] as const).filter(id => id !== primary) as ["cooking" | "budgeting" | "health", "cooking" | "budgeting" | "health"]
+    startRankedSession([primary, others[0], others[1]])
   }
 
   const handleSkipTutorial = () => {
