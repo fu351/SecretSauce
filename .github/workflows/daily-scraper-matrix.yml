@@ -116,6 +116,8 @@ jobs:
       store_concurrency: ${{ steps.defaults.outputs.store_concurrency }}
       ingredient_delay_ms: ${{ steps.defaults.outputs.ingredient_delay_ms }}
       insert_batch_size: ${{ steps.defaults.outputs.insert_batch_size }}
+      insert_concurrency: ${{ steps.defaults.outputs.insert_concurrency }}
+      insert_queue_max_size: ${{ steps.defaults.outputs.insert_queue_max_size }}
       request_timeout_ms: ${{ steps.defaults.outputs.request_timeout_ms }}
       scraper_timeout_minutes: ${{ steps.defaults.outputs.scraper_timeout_minutes }}
       scraper_batch_size: ${{ steps.defaults.outputs.scraper_batch_size }}
@@ -144,6 +146,8 @@ jobs:
               "store_concurrency",
               "ingredient_delay_ms",
               "insert_batch_size",
+              "insert_concurrency",
+              "insert_queue_max_size",
               "request_timeout_ms",
               "scraper_timeout_minutes",
               "scraper_batch_size",
@@ -328,6 +332,8 @@ jobs:
           SCRAPER_BATCH_CONCURRENCY: ${{ matrix.store_brand == 'jina' && '3' || needs['load-config'].outputs.scraper_batch_concurrency }}
           INGREDIENT_DELAY_MS: ${{ matrix.store_brand == 'jina' && '500' || needs['load-config'].outputs.ingredient_delay_ms }}
           INSERT_BATCH_SIZE: ${{ needs['load-config'].outputs.insert_batch_size }}
+          INSERT_CONCURRENCY: ${{ needs['load-config'].outputs.insert_concurrency }}
+          INSERT_QUEUE_MAX_SIZE: ${{ needs['load-config'].outputs.insert_queue_max_size }}
           SCRAPER_TIMEOUT_MS: ${{ needs['load-config'].outputs.request_timeout_ms }}
           SCRAPER_TIMEOUT_MINUTES: ${{ needs['load-config'].outputs.scraper_timeout_minutes }}
           SCRAPER_BATCH_SIZE: ${{ needs['load-config'].outputs.scraper_batch_size }}

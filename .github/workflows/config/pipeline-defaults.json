@@ -15,6 +15,8 @@
     "store_concurrency": "10",
     "ingredient_delay_ms": "500",
     "insert_batch_size": "300",
+    "insert_concurrency": "2",
+    "insert_queue_max_size": "2400",
     "request_timeout_ms": "20000",
     "scraper_timeout_minutes": "90",
     "scraper_batch_size": "20",

@@ -61,8 +61,10 @@ const STORE_LIMIT = getIntEnv('STORE_LIMIT', 0, 0)
 const STORE_CONCURRENCY = getIntEnv('STORE_CONCURRENCY', 20, 1)
 const INGREDIENT_DELAY_MS = getIntEnv('INGREDIENT_DELAY_MS', 1000, 0)
 const INSERT_BATCH_SIZE = getIntEnv('INSERT_BATCH_SIZE', 300, 1)
-const INSERT_CONCURRENCY = getIntEnv('INSERT_CONCURRENCY', 1, 1)
-const INSERT_QUEUE_MAX_SIZE = getIntEnv('INSERT_QUEUE_MAX_SIZE', 0, 0)
+const INSERT_CONCURRENCY = getIntEnv('INSERT_CONCURRENCY', 2, 1)
+// Default: 4 full batches per insert slot — enough buffer to keep all insert
+// workers busy without letting the queue grow unbounded under a fast producer.
+const INSERT_QUEUE_MAX_SIZE = getIntEnv('INSERT_QUEUE_MAX_SIZE', INSERT_BATCH_SIZE * INSERT_CONCURRENCY * 4, 0)
 const INSERT_RPC_MAX_RETRIES = getIntEnv('INSERT_RPC_MAX_RETRIES', 3, 0)
 const INSERT_RPC_RETRY_BASE_DELAY_MS = getIntEnv('INSERT_RPC_RETRY_BASE_DELAY_MS', 1000, 0)
 const INSERT_RPC_RETRY_MAX_DELAY_MS = getIntEnv('INSERT_RPC_RETRY_MAX_DELAY_MS', 10000, 0)
@@ -694,8 +696,11 @@ class GlobalInsertQueue {
   _notifyBackpressureWaiters() {
     if (!this._backpressureWaiters.length) return
     if (this._drainError || !this._maxQueueSize || this._queue.length < this._maxQueueSize) {
-      const waiters = this._backpressureWaiters.splice(0)
-      for (const resolve of waiters) resolve()
+      // Wake one waiter at a time: the woken producer re-checks the condition,
+      // pushes if there's room, then _maybeFlush triggers the next notification.
+      // Waking all at once would cause N-1 producers to immediately re-sleep,
+      // creating unnecessary promise churn.
+      this._backpressureWaiters.shift()()
     }
   }
 
