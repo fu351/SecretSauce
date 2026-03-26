@@ -4,7 +4,7 @@ import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ChefHat, DollarSign, Heart, X } from "lucide-react"
+import { ChefHat, DollarSign, Users, X } from "lucide-react"
 import clsx from "clsx"
 
 interface TutorialSelectionModalProps {
@@ -29,7 +29,7 @@ const tutorials = [
     id: "health" as const,
     title: "Elevate Your Journey",
     description: "Save time and prioritize your health",
-    icon: Heart,
+    icon: Users,
   },
 ]
 
@@ -52,8 +52,8 @@ export function TutorialSelectionModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <Card
         className={clsx(
-          "w-full max-w-2xl mx-4 p-8 relative",
-          isDark ? "bg-[#181813] border-[#e8dcc4]/30" : "bg-white border-border"
+          "w-full max-w-2xl mx-4 p-0 relative overflow-hidden",
+          isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/30" : "bg-[#FAF4E5] border-orange-200"
         )}
       >
         {/* Close button */}
@@ -68,63 +68,99 @@ export function TutorialSelectionModal({
           <X className="w-5 h-5" />
         </button>
 
-        <div className="space-y-6">
-          <div className="space-y-2">
+        <div className="space-y-0">
+          <div className={clsx(
+            "px-8 pt-8 pb-6 border-b",
+            isDark ? "bg-[#181813] border-[#e8dcc4]/15" : "bg-orange-50 border-orange-200"
+          )}>
+            <p className={clsx(
+              "uppercase tracking-[0.25em] text-[11px] mb-2",
+              isDark ? "text-[#e8dcc4]/60" : "text-orange-700/80"
+            )}>
+              Tutorial
+            </p>
             <h2
               className={clsx(
-                "text-3xl font-serif font-light",
-                isDark ? "text-[#e8dcc4]" : "text-gray-900"
+                "text-3xl font-serif font-light mb-2",
+                isDark ? "text-[#e8dcc4]" : "text-amber-950"
               )}
             >
-              Choose Your Tutorial
+              Your Primary Intention
             </h2>
             <p
               className={clsx(
-                "text-sm",
-                isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
+                "text-sm font-light",
+                isDark ? "text-[#e8dcc4]/65" : "text-amber-900/80"
               )}
             >
-              Select which tutorial you'd like to explore
+              Choose where you want to focus first, just like onboarding.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {tutorials.map((tutorial) => {
-              const Icon = tutorial.icon
-              return (
-                <button
-                  key={tutorial.id}
-                  onClick={() => handleSelectTutorial(tutorial.id)}
-                  className={clsx(
-                    "p-6 rounded-lg border-2 transition-all duration-200",
-                    "hover:scale-105 hover:shadow-lg",
-                    isDark
-                      ? "bg-[#1f1e1a] border-[#e8dcc4]/20 hover:border-[#e8dcc4]/50 text-[#e8dcc4]"
-                      : "bg-gray-50 border-gray-200 hover:border-gray-300 text-gray-900"
-                  )}
-                >
-                  <Icon className="w-8 h-8 mb-3 mx-auto opacity-80" />
-                  <h3 className="font-serif font-light text-base mb-1">
-                    {tutorial.title}
-                  </h3>
-                  <p
+          <div className="px-8 py-6">
+            <div className="space-y-3">
+              {tutorials.map((tutorial, index) => {
+                const Icon = tutorial.icon
+                return (
+                  <button
+                    key={tutorial.id}
+                    onClick={() => handleSelectTutorial(tutorial.id)}
                     className={clsx(
-                      "text-xs",
-                      isDark ? "text-[#e8dcc4]/60" : "text-gray-500"
+                      "w-full p-5 rounded-lg border text-left transition-all duration-200",
+                      "hover:scale-[1.01]",
+                      isDark
+                        ? "bg-[#181813] border-[#e8dcc4]/20 hover:border-[#e8dcc4]/45 text-[#e8dcc4]"
+                        : "bg-[#FFF8F0] border-orange-400 hover:border-orange-600 text-amber-950"
                     )}
                   >
-                    {tutorial.description}
-                  </p>
-                </button>
-              )
-            })}
+                    <div className="flex items-center gap-4">
+                      <div className={clsx(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
+                        isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4]" : "bg-orange-100 text-orange-700"
+                      )}>
+                        {index + 1}
+                      </div>
+                      <div className={clsx(
+                        "p-2 rounded-lg border shrink-0",
+                        isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-600 bg-orange-100"
+                      )}>
+                        <Icon className={clsx("w-5 h-5", isDark ? "text-[#e8dcc4]" : "text-orange-700")} />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className={clsx(
+                          "font-light text-base",
+                          isDark ? "text-[#e8dcc4]" : "text-amber-950"
+                        )}>
+                          {tutorial.title}
+                        </h3>
+                        <p
+                          className={clsx(
+                            "text-xs font-light",
+                            isDark ? "text-[#e8dcc4]/60" : "text-amber-900"
+                          )}
+                        >
+                          {tutorial.description}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <p className={clsx(
+              "text-xs mt-4",
+              isDark ? "text-[#e8dcc4]/45" : "text-amber-900/80"
+            )}>
+              Pick any path to begin immediately. You can restart and switch paths anytime in Settings.
+            </p>
           </div>
 
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end px-8 pb-8">
             <Button
               variant="outline"
               onClick={onClose}
-              className={isDark ? "border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
+              className={isDark ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : "border-orange-300 text-orange-800 hover:bg-orange-100"}
             >
               Cancel
             </Button>
