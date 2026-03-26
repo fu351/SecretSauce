@@ -12,7 +12,7 @@ import {
 import { ERROR_CODE } from './config.js'
 
 const require = createRequire(import.meta.url)
-const scrapers = require('../../scrapers')
+const scrapers = require('../scraper-worker')
 
 const SCRAPER_MAP = {
   walmart: scrapers.searchWalmartAPI,

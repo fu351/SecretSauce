@@ -1,6 +1,6 @@
 import type { ShoppingListIngredient as ShoppingListItem, StoreComparison } from "@/lib/types/store"
 import type { PricingResult } from "@/lib/database/ingredients-db"
-import type { StoreMetadataMap } from "@/scrapers/utils/store-metadata"
+import type { StoreMetadataMap } from "@/backend/workers/scraper-worker/utils/store-metadata"
 import { normalizeStoreName } from "@/lib/database/ingredients-db"
 
 const ENABLE_DEV_PRICING_LOGS = process.env.NODE_ENV !== "production"

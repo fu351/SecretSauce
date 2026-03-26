@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY python-api/main.py .
 
 # Copy Node.js scrapers
-COPY lib/scrapers /app/lib/scrapers
+COPY backend/workers/scraper-worker /app/backend/workers/scraper-worker
 
 EXPOSE 8080
 

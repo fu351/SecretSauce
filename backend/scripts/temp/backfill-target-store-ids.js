@@ -18,7 +18,7 @@ import {
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const require = createRequire(import.meta.url)
-const { getNearestStore } = require('../../../scrapers')
+const { getNearestStore } = require('../../workers/scraper-worker')
 
 dotenv.config({ path: path.join(__dirname, '../../../.env.local') })
 dotenv.config({ path: path.join(__dirname, '../../../.env') })

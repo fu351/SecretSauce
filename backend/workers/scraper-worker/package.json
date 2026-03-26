@@ -1,0 +1,5 @@
+{
+  "name": "scraper-worker",
+  "private": true,
+  "type": "commonjs"
+}

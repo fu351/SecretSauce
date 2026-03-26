@@ -1,8 +1,8 @@
-import { type Database } from "../lib/database/supabase"
-import { standardizedIngredientsDB } from "../lib/database/standardized-ingredients-db"
-import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "../lib/database/ingredients-db"
+import { type Database } from "../../../lib/database/supabase"
+import { standardizedIngredientsDB } from "../../../lib/database/standardized-ingredients-db"
+import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "../../../lib/database/ingredients-db"
 import { normalizeScraperResults, type ScraperResult } from "./types"
-import { normalizeZipCode } from "../lib/utils/zip"
+import { normalizeZipCode } from "../../../lib/utils/zip"
 import type { StoreMetadataMap } from "./utils/store-metadata"
 
 type DB = Database["public"]["Tables"]

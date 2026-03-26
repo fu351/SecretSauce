@@ -2,16 +2,16 @@ import { type NextRequest, NextResponse } from "next/server"
 import {
   getOrRefreshIngredientPricesForStores,
   type IngredientCacheResult,
-} from "@/scrapers/ingredient-pipeline"
+} from "@/backend/workers/scraper-worker/ingredient-pipeline"
 import { auth } from "@clerk/nextjs/server"
 import { createAnonSupabaseClient, createUserSupabaseClient } from "@/lib/database/supabase-server"
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { normalizeStoreName, ingredientsRecentDB, ingredientsHistoryDB } from "@/lib/database/ingredients-db"
 import { profileDB } from "@/lib/database/profile-db"
 import type { Database } from "@/lib/database/supabase"
-import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/scrapers/utils/store-metadata"
-import { getUserPreferredStores, type StoreData } from "@/scrapers/utils/user-preferred-stores"
-import { resolveRawUnitWithDailyScraperPriority } from "@/scrapers/utils/daily-scraper-raw-unit"
+import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/backend/workers/scraper-worker/utils/store-metadata"
+import { getUserPreferredStores, type StoreData } from "@/backend/workers/scraper-worker/utils/user-preferred-stores"
+import { resolveRawUnitWithDailyScraperPriority } from "@/backend/workers/scraper-worker/utils/daily-scraper-raw-unit"
 
 const DEFAULT_STORE_KEYS = [
   "walmart",
@@ -39,8 +39,8 @@ async function withScraperRuntimeContext<T>(
 ): Promise<T> {
   if (!runtimeConfig) return fn()
 
-  const { runWithScraperRuntimeConfig } = require("@/scrapers/utils/runtime-config")
-  return runWithScraperRuntimeConfig(runtimeConfig, fn)
+  const { runWithUniversalScraperControls } = require("@/backend/workers/scraper-worker/universal-controls")
+  return runWithUniversalScraperControls(runtimeConfig, fn)
 }
 
 
@@ -66,7 +66,7 @@ async function scrapeDirectFallback(
   }>
 > {
   try {
-    const scrapers = require("@/scrapers")
+    const scrapers = require("@/backend/workers/scraper-worker")
     const scraperMap: Record<string, any> = {
       walmart: scrapers.searchWalmartAPI,
       target: scrapers.searchTarget,

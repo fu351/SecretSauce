@@ -9,6 +9,11 @@ const { searchTraderJoes, searchTraderJoesBatch } = require('./stores/traderjoes
 const { searchWholeFoods } = require('./stores/wholefoods.js');
 const { searchAldi } = require('./stores/aldi.js');
 const { searchSafeway } = require('./stores/safeway.js');
+const {
+  getUniversalScraperControlsFromEnv,
+  mergeUniversalScraperControls,
+  runWithUniversalScraperControls,
+} = require('./universal-controls.js');
 
 module.exports = {
   searchMeijer,
@@ -29,5 +34,8 @@ module.exports = {
   searchTraderJoesBatch,
   searchWholeFoods,
   searchAldi,
-  searchSafeway
+  searchSafeway,
+  getUniversalScraperControlsFromEnv,
+  mergeUniversalScraperControls,
+  runWithUniversalScraperControls
 };

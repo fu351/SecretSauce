@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { http, HttpResponse } from 'msw'
-import { server } from '../../../test/mocks/server'
+import { server } from '../../../../../test/mocks/server'
 import {
   DEFAULT_OPENAI_API_KEY_PLACEHOLDER,
   getOpenAIApiKey,

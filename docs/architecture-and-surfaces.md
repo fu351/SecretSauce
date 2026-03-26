@@ -9,7 +9,7 @@ Last verified: 2026-03-20.
 - Auth and identity: Clerk + Supabase profile bridge.
 - Billing: Stripe subscription checkout + webhooks.
 - Ingredient intelligence: queue workers + standardizer + embedding-backed scoring.
-- Scraping: store-specific scraper modules in `scrapers/stores/*` plus orchestration routes/scripts.
+- Scraping: store-specific scraper modules in `backend/workers/scraper-worker/stores/*` plus orchestration routes/scripts.
 - Auxiliary backend: FastAPI service in `python-api/main.py` for recipe import/parsing.
 
 ## Current top-level ownership map
@@ -20,7 +20,7 @@ Last verified: 2026-03-20.
 - `lib/`: database wrappers, auth helpers, analytics, parsing helpers, shared types/utilities.
 - `backend/workers/`: long-running worker modules (ingredient, embedding, vector double-check, canonical consolidation, scraper, store maintenance).
 - `backend/workers/standardizer-worker/`: ingredient/unit standardizer services + prompts.
-- `scrapers/`: scraper adapters, store implementations, and scraper utilities.
+- `backend/workers/scraper-worker/`: scraper adapters, store implementations, utilities, and universal controls.
 - `backend/scripts/`: one-off and scheduled operational scripts.
 - `python-api/`: FastAPI service for URL/Instagram/OCR recipe import.
 - `supabase/migrations/`: applied SQL migrations for live data behavior.
@@ -70,6 +70,6 @@ These are actively relevant to current queue matching/scoring behavior.
 
 The current code uses:
 
-- `scrapers/*` (not `lib/scrapers/*`)
+- `backend/workers/scraper-worker/*` (not `lib/scrapers/*`)
 - `backend/workers/standardizer-worker/*` (not `lib/ingredient-standardizer.ts` / `lib/unit-standardizer.ts`)
 - `backend/workers/ingredient-worker/*` and `backend/workers/embedding-worker/*` (not `queue/worker/*`)
