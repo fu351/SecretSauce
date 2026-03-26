@@ -1,262 +1,75 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { runFrontendBatchScraperProcessor } from "@/backend/workers/frontend-scraper-worker/batch-processor"
 import {
-  getOrRefreshIngredientPricesForStores,
-  type IngredientCacheResult,
-} from "@/backend/workers/scraper-worker/ingredient-pipeline"
-import { normalizeZipCode } from "@/lib/utils/zip"
-import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
-import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
+  DEFAULT_BATCH_SCRAPER_STORES,
+  type BatchIngredient,
+} from "@/backend/workers/frontend-scraper-worker/batch-utils"
 
-const DEFAULT_STORE_KEYS = [
-  "walmart",
-  "target",
-  "kroger",
-  "meijer",
-  "99ranch",
-  "traderjoes",
-  "aldi",
-  "safeway",
-]
-
-interface BatchIngredient {
-  name: string
-  recipeId?: string
+interface BatchScraperRequestBody {
+  ingredients: Array<BatchIngredient | string>
+  zipCode?: string
+  forceRefresh?: boolean
+  stores?: string[]
 }
 
-interface StoreResult {
-  store: string
-  success: boolean
-  cached: boolean
-  price?: number
-  error?: string
+function isBadInputError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  return message.includes("required") || message.includes("array")
 }
 
-interface IngredientResult {
-  ingredient: string
-  totalStores: number
-  successfulStores: number
-  cachedStores: number
-  failedStores: number
-  stores: StoreResult[]
-}
-
-async function findRecipeStandardizedIngredientId(recipeId: string, rawName: string): Promise<string | null> {
-  if (!recipeId) return null
-  const trimmed = rawName?.trim()
-  if (!trimmed) return null
-
-  const entry = await recipeIngredientsDB.findByRecipeIdAndDisplayName(recipeId, trimmed)
-  return entry?.standardized_ingredient_id ?? null
-}
-
-/**
- * Batch Ingredient Scraper API
- *
- * Optimized endpoint for daily scraping that:
- * - Processes multiple ingredients in parallel
- * - Searches all stores per ingredient in parallel
- * - Uses existing cache infrastructure
- * - Returns detailed success/failure stats
- *
- * Used by GitHub Actions daily scraper workflow
- */
 export async function POST(request: NextRequest) {
-  const startTime = Date.now()
-
   try {
-    // Authentication check - require CRON_SECRET for automated scraping
     const authHeader = request.headers.get("authorization")
     const expectedSecret = process.env.CRON_SECRET
 
     if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
-      return NextResponse.json(
-        { error: "Unauthorized - Invalid CRON_SECRET" },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: "Unauthorized - Invalid CRON_SECRET" }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { ingredients, zipCode, forceRefresh = false } = body as {
-      ingredients: BatchIngredient[]
-      zipCode?: string
-      forceRefresh?: boolean
-    }
-    const requestedZip = normalizeZipCode(zipCode)
-    const zipToUse = requestedZip
+    const body = (await request.json()) as BatchScraperRequestBody
 
-    if (!zipToUse) {
-      return NextResponse.json(
-        { error: "zipCode is required" },
-        { status: 400 }
-      )
-    }
-
-    if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
-      return NextResponse.json(
-        { error: "ingredients array is required" },
-        { status: 400 }
-      )
-    }
-
-    console.log(`[Batch Scraper] Processing ${ingredients.length} ingredients for zip ${zipToUse}`)
-
-    const results: IngredientResult[] = []
-
-    // Process all ingredients in parallel
-    const ingredientPromises = ingredients.map(async (item) => {
-      const ingredientName = typeof item === "string" ? item : item.name
-      const recipeId = typeof item === "object" ? item.recipeId : undefined
-
-      console.log(`[Batch Scraper] Processing: ${ingredientName}`)
-
-      try {
-        // Resolve standardized ingredient ID
-        let standardizedIngredientId: string | null = null
-
-        if (recipeId) {
-          standardizedIngredientId = await findRecipeStandardizedIngredientId(
-            recipeId,
-            ingredientName
-          )
-        }
-
-        if (!standardizedIngredientId) {
-          standardizedIngredientId = await ingredientsHistoryDB.resolveStandardizedIngredientId(ingredientName)
-        }
-
-        if (!standardizedIngredientId) {
-          console.warn(`[Batch Scraper] Could not resolve standardized ID for ${ingredientName}`)
-          return {
-            ingredient: ingredientName,
-            totalStores: DEFAULT_STORE_KEYS.length,
-            successfulStores: 0,
-            cachedStores: 0,
-            failedStores: DEFAULT_STORE_KEYS.length,
-            stores: DEFAULT_STORE_KEYS.map(store => ({
-              store,
-              success: false,
-              cached: false,
-              error: "Could not resolve standardized ingredient ID"
-            }))
-          }
-        }
-
-        // Fetch/scrape prices for all stores in parallel
-        const cachedRows: IngredientCacheResult[] = await getOrRefreshIngredientPricesForStores(
-          standardizedIngredientId,
-          DEFAULT_STORE_KEYS,
-          { zipCode: zipToUse, forceRefresh }
-        )
-
-        // Build result map
-        const storeResultsMap = new Map<string, StoreResult>()
-
-        // Mark all stores as failed initially
-        DEFAULT_STORE_KEYS.forEach(store => {
-          storeResultsMap.set(store, {
-            store,
-            success: false,
-            cached: false,
-            error: "No data returned"
-          })
-        })
-
-        // Update with successful results
-        cachedRows.forEach(row => {
-          const storeName = row.store.toLowerCase()
-          storeResultsMap.set(storeName, {
-            store: storeName,
-            success: true,
-            cached: row.from_cache || false,
-            price: Number(row.price) || undefined
-          })
-        })
-
-        const storeResults = Array.from(storeResultsMap.values())
-        const successfulStores = storeResults.filter(r => r.success).length
-        const cachedStores = storeResults.filter(r => r.cached).length
-        const failedStores = storeResults.filter(r => !r.success).length
-
-        const result: IngredientResult = {
-          ingredient: ingredientName,
-          totalStores: DEFAULT_STORE_KEYS.length,
-          successfulStores,
-          cachedStores,
-          failedStores,
-          stores: storeResults
-        }
-
-        console.log(`[Batch Scraper] ${ingredientName}: ${successfulStores}/${DEFAULT_STORE_KEYS.length} stores successful (${cachedStores} cached)`)
-
-        return result
-      } catch (error) {
-        console.error(`[Batch Scraper] Error processing ${ingredientName}:`, error)
-        return {
-          ingredient: ingredientName,
-          totalStores: DEFAULT_STORE_KEYS.length,
-          successfulStores: 0,
-          cachedStores: 0,
-          failedStores: DEFAULT_STORE_KEYS.length,
-          stores: DEFAULT_STORE_KEYS.map(store => ({
-            store,
-            success: false,
-            cached: false,
-            error: error instanceof Error ? error.message : "Unknown error"
-          }))
-        }
-      }
+    const output = await runFrontendBatchScraperProcessor({
+      ingredients: body.ingredients,
+      zipCode: body.zipCode || "",
+      forceRefresh: body.forceRefresh === true,
+      stores: body.stores,
     })
-
-    // Wait for all ingredients to complete
-    const ingredientResults = await Promise.all(ingredientPromises)
-
-    // Calculate summary stats
-    const totalIngredients = ingredientResults.length
-    const totalAttempts = totalIngredients * DEFAULT_STORE_KEYS.length
-    const totalSuccessful = ingredientResults.reduce((sum, r) => sum + r.successfulStores, 0)
-    const totalCached = ingredientResults.reduce((sum, r) => sum + r.cachedStores, 0)
-    const totalFailed = ingredientResults.reduce((sum, r) => sum + r.failedStores, 0)
-    const totalScraped = totalSuccessful - totalCached
-
-    const duration = Date.now() - startTime
-
-    console.log(`[Batch Scraper] Complete: ${totalSuccessful}/${totalAttempts} successful in ${duration}ms`)
-    console.log(`[Batch Scraper] Breakdown: ${totalCached} cached, ${totalScraped} scraped, ${totalFailed} failed`)
 
     return NextResponse.json({
       success: true,
-      summary: {
-        totalIngredients,
-        totalStores: DEFAULT_STORE_KEYS.length,
-        totalAttempts,
-        successful: totalSuccessful,
-        cached: totalCached,
-        scraped: totalScraped,
-        failed: totalFailed,
-        successRate: ((totalSuccessful / totalAttempts) * 100).toFixed(1) + "%",
-        durationMs: duration
-      },
-      results: ingredientResults,
-      zipCode: zipToUse
+      summary: output.summary,
+      results: output.results,
+      zipCode: output.zipCode,
     })
-
   } catch (error) {
     console.error("[Batch Scraper] Fatal error:", error)
+
+    if (isBadInputError(error)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Invalid request payload",
+        },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     )
   }
 }
 
-// Allow GET for health check
 export async function GET() {
   return NextResponse.json({
     endpoint: "batch-scraper",
     status: "healthy",
-    description: "Batch ingredient scraper for daily price updates"
+    description: "Batch ingredient scraper for daily price updates",
+    defaultStores: DEFAULT_BATCH_SCRAPER_STORES,
   })
 }

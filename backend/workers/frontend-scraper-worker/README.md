@@ -5,6 +5,9 @@ Frontend-facing scraper orchestration worker for grocery-search UX flows.
 ## Key Files
 
 - `processor.ts` - server-side orchestration for `/api/grocery-search` (cache pipeline + direct scraper fallback).
+- `batch-processor.ts` - server-side batch scraper orchestration for `/api/batch-scraper`.
+- `batch-runner.ts` - optional runner wrapper for batch processor jobs.
+- `batch-utils.ts` - shared types/constants/helpers for batch processor and route wiring.
 - `client-processor.ts` - browser-facing API fetch + response processing helpers.
 - `runner.ts` - frontend entrypoint (`searchGroceryStores`) used by UI hooks/components.
 - `utils.ts` - request URL builders, timeout/max-results resolvers, and result normalization.
@@ -32,4 +35,5 @@ Backward compatibility path (still supported):
 1. Build request URL for `/api/grocery-search` with zip/store/refresh options.
 2. Route delegates to `frontend-scraper-worker/processor.ts` for scraper orchestration.
 3. Processor resolves user/store metadata, then runs cache-first pipeline with direct scraper fallback.
-4. Client processor normalizes API results, applies max-results caps, and sorts by lowest total.
+4. `/api/batch-scraper` delegates to `frontend-scraper-worker/batch-processor.ts` for batch orchestration.
+5. Client processor normalizes API results, applies max-results caps, and sorts by lowest total.
