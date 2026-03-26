@@ -1,5 +1,5 @@
 import { standardizedIngredientsDB } from "../../../lib/database/standardized-ingredients-db"
-import { normalizeCanonicalName } from "../../../scripts/utils/canonical-matching"
+import { normalizeCanonicalName } from "../../../backend/scripts/utils/canonical-matching"
 import { toCanonicalTokens } from "./tokens"
 import type { CanonicalTokenIdfScorer } from "./token-idf"
 

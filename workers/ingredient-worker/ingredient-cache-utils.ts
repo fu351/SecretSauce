@@ -1,6 +1,6 @@
 import { createHash } from "crypto"
 import type { IngredientStandardizationResult, IngredientStandardizerContext } from "../../standardizer"
-import { normalizeCanonicalName } from "../../scripts/utils/canonical-matching"
+import { normalizeCanonicalName } from "../../backend/scripts/utils/canonical-matching"
 import { normalizeSpaces } from "../../lib/utils/string"
 import { normalizeConfidence } from "../../lib/utils/number"
 

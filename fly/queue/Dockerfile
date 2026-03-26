@@ -2,15 +2,15 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Use the smaller scripts package for runtime deps needed by the queue worker.
-COPY scripts/package.json scripts/package-lock.json ./scripts/
-RUN npm --prefix ./scripts ci
+# Use the smaller backend/scripts package for runtime deps needed by the queue worker.
+COPY backend/scripts/package.json backend/scripts/package-lock.json ./backend/scripts/
+RUN npm --prefix ./backend/scripts ci
 
 COPY tsconfig.json ./tsconfig.json
 COPY queue ./queue
 COPY lib/database ./lib/database
 COPY standardizer ./standardizer
 COPY lib/utils ./lib/utils
-COPY scripts/utils ./scripts/utils
+COPY backend/scripts/utils ./backend/scripts/utils
 
-CMD ["npm", "--prefix", "scripts", "run", "queue-worker"]
+CMD ["npm", "--prefix", "backend/scripts", "run", "queue-worker"]

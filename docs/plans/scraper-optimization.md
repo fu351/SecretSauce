@@ -114,20 +114,20 @@ The endpoint only checks `CRON_SECRET`. Any caller with the secret can send arbi
 
 ## PR 4 — Unit Extraction Deduplication
 
-**Files:** `scrapers/utils/daily-scraper-raw-unit.ts`, `scrapers/types.ts`, `scripts/utils/daily-scraper-utils.js`, `scrapers/stores/traderjoes.js`
+**Files:** `scrapers/utils/daily-scraper-raw-unit.ts`, `scrapers/types.ts`, `backend/scripts/utils/daily-scraper-utils.js`, `scrapers/stores/traderjoes.js`
 
 ### Issue 8 (MEDIUM) — 4 Duplicate Unit Extraction Implementations
 
 The same unit-extraction logic exists in four places with slight variations:
 - `scrapers/utils/daily-scraper-raw-unit.ts` — `extractUnitHintFromDailyScraper`
 - `scrapers/stores/traderjoes.js` — `resolveQtyUnitText` + `inferUnitFromPricePerUnit`
-- `scripts/utils/daily-scraper-utils.js` — private `extractUnitHint`
+- `backend/scripts/utils/daily-scraper-utils.js` — private `extractUnitHint`
 - `scrapers/types.ts` — private `extractUnitHint` + `buildProductNameWithUnit`
 
 **Fix:**
 - Designate `scrapers/utils/daily-scraper-raw-unit.ts` as the canonical module; expand it with shared helpers (`hasQuantityAndUnitToken`, `normalizeWhitespace`, `buildProductNameWithUnit`)
 - In `scrapers/types.ts`: delete local `extractUnitHint` and `buildProductNameWithUnit`, import from canonical module
-- In `scripts/utils/daily-scraper-utils.js`: replace the private function body with a call to the canonical implementation
+- In `backend/scripts/utils/daily-scraper-utils.js`: replace the private function body with a call to the canonical implementation
 - In `traderjoes.js`: keep TJ-specific field preprocessing (`size_qty`, `pack_qty`, `measure_unit`) local, but delegate the generic fallback to the canonical module via `require`
 - This is a refactor only — no behavior changes
 

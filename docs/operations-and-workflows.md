@@ -20,27 +20,27 @@ Last verified: 2026-03-20.
 - `npm run embedding-queue-worker`
 - `npm run backfill-embedding-queue`
 
-### Scraper/data scripts (`scripts/` and `workers/`)
+### Scraper/data scripts (`backend/scripts/` and `workers/`)
 
 JavaScript/TypeScript:
 
 - `workers/daily-scraper-worker/runner.js` (canonical entrypoint)
-- `scripts/daily-scraper.js` (legacy compatibility shim)
-- `scripts/resolve-ingredient-match-queue.ts`
-- `scripts/resolve-embedding-queue.ts`
-- `scripts/temp/backfill-embedding-queue.ts`
-- `scripts/regenerate-mappings.js`
-- `scripts/relink-product-mappings.js`
-- `scripts/temp/seed-mock-recipes.ts`
+- `backend/scripts/daily-scraper.js` (legacy compatibility shim)
+- `backend/scripts/resolve-ingredient-match-queue.ts`
+- `backend/scripts/resolve-embedding-queue.ts`
+- `backend/scripts/temp/backfill-embedding-queue.ts`
+- `backend/scripts/regenerate-mappings.js`
+- `backend/scripts/relink-product-mappings.js`
+- `backend/scripts/temp/seed-mock-recipes.ts`
 - store-specific test scripts (`test-traderjoes-scraper.js`, `test-99ranch-scraper.js`)
 
 Python:
 
-- `scripts/store_maintenance.py`
-- `scripts/import_new_stores.py`
-- `scripts/update_target_zipcodes.py`
-- `scripts/fix_missing_geo.py`
-- `scripts/backfill_scraped_zipcodes.py`
+- `workers/store-maintenance-worker/runner.py`
+- `workers/store-maintenance-worker/import_new_stores.py`
+- `workers/store-maintenance-worker/update_target_zipcodes.py`
+- `workers/store-maintenance-worker/fix_missing_geo.py`
+- `workers/store-maintenance-worker/backfill_scraped_zipcodes.py`
 
 ## GitHub workflows (`.github/workflows`)
 
@@ -60,8 +60,8 @@ Most workflows are manually dispatchable; some have schedules (for example night
 
 ## Known operational drift to resolve
 
-- `initiating-workflow.yml` references `scripts/seed-generated-mock-recipes.ts`, which is not present in current tree.
-- Ensure workflow script paths stay in sync with `scripts/` before relying on scheduled runs.
+- `initiating-workflow.yml` references `backend/scripts/seed-generated-mock-recipes.ts`, which is not present in current tree.
+- Ensure workflow script paths stay in sync with `backend/scripts/` before relying on scheduled runs.
 
 ## Maintenance checklist for future changes
 

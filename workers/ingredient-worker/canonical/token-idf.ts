@@ -1,5 +1,5 @@
 import { ingredientMatchQueueDB } from "../../../lib/database/ingredient-match-queue-db"
-import { normalizeCanonicalName } from "../../../scripts/utils/canonical-matching"
+import { normalizeCanonicalName } from "../../../backend/scripts/utils/canonical-matching"
 import { toCanonicalTokens } from "./tokens"
 import { makeRefreshingCache } from "../cache/refreshing-cache"
 

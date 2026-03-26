@@ -13,7 +13,7 @@ primary_region = "ord"
   QUEUE_REVIEW_MODE = "ingredient"
 
 [processes]
-  worker = "npm --prefix scripts run queue-worker"
+  worker = "npm --prefix backend/scripts run queue-worker"
 
 [[vm]]
   cpu_kind = "shared"

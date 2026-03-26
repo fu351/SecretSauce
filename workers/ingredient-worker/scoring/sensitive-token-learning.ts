@@ -2,7 +2,7 @@ import {
   ingredientMatchQueueDB,
   type SensitivityPairStatsRow,
 } from "../../../lib/database/ingredient-match-queue-db"
-import { singularizeCanonicalName } from "../../../scripts/utils/canonical-matching"
+import { singularizeCanonicalName } from "../../../backend/scripts/utils/canonical-matching"
 import { makeRefreshingCache } from "../cache/refreshing-cache"
 
 const DRIFT_REFRESH_MS = 10 * 60 * 1000

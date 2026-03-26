@@ -85,7 +85,7 @@ describe("runVectorDoubleCheckDiscovery", () => {
     expect(mockLogCanonicalDoubleCheckDaily).not.toHaveBeenCalled()
   })
 
-  it("logs candidates with reason=vector_candidate_discovery and tracks failed writes as skipped", async () => {
+  it("records generic_to_specific and failed writes as skipped", async () => {
     mockFindDoubleCheckCandidates.mockResolvedValueOnce([
       buildCandidate({ source_canonical: "milk", target_canonical: "whole milk", similarity: 0.97 }),
       buildCandidate({ source_canonical: "onion", target_canonical: "green onion", similarity: 0.9 }),
@@ -103,8 +103,8 @@ describe("runVectorDoubleCheckDiscovery", () => {
     expect(summary).toEqual({
       cycles: 1,
       totalDiscovered: 2,
-      totalLogged: 1,
-      totalSkipped: 1,
+      totalLogged: 0,
+      totalSkipped: 2,
     })
     expect(mockLogCanonicalDoubleCheckDaily).toHaveBeenNthCalledWith(1, {
       sourceCanonical: "milk",
@@ -112,7 +112,6 @@ describe("runVectorDoubleCheckDiscovery", () => {
       decision: "skipped",
       reason: "vector_candidate_discovery",
       direction: "generic_to_specific",
-      aiConfidence: null,
       similarity: 0.97,
       sourceCategory: "dairy",
       targetCategory: "dairy",

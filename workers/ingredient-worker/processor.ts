@@ -8,7 +8,7 @@ import { standardizeIngredientsWithAI, type IngredientStandardizationResult } fr
 import { standardizeUnitsWithAI, type UnitStandardizationResult } from "../../standardizer"
 import { normalizeConfidence } from "../../lib/utils/number"
 import type { IngredientStandardizerContext } from "../../standardizer"
-import { normalizeCanonicalName, singularizeCanonicalName } from "../../scripts/utils/canonical-matching"
+import { normalizeCanonicalName, singularizeCanonicalName } from "../../backend/scripts/utils/canonical-matching"
 import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"
 import { resolveCanonicalWithDoubleCheck } from "./canonical/double-check"

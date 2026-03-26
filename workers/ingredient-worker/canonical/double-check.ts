@@ -7,7 +7,7 @@ import {
   type CanonicalCandidate,
   normalizeCanonicalName,
   scoreCanonicalSimilarity,
-} from "../../../scripts/utils/canonical-matching"
+} from "../../../backend/scripts/utils/canonical-matching"
 import type { QueueWorkerConfig } from "../../config"
 import { toCanonicalTokens } from "./tokens"
 

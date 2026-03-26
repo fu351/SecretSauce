@@ -1,5 +1,5 @@
 import type { CanonicalDoubleCheckDailyStatsRow } from "../../lib/database/ingredient-match-queue-db"
-import { normalizeCanonicalName, singularizeCanonicalName } from "../../scripts/utils/canonical-matching"
+import { normalizeCanonicalName, singularizeCanonicalName } from "../../backend/scripts/utils/canonical-matching"
 
 export interface ConsolidationCandidateAssessment {
   allowed: boolean

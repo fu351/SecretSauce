@@ -7,7 +7,7 @@ function isEmptyUnit(value: string): boolean {
 }
 
 /**
- * Mirrors scripts/utils/daily-scraper-utils.js extractUnitHint logic.
+ * Mirrors backend/scripts/utils/daily-scraper-utils.js extractUnitHint logic.
  * Priority: unit/size/package_size/unit_size, then pricePerUnit suffix parsing.
  */
 export function extractUnitHintFromDailyScraper(result: {

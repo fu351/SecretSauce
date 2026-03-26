@@ -2,7 +2,7 @@ import {
   ingredientMatchQueueDB,
   type CanonicalCreationProbationStats,
 } from "../../../lib/database/ingredient-match-queue-db"
-import { normalizeCanonicalName } from "../../../scripts/utils/canonical-matching"
+import { normalizeCanonicalName } from "../../../backend/scripts/utils/canonical-matching"
 
 const PROBATION_CACHE_MAX_ENTRIES = 20000
 const PROBATION_CACHE_TTL_BELOW_THRESHOLD_MS = 30 * 1000

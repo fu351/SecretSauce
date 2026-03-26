@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as queueModule from "../workers/index.ts"
+import * as queueModule from "../../workers/index.ts"
 
 const runQueueResolverFromEnv =
   (queueModule as { runQueueResolverFromEnv?: unknown }).runQueueResolverFromEnv ??

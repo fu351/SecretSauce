@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as baseDbModule from "../../lib/database/base-db"
-import * as embeddingQueueDbModule from "../../lib/database/embedding-queue-db"
-import type { EmbeddingSourceType } from "../../lib/database/embedding-queue-db"
+import * as baseDbModule from "../../../lib/database/base-db"
+import * as embeddingQueueDbModule from "../../../lib/database/embedding-queue-db"
+import type { EmbeddingSourceType } from "../../../lib/database/embedding-queue-db"
 
 const fromFn =
   (baseDbModule as { from?: unknown }).from ??

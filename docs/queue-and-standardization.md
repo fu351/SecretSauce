@@ -40,7 +40,7 @@ Core files:
 - `workers/embedding-worker/config.ts`
 - `workers/embedding-worker/processor.ts`
 - `workers/embedding-worker/runner.ts`
-- `scripts/resolve-embedding-queue.ts`
+- `backend/scripts/resolve-embedding-queue.ts`
 
 Responsibilities:
 
