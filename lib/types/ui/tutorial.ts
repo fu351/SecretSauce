@@ -10,6 +10,8 @@ export interface TutorialSubstep {
   highlightSelector?: string
   action?: 'explore' | 'click' | 'navigate' | 'highlight' | 'search'
   actionTarget?: string
+  /** If true, this substep is shown even at rank 3 (minimal depth). */
+  essential?: boolean
 }
 
 /**
@@ -63,3 +65,18 @@ export interface TutorialPath {
   description: string
   steps: TutorialStep[]
 }
+
+/**
+ * The rank a path occupies in the user's session.
+ * Rank 1 = primary (full depth), rank 2 = reduced, rank 3 = minimal.
+ */
+export type GoalRank = 1 | 2 | 3
+
+/**
+ * The full ordered session: exactly 3 path IDs where index 0 = rank 1.
+ */
+export type RankedGoals = [
+  'cooking' | 'budgeting' | 'health',
+  'cooking' | 'budgeting' | 'health',
+  'cooking' | 'budgeting' | 'health',
+]
