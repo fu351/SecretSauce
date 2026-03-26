@@ -253,7 +253,7 @@ jobs:
           INCLUDE_QUEUE_DRIFT_STRESS_RECIPES: "false"
         run: |
           set -euo pipefail
-          ./scripts/node_modules/.bin/tsx scripts/seed-mock-recipes.ts
+          ./scripts/node_modules/.bin/tsx scripts/temp/seed-mock-recipes.ts
 
       - name: Seed generated mock recipes (optional)
         if: ${{ inputs.use_mock_recipe_generator }}

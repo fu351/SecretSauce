@@ -280,7 +280,7 @@ jobs:
           INCLUDE_QUEUE_DRIFT_STRESS_RECIPES: "false"
         run: |
           set -euo pipefail
-          ./scripts/node_modules/.bin/tsx scripts/seed-mock-recipes.ts
+          ./scripts/node_modules/.bin/tsx scripts/temp/seed-mock-recipes.ts
 
   initiating-queue-dry-run:
     name: Queue Dry-Run Only (No Scraper, No Post Queue)

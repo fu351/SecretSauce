@@ -1,13 +1,13 @@
 #!/usr/bin/env tsx
 
 import { createClient } from "@supabase/supabase-js"
-import type { Database } from "../lib/database/supabase"
+import type { Database } from "../../lib/database/supabase"
 import {
   buildMockRecipePayload,
   MOCK_RECIPES,
   RPC_NAME,
   type UpsertRecipeRpcArgs,
-} from "../lib/dev/mock-recipes"
+} from "../../lib/dev/mock-recipes"
 
 const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY

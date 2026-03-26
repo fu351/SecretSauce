@@ -10,7 +10,7 @@
     "resolve-ingredient-match-queue": "tsx --env-file=.env.local scripts/resolve-ingredient-match-queue.ts",
     "resolve-embedding-queue": "tsx --env-file=.env.local scripts/resolve-embedding-queue.ts",
     "embedding-queue-worker": "tsx --env-file=.env.local queue/embedding-worker/runner.ts",
-    "backfill-embedding-queue": "tsx --env-file=.env.local scripts/backfill-embedding-queue.ts",
+    "backfill-embedding-queue": "tsx --env-file=.env.local scripts/temp/backfill-embedding-queue.ts",
     "cleanup-recent-standardized-ingredients": "tsx --env-file=.env.local scripts/cleanup-recent-standardized-ingredients.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",

@@ -28,10 +28,10 @@ JavaScript/TypeScript:
 - `scripts/daily-scraper.js` (legacy compatibility shim)
 - `scripts/resolve-ingredient-match-queue.ts`
 - `scripts/resolve-embedding-queue.ts`
-- `scripts/backfill-embedding-queue.ts`
+- `scripts/temp/backfill-embedding-queue.ts`
 - `scripts/regenerate-mappings.js`
 - `scripts/relink-product-mappings.js`
-- `scripts/seed-mock-recipes.ts`
+- `scripts/temp/seed-mock-recipes.ts`
 - store-specific test scripts (`test-traderjoes-scraper.js`, `test-99ranch-scraper.js`)
 
 Python:

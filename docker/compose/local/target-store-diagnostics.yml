@@ -5,7 +5,7 @@ services:
     build:
       context: ../../..
       dockerfile: docker/Dockerfile.daily-scraper
-    command: ["node", "scripts/target-store-diagnostics.js"]
+    command: ["node", "scripts/temp/target-store-diagnostics.js"]
     env_file:
       - ../../../.env.local
       - ./daily-scraper.shared.env
