@@ -1,6 +1,6 @@
 # Temporary Scripts
 
-These scripts are grouped under `scripts/temp/` because they are ad-hoc utilities
+These scripts are grouped under `backend/scripts/temp/` because they are ad-hoc utilities
 for backfills, diagnostics, or test-data seeding rather than primary runtime entrypoints.
 
 ## Current temp scripts

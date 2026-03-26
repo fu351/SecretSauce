@@ -12,7 +12,6 @@ Bare-bones scraper interface worker that hosts store adapters plus universal run
 - `stores/*` - store-specific scrapers and optional batch variants.
 - `utils/*` - shared crawler, logging, retry, rate-limit, and normalization utilities.
 - `ingredient-pipeline.ts` - canonical ingredient -> multi-store pricing pipeline.
-- `grocery-scrapers.ts` - compatibility wrapper that re-exports frontend helper from `frontend-scraper-worker`.
 - `universal-controls.js` - worker-wide runtime controls for live activation and timeout behavior.
 
 This worker intentionally does not own batch/API orchestration. Orchestration lives in:

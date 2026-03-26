@@ -24,7 +24,7 @@ node backend/workers/daily-scraper-worker/runner.js
 Legacy shim:
 
 ```bash
-node scripts/daily-scraper.js
+node backend/scripts/daily-scraper.js
 ```
 
 Docker image:

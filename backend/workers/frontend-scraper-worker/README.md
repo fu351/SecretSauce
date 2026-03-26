@@ -20,10 +20,6 @@ Primary import path:
 
 - `@/backend/workers/frontend-scraper-worker/runner`
 
-Backward compatibility path (still supported):
-
-- `@/backend/workers/scraper-worker/grocery-scrapers`
-
 ## Environment
 
 - `NEXT_PUBLIC_SCRAPER_MAX_RESULTS` - optional max result cap per store for frontend calls.
