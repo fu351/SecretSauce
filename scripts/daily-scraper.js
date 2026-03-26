@@ -61,6 +61,9 @@ const INGREDIENT_DELAY_MS = getIntEnv('INGREDIENT_DELAY_MS', 1000, 0)
 const INSERT_BATCH_SIZE = getIntEnv('INSERT_BATCH_SIZE', 300, 1)
 const INSERT_CONCURRENCY = getIntEnv('INSERT_CONCURRENCY', 1, 1)
 const INSERT_QUEUE_MAX_SIZE = getIntEnv('INSERT_QUEUE_MAX_SIZE', 0, 0)
+const INSERT_RPC_MAX_RETRIES = getIntEnv('INSERT_RPC_MAX_RETRIES', 3, 0)
+const INSERT_RPC_RETRY_BASE_DELAY_MS = getIntEnv('INSERT_RPC_RETRY_BASE_DELAY_MS', 1000, 0)
+const INSERT_RPC_RETRY_MAX_DELAY_MS = getIntEnv('INSERT_RPC_RETRY_MAX_DELAY_MS', 10000, 0)
 const SCRAPER_BATCH_SIZE = getIntEnv('SCRAPER_BATCH_SIZE', 20, 1)
 const SCRAPER_BATCH_CONCURRENCY = getIntEnv('SCRAPER_BATCH_CONCURRENCY', STORE_CONCURRENCY, 1)
 const MAX_CONSECUTIVE_STORE_ERRORS = getIntEnv('MAX_CONSECUTIVE_STORE_ERRORS', 10, 0)
@@ -941,23 +944,77 @@ async function bulkInsertIngredientHistory(items) {
     return payload.length
   }
 
-  console.log(`💾 Inserting ${payload.length} items via RPC...`)
-
-  const { data, error } = await getSupabase().rpc('fn_bulk_insert_ingredient_history', {
-    p_items: payload
-  })
-
-  if (error) {
-    console.error('❌ RPC error:', error.message)
-    throw error
+  function getRpcErrorText(error) {
+    return [
+      error?.message,
+      error?.details,
+      error?.hint,
+      error?.code,
+      error?.cause?.message,
+    ]
+      .filter(Boolean)
+      .join(' | ')
+      .toLowerCase()
   }
 
-  const insertedCount = Array.isArray(data)
-    ? data.length
-    : (typeof data === 'number' ? data : (data?.inserted_count ?? 0))
+  function isTransientRpcError(error) {
+    const text = getRpcErrorText(error)
+    if (!text) return false
 
-  console.log(`✅ Inserted ${insertedCount} rows`)
-  return insertedCount
+    return (
+      text.includes('fetch failed') ||
+      text.includes('econnreset') ||
+      text.includes('etimedout') ||
+      text.includes('eai_again') ||
+      text.includes('enotfound') ||
+      text.includes('socket hang up') ||
+      text.includes('connection terminated') ||
+      text.includes('network') ||
+      text.includes('timeout') ||
+      text.includes('429') ||
+      text.includes('502') ||
+      text.includes('503') ||
+      text.includes('504')
+    )
+  }
+
+  for (let attempt = 0; attempt <= INSERT_RPC_MAX_RETRIES; attempt += 1) {
+    if (attempt === 0) {
+      console.log(`💾 Inserting ${payload.length} items via RPC...`)
+    } else {
+      console.log(`💾 Retrying insert of ${payload.length} items via RPC (attempt ${attempt + 1}/${INSERT_RPC_MAX_RETRIES + 1})...`)
+    }
+
+    const { data, error } = await getSupabase().rpc('fn_bulk_insert_ingredient_history', {
+      p_items: payload
+    })
+
+    if (!error) {
+      const insertedCount = Array.isArray(data)
+        ? data.length
+        : (typeof data === 'number' ? data : (data?.inserted_count ?? 0))
+      console.log(`✅ Inserted ${insertedCount} rows`)
+      return insertedCount
+    }
+
+    const canRetry = attempt < INSERT_RPC_MAX_RETRIES && isTransientRpcError(error)
+    console.error('❌ RPC error:', error.message)
+
+    if (!canRetry) {
+      throw error
+    }
+
+    const baseDelay = INSERT_RPC_RETRY_BASE_DELAY_MS * (2 ** attempt)
+    const jitterMs = Math.floor(Math.random() * 250)
+    const delayMs = Math.min(baseDelay + jitterMs, INSERT_RPC_RETRY_MAX_DELAY_MS)
+    console.warn(
+      `⚠️ Transient RPC failure (attempt ${attempt + 1}/${INSERT_RPC_MAX_RETRIES + 1}). ` +
+      `Retrying in ${delayMs}ms...`
+    )
+    await sleep(delayMs)
+  }
+
+  return 0
 }
 
 async function main() {
@@ -975,6 +1032,7 @@ async function main() {
   console.log(`   Insert Batch Size: ${INSERT_BATCH_SIZE}`)
   console.log(`   Insert Concurrency: ${INSERT_CONCURRENCY}`)
   console.log(`   Insert Queue Max: ${INSERT_QUEUE_MAX_SIZE > 0 ? INSERT_QUEUE_MAX_SIZE : 'unlimited'}`)
+  console.log(`   Insert RPC Retries: ${INSERT_RPC_MAX_RETRIES}`)
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
