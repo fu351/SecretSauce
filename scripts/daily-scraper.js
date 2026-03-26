@@ -998,43 +998,65 @@ async function bulkInsertIngredientHistory(items) {
     )
   }
 
-  for (let attempt = 0; attempt <= INSERT_RPC_MAX_RETRIES; attempt += 1) {
-    if (attempt === 0) {
-      console.log(`💾 Inserting ${payload.length} items via RPC...`)
-    } else {
-      console.log(`💾 Retrying insert of ${payload.length} items via RPC (attempt ${attempt + 1}/${INSERT_RPC_MAX_RETRIES + 1})...`)
+  // Recursively insert a pre-normalized payload slice, splitting on timeout.
+  // splitDepth tracks how many times we've halved to aid log readability.
+  async function insertPayload(slice, splitDepth = 0) {
+    const label = splitDepth > 0 ? ` [split depth ${splitDepth}]` : ''
+
+    for (let attempt = 0; attempt <= INSERT_RPC_MAX_RETRIES; attempt += 1) {
+      if (attempt === 0) {
+        console.log(`💾${label} Inserting ${slice.length} items via RPC...`)
+      } else {
+        console.log(`💾${label} Retrying insert of ${slice.length} items via RPC (attempt ${attempt + 1}/${INSERT_RPC_MAX_RETRIES + 1})...`)
+      }
+
+      const { data, error } = await getSupabase().rpc('fn_bulk_insert_ingredient_history', {
+        p_items: slice
+      })
+
+      if (!error) {
+        const insertedCount = Array.isArray(data)
+          ? data.length
+          : (typeof data === 'number' ? data : (data?.inserted_count ?? 0))
+        console.log(`✅${label} Inserted ${insertedCount} rows`)
+        return insertedCount
+      }
+
+      const isLastAttempt = attempt >= INSERT_RPC_MAX_RETRIES
+      const isTransient = isTransientRpcError(error)
+      console.error(`❌${label} RPC error:`, error.message)
+
+      if (isLastAttempt && isTransient && slice.length > 1) {
+        const mid = Math.floor(slice.length / 2)
+        console.warn(
+          `⚠️${label} Transient failure on ${slice.length} items after ${INSERT_RPC_MAX_RETRIES + 1} attempt(s). ` +
+          `Splitting into [${mid}, ${slice.length - mid}]...`
+        )
+        const [leftCount, rightCount] = await Promise.all([
+          insertPayload(slice.slice(0, mid), splitDepth + 1),
+          insertPayload(slice.slice(mid), splitDepth + 1),
+        ])
+        return leftCount + rightCount
+      }
+
+      if (isLastAttempt || !isTransient) {
+        throw error
+      }
+
+      const baseDelay = INSERT_RPC_RETRY_BASE_DELAY_MS * (2 ** attempt)
+      const jitterMs = Math.floor(Math.random() * 250)
+      const delayMs = Math.min(baseDelay + jitterMs, INSERT_RPC_RETRY_MAX_DELAY_MS)
+      console.warn(
+        `⚠️${label} Transient RPC failure (attempt ${attempt + 1}/${INSERT_RPC_MAX_RETRIES + 1}). ` +
+        `Retrying in ${delayMs}ms...`
+      )
+      await sleep(delayMs)
     }
 
-    const { data, error } = await getSupabase().rpc('fn_bulk_insert_ingredient_history', {
-      p_items: payload
-    })
-
-    if (!error) {
-      const insertedCount = Array.isArray(data)
-        ? data.length
-        : (typeof data === 'number' ? data : (data?.inserted_count ?? 0))
-      console.log(`✅ Inserted ${insertedCount} rows`)
-      return insertedCount
-    }
-
-    const canRetry = attempt < INSERT_RPC_MAX_RETRIES && isTransientRpcError(error)
-    console.error('❌ RPC error:', error.message)
-
-    if (!canRetry) {
-      throw error
-    }
-
-    const baseDelay = INSERT_RPC_RETRY_BASE_DELAY_MS * (2 ** attempt)
-    const jitterMs = Math.floor(Math.random() * 250)
-    const delayMs = Math.min(baseDelay + jitterMs, INSERT_RPC_RETRY_MAX_DELAY_MS)
-    console.warn(
-      `⚠️ Transient RPC failure (attempt ${attempt + 1}/${INSERT_RPC_MAX_RETRIES + 1}). ` +
-      `Retrying in ${delayMs}ms...`
-    )
-    await sleep(delayMs)
+    return 0
   }
 
-  return 0
+  return insertPayload(payload)
 }
 
 async function main() {
