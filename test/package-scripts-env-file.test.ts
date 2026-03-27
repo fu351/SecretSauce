@@ -3,7 +3,7 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 
 describe("package.json tsx scripts", () => {
-  it("use --env-file=.env.local for runtime workers/scripts", () => {
+  it("use --env-file=.env.local for runtime backend/workers/scripts", () => {
     const packageJsonPath = path.join(process.cwd(), "package.json")
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as {
       scripts: Record<string, string>

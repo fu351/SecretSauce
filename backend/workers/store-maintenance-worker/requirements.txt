@@ -1,0 +1,4 @@
+ijson
+requests
+supabase
+urllib3

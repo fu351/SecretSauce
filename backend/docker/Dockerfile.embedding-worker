@@ -1,0 +1,16 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install deps at the root so they resolve from any subdirectory
+COPY backend/scripts/package.json ./package.json
+COPY backend/scripts/package-lock.json ./package-lock.json
+RUN npm ci --omit=dev
+
+COPY tsconfig.json ./tsconfig.json
+COPY backend/workers ./backend/workers
+COPY lib/database ./lib/database
+COPY lib/utils ./lib/utils
+COPY backend/scripts ./backend/scripts
+
+CMD ["node_modules/.bin/tsx", "backend/scripts/resolve-embedding-queue.ts"]

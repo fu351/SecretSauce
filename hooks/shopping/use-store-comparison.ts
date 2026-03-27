@@ -7,8 +7,8 @@ import { useAuth } from "@/contexts/auth-context"
 import { profileDB } from "@/lib/database/profile-db"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName, type PricingResult } from "@/lib/database/ingredients-db"
 import { normalizeZipCode } from "@/lib/utils/zip"
-import { type StoreMetadataMap, type StoreMetadata } from "@/scrapers/utils/store-metadata"
-import { searchGroceryStores } from "@/scrapers/grocery-scrapers"
+import { type StoreMetadataMap, type StoreMetadata } from "@/lib/store/store-metadata"
+import { searchGroceryStores } from "@/backend/workers/frontend-scraper-worker/runner"
 
 const ENABLE_DEV_PRICING_LOGS = process.env.NODE_ENV !== "production"
 

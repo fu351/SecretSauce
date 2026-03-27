@@ -1,6 +1,6 @@
 # Operations and Workflows
 
-Last verified: 2026-03-20.
+Last verified: 2026-03-26.
 
 ## Local operational commands
 
@@ -18,40 +18,58 @@ Last verified: 2026-03-20.
 - `npm run queue-worker`
 - `npm run resolve-embedding-queue`
 - `npm run embedding-queue-worker`
+- `npm run vector-double-check-worker`
 - `npm run backfill-embedding-queue`
+- `npm --prefix scripts run resolve-vector-double-check`
+- `npm --prefix scripts run resolve-canonical-consolidation`
 
-### Scraper/data scripts (`scripts/`)
+### Script entrypoints
+
+Root `package.json` exposes the common queue helpers:
+
+- `resolve-ingredient-match-queue`
+- `resolve-embedding-queue`
+- `queue-worker`
+- `embedding-queue-worker`
+- `vector-double-check-worker`
+- `backfill-embedding-queue`
+
+`backend/scripts/package.json` is the shared workflow package. From the repo root, run it with `npm --prefix scripts run ...`:
+
+- `resolve-ingredient-match-queue`
+- `resolve-embedding-queue`
+- `resolve-vector-double-check`
+- `resolve-canonical-consolidation`
+- `queue-worker`
+
+Other directly-invoked scripts:
 
 JavaScript/TypeScript:
 
-- `scripts/daily-scraper.js`
-- `scripts/resolve-ingredient-match-queue.ts`
-- `scripts/resolve-embedding-queue.ts`
-- `scripts/backfill-embedding-queue.ts`
-- `scripts/regenerate-mappings.js`
-- `scripts/relink-product-mappings.js`
-- `scripts/seed-mock-recipes.ts`
-- store-specific test scripts (`test-traderjoes-scraper.js`, `test-99ranch-scraper.js`)
+- `backend/workers/daily-scraper-worker/runner.js` (canonical entrypoint)
+- `backend/scripts/daily-scraper.js` (legacy compatibility shim)
+- `backend/scripts/regenerate-mappings.js`
+- `backend/scripts/relink-product-mappings.js`
+- `backend/scripts/temp/seed-mock-recipes.ts`
+- `backend/scripts/temp/backfill-embedding-queue.ts`
 
 Python:
 
-- `scripts/store_maintenance.py`
-- `scripts/import_new_stores.py`
-- `scripts/update_target_zipcodes.py`
-- `scripts/fix_missing_geo.py`
-- `scripts/backfill_scraped_zipcodes.py`
+- `backend/workers/store-maintenance-worker/runner.py`
+- `backend/workers/store-maintenance-worker/import_new_stores.py`
+- `backend/workers/store-maintenance-worker/update_target_zipcodes.py`
+- `backend/workers/store-maintenance-worker/fix_missing_geo.py`
+- `backend/workers/store-maintenance-worker/backfill_scraped_zipcodes.py`
 
 ## GitHub workflows (`.github/workflows`)
 
 Current workflows include:
 
-- `daily-scraper-matrix.yml`
-- `nightly-workflow.yml`
-- `nightly-ingredient-queue.yml`
-- `nightly-embedding-queue.yml`
-- `test-ingredient-queue.yml`
-- `test-embedding-queue.yml`
-- `regenerate-mappings.yml`
+- `daily-scraper-matrix.yml` (runs `backend/workers/daily-scraper-worker/runner.js`)
+- `nightly-workflow.yml` (orchestrates the queue and scraper workflows)
+- `nightly-ingredient-queue.yml` / `test-ingredient-queue.yml` (run `resolve-ingredient-match-queue`)
+- `nightly-embedding-queue.yml` / `test-embedding-queue.yml` (run `resolve-embedding-queue`)
+- `regenerate-mappings.yml` (runs `resolve-ingredient-match-queue` for relink passes)
 - `store_maintenance.yml`
 - plus backup/reset/init/main utility workflows.
 
@@ -59,8 +77,13 @@ Most workflows are manually dispatchable; some have schedules (for example night
 
 ## Known operational drift to resolve
 
-- `initiating-workflow.yml` references `scripts/seed-generated-mock-recipes.ts`, which is not present in current tree.
-- Ensure workflow script paths stay in sync with `scripts/` before relying on scheduled runs.
+- `initiating-workflow.yml` references `backend/scripts/seed-generated-mock-recipes.ts`, which is not present in current tree.
+- Root `package.json` still includes script aliases for missing files:
+  - `backend/scripts/cleanup-recent-standardized-ingredients.ts`
+  - `backend/scripts/backfill-clerk-user-ids.ts`
+  - `backend/scripts/test-traderjoes-scraper.js`
+  - `backend/scripts/test-99ranch-scraper.js`
+- Ensure workflow script paths stay in sync with `backend/scripts/` before relying on scheduled runs.
 
 ## Maintenance checklist for future changes
 
@@ -68,4 +91,3 @@ Most workflows are manually dispatchable; some have schedules (for example night
 2. When adding/changing API routes, update `api-and-integrations.md`.
 3. When changing queue/scoring behavior, update `queue-and-standardization.md`.
 4. Keep docs updates in the same PR/commit as behavior changes.
-

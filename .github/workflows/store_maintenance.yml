@@ -138,4 +138,4 @@ jobs:
           if [ "${IMPORT_ALL_ZIPCODES,,}" = "true" ]; then
             args+=(--import-all-zipcodes)
           fi
-          python scripts/store_maintenance.py "${args[@]}"
+          python -m workers.store_maintenance_worker.runner "${args[@]}"
