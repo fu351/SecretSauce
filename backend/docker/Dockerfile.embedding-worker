@@ -10,8 +10,6 @@ RUN npm ci --omit=dev
 COPY tsconfig.json ./tsconfig.json
 COPY backend/workers ./backend/workers
 COPY lib/database ./lib/database
-COPY lib/ollama ./lib/ollama
-COPY lib/openai ./lib/openai
 COPY lib/utils ./lib/utils
 COPY backend/scripts ./backend/scripts
 

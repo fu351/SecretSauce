@@ -2,8 +2,8 @@
 
 import "dotenv/config"
 import * as baseDbModule from "../../../lib/database/base-db"
-import * as embeddingQueueDbModule from "../../../lib/database/embedding-queue-db"
-import type { EmbeddingSourceType } from "../../../lib/database/embedding-queue-db"
+import * as embeddingQueueDbModule from "../../workers/embedding-worker/embedding-queue-db"
+import type { EmbeddingSourceType } from "../../workers/embedding-worker/embedding-queue-db"
 
 const fromFn =
   (baseDbModule as { from?: unknown }).from ??

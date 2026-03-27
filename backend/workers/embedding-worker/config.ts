@@ -1,4 +1,4 @@
-import type { EmbeddingSourceType } from "../../../lib/database/embedding-queue-db"
+import type { EmbeddingSourceType } from "./embedding-queue-db"
 import { readPositiveInt, readBoolean } from "../env-utils"
 
 export type EmbeddingProvider = "openai" | "ollama"

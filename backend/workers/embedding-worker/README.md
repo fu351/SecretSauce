@@ -16,6 +16,8 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 - `config.ts` - reads worker config from environment variables.
 - `processor.ts` - does the queue claim, embedding fetch, upsert, and status updates.
 - `runner.ts` - continuous loop wrapper around the processor.
+- `embedding-queue-db.ts` - worker-scoped queue and embedding table data access.
+- `openai-embeddings.ts` / `ollama-embeddings.ts` - worker-scoped embedding provider clients.
 - `__tests__/processor.test.ts` - Vitest coverage for the main processing paths.
 
 ## Run Instructions

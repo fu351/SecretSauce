@@ -2,9 +2,9 @@ import {
   embeddingQueueDB,
   type EmbeddingQueueRow,
   type EmbeddingSourceType,
-} from "../../../lib/database/embedding-queue-db"
-import { fetchEmbeddings } from "../../../lib/openai/embeddings"
-import { fetchEmbeddingsFromOllama } from "../../../lib/ollama/embeddings"
+} from "./embedding-queue-db"
+import { fetchEmbeddings } from "./openai-embeddings"
+import { fetchEmbeddingsFromOllama } from "./ollama-embeddings"
 import type { EmbeddingWorkerConfig } from "./config"
 
 interface ResolveBatchResult {

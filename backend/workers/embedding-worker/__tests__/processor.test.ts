@@ -22,7 +22,7 @@ const {
   mockFetchEmbeddings: vi.fn(),
 }))
 
-vi.mock("@/lib/database/embedding-queue-db", () => ({
+vi.mock("../embedding-queue-db", () => ({
   embeddingQueueDB: {
     fetchPending: mockFetchPending,
     claimPending: mockClaimPending,
@@ -34,7 +34,7 @@ vi.mock("@/lib/database/embedding-queue-db", () => ({
   },
 }))
 
-vi.mock("@/lib/openai/embeddings", () => ({
+vi.mock("../openai-embeddings", () => ({
   fetchEmbeddings: mockFetchEmbeddings,
 }))
 
