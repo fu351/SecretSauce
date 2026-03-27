@@ -240,11 +240,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: backend/scripts/package-lock.json
+          cache-dependency-path: backend/scripts/package.json
 
       - name: Install dependencies
         timeout-minutes: 15
-        run: npm install --legacy-peer-deps --prefix scripts
+        run: npm install --legacy-peer-deps --prefix backend/scripts
 
       - name: Expose scripts dependencies to shared imports
         run: ln -sfn "$GITHUB_WORKSPACE/backend/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"

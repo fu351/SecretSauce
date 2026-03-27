@@ -100,10 +100,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: backend/scripts/package-lock.json
+          cache-dependency-path: backend/scripts/package.json
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --prefix scripts
+        run: npm install --legacy-peer-deps --prefix backend/scripts
 
       - name: Expose scripts dependencies to shared imports
         run: ln -sfn "$GITHUB_WORKSPACE/backend/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
@@ -160,7 +160,7 @@ jobs:
           for batch in $(seq 1 "$max_batches"); do
             echo "=== Embedding Batch ${batch}/${max_batches} ==="
 
-            EMBEDDING_QUEUE_MAX_CYCLES="1" npm --prefix scripts run resolve-embedding-queue
+            EMBEDDING_QUEUE_MAX_CYCLES="1" npm --prefix backend/scripts run resolve-embedding-queue
 
             PENDING_COUNT=$(curl -sI \
               "${SUPABASE_URL}/rest/v1/embedding_queue?select=id&status=eq.pending${SOURCE_FILTER}" \
