@@ -3,6 +3,7 @@ import { canonicalConsolidationDB } from "../../../lib/database/canonical-consol
 
 import type { CanonicalConsolidationWorkerConfig } from "./config"
 import { assessConsolidationCandidate } from "./guards"
+import type { WeightedHeuristicContext } from "./guards"
 import { selectSurvivor } from "./survivor"
 
 export interface CanonicalConsolidationRunSummary {
@@ -35,12 +36,25 @@ async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: numb
 
   console.log(`[CanonicalConsolidation] ${filtered.length} candidate(s) to consider`)
 
+  // Fetch product counts for all canonicals in this batch in one pass so both
+  // the guard and survivor selection can use the weighted heuristic.
+  const batchCanonicals = Array.from(
+    new Set(filtered.flatMap((r) => [r.source_canonical, r.target_canonical]))
+  )
+  const productCounts = await canonicalConsolidationDB.fetchProductCountsByCanonical(batchCanonicals)
+
+  const weightedContext: WeightedHeuristicContext = {
+    productCounts,
+    weightedSimilarityThreshold: config.weightedSimilarityThreshold,
+    minWeightedProductCount: config.minWeightedProductCount,
+  }
+
   let consolidated = 0
   let skipped = 0
   let failed = 0
 
   for (const row of filtered) {
-    const assessment = assessConsolidationCandidate(row)
+    const assessment = assessConsolidationCandidate(row, weightedContext)
 
     if (!assessment.allowed) {
       console.log(
@@ -50,7 +64,7 @@ async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: numb
       continue
     }
 
-    const { survivorCanonical, loserCanonical } = selectSurvivor(row)
+    const { survivorCanonical, loserCanonical } = selectSurvivor(row, productCounts)
 
     if (config.dryRun) {
       console.log(

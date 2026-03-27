@@ -95,6 +95,47 @@ class CanonicalConsolidationDB {
     }
   }
 
+  async fetchProductCountsByCanonical(canonicals: string[]): Promise<Map<string, number>> {
+    if (canonicals.length === 0) return new Map()
+
+    // Step 1: resolve canonical names → standardized_ingredient IDs
+    const { data: ingredients, error: ingError } = await (supabase.from as any)(
+      "standardized_ingredients"
+    )
+      .select("id, canonical_name")
+      .in("canonical_name", canonicals)
+
+    if (ingError || !ingredients?.length) return new Map()
+
+    const idToCanonical = new Map<string, string>(
+      (ingredients as Array<{ id: string; canonical_name: string }>).map((i) => [
+        i.id,
+        i.canonical_name,
+      ])
+    )
+    const ids = [...idToCanonical.keys()]
+
+    // Step 2: count product_mappings rows per standardized_ingredient_id
+    const counts = new Map<string, number>()
+    const chunkSize = 50
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize)
+      const { data: mappings, error: mapError } = await (supabase.from as any)("product_mappings")
+        .select("standardized_ingredient_id")
+        .in("standardized_ingredient_id", chunk)
+
+      if (mapError || !mappings) continue
+
+      for (const row of mappings as Array<{ standardized_ingredient_id: string }>) {
+        const canonical = idToCanonical.get(row.standardized_ingredient_id)
+        if (canonical) counts.set(canonical, (counts.get(canonical) ?? 0) + 1)
+      }
+    }
+
+    return counts
+  }
+
   async logConsolidationEvent(params: ConsolidationLogParams): Promise<void> {
     const { error } = await (supabase.from as any)("canonical_consolidation_log").insert({
       survivor_canonical: params.survivorCanonical,
