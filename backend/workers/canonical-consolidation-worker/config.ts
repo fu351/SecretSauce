@@ -13,6 +13,7 @@ export interface CanonicalConsolidationWorkerConfig {
   // Mirrors the product-count-weighted projection from the analysis scripts.
   weightedSimilarityThreshold: number
   minWeightedProductCount: number
+  enableClusterPlanning: boolean
 }
 
 export function getCanonicalConsolidationWorkerConfigFromEnv(
@@ -34,6 +35,7 @@ export function getCanonicalConsolidationWorkerConfigFromEnv(
       1.0
     ),
     minWeightedProductCount: readPositiveInt(process.env.CONSOLIDATION_MIN_WEIGHTED_PRODUCT_COUNT, 5),
+    enableClusterPlanning: readBoolean(process.env.CONSOLIDATION_ENABLE_CLUSTER_PLANNING, false),
     ...overrides,
   }
 }

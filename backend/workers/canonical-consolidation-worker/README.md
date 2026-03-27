@@ -50,6 +50,7 @@ Worker config env vars:
 - `CONSOLIDATION_MIN_EVENT_COUNT` - minimum `event_count`, default `2`
 - `CONSOLIDATION_DRY_RUN` - default `true`
 - `CONSOLIDATION_WORKER_NAME` - audit label, default `canonical-consolidation-worker`
+- `CONSOLIDATION_ENABLE_CLUSTER_PLANNING` - when `true`, derive lateral merge intents from token-coherent candidate communities before applying the pairwise worker rules; default `false`
 
 Note: `docker-compose.local.yml` overrides some defaults for local execution, including `CONSOLIDATION_MIN_EVENT_COUNT=1`.
 

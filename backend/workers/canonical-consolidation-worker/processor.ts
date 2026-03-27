@@ -1,9 +1,13 @@
-import { ingredientMatchQueueDB } from "../../../lib/database/ingredient-match-queue-db"
+import {
+  ingredientMatchQueueDB,
+  type CanonicalDoubleCheckDailyStatsRow,
+} from "../../../lib/database/ingredient-match-queue-db"
 import { canonicalConsolidationDB } from "../../../lib/database/canonical-consolidation-db"
 
 import type { CanonicalConsolidationWorkerConfig } from "./config"
 import { assessConsolidationCandidate } from "./guards"
 import type { WeightedHeuristicContext } from "./guards"
+import { buildClusterConsolidationProposals, pairKey } from "./cluster"
 import { selectSurvivor } from "./survivor"
 
 export interface CanonicalConsolidationRunSummary {
@@ -19,6 +23,69 @@ interface CycleResult {
   consolidated: number
   skipped: number
   failed: number
+}
+
+interface ConsolidationIntent {
+  row: CanonicalDoubleCheckDailyStatsRow
+  survivorCanonical?: string
+  loserCanonical?: string
+  forcedReason?: string
+}
+
+interface ConsolidationPlan {
+  intents: ConsolidationIntent[]
+  superseded: number
+}
+
+function buildConsolidationIntents(
+  rows: CanonicalDoubleCheckDailyStatsRow[],
+  productCounts: Map<string, number>,
+  config: CanonicalConsolidationWorkerConfig
+): ConsolidationPlan {
+  if (!config.enableClusterPlanning) {
+    return { intents: rows.map((row) => ({ row })), superseded: 0 }
+  }
+
+  const intents: ConsolidationIntent[] = []
+  let superseded = 0
+  const clusterProposals = buildClusterConsolidationProposals(rows, productCounts)
+  const proposalByPair = new Map(clusterProposals.map((proposal) => [
+    pairKey(proposal.fromCanonical, proposal.toCanonical),
+    proposal,
+  ]))
+  const clusteredMembers = new Set(
+    clusterProposals.flatMap((proposal) => proposal.clusterMembers)
+  )
+
+  for (const row of rows) {
+    const key = pairKey(row.source_canonical, row.target_canonical)
+    const proposal = proposalByPair.get(key)
+    if (proposal) {
+      intents.push({
+        row,
+        survivorCanonical: proposal.toCanonical,
+        loserCanonical: proposal.fromCanonical,
+        forcedReason: `cluster_token_core_match:${proposal.commonTokens.join("|")}`,
+      })
+      continue
+    }
+
+    if (
+      row.direction === "lateral" &&
+      (clusteredMembers.has(row.source_canonical) || clusteredMembers.has(row.target_canonical))
+    ) {
+      console.log(
+        `[CanonicalConsolidation] Skipped ${row.source_canonical} -> ${row.target_canonical}: ` +
+          `cluster_superseded_by_target_plan`
+      )
+      superseded++
+      continue
+    }
+
+    intents.push({ row })
+  }
+
+  return { intents, superseded }
 }
 
 async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: number): Promise<CycleResult> {
@@ -53,8 +120,14 @@ async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: numb
   let skipped = 0
   let failed = 0
 
-  for (const row of filtered) {
-    const assessment = assessConsolidationCandidate(row, weightedContext)
+  const plan = buildConsolidationIntents(filtered, productCounts, config)
+  skipped += plan.superseded
+
+  for (const intent of plan.intents) {
+    const row = intent.row
+    const assessment = intent.forcedReason
+      ? { allowed: true, reason: intent.forcedReason }
+      : assessConsolidationCandidate(row, weightedContext)
 
     if (!assessment.allowed) {
       console.log(
@@ -64,7 +137,13 @@ async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: numb
       continue
     }
 
-    const { survivorCanonical, loserCanonical } = selectSurvivor(row, productCounts)
+    const { survivorCanonical, loserCanonical } =
+      intent.survivorCanonical && intent.loserCanonical
+        ? {
+          survivorCanonical: intent.survivorCanonical,
+          loserCanonical: intent.loserCanonical,
+        }
+        : selectSurvivor(row, productCounts)
 
     if (config.dryRun) {
       console.log(
