@@ -2,9 +2,9 @@ import type { CanonicalDoubleCheckDailyStatsRow } from "../../../lib/database/in
 import { toCanonicalTokens } from "../ingredient-worker/canonical/tokens"
 
 const MIN_CLUSTER_SIZE = 3
-const MIN_MEMBER_COVERAGE = 0.6
+const MIN_MEMBER_COVERAGE = 0.55
 const LEXICAL_TOKEN_MIN_LEN = 4
-const MAX_LEXICAL_TOKEN_FAMILY = 4
+const MAX_LEXICAL_TOKEN_FAMILY = 5
 
 export interface ClusterConsolidationProposal {
   fromCanonical: string
