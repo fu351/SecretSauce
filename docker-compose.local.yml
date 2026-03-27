@@ -44,7 +44,35 @@ services:
       - EMBEDDING_OPENAI_MODEL=nomic-embed-text
 
   # Monthly vector double-check candidate discovery — scans for high-similarity
+  # with vector hints, semantic dedup, calibration, token IDF, learned
+  # sensitivity, and canonical double-check.
+  #
+  # This worker still uses OpenAI for live vector lookup today; Ollama powers
+  # the local embedding pipeline that populates ingredient_embeddings.
+  # Default to dry-run locally so the service is safe to start while tuning.
+  ingredient-remap-worker:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.ingredient-remap-worker
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env.local
+    environment:
+      - DRY_RUN=true
+      - QUEUE_BATCH_LIMIT=25
+      - QUEUE_CHUNK_SIZE=10
+      - QUEUE_CHUNK_CONCURRENCY=1
+      - QUEUE_REVIEW_MODE=ingredient
+      - QUEUE_SOURCE=scraper
+      - QUEUE_ENABLE_UNIT_RESOLUTION=true
+      - QUEUE_STANDARDIZER_CONTEXT=dynamic
+      - EMBEDDING_OPENAI_MODEL=text-embedding-3-small
+
+  # Monthly vector double-check candidate discovery - scans for high-similarity
   # ingredient pairs that haven't been reviewed yet and queues them for review.
+  # Run after embeddings have been populated by embedding-worker.
   vector-double-check-worker:
     build:
       context: .
@@ -59,7 +87,7 @@ services:
 
   # Canonical consolidation worker — merges duplicate/near-duplicate canonicals
   # identified by the vector double-check worker. Defaults to dry-run; set
-  # CONSOLIDATION_DRY_RUN=false to apply merges.
+  # CONSOLIDATION_DRY_RUN=false to apply merges after review data exists.
   canonical-consolidation-worker:
     build:
       context: .
@@ -71,6 +99,28 @@ services:
       - CONSOLIDATION_DRY_RUN=false
       - CONSOLIDATION_MIN_SIMILARITY=0.92
       - CONSOLIDATION_MIN_EVENT_COUNT=1
+
+  # Vector-based product remapping — embeds raw_product_name via Ollama and
+  # updates standardized_ingredient_id on all non-manual product_mappings rows
+  # when a higher-confidence canonical match is found.
+  # Requires embedding-worker to have already populated ingredient_embeddings.
+  # Defaults to dry-run locally; set DRY_RUN=false to apply changes.
+  product-remap-worker:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.product-remap-worker
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env.local
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - EMBEDDING_MODEL=nomic-embed-text
+      - DRY_RUN=false
+      - BATCH_SIZE=100
+      - MIN_CONFIDENCE=0.7
+      - MIN_NULL_CONFIDENCE=0.5
 
   # Local daily scraper smoke test - dry-run only, with small limits so we can
   # validate scraper orchestration without writing any database changes.
