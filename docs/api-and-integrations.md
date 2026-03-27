@@ -1,103 +1,110 @@
 # API and Integrations
 
-Last verified: 2026-03-20.
+Last verified: 2026-03-26.
 
-## Route index (`app/api/*`)
+## Route Index (`app/api/*`)
 
 ### Auth and profile bridge
 
 - `GET /api/auth/admin-status`
-  - Resolves current user/profile and checks admin analytics RPC gates.
+  - Returns the current user's admin and analytics access flags.
 - `POST /api/auth/ensure-profile`
-  - Ensures a deterministic `profiles` row exists and links `clerk_user_id`.
+  - Ensures a deterministic `profiles` row exists for the current Clerk session.
 - `PATCH /api/auth/update-profile`
-  - Allowlisted profile updates only (identity/billing fields blocked).
+  - Applies allowlisted profile updates from the settings and tutorial flows.
 
 ### Billing and subscription
 
 - `POST /api/checkout`
-  - Creates Stripe subscription checkout session.
-  - Ensures customer linkage in `profiles`.
+  - Creates the Stripe checkout session for the client-side `/checkout` page.
 - `POST /api/stripe/checkout`
-  - Backward-compatible alias to `/api/checkout`.
+  - Legacy alias that delegates to `/api/checkout`.
 - `GET /api/stripe/checkout`
-  - Redirects legacy endpoint hits to `/checkout`.
+  - Legacy redirect to `/checkout`.
 - `POST /api/webhooks/stripe`
-  - Verifies Stripe signature and syncs profile subscription fields.
-  - On successful checkout, can write purchased cart metadata into delivery log.
+  - Stripe webhook handler that syncs subscription state into profiles.
 - `POST /api/webhooks/clerk`
-  - Verifies Clerk webhook and upserts profile identity fields.
+  - Clerk webhook handler that upserts identity fields into profiles.
 
-### Grocery/search/comparison
+### Shopping, stores, and delivery
 
 - `GET /api/grocery-search`
-  - Main search endpoint; cache-first with scraper fallback/force refresh.
+  - Main grocery search endpoint used by shopping and store comparison flows.
 - `POST /api/grocery-search/cache-selection`
-  - Persists user manual item selection into ingredient history/mapping path.
+  - Persists a manual item/store selection back into the shopping pipeline.
 - `POST /api/shopping/comparison`
-  - Returns store comparison from `shopping_item_price_cache`.
+  - Returns shopping-store comparison data for the current list.
 - `POST /api/batch-scraper`
-  - CRON-protected batch scraping endpoint for many ingredients.
+  - Protected batch search endpoint for larger grocery lookups.
 - `GET /api/batch-scraper`
   - Health/status response.
 - `GET /api/user-store-metadata`
-  - Returns preferred-store metadata with location hydration.
+  - Returns preferred-store metadata used by shopping and pricing hooks.
 
 ### Ingredient and recipe import/parsing
 
 - `POST /api/ingredients/standardize`
-  - Pantry-context ingredient standardization only.
+  - Pantry-context ingredient standardization.
 - `POST /api/recipe-import/url`
-  - Proxies URL import to Python service.
+  - URL import path used by the recipe import form.
 - `POST /api/recipe-import/instagram`
-  - Validates/normalizes IG URL and proxies to Python service.
+  - Instagram URL import path.
 - `POST /api/recipe-import/image`
-  - Sends OCR text to Python parser endpoint.
+  - OCR text import path.
 - `POST /api/recipe-import/paragraph`
-  - Premium-gated paragraph parsing with structured extraction.
+  - Premium-gated paragraph parsing path.
 
-### Maps proxy
+### Location and maps
 
+- `POST /api/location`
+  - Saves browser geolocation into the current profile.
 - `POST /api/maps`
-  - Proxies Google APIs for geocode/place search/routes actions.
+  - Proxies Google Maps geocode/place/routing actions for the frontend.
 
-## Integration contracts
+## Frontend Callers
 
-### Supabase
+- `contexts/auth-context.tsx`, `app/auth/signin/page.tsx`, `app/auth/signup/page.tsx`, and `app/auth/check-email/page.tsx` call `/api/auth/ensure-profile`.
+- `contexts/auth-context.tsx` calls `/api/auth/update-profile` for profile saves.
+- `hooks/use-admin.ts` calls `/api/auth/admin-status`.
+- `app/checkout/page.tsx` calls `/api/checkout`.
+- `components/store/store-replacement.tsx` calls `/api/grocery-search/cache-selection`.
+- `hooks/shopping/use-store-comparison.ts` and `hooks/shopping/use-real-time-pricing.ts` call `/api/user-store-metadata`.
+- `lib/location-client.ts` calls `/api/maps` and `/api/location`.
+- `app/pantry/page.tsx` calls `/api/ingredients/standardize`.
+- `components/recipe/import/recipe-import-url.tsx`, `components/recipe/import/recipe-import-instagram.tsx`, `components/recipe/import/recipe-import-image.tsx`, and `components/recipe/import/recipe-import-paragraph.tsx` call the recipe-import routes.
 
-- Browser/session and service-role access split across `lib/database/supabase.ts` and `lib/database/supabase-server.ts`.
-- Queue and matching rely on RPCs/tables used via `lib/database/*` wrappers.
+## Integration Contracts
 
 ### Clerk
 
-- Auth checks done via `@clerk/nextjs/server` in API/server code.
-- Profile linkage anchored by `clerk_user_id` and deterministic fallback ID logic.
+- Client auth is handled through Clerk React hooks.
+- Server-side profile linkage relies on Clerk session identity plus `/api/auth/ensure-profile`.
+
+### Supabase
+
+- Browser/session access and service-role access are split across `lib/database/supabase.ts` and `lib/database/supabase-server.ts`.
+- Frontend hooks and helpers read through `lib/database/*` wrappers rather than querying tables directly.
 
 ### Stripe
 
-- Checkout session created in `/api/checkout`.
-- Subscription state synchronized in `/api/webhooks/stripe` to `profiles`.
+- `/checkout` collects cart summary data, then posts to `/api/checkout`.
+- The success and cancel pages live under `/checkout/success` and `/checkout/cancel`.
+- Webhook sync is handled server-side in `/api/webhooks/stripe`.
 
-### Python import service
+### Google Maps
 
-Next routes proxy to FastAPI (`python-api/main.py`) endpoints:
+- The root layout loads the Maps JS script when `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is set.
+- Frontend geocode and location updates go through `/api/maps` and `/api/location`.
 
-- `POST /recipe-import/url`
-- `POST /recipe-import/instagram`
-- `POST /recipe-import/text`
+### Analytics and experiments
 
-Configured by `PYTHON_SERVICE_URL` (or `NEXT_PUBLIC_PYTHON_SERVICE_URL`).
+- `contexts/analytics-context.tsx` and `hooks/use-analytics.ts` provide route tracking and event dispatch.
+- `hooks/use-experiment.ts` and `hooks/use-feature-flag.ts` wrap the A/B testing client.
 
-### OpenAI
+## Minimal Environment Checklist
 
-- Ingredient/unit standardization and embeddings use OpenAI keys/models in queue/standardizer code.
-
-## Minimal environment checklist (integration-critical)
-
-- Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-- Clerk: server keys + webhook secret (for webhook route)
-- Stripe: `STRIPE_SECRET_KEY`, `STRIPE_PREMIUM_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`
-- Python import service: `PYTHON_SERVICE_URL` (or public fallback var)
-- OpenAI (queue/standardizer): `OPENAI_API_KEY`, optional model vars
-- Maps proxy: one of `GOOGLE_MAPS_SERVER_KEY`, `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
-
+- Clerk client/server keys and webhook secret.
+- Supabase URL and service-role key.
+- Stripe secret key, premium price ID, and webhook secret.
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` for the Maps JS script.
+- `PYTHON_SERVICE_URL` when using the recipe-import proxies.

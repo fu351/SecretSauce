@@ -95,8 +95,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Path to your scraper scripts (in scrapers/stores from project root)
-SCRAPER_PATH = Path(__file__).parent.parent / "scrapers" / "stores"
+# Path to scraper scripts (hosted in backend/workers/scraper-worker/stores)
+_SCRAPER_PATH_CANDIDATES = [
+    Path(__file__).resolve().parent.parent / "backend" / "workers" / "scraper-worker" / "stores",  # repo layout
+    Path(__file__).resolve().parent / "backend" / "workers" / "scraper-worker" / "stores",  # container layout
+]
+SCRAPER_PATH = next((path for path in _SCRAPER_PATH_CANDIDATES if path.exists()), _SCRAPER_PATH_CANDIDATES[0])
 
 DEFAULT_ZIP_CODE = os.getenv("ZIP_CODE") or os.getenv("DEFAULT_ZIP_CODE")
 

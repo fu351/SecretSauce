@@ -36,18 +36,17 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: scripts/package-lock.json
+          cache-dependency-path: backend/scripts/package-lock.json
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps --prefix scripts
 
       - name: Expose scripts dependencies to shared imports
-        run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
+        run: ln -sfn "$GITHUB_WORKSPACE/backend/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
 
       - name: Test embedding queue resolution
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           EMBEDDING_QUEUE_BATCH_LIMIT: ${{ inputs.batch_size }}

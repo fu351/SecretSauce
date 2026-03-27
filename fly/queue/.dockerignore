@@ -1,9 +1,8 @@
 **
-!scripts/package.json
-!scripts/package-lock.json
+!backend/scripts/package.json
+!backend/scripts/package-lock.json
+!backend/scripts/utils/**
 !tsconfig.json
-!queue/**
+!backend/workers/**
 !lib/database/**
-!standardizer/**
 !lib/utils/**
-!scripts/utils/**

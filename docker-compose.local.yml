@@ -32,7 +32,7 @@ services:
   embedding-worker:
     build:
       context: .
-      dockerfile: docker/Dockerfile.embedding-worker
+      dockerfile: backend/docker/Dockerfile.embedding-worker
     depends_on:
       ollama-init:
         condition: service_completed_successfully
@@ -48,8 +48,8 @@ services:
   vector-double-check-worker:
     build:
       context: .
-      dockerfile: docker/Dockerfile.embedding-worker
-    command: ["node_modules/.bin/tsx", "scripts/resolve-vector-double-check.ts"]
+      dockerfile: backend/docker/Dockerfile.embedding-worker
+    command: ["node_modules/.bin/tsx", "backend/workers/vector-double-check-worker/resolve-vector-double-check.ts"]
     env_file:
       - .env.local
     environment:
@@ -63,8 +63,8 @@ services:
   canonical-consolidation-worker:
     build:
       context: .
-      dockerfile: docker/Dockerfile.embedding-worker
-    command: ["node_modules/.bin/tsx", "scripts/resolve-canonical-consolidation.ts"]
+      dockerfile: backend/docker/Dockerfile.embedding-worker
+    command: ["node_modules/.bin/tsx", "backend/workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts"]
     env_file:
       - .env.local
     environment:
@@ -79,7 +79,7 @@ services:
   daily-scraper-local:
     build:
       context: .
-      dockerfile: docker/Dockerfile.daily-scraper
+      dockerfile: backend/docker/Dockerfile.daily-scraper
     env_file:
       - .env.local
       - docker/compose/local/daily-scraper.shared.env

@@ -1,15 +1,17 @@
 # Queue and Standardization
 
-Last verified: 2026-03-23.
+Last verified: 2026-03-26.
 
 ## Ingredient queue worker
 
 Core files:
 
-- `workers/index.ts`
-- `workers/config.ts`
-- `workers/ingredient-worker/processor.ts`
-- `workers/ingredient-worker/runner.ts`
+- `backend/workers/index.ts`
+- `backend/workers/config.ts`
+- `backend/scripts/resolve-ingredient-match-queue.ts`
+- `backend/scripts/package.json`
+- `backend/workers/ingredient-worker/processor.ts`
+- `backend/workers/ingredient-worker/runner.ts`
 
 ### Responsibilities
 
@@ -29,7 +31,7 @@ Core files:
 
 Vector matching policy is implemented in:
 
-- `workers/ingredient-worker/scoring/vector-match.ts`
+- `backend/workers/ingredient-worker/scoring/vector-match.ts`
 
 The effective score combines cosine similarity with bonuses/penalties (head/lexical/category/form) and is used for fast-path and semantic dedup flows.
 
@@ -37,10 +39,14 @@ The effective score combines cosine similarity with bonuses/penalties (head/lexi
 
 Core files:
 
-- `workers/embedding-worker/config.ts`
-- `workers/embedding-worker/processor.ts`
-- `workers/embedding-worker/runner.ts`
-- `scripts/resolve-embedding-queue.ts`
+- `backend/workers/embedding-worker/config.ts`
+- `backend/workers/embedding-worker/embedding-queue-db.ts`
+- `backend/workers/embedding-worker/openai-embeddings.ts`
+- `backend/workers/embedding-worker/ollama-embeddings.ts`
+- `backend/workers/embedding-worker/processor.ts`
+- `backend/workers/embedding-worker/runner.ts`
+- `backend/scripts/resolve-embedding-queue.ts`
+- `backend/scripts/package.json`
 
 Responsibilities:
 
@@ -51,20 +57,20 @@ Responsibilities:
 
 Embedding provider:
 
-- `EMBEDDING_PROVIDER=openai` (default): uses `text-embedding-3-small`, produces `vector(1536)`.
-- `EMBEDDING_PROVIDER=ollama`: uses `nomic-embed-text` by default, produces `vector(768)`.
+- `EMBEDDING_PROVIDER=openai` (default): uses `text-embedding-3-small`.
+- `EMBEDDING_PROVIDER=ollama`: uses `nomic-embed-text` by default.
 - `OLLAMA_BASE_URL` defaults to `http://localhost:11434`.
 
-Note: the DB vector columns are currently sized for `vector(768)` (Ollama/nomic-embed-text). Switching back to OpenAI requires a migration to resize to `vector(1536)`.
+The worker uses `EMBEDDING_OPENAI_MODEL` as the model selector for both providers, so check the embedding schema/migrations before changing provider defaults.
 
 ## Vector double-check candidate discovery
 
 Core files:
 
-- `workers/vector-double-check-worker/config.ts`
-- `workers/vector-double-check-worker/processor.ts`
-- `workers/vector-double-check-worker/runner.ts`
-- `scripts/resolve-vector-double-check.ts`
+- `backend/workers/vector-double-check-worker/config.ts`
+- `backend/workers/vector-double-check-worker/processor.ts`
+- `backend/workers/vector-double-check-worker/runner.ts`
+- `backend/workers/vector-double-check-worker/resolve-vector-double-check.ts`
 
 Purpose:
 
@@ -79,11 +85,11 @@ Run via `docker compose -f docker-compose.local.yml run --rm vector-double-check
 
 Core files:
 
-- `workers/canonical-consolidation-worker/config.ts`
-- `workers/canonical-consolidation-worker/processor.ts`
-- `workers/canonical-consolidation-worker/runner.ts`
-- `workers/canonical-consolidation-worker/survivor.ts`
-- `scripts/resolve-canonical-consolidation.ts`
+- `backend/workers/canonical-consolidation-worker/config.ts`
+- `backend/workers/canonical-consolidation-worker/processor.ts`
+- `backend/workers/canonical-consolidation-worker/runner.ts`
+- `backend/workers/canonical-consolidation-worker/survivor.ts`
+- `backend/workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts`
 - `lib/database/canonical-consolidation-db.ts`
 
 Purpose:
@@ -105,10 +111,10 @@ Note: uses a service-role Supabase client (`lib/database/supabase-worker.ts`) to
 
 Core files:
 
-- `standardizer/ingredient-standardizer.ts`
-- `standardizer/unit-standardizer.ts`
-- `standardizer/prompts/ingredient/*`
-- `standardizer/prompts/unit/*`
+- `backend/workers/standardizer-worker/ingredient-standardizer.ts`
+- `backend/workers/standardizer-worker/unit-standardizer.ts`
+- `backend/workers/standardizer-worker/prompts/ingredient/*`
+- `backend/workers/standardizer-worker/prompts/unit/*`
 
 Key points:
 
@@ -126,6 +132,12 @@ Key points:
   - `npm run resolve-embedding-queue`
 - Continuous embedding queue loop:
   - `npm run embedding-queue-worker`
+- Continuous vector double-check loop:
+  - `npm run vector-double-check-worker`
+- One-shot vector double-check run:
+  - `npm --prefix scripts run resolve-vector-double-check`
+- One-shot canonical consolidation run:
+  - `npm --prefix scripts run resolve-canonical-consolidation`
 - Backfill embedding queue:
   - `npm run backfill-embedding-queue`
 
@@ -140,4 +152,3 @@ Queue/scoring docs are aligned to current migrations in `supabase/migrations/*`,
 - `fn_find_vector_double_check_candidates` — vector similarity scan with 5-min statement timeout
 - `fn_consolidate_canonical` — atomic canonical merge across all downstream tables
 - `canonical_consolidation_log` — audit table for consolidation events
-

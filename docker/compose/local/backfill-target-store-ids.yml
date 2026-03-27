@@ -4,8 +4,8 @@ services:
   backfill-target-store-ids:
     build:
       context: ../../..
-      dockerfile: docker/Dockerfile.daily-scraper
-    command: ["node", "scripts/backfill-target-store-ids.js"]
+      dockerfile: backend/docker/Dockerfile.daily-scraper
+    command: ["node", "backend/scripts/temp/backfill-target-store-ids.js"]
     env_file:
       - ../../../.env.local
       - ./daily-scraper.shared.env

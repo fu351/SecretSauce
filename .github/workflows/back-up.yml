@@ -240,14 +240,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: scripts/package-lock.json
+          cache-dependency-path: backend/scripts/package-lock.json
 
       - name: Install dependencies
         timeout-minutes: 15
         run: npm install --legacy-peer-deps --prefix scripts
 
       - name: Expose scripts dependencies to shared imports
-        run: ln -sfn "$GITHUB_WORKSPACE/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
+        run: ln -sfn "$GITHUB_WORKSPACE/backend/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
 
       - name: Resolve seed author id
         run: |
@@ -280,7 +280,7 @@ jobs:
           INCLUDE_QUEUE_DRIFT_STRESS_RECIPES: "false"
         run: |
           set -euo pipefail
-          ./scripts/node_modules/.bin/tsx scripts/seed-mock-recipes.ts
+          ./backend/scripts/node_modules/.bin/tsx backend/scripts/temp/seed-mock-recipes.ts
 
   initiating-queue-dry-run:
     name: Queue Dry-Run Only (No Scraper, No Post Queue)

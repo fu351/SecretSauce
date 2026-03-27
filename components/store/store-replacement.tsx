@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
-import { searchGroceryStores } from "@/scrapers/grocery-scrapers"
+import { searchGroceryStores } from "@/backend/workers/frontend-scraper-worker/runner"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "@/lib/database/ingredients-db"
 import { productMappingsDB } from "@/lib/database/product-mappings-db"
 import type { GroceryItem } from "@/lib/types/store"
