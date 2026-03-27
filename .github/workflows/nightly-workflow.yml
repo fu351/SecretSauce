@@ -173,7 +173,7 @@ jobs:
   embedding-queue:
     name: Nightly Embedding Queue
     needs: [queue]
-    if: ${{ always() && (needs.queue.result == 'success' || needs.queue.result == 'skipped') && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update","stop_after_queue"]'), inputs.run_mode || 'normal') }}
+    if: ${{ false && always() && (needs.queue.result == 'success' || needs.queue.result == 'skipped') && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update","stop_after_queue"]'), inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/nightly-embedding-queue.yml
     secrets: inherit
     with:
