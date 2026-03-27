@@ -48,7 +48,6 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           EMBEDDING_QUEUE_BATCH_LIMIT: ${{ inputs.batch_size }}
           EMBEDDING_WORKER_SOURCE_TYPE: ${{ inputs.source_type }}
           EMBEDDING_QUEUE_MAX_CYCLES: '1'

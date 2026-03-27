@@ -1,6 +1,6 @@
 # Nightly Embedding Queue Resolver
 #
-# Embeds newly created canonicals using the OpenAI embeddings API.
+# Embeds newly created canonicals using the Ollama embeddings API.
 # Runs after the ingredient queue so canonicals created during that run
 # are available for vector fast-path matching in subsequent nightly runs.
 
@@ -139,7 +139,6 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           NODE_ENV: production
         run: |
           set -euo pipefail

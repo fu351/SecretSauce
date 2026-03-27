@@ -6,7 +6,7 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 
 - Claims pending queue rows with lease semantics.
 - Requeues expired processing rows before each cycle.
-- Fetches embeddings from OpenAI or Ollama.
+- Fetches embeddings from Ollama.
 - Upserts the embedding into the matching destination table.
 - Marks the queue row `completed` or `failed`.
 - Supports `dryRun` mode for previewing rows without writing embeddings.
@@ -18,7 +18,7 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 - `processor.ts` - does the queue claim, embedding fetch, upsert, and status updates.
 - `runner.ts` - continuous loop wrapper around the processor.
 - `embedding-queue-db.ts` - worker-scoped queue and embedding table data access.
-- `openai-embeddings.ts` / `ollama-embeddings.ts` - worker-scoped embedding provider clients.
+- `ollama-embeddings.ts` - worker-scoped Ollama embedding client.
 - `__tests__/processor.test.ts` - Vitest coverage for the main processing paths.
 
 ## Run Instructions
@@ -54,8 +54,7 @@ Required for Supabase access:
 
 Embedding settings:
 
-- `EMBEDDING_PROVIDER` - `openai` default, or `ollama`
-- `EMBEDDING_OPENAI_MODEL` - defaults to `text-embedding-3-small` for OpenAI and `nomic-embed-text` for Ollama
+- `EMBEDDING_OPENAI_MODEL` - defaults to `nomic-embed-text`
 - `OLLAMA_BASE_URL` - defaults to `http://localhost:11434`
 - `EMBEDDING_WORKER_REQUEST_TIMEOUT_MS` - defaults to `30000`
 
@@ -75,8 +74,8 @@ Queue behavior:
 1. Load config from env.
 2. Requeue expired processing rows unless `dryRun` is enabled.
 3. Claim up to `batchLimit` pending rows, filtered by `sourceType`.
-4. In `dryRun`, return previews only and do not call the embedding provider.
-5. Otherwise, fetch embeddings in one batch from the selected provider.
+4. In `dryRun`, return previews only and do not call Ollama.
+5. Otherwise, fetch embeddings in one batch from Ollama.
 6. For each row, upsert to `recipe_embeddings` when `source_type = recipe`, upsert to `ingredient_embeddings` when `source_type = ingredient`, then mark the queue row completed.
 7. If a row write fails, mark that row failed with the error message.
 8. If the batch request fails, mark all claimed rows failed.

@@ -3,7 +3,6 @@ import {
   type EmbeddingQueueRow,
   type EmbeddingSourceType,
 } from "./embedding-queue-db"
-import { fetchEmbeddings } from "./openai-embeddings"
 import { fetchEmbeddingsFromOllama } from "./ollama-embeddings"
 import type { EmbeddingWorkerConfig } from "./config"
 
@@ -51,19 +50,12 @@ async function resolveBatch(rows: EmbeddingQueueRow[], config: EmbeddingWorkerCo
     }
   }
 
-  const embeddings =
-    config.embeddingProvider === "ollama"
-      ? await fetchEmbeddingsFromOllama({
-          model: config.embeddingModel,
-          inputTexts: rows.map((row) => row.input_text),
-          timeoutMs: config.requestTimeoutMs,
-          baseUrl: config.ollamaBaseUrl,
-        })
-      : await fetchEmbeddings({
-          model: config.embeddingModel,
-          inputTexts: rows.map((row) => row.input_text),
-          timeoutMs: config.requestTimeoutMs,
-        })
+  const embeddings = await fetchEmbeddingsFromOllama({
+    model: config.embeddingModel,
+    inputTexts: rows.map((row) => row.input_text),
+    timeoutMs: config.requestTimeoutMs,
+    baseUrl: config.ollamaBaseUrl,
+  })
 
   let completed = 0
   let failed = 0

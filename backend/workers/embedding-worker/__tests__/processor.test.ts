@@ -10,7 +10,7 @@ const {
   mockUpsertIngredientEmbedding,
   mockMarkCompleted,
   mockMarkFailed,
-  mockFetchEmbeddings,
+  mockFetchEmbeddingsFromOllama,
 } = vi.hoisted(() => ({
   mockFetchPending: vi.fn(),
   mockClaimPending: vi.fn(),
@@ -19,7 +19,7 @@ const {
   mockUpsertIngredientEmbedding: vi.fn(),
   mockMarkCompleted: vi.fn(),
   mockMarkFailed: vi.fn(),
-  mockFetchEmbeddings: vi.fn(),
+  mockFetchEmbeddingsFromOllama: vi.fn(),
 }))
 
 vi.mock("../embedding-queue-db", () => ({
@@ -34,8 +34,8 @@ vi.mock("../embedding-queue-db", () => ({
   },
 }))
 
-vi.mock("../openai-embeddings", () => ({
-  fetchEmbeddings: mockFetchEmbeddings,
+vi.mock("../ollama-embeddings", () => ({
+  fetchEmbeddingsFromOllama: mockFetchEmbeddingsFromOllama,
 }))
 
 function buildRow(overrides?: Record<string, unknown>) {
@@ -65,8 +65,7 @@ const baseConfig: EmbeddingWorkerConfig = {
   requeueLimit: 500,
   sourceType: "any",
   dryRun: false,
-  embeddingProvider: "openai",
-  embeddingModel: "text-embedding-3-small",
+  embeddingModel: "nomic-embed-text",
   ollamaBaseUrl: "http://localhost:11434",
   requestTimeoutMs: 30000,
 }
@@ -85,7 +84,7 @@ describe("runEmbeddingQueueResolver", () => {
     mockUpsertIngredientEmbedding.mockResolvedValue(true)
     mockMarkCompleted.mockResolvedValue(true)
     mockMarkFailed.mockResolvedValue(true)
-    mockFetchEmbeddings.mockResolvedValue([])
+    mockFetchEmbeddingsFromOllama.mockResolvedValue([])
   })
 
   it("returns dry-run previews without writing embeddings", async () => {
@@ -116,12 +115,12 @@ describe("runEmbeddingQueueResolver", () => {
       sourceType: "ingredient",
       sourceId: "ing-10",
       inputPreview: "roma tomato",
-      model: "text-embedding-3-small",
+      model: "nomic-embed-text",
     })
 
     expect(mockFetchPending).toHaveBeenCalledWith({ limit: 50, sourceType: "ingredient" })
     expect(mockClaimPending).not.toHaveBeenCalled()
-    expect(mockFetchEmbeddings).not.toHaveBeenCalled()
+    expect(mockFetchEmbeddingsFromOllama).not.toHaveBeenCalled()
     expect(mockMarkCompleted).not.toHaveBeenCalled()
     expect(mockMarkFailed).not.toHaveBeenCalled()
   })
@@ -142,7 +141,7 @@ describe("runEmbeddingQueueResolver", () => {
 
     mockRequeueExpired.mockResolvedValueOnce(2).mockResolvedValueOnce(0)
     mockClaimPending.mockResolvedValueOnce([recipeRow, ingredientRow]).mockResolvedValueOnce([])
-    mockFetchEmbeddings.mockResolvedValueOnce([
+    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([
       [0.1, 0.2],
       [0.3, 0.4],
     ])
@@ -162,22 +161,23 @@ describe("runEmbeddingQueueResolver", () => {
       leaseSeconds: 180,
       sourceType: "any",
     })
-    expect(mockFetchEmbeddings).toHaveBeenCalledWith({
-      model: "text-embedding-3-small",
+    expect(mockFetchEmbeddingsFromOllama).toHaveBeenCalledWith({
+      model: "nomic-embed-text",
       inputTexts: ["Simple tomato soup", "tomato"],
       timeoutMs: 30000,
+      baseUrl: "http://localhost:11434",
     })
     expect(mockUpsertRecipeEmbedding).toHaveBeenCalledWith({
       recipeId: "recipe-1",
       inputText: "Simple tomato soup",
       embedding: [0.1, 0.2],
-      model: "text-embedding-3-small",
+      model: "nomic-embed-text",
     })
     expect(mockUpsertIngredientEmbedding).toHaveBeenCalledWith({
       standardizedIngredientId: "ingredient-2",
       inputText: "tomato",
       embedding: [0.3, 0.4],
-      model: "text-embedding-3-small",
+      model: "nomic-embed-text",
     })
     expect(mockMarkCompleted).toHaveBeenCalledTimes(2)
     expect(mockMarkFailed).not.toHaveBeenCalled()
@@ -198,7 +198,7 @@ describe("runEmbeddingQueueResolver", () => {
     })
 
     mockClaimPending.mockResolvedValueOnce([rowA, rowB]).mockResolvedValueOnce([])
-    mockFetchEmbeddings.mockResolvedValueOnce([[0.11], [0.22]])
+    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.11], [0.22]])
 
     mockUpsertRecipeEmbedding.mockResolvedValueOnce(true)
     mockMarkCompleted.mockResolvedValueOnce(false)
@@ -225,7 +225,7 @@ describe("runEmbeddingQueueResolver", () => {
     const rowB = buildRow({ id: "cycle-b", source_id: "ingredient-b" })
 
     mockClaimPending.mockResolvedValueOnce([rowA, rowB]).mockResolvedValueOnce([])
-    mockFetchEmbeddings.mockRejectedValueOnce(new Error("OpenAI temporarily unavailable"))
+    mockFetchEmbeddingsFromOllama.mockRejectedValueOnce(new Error("Ollama temporarily unavailable"))
 
     const summary = await runEmbeddingQueueResolver(baseConfig)
 
@@ -236,7 +236,7 @@ describe("runEmbeddingQueueResolver", () => {
       totalFailed: 2,
     })
     expect(mockMarkFailed).toHaveBeenCalledTimes(2)
-    expect(mockMarkFailed.mock.calls[0]).toEqual(["cycle-a", "OpenAI temporarily unavailable"])
-    expect(mockMarkFailed.mock.calls[1]).toEqual(["cycle-b", "OpenAI temporarily unavailable"])
+    expect(mockMarkFailed.mock.calls[0]).toEqual(["cycle-a", "Ollama temporarily unavailable"])
+    expect(mockMarkFailed.mock.calls[1]).toEqual(["cycle-b", "Ollama temporarily unavailable"])
   })
 })

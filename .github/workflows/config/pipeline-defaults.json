@@ -37,6 +37,6 @@
     "embedding_batch_limit": "100",
     "embedding_max_batches": "5",
     "embedding_batch_delay_seconds": "1",
-    "embedding_model": "text-embedding-3-small"
+    "embedding_model": "nomic-embed-text"
   }
 }
