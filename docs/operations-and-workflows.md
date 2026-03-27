@@ -20,11 +20,12 @@ Last verified: 2026-03-20.
 - `npm run embedding-queue-worker`
 - `npm run backfill-embedding-queue`
 
-### Scraper/data scripts (`scripts/`)
+### Scraper/data scripts (`scripts/` and `workers/`)
 
 JavaScript/TypeScript:
 
-- `scripts/daily-scraper.js`
+- `workers/daily-scraper-worker/runner.js` (canonical entrypoint)
+- `scripts/daily-scraper.js` (legacy compatibility shim)
 - `scripts/resolve-ingredient-match-queue.ts`
 - `scripts/resolve-embedding-queue.ts`
 - `scripts/backfill-embedding-queue.ts`
@@ -45,7 +46,7 @@ Python:
 
 Current workflows include:
 
-- `daily-scraper-matrix.yml`
+- `daily-scraper-matrix.yml` (runs `workers/daily-scraper-worker/runner.js`)
 - `nightly-workflow.yml`
 - `nightly-ingredient-queue.yml`
 - `nightly-embedding-queue.yml`
@@ -68,4 +69,3 @@ Most workflows are manually dispatchable; some have schedules (for example night
 2. When adding/changing API routes, update `api-and-integrations.md`.
 3. When changing queue/scoring behavior, update `queue-and-standardization.md`.
 4. Keep docs updates in the same PR/commit as behavior changes.
-

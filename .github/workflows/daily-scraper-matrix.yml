@@ -1,4 +1,29 @@
 name: Daily Scraper Matrix
+# ---------------------------------------------------------------------------
+# Resource Budget Strategy
+# ---------------------------------------------------------------------------
+# This workflow uses three layers of throttling to prevent burst 429s when
+# many matrix jobs fire simultaneously against shared external APIs:
+#
+# 1. Concurrency groups (per-job level)
+#    Jobs that share the same underlying rate-limit domain (e.g. Jina AI for
+#    traderjoes/aldi/wholefoods) are placed in the same concurrency group so
+#    only one runs at a time within a workflow run.  Non-Jina stores each get
+#    their own group and can run in parallel up to max-parallel.
+#
+# 2. Per-store stagger delay (start_delay_s matrix field)
+#    Even within stores that are NOT serialised by a concurrency group, a
+#    small startup sleep is injected so they don't all hit their respective
+#    APIs in the same second.  Jina-backed stores use longer offsets (0/30/60s)
+#    because they share a single API key quota.
+#
+# 3. Conservative per-job env vars
+#    STORE_CONCURRENCY, SCRAPER_BATCH_CONCURRENCY, and INGREDIENT_DELAY_MS are
+#    set at the workflow level (from pipeline-defaults.json) and are overridden
+#    to tighter values for Jina-backed stores specifically to limit burst
+#    parallelism inside each job.  These complement — never replace — the
+#    per-scraper rate limiters inside workers/daily-scraper-worker/runner.js.
+# ---------------------------------------------------------------------------
 
 on:
   workflow_call:
@@ -91,6 +116,8 @@ jobs:
       store_concurrency: ${{ steps.defaults.outputs.store_concurrency }}
       ingredient_delay_ms: ${{ steps.defaults.outputs.ingredient_delay_ms }}
       insert_batch_size: ${{ steps.defaults.outputs.insert_batch_size }}
+      insert_concurrency: ${{ steps.defaults.outputs.insert_concurrency }}
+      insert_queue_max_size: ${{ steps.defaults.outputs.insert_queue_max_size }}
       request_timeout_ms: ${{ steps.defaults.outputs.request_timeout_ms }}
       scraper_timeout_minutes: ${{ steps.defaults.outputs.scraper_timeout_minutes }}
       scraper_batch_size: ${{ steps.defaults.outputs.scraper_batch_size }}
@@ -119,6 +146,8 @@ jobs:
               "store_concurrency",
               "ingredient_delay_ms",
               "insert_batch_size",
+              "insert_concurrency",
+              "insert_queue_max_size",
               "request_timeout_ms",
               "scraper_timeout_minutes",
               "scraper_batch_size",
@@ -191,10 +220,41 @@ jobs:
             fi
           fi
 
+          # Assign per-store metadata:
+          #   store_brand  — the underlying API domain used for concurrency grouping.
+          #                  Jina-backed stores (traderjoes, aldi, wholefoods) share
+          #                  the same API key and are grouped under "jina".
+          #                  All others get their own brand name so they can run in
+          #                  parallel without hitting a shared rate limit.
+          #   start_delay_s — stagger offset so jobs don't hammer APIs simultaneously.
+          #                  Jina stores are spaced 30 s apart; non-Jina stores start
+          #                  immediately (offset 0) because they hit independent APIs.
+          declare -A brand_map=(
+            [traderjoes]="jina"
+            [aldi]="jina"
+            [wholefoods]="jina"
+            [walmart]="walmart"
+            [kroger]="kroger"
+            [safeway]="safeway"
+            [andronicos]="andronicos"
+            [meijer]="meijer"
+            [target]="target"
+            [99ranch]="99ranch"
+          )
+
+          jina_delay=0
           json="["
           for i in "${!selected[@]}"; do
+            store="${selected[$i]}"
+            brand="${brand_map[$store]:-$store}"
+            if [ "$brand" = "jina" ]; then
+              delay=$jina_delay
+              jina_delay=$((jina_delay + 30))
+            else
+              delay=0
+            fi
             [ "$i" -gt 0 ] && json+=","
-            json+="\"${selected[$i]}\""
+            json+="{\"store\":\"${store}\",\"store_brand\":\"${brand}\",\"start_delay_s\":${delay}}"
           done
           json+="]"
 
@@ -208,20 +268,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     concurrency:
-      # Ensure Jina-backed scrapers never run at the same time within a run,
-      # while allowing non-Jina stores to run in parallel.
-      group: ${{ contains(fromJson('["aldi","traderjoes"]'), matrix.store) && format('daily-scraper-jina-{0}', github.run_id) || format('daily-scraper-store-{0}-{1}', github.run_id, matrix.store) }}
+      # Serialise jobs that share the same underlying API rate-limit domain.
+      # Jina-backed stores (traderjoes, aldi, wholefoods) all get store_brand="jina"
+      # so at most one of them runs at a time per workflow run.
+      # All other stores have a unique store_brand and run in parallel (subject to
+      # max-parallel) without contending on a shared rate limit.
+      group: daily-scraper-${{ matrix.store_brand || 'all' }}-${{ github.run_id }}
       cancel-in-progress: false
 
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        store: ${{ fromJson(needs.prepare-matrix.outputs.store_json) }}
+        include: ${{ fromJson(needs.prepare-matrix.outputs.store_json) }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Stagger job start
+        # Spread API bursts by sleeping for the per-store offset defined in the
+        # matrix.  Jina-backed stores are staggered 30 s apart; all others are 0.
+        run: |
+          DELAY_S="${{ matrix.start_delay_s || 0 }}"
+          if [ "$DELAY_S" -gt 0 ]; then
+            echo "Staggering job start by ${DELAY_S}s (store_brand: ${{ matrix.store_brand }})"
+            sleep "$DELAY_S"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -251,13 +324,19 @@ jobs:
           JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
           INGREDIENT_LIMIT: ${{ inputs.ingredient_limit }}
           STORE_LIMIT: ${{ inputs.store_limit }}
-          STORE_CONCURRENCY: ${{ needs['load-config'].outputs.store_concurrency }}
-          INGREDIENT_DELAY_MS: ${{ needs['load-config'].outputs.ingredient_delay_ms }}
+          # Orchestration-level resource budget:
+          # Jina-backed stores (store_brand=jina) use tighter concurrency limits to
+          # avoid burst 429s on the shared Jina API key.  Non-Jina stores use the
+          # pipeline-defaults values which are already tuned for their own APIs.
+          STORE_CONCURRENCY: ${{ matrix.store_brand == 'jina' && '10' || needs['load-config'].outputs.store_concurrency }}
+          SCRAPER_BATCH_CONCURRENCY: ${{ matrix.store_brand == 'jina' && '3' || needs['load-config'].outputs.scraper_batch_concurrency }}
+          INGREDIENT_DELAY_MS: ${{ matrix.store_brand == 'jina' && '500' || needs['load-config'].outputs.ingredient_delay_ms }}
           INSERT_BATCH_SIZE: ${{ needs['load-config'].outputs.insert_batch_size }}
+          INSERT_CONCURRENCY: ${{ needs['load-config'].outputs.insert_concurrency }}
+          INSERT_QUEUE_MAX_SIZE: ${{ needs['load-config'].outputs.insert_queue_max_size }}
           SCRAPER_TIMEOUT_MS: ${{ needs['load-config'].outputs.request_timeout_ms }}
           SCRAPER_TIMEOUT_MINUTES: ${{ needs['load-config'].outputs.scraper_timeout_minutes }}
           SCRAPER_BATCH_SIZE: ${{ needs['load-config'].outputs.scraper_batch_size }}
-          SCRAPER_BATCH_CONCURRENCY: ${{ needs['load-config'].outputs.scraper_batch_concurrency }}
           TRADERJOES_BATCH_SIZE: ${{ needs['load-config'].outputs.traderjoes_batch_size }}
           TRADERJOES_BATCH_CONCURRENCY: ${{ needs['load-config'].outputs.traderjoes_batch_concurrency }}
           NODE_ENV: production
@@ -316,7 +395,7 @@ jobs:
           echo "   ZIP min/max: ${STORE_ZIP_MIN:-<none>} / ${STORE_ZIP_MAX:-<none>}"
 
           set +e
-          timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node scripts/daily-scraper.js
+          timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node workers/daily-scraper-worker/runner.js
           status=$?
           set -e
 

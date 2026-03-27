@@ -252,3 +252,64 @@ export function normalizeBatchResultsShape(rawBatchResults, expectedLength) {
 
   return Array.from({ length: expectedLength }, (_, index) => normalizeResultsShape(rawBatchResults[index]))
 }
+
+/**
+ * Parses a remaining cooldown duration from a rate-limit error message.
+ * Matches patterns like "cooldown active for 74746ms" or "for 90000ms".
+ * Returns 0 if no duration is found.
+ */
+export function parseCooldownMsFromMessage(message) {
+  const match = String(message || '').match(/for\s+(\d+)\s*ms/i)
+  return match ? parseInt(match[1], 10) : 0
+}
+
+/**
+ * Runs a batch scraper call; if a rate-limit error with a parseable cooldown
+ * duration is thrown, sleeps for that duration (+ 2s buffer, max 120s) and
+ * retries once. Returns a structured result regardless of outcome.
+ *
+ * @param {object} opts
+ * @param {() => Promise<any>} opts.runBatch  - calls the native batch scraper
+ * @param {string}  opts.storeEnum
+ * @param {string}  opts.message              - error message from the initial failure
+ * @param {string}  opts.code                 - error code from the initial failure
+ * @param {number}  opts.ingredientCount
+ * @param {(ms: number) => Promise<void>} opts.sleepFn
+ */
+export async function runBatchWithCooldownRetry({
+  runBatch,
+  storeEnum,
+  message,
+  code,
+  ingredientCount,
+  sleepFn,
+}) {
+  const cooldownRemainingMs = parseCooldownMsFromMessage(message)
+
+  if (cooldownRemainingMs > 0) {
+    const sleepMs = Math.min(cooldownRemainingMs + 2000, 120000)
+    await sleepFn(sleepMs)
+    try {
+      const retryResults = await runBatch()
+      return {
+        resultsByIngredient: normalizeBatchResultsShape(retryResults, ingredientCount),
+        errorFlags: Array.from({ length: ingredientCount }, () => false),
+        errorMessages: Array.from({ length: ingredientCount }, () => ''),
+        http404Flags: Array.from({ length: ingredientCount }, () => false),
+        errorCodes: Array.from({ length: ingredientCount }, () => ''),
+        _retrySucceeded: true,
+      }
+    } catch (_retryError) {
+      // fall through to error return below
+    }
+  }
+
+  return {
+    resultsByIngredient: emptyBatchResults(ingredientCount),
+    errorFlags: Array.from({ length: ingredientCount }, () => true),
+    errorMessages: Array.from({ length: ingredientCount }, () => message),
+    http404Flags: Array.from({ length: ingredientCount }, () => false),
+    errorCodes: Array.from({ length: ingredientCount }, () => (code || '').toUpperCase()),
+    _retrySucceeded: false,
+  }
+}

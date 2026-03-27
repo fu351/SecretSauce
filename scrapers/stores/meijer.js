@@ -9,6 +9,9 @@ const { createResultCache } = require('../utils/result-cache');
 const resultCache = createResultCache({ ttlMs: Number(process.env.MEIJER_CACHE_TTL_MS || 5 * 60 * 1000) });
 const log = createScraperLogger('meijer');
 
+const DEFAULT_BATCH_CONCURRENCY = Number(process.env.MEIJER_BATCH_CONCURRENCY || 3);
+const MAX_BATCH_CONCURRENCY = 8;
+
 const { enforceRateLimit } = createRateLimiter({
     requestsPerSecond: Number(process.env.MEIJER_REQUESTS_PER_SECOND || 2),
     minIntervalMs: Number(process.env.MEIJER_MIN_REQUEST_INTERVAL_MS || 500),
@@ -172,7 +175,43 @@ if (require.main === module) {
 }
 
 const Meijers = searchMeijer;
-module.exports = { searchMeijer, Meijers, getLocations };
+
+async function searchMeijerBatch(keywords, zipCode, options = {}) {
+    if (!Array.isArray(keywords) || keywords.length === 0) {
+        return [];
+    }
+
+    const requestedConcurrency = Number(options?.concurrency || DEFAULT_BATCH_CONCURRENCY);
+    const concurrency = Math.max(1, Math.min(MAX_BATCH_CONCURRENCY, requestedConcurrency));
+
+    const results = new Array(keywords.length);
+    let cursor = 0;
+    let fatalError = null;
+
+    async function worker() {
+        while (cursor < keywords.length) {
+            if (fatalError) {
+                return;
+            }
+            const index = cursor++;
+            const keyword = keywords[index];
+            try {
+                results[index] = await searchMeijer(zipCode, keyword);
+            } catch (error) {
+                log.error('[meijer] Batch worker error:', error.message || error);
+                results[index] = [];
+            }
+        }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    if (fatalError) {
+        throw fatalError;
+    }
+    return results;
+}
+
+module.exports = { searchMeijer, Meijers, getLocations, searchMeijerBatch };
 
 function extractNearestStore(locationsResponse) {
     if (!locationsResponse) {
