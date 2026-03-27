@@ -100,6 +100,28 @@ services:
       - CONSOLIDATION_MIN_SIMILARITY=0.92
       - CONSOLIDATION_MIN_EVENT_COUNT=1
 
+  # Vector-based product remapping — embeds raw_product_name via Ollama and
+  # updates standardized_ingredient_id on all non-manual product_mappings rows
+  # when a higher-confidence canonical match is found.
+  # Requires embedding-worker to have already populated ingredient_embeddings.
+  # Defaults to dry-run locally; set DRY_RUN=false to apply changes.
+  product-remap-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.product-remap-worker
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env.local
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - EMBEDDING_MODEL=nomic-embed-text
+      - DRY_RUN=false
+      - BATCH_SIZE=100
+      - MIN_CONFIDENCE=0.7
+      - MIN_NULL_CONFIDENCE=0.5
+
   # Local daily scraper smoke test - dry-run only, with small limits so we can
   # validate scraper orchestration without writing any database changes.
   # For a matrix-style local setup with one service per brand, use:
