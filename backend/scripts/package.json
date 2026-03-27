@@ -8,6 +8,8 @@
     "resolve-embedding-queue": "tsx resolve-embedding-queue.ts",
     "visualize-ingredient-embeddings-pca": "python analysis/visualize-ingredient-embeddings-pca.py",
     "weighted-cluster-projection": "python analysis/weighted-cluster-projection.py",
+    "consolidation-candidate-scatter": "python analysis/consolidation-candidate-scatter.py",
+    "populate-substitution-proposals": "python analysis/populate-substitution-proposals.py",
     "resolve-vector-double-check": "tsx ../workers/vector-double-check-worker/resolve-vector-double-check.ts",
     "resolve-canonical-consolidation": "tsx ../workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts",
     "queue-worker": "tsx ../workers/ingredient-worker/runner.ts",
