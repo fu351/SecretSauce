@@ -14,6 +14,10 @@ Scans `ingredient_embeddings` for canonical pairs with high cosine similarity, t
 
 - Local one-shot:
   - `tsx --env-file=.env.local backend/workers/vector-double-check-worker/resolve-vector-double-check.ts`
+- Repo loop:
+  - `npm run vector-double-check-worker`
+- Shared scripts package entrypoint:
+  - `npm --prefix scripts run resolve-vector-double-check`
 - Local Docker service:
   - `docker compose -f docker-compose.local.yml run --rm vector-double-check-worker`
 

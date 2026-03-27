@@ -1,6 +1,6 @@
 # Queue and Standardization
 
-Last verified: 2026-03-23.
+Last verified: 2026-03-26.
 
 ## Ingredient queue worker
 
@@ -8,6 +8,8 @@ Core files:
 
 - `backend/workers/index.ts`
 - `backend/workers/config.ts`
+- `backend/scripts/resolve-ingredient-match-queue.ts`
+- `backend/scripts/package.json`
 - `backend/workers/ingredient-worker/processor.ts`
 - `backend/workers/ingredient-worker/runner.ts`
 
@@ -38,9 +40,13 @@ The effective score combines cosine similarity with bonuses/penalties (head/lexi
 Core files:
 
 - `backend/workers/embedding-worker/config.ts`
+- `backend/workers/embedding-worker/embedding-queue-db.ts`
+- `backend/workers/embedding-worker/openai-embeddings.ts`
+- `backend/workers/embedding-worker/ollama-embeddings.ts`
 - `backend/workers/embedding-worker/processor.ts`
 - `backend/workers/embedding-worker/runner.ts`
 - `backend/scripts/resolve-embedding-queue.ts`
+- `backend/scripts/package.json`
 
 Responsibilities:
 
@@ -51,11 +57,11 @@ Responsibilities:
 
 Embedding provider:
 
-- `EMBEDDING_PROVIDER=openai` (default): uses `text-embedding-3-small`, produces `vector(1536)`.
-- `EMBEDDING_PROVIDER=ollama`: uses `nomic-embed-text` by default, produces `vector(768)`.
+- `EMBEDDING_PROVIDER=openai` (default): uses `text-embedding-3-small`.
+- `EMBEDDING_PROVIDER=ollama`: uses `nomic-embed-text` by default.
 - `OLLAMA_BASE_URL` defaults to `http://localhost:11434`.
 
-Note: the DB vector columns are currently sized for `vector(768)` (Ollama/nomic-embed-text). Switching back to OpenAI requires a migration to resize to `vector(1536)`.
+The worker uses `EMBEDDING_OPENAI_MODEL` as the model selector for both providers, so check the embedding schema/migrations before changing provider defaults.
 
 ## Vector double-check candidate discovery
 
@@ -126,6 +132,12 @@ Key points:
   - `npm run resolve-embedding-queue`
 - Continuous embedding queue loop:
   - `npm run embedding-queue-worker`
+- Continuous vector double-check loop:
+  - `npm run vector-double-check-worker`
+- One-shot vector double-check run:
+  - `npm --prefix scripts run resolve-vector-double-check`
+- One-shot canonical consolidation run:
+  - `npm --prefix scripts run resolve-canonical-consolidation`
 - Backfill embedding queue:
   - `npm run backfill-embedding-queue`
 

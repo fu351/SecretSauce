@@ -20,6 +20,12 @@ One-shot:
 tsx --env-file=.env.local backend/workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts
 ```
 
+Shared scripts package entrypoint:
+
+```bash
+npm --prefix scripts run resolve-canonical-consolidation
+```
+
 Docker Compose:
 
 ```bash

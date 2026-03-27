@@ -15,6 +15,7 @@ This worker claims pending ingredient queue rows, standardizes ingredient names,
 
 ## Key Files
 
+- `backend/scripts/resolve-ingredient-match-queue.ts` - one-shot resolver used by the root script alias and workflow runs.
 - `runner.ts` - long-running worker loop; calls the processor once per cycle and sleeps between cycles.
 - `processor.ts` - main queue resolver; claims rows, runs ingredient/unit standardization, applies safety checks, and persists results.
 - `batching.ts` - chunking and bounded concurrency helpers.
@@ -33,10 +34,10 @@ This worker claims pending ingredient queue rows, standardizes ingredient names,
 
 From the repo root:
 
-- One-shot queue run: `npm run resolve-ingredient-match-queue`
-- Continuous loop: `npm run queue-worker`
+- One-shot queue run: `npm run resolve-ingredient-match-queue` or `npm --prefix scripts run resolve-ingredient-match-queue`
+- Continuous loop: `npm run queue-worker` or `npm --prefix scripts run queue-worker`
 
-The worker script is wired through the repo scripts package, and the Fly worker process also uses `npm --prefix scripts run queue-worker`.
+The repo root script aliases and the shared `backend/scripts` package point at the same runner, and the Fly worker process uses the shared package entrypoint.
 
 ## Required Env
 

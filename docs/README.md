@@ -1,15 +1,15 @@
 # Documentation Index
 
-Last verified against code on 2026-03-20.
+Last verified against code on 2026-03-26.
 
 This directory was consolidated to reduce drift. Start with this index, then jump to the focused docs below.
 
 ## Core docs
 
 - [`architecture-and-surfaces.md`](./architecture-and-surfaces.md)
-  - Current repository layout, runtime boundaries, and feature surfaces.
+  - Current frontend routes, providers, runtime boundaries, and feature surfaces.
 - [`api-and-integrations.md`](./api-and-integrations.md)
-  - Current `app/api/*` routes and external service contracts.
+  - Current `app/api/*` routes, frontend callers, and external service contracts.
 - [`queue-and-standardization.md`](./queue-and-standardization.md)
   - Ingredient queue, embedding queue, vector matching, and standardization internals.
 - [`operations-and-workflows.md`](./operations-and-workflows.md)

@@ -13,6 +13,7 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 
 ## Key Files
 
+- `backend/scripts/resolve-embedding-queue.ts` - one-shot resolver used by the root script alias and workflow runs.
 - `config.ts` - reads worker config from environment variables.
 - `processor.ts` - does the queue claim, embedding fetch, upsert, and status updates.
 - `runner.ts` - continuous loop wrapper around the processor.
@@ -28,13 +29,21 @@ One-shot resolver:
 npm run resolve-embedding-queue
 ```
 
+The shared `backend/scripts` package also exposes the same entrypoint via `npm --prefix scripts run resolve-embedding-queue`.
+
 Local Docker worker:
 
 ```bash
 docker compose -f docker-compose.local.yml run --rm embedding-worker
 ```
 
-The continuous loop helper lives in `backend/workers/embedding-worker/runner.ts`, but the repo's main operational path for this worker is the one-shot resolver above.
+Continuous loop:
+
+```bash
+npm run embedding-queue-worker
+```
+
+The loop runner lives in `backend/workers/embedding-worker/runner.ts`.
 
 ## Required Env Vars
 
