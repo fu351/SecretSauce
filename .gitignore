@@ -4,6 +4,7 @@
 /node_modules
 package-lock.json
 !scripts/package-lock.json
+!backend/scripts/package-lock.json
 
 # next.js
 /.next/
