@@ -42,7 +42,7 @@ export function getCanonicalPipelineConfigFromEnv(
     consolidationMinSimilarity: readBoundedFloat(process.env.PIPELINE_CONSOLIDATION_MIN_SIMILARITY, 0.92, 0.5, 1.0),
     consolidationMinEventCount: readPositiveInt(process.env.PIPELINE_CONSOLIDATION_MIN_EVENT_COUNT, 2),
     consolidationBatchLimit: readPositiveInt(process.env.PIPELINE_CONSOLIDATION_BATCH_LIMIT, 50),
-    consolidationEnableClusterPlanning: readBoolean(process.env.PIPELINE_CONSOLIDATION_CLUSTER_PLANNING, false),
+    consolidationEnableClusterPlanning: readBoolean(process.env.PIPELINE_CONSOLIDATION_CLUSTER_PLANNING, true),
     consolidationWeightedSimilarityThreshold: readBoundedFloat(
       process.env.PIPELINE_CONSOLIDATION_WEIGHTED_SIMILARITY_THRESHOLD,
       0.97,

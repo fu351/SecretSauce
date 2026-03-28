@@ -50,7 +50,7 @@ Worker config env vars:
 - `CONSOLIDATION_MIN_EVENT_COUNT` - minimum `event_count`, default `2`
 - `CONSOLIDATION_DRY_RUN` - default `true`
 - `CONSOLIDATION_WORKER_NAME` - audit label, default `canonical-consolidation-worker`
-- `CONSOLIDATION_ENABLE_CLUSTER_PLANNING` - when `true`, derive lateral merge intents from token-coherent candidate communities before applying the pairwise worker rules; default `false`
+- `CONSOLIDATION_ENABLE_CLUSTER_PLANNING` - when `true`, derive lateral merge intents from token-coherent candidate communities before applying the pairwise worker rules; default `true`
 
 Note: `docker-compose.local.yml` overrides some defaults for local execution, including `CONSOLIDATION_MIN_EVENT_COUNT=1`.
 
@@ -60,7 +60,7 @@ Note: `docker-compose.local.yml` overrides some defaults for local execution, in
 2. Query `canonical_double_check_daily_stats` for rows from the last year with:
    - `decision = skipped`
    - `reason = vector_candidate_discovery`
-   - `direction in ('lateral', 'specific_to_generic')`
+   - `direction = lateral`
    - `event_count >= minEventCount`
    - `max_similarity >= minSimilarity`
 3. Reject candidates that fail guard rules:
@@ -69,11 +69,11 @@ Note: `docker-compose.local.yml` overrides some defaults for local execution, in
    - empty canonicals
    - non-trivial lateral variants
 4. Pick the survivor:
-   - `specific_to_generic` -> target survives
-   - `lateral` -> shorter name survives, with lexicographic tie-break
+   - cluster-planned rows keep the cluster-selected target, but still must pass the normal guard rules
+   - other `lateral` rows prefer higher product count, then shorter name, then lexicographic tie-break
 5. If `CONSOLIDATION_DRY_RUN=true`, log the intended merge and skip the RPC call.
 6. Otherwise call `fn_consolidate_canonical` to remap downstream references and delete the loser canonical.
-7. Write a row to `canonical_consolidation_log`, then log the remap through `fn_log_canonical_double_check_daily` with decision `remapped`.
+7. Write a row to `canonical_consolidation_log`, then log the remap through `fn_log_canonical_double_check_daily` with decision `remapped`. If either audit write fails, the worker records the merge as failed instead of silently treating it as complete.
 
 ## Testing
 

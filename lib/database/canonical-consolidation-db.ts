@@ -202,7 +202,7 @@ class CanonicalConsolidationDB {
     })
 
     if (error) {
-      console.error("[CanonicalConsolidationDB] logConsolidationEvent error:", error.message)
+      throw new Error(`[CanonicalConsolidationDB] logConsolidationEvent error: ${error.message}`)
     }
   }
 }

@@ -45,6 +45,20 @@ interface ProcessIntentsResult {
   failed: number
 }
 
+function assessIntent(
+  intent: ConsolidationIntent,
+  weightedContext: WeightedHeuristicContext
+): { allowed: boolean; reason: string } {
+  const guardAssessment = assessConsolidationCandidate(intent.row, weightedContext)
+  if (!guardAssessment.allowed) return guardAssessment
+  if (!intent.forcedReason) return guardAssessment
+
+  return {
+    allowed: true,
+    reason: `${guardAssessment.reason}+${intent.forcedReason}`,
+  }
+}
+
 function buildConsolidationIntents(
   rows: CanonicalDoubleCheckDailyStatsRow[],
   productCounts: Map<string, number>,
@@ -165,9 +179,7 @@ async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: numb
 
   for (const intent of plan.intents) {
     const row = intent.row
-    const assessment = intent.forcedReason
-      ? { allowed: true, reason: intent.forcedReason }
-      : assessConsolidationCandidate(row, weightedContext)
+    const assessment = assessIntent(intent, weightedContext)
 
     if (!assessment.allowed) {
       console.log(
@@ -218,7 +230,7 @@ async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: numb
       })
 
       // Mark the stats row as remapped
-      await ingredientMatchQueueDB.logCanonicalDoubleCheckDaily({
+      const remapLogged = await ingredientMatchQueueDB.logCanonicalDoubleCheckDaily({
         sourceCanonical: row.source_canonical,
         targetCanonical: row.target_canonical,
         decision: "remapped",
@@ -228,6 +240,9 @@ async function runCycle(config: CanonicalConsolidationWorkerConfig, offset: numb
         sourceCategory: row.source_category,
         targetCategory: row.target_category,
       })
+      if (!remapLogged) {
+        throw new Error("Failed to log canonical remap daily stats")
+      }
 
       console.log(
         `[CanonicalConsolidation] Merged ${loserCanonical} -> ${survivorCanonical} ` +
@@ -281,9 +296,7 @@ async function processIntents(
 
   for (const intent of intents) {
     const row = intent.row
-    const assessment = intent.forcedReason
-      ? { allowed: true, reason: intent.forcedReason }
-      : assessConsolidationCandidate(row, weightedContext)
+    const assessment = assessIntent(intent, weightedContext)
 
     if (!assessment.allowed) {
       console.log(
@@ -333,7 +346,7 @@ async function processIntents(
         workerName: config.workerName,
       })
 
-      await ingredientMatchQueueDB.logCanonicalDoubleCheckDaily({
+      const remapLogged = await ingredientMatchQueueDB.logCanonicalDoubleCheckDaily({
         sourceCanonical: row.source_canonical,
         targetCanonical: row.target_canonical,
         decision: "remapped",
@@ -343,6 +356,9 @@ async function processIntents(
         sourceCategory: row.source_category,
         targetCategory: row.target_category,
       })
+      if (!remapLogged) {
+        throw new Error("Failed to log canonical remap daily stats")
+      }
 
       console.log(
         `[CanonicalConsolidation] Merged ${loserCanonical} -> ${survivorCanonical} ` +

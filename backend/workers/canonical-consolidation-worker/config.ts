@@ -35,7 +35,7 @@ export function getCanonicalConsolidationWorkerConfigFromEnv(
       1.0
     ),
     minWeightedProductCount: readPositiveInt(process.env.CONSOLIDATION_MIN_WEIGHTED_PRODUCT_COUNT, 5),
-    enableClusterPlanning: readBoolean(process.env.CONSOLIDATION_ENABLE_CLUSTER_PLANNING, false),
+    enableClusterPlanning: readBoolean(process.env.CONSOLIDATION_ENABLE_CLUSTER_PLANNING, true),
     ...overrides,
   }
 }
