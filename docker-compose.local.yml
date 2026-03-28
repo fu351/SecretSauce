@@ -92,6 +92,9 @@ services:
     build:
       context: .
       dockerfile: backend/docker/Dockerfile.embedding-worker
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
     command: ["node_modules/.bin/tsx", "backend/workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts"]
     env_file:
       - .env.local
@@ -99,6 +102,29 @@ services:
       - CONSOLIDATION_DRY_RUN=false
       - CONSOLIDATION_MIN_SIMILARITY=0.92
       - CONSOLIDATION_MIN_EVENT_COUNT=1
+
+  # Full canonical pipeline — runs probation-embedding → vector-discovery → consolidation
+  # in sequence. Requires Ollama for the embedding stage. Defaults to dry-run=false
+  # since this is the primary operational entry-point for the full pipeline.
+  canonical-pipeline:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.embedding-worker
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    command: ["node_modules/.bin/tsx", "backend/workers/canonical-pipeline/resolve-canonical-pipeline.ts"]
+    env_file:
+      - .env.local
+    environment:
+      - PIPELINE_DRY_RUN=false
+      - PIPELINE_ENABLE_PROBATION_EMBEDDING=true
+      - PIPELINE_ENABLE_VECTOR_DISCOVERY=true
+      - PIPELINE_ENABLE_CONSOLIDATION=true
+      - PIPELINE_STOP_ON_STAGE_ERROR=true
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - PIPELINE_EMBEDDING_MODEL=nomic-embed-text
+      - PIPELINE_VECTOR_EMBEDDING_MODEL=text-embedding-3-small
 
   # Vector-based product remapping — embeds raw_product_name via Ollama and
   # updates standardized_ingredient_id on all non-manual product_mappings rows

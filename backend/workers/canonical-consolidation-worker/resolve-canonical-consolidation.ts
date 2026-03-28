@@ -3,6 +3,7 @@
 import "dotenv/config"
 import * as configModule from "./config"
 import * as processorModule from "./processor"
+import { requireSupabaseEnv } from "../env-utils"
 import type { CanonicalConsolidationWorkerConfig } from "./config"
 import type { CanonicalConsolidationRunSummary } from "./processor"
 
@@ -31,20 +32,13 @@ const runFn = runCanonicalConsolidation as (
   config: CanonicalConsolidationWorkerConfig
 ) => Promise<CanonicalConsolidationRunSummary>
 
-function requireSupabaseEnv(): void {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error(
-      "Missing Supabase credentials. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    )
-  }
-}
-
 async function main(): Promise<void> {
   requireSupabaseEnv()
   const config = getConfigFn()
+  console.log(
+    `[CanonicalConsolidationResolver] Loaded config ` +
+      `(dryRun=${config.dryRun}, batchLimit=${config.batchLimit}, maxCycles=${config.maxCycles})`
+  )
   await runFn(config)
 }
 

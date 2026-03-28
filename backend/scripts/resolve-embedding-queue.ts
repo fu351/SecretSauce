@@ -3,63 +3,61 @@
 import "dotenv/config"
 import * as configModule from "../workers/embedding-worker/config"
 import * as processorModule from "../workers/embedding-worker/processor"
+import { requireSupabaseEnv } from "../workers/env-utils"
 import type { EmbeddingWorkerConfig } from "../workers/embedding-worker/config"
-import type { EmbeddingQueueRunSummary } from "../workers/embedding-worker/processor"
+import type { EmbeddingWorkerRunSummary } from "../workers/embedding-worker/processor"
 
 const getEmbeddingWorkerConfigFromEnv =
   (configModule as { getEmbeddingWorkerConfigFromEnv?: unknown }).getEmbeddingWorkerConfigFromEnv ??
   (configModule as { default?: { getEmbeddingWorkerConfigFromEnv?: unknown } }).default
     ?.getEmbeddingWorkerConfigFromEnv
 
-const runEmbeddingQueueResolver =
-  (processorModule as { runEmbeddingQueueResolver?: unknown }).runEmbeddingQueueResolver ??
-  (processorModule as { default?: { runEmbeddingQueueResolver?: unknown } }).default?.runEmbeddingQueueResolver
+const runEmbeddingWorker =
+  (processorModule as { runEmbeddingWorker?: unknown }).runEmbeddingWorker ??
+  (processorModule as { default?: { runEmbeddingWorker?: unknown } }).default?.runEmbeddingWorker
 
 if (typeof getEmbeddingWorkerConfigFromEnv !== "function") {
   throw new Error("Failed to load getEmbeddingWorkerConfigFromEnv from embedding worker config module")
 }
 
-if (typeof runEmbeddingQueueResolver !== "function") {
-  throw new Error("Failed to load runEmbeddingQueueResolver from embedding worker processor module")
+if (typeof runEmbeddingWorker !== "function") {
+  throw new Error("Failed to load runEmbeddingWorker from embedding worker processor module")
 }
 
 const getEmbeddingWorkerConfigFromEnvFn = getEmbeddingWorkerConfigFromEnv as (
   overrides?: Partial<EmbeddingWorkerConfig>
 ) => EmbeddingWorkerConfig
 
-const runEmbeddingQueueResolverFn = runEmbeddingQueueResolver as (
+const runEmbeddingWorkerFn = runEmbeddingWorker as (
   config: EmbeddingWorkerConfig
-) => Promise<EmbeddingQueueRunSummary>
-
-function requireSupabaseEnv(): void {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error(
-      "Missing Supabase credentials. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    )
-  }
-}
+) => Promise<EmbeddingWorkerRunSummary>
 
 async function main(): Promise<void> {
   requireSupabaseEnv()
   const config = getEmbeddingWorkerConfigFromEnvFn()
-  const summary = await runEmbeddingQueueResolverFn(config)
+  console.log(
+    `[EmbeddingQueueResolver] Starting (mode=${config.mode}, dryRun=${config.dryRun})`
+  )
+  const summary = await runEmbeddingWorkerFn(config)
 
-  if (config.dryRun && summary.cycles > 0) {
+  if (
+    summary.mode === "queue" &&
+    config.dryRun &&
+    summary.result.cycles > 0
+  ) {
+    const queueResult = summary.result
     console.log("\n========== EMBEDDING DRY RUN RESULTS ==========")
     console.log(
       JSON.stringify(
         {
           summary: {
-            cycles: summary.cycles,
-            totalRequeued: summary.totalRequeued,
-            totalClaimed: summary.totalClaimed,
-            totalCompleted: summary.totalCompleted,
-            totalFailed: summary.totalFailed,
+            cycles: queueResult.cycles,
+            totalRequeued: queueResult.totalRequeued,
+            totalClaimed: queueResult.totalClaimed,
+            totalCompleted: queueResult.totalCompleted,
+            totalFailed: queueResult.totalFailed,
           },
-          rows: summary.dryRunRows || [],
+          rows: queueResult.dryRunRows || [],
         },
         null,
         2
