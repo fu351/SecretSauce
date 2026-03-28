@@ -2,7 +2,7 @@ app = "secretsauce-queue"
 primary_region = "ord"
 
 [build]
-  dockerfile = "backend/docker/Dockerfile.fly-queue"
+  dockerfile = "backend/docker/Dockerfile.ingredient-match-queue-runner"
 
 [env]
   WORKER_INTERVAL_SECONDS = "300"
