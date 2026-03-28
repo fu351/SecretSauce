@@ -28,7 +28,8 @@ function resolveMode(value: string | undefined): EmbeddingWorkerMode {
 
 function resolveSourceType(value: string | undefined): EmbeddingSourceType | "any" {
   const normalized = String(value ?? "").trim().toLowerCase()
-  if (normalized === "recipe" || normalized === "ingredient") return normalized
+  if (normalized === "recipe" || normalized === "ingredient" || normalized === "canonical_candidate")
+    return normalized
   return "any"
 }
 
