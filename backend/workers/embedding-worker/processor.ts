@@ -4,6 +4,7 @@ import {
   type EmbeddingSourceType,
 } from "./embedding-queue-db"
 import { fetchEmbeddingsFromOllama } from "./ollama-embeddings"
+import { canonicalConsolidationDB } from "../../../lib/database/canonical-consolidation-db"
 import type { EmbeddingWorkerConfig } from "./config"
 
 interface ResolveBatchResult {
@@ -50,12 +51,44 @@ async function resolveBatch(rows: EmbeddingQueueRow[], config: EmbeddingWorkerCo
     }
   }
 
-  const embeddings = await fetchEmbeddingsFromOllama({
-    model: config.embeddingModel,
-    inputTexts: rows.map((row) => row.input_text),
-    timeoutMs: config.requestTimeoutMs,
-    baseUrl: config.ollamaBaseUrl,
+  const model = config.embeddingModel
+  const inputTexts = rows.map((row) => row.input_text)
+
+  // Check canonical_candidate_embeddings for any input_text that has already
+  // been embedded, and reuse those vectors to avoid redundant Ollama calls.
+  const cachedEmbeddings = await embeddingQueueDB.fetchCandidateEmbeddingsByInputTexts(inputTexts, model)
+
+  const missIndices: number[] = []
+  const missTexts: string[] = []
+  for (let i = 0; i < rows.length; i++) {
+    if (!cachedEmbeddings.has(rows[i].input_text)) {
+      missIndices.push(i)
+      missTexts.push(rows[i].input_text)
+    }
+  }
+
+  let ollamaVectors: number[][] = []
+  if (missTexts.length > 0) {
+    ollamaVectors = await fetchEmbeddingsFromOllama({
+      model,
+      inputTexts: missTexts,
+      timeoutMs: config.requestTimeoutMs,
+      baseUrl: config.ollamaBaseUrl,
+    })
+  }
+
+  const embeddings: number[][] = rows.map((row, i) => {
+    const cached = cachedEmbeddings.get(row.input_text)
+    if (cached) return cached
+    const missPos = missIndices.indexOf(i)
+    return ollamaVectors[missPos]
   })
+
+  if (cachedEmbeddings.size > 0) {
+    console.log(
+      `[EmbeddingQueueResolver] Cache hit: ${cachedEmbeddings.size}/${rows.length} row(s) served from canonical_candidate_embeddings`
+    )
+  }
 
   let completed = 0
   let failed = 0
@@ -69,6 +102,13 @@ async function resolveBatch(rows: EmbeddingQueueRow[], config: EmbeddingWorkerCo
       if (row.source_type === "recipe") {
         writeOk = await embeddingQueueDB.upsertRecipeEmbedding({
           recipeId: row.source_id,
+          inputText: row.input_text,
+          embedding,
+          model: config.embeddingModel,
+        })
+      } else if (row.source_type === "canonical_candidate") {
+        writeOk = await embeddingQueueDB.upsertCandidateEmbedding({
+          canonicalName: row.source_id,
           inputText: row.input_text,
           embedding,
           model: config.embeddingModel,
@@ -104,6 +144,101 @@ async function resolveBatch(rows: EmbeddingQueueRow[], config: EmbeddingWorkerCo
     completed,
     failed,
   }
+}
+
+export interface ProbationEmbeddingRunSummary {
+  totalFound: number
+  totalEmbedded: number
+  totalFailed: number
+}
+
+async function runProbationEmbedding(
+  config: EmbeddingWorkerConfig
+): Promise<ProbationEmbeddingRunSummary> {
+  console.log(
+    `[EmbeddingWorker] Probation-embedding mode ` +
+      `(model=${config.embeddingModel}, minSources=${config.probationMinDistinctSources}, ` +
+      `batchLimit=${config.probationBatchLimit}, dryRun=${config.dryRun})`
+  )
+
+  const maxToFetch = config.probationBatchLimit * Math.max(1, config.maxCycles || 1)
+  const canonicals = await canonicalConsolidationDB.fetchProbationCanonicalsWithoutEmbedding({
+    model: config.embeddingModel,
+    limit: maxToFetch,
+    minDistinctSources: config.probationMinDistinctSources,
+  })
+
+  if (!canonicals.length) {
+    console.log("[EmbeddingWorker] No probation canonicals without embeddings")
+    return { totalFound: 0, totalEmbedded: 0, totalFailed: 0 }
+  }
+
+  console.log(`[EmbeddingWorker] Found ${canonicals.length} probation canonical(s) to embed`)
+
+  if (config.dryRun) {
+    console.log(`[EmbeddingWorker] [DRY RUN] Would embed ${canonicals.length} canonical(s)`)
+    return { totalFound: canonicals.length, totalEmbedded: 0, totalFailed: 0 }
+  }
+
+  let totalEmbedded = 0
+  let totalFailed = 0
+
+  for (let offset = 0; offset < canonicals.length; offset += config.probationBatchLimit) {
+    const batch = canonicals.slice(offset, offset + config.probationBatchLimit)
+
+    try {
+      const vectors = await fetchEmbeddingsFromOllama({
+        model: config.embeddingModel,
+        inputTexts: batch,
+        timeoutMs: config.requestTimeoutMs,
+        baseUrl: config.ollamaBaseUrl,
+      })
+
+      for (let i = 0; i < batch.length; i++) {
+        const ok = await embeddingQueueDB.upsertCandidateEmbedding({
+          canonicalName: batch[i],
+          inputText: batch[i],
+          embedding: vectors[i],
+          model: config.embeddingModel,
+        })
+        if (ok) {
+          totalEmbedded++
+        } else {
+          totalFailed++
+        }
+      }
+
+      console.log(
+        `[EmbeddingWorker] Embedded batch ${Math.floor(offset / config.probationBatchLimit) + 1}: ` +
+          `${batch.length} canonical(s) (total embedded=${totalEmbedded})`
+      )
+    } catch (error) {
+      console.error(`[EmbeddingWorker] Batch embedding failed:`, error)
+      totalFailed += batch.length
+    }
+  }
+
+  console.log(
+    `[EmbeddingWorker] Probation embedding done: ` +
+      `found=${canonicals.length} embedded=${totalEmbedded} failed=${totalFailed}`
+  )
+
+  return { totalFound: canonicals.length, totalEmbedded, totalFailed }
+}
+
+export type EmbeddingWorkerRunSummary =
+  | { mode: "queue"; result: EmbeddingQueueRunSummary }
+  | { mode: "probation-embedding"; result: ProbationEmbeddingRunSummary }
+
+export async function runEmbeddingWorker(
+  config: EmbeddingWorkerConfig
+): Promise<EmbeddingWorkerRunSummary> {
+  if (config.mode === "probation-embedding") {
+    const result = await runProbationEmbedding(config)
+    return { mode: "probation-embedding", result }
+  }
+  const result = await runEmbeddingQueueResolver(config)
+  return { mode: "queue", result }
 }
 
 export async function runEmbeddingQueueResolver(config: EmbeddingWorkerConfig): Promise<EmbeddingQueueRunSummary> {

@@ -36,7 +36,7 @@ class CanonicalConsolidationDB {
       .gte("event_date", cutoffDate)
       .gte("event_count", Math.max(1, params.minEventCount))
       .gte("max_similarity", params.minSimilarity)
-      .in("direction", ["lateral", "specific_to_generic"])
+      .in("direction", ["lateral"])
       .in("decision", ["skipped"])
       .eq("reason", "vector_candidate_discovery")
       .order("max_similarity", { ascending: false })
@@ -134,6 +134,60 @@ class CanonicalConsolidationDB {
     }
 
     return counts
+  }
+
+  async fetchProbationCanonicalsWithoutEmbedding(params: {
+    model: string
+    limit: number
+    minDistinctSources: number
+  }): Promise<string[]> {
+    // Pull canonical names that have enough distinct sources but no embedding yet.
+    // LEFT JOIN against canonical_candidate_embeddings; keep rows where embedding
+    // is absent or was made with a different model.
+    const { data, error } = await (supabase.from as any)(
+      "canonical_creation_probation_events"
+    )
+      .select("canonical_name")
+      .limit(params.limit * 10) // over-fetch to account for already-embedded rows
+
+    if (error || !data?.length) {
+      if (error) console.error("[CanonicalConsolidationDB] fetchProbationCanonicalsWithoutEmbedding error:", error.message)
+      return []
+    }
+
+    // Group by canonical_name to count distinct source_signatures
+    const sourceCounts = new Map<string, number>()
+    for (const row of data as Array<{ canonical_name: string }>) {
+      sourceCounts.set(row.canonical_name, (sourceCounts.get(row.canonical_name) ?? 0) + 1)
+    }
+
+    const eligible = [...sourceCounts.entries()]
+      .filter(([, count]) => count >= params.minDistinctSources)
+      .map(([name]) => name)
+
+    if (!eligible.length) return []
+
+    // Fetch which of these already have an embedding with the right model
+    const chunkSize = 200
+    const alreadyEmbedded = new Set<string>()
+
+    for (let i = 0; i < eligible.length; i += chunkSize) {
+      const chunk = eligible.slice(i, i + chunkSize)
+      const { data: existing } = await (supabase.from as any)(
+        "canonical_candidate_embeddings"
+      )
+        .select("canonical_name")
+        .in("canonical_name", chunk)
+        .eq("embedding_model", params.model)
+
+      for (const row of (existing ?? []) as Array<{ canonical_name: string }>) {
+        alreadyEmbedded.add(row.canonical_name)
+      }
+    }
+
+    return eligible
+      .filter((name) => !alreadyEmbedded.has(name))
+      .slice(0, params.limit)
   }
 
   async logConsolidationEvent(params: ConsolidationLogParams): Promise<void> {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { runEmbeddingQueueResolver } from "../processor"
+import { runEmbeddingQueueResolver, runEmbeddingWorker } from "../processor"
 import type { EmbeddingWorkerConfig } from "../config"
 
 const {
@@ -8,18 +8,22 @@ const {
   mockRequeueExpired,
   mockUpsertRecipeEmbedding,
   mockUpsertIngredientEmbedding,
+  mockUpsertCandidateEmbedding,
   mockMarkCompleted,
   mockMarkFailed,
   mockFetchEmbeddingsFromOllama,
+  mockFetchProbationCanonicalsWithoutEmbedding,
 } = vi.hoisted(() => ({
   mockFetchPending: vi.fn(),
   mockClaimPending: vi.fn(),
   mockRequeueExpired: vi.fn(),
   mockUpsertRecipeEmbedding: vi.fn(),
   mockUpsertIngredientEmbedding: vi.fn(),
+  mockUpsertCandidateEmbedding: vi.fn(),
   mockMarkCompleted: vi.fn(),
   mockMarkFailed: vi.fn(),
   mockFetchEmbeddingsFromOllama: vi.fn(),
+  mockFetchProbationCanonicalsWithoutEmbedding: vi.fn(),
 }))
 
 vi.mock("../embedding-queue-db", () => ({
@@ -29,6 +33,7 @@ vi.mock("../embedding-queue-db", () => ({
     requeueExpired: mockRequeueExpired,
     upsertRecipeEmbedding: mockUpsertRecipeEmbedding,
     upsertIngredientEmbedding: mockUpsertIngredientEmbedding,
+    upsertCandidateEmbedding: mockUpsertCandidateEmbedding,
     markCompleted: mockMarkCompleted,
     markFailed: mockMarkFailed,
   },
@@ -36,6 +41,12 @@ vi.mock("../embedding-queue-db", () => ({
 
 vi.mock("../ollama-embeddings", () => ({
   fetchEmbeddingsFromOllama: mockFetchEmbeddingsFromOllama,
+}))
+
+vi.mock("@/lib/database/canonical-consolidation-db", () => ({
+  canonicalConsolidationDB: {
+    fetchProbationCanonicalsWithoutEmbedding: mockFetchProbationCanonicalsWithoutEmbedding,
+  },
 }))
 
 function buildRow(overrides?: Record<string, unknown>) {
@@ -57,6 +68,7 @@ function buildRow(overrides?: Record<string, unknown>) {
 }
 
 const baseConfig: EmbeddingWorkerConfig = {
+  mode: "queue",
   resolverName: "embedding-queue-worker",
   batchLimit: 50,
   maxCycles: 0,
@@ -68,6 +80,8 @@ const baseConfig: EmbeddingWorkerConfig = {
   embeddingModel: "nomic-embed-text",
   ollamaBaseUrl: "http://localhost:11434",
   requestTimeoutMs: 30000,
+  probationBatchLimit: 100,
+  probationMinDistinctSources: 1,
 }
 
 describe("runEmbeddingQueueResolver", () => {
@@ -238,5 +252,68 @@ describe("runEmbeddingQueueResolver", () => {
     expect(mockMarkFailed).toHaveBeenCalledTimes(2)
     expect(mockMarkFailed.mock.calls[0]).toEqual(["cycle-a", "Ollama temporarily unavailable"])
     expect(mockMarkFailed.mock.calls[1]).toEqual(["cycle-b", "Ollama temporarily unavailable"])
+  })
+})
+
+describe("runEmbeddingWorker", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(console, "log").mockImplementation(() => {})
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    mockFetchPending.mockResolvedValue([])
+    mockClaimPending.mockResolvedValue([])
+    mockRequeueExpired.mockResolvedValue(0)
+    mockFetchEmbeddingsFromOllama.mockResolvedValue([])
+    mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValue([])
+    mockUpsertCandidateEmbedding.mockResolvedValue(true)
+  })
+
+  it("mode=queue delegates to runEmbeddingQueueResolver and returns tagged result", async () => {
+    const result = await runEmbeddingWorker({ ...baseConfig, mode: "queue" })
+
+    expect(result.mode).toBe("queue")
+    expect(result.result).toMatchObject({ cycles: 0 })
+    expect(mockFetchProbationCanonicalsWithoutEmbedding).not.toHaveBeenCalled()
+  })
+
+  it("mode=probation-embedding calls fetchProbationCanonicalsWithoutEmbedding and embeds each canonical", async () => {
+    mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValueOnce(["tilapia", "salmon"])
+    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.1, 0.2], [0.3, 0.4]])
+
+    const result = await runEmbeddingWorker({ ...baseConfig, mode: "probation-embedding" })
+
+    expect(result.mode).toBe("probation-embedding")
+    expect(result.result).toEqual({ totalFound: 2, totalEmbedded: 2, totalFailed: 0 })
+    expect(mockFetchEmbeddingsFromOllama).toHaveBeenCalledWith({
+      model: "nomic-embed-text",
+      inputTexts: ["tilapia", "salmon"],
+      timeoutMs: 30000,
+      baseUrl: "http://localhost:11434",
+    })
+    expect(mockUpsertCandidateEmbedding).toHaveBeenCalledTimes(2)
+    expect(mockClaimPending).not.toHaveBeenCalled()
+  })
+
+  it("mode=probation-embedding dry-run skips Ollama and upsert", async () => {
+    mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValueOnce(["tilapia", "salmon"])
+
+    const result = await runEmbeddingWorker({ ...baseConfig, mode: "probation-embedding", dryRun: true })
+
+    expect(result.mode).toBe("probation-embedding")
+    expect(result.result).toEqual({ totalFound: 2, totalEmbedded: 0, totalFailed: 0 })
+    expect(mockFetchEmbeddingsFromOllama).not.toHaveBeenCalled()
+    expect(mockUpsertCandidateEmbedding).not.toHaveBeenCalled()
+  })
+
+  it("mode=probation-embedding counts failed upserts", async () => {
+    mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValueOnce(["tilapia"])
+    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.1, 0.2]])
+    mockUpsertCandidateEmbedding.mockResolvedValueOnce(false)
+
+    const result = await runEmbeddingWorker({ ...baseConfig, mode: "probation-embedding" })
+
+    expect(result.result).toEqual({ totalFound: 1, totalEmbedded: 0, totalFailed: 1 })
   })
 })

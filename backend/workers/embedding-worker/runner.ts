@@ -8,23 +8,23 @@ const getEmbeddingWorkerConfigFromEnv =
   (configModule as { default?: { getEmbeddingWorkerConfigFromEnv?: unknown } }).default
     ?.getEmbeddingWorkerConfigFromEnv
 
-const runEmbeddingQueueResolver =
-  (processorModule as { runEmbeddingQueueResolver?: unknown }).runEmbeddingQueueResolver ??
-  (processorModule as { default?: { runEmbeddingQueueResolver?: unknown } }).default?.runEmbeddingQueueResolver
+const runEmbeddingWorker =
+  (processorModule as { runEmbeddingWorker?: unknown }).runEmbeddingWorker ??
+  (processorModule as { default?: { runEmbeddingWorker?: unknown } }).default?.runEmbeddingWorker
 
 if (typeof getEmbeddingWorkerConfigFromEnv !== "function") {
   throw new Error("Failed to load getEmbeddingWorkerConfigFromEnv from embedding worker config module")
 }
 
-if (typeof runEmbeddingQueueResolver !== "function") {
-  throw new Error("Failed to load runEmbeddingQueueResolver from embedding worker processor module")
+if (typeof runEmbeddingWorker !== "function") {
+  throw new Error("Failed to load runEmbeddingWorker from embedding worker processor module")
 }
 
 const getEmbeddingWorkerConfigFromEnvFn = getEmbeddingWorkerConfigFromEnv as (
   overrides?: Partial<EmbeddingWorkerConfig>
 ) => EmbeddingWorkerConfig
 
-const runEmbeddingQueueResolverFn = runEmbeddingQueueResolver as (
+const runEmbeddingWorkerFn = runEmbeddingWorker as (
   config: EmbeddingWorkerConfig
 ) => Promise<unknown>
 
@@ -37,7 +37,7 @@ export async function runEmbeddingQueueWorkerLoop(
 
   while (true) {
     try {
-      await runEmbeddingQueueResolverFn({ ...config, maxCycles: 1 })
+      await runEmbeddingWorkerFn({ ...config, maxCycles: 1 })
     } catch (error) {
       console.error("[EmbeddingQueueRunner] Worker cycle failed:", error)
     }
