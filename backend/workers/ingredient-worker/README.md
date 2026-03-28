@@ -15,7 +15,7 @@ This worker claims pending ingredient queue rows, standardizes ingredient names,
 
 ## Key Files
 
-- `backend/orchestrators/ingredient-match-queue-pipeline.ts` - one-shot pipeline entrypoint used by the root script alias and workflow runs.
+- `backend/orchestrators/ingredient-match-queue-pipeline/pipeline.ts` - one-shot pipeline entrypoint used by the root script alias and workflow runs.
 - `runner.ts` - long-running worker loop; calls the processor once per cycle and sleeps between cycles.
 - `processor.ts` - main queue resolver; claims rows, runs ingredient/unit standardization, applies safety checks, and persists results.
 - `batching.ts` - chunking and bounded concurrency helpers.

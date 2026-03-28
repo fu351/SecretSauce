@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import { runEmbeddingWorker, type ProbationEmbeddingRunSummary } from "../workers/embedding-worker/processor"
-import { runVectorDoubleCheckDiscovery, type VectorDoubleCheckRunSummary } from "../workers/vector-double-check-worker/processor"
-import { runCanonicalConsolidation, type CanonicalConsolidationRunSummary } from "../workers/canonical-consolidation-worker/processor"
-import { getCanonicalPipelineConfigFromEnv, type CanonicalPipelineConfig } from "./canonical-pipeline-config"
-import { requireSupabaseEnv } from "../workers/env-utils"
+import { runEmbeddingWorker, type ProbationEmbeddingRunSummary } from "../../workers/embedding-worker/processor"
+import { runVectorDoubleCheckDiscovery, type VectorDoubleCheckRunSummary } from "../../workers/vector-double-check-worker/processor"
+import { runCanonicalConsolidation, type CanonicalConsolidationRunSummary } from "../../workers/canonical-consolidation-worker/processor"
+import { getCanonicalPipelineConfigFromEnv, type CanonicalPipelineConfig } from "./config"
+import { requireSupabaseEnv } from "../../workers/env-utils"
 
 export interface CanonicalPipelineSummary {
   probationEmbedding: ProbationEmbeddingRunSummary | null
@@ -143,7 +143,7 @@ export async function runCanonicalPipelineEntrypoint(
 
 const isCanonicalPipelineEntrypoint =
   typeof process.argv[1] === "string" &&
-  /backend[\\/]+orchestrators[\\/]+canonical-pipeline(?:\.ts)?$/i.test(process.argv[1])
+  /backend[\\/]+orchestrators[\\/]+canonical-pipeline[\\/]+pipeline(?:\.ts)?$/i.test(process.argv[1])
 
 if (isCanonicalPipelineEntrypoint) {
   runCanonicalPipelineEntrypoint().catch((error: unknown) => {

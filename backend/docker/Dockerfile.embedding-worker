@@ -14,4 +14,4 @@ COPY lib/utils ./lib/utils
 COPY backend/scripts ./backend/scripts
 COPY backend/orchestrators ./backend/orchestrators
 
-CMD ["node_modules/.bin/tsx", "backend/orchestrators/embedding-queue-pipeline.ts"]
+CMD ["node_modules/.bin/tsx", "backend/orchestrators/embedding-queue-pipeline/pipeline.ts"]

@@ -1,7 +1,7 @@
-import * as configModule from "../workers/embedding-worker/config"
-import * as processorModule from "../workers/embedding-worker/processor"
-import type { EmbeddingWorkerConfig } from "../workers/embedding-worker/config"
-import { sleep } from "../workers/env-utils"
+import * as configModule from "../../workers/embedding-worker/config"
+import * as processorModule from "../../workers/embedding-worker/processor"
+import type { EmbeddingWorkerConfig } from "../../workers/embedding-worker/config"
+import { sleep } from "../../workers/env-utils"
 
 const getEmbeddingWorkerConfigFromEnv =
   (configModule as { getEmbeddingWorkerConfigFromEnv?: unknown }).getEmbeddingWorkerConfigFromEnv ??
@@ -47,7 +47,7 @@ export async function runEmbeddingQueuePipelineRunner(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/embedding-queue-pipeline-runner")
+  /backend[\\/]+orchestrators[\\/]+embedding-queue-pipeline[\\/]+runner(?:\.ts)?$/i.test(process.argv[1])
 ) {
   runEmbeddingQueuePipelineRunner().catch((error) => {
     console.error("[EmbeddingQueuePipelineRunner] Unhandled error:", error)

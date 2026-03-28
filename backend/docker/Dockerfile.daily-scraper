@@ -25,4 +25,4 @@ ENV STORE_LIMIT=1
 ENV INGREDIENT_LIMIT=5
 ENV INGREDIENT_DELAY_MS=0
 
-CMD ["node", "backend/orchestrators/daily-scraper-pipeline.js"]
+CMD ["node", "backend/orchestrators/daily-scraper-pipeline/pipeline.js"]

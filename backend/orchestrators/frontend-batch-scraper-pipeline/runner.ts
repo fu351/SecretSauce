@@ -1,8 +1,8 @@
-import { sleep } from "../workers/env-utils"
+import { sleep } from "../../workers/env-utils"
 import {
   runFrontendBatchScraperProcessor,
-} from "../workers/frontend-scraper-worker/batch-processor"
-import type { FrontendBatchScraperProcessorInput } from "../workers/frontend-scraper-worker/batch-utils"
+} from "../../workers/frontend-scraper-worker/batch-processor"
+import type { FrontendBatchScraperProcessorInput } from "../../workers/frontend-scraper-worker/batch-utils"
 
 export interface FrontendBatchScraperPipelineRunnerConfig {
   workerIntervalSeconds: number
@@ -90,7 +90,7 @@ export async function runFrontendBatchScraperPipelineRunner(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/frontend-batch-scraper-pipeline-runner")
+  /backend[\\/]+orchestrators[\\/]+frontend-batch-scraper-pipeline[\\/]+runner(?:\.ts)?$/i.test(process.argv[1])
 ) {
   const maxCycles = readPositiveInt(process.env.BATCH_SCRAPER_RUNNER_MAX_CYCLES, 1)
   const workerIntervalSeconds = readPositiveInt(process.env.BATCH_SCRAPER_RUNNER_INTERVAL_SECONDS, 300)

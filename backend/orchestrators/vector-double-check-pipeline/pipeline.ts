@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "../workers/vector-double-check-worker/config"
-import * as processorModule from "../workers/vector-double-check-worker/processor"
-import { requireSupabaseEnv } from "../workers/env-utils"
-import type { VectorDoubleCheckWorkerConfig } from "../workers/vector-double-check-worker/config"
-import type { VectorDoubleCheckRunSummary } from "../workers/vector-double-check-worker/processor"
+import * as configModule from "../../workers/vector-double-check-worker/config"
+import * as processorModule from "../../workers/vector-double-check-worker/processor"
+import { requireSupabaseEnv } from "../../workers/env-utils"
+import type { VectorDoubleCheckWorkerConfig } from "../../workers/vector-double-check-worker/config"
+import type { VectorDoubleCheckRunSummary } from "../../workers/vector-double-check-worker/processor"
 
 const getVectorDoubleCheckWorkerConfigFromEnv =
   (configModule as { getVectorDoubleCheckWorkerConfigFromEnv?: unknown }).getVectorDoubleCheckWorkerConfigFromEnv ??
@@ -42,7 +42,7 @@ export async function runVectorDoubleCheckPipeline(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/vector-double-check-pipeline")
+  /backend[\\/]+orchestrators[\\/]+vector-double-check-pipeline[\\/]+pipeline(?:\.ts)?$/i.test(process.argv[1])
 ) {
   runVectorDoubleCheckPipeline().catch((error: unknown) => {
     console.error("[VectorDoubleCheckPipeline] Unhandled error:", error)

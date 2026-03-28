@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { runCanonicalPipeline } from "../../../orchestrators/canonical-pipeline"
-import type { CanonicalPipelineConfig } from "../../../orchestrators/canonical-pipeline-config"
+import { runCanonicalPipeline } from "../../../orchestrators/canonical-pipeline/pipeline"
+import type { CanonicalPipelineConfig } from "../../../orchestrators/canonical-pipeline/config"
 
 const {
   mockRunEmbeddingWorker,

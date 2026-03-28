@@ -13,7 +13,7 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 
 ## Key Files
 
-- `backend/orchestrators/embedding-queue-pipeline.ts` - one-shot pipeline entrypoint used by the root script alias and workflow runs.
+- `backend/orchestrators/embedding-queue-pipeline/pipeline.ts` - one-shot pipeline entrypoint used by the root script alias and workflow runs.
 - `config.ts` - reads worker config from environment variables.
 - `processor.ts` - does the queue claim, embedding fetch, upsert, and status updates.
 - `runner.ts` - continuous loop wrapper around the processor.
@@ -43,7 +43,7 @@ Continuous loop:
 npm run embedding-queue-pipeline-runner
 ```
 
-The loop runner lives in `backend/orchestrators/embedding-queue-pipeline-runner.ts`.
+The loop runner lives in `backend/orchestrators/embedding-queue-pipeline/runner.ts`.
 
 ## Required Env Vars
 

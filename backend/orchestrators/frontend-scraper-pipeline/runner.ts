@@ -1,8 +1,8 @@
 import {
   runFrontendScraperSearch,
   type FrontendScraperFetchOptions,
-} from "../workers/frontend-scraper-worker/client-processor"
-import type { FrontendScraperSearchParams, StoreResults } from "../workers/frontend-scraper-worker/utils"
+} from "../../workers/frontend-scraper-worker/client-processor"
+import type { FrontendScraperSearchParams, StoreResults } from "../../workers/frontend-scraper-worker/utils"
 
 export interface FrontendScraperPipelineRunnerInput extends FrontendScraperSearchParams {
   timeoutMs?: number
@@ -43,7 +43,7 @@ export async function searchGroceryStores(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/frontend-scraper-pipeline-runner")
+  /backend[\\/]+orchestrators[\\/]+frontend-scraper-pipeline[\\/]+runner(?:\.ts)?$/i.test(process.argv[1])
 ) {
   const searchTerm = process.env.FRONTEND_SCRAPER_SEARCH_TERM
   if (!searchTerm) {

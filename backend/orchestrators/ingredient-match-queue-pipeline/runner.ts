@@ -1,6 +1,6 @@
-import { getQueueWorkerConfigFromEnv, type QueueWorkerConfig } from "../workers/config"
-import { sleep } from "../workers/env-utils"
-import { runIngredientQueueResolver } from "../workers/ingredient-worker/processor"
+import { getQueueWorkerConfigFromEnv, type QueueWorkerConfig } from "../../workers/config"
+import { sleep } from "../../workers/env-utils"
+import { runIngredientQueueResolver } from "../../workers/ingredient-worker/processor"
 
 export async function runIngredientMatchQueuePipelineRunner(
   overrides?: Partial<QueueWorkerConfig>
@@ -21,7 +21,7 @@ export async function runIngredientMatchQueuePipelineRunner(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/ingredient-match-queue-pipeline-runner")
+  /backend[\\/]+orchestrators[\\/]+ingredient-match-queue-pipeline[\\/]+runner(?:\.ts)?$/i.test(process.argv[1])
 ) {
   runIngredientMatchQueuePipelineRunner().catch((error) => {
     console.error("[IngredientMatchQueuePipelineRunner] Unhandled error:", error)

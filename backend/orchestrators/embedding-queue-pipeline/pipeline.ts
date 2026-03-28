@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "../workers/embedding-worker/config"
-import * as processorModule from "../workers/embedding-worker/processor"
-import { requireSupabaseEnv } from "../workers/env-utils"
-import type { EmbeddingWorkerConfig } from "../workers/embedding-worker/config"
-import type { EmbeddingWorkerRunSummary } from "../workers/embedding-worker/processor"
+import * as configModule from "../../workers/embedding-worker/config"
+import * as processorModule from "../../workers/embedding-worker/processor"
+import { requireSupabaseEnv } from "../../workers/env-utils"
+import type { EmbeddingWorkerConfig } from "../../workers/embedding-worker/config"
+import type { EmbeddingWorkerRunSummary } from "../../workers/embedding-worker/processor"
 
 const getEmbeddingWorkerConfigFromEnv =
   (configModule as { getEmbeddingWorkerConfigFromEnv?: unknown }).getEmbeddingWorkerConfigFromEnv ??
@@ -67,7 +67,10 @@ export async function runEmbeddingQueuePipeline(
   return summary
 }
 
-if (process.argv[1] && process.argv[1].includes("backend/orchestrators/embedding-queue-pipeline")) {
+if (
+  process.argv[1] &&
+  /backend[\\/]+orchestrators[\\/]+embedding-queue-pipeline[\\/]+pipeline(?:\.ts)?$/i.test(process.argv[1])
+) {
   runEmbeddingQueuePipeline().catch((error: unknown) => {
     console.error("[EmbeddingQueuePipeline] Unhandled error:", error)
     process.exit(1)

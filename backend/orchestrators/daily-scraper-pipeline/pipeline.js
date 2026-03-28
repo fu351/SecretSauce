@@ -1,7 +1,7 @@
-import { normalizeStoreEnum, truncateText } from '../workers/daily-scraper-worker/utils.js'
-import { getScraperConfigFromEnv } from '../workers/daily-scraper-worker/config.js'
-import { appendBrandFailureMetadata } from '../workers/daily-scraper-worker/db.js'
-import { runDailyScraper } from './daily-scraper-pipeline-core.js'
+import { normalizeStoreEnum, truncateText } from '../../workers/daily-scraper-worker/utils.js'
+import { getScraperConfigFromEnv } from '../../workers/daily-scraper-worker/config.js'
+import { appendBrandFailureMetadata } from '../../workers/daily-scraper-worker/db.js'
+import { runDailyScraper } from './core.js'
 
 function printRunSummary({ config, storeCount, ingredientCount, scrapedCount, insertedCount, durationSecs }) {
   const successRate = scrapedCount > 0 ? (insertedCount / scrapedCount) * 100 : 0
@@ -182,7 +182,10 @@ const config = getScraperConfigFromEnv()
 process.on('SIGTERM', () => { void handleTerminationSignal('SIGTERM', config) })
 process.on('SIGINT', () => { void handleTerminationSignal('SIGINT', config) })
 
-if (process.argv[1] && process.argv[1].includes('backend/orchestrators/daily-scraper-pipeline')) {
+if (
+  process.argv[1] &&
+  /backend[\\/]+orchestrators[\\/]+daily-scraper-pipeline[\\/]+pipeline(?:\.js)?$/i.test(process.argv[1])
+) {
   runDailyScraperPipeline(config).catch(async error => {
     console.error('\nFatal error:', error)
 

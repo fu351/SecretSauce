@@ -18,7 +18,7 @@ Frontend-facing scraper orchestration worker for grocery-search UX flows.
 
 Primary import path:
 
-- `@/backend/orchestrators/frontend-scraper-pipeline-runner`
+- `@/backend/orchestrators/frontend-scraper-pipeline/runner`
 
 ## Environment
 

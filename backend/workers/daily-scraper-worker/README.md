@@ -18,13 +18,13 @@ Store-first scraper that loads active grocery stores and canonical ingredients f
 From the repo root:
 
 ```bash
-node backend/orchestrators/daily-scraper-pipeline.js
+node backend/orchestrators/daily-scraper-pipeline/pipeline.js
 ```
 
 Legacy shim:
 
 ```bash
-node backend/orchestrators/daily-scraper-pipeline.js
+node backend/orchestrators/daily-scraper-pipeline/pipeline.js
 ```
 
 Docker image:

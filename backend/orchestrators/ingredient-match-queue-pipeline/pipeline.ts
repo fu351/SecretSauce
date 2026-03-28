@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import { getQueueWorkerConfigFromEnv, type QueueWorkerConfig } from "../workers/config"
-import { runIngredientQueueResolver, type QueueRunSummary } from "../workers/ingredient-worker/processor"
-import { requireSupabaseEnv } from "../workers/env-utils"
+import { getQueueWorkerConfigFromEnv, type QueueWorkerConfig } from "../../workers/config"
+import { runIngredientQueueResolver, type QueueRunSummary } from "../../workers/ingredient-worker/processor"
+import { requireSupabaseEnv } from "../../workers/env-utils"
 
 export async function runIngredientMatchQueuePipeline(
   overrides?: Partial<QueueWorkerConfig>
@@ -37,7 +37,7 @@ export async function runIngredientMatchQueuePipeline(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/ingredient-match-queue-pipeline")
+  /backend[\\/]+orchestrators[\\/]+ingredient-match-queue-pipeline[\\/]+pipeline(?:\.ts)?$/i.test(process.argv[1])
 ) {
   runIngredientMatchQueuePipeline().catch((error: unknown) => {
     console.error("[IngredientMatchQueuePipeline] Unhandled error:", error)

@@ -1,4 +1,4 @@
-import { readPositiveInt, readBoundedFloat, readBoolean } from "../workers/env-utils"
+import { readPositiveInt, readBoundedFloat, readBoolean } from "../../workers/env-utils"
 
 export interface CanonicalPipelineConfig {
   dryRun: boolean

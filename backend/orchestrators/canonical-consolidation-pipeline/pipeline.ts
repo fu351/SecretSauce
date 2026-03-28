@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "../workers/canonical-consolidation-worker/config"
-import * as processorModule from "../workers/canonical-consolidation-worker/processor"
-import { requireSupabaseEnv } from "../workers/env-utils"
-import type { CanonicalConsolidationWorkerConfig } from "../workers/canonical-consolidation-worker/config"
-import type { CanonicalConsolidationRunSummary } from "../workers/canonical-consolidation-worker/processor"
+import * as configModule from "../../workers/canonical-consolidation-worker/config"
+import * as processorModule from "../../workers/canonical-consolidation-worker/processor"
+import { requireSupabaseEnv } from "../../workers/env-utils"
+import type { CanonicalConsolidationWorkerConfig } from "../../workers/canonical-consolidation-worker/config"
+import type { CanonicalConsolidationRunSummary } from "../../workers/canonical-consolidation-worker/processor"
 
 const getCanonicalConsolidationWorkerConfigFromEnv =
   (configModule as { getCanonicalConsolidationWorkerConfigFromEnv?: unknown }).getCanonicalConsolidationWorkerConfigFromEnv ??
@@ -41,7 +41,7 @@ export async function runCanonicalConsolidationPipeline(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/canonical-consolidation-pipeline")
+  /backend[\\/]+orchestrators[\\/]+canonical-consolidation-pipeline[\\/]+pipeline(?:\.ts)?$/i.test(process.argv[1])
 ) {
   runCanonicalConsolidationPipeline().catch((error: unknown) => {
     console.error("[CanonicalConsolidationPipeline] Unhandled error:", error)

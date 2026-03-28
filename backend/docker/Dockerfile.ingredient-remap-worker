@@ -18,4 +18,4 @@ COPY lib/openai ./lib/openai
 COPY lib/ollama ./lib/ollama
 COPY lib/utils ./lib/utils
 
-CMD ["node_modules/.bin/tsx", "backend/orchestrators/ingredient-match-queue-pipeline.ts"]
+CMD ["node_modules/.bin/tsx", "backend/orchestrators/ingredient-match-queue-pipeline/pipeline.ts"]

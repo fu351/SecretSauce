@@ -1,6 +1,6 @@
-import { getCanonicalConsolidationWorkerConfigFromEnv, type CanonicalConsolidationWorkerConfig } from "../workers/canonical-consolidation-worker/config"
-import { runCanonicalConsolidation } from "../workers/canonical-consolidation-worker/processor"
-import { sleep } from "../workers/env-utils"
+import { getCanonicalConsolidationWorkerConfigFromEnv, type CanonicalConsolidationWorkerConfig } from "../../workers/canonical-consolidation-worker/config"
+import { runCanonicalConsolidation } from "../../workers/canonical-consolidation-worker/processor"
+import { sleep } from "../../workers/env-utils"
 
 export async function runCanonicalConsolidationPipelineRunner(
   overrides?: Partial<CanonicalConsolidationWorkerConfig>
@@ -21,7 +21,7 @@ export async function runCanonicalConsolidationPipelineRunner(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/canonical-consolidation-pipeline-runner")
+  /backend[\\/]+orchestrators[\\/]+canonical-consolidation-pipeline[\\/]+runner(?:\.ts)?$/i.test(process.argv[1])
 ) {
   runCanonicalConsolidationPipelineRunner().catch((error) => {
     console.error("[CanonicalConsolidationPipelineRunner] Unhandled error:", error)

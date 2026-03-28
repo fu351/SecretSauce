@@ -1,6 +1,6 @@
-import { getCanonicalPipelineConfigFromEnv, type CanonicalPipelineConfig } from "./canonical-pipeline-config"
-import { runCanonicalPipeline } from "./canonical-pipeline"
-import { sleep } from "../workers/env-utils"
+import { getCanonicalPipelineConfigFromEnv, type CanonicalPipelineConfig } from "./config"
+import { runCanonicalPipeline } from "./pipeline"
+import { sleep } from "../../workers/env-utils"
 
 export async function runCanonicalPipelineRunner(
   overrides?: Partial<CanonicalPipelineConfig>
@@ -21,7 +21,7 @@ export async function runCanonicalPipelineRunner(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/canonical-pipeline-runner")
+  /backend[\\/]+orchestrators[\\/]+canonical-pipeline[\\/]+runner(?:\.ts)?$/i.test(process.argv[1])
 ) {
   runCanonicalPipelineRunner().catch((error) => {
     console.error("[CanonicalPipelineRunner] Unhandled error:", error)

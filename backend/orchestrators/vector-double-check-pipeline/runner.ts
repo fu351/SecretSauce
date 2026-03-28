@@ -1,6 +1,6 @@
-import { getVectorDoubleCheckWorkerConfigFromEnv, type VectorDoubleCheckWorkerConfig } from "../workers/vector-double-check-worker/config"
-import { runVectorDoubleCheckDiscovery } from "../workers/vector-double-check-worker/processor"
-import { sleep } from "../workers/env-utils"
+import { getVectorDoubleCheckWorkerConfigFromEnv, type VectorDoubleCheckWorkerConfig } from "../../workers/vector-double-check-worker/config"
+import { runVectorDoubleCheckDiscovery } from "../../workers/vector-double-check-worker/processor"
+import { sleep } from "../../workers/env-utils"
 
 export async function runVectorDoubleCheckPipelineRunner(
   overrides?: Partial<VectorDoubleCheckWorkerConfig>
@@ -21,7 +21,7 @@ export async function runVectorDoubleCheckPipelineRunner(
 
 if (
   process.argv[1] &&
-  process.argv[1].includes("backend/orchestrators/vector-double-check-pipeline-runner")
+  /backend[\\/]+orchestrators[\\/]+vector-double-check-pipeline[\\/]+runner(?:\.ts)?$/i.test(process.argv[1])
 ) {
   runVectorDoubleCheckPipelineRunner().catch((error) => {
     console.error("[VectorDoubleCheckPipelineRunner] Unhandled error:", error)
