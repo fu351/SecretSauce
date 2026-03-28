@@ -154,4 +154,100 @@ describe("runCanonicalConsolidation", () => {
     expect(mockConsolidateCanonical).toHaveBeenCalledTimes(1)
     expect(mockLogCanonicalDoubleCheckDaily).not.toHaveBeenCalled()
   })
+
+  it("treats remap daily log failures as failed merges", async () => {
+    mockFetchCandidates.mockResolvedValueOnce([
+      buildRow("wontons", "wonton"),
+    ])
+    mockFetchProductCountsByCanonical.mockResolvedValueOnce(
+      new Map<string, number>([
+        ["wonton", 5],
+        ["wontons", 2],
+      ])
+    )
+    mockLogCanonicalDoubleCheckDaily.mockResolvedValueOnce(false)
+
+    const summary = await runCanonicalConsolidation({
+      ...baseConfig,
+      enableClusterPlanning: false,
+    })
+
+    expect(summary).toEqual({
+      cycles: 1,
+      totalConsidered: 1,
+      totalConsolidated: 0,
+      totalSkipped: 0,
+      totalFailed: 1,
+    })
+    expect(mockConsolidateCanonical).toHaveBeenCalledTimes(1)
+    expect(mockLogConsolidationEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it("dry-run cluster planning previews merges without writing", async () => {
+    const rows = [
+      buildRow("brown sugar", "sugar"),
+      buildRow("brown sugar", "vanilla sugar"),
+      buildRow("vanilla sugar", "sugar"),
+    ]
+
+    mockFetchCandidates.mockResolvedValueOnce(rows)
+    mockFetchProductCountsByCanonical.mockResolvedValueOnce(
+      new Map<string, number>([
+        ["brown sugar", 8],
+        ["sugar", 20],
+        ["vanilla sugar", 3],
+      ])
+    )
+
+    const summary = await runCanonicalConsolidation({
+      ...baseConfig,
+      dryRun: true,
+    })
+
+    expect(summary).toEqual({
+      cycles: 1,
+      totalConsidered: 3,
+      totalConsolidated: 0,
+      totalSkipped: 3,
+      totalFailed: 0,
+    })
+    expect(mockConsolidateCanonical).not.toHaveBeenCalled()
+    expect(mockLogConsolidationEvent).not.toHaveBeenCalled()
+    expect(mockLogCanonicalDoubleCheckDaily).not.toHaveBeenCalled()
+  })
+
+  it("uses the cluster-selected survivor for matched proposals", async () => {
+    const rows = [
+      buildRow("brown sugar", "sugar"),
+      buildRow("brown sugar", "vanilla sugar"),
+      buildRow("vanilla sugar", "sugar"),
+    ]
+
+    mockFetchCandidates.mockResolvedValueOnce(rows)
+    mockFetchProductCountsByCanonical.mockResolvedValueOnce(
+      new Map<string, number>([
+        ["brown sugar", 8],
+        ["sugar", 20],
+        ["vanilla sugar", 3],
+      ])
+    )
+
+    const summary = await runCanonicalConsolidation(baseConfig)
+
+    expect(summary).toEqual({
+      cycles: 1,
+      totalConsidered: 3,
+      totalConsolidated: 2,
+      totalSkipped: 1,
+      totalFailed: 0,
+    })
+    expect(mockConsolidateCanonical).toHaveBeenNthCalledWith(1, {
+      survivorCanonical: "sugar",
+      loserCanonical: "brown sugar",
+    })
+    expect(mockConsolidateCanonical).toHaveBeenNthCalledWith(2, {
+      survivorCanonical: "sugar",
+      loserCanonical: "vanilla sugar",
+    })
+  })
 })
