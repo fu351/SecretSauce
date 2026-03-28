@@ -13,7 +13,7 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 
 ## Key Files
 
-- `backend/scripts/resolve-embedding-queue.ts` - one-shot resolver used by the root script alias and workflow runs.
+- `backend/orchestrators/embedding-queue-pipeline.ts` - one-shot pipeline entrypoint used by the root script alias and workflow runs.
 - `config.ts` - reads worker config from environment variables.
 - `processor.ts` - does the queue claim, embedding fetch, upsert, and status updates.
 - `runner.ts` - continuous loop wrapper around the processor.
@@ -26,10 +26,10 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 One-shot resolver:
 
 ```bash
-npm run resolve-embedding-queue
+npm run embedding-queue-pipeline
 ```
 
-The shared `backend/scripts` package also exposes the same entrypoint via `npm --prefix scripts run resolve-embedding-queue`.
+The shared `backend/scripts` package also exposes the same entrypoint via `npm --prefix backend/scripts run embedding-queue-pipeline`.
 
 Local Docker worker:
 
@@ -40,10 +40,10 @@ docker compose -f docker-compose.local.yml run --rm embedding-worker
 Continuous loop:
 
 ```bash
-npm run embedding-queue-worker
+npm run embedding-queue-pipeline-runner
 ```
 
-The loop runner lives in `backend/workers/embedding-worker/runner.ts`.
+The loop runner lives in `backend/orchestrators/embedding-queue-pipeline-runner.ts`.
 
 ## Required Env Vars
 
@@ -60,7 +60,7 @@ Embedding settings:
 
 Queue behavior:
 
-- `EMBEDDING_QUEUE_RESOLVER_NAME` - defaults to `embedding-queue-worker`
+- `EMBEDDING_QUEUE_RESOLVER_NAME` - defaults to `embedding-queue-pipeline`
 - `EMBEDDING_QUEUE_BATCH_LIMIT` - defaults to `50`
 - `EMBEDDING_QUEUE_MAX_CYCLES` - defaults to `0` for no limit in the resolver
 - `EMBEDDING_QUEUE_LEASE_SECONDS` - defaults to `180`

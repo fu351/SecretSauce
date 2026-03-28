@@ -5,8 +5,8 @@ Add a dedicated Dockerized upstream matching pipeline for ingredient remapping, 
 
 ## Key Changes
 - Add a new Docker image for the ingredient remapping worker at `docker/Dockerfile.ingredient-remap-worker`, based on `node:20-slim` and shaped like `docker/Dockerfile.embedding-worker`.
-- The new image should copy the full runtime surface needed by `scripts/resolve-ingredient-match-queue.ts`: `workers`, `standardizer`, `lib/database`, `lib/openai`, `lib/ollama`, `lib/utils`, `scripts`, and root config files needed for TS runtime resolution such as `tsconfig.json` plus package manifests and lockfile.
-- Set the default container command to run the one-shot resolver entrypoint: `node_modules/.bin/tsx scripts/resolve-ingredient-match-queue.ts`
+- The new image should copy the full runtime surface needed by `backend/orchestrators/ingredient-match-queue-pipeline.ts`: `workers`, `orchestrators`, `standardizer`, `lib/database`, `lib/openai`, `lib/ollama`, `lib/utils`, `scripts`, and root config files needed for TS runtime resolution such as `tsconfig.json` plus package manifests and lockfile.
+- Set the default container command to run the one-shot pipeline entrypoint: `node_modules/.bin/tsx backend/orchestrators/ingredient-match-queue-pipeline.ts`
 - Update `docker-compose.local.yml` to add a new service such as `ingredient-remap-worker` that:
   loads `.env.local`
   depends on Ollama being healthy when local embeddings are enabled
@@ -26,7 +26,7 @@ Add a dedicated Dockerized upstream matching pipeline for ingredient remapping, 
   OpenAI remains required for the ingredient worker’s live vector lookup unless a later code change adds provider parity there
 
 ## Test Plan
-- Build the new image locally with Docker and confirm `tsx scripts/resolve-ingredient-match-queue.ts` starts without missing-module errors.
+- Build the new image locally with Docker and confirm `tsx backend/orchestrators/ingredient-match-queue-pipeline.ts` starts without missing-module errors.
 - Run `docker compose -f docker-compose.local.yml up ollama ollama-init embedding-worker` and verify Ollama model bootstrapping plus successful embedding queue processing with `nomic-embed-text`.
 - Run the new `ingredient-remap-worker` in `DRY_RUN=true` mode and verify it logs queue startup, vector fast-path or hint usage when embeddings are present, and confidence-calibration plus remap/double-check behavior without write failures.
 - Run `vector-double-check-worker` after embeddings exist and verify candidate discovery logs use the same embedding model as the embedding worker.

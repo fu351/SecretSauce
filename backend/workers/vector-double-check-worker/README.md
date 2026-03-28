@@ -7,17 +7,17 @@ Scans `ingredient_embeddings` for canonical pairs with high cosine similarity, t
 - `config.ts` - reads worker config from environment variables.
 - `processor.ts` - fetches candidates, resolves remap direction, and writes stats rows.
 - `runner.ts` - long-running loop wrapper around the processor.
-- `resolve-vector-double-check.ts` - one-shot entrypoint for local runs and compose.
+- `backend/orchestrators/vector-double-check-pipeline.ts` - one-shot pipeline entrypoint for local runs and compose.
 - `__tests__/processor.test.ts` - behavior coverage for dry-run, logging, and cycle limits.
 
 ## Run
 
 - Local one-shot:
-  - `tsx --env-file=.env.local backend/workers/vector-double-check-worker/resolve-vector-double-check.ts`
+  - `tsx --env-file=.env.local backend/orchestrators/vector-double-check-pipeline.ts`
 - Repo loop:
-  - `npm run vector-double-check-worker`
+  - `tsx --env-file=.env.local backend/orchestrators/vector-double-check-pipeline-runner.ts`
 - Shared scripts package entrypoint:
-  - `npm --prefix scripts run resolve-vector-double-check`
+  - `npm --prefix backend/scripts run vector-double-check-pipeline`
 - Local Docker service:
   - `docker compose -f docker-compose.local.yml run --rm vector-double-check-worker`
 

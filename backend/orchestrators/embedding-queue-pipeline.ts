@@ -32,19 +32,17 @@ const runEmbeddingWorkerFn = runEmbeddingWorker as (
   config: EmbeddingWorkerConfig
 ) => Promise<EmbeddingWorkerRunSummary>
 
-async function main(): Promise<void> {
+export async function runEmbeddingQueuePipeline(
+  overrides?: Partial<EmbeddingWorkerConfig>
+): Promise<EmbeddingWorkerRunSummary> {
   requireSupabaseEnv()
-  const config = getEmbeddingWorkerConfigFromEnvFn()
+  const config = getEmbeddingWorkerConfigFromEnvFn(overrides)
   console.log(
-    `[EmbeddingQueueResolver] Starting (mode=${config.mode}, dryRun=${config.dryRun})`
+    `[EmbeddingQueuePipeline] Starting (mode=${config.mode}, dryRun=${config.dryRun})`
   )
   const summary = await runEmbeddingWorkerFn(config)
 
-  if (
-    summary.mode === "queue" &&
-    config.dryRun &&
-    summary.result.cycles > 0
-  ) {
+  if (summary.mode === "queue" && config.dryRun && summary.result.cycles > 0) {
     const queueResult = summary.result
     console.log("\n========== EMBEDDING DRY RUN RESULTS ==========")
     console.log(
@@ -65,9 +63,13 @@ async function main(): Promise<void> {
     )
     console.log("===============================================\n")
   }
+
+  return summary
 }
 
-main().catch((error: unknown) => {
-  console.error("[EmbeddingQueueResolver] Unhandled error:", error)
-  process.exit(1)
-})
+if (process.argv[1] && process.argv[1].includes("backend/orchestrators/embedding-queue-pipeline")) {
+  runEmbeddingQueuePipeline().catch((error: unknown) => {
+    console.error("[EmbeddingQueuePipeline] Unhandled error:", error)
+    process.exit(1)
+  })
+}

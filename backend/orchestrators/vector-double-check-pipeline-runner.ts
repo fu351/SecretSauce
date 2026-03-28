@@ -1,0 +1,30 @@
+import { getVectorDoubleCheckWorkerConfigFromEnv, type VectorDoubleCheckWorkerConfig } from "../workers/vector-double-check-worker/config"
+import { runVectorDoubleCheckDiscovery } from "../workers/vector-double-check-worker/processor"
+import { sleep } from "../workers/env-utils"
+
+export async function runVectorDoubleCheckPipelineRunner(
+  overrides?: Partial<VectorDoubleCheckWorkerConfig>
+): Promise<void> {
+  const config = getVectorDoubleCheckWorkerConfigFromEnv(overrides)
+  const intervalMs = Math.max(1, config.workerIntervalSeconds) * 1000
+
+  while (true) {
+    try {
+      await runVectorDoubleCheckDiscovery({ ...config, maxCycles: 1 })
+    } catch (error) {
+      console.error("[VectorDoubleCheckPipelineRunner] Pipeline cycle failed:", error)
+    }
+
+    await sleep(intervalMs)
+  }
+}
+
+if (
+  process.argv[1] &&
+  process.argv[1].includes("backend/orchestrators/vector-double-check-pipeline-runner")
+) {
+  runVectorDoubleCheckPipelineRunner().catch((error) => {
+    console.error("[VectorDoubleCheckPipelineRunner] Unhandled error:", error)
+    process.exit(1)
+  })
+}

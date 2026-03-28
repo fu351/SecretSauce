@@ -69,7 +69,7 @@ function buildRow(overrides?: Record<string, unknown>) {
 
 const baseConfig: EmbeddingWorkerConfig = {
   mode: "queue",
-  resolverName: "embedding-queue-worker",
+  resolverName: "embedding-queue-pipeline",
   batchLimit: 50,
   maxCycles: 0,
   leaseSeconds: 180,

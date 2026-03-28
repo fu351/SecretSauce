@@ -4,7 +4,7 @@ This worker turns high-confidence canonical double-check results into actual can
 
 ## Key Files
 
-- `resolve-canonical-consolidation.ts` - one-shot entrypoint used for local runs and compose.
+- `backend/orchestrators/canonical-consolidation-pipeline.ts` - one-shot pipeline entrypoint used for local runs and compose.
 - `backend/workers/canonical-consolidation-worker/config.ts` - reads runtime config from env.
 - `backend/workers/canonical-consolidation-worker/processor.ts` - fetches candidates, applies guards, performs merges, and writes logs.
 - `backend/workers/canonical-consolidation-worker/guards.ts` - rejects risky candidates before merge.
@@ -17,13 +17,13 @@ This worker turns high-confidence canonical double-check results into actual can
 One-shot:
 
 ```bash
-tsx --env-file=.env.local backend/workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts
+tsx --env-file=.env.local backend/orchestrators/canonical-consolidation-pipeline.ts
 ```
 
 Shared scripts package entrypoint:
 
 ```bash
-npm --prefix scripts run resolve-canonical-consolidation
+npm --prefix backend/scripts run canonical-consolidation-pipeline
 ```
 
 Docker Compose:

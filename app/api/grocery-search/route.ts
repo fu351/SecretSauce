@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { runFrontendScraperApiProcessor } from "@/backend/workers/frontend-scraper-worker/processor"
+import { runFrontendScraperApiProcessor } from "@/backend/orchestrators/frontend-scraper-pipeline"
 
 export async function GET(request: NextRequest) {
   const result = await runFrontendScraperApiProcessor(request.url)

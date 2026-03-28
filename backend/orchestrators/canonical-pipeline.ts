@@ -1,7 +1,11 @@
-import { runEmbeddingWorker, type ProbationEmbeddingRunSummary } from "../embedding-worker/processor"
-import { runVectorDoubleCheckDiscovery, type VectorDoubleCheckRunSummary } from "../vector-double-check-worker/processor"
-import { runCanonicalConsolidation, type CanonicalConsolidationRunSummary } from "../canonical-consolidation-worker/processor"
-import type { CanonicalPipelineConfig } from "./config"
+#!/usr/bin/env tsx
+
+import "dotenv/config"
+import { runEmbeddingWorker, type ProbationEmbeddingRunSummary } from "../workers/embedding-worker/processor"
+import { runVectorDoubleCheckDiscovery, type VectorDoubleCheckRunSummary } from "../workers/vector-double-check-worker/processor"
+import { runCanonicalConsolidation, type CanonicalConsolidationRunSummary } from "../workers/canonical-consolidation-worker/processor"
+import { getCanonicalPipelineConfigFromEnv, type CanonicalPipelineConfig } from "./canonical-pipeline-config"
+import { requireSupabaseEnv } from "../workers/env-utils"
 
 export interface CanonicalPipelineSummary {
   probationEmbedding: ProbationEmbeddingRunSummary | null
@@ -20,7 +24,6 @@ export async function runCanonicalPipeline(
     stageErrors: [],
   }
 
-  // Stage 1: Probation embedding
   if (config.enableProbationEmbedding) {
     try {
       console.log("[CanonicalPipeline] Starting stage 1: probation-embedding")
@@ -32,7 +35,6 @@ export async function runCanonicalPipeline(
         embeddingModel: config.embeddingModel,
         probationBatchLimit: config.probationBatchLimit,
         probationMinDistinctSources: config.probationMinDistinctSources,
-        // Queue-mode fields not used in probation-embedding mode — supply safe defaults
         batchLimit: config.probationBatchLimit,
         maxCycles: 0,
         leaseSeconds: 180,
@@ -56,7 +58,6 @@ export async function runCanonicalPipeline(
     console.log("[CanonicalPipeline] Stage 1 (probation-embedding) skipped")
   }
 
-  // Stage 2: Vector discovery
   if (config.enableVectorDiscovery) {
     try {
       console.log("[CanonicalPipeline] Starting stage 2: vector-discovery")
@@ -82,7 +83,6 @@ export async function runCanonicalPipeline(
     console.log("[CanonicalPipeline] Stage 2 (vector-discovery) skipped")
   }
 
-  // Stage 3: Canonical consolidation
   if (config.enableConsolidation) {
     try {
       console.log("[CanonicalPipeline] Starting stage 3: consolidation")
@@ -113,4 +113,41 @@ export async function runCanonicalPipeline(
   }
 
   return summary
+}
+
+export async function runCanonicalPipelineEntrypoint(
+  overrides?: Partial<CanonicalPipelineConfig>
+): Promise<CanonicalPipelineSummary> {
+  requireSupabaseEnv()
+  const config = getCanonicalPipelineConfigFromEnv(overrides)
+  console.log(
+    `[CanonicalPipeline] Starting pipeline ` +
+      `(dryRun=${config.dryRun}, stopOnStageError=${config.stopOnStageError}, ` +
+      `stages=[` +
+      `probation-embedding:${config.enableProbationEmbedding}, ` +
+      `vector-discovery:${config.enableVectorDiscovery}, ` +
+      `consolidation:${config.enableConsolidation}])`
+  )
+
+  const summary = await runCanonicalPipeline(config)
+  console.log("[CanonicalPipeline] Pipeline complete")
+  console.log(JSON.stringify(summary, null, 2))
+
+  if (summary.stageErrors.length > 0) {
+    console.error("[CanonicalPipeline] Stage errors:", summary.stageErrors)
+    process.exit(1)
+  }
+
+  return summary
+}
+
+const isCanonicalPipelineEntrypoint =
+  typeof process.argv[1] === "string" &&
+  /backend[\\/]+orchestrators[\\/]+canonical-pipeline(?:\.ts)?$/i.test(process.argv[1])
+
+if (isCanonicalPipelineEntrypoint) {
+  runCanonicalPipelineEntrypoint().catch((error: unknown) => {
+    console.error("[CanonicalPipeline] Unhandled error:", error)
+    process.exit(1)
+  })
 }

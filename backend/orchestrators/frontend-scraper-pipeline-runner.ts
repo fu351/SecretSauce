@@ -1,16 +1,16 @@
 import {
   runFrontendScraperSearch,
   type FrontendScraperFetchOptions,
-} from "./client-processor"
-import type { FrontendScraperSearchParams, StoreResults } from "./utils"
+} from "../workers/frontend-scraper-worker/client-processor"
+import type { FrontendScraperSearchParams, StoreResults } from "../workers/frontend-scraper-worker/utils"
 
-export interface FrontendScraperRunnerInput extends FrontendScraperSearchParams {
+export interface FrontendScraperPipelineRunnerInput extends FrontendScraperSearchParams {
   timeoutMs?: number
   maxResultsPerStore?: number
 }
 
-export async function runFrontendScraperRunner(
-  input: FrontendScraperRunnerInput,
+export async function runFrontendScraperPipelineRunner(
+  input: FrontendScraperPipelineRunnerInput,
   options: Pick<FrontendScraperFetchOptions, "fetchImpl"> = {}
 ): Promise<StoreResults[]> {
   return runFrontendScraperSearch(input, {
@@ -28,7 +28,7 @@ export async function searchGroceryStores(
   standardizedIngredientId?: string | null
 ): Promise<StoreResults[]> {
   try {
-    return await runFrontendScraperRunner({
+    return await runFrontendScraperPipelineRunner({
       searchTerm,
       zipCode,
       store,
@@ -36,19 +36,22 @@ export async function searchGroceryStores(
       standardizedIngredientId,
     })
   } catch (error) {
-    console.error("[FrontendScraperRunner] Error fetching grocery stores:", error)
+    console.error("[FrontendScraperPipelineRunner] Error fetching grocery stores:", error)
     return []
   }
 }
 
-if (process.argv[1] && process.argv[1].includes("backend/workers/frontend-scraper-worker/runner")) {
+if (
+  process.argv[1] &&
+  process.argv[1].includes("backend/orchestrators/frontend-scraper-pipeline-runner")
+) {
   const searchTerm = process.env.FRONTEND_SCRAPER_SEARCH_TERM
   if (!searchTerm) {
-    console.error("[FrontendScraperRunner] FRONTEND_SCRAPER_SEARCH_TERM is required")
+    console.error("[FrontendScraperPipelineRunner] FRONTEND_SCRAPER_SEARCH_TERM is required")
     process.exit(1)
   }
 
-  runFrontendScraperRunner({
+  runFrontendScraperPipelineRunner({
     searchTerm,
     zipCode: process.env.FRONTEND_SCRAPER_ZIP_CODE,
     store: process.env.FRONTEND_SCRAPER_STORE,
@@ -59,11 +62,11 @@ if (process.argv[1] && process.argv[1].includes("backend/workers/frontend-scrape
   })
     .then((results) => {
       console.log(
-        `[FrontendScraperRunner] Completed search for \"${searchTerm}\" (stores=${results.length})`
+        `[FrontendScraperPipelineRunner] Completed search for "${searchTerm}" (stores=${results.length})`
       )
     })
     .catch((error) => {
-      console.error("[FrontendScraperRunner] Unhandled error:", error)
+      console.error("[FrontendScraperPipelineRunner] Unhandled error:", error)
       process.exit(1)
     })
 }

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { runFrontendBatchScraperProcessor } from "@/backend/workers/frontend-scraper-worker/batch-processor"
+import { runFrontendBatchScraperPipeline } from "@/backend/orchestrators/frontend-batch-scraper-pipeline"
 import {
   DEFAULT_BATCH_SCRAPER_STORES,
   type BatchIngredient,
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as BatchScraperRequestBody
 
-    const output = await runFrontendBatchScraperProcessor({
+    const output = await runFrontendBatchScraperPipeline({
       ingredients: body.ingredients,
       zipCode: body.zipCode || "",
       forceRefresh: body.forceRefresh === true,

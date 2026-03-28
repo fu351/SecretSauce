@@ -12,5 +12,6 @@ COPY backend/workers ./backend/workers
 COPY lib/database ./lib/database
 COPY lib/utils ./lib/utils
 COPY backend/scripts ./backend/scripts
+COPY backend/orchestrators ./backend/orchestrators
 
-CMD ["node_modules/.bin/tsx", "backend/scripts/resolve-embedding-queue.ts"]
+CMD ["node_modules/.bin/tsx", "backend/orchestrators/embedding-queue-pipeline.ts"]

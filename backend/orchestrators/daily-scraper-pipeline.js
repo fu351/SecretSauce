@@ -1,23 +1,21 @@
-import { normalizeStoreEnum, truncateText } from './utils.js'
-import { getScraperConfigFromEnv } from './config.js'
-import { appendBrandFailureMetadata } from './db.js'
-import { runDailyScraper } from './processor.js'
-
-// ─── Summary printing ─────────────────────────────────────────────────────────
+import { normalizeStoreEnum, truncateText } from '../workers/daily-scraper-worker/utils.js'
+import { getScraperConfigFromEnv } from '../workers/daily-scraper-worker/config.js'
+import { appendBrandFailureMetadata } from '../workers/daily-scraper-worker/db.js'
+import { runDailyScraper } from './daily-scraper-pipeline-core.js'
 
 function printRunSummary({ config, storeCount, ingredientCount, scrapedCount, insertedCount, durationSecs }) {
   const successRate = scrapedCount > 0 ? (insertedCount / scrapedCount) * 100 : 0
   const insertLabel = config.dryRun ? 'Would Insert' : 'Inserted'
 
-  console.log(`\n✅ Scraped ${scrapedCount} total products`)
+  console.log(`\nScraped ${scrapedCount} total products`)
   if (config.dryRun) {
     console.log(`\n[DRY RUN] Would insert ${insertedCount} rows to database`)
   } else {
-    console.log(`\n✅ Inserted ${insertedCount} rows to database`)
+    console.log(`\nInserted ${insertedCount} rows to database`)
   }
 
   console.log('\n' + '='.repeat(60))
-  console.log('📊 SCRAPER SUMMARY')
+  console.log('SCRAPER SUMMARY')
   console.log('='.repeat(60))
   console.log(`Store Brand: ${config.storeBrand || 'ALL'}`)
   console.log(`Stores: ${storeCount}`)
@@ -30,7 +28,7 @@ function printRunSummary({ config, storeCount, ingredientCount, scrapedCount, in
 }
 
 function printDetailedStoreSummary(storeStats) {
-  console.log('\n📋 DETAILED STORE SUMMARY')
+  console.log('\nDETAILED STORE SUMMARY')
   console.log('='.repeat(60))
 
   const slowestStores = [...storeStats]
@@ -75,7 +73,7 @@ function printDetailedStoreSummary(storeStats) {
 }
 
 function printTarget404Summary(target404s) {
-  console.log(`\n🔍 TARGET 404 SUMMARY: ${target404s.length} total`)
+  console.log(`\nTARGET 404 SUMMARY: ${target404s.length} total`)
 
   const byStore = target404s.reduce((acc, e) => {
     const key = `${e.storeEnum}|${e.zipCode}`
@@ -101,12 +99,10 @@ function printTarget404Summary(target404s) {
     .forEach(([k, c]) => console.log(`  ${k}: ${c}`))
 }
 
-// ─── Entry point ──────────────────────────────────────────────────────────────
-
-async function main(config) {
+export async function runDailyScraperPipeline(config) {
   const startTime = Date.now()
 
-  console.log('🚀 Daily Ingredient Scraper Starting...')
+  console.log('Daily Ingredient Scraper Starting...')
   console.log(`   Store Brand: ${config.storeBrand || 'ALL'}`)
   console.log(`   Dry Run: ${config.dryRun ? 'true' : 'false'}`)
   console.log(`   Summary Mode: ${config.summaryMode}`)
@@ -121,7 +117,7 @@ async function main(config) {
   console.log(`   Insert RPC Retries: ${config.insertRpcMaxRetries}`)
 
   if (!config.supabaseUrl || !config.supabaseServiceKey) {
-    console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
     process.exit(1)
   }
 
@@ -129,20 +125,19 @@ async function main(config) {
 
   if (!stores.length) {
     if (config.storeBrand) {
-      console.warn(`⚠️  No stores found for "${config.storeBrand}" with current filters, skipping job`)
+      console.warn(`No stores found for "${config.storeBrand}" with current filters, skipping job`)
       return
     }
-    console.error('❌ No stores found for configured filters')
+    console.error('No stores found for configured filters')
     process.exit(1)
   }
 
   if (!ingredients.length) {
-    console.error('❌ No canonical ingredients found')
+    console.error('No canonical ingredients found')
     process.exit(1)
   }
 
   const durationSecs = (Date.now() - startTime) / 1000
-
   printRunSummary({ config, storeCount: stores.length, ingredientCount: ingredients.length, scrapedCount, insertedCount, durationSecs })
 
   if (config.summaryMode === 'detailed' && scrapeStats.stores.length > 0) {
@@ -154,7 +149,7 @@ async function main(config) {
   }
 
   if (!config.dryRun && insertedCount < scrapedCount * 0.2) {
-    console.error('\n❌ CRITICAL: <20% insertion success rate')
+    console.error('\nCRITICAL: <20% insertion success rate')
     process.exit(1)
   }
 }
@@ -165,7 +160,7 @@ async function handleTerminationSignal(signal, config) {
   if (shutdownSignalHandled) return
   shutdownSignalHandled = true
 
-  console.error(`\n⚠️ Received ${signal}; recording scraper failure logs before exit...`)
+  console.error(`\nReceived ${signal}; recording scraper failure logs before exit...`)
 
   const normalizedBrand = normalizeStoreEnum(config.storeBrand)
   if (normalizedBrand && config.supabaseUrl && config.supabaseServiceKey) {
@@ -187,20 +182,22 @@ const config = getScraperConfigFromEnv()
 process.on('SIGTERM', () => { void handleTerminationSignal('SIGTERM', config) })
 process.on('SIGINT', () => { void handleTerminationSignal('SIGINT', config) })
 
-main(config).catch(async error => {
-  console.error('\n💥 Fatal error:', error)
+if (process.argv[1] && process.argv[1].includes('backend/orchestrators/daily-scraper-pipeline')) {
+  runDailyScraperPipeline(config).catch(async error => {
+    console.error('\nFatal error:', error)
 
-  const normalizedBrand = normalizeStoreEnum(config.storeBrand)
-  if (normalizedBrand) {
-    await appendBrandFailureMetadata(normalizedBrand, {
-      errorCount: 1,
-      consecutiveErrors: 1,
-      skippedForErrors: false,
-      lastErrorMessage: error?.message || String(error),
-      errorType: 'run_failure',
-      status: 'run_failed',
-    }, config)
-  }
+    const normalizedBrand = normalizeStoreEnum(config.storeBrand)
+    if (normalizedBrand) {
+      await appendBrandFailureMetadata(normalizedBrand, {
+        errorCount: 1,
+        consecutiveErrors: 1,
+        skippedForErrors: false,
+        lastErrorMessage: error?.message || String(error),
+        errorType: 'run_failure',
+        status: 'run_failed',
+      }, config)
+    }
 
-  process.exit(1)
-})
+    process.exit(1)
+  })
+}

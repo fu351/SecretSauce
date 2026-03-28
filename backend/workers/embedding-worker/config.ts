@@ -43,7 +43,7 @@ export function getEmbeddingWorkerConfigFromEnv(
 ): EmbeddingWorkerConfig {
   return {
     mode: resolveMode(process.env.EMBEDDING_MODE),
-    resolverName: process.env.EMBEDDING_QUEUE_RESOLVER_NAME || "embedding-queue-worker",
+    resolverName: process.env.EMBEDDING_QUEUE_RESOLVER_NAME || "embedding-queue-pipeline",
     batchLimit: readPositiveInt(process.env.EMBEDDING_QUEUE_BATCH_LIMIT, 50),
     maxCycles: overrides?.maxCycles ?? readPositiveInt(process.env.EMBEDDING_QUEUE_MAX_CYCLES, 0),
     leaseSeconds: readPositiveInt(process.env.EMBEDDING_QUEUE_LEASE_SECONDS, 180),

@@ -1,7 +1,7 @@
-import * as configModule from "./config"
-import * as processorModule from "./processor"
-import type { EmbeddingWorkerConfig } from "./config"
-import { sleep } from "../env-utils"
+import * as configModule from "../workers/embedding-worker/config"
+import * as processorModule from "../workers/embedding-worker/processor"
+import type { EmbeddingWorkerConfig } from "../workers/embedding-worker/config"
+import { sleep } from "../workers/env-utils"
 
 const getEmbeddingWorkerConfigFromEnv =
   (configModule as { getEmbeddingWorkerConfigFromEnv?: unknown }).getEmbeddingWorkerConfigFromEnv ??
@@ -28,8 +28,7 @@ const runEmbeddingWorkerFn = runEmbeddingWorker as (
   config: EmbeddingWorkerConfig
 ) => Promise<unknown>
 
-
-export async function runEmbeddingQueueWorkerLoop(
+export async function runEmbeddingQueuePipelineRunner(
   overrides?: Partial<EmbeddingWorkerConfig>
 ): Promise<void> {
   const config = getEmbeddingWorkerConfigFromEnvFn(overrides)
@@ -39,16 +38,19 @@ export async function runEmbeddingQueueWorkerLoop(
     try {
       await runEmbeddingWorkerFn({ ...config, maxCycles: 1 })
     } catch (error) {
-      console.error("[EmbeddingQueueRunner] Worker cycle failed:", error)
+      console.error("[EmbeddingQueuePipelineRunner] Pipeline cycle failed:", error)
     }
 
     await sleep(intervalMs)
   }
 }
 
-if (process.argv[1] && process.argv[1].includes("backend/workers/embedding-worker/runner")) {
-  runEmbeddingQueueWorkerLoop().catch((error) => {
-    console.error("[EmbeddingQueueRunner] Unhandled error:", error)
+if (
+  process.argv[1] &&
+  process.argv[1].includes("backend/orchestrators/embedding-queue-pipeline-runner")
+) {
+  runEmbeddingQueuePipelineRunner().catch((error) => {
+    console.error("[EmbeddingQueuePipelineRunner] Unhandled error:", error)
     process.exit(1)
   })
 }

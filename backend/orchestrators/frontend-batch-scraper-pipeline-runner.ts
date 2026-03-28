@@ -1,10 +1,10 @@
-import { sleep } from "../env-utils"
+import { sleep } from "../workers/env-utils"
 import {
   runFrontendBatchScraperProcessor,
-} from "./batch-processor"
-import type { FrontendBatchScraperProcessorInput } from "./batch-utils"
+} from "../workers/frontend-scraper-worker/batch-processor"
+import type { FrontendBatchScraperProcessorInput } from "../workers/frontend-scraper-worker/batch-utils"
 
-export interface FrontendBatchScraperRunnerConfig {
+export interface FrontendBatchScraperPipelineRunnerConfig {
   workerIntervalSeconds: number
   maxCycles: number
   buildJob: (cycle: number) => Promise<FrontendBatchScraperProcessorInput | null> | FrontendBatchScraperProcessorInput | null
@@ -56,7 +56,9 @@ function buildJobFromEnv(): FrontendBatchScraperProcessorInput {
   }
 }
 
-export async function runFrontendBatchScraperWorkerLoop(config: FrontendBatchScraperRunnerConfig): Promise<void> {
+export async function runFrontendBatchScraperPipelineRunner(
+  config: FrontendBatchScraperPipelineRunnerConfig
+): Promise<void> {
   const intervalMs = Math.max(1, config.workerIntervalSeconds) * 1000
   const maxCycles = config.maxCycles > 0 ? config.maxCycles : Infinity
   let cycles = 0
@@ -67,17 +69,17 @@ export async function runFrontendBatchScraperWorkerLoop(config: FrontendBatchScr
     try {
       const job = await config.buildJob(cycles)
       if (!job) {
-        console.log(`[FrontendBatchRunner] Cycle ${cycles}: no job returned`)
+        console.log(`[FrontendBatchScraperPipelineRunner] Cycle ${cycles}: no job returned`)
       } else {
         const output = await runFrontendBatchScraperProcessor(job)
         console.log(
-          `[FrontendBatchRunner] Cycle ${cycles}: ingredients=${output.summary.totalIngredients} ` +
+          `[FrontendBatchScraperPipelineRunner] Cycle ${cycles}: ingredients=${output.summary.totalIngredients} ` +
             `success=${output.summary.successful}/${output.summary.totalAttempts} ` +
             `cached=${output.summary.cached} scraped=${output.summary.scraped} failed=${output.summary.failed}`
         )
       }
     } catch (error) {
-      console.error("[FrontendBatchRunner] Worker cycle failed:", error)
+      console.error("[FrontendBatchScraperPipelineRunner] Pipeline cycle failed:", error)
     }
 
     if (cycles < maxCycles) {
@@ -86,16 +88,19 @@ export async function runFrontendBatchScraperWorkerLoop(config: FrontendBatchScr
   }
 }
 
-if (process.argv[1] && process.argv[1].includes("backend/workers/frontend-scraper-worker/batch-runner")) {
+if (
+  process.argv[1] &&
+  process.argv[1].includes("backend/orchestrators/frontend-batch-scraper-pipeline-runner")
+) {
   const maxCycles = readPositiveInt(process.env.BATCH_SCRAPER_RUNNER_MAX_CYCLES, 1)
   const workerIntervalSeconds = readPositiveInt(process.env.BATCH_SCRAPER_RUNNER_INTERVAL_SECONDS, 300)
 
-  runFrontendBatchScraperWorkerLoop({
+  runFrontendBatchScraperPipelineRunner({
     maxCycles,
     workerIntervalSeconds,
     buildJob: () => buildJobFromEnv(),
   }).catch((error) => {
-    console.error("[FrontendBatchRunner] Unhandled error:", error)
+    console.error("[FrontendBatchScraperPipelineRunner] Unhandled error:", error)
     process.exit(1)
   })
 }

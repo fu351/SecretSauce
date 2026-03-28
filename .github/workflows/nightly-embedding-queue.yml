@@ -76,7 +76,7 @@ jobs:
                   fh.write(f"{key}={section[key]}\n")
           PY
 
-  resolve-embedding-queue:
+  embedding-queue-pipeline:
     name: Resolve Embedding Queue
     needs: load-config
     runs-on: ubuntu-latest
@@ -159,7 +159,7 @@ jobs:
           for batch in $(seq 1 "$max_batches"); do
             echo "=== Embedding Batch ${batch}/${max_batches} ==="
 
-            EMBEDDING_QUEUE_MAX_CYCLES="1" npm --prefix backend/scripts run resolve-embedding-queue
+            EMBEDDING_QUEUE_MAX_CYCLES="1" npm --prefix backend/scripts run embedding-queue-pipeline
 
             PENDING_COUNT=$(curl -sI \
               "${SUPABASE_URL}/rest/v1/embedding_queue?select=id&status=eq.pending${SOURCE_FILTER}" \

@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "./config"
-import * as processorModule from "./processor"
-import { requireSupabaseEnv } from "../env-utils"
-import type { VectorDoubleCheckWorkerConfig } from "./config"
-import type { VectorDoubleCheckRunSummary } from "./processor"
+import * as configModule from "../workers/vector-double-check-worker/config"
+import * as processorModule from "../workers/vector-double-check-worker/processor"
+import { requireSupabaseEnv } from "../workers/env-utils"
+import type { VectorDoubleCheckWorkerConfig } from "../workers/vector-double-check-worker/config"
+import type { VectorDoubleCheckRunSummary } from "../workers/vector-double-check-worker/processor"
 
 const getVectorDoubleCheckWorkerConfigFromEnv =
   (configModule as { getVectorDoubleCheckWorkerConfigFromEnv?: unknown }).getVectorDoubleCheckWorkerConfigFromEnv ??
@@ -32,13 +32,20 @@ const runVectorDoubleCheckDiscoveryFn = runVectorDoubleCheckDiscovery as (
   config: VectorDoubleCheckWorkerConfig
 ) => Promise<VectorDoubleCheckRunSummary>
 
-async function main(): Promise<void> {
+export async function runVectorDoubleCheckPipeline(
+  overrides?: Partial<VectorDoubleCheckWorkerConfig>
+): Promise<VectorDoubleCheckRunSummary> {
   requireSupabaseEnv()
-  const config = getVectorDoubleCheckWorkerConfigFromEnvFn()
-  await runVectorDoubleCheckDiscoveryFn(config)
+  const config = getVectorDoubleCheckWorkerConfigFromEnvFn(overrides)
+  return runVectorDoubleCheckDiscoveryFn(config)
 }
 
-main().catch((error: unknown) => {
-  console.error("[VectorDoubleCheckResolver] Unhandled error:", error)
-  process.exit(1)
-})
+if (
+  process.argv[1] &&
+  process.argv[1].includes("backend/orchestrators/vector-double-check-pipeline")
+) {
+  runVectorDoubleCheckPipeline().catch((error: unknown) => {
+    console.error("[VectorDoubleCheckPipeline] Unhandled error:", error)
+    process.exit(1)
+  })
+}

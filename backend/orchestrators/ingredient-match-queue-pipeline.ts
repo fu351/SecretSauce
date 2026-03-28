@@ -1,18 +1,13 @@
-import { getQueueWorkerConfigFromEnv, type QueueWorkerConfig } from "./config"
-import { runIngredientQueueResolver, type QueueRunSummary } from "./ingredient-worker/processor"
+#!/usr/bin/env tsx
 
-function requireSupabaseEnv(): void {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+import "dotenv/config"
+import { getQueueWorkerConfigFromEnv, type QueueWorkerConfig } from "../workers/config"
+import { runIngredientQueueResolver, type QueueRunSummary } from "../workers/ingredient-worker/processor"
+import { requireSupabaseEnv } from "../workers/env-utils"
 
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error(
-      "Missing Supabase credentials. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    )
-  }
-}
-
-export async function runQueueResolverFromEnv(overrides?: Partial<QueueWorkerConfig>): Promise<QueueRunSummary> {
+export async function runIngredientMatchQueuePipeline(
+  overrides?: Partial<QueueWorkerConfig>
+): Promise<QueueRunSummary> {
   requireSupabaseEnv()
   const config = getQueueWorkerConfigFromEnv(overrides)
   const summary = await runIngredientQueueResolver(config)
@@ -38,4 +33,14 @@ export async function runQueueResolverFromEnv(overrides?: Partial<QueueWorkerCon
   }
 
   return summary
+}
+
+if (
+  process.argv[1] &&
+  process.argv[1].includes("backend/orchestrators/ingredient-match-queue-pipeline")
+) {
+  runIngredientMatchQueuePipeline().catch((error: unknown) => {
+    console.error("[IngredientMatchQueuePipeline] Unhandled error:", error)
+    process.exit(1)
+  })
 }

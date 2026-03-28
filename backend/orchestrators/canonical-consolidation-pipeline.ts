@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "./config"
-import * as processorModule from "./processor"
-import { requireSupabaseEnv } from "../env-utils"
-import type { CanonicalConsolidationWorkerConfig } from "./config"
-import type { CanonicalConsolidationRunSummary } from "./processor"
+import * as configModule from "../workers/canonical-consolidation-worker/config"
+import * as processorModule from "../workers/canonical-consolidation-worker/processor"
+import { requireSupabaseEnv } from "../workers/env-utils"
+import type { CanonicalConsolidationWorkerConfig } from "../workers/canonical-consolidation-worker/config"
+import type { CanonicalConsolidationRunSummary } from "../workers/canonical-consolidation-worker/processor"
 
 const getCanonicalConsolidationWorkerConfigFromEnv =
   (configModule as { getCanonicalConsolidationWorkerConfigFromEnv?: unknown }).getCanonicalConsolidationWorkerConfigFromEnv ??
@@ -32,17 +32,19 @@ const runFn = runCanonicalConsolidation as (
   config: CanonicalConsolidationWorkerConfig
 ) => Promise<CanonicalConsolidationRunSummary>
 
-async function main(): Promise<void> {
+export async function runCanonicalConsolidationPipeline(
+  overrides?: Partial<CanonicalConsolidationWorkerConfig>
+): Promise<CanonicalConsolidationRunSummary> {
   requireSupabaseEnv()
-  const config = getConfigFn()
-  console.log(
-    `[CanonicalConsolidationResolver] Loaded config ` +
-      `(dryRun=${config.dryRun}, batchLimit=${config.batchLimit}, maxCycles=${config.maxCycles})`
-  )
-  await runFn(config)
+  return runFn(getConfigFn(overrides))
 }
 
-main().catch((error: unknown) => {
-  console.error("[CanonicalConsolidationResolver] Unhandled error:", error)
-  process.exit(1)
-})
+if (
+  process.argv[1] &&
+  process.argv[1].includes("backend/orchestrators/canonical-consolidation-pipeline")
+) {
+  runCanonicalConsolidationPipeline().catch((error: unknown) => {
+    console.error("[CanonicalConsolidationPipeline] Unhandled error:", error)
+    process.exit(1)
+  })
+}
