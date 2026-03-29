@@ -1,5 +1,5 @@
 import { getVectorDoubleCheckWorkerConfigFromEnv, type VectorDoubleCheckWorkerConfig } from "../../workers/vector-double-check-worker/config"
-import { runVectorDoubleCheckDiscovery } from "../../workers/vector-double-check-worker/processor"
+import { runVectorDoubleCheckPipeline } from "./pipeline"
 import { sleep } from "../../workers/env-utils"
 
 export async function runVectorDoubleCheckPipelineRunner(
@@ -10,7 +10,7 @@ export async function runVectorDoubleCheckPipelineRunner(
 
   while (true) {
     try {
-      await runVectorDoubleCheckDiscovery({ ...config, maxCycles: 1 })
+      await runVectorDoubleCheckPipeline({ ...config, maxCycles: 1 })
     } catch (error) {
       console.error("[VectorDoubleCheckPipelineRunner] Pipeline cycle failed:", error)
     }
