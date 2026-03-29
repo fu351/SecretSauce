@@ -12,6 +12,7 @@
     "populate-substitution-proposals": "python analysis/populate-substitution-proposals.py",
     "vector-double-check-pipeline": "tsx ../orchestrators/vector-double-check-pipeline/pipeline.ts",
     "canonical-consolidation-pipeline": "tsx ../orchestrators/canonical-consolidation-pipeline/pipeline.ts",
+    "canonical-pipeline": "tsx ../orchestrators/canonical-pipeline/pipeline.ts",
     "ingredient-match-queue-pipeline-runner": "tsx ../orchestrators/ingredient-match-queue-pipeline/runner.ts",
     "regenerate-mappings": "node regenerate-mappings.js"
   },
