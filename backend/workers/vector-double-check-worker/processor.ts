@@ -60,7 +60,7 @@ async function runCycle(config: VectorDoubleCheckWorkerConfig): Promise<CycleRes
 
     if (direction === "generic_to_specific") {
       // Log to stats so the NOT EXISTS check excludes this pair in future runs
-      await ingredientMatchQueueDB.logCanonicalDoubleCheckDaily({
+      const ok = await ingredientMatchQueueDB.logCanonicalDoubleCheckDaily({
         sourceCanonical: candidate.source_canonical,
         targetCanonical: candidate.target_canonical,
         decision: "skipped",
@@ -70,6 +70,11 @@ async function runCycle(config: VectorDoubleCheckWorkerConfig): Promise<CycleRes
         sourceCategory: candidate.source_category,
         targetCategory: candidate.target_category,
       })
+      if (!ok) {
+        throw new Error(
+          `[VectorDoubleCheck] Failed to log ${candidate.source_canonical} → ${candidate.target_canonical}`
+        )
+      }
       skipped++
       continue
     }
@@ -103,10 +108,7 @@ async function runCycle(config: VectorDoubleCheckWorkerConfig): Promise<CycleRes
           `(similarity=${candidate.similarity.toFixed(4)}, direction=${direction})`
       )
     } else {
-      skipped++
-      console.warn(
-        `[VectorDoubleCheck] Failed to log ${sourceCanonical} → ${targetCanonical}`
-      )
+      throw new Error(`[VectorDoubleCheck] Failed to log ${sourceCanonical} → ${targetCanonical}`)
     }
   }
 
