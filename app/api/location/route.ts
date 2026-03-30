@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       longitude: lng,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", userId)
+    .eq("clerk_user_id", userId)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
