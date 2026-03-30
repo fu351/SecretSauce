@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { runFrontendBatchScraperPipeline } from "@/backend/orchestrators/frontend-batch-scraper-pipeline"
+import { runFrontendBatchScraperPipeline } from "@/backend/orchestrators/frontend-batch-scraper-pipeline/pipeline"
 import {
   DEFAULT_BATCH_SCRAPER_STORES,
   type BatchIngredient,
