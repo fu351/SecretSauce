@@ -1,7 +1,7 @@
 import type { EmbeddingSourceType } from "./embedding-queue-db"
 import { readPositiveInt, readBoolean } from "../env-utils"
 
-export type EmbeddingWorkerMode = "queue" | "probation-embedding"
+export type EmbeddingWorkerMode = "queue" | "queue-recipe" | "queue-product" | "queue-all" | "probation-embedding"
 
 export interface EmbeddingWorkerConfig {
   mode: EmbeddingWorkerMode
@@ -23,6 +23,9 @@ export interface EmbeddingWorkerConfig {
 function resolveMode(value: string | undefined): EmbeddingWorkerMode {
   const normalized = String(value ?? "").trim().toLowerCase()
   if (normalized === "probation-embedding") return "probation-embedding"
+  if (normalized === "queue-recipe") return "queue-recipe"
+  if (normalized === "queue-product") return "queue-product"
+  if (normalized === "queue-all") return "queue-all"
   return "queue"
 }
 

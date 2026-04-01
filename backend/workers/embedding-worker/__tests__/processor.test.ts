@@ -534,4 +534,50 @@ describe("runEmbeddingWorker", () => {
     expect(result.result).toMatchObject({ totalFound: 3, totalEmbedded: 0, totalFailed: 3 })
     expect(mockUpsertCandidateEmbedding).not.toHaveBeenCalled()
   })
+
+  it("mode=queue-recipe delegates to queue resolver with sourceType=recipe", async () => {
+    mockClaimPending.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+    const result = await runEmbeddingWorker({ ...baseConfig, mode: "queue-recipe" })
+
+    expect(result.mode).toBe("queue-recipe")
+    expect(mockClaimPending).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceType: "recipe" })
+    )
+    expect(mockFetchProbationCanonicalsWithoutEmbedding).not.toHaveBeenCalled()
+  })
+
+  it("mode=queue-product delegates to queue resolver with sourceType=ingredient", async () => {
+    mockClaimPending.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+    const result = await runEmbeddingWorker({ ...baseConfig, mode: "queue-product" })
+
+    expect(result.mode).toBe("queue-product")
+    expect(mockClaimPending).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceType: "ingredient" })
+    )
+    expect(mockFetchProbationCanonicalsWithoutEmbedding).not.toHaveBeenCalled()
+  })
+
+  it("mode=queue-all delegates to queue resolver with sourceType=any", async () => {
+    mockClaimPending.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+    const result = await runEmbeddingWorker({ ...baseConfig, mode: "queue-all" })
+
+    expect(result.mode).toBe("queue-all")
+    expect(mockClaimPending).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceType: "any" })
+    )
+    expect(mockFetchProbationCanonicalsWithoutEmbedding).not.toHaveBeenCalled()
+  })
+
+  it("mode=queue-all overrides sourceType regardless of config value", async () => {
+    mockClaimPending.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+    await runEmbeddingWorker({ ...baseConfig, mode: "queue-all", sourceType: "recipe" })
+
+    expect(mockClaimPending).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceType: "any" })
+    )
+  })
 })
