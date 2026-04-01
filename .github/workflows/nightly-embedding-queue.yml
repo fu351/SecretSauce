@@ -88,6 +88,7 @@ jobs:
       EMBEDDING_MAX_BATCHES: ${{ needs['load-config'].outputs.embedding_max_batches }}
       EMBEDDING_BATCH_DELAY_SECONDS: ${{ needs['load-config'].outputs.embedding_batch_delay_seconds }}
       EMBEDDING_OPENAI_MODEL: ${{ needs['load-config'].outputs.embedding_model }}
+      OLLAMA_BASE_URL: http://127.0.0.1:11434
       EMBEDDING_WORKER_SOURCE_TYPE: ${{ inputs.embedding_source_type }}
       EMBEDDING_DRY_RUN: ${{ inputs.embedding_dry_run }}
 
@@ -107,6 +108,29 @@ jobs:
 
       - name: Expose scripts dependencies to shared imports
         run: ln -sfn "$GITHUB_WORKSPACE/backend/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama
+        run: |
+          set -euo pipefail
+          nohup ollama serve > /tmp/ollama.log 2>&1 &
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS "${OLLAMA_BASE_URL}/api/tags" >/dev/null; then
+              echo "Ollama is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Ollama failed to become ready."
+          cat /tmp/ollama.log || true
+          exit 1
+
+      - name: Pull embedding model
+        run: ollama pull "${EMBEDDING_OPENAI_MODEL}"
 
       - name: Embedding Queue Summary (Before)
         run: |

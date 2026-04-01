@@ -7,6 +7,7 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 - Claims pending queue rows with lease semantics.
 - Requeues expired processing rows before each cycle.
 - Fetches embeddings from Ollama.
+- Plans load-aware Ollama batches so long input sets are split before requests get too heavy.
 - Upserts the embedding into the matching destination table.
 - Marks the queue row `completed` or `failed`.
 - Supports `dryRun` mode for previewing rows without writing embeddings.
@@ -18,6 +19,7 @@ Processes rows from `embedding_queue`, generates embeddings, and writes them to 
 - `processor.ts` - does the queue claim, embedding fetch, upsert, and status updates.
 - `runner.ts` - continuous loop wrapper around the processor.
 - `embedding-queue-db.ts` - worker-scoped queue and embedding table data access.
+- `batching-resources.ts` - shared helper that splits embedding requests by batch size and estimated text load.
 - `ollama-embeddings.ts` - worker-scoped Ollama embedding client.
 - `__tests__/processor.test.ts` - Vitest coverage for the main processing paths.
 
@@ -75,7 +77,7 @@ Queue behavior:
 2. Requeue expired processing rows unless `dryRun` is enabled.
 3. Claim up to `batchLimit` pending rows, filtered by `sourceType`.
 4. In `dryRun`, return previews only and do not call Ollama.
-5. Otherwise, fetch embeddings in one batch from Ollama.
+5. Otherwise, group uncached inputs into one or more Ollama batches using the shared batching resource helper.
 6. For each row, upsert to `recipe_embeddings` when `source_type = recipe`, upsert to `ingredient_embeddings` when `source_type = ingredient`, then mark the queue row completed.
 7. If a row write fails, mark that row failed with the error message.
 8. If the batch request fails, mark all claimed rows failed.

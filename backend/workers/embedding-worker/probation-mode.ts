@@ -1,5 +1,5 @@
 import { embeddingQueueDB } from "./embedding-queue-db"
-import { fetchEmbeddingsFromOllama } from "./ollama-embeddings"
+import { fetchEmbeddingsWithResourcePlan } from "./batching-resources"
 import { canonicalConsolidationDB } from "../../../lib/database/canonical-consolidation-db"
 import type { EmbeddingWorkerConfig } from "./config"
 
@@ -47,11 +47,13 @@ export async function runProbationEmbedding(
     const batch = canonicals.slice(offset, offset + config.probationBatchLimit)
 
     try {
-      const vectors = await fetchEmbeddingsFromOllama({
+      const vectors = await fetchEmbeddingsWithResourcePlan({
         model: config.embeddingModel,
         inputTexts: batch,
         timeoutMs: config.requestTimeoutMs,
         baseUrl: config.ollamaBaseUrl,
+        maxItems: config.probationBatchLimit,
+        logPrefix: "[EmbeddingWorker]",
       })
 
       for (let i = 0; i < batch.length; i++) {

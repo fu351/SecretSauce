@@ -11,7 +11,7 @@ const {
   mockUpsertCandidateEmbedding,
   mockMarkCompleted,
   mockMarkFailed,
-  mockFetchEmbeddingsFromOllama,
+  mockFetchEmbeddingsWithResourcePlan,
   mockFetchCandidateEmbeddingsByInputTexts,
   mockFetchProbationCanonicalsWithoutEmbedding,
 } = vi.hoisted(() => ({
@@ -23,7 +23,7 @@ const {
   mockUpsertCandidateEmbedding: vi.fn(),
   mockMarkCompleted: vi.fn(),
   mockMarkFailed: vi.fn(),
-  mockFetchEmbeddingsFromOllama: vi.fn(),
+  mockFetchEmbeddingsWithResourcePlan: vi.fn(),
   mockFetchCandidateEmbeddingsByInputTexts: vi.fn(),
   mockFetchProbationCanonicalsWithoutEmbedding: vi.fn(),
 }))
@@ -42,8 +42,8 @@ vi.mock("../embedding-queue-db", () => ({
   },
 }))
 
-vi.mock("../ollama-embeddings", () => ({
-  fetchEmbeddingsFromOllama: mockFetchEmbeddingsFromOllama,
+vi.mock("../batching-resources", () => ({
+  fetchEmbeddingsWithResourcePlan: mockFetchEmbeddingsWithResourcePlan,
 }))
 
 vi.mock("@/lib/database/canonical-consolidation-db", () => ({
@@ -102,7 +102,7 @@ describe("runEmbeddingQueueResolver", () => {
     mockUpsertCandidateEmbedding.mockResolvedValue(true)
     mockMarkCompleted.mockResolvedValue(true)
     mockMarkFailed.mockResolvedValue(true)
-    mockFetchEmbeddingsFromOllama.mockResolvedValue([])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValue([])
     mockFetchCandidateEmbeddingsByInputTexts.mockResolvedValue(new Map())
   })
 
@@ -139,7 +139,7 @@ describe("runEmbeddingQueueResolver", () => {
 
     expect(mockFetchPending).toHaveBeenCalledWith({ limit: 50, sourceType: "ingredient" })
     expect(mockClaimPending).not.toHaveBeenCalled()
-    expect(mockFetchEmbeddingsFromOllama).not.toHaveBeenCalled()
+    expect(mockFetchEmbeddingsWithResourcePlan).not.toHaveBeenCalled()
     expect(mockMarkCompleted).not.toHaveBeenCalled()
     expect(mockMarkFailed).not.toHaveBeenCalled()
   })
@@ -160,7 +160,7 @@ describe("runEmbeddingQueueResolver", () => {
 
     mockRequeueExpired.mockResolvedValueOnce(2).mockResolvedValueOnce(0)
     mockClaimPending.mockResolvedValueOnce([recipeRow, ingredientRow]).mockResolvedValueOnce([])
-    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValueOnce([
       [0.1, 0.2],
       [0.3, 0.4],
     ])
@@ -180,11 +180,13 @@ describe("runEmbeddingQueueResolver", () => {
       leaseSeconds: 180,
       sourceType: "any",
     })
-    expect(mockFetchEmbeddingsFromOllama).toHaveBeenCalledWith({
+    expect(mockFetchEmbeddingsWithResourcePlan).toHaveBeenCalledWith({
       model: "nomic-embed-text",
       inputTexts: ["Simple tomato soup", "tomato"],
       timeoutMs: 30000,
       baseUrl: "http://localhost:11434",
+      maxItems: 50,
+      logPrefix: "[EmbeddingQueueResolver]",
     })
     expect(mockUpsertRecipeEmbedding).toHaveBeenCalledWith({
       recipeId: "recipe-1",
@@ -217,7 +219,7 @@ describe("runEmbeddingQueueResolver", () => {
     })
 
     mockClaimPending.mockResolvedValueOnce([rowA, rowB]).mockResolvedValueOnce([])
-    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.11], [0.22]])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValueOnce([[0.11], [0.22]])
 
     mockUpsertRecipeEmbedding.mockResolvedValueOnce(true)
     mockMarkCompleted.mockResolvedValueOnce(false)
@@ -244,7 +246,7 @@ describe("runEmbeddingQueueResolver", () => {
     const rowB = buildRow({ id: "cycle-b", source_id: "ingredient-b" })
 
     mockClaimPending.mockResolvedValueOnce([rowA, rowB]).mockResolvedValueOnce([])
-    mockFetchEmbeddingsFromOllama.mockRejectedValueOnce(new Error("Ollama temporarily unavailable"))
+    mockFetchEmbeddingsWithResourcePlan.mockRejectedValueOnce(new Error("Ollama temporarily unavailable"))
 
     const summary = await runEmbeddingQueueResolver(baseConfig)
 
@@ -268,7 +270,7 @@ describe("runEmbeddingQueueResolver", () => {
     })
 
     mockClaimPending.mockResolvedValueOnce([row]).mockResolvedValueOnce([])
-    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.5, 0.6]])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValueOnce([[0.5, 0.6]])
 
     const summary = await runEmbeddingQueueResolver(baseConfig)
 
@@ -298,7 +300,7 @@ describe("runEmbeddingQueueResolver", () => {
     const summary = await runEmbeddingQueueResolver(baseConfig)
 
     expect(summary).toMatchObject({ totalCompleted: 2, totalFailed: 0 })
-    expect(mockFetchEmbeddingsFromOllama).not.toHaveBeenCalled()
+    expect(mockFetchEmbeddingsWithResourcePlan).not.toHaveBeenCalled()
     expect(mockUpsertCandidateEmbedding).toHaveBeenCalledWith(
       expect.objectContaining({ canonicalName: "salt", embedding: [0.1, 0.2] })
     )
@@ -320,14 +322,14 @@ describe("runEmbeddingQueueResolver", () => {
         ["pepper", [0.0, 1.0]],
       ])
     )
-    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.5, 0.5]])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValueOnce([[0.5, 0.5]])
 
     const summary = await runEmbeddingQueueResolver(baseConfig)
 
     expect(summary).toMatchObject({ totalCompleted: 3, totalFailed: 0 })
 
     // Only the miss (fresh basil) should be sent to Ollama
-    expect(mockFetchEmbeddingsFromOllama).toHaveBeenCalledWith(
+    expect(mockFetchEmbeddingsWithResourcePlan).toHaveBeenCalledWith(
       expect.objectContaining({ inputTexts: ["fresh basil"] })
     )
 
@@ -347,7 +349,7 @@ describe("runEmbeddingQueueResolver", () => {
     const row = buildRow({ id: "row-1" })
     // Return a row on every claim — queue never drains naturally
     mockClaimPending.mockResolvedValue([row])
-    mockFetchEmbeddingsFromOllama.mockResolvedValue([[0.1]])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValue([[0.1]])
 
     const summary = await runEmbeddingQueueResolver({ ...baseConfig, maxCycles: 2 })
 
@@ -364,7 +366,7 @@ describe("runEmbeddingQueueResolver", () => {
       .mockResolvedValueOnce([rowA])
       .mockResolvedValueOnce([rowB])
       .mockResolvedValueOnce([])
-    mockFetchEmbeddingsFromOllama
+    mockFetchEmbeddingsWithResourcePlan
       .mockResolvedValueOnce([[0.1]])
       .mockResolvedValueOnce([[0.2]])
 
@@ -385,7 +387,7 @@ describe("runEmbeddingQueueResolver", () => {
       .mockResolvedValueOnce([row])
       .mockResolvedValueOnce([row])
       .mockResolvedValueOnce([])
-    mockFetchEmbeddingsFromOllama.mockResolvedValue([[0.1]])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValue([[0.1]])
 
     await runEmbeddingQueueResolver(baseConfig)
 
@@ -414,7 +416,7 @@ describe("runEmbeddingQueueResolver", () => {
   it("accumulates requeued count across cycles", async () => {
     const row = buildRow({ id: "r" })
     mockClaimPending.mockResolvedValueOnce([row]).mockResolvedValueOnce([])
-    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.1]])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValueOnce([[0.1]])
     mockRequeueExpired.mockResolvedValueOnce(3).mockResolvedValueOnce(5)
 
     const summary = await runEmbeddingQueueResolver(baseConfig)
@@ -433,7 +435,7 @@ describe("runEmbeddingWorker", () => {
     mockFetchPending.mockResolvedValue([])
     mockClaimPending.mockResolvedValue([])
     mockRequeueExpired.mockResolvedValue(0)
-    mockFetchEmbeddingsFromOllama.mockResolvedValue([])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValue([])
     mockFetchCandidateEmbeddingsByInputTexts.mockResolvedValue(new Map())
     mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValue([])
     mockUpsertCandidateEmbedding.mockResolvedValue(true)
@@ -449,17 +451,19 @@ describe("runEmbeddingWorker", () => {
 
   it("mode=probation-embedding calls fetchProbationCanonicalsWithoutEmbedding and embeds each canonical", async () => {
     mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValueOnce(["tilapia", "salmon"])
-    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.1, 0.2], [0.3, 0.4]])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValueOnce([[0.1, 0.2], [0.3, 0.4]])
 
     const result = await runEmbeddingWorker({ ...baseConfig, mode: "probation-embedding" })
 
     expect(result.mode).toBe("probation-embedding")
     expect(result.result).toEqual({ totalFound: 2, totalEmbedded: 2, totalFailed: 0 })
-    expect(mockFetchEmbeddingsFromOllama).toHaveBeenCalledWith({
+    expect(mockFetchEmbeddingsWithResourcePlan).toHaveBeenCalledWith({
       model: "nomic-embed-text",
       inputTexts: ["tilapia", "salmon"],
       timeoutMs: 30000,
       baseUrl: "http://localhost:11434",
+      maxItems: 100,
+      logPrefix: "[EmbeddingWorker]",
     })
     expect(mockUpsertCandidateEmbedding).toHaveBeenCalledTimes(2)
     expect(mockClaimPending).not.toHaveBeenCalled()
@@ -472,13 +476,13 @@ describe("runEmbeddingWorker", () => {
 
     expect(result.mode).toBe("probation-embedding")
     expect(result.result).toEqual({ totalFound: 2, totalEmbedded: 0, totalFailed: 0 })
-    expect(mockFetchEmbeddingsFromOllama).not.toHaveBeenCalled()
+    expect(mockFetchEmbeddingsWithResourcePlan).not.toHaveBeenCalled()
     expect(mockUpsertCandidateEmbedding).not.toHaveBeenCalled()
   })
 
   it("mode=probation-embedding counts failed upserts", async () => {
     mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValueOnce(["tilapia"])
-    mockFetchEmbeddingsFromOllama.mockResolvedValueOnce([[0.1, 0.2]])
+    mockFetchEmbeddingsWithResourcePlan.mockResolvedValueOnce([[0.1, 0.2]])
     mockUpsertCandidateEmbedding.mockResolvedValueOnce(false)
 
     const result = await runEmbeddingWorker({ ...baseConfig, mode: "probation-embedding" })
@@ -492,14 +496,14 @@ describe("runEmbeddingWorker", () => {
     const result = await runEmbeddingWorker({ ...baseConfig, mode: "probation-embedding" })
 
     expect(result.result).toEqual({ totalFound: 0, totalEmbedded: 0, totalFailed: 0 })
-    expect(mockFetchEmbeddingsFromOllama).not.toHaveBeenCalled()
+    expect(mockFetchEmbeddingsWithResourcePlan).not.toHaveBeenCalled()
   })
 
   it("mode=probation-embedding processes canonicals in batches when count exceeds probationBatchLimit", async () => {
     const canonicals = Array.from({ length: 5 }, (_, i) => `item-${i}`)
     mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValueOnce(canonicals)
     // Two batches: first 3, then 2
-    mockFetchEmbeddingsFromOllama
+    mockFetchEmbeddingsWithResourcePlan
       .mockResolvedValueOnce(canonicals.slice(0, 3).map(() => [0.1]))
       .mockResolvedValueOnce(canonicals.slice(3).map(() => [0.2]))
 
@@ -510,20 +514,20 @@ describe("runEmbeddingWorker", () => {
     })
 
     expect(result.result).toMatchObject({ totalFound: 5, totalEmbedded: 5, totalFailed: 0 })
-    expect(mockFetchEmbeddingsFromOllama).toHaveBeenCalledTimes(2)
-    expect(mockFetchEmbeddingsFromOllama).toHaveBeenNthCalledWith(
+    expect(mockFetchEmbeddingsWithResourcePlan).toHaveBeenCalledTimes(2)
+    expect(mockFetchEmbeddingsWithResourcePlan).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ inputTexts: canonicals.slice(0, 3) })
+      expect.objectContaining({ inputTexts: canonicals.slice(0, 3), maxItems: 3 })
     )
-    expect(mockFetchEmbeddingsFromOllama).toHaveBeenNthCalledWith(
+    expect(mockFetchEmbeddingsWithResourcePlan).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ inputTexts: canonicals.slice(3) })
+      expect.objectContaining({ inputTexts: canonicals.slice(3), maxItems: 3 })
     )
   })
 
   it("mode=probation-embedding counts entire batch as failed when Ollama throws", async () => {
     mockFetchProbationCanonicalsWithoutEmbedding.mockResolvedValueOnce(["cod", "hake", "trout"])
-    mockFetchEmbeddingsFromOllama.mockRejectedValueOnce(new Error("Ollama down"))
+    mockFetchEmbeddingsWithResourcePlan.mockRejectedValueOnce(new Error("Ollama down"))
 
     const result = await runEmbeddingWorker({ ...baseConfig, mode: "probation-embedding" })
 

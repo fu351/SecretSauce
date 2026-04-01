@@ -3,7 +3,7 @@ import {
   type EmbeddingQueueRow,
   type EmbeddingSourceType,
 } from "./embedding-queue-db"
-import { fetchEmbeddingsFromOllama } from "./ollama-embeddings"
+import { fetchEmbeddingsWithResourcePlan } from "./batching-resources"
 import type { EmbeddingWorkerConfig } from "./config"
 
 interface ResolveBatchResult {
@@ -76,11 +76,13 @@ async function resolveBatch(
 
   let ollamaVectors: number[][] = []
   if (missTexts.length > 0) {
-    ollamaVectors = await fetchEmbeddingsFromOllama({
+    ollamaVectors = await fetchEmbeddingsWithResourcePlan({
       model,
       inputTexts: missTexts,
       timeoutMs: config.requestTimeoutMs,
       baseUrl: config.ollamaBaseUrl,
+      maxItems: config.batchLimit,
+      logPrefix: "[EmbeddingQueueResolver]",
     })
   }
 
