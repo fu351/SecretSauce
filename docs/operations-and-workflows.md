@@ -14,40 +14,39 @@ Last verified: 2026-03-26.
 
 ### Queue operations
 
-- `npm run resolve-ingredient-match-queue`
-- `npm run queue-worker`
-- `npm run resolve-embedding-queue`
-- `npm run embedding-queue-worker`
-- `npm run vector-double-check-worker`
+- `npm run ingredient-match-queue-pipeline`
+- `npm run ingredient-match-queue-pipeline-runner`
+- `npm run embedding-queue-pipeline`
+- `npm run embedding-queue-pipeline-runner`
+- `npm run vector-double-check-pipeline-runner`
 - `npm run backfill-embedding-queue`
-- `npm --prefix scripts run resolve-vector-double-check`
-- `npm --prefix scripts run resolve-canonical-consolidation`
+- `npm --prefix scripts run vector-double-check-pipeline`
+- `npm --prefix scripts run canonical-consolidation-pipeline`
 
 ### Script entrypoints
 
 Root `package.json` exposes the common queue helpers:
 
-- `resolve-ingredient-match-queue`
-- `resolve-embedding-queue`
-- `queue-worker`
-- `embedding-queue-worker`
-- `vector-double-check-worker`
+- `ingredient-match-queue-pipeline`
+- `embedding-queue-pipeline`
+- `ingredient-match-queue-pipeline-runner`
+- `embedding-queue-pipeline-runner`
+- `vector-double-check-pipeline-runner`
 - `backfill-embedding-queue`
 
 `backend/scripts/package.json` is the shared workflow package. From the repo root, run it with `npm --prefix scripts run ...`:
 
-- `resolve-ingredient-match-queue`
-- `resolve-embedding-queue`
-- `resolve-vector-double-check`
-- `resolve-canonical-consolidation`
-- `queue-worker`
+- `ingredient-match-queue-pipeline`
+- `embedding-queue-pipeline`
+- `vector-double-check-pipeline`
+- `canonical-consolidation-pipeline`
+- `ingredient-match-queue-pipeline-runner`
 
 Other directly-invoked scripts:
 
 JavaScript/TypeScript:
 
-- `backend/workers/daily-scraper-worker/runner.js` (canonical entrypoint)
-- `backend/scripts/daily-scraper.js` (legacy compatibility shim)
+- `backend/orchestrators/daily-scraper-pipeline.js` (canonical entrypoint)
 - `backend/scripts/regenerate-mappings.js`
 - `backend/scripts/relink-product-mappings.js`
 - `backend/scripts/temp/seed-mock-recipes.ts`
@@ -65,11 +64,11 @@ Python:
 
 Current workflows include:
 
-- `daily-scraper-matrix.yml` (runs `backend/workers/daily-scraper-worker/runner.js`)
+- `daily-scraper-matrix.yml` (runs `backend/orchestrators/daily-scraper-pipeline.js`)
 - `nightly-workflow.yml` (orchestrates the queue and scraper workflows)
-- `nightly-ingredient-queue.yml` / `test-ingredient-queue.yml` (run `resolve-ingredient-match-queue`)
-- `nightly-embedding-queue.yml` / `test-embedding-queue.yml` (run `resolve-embedding-queue`)
-- `regenerate-mappings.yml` (runs `resolve-ingredient-match-queue` for relink passes)
+- `nightly-ingredient-queue.yml` / `test-ingredient-queue.yml` (run `ingredient-match-queue-pipeline`)
+- `nightly-embedding-queue.yml` / `test-embedding-queue.yml` (run `embedding-queue-pipeline`)
+- `regenerate-mappings.yml` (runs `ingredient-match-queue-pipeline` for relink passes)
 - `store_maintenance.yml`
 - plus backup/reset/init/main utility workflows.
 

@@ -1,23 +1,23 @@
 # Vector Double-Check Worker
 
-Scans `ingredient_embeddings` for canonical pairs with high cosine similarity, then logs discovered pairs to `canonical_double_check_daily_stats` for downstream review and consolidation.
+The vector-discovery pipeline now runs the embedding queue first to refresh embeddings, then scans `ingredient_embeddings` for canonical pairs with high cosine similarity and logs discovered pairs to `canonical_double_check_daily_stats` for downstream review and consolidation.
 
 ## Key Files
 
 - `config.ts` - reads worker config from environment variables.
 - `processor.ts` - fetches candidates, resolves remap direction, and writes stats rows.
 - `runner.ts` - long-running loop wrapper around the processor.
-- `resolve-vector-double-check.ts` - one-shot entrypoint for local runs and compose.
+- `backend/orchestrators/vector-double-check-pipeline/pipeline.ts` - one-shot pipeline entrypoint that runs embedding queue, then vector discovery.
 - `__tests__/processor.test.ts` - behavior coverage for dry-run, logging, and cycle limits.
 
 ## Run
 
 - Local one-shot:
-  - `tsx --env-file=.env.local backend/workers/vector-double-check-worker/resolve-vector-double-check.ts`
+  - `tsx --env-file=.env.local backend/orchestrators/vector-double-check-pipeline/pipeline.ts`
 - Repo loop:
-  - `npm run vector-double-check-worker`
+  - `tsx --env-file=.env.local backend/orchestrators/vector-double-check-pipeline/runner.ts`
 - Shared scripts package entrypoint:
-  - `npm --prefix scripts run resolve-vector-double-check`
+  - `npm --prefix backend/scripts run vector-double-check-pipeline`
 - Local Docker service:
   - `docker compose -f docker-compose.local.yml run --rm vector-double-check-worker`
 
@@ -40,13 +40,14 @@ The worker also uses these optional settings:
 ## Processing Flow
 
 1. Load config from env.
-2. Call `fn_find_vector_double_check_candidates` through `ingredientEmbeddingsDB`.
-3. If `VECTOR_DC_DRY_RUN=true`, print candidates and skip all DB writes.
-4. Otherwise resolve direction with `resolveRemapDirection`:
+2. Run the embedding worker in `queue` mode so pending embeddings are refreshed before discovery.
+3. Call `fn_find_vector_double_check_candidates` through `ingredientEmbeddingsDB`.
+4. If `VECTOR_DC_DRY_RUN=true`, print candidates and skip all DB writes.
+5. Otherwise resolve direction with `resolveRemapDirection`:
    - `generic_to_specific` pairs are logged as skipped so they do not resurface.
    - `lateral` pairs are reordered so the shorter canonical becomes `source_canonical`.
    - other pairs are logged to `canonical_double_check_daily_stats` with `reason=vector_candidate_discovery`.
-5. Stop when a cycle returns fewer rows than `VECTOR_DC_BATCH_LIMIT`, then print a summary.
+6. Stop when a cycle returns fewer rows than `VECTOR_DC_BATCH_LIMIT`, then print a summary.
 
 ## Testing
 

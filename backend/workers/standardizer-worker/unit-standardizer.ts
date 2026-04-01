@@ -233,7 +233,7 @@ function parseParsedPayload(
     const status = typeof entry.status === "string" ? entry.status.toLowerCase() : "success"
     if (status !== "success") {
       return {
-        id: String(entry.id ?? entry.rowId ?? input.id),
+        id: input.id,
         resolvedUnit: null,
         resolvedQuantity: null,
         confidence: parseConfidence(entry.confidence ?? entry.confidenceScore, 0),
@@ -250,17 +250,17 @@ function parseParsedPayload(
     const unitSignals = extractUnitSignals(input)
 
     if (!resolvedUnit) {
-      return errorResult(String(entry.id ?? entry.rowId ?? input.id), "Resolved unit missing/invalid")
+      return errorResult(input.id, "Resolved unit missing/invalid")
     }
 
     if (!resolvedQuantity) {
-      return errorResult(String(entry.id ?? entry.rowId ?? input.id), "Resolved quantity missing/invalid")
+      return errorResult(input.id, "Resolved quantity missing/invalid")
     }
 
     if (!unitSignals.size) {
       if (input.source === "recipe" && confidence >= RECIPE_INFERRED_UNIT_MIN_CONFIDENCE) {
         return {
-          id: String(entry.id ?? entry.rowId ?? input.id),
+          id: input.id,
           resolvedUnit,
           resolvedQuantity,
           confidence,
@@ -268,21 +268,18 @@ function parseParsedPayload(
         }
       }
 
-      return errorResult(
-        String(entry.id ?? entry.rowId ?? input.id),
-        "No explicit unit found in raw unit/product name"
-      )
+      return errorResult(input.id, "No explicit unit found in raw unit/product name")
     }
 
     if (!unitSignals.has(resolvedUnit)) {
       return errorResult(
-        String(entry.id ?? entry.rowId ?? input.id),
+        input.id,
         `Resolved unit "${resolvedUnit}" not supported by raw unit/product name`
       )
     }
 
     return {
-      id: String(entry.id ?? entry.rowId ?? input.id),
+      id: input.id,
       resolvedUnit,
       resolvedQuantity,
       confidence,

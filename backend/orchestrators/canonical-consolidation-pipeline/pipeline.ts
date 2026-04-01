@@ -1,10 +1,11 @@
 #!/usr/bin/env tsx
 
 import "dotenv/config"
-import * as configModule from "./config"
-import * as processorModule from "./processor"
-import type { CanonicalConsolidationWorkerConfig } from "./config"
-import type { CanonicalConsolidationRunSummary } from "./processor"
+import * as configModule from "../../workers/canonical-consolidation-worker/config"
+import * as processorModule from "../../workers/canonical-consolidation-worker/processor"
+import { requireSupabaseEnv } from "../../workers/env-utils"
+import type { CanonicalConsolidationWorkerConfig } from "../../workers/canonical-consolidation-worker/config"
+import type { CanonicalConsolidationRunSummary } from "../../workers/canonical-consolidation-worker/processor"
 
 const getCanonicalConsolidationWorkerConfigFromEnv =
   (configModule as { getCanonicalConsolidationWorkerConfigFromEnv?: unknown }).getCanonicalConsolidationWorkerConfigFromEnv ??
@@ -31,24 +32,19 @@ const runFn = runCanonicalConsolidation as (
   config: CanonicalConsolidationWorkerConfig
 ) => Promise<CanonicalConsolidationRunSummary>
 
-function requireSupabaseEnv(): void {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error(
-      "Missing Supabase credentials. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    )
-  }
-}
-
-async function main(): Promise<void> {
+export async function runCanonicalConsolidationPipeline(
+  overrides?: Partial<CanonicalConsolidationWorkerConfig>
+): Promise<CanonicalConsolidationRunSummary> {
   requireSupabaseEnv()
-  const config = getConfigFn()
-  await runFn(config)
+  return runFn(getConfigFn(overrides))
 }
 
-main().catch((error: unknown) => {
-  console.error("[CanonicalConsolidationResolver] Unhandled error:", error)
-  process.exit(1)
-})
+if (
+  process.argv[1] &&
+  /backend[\\/]+orchestrators[\\/]+canonical-consolidation-pipeline[\\/]+pipeline(?:\.ts)?$/i.test(process.argv[1])
+) {
+  runCanonicalConsolidationPipeline().catch((error: unknown) => {
+    console.error("[CanonicalConsolidationPipeline] Unhandled error:", error)
+    process.exit(1)
+  })
+}

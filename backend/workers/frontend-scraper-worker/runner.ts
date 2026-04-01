@@ -41,7 +41,10 @@ export async function searchGroceryStores(
   }
 }
 
-if (process.argv[1] && process.argv[1].includes("backend/workers/frontend-scraper-worker/runner")) {
+if (
+  process.argv[1] &&
+  /backend[\\/]+workers[\\/]+frontend-scraper-worker[\\/]+runner(?:\.ts)?$/i.test(process.argv[1])
+) {
   const searchTerm = process.env.FRONTEND_SCRAPER_SEARCH_TERM
   if (!searchTerm) {
     console.error("[FrontendScraperRunner] FRONTEND_SCRAPER_SEARCH_TERM is required")
@@ -59,7 +62,7 @@ if (process.argv[1] && process.argv[1].includes("backend/workers/frontend-scrape
   })
     .then((results) => {
       console.log(
-        `[FrontendScraperRunner] Completed search for \"${searchTerm}\" (stores=${results.length})`
+        `[FrontendScraperRunner] Completed search for "${searchTerm}" (stores=${results.length})`
       )
     })
     .catch((error) => {

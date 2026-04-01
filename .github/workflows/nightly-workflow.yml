@@ -90,7 +90,7 @@ on:
           - "true"
         default: "false"
       embedding_dry_run:
-        description: "Dry run embedding queue stage"
+        description: "Dry run canonical pipeline stage"
         required: false
         type: choice
         options:
@@ -171,11 +171,10 @@ jobs:
       queue_dry_run: ${{ inputs.queue_dry_run || 'false' }}
 
   embedding-queue:
-    name: Nightly Embedding Queue
+    name: Nightly Canonical Pipeline
     needs: [queue]
     if: ${{ always() && (needs.queue.result == 'success' || needs.queue.result == 'skipped') && !contains(fromJson('["emergency_stop","stop_after_purge","stop_after_scraper","stop_after_update","stop_after_queue"]'), inputs.run_mode || 'normal') }}
     uses: ./.github/workflows/nightly-embedding-queue.yml
     secrets: inherit
     with:
       embedding_dry_run: ${{ inputs.embedding_dry_run || 'false' }}
-      embedding_source_type: "ingredient"

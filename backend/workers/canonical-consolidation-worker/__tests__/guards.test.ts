@@ -91,4 +91,58 @@ describe("assessConsolidationCandidate", () => {
       reason: "cross_category_requires_manual_review",
     })
   })
+
+  it("allows exact normalized matches", () => {
+    expect(
+      assessConsolidationCandidate(
+        buildRow({
+          source_canonical: "  Lemon   Zest ",
+          target_canonical: "lemon zest",
+        })
+      )
+    ).toEqual({
+      allowed: true,
+      reason: "exact_normalized_match",
+    })
+  })
+
+  it("allows high-similarity weighted matches with enough product usage", () => {
+    expect(
+      assessConsolidationCandidate(buildRow({
+        source_canonical: "ground chili pepper",
+        target_canonical: "chili pepper ground",
+        max_similarity: 0.985,
+      }), {
+        productCounts: new Map([
+          ["ground chili pepper", 9],
+          ["chili pepper ground", 9],
+        ]),
+        weightedSimilarityThreshold: 0.97,
+        minWeightedProductCount: 5,
+      })
+    ).toEqual({
+      allowed: true,
+      reason: "weighted_product_count_vector_match",
+    })
+  })
+
+  it("blocks weighted matches when product usage is too low", () => {
+    expect(
+      assessConsolidationCandidate(buildRow({
+        source_canonical: "ground chili pepper",
+        target_canonical: "chili pepper ground",
+        max_similarity: 0.985,
+      }), {
+        productCounts: new Map([
+          ["ground chili pepper", 1],
+          ["chili pepper ground", 2],
+        ]),
+        weightedSimilarityThreshold: 0.97,
+        minWeightedProductCount: 5,
+      })
+    ).toEqual({
+      allowed: false,
+      reason: "non_trivial_lateral_variant_requires_manual_review",
+    })
+  })
 })

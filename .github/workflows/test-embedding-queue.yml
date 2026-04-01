@@ -48,10 +48,9 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           EMBEDDING_QUEUE_BATCH_LIMIT: ${{ inputs.batch_size }}
           EMBEDDING_WORKER_SOURCE_TYPE: ${{ inputs.source_type }}
           EMBEDDING_QUEUE_MAX_CYCLES: '1'
           EMBEDDING_DRY_RUN: 'true'
           NODE_ENV: production
-        run: npm --prefix backend/scripts run resolve-embedding-queue
+        run: npm --prefix backend/scripts run embedding-queue-pipeline

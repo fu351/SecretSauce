@@ -1,0 +1,16 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+COPY backend/scripts/package.json ./package.json
+COPY backend/scripts/package-lock.json ./package-lock.json
+RUN npm ci --omit=dev
+
+COPY tsconfig.json ./tsconfig.json
+COPY backend/workers ./backend/workers
+COPY lib/database ./lib/database
+COPY lib/utils ./lib/utils
+COPY backend/scripts ./backend/scripts
+COPY backend/orchestrators ./backend/orchestrators
+
+CMD ["node_modules/.bin/tsx", "backend/orchestrators/frontend-scraper-pipeline/runner.ts"]

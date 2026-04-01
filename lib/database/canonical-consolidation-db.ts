@@ -36,7 +36,7 @@ class CanonicalConsolidationDB {
       .gte("event_date", cutoffDate)
       .gte("event_count", Math.max(1, params.minEventCount))
       .gte("max_similarity", params.minSimilarity)
-      .in("direction", ["lateral", "specific_to_generic"])
+      .in("direction", ["lateral"])
       .in("decision", ["skipped"])
       .eq("reason", "vector_candidate_discovery")
       .order("max_similarity", { ascending: false })
@@ -95,6 +95,101 @@ class CanonicalConsolidationDB {
     }
   }
 
+  async fetchProductCountsByCanonical(canonicals: string[]): Promise<Map<string, number>> {
+    if (canonicals.length === 0) return new Map()
+
+    // Step 1: resolve canonical names → standardized_ingredient IDs
+    const { data: ingredients, error: ingError } = await (supabase.from as any)(
+      "standardized_ingredients"
+    )
+      .select("id, canonical_name")
+      .in("canonical_name", canonicals)
+
+    if (ingError || !ingredients?.length) return new Map()
+
+    const idToCanonical = new Map<string, string>(
+      (ingredients as Array<{ id: string; canonical_name: string }>).map((i) => [
+        i.id,
+        i.canonical_name,
+      ])
+    )
+    const ids = [...idToCanonical.keys()]
+
+    // Step 2: count product_mappings rows per standardized_ingredient_id
+    const counts = new Map<string, number>()
+    const chunkSize = 50
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize)
+      const { data: mappings, error: mapError } = await (supabase.from as any)("product_mappings")
+        .select("standardized_ingredient_id")
+        .in("standardized_ingredient_id", chunk)
+
+      if (mapError || !mappings) continue
+
+      for (const row of mappings as Array<{ standardized_ingredient_id: string }>) {
+        const canonical = idToCanonical.get(row.standardized_ingredient_id)
+        if (canonical) counts.set(canonical, (counts.get(canonical) ?? 0) + 1)
+      }
+    }
+
+    return counts
+  }
+
+  async fetchProbationCanonicalsWithoutEmbedding(params: {
+    model: string
+    limit: number
+    minDistinctSources: number
+  }): Promise<string[]> {
+    // Pull canonical names that have enough distinct sources but no embedding yet.
+    // LEFT JOIN against canonical_candidate_embeddings; keep rows where embedding
+    // is absent or was made with a different model.
+    const { data, error } = await (supabase.from as any)(
+      "canonical_creation_probation_events"
+    )
+      .select("canonical_name")
+      .limit(params.limit * 10) // over-fetch to account for already-embedded rows
+
+    if (error || !data?.length) {
+      if (error) console.error("[CanonicalConsolidationDB] fetchProbationCanonicalsWithoutEmbedding error:", error.message)
+      return []
+    }
+
+    // Group by canonical_name to count distinct source_signatures
+    const sourceCounts = new Map<string, number>()
+    for (const row of data as Array<{ canonical_name: string }>) {
+      sourceCounts.set(row.canonical_name, (sourceCounts.get(row.canonical_name) ?? 0) + 1)
+    }
+
+    const eligible = [...sourceCounts.entries()]
+      .filter(([, count]) => count >= params.minDistinctSources)
+      .map(([name]) => name)
+
+    if (!eligible.length) return []
+
+    // Fetch which of these already have an embedding with the right model
+    const chunkSize = 200
+    const alreadyEmbedded = new Set<string>()
+
+    for (let i = 0; i < eligible.length; i += chunkSize) {
+      const chunk = eligible.slice(i, i + chunkSize)
+      const { data: existing } = await (supabase.from as any)(
+        "canonical_candidate_embeddings"
+      )
+        .select("canonical_name")
+        .in("canonical_name", chunk)
+        .eq("embedding_model", params.model)
+
+      for (const row of (existing ?? []) as Array<{ canonical_name: string }>) {
+        alreadyEmbedded.add(row.canonical_name)
+      }
+    }
+
+    return eligible
+      .filter((name) => !alreadyEmbedded.has(name))
+      .slice(0, params.limit)
+  }
+
   async logConsolidationEvent(params: ConsolidationLogParams): Promise<void> {
     const { error } = await (supabase.from as any)("canonical_consolidation_log").insert({
       survivor_canonical: params.survivorCanonical,
@@ -107,7 +202,7 @@ class CanonicalConsolidationDB {
     })
 
     if (error) {
-      console.error("[CanonicalConsolidationDB] logConsolidationEvent error:", error.message)
+      throw new Error(`[CanonicalConsolidationDB] logConsolidationEvent error: ${error.message}`)
     }
   }
 }

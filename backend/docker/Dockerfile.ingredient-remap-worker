@@ -11,10 +11,11 @@ RUN npm install --no-audit --no-fund
 
 COPY tsconfig.json ./tsconfig.json
 COPY backend/workers ./backend/workers
+COPY backend/orchestrators ./backend/orchestrators
 COPY backend/scripts ./backend/scripts
 COPY lib/database ./lib/database
 COPY lib/openai ./lib/openai
 COPY lib/ollama ./lib/ollama
 COPY lib/utils ./lib/utils
 
-CMD ["node_modules/.bin/tsx", "backend/scripts/resolve-ingredient-match-queue.ts"]
+CMD ["node_modules/.bin/tsx", "backend/orchestrators/ingredient-match-queue-pipeline/pipeline.ts"]

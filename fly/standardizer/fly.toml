@@ -2,7 +2,7 @@ app = "secretsauce-standardizer"
 primary_region = "ord"
 
 [build]
-  dockerfile = "backend/docker/Dockerfile.fly-standardizer"
+  dockerfile = "backend/docker/Dockerfile.python-api"
 
 [env]
   PORT = "8080"

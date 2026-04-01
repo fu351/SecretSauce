@@ -4,11 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "resolve-ingredient-match-queue": "tsx resolve-ingredient-match-queue.ts",
-    "resolve-embedding-queue": "tsx resolve-embedding-queue.ts",
-    "resolve-vector-double-check": "tsx ../workers/vector-double-check-worker/resolve-vector-double-check.ts",
-    "resolve-canonical-consolidation": "tsx ../workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts",
-    "queue-worker": "tsx ../workers/ingredient-worker/runner.ts",
+    "ingredient-match-queue-pipeline": "tsx ../orchestrators/ingredient-match-queue-pipeline/pipeline.ts",
+    "embedding-queue-pipeline": "tsx ../orchestrators/embedding-queue-pipeline/pipeline.ts",
+    "visualize-ingredient-embeddings-pca": "python analysis/visualize-ingredient-embeddings-pca.py",
+    "weighted-cluster-projection": "python analysis/weighted-cluster-projection.py",
+    "consolidation-candidate-scatter": "python analysis/consolidation-candidate-scatter.py",
+    "populate-substitution-proposals": "python analysis/populate-substitution-proposals.py",
+    "vector-double-check-pipeline": "tsx ../orchestrators/vector-double-check-pipeline/pipeline.ts",
+    "canonical-consolidation-pipeline": "tsx ../orchestrators/canonical-consolidation-pipeline/pipeline.ts",
+    "canonical-pipeline": "tsx ../orchestrators/canonical-pipeline/pipeline.ts",
+    "ingredient-match-queue-pipeline-runner": "tsx ../orchestrators/ingredient-match-queue-pipeline/runner.ts",
     "regenerate-mappings": "node regenerate-mappings.js"
   },
   "dependencies": {
