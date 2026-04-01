@@ -26,7 +26,7 @@ describe("buildEmbeddingBatchResourcePlan", () => {
   it("splits batches when maxChars would be exceeded", () => {
     const plan = buildEmbeddingBatchResourcePlan(["short", "tiny", "x".repeat(12), "ok"], {
       maxItems: 10,
-      maxChars: 15,
+      maxChars: 13,
     })
 
     expect(plan).toHaveLength(3)
