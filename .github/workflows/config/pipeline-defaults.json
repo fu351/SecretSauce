@@ -33,10 +33,9 @@
     "queue_max_batches": "10",
     "queue_batch_delay_seconds": "2"
   },
-  "nightly_embedding_queue": {
-    "embedding_batch_limit": "100",
-    "embedding_max_batches": "5",
-    "embedding_batch_delay_seconds": "1",
+  "nightly_canonical_pipeline": {
+    "probation_batch_limit": "100",
+    "queue_batch_limit": "50",
     "embedding_model": "nomic-embed-text"
   }
 }
