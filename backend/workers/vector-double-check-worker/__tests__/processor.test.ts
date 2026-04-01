@@ -85,15 +85,12 @@ describe("runVectorDoubleCheckDiscovery", () => {
     expect(mockLogCanonicalDoubleCheckDaily).not.toHaveBeenCalled()
   })
 
-  it("records generic_to_specific and failed writes as skipped", async () => {
+  it("records generic_to_specific writes as skipped when the audit write succeeds", async () => {
     mockFindDoubleCheckCandidates.mockResolvedValueOnce([
       buildCandidate({ source_canonical: "milk", target_canonical: "whole milk", similarity: 0.97 }),
-      buildCandidate({ source_canonical: "onion", target_canonical: "green onion", similarity: 0.9 }),
     ])
-    mockResolveRemapDirection
-      .mockReturnValueOnce("generic_to_specific")
-      .mockReturnValueOnce("lateral")
-    mockLogCanonicalDoubleCheckDaily.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    mockResolveRemapDirection.mockReturnValueOnce("generic_to_specific")
+    mockLogCanonicalDoubleCheckDaily.mockResolvedValueOnce(true)
 
     const summary = await runVectorDoubleCheckDiscovery({
       ...baseConfig,
@@ -102,9 +99,9 @@ describe("runVectorDoubleCheckDiscovery", () => {
 
     expect(summary).toEqual({
       cycles: 1,
-      totalDiscovered: 2,
+      totalDiscovered: 1,
       totalLogged: 0,
-      totalSkipped: 2,
+      totalSkipped: 1,
     })
     expect(mockLogCanonicalDoubleCheckDaily).toHaveBeenNthCalledWith(1, {
       sourceCanonical: "milk",
@@ -116,17 +113,21 @@ describe("runVectorDoubleCheckDiscovery", () => {
       sourceCategory: "dairy",
       targetCategory: "dairy",
     })
-    expect(mockLogCanonicalDoubleCheckDaily).toHaveBeenNthCalledWith(2, {
-      sourceCanonical: "onion",
-      targetCanonical: "green onion",
-      decision: "skipped",
-      reason: "vector_candidate_discovery",
-      direction: "lateral",
-      aiConfidence: null,
-      similarity: 0.9,
-      sourceCategory: "dairy",
-      targetCategory: "dairy",
-    })
+  })
+
+  it("throws when an audit-log write fails instead of treating the pair as handled", async () => {
+    mockFindDoubleCheckCandidates.mockResolvedValueOnce([
+      buildCandidate({ source_canonical: "milk", target_canonical: "whole milk", similarity: 0.97 }),
+    ])
+    mockResolveRemapDirection.mockReturnValueOnce("generic_to_specific")
+    mockLogCanonicalDoubleCheckDaily.mockResolvedValueOnce(false)
+
+    await expect(
+      runVectorDoubleCheckDiscovery({
+        ...baseConfig,
+        maxCycles: 1,
+      })
+    ).rejects.toThrow("[VectorDoubleCheck] Failed to log milk → whole milk")
   })
 
   it("honors maxCycles even when each cycle returns a full batch", async () => {

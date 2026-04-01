@@ -61,13 +61,31 @@ type GrocerySearchResultItem = {
   [key: string]: unknown
 }
 
+export async function runDirectFallbackStoreScraper(
+  store: string,
+  scraper: (...args: any[]) => Promise<unknown>,
+  term: string,
+  storeZip?: string,
+  storeData?: StoreData,
+): Promise<any[]> {
+  if (store === "kroger" || store === "meijer") {
+    return ((await scraper(storeZip, term)) || []) as any[]
+  }
+
+  if (store === "target") {
+    return ((await scraper(term, storeData ?? null, storeZip)) || []) as any[]
+  }
+
+  return ((await scraper(term, storeZip)) || []) as any[]
+}
+
 async function withScraperRuntimeContext<T>(
   runtimeConfig: ScraperRuntimeConfig | null,
   fn: () => Promise<T>
 ): Promise<T> {
   if (!runtimeConfig) return fn()
 
-  const { runWithUniversalScraperControls } = require("@/backend/workers/scraper-worker/utils/runtime-config")
+  const { runWithUniversalScraperControls } = require("../scraper-worker/utils/runtime-config")
   return runWithUniversalScraperControls(runtimeConfig, fn)
 }
 
@@ -79,7 +97,7 @@ async function scrapeDirectFallback(
   preferredStoresMap?: Map<string, StoreData>,
 ): Promise<DirectFallbackItem[]> {
   try {
-    const scrapers = require("@/backend/workers/scraper-worker")
+    const scrapers = require("../scraper-worker")
     const scraperMap: Record<string, (...args: any[]) => Promise<unknown>> = {
       walmart: scrapers.searchWalmartAPI,
       target: scrapers.searchTarget,
@@ -163,14 +181,13 @@ async function scrapeDirectFallback(
 
           console.log(`[scrapeDirectFallback] Scraping ${store} with ${storeData ? "database" : "fallback"} zip: ${storeZip}`)
 
-          let data: any[] = []
-          if (store === "kroger" || store === "meijer") {
-            data = ((await scraper(storeZip, term)) || []) as any[]
-          } else if (store === "target") {
-            data = ((await scraper(term, null, storeZip)) || []) as any[]
-          } else {
-            data = ((await scraper(term, storeZip)) || []) as any[]
-          }
+          const data = await runDirectFallbackStoreScraper(
+            store,
+            scraper,
+            term,
+            storeZip,
+            storeData,
+          )
 
           if (!Array.isArray(data)) return []
 
