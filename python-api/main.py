@@ -978,6 +978,113 @@ if supabase_url and supabase_key:
 
 
 
+# ============================================================================
+# Receipt OCR Parsing Endpoint
+# ============================================================================
+
+# Import receipt_parser — resolve path whether running from python-api/ or repo root
+_RECEIPT_PARSER_CANDIDATES = [
+    Path(__file__).resolve().parent.parent / "lib" / "receipt-ocr" / "receipt_parser.py",
+    Path(__file__).resolve().parent / "receipt_parser.py",
+]
+
+_receipt_parse_fn = None
+_receipt_spatial_reorder_fn = None
+for _candidate in _RECEIPT_PARSER_CANDIDATES:
+    if _candidate.exists():
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("receipt_parser", _candidate)
+        _mod  = _ilu.module_from_spec(_spec)          # type: ignore[arg-type]
+        _spec.loader.exec_module(_mod)                # type: ignore[union-attr]
+        _receipt_parse_fn = _mod.parse_receipt
+        _receipt_spatial_reorder_fn = _mod.spatial_reorder
+        logger.info(f"Loaded receipt_parser from {_candidate}")
+        break
+
+if _receipt_parse_fn is None:
+    logger.warning("receipt_parser.py not found — /receipt/parse will return 503")
+
+
+class ReceiptDetection(BaseModel):
+    bbox: List[List[float]]  # [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+    text: str
+    confidence: float = 1.0
+
+
+class ReceiptParseRequest(BaseModel):
+    tokens: Optional[List[str]] = None            # existing flat format
+    detections: Optional[List[ReceiptDetection]] = None  # new spatial format
+
+
+class ReceiptItem(BaseModel):
+    name: str
+    quantity: int
+    price: float
+
+
+class ReceiptParseResult(BaseModel):
+    store: str
+    date: Optional[str] = None
+    items: List[ReceiptItem]
+    subtotal: Optional[float] = None
+    taxes: List[Dict[str, Any]] = []
+    total: Optional[float] = None
+
+
+class ReceiptParseResponse(BaseModel):
+    success: bool
+    result: Optional[ReceiptParseResult] = None
+    error: Optional[str] = None
+
+
+@app.post("/receipt/parse", response_model=ReceiptParseResponse)
+async def parse_receipt_tokens(request: ReceiptParseRequest):
+    """
+    Parse a flat easyOCR (detail=0) token list into structured receipt metadata.
+
+    Accepts:
+        { "tokens": ["Walmart", "MILK WHOLE", "3.49", "EGGS LG 12CT", "4.99", ...] }
+
+    Returns:
+        { "success": true, "result": { "store": "Walmart", "date": "2026-03-29",
+          "items": [{"name": "MILK WHOLE", "quantity": 1, "price": 3.49}, ...],
+          "subtotal": ..., "taxes": [...], "total": ... } }
+    """
+    if _receipt_parse_fn is None:
+        raise HTTPException(status_code=503, detail="receipt_parser module not available")
+
+    # Resolve tokens: either from flat list or from spatial detections
+    if request.detections:
+        det_tuples = [
+            (d.bbox, d.text, d.confidence) for d in request.detections
+        ]
+        tokens = _receipt_spatial_reorder_fn(det_tuples)
+        logger.info(f"[receipt/parse] Spatial reorder: {len(request.detections)} detections → {len(tokens)} tokens")
+    elif request.tokens:
+        tokens = request.tokens
+    else:
+        return ReceiptParseResponse(success=False, error="provide either tokens or detections")
+
+    logger.info(f"[receipt/parse] Parsing {len(tokens)} tokens")
+
+    try:
+        raw = _receipt_parse_fn(tokens)
+        result = ReceiptParseResult(
+            store=raw.get("store", "Unknown"),
+            date=raw.get("date"),
+            items=[ReceiptItem(**item) for item in (raw.get("items") or [])],
+            subtotal=raw.get("subtotal"),
+            taxes=raw.get("taxes") or [],
+            total=raw.get("total"),
+        )
+        logger.info(f"[receipt/parse] store={result.store} items={len(result.items)}")
+        return ReceiptParseResponse(success=True, result=result)
+
+    except Exception as e:
+        logger.error(f"[receipt/parse] error: {e}", exc_info=True)
+        return ReceiptParseResponse(success=False, error=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
