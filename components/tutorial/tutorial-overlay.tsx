@@ -117,8 +117,9 @@ export function TutorialOverlay() {
     const elementAbsoluteTop = rect.top + window.pageYOffset;
     const elementCenter = elementAbsoluteTop + rect.height / 2;
     const viewportCenter = window.innerHeight / 2;
-    const direction = rect.top < 0 ? -1 : 1;
-    const scrollPosition = Math.max(0, elementCenter - viewportCenter + direction * OVERSHOOT);
+    const raw = elementCenter - viewportCenter;
+    // Only overshoot when scrolling down — upward/top-of-page scrolls clamp to 0 naturally
+    const scrollPosition = Math.max(0, raw > 0 ? raw + OVERSHOOT : raw);
     window.scrollTo({ top: scrollPosition, behavior: "smooth" });
   }, []);
 
@@ -342,7 +343,7 @@ export function TutorialOverlay() {
   if (!isActive || !currentSlot) return null;
 
   const windowHeight = typeof window !== "undefined" ? window.innerHeight : 800
-  const isTargetAbove = !!targetRect && targetRect.bottom < headerHeight
+  const isTargetAbove = !!targetRect && targetRect.top < 0
   const isTargetBelow = !!targetRect && targetRect.top > windowHeight
   const isTargetOffScreen = isTargetAbove || isTargetBelow
   const showTutorialBackdrop = !isMinimized && !isChangingPage && !isPageLoading && !!targetRect && !hasSyncTimedOut
