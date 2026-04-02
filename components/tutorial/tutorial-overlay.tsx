@@ -113,10 +113,12 @@ export function TutorialOverlay() {
    * 1. Stability-Aware Scroll Calculation
    */
   const scrollToTarget = useCallback((rect: DOMRect) => {
+    const OVERSHOOT = 80;
     const elementAbsoluteTop = rect.top + window.pageYOffset;
     const elementCenter = elementAbsoluteTop + rect.height / 2;
     const viewportCenter = window.innerHeight / 2;
-    const scrollPosition = Math.max(0, elementCenter - viewportCenter);
+    const direction = rect.top < 0 ? -1 : 1;
+    const scrollPosition = Math.max(0, elementCenter - viewportCenter + direction * OVERSHOOT);
     window.scrollTo({ top: scrollPosition, behavior: "smooth" });
   }, []);
 
