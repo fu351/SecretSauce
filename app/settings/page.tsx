@@ -855,18 +855,17 @@ function SettingsPageContent() {
               {tutorialPath && (
                 <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
                   <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
-                    <span className="font-medium">Last completed:</span>{" "}
-                    {tutorialPath === "cooking" ? "Mastering the Craft" : tutorialPath === "budgeting" ? "Optimize Resources" : "Elevate Your Journey"}
+                    <span className="font-medium">Completed</span>
+                    {tutorialCompletedAt && (
+                      <span className={`text-xs ml-2 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
+                        {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </span>
+                    )}
                   </p>
-                  {tutorialCompletedAt && (
-                    <p className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
-                      {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </p>
-                  )}
                 </div>
               )}
 
