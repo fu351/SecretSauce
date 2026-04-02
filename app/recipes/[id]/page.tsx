@@ -360,6 +360,7 @@ export default function RecipeDetailPage() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  data-tutorial="recipe-favorite"
                   className={clsx("transition-colors", imageActionButtonClass)}
                   onClick={toggleFavorite}
                   disabled={isTogglingFavorite}

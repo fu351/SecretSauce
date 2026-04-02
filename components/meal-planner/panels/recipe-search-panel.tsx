@@ -143,7 +143,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
               <TabButton active={!showFavoritesOnly} onClick={() => setShowFavoritesOnly(false)}>
                 Browse
               </TabButton>
-              <TabButton active={showFavoritesOnly} onClick={() => setShowFavoritesOnly(true)}>
+              <TabButton active={showFavoritesOnly} onClick={() => setShowFavoritesOnly(true)} dataTutorial="planner-favorites-tab">
                 <Heart className={cn("h-3 w-3", showFavoritesOnly && "fill-current")} />
                 Saved
               </TabButton>
@@ -288,9 +288,10 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
 })
 
 // Sub-components to keep render tree lean
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
+const TabButton = ({ active, onClick, children, dataTutorial }: { active: boolean; onClick: () => void; children: React.ReactNode; dataTutorial?: string }) => (
   <button
     onClick={onClick}
+    data-tutorial={dataTutorial}
     className={cn(
       "px-3 py-1 text-[11px] font-bold rounded-md transition-all flex items-center gap-1",
       active ? "bg-background shadow-sm text-accent" : "text-muted-foreground hover:text-foreground"
