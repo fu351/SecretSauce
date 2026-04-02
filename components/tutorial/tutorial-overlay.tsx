@@ -2,30 +2,24 @@
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { useTutorial, getVisibleSubsteps } from "@/contexts/tutorial-context"
-import { tutorialPaths } from "@/contents/tutorial-content"
+import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
 import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
 import { useIsMobile } from "@/hooks"
-import type { GoalRank } from "@/lib/types/tutorial"
 
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export function TutorialOverlay() {
   const {
     isActive,
-    currentPath,
+    flatSequence,
+    currentSlotIndex,
+    currentSlot,
     currentStep,
-    currentStepIndex,
     currentSubstep,
-    currentSubstepIndex,
-    visibleSubsteps,
-    currentRank,
-    currentPlanIndex,
-    rankedGoals,
     nextStep,
     prevStep,
     skipTutorial,
@@ -48,49 +42,18 @@ export function TutorialOverlay() {
   const [syncRetries, setSyncRetries] = useState(0)
   const [hasSyncTimedOut, setHasSyncTimedOut] = useState(false)
   const [isPageLoading, setIsPageLoading] = useState(false)
-  const [pathTransitionLabel, setPathTransitionLabel] = useState<string | null>(null)
 
   const MAX_RETRIES = 15;
   const overlayRef = useRef<HTMLDivElement>(null);
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const pathTransitionTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const previousPlanIndexRef = useRef(0);
   const [headerHeight, setHeaderHeight] = useState(0);
   const isDark = theme === "dark"
 
-  /**
-   * Session-wide progress calculation.
-   * Spans all ranked plans, weighting each path by its depth-filtered substep count.
-   */
-  const totalSessionUnits = rankedGoals
-    ? rankedGoals.reduce((sum, pathId, planIdx) => {
-        const rank = (Math.min(planIdx + 1, 3)) as GoalRank
-        const path = tutorialPaths[pathId]
-        return sum + path.steps.reduce((s, step) => s + (getVisibleSubsteps(step, rank).length || 1), 0)
-      }, 0)
-    : (currentPath?.steps.reduce((sum, s) => sum + (s.substeps?.length || 1), 0) ?? 1)
-
-  const completedSessionUnits = rankedGoals
-    ? rankedGoals.slice(0, currentPlanIndex).reduce((sum, pathId, planIdx) => {
-        const rank = (Math.min(planIdx + 1, 3)) as GoalRank
-        const path = tutorialPaths[pathId]
-        return sum + path.steps.reduce((s, step) => s + (getVisibleSubsteps(step, rank).length || 1), 0)
-      }, 0)
-      + (currentPath?.steps.slice(0, currentStepIndex).reduce((s, step) => {
-          return s + (getVisibleSubsteps(step, currentRank).length || 1)
-        }, 0) ?? 0)
-      + (currentSubstepIndex + 1)
-    : (currentPath?.steps.slice(0, currentStepIndex).reduce((sum, s) => sum + (s.substeps?.length || 1), 0) ?? 0) + (currentSubstepIndex + 1)
-
-  const progress = totalSessionUnits > 0 ? (completedSessionUnits / totalSessionUnits) * 100 : 0
-
-  // Whether this is the very last step across the entire session
-  const isLastStepOfSession =
-    currentPlanIndex === (rankedGoals?.length ?? 1) - 1 &&
-    currentStepIndex === (currentPath?.steps.length ?? 1) - 1 &&
-    currentSubstepIndex === visibleSubsteps.length - 1
-
-  const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore";
+  const totalSteps = flatSequence.length
+  const completedSteps = currentSlotIndex + 1
+  const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
+  const isLastStep = currentSlotIndex === totalSteps - 1
+  const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore"
   const expectedSelector = currentSubstep?.highlightSelector ?? currentStep?.highlightSelector ?? null
 
   const handleGoToExpectedPage = useCallback(() => {
@@ -200,32 +163,6 @@ export function TutorialOverlay() {
     setIsPageLoading(false);
     setIsChangingPage(false);
   }, [isActive, currentStep?.page, pathname]);
-
-  /**
-   * 2c. Path Transition Banner (for ranked multi-path sessions)
-   */
-  useEffect(() => {
-    if (!isActive || !currentPath) return
-
-    const prevIndex = previousPlanIndexRef.current
-    if (currentPlanIndex > prevIndex) {
-      setPathTransitionLabel(currentPath.name)
-      if (pathTransitionTimerRef.current) {
-        clearTimeout(pathTransitionTimerRef.current)
-      }
-      pathTransitionTimerRef.current = setTimeout(() => {
-        setPathTransitionLabel(null)
-      }, 2200)
-    }
-
-    previousPlanIndexRef.current = currentPlanIndex
-
-    return () => {
-      if (pathTransitionTimerRef.current) {
-        clearTimeout(pathTransitionTimerRef.current)
-      }
-    }
-  }, [isActive, currentPath, currentPlanIndex])
 
   /**
    * 3. Page Navigation & Transition Management
@@ -351,12 +288,10 @@ export function TutorialOverlay() {
       window.removeEventListener("resize", handlePosUpdate);
       window.removeEventListener("scroll", handlePosUpdate);
     };
-  }, [isActive, isMinimized, currentStepIndex, currentSubstepIndex, updateHighlight, pathname, currentStep?.page, targetRect]);
+  }, [isActive, isMinimized, currentSlotIndex, updateHighlight, pathname, currentStep?.page, targetRect]);
 
   if (isMobile) return null;
-  if (!isActive || !currentPath || !currentStep) return null;
-
-  const pathLabel = currentPath.name
+  if (!isActive || !currentSlot) return null;
 
   // Avoid inline styles for the progress bar width (linter rule).
   // We bucket to 10% steps so Tailwind can statically include the classes.
@@ -435,8 +370,8 @@ export function TutorialOverlay() {
             </div>
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
               {isMinimized
-                ? `Paused · ${completedSessionUnits}/${totalSessionUnits}`
-                : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : pathLabel))}
+                ? `Paused · ${completedSteps}/${totalSteps}`
+                : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : "Tutorial"))}
             </span>
           </div>
           <div className="flex gap-1">
@@ -494,7 +429,7 @@ export function TutorialOverlay() {
                 <>
                   <p className="text-xs opacity-60 mb-2">We couldn't find the UI element for this step.</p>
                   <p className="text-[10px] opacity-40 mb-6">
-                    Step {completedSessionUnits} of {totalSessionUnits}
+                    Step {completedSteps} of {totalSteps}
                     {expectedSelector ? <> · Selector: <span className="font-mono">{expectedSelector}</span></> : null}
                   </p>
                   <div className="flex gap-3 w-full">
@@ -510,25 +445,16 @@ export function TutorialOverlay() {
             </div>
           ) : (
             <>
-              {pathTransitionLabel && (
-                <div className={clsx(
-                  "mb-4 rounded-lg px-3 py-2 text-xs font-medium",
-                  isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-700"
-                )}>
-                  Now starting: {pathTransitionLabel}
-                </div>
-              )}
               <p className={clsx("text-[11px] uppercase tracking-[0.18em] mb-2 font-semibold", isDark ? "text-[#e8dcc4]/55" : "text-gray-500")}>
-                Progress {completedSessionUnits} / {totalSessionUnits}
-                {rankedGoals && rankedGoals.length > 1 ? ` • Track ${currentPlanIndex + 1} / ${rankedGoals.length}` : ""}
+                Step {completedSteps} of {totalSteps}
               </p>
-              <h3 className="text-xl font-bold mb-2 leading-tight">{currentStep.title}</h3>
-              <p className={clsx("text-sm leading-relaxed", isDark ? "text-gray-400" : "text-gray-600", currentRank === 1 && currentStep.tips?.length ? "mb-4" : "mb-6")}>
-                {currentSubstep?.instruction ?? currentStep.description}
+              <h3 className="text-xl font-bold mb-2 leading-tight">{currentStep?.title}</h3>
+              <p className={clsx("text-sm leading-relaxed mb-6", isDark ? "text-gray-400" : "text-gray-600")}>
+                {currentSubstep?.instruction ?? currentStep?.description}
               </p>
 
               {/* Tips — only shown at rank 1 (primary goal) */}
-              {currentRank === 1 && currentStep.tips && currentStep.tips.length > 0 && (
+              {currentSlot.rank === 1 && currentStep?.tips && currentStep.tips.length > 0 && (
                 <div className={clsx("mb-6 p-3 rounded-lg", isDark ? "bg-blue-500/10" : "bg-blue-50")}>
                   <p className="text-xs font-semibold mb-1 opacity-60">Tips</p>
                   <ul className="space-y-1">
@@ -540,11 +466,11 @@ export function TutorialOverlay() {
               )}
 
               <div className="flex items-center justify-between">
-                <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentStepIndex === 0 && currentSubstepIndex === 0}>
+                <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentSlotIndex === 0}>
                   <ChevronLeft className="w-4 h-4 mr-2" /> Back
                 </Button>
                 <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-500 text-white px-8">
-                  {isLastStepOfSession ? "Finish" : "Next"}
+                  {isLastStep ? "Finish" : "Next"}
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>

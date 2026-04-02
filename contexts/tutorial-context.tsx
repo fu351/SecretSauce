@@ -7,7 +7,6 @@ import { useAuth } from "./auth-context"
 import { useAnalytics } from "@/hooks/use-analytics"
 
 import type {
-  TutorialPath,
   TutorialStep,
   TutorialSubstep,
   GoalRank,
@@ -31,6 +30,14 @@ function isRankedGoals(value: unknown): value is RankedGoals {
   )
 }
 
+export interface FlatTutorialSlot {
+  page: string
+  step: TutorialStep
+  substep: TutorialSubstep
+  tutorialId: TutorialPathId
+  rank: GoalRank
+}
+
 /**
  * Returns substeps visible for a given rank.
  * Rank 1: all substeps
@@ -47,19 +54,42 @@ export function getVisibleSubsteps(step: TutorialStep, rank: GoalRank): Tutorial
   return essential.length > 0 ? essential : substeps.slice(0, 1)
 }
 
+/**
+ * Builds the flat sequence of tutorial slots organized by page, then by ranked
+ * tutorial within each page. Each tutorial's depth is proportional to its rank:
+ * rank 1 gets all substeps, rank 2 gets one, rank 3 gets only essential ones.
+ */
+function buildFlatSequence(rankedGoals: RankedGoals): FlatTutorialSlot[] {
+  // Derive canonical page order from the first ranked path
+  const firstPath = tutorialPaths[rankedGoals[0]]
+  const pages = firstPath.steps.map(s => s.page)
+  const slots: FlatTutorialSlot[] = []
+
+  for (const page of pages) {
+    for (let rankIdx = 0; rankIdx < rankedGoals.length; rankIdx++) {
+      const tutorialId = rankedGoals[rankIdx] as TutorialPathId
+      const rank = Math.min(rankIdx + 1, 3) as GoalRank
+      const path = tutorialPaths[tutorialId]
+      const step = path.steps.find(s => s.page === page)
+      if (!step) continue
+      const substeps = getVisibleSubsteps(step, rank)
+      for (const substep of substeps) {
+        slots.push({ page, step, substep, tutorialId, rank })
+      }
+    }
+  }
+
+  return slots
+}
+
 interface TutorialContextType {
   isActive: boolean
-  currentPath: TutorialPath | null
-  currentPlanIndex: number
-  currentRank: GoalRank
   rankedGoals: RankedGoals | null
-
-  currentStepIndex: number
+  flatSequence: FlatTutorialSlot[]
+  currentSlotIndex: number
+  currentSlot: FlatTutorialSlot | null
   currentStep: TutorialStep | null
-
-  currentSubstepIndex: number
   currentSubstep: TutorialSubstep | null
-  visibleSubsteps: TutorialSubstep[]
 
   tutorialCompleted: boolean
   tutorialPath: TutorialPathId | null
@@ -69,7 +99,6 @@ interface TutorialContextType {
   startTutorial: (pathId: TutorialPathId) => void
   nextStep: () => void
   prevStep: () => void
-
   skipTutorial: () => void
   resetTutorial: () => void
 }
@@ -85,9 +114,8 @@ export function useTutorial() {
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [isActive, setIsActive] = useState(false)
   const [rankedGoals, setRankedGoals] = useState<RankedGoals | null>(null)
-  const [currentPlanIndex, setCurrentPlanIndex] = useState(0)
-  const [currentStepIndex, setCurrentStepIndex] = useState(0)
-  const [currentSubstepIndex, setCurrentSubstepIndex] = useState(0)
+  const [flatSequence, setFlatSequence] = useState<FlatTutorialSlot[]>([])
+  const [currentSlotIndex, setCurrentSlotIndex] = useState(0)
   const [tutorialCompleted, setTutorialCompleted] = useState(false)
   const [tutorialPath, setTutorialPath] = useState<TutorialPathId | null>(null)
   const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
@@ -97,15 +125,12 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
   // Bump this when the payload shape changes; old payloads will be silently discarded
-  const TUTORIAL_STATE_VERSION = 3
+  const TUTORIAL_STATE_VERSION = 4
 
   // Derived state
-  const currentPathId = rankedGoals ? rankedGoals[currentPlanIndex] : null
-  const currentPath = currentPathId ? tutorialPaths[currentPathId] : null
-  const currentRank = (Math.min(currentPlanIndex + 1, 3)) as GoalRank
-  const currentStep = currentPath ? currentPath.steps[currentStepIndex] : null
-  const visibleSubsteps = currentStep ? getVisibleSubsteps(currentStep, currentRank) : []
-  const currentSubstep = visibleSubsteps[currentSubstepIndex] ?? null
+  const currentSlot = flatSequence[currentSlotIndex] ?? null
+  const currentStep = currentSlot?.step ?? null
+  const currentSubstep = currentSlot?.substep ?? null
 
   // Save tutorial state to localStorage
   const saveTutorialState = useCallback(() => {
@@ -121,12 +146,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       JSON.stringify({
         version: TUTORIAL_STATE_VERSION,
         rankedGoals,
-        currentPlanIndex,
-        stepIndex: currentStepIndex,
-        substepIndex: currentSubstepIndex,
+        currentSlotIndex,
       })
     )
-  }, [rankedGoals, currentPlanIndex, currentStepIndex, currentSubstepIndex, isActive])
+  }, [rankedGoals, currentSlotIndex, isActive])
 
   // Restore tutorial state from localStorage
   const restoreTutorialState = useCallback(() => {
@@ -147,10 +170,15 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
-        setRankedGoals(state.rankedGoals)
-        setCurrentPlanIndex(Number.isInteger(state.currentPlanIndex) ? state.currentPlanIndex : 0)
-        setCurrentStepIndex(Number.isInteger(state.stepIndex) ? state.stepIndex : 0)
-        setCurrentSubstepIndex(Number.isInteger(state.substepIndex) ? state.substepIndex : 0)
+        const goals = state.rankedGoals as RankedGoals
+        const sequence = buildFlatSequence(goals)
+        setRankedGoals(goals)
+        setFlatSequence(sequence)
+        setCurrentSlotIndex(
+          Number.isInteger(state.currentSlotIndex)
+            ? Math.min(state.currentSlotIndex, sequence.length - 1)
+            : 0
+        )
         setIsActive(true)
       } catch (e) {
         console.error("Failed to restore tutorial state:", e)
@@ -167,14 +195,15 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(DISMISS_KEY)
     }
+    const sequence = buildFlatSequence(ranked)
     setRankedGoals(ranked)
-    setCurrentPlanIndex(0)
-    setCurrentStepIndex(0)
-    setCurrentSubstepIndex(0)
+    setFlatSequence(sequence)
+    setCurrentSlotIndex(0)
     setIsActive(true)
     trackEvent("tutorial_started", { path: ranked[0] })
-    const firstPage = tutorialPaths[ranked[0]].steps[0].page
-    router.push(firstPage)
+    if (sequence.length > 0) {
+      router.push(sequence[0].page)
+    }
   }, [trackEvent, router])
 
   const startTutorial = useCallback((pathId: TutorialPathId) => {
@@ -182,7 +211,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   }, [startRankedSession])
 
   const completeTutorial = useCallback(async () => {
-    if (!user || !currentPathId || !rankedGoals) return
+    if (!user || !rankedGoals) return
     try {
       const completedAt = new Date().toISOString()
 
@@ -204,116 +233,62 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       setTutorialCompletedAt(completedAt)
 
       trackEvent("tutorial_completed", {
-        path: currentPathId,
-        steps_completed: currentPath?.steps.length ?? currentStepIndex + 1,
+        path: rankedGoals[0],
+        steps_completed: flatSequence.length,
       })
     } catch (error) {
       console.error("Error completing tutorial:", error)
     }
-  }, [user, currentPathId, rankedGoals, updateProfile, currentPath, currentStepIndex, trackEvent])
+  }, [user, rankedGoals, updateProfile, flatSequence, trackEvent])
 
   // -------------------
   // Navigation Functions
   // -------------------
 
   const nextStep = useCallback(() => {
-    if (!currentStep || !currentPath || !rankedGoals) return
+    if (flatSequence.length === 0) return
 
-    // 1. Advance substep
-    if (currentSubstepIndex < visibleSubsteps.length - 1) {
-      setCurrentSubstepIndex(prev => prev + 1)
-      return
-    }
+    if (currentSlotIndex < flatSequence.length - 1) {
+      const nextIndex = currentSlotIndex + 1
+      const nextSlot = flatSequence[nextIndex]
+      const currentPage = flatSequence[currentSlotIndex].page
 
-    // 2. Advance main step within current path
-    if (currentStepIndex < currentPath.steps.length - 1) {
-      const nextIndex = currentStepIndex + 1
-      const nextStepData = currentPath.steps[nextIndex]
-
-      if (currentPathId) {
-        trackEvent("tutorial_step_completed", {
-          path: currentPathId,
-          step_index: currentStepIndex + 1,
-        })
-      }
-
-      const targetPage = nextStepData.page.toLowerCase()
-      const currentPage = window.location.pathname.toLowerCase()
-      if (targetPage && targetPage !== currentPage) {
-        router.push(nextStepData.page)
-      }
-
-      setCurrentStepIndex(nextIndex)
-      setCurrentSubstepIndex(0)
-      return
-    }
-
-    // 3. End of current path — track and advance to next plan (silent transition)
-    if (currentPathId) {
       trackEvent("tutorial_step_completed", {
-        path: currentPathId,
-        step_index: currentStepIndex + 1,
+        path: flatSequence[currentSlotIndex].tutorialId,
+        slot_index: currentSlotIndex,
       })
-    }
 
-    if (currentPlanIndex < rankedGoals.length - 1) {
-      const nextPlanIndex = currentPlanIndex + 1
-      const nextPathId = rankedGoals[nextPlanIndex]
+      if (nextSlot.page !== currentPage) {
+        router.push(nextSlot.page)
+      }
 
-      trackEvent("tutorial_path_advanced", {
-        from_path: currentPathId!,
-        to_path: nextPathId,
-        plan_index: nextPlanIndex,
-      })
-      trackEvent("tutorial_started", { path: nextPathId })
-
-      setCurrentPlanIndex(nextPlanIndex)
-      setCurrentStepIndex(0)
-      setCurrentSubstepIndex(0)
-
-      // Silent transition: just navigate to next path's first page
-      const firstPage = tutorialPaths[nextPathId].steps[0].page
-      router.push(firstPage)
+      setCurrentSlotIndex(nextIndex)
     } else {
       completeTutorial()
     }
-  }, [currentStep, currentPath, currentPathId, currentPlanIndex, rankedGoals, currentSubstepIndex, visibleSubsteps, currentStepIndex, trackEvent, completeTutorial, router])
+  }, [flatSequence, currentSlotIndex, trackEvent, completeTutorial, router])
 
   const prevStep = useCallback(() => {
-    if (!currentStep || !currentPath) return
+    if (currentSlotIndex <= 0) return
 
-    // 1. Go back a substep
-    if (currentSubstepIndex > 0) {
-      setCurrentSubstepIndex(prev => prev - 1)
-      return
+    const prevIndex = currentSlotIndex - 1
+    const prevSlot = flatSequence[prevIndex]
+    const currentPage = flatSequence[currentSlotIndex].page
+
+    if (prevSlot.page !== currentPage) {
+      router.push(prevSlot.page)
     }
 
-    // 2. Go back a main step (no cross-path back navigation)
-    if (currentStepIndex > 0) {
-      const prevIndex = currentStepIndex - 1
-      const prevStepData = currentPath.steps[prevIndex]
-
-      const targetPage = prevStepData.page.toLowerCase()
-      const currentPage = window.location.pathname.toLowerCase()
-      if (targetPage && targetPage !== currentPage) {
-        router.push(prevStepData.page)
-      }
-
-      setCurrentStepIndex(prevIndex)
-
-      // Land on last visible substep of the previous step when rewinding
-      const prevVisibleSubsteps = getVisibleSubsteps(prevStepData, currentRank)
-      setCurrentSubstepIndex(Math.max(0, prevVisibleSubsteps.length - 1))
-    }
-  }, [currentStepIndex, currentSubstepIndex, currentPath, currentStep, currentRank, router])
+    setCurrentSlotIndex(prevIndex)
+  }, [currentSlotIndex, flatSequence, router])
 
   const skipTutorial = useCallback(async () => {
     if (!user) return
     try {
-      if (currentPathId) {
+      if (currentSlot) {
         trackEvent("tutorial_skipped", {
-          path: currentPathId,
-          step_abandoned: currentStepIndex + 1,
+          path: currentSlot.tutorialId,
+          slot_index: currentSlotIndex,
         })
       }
 
@@ -325,7 +300,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error skipping tutorial:", error)
     }
-  }, [user, currentPathId, currentStepIndex, trackEvent])
+  }, [user, currentSlot, currentSlotIndex, trackEvent])
 
   const resetTutorial = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -334,9 +309,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     }
     setIsActive(false)
     setRankedGoals(null)
-    setCurrentPlanIndex(0)
-    setCurrentStepIndex(0)
-    setCurrentSubstepIndex(0)
+    setFlatSequence([])
+    setCurrentSlotIndex(0)
   }, [])
 
   // -------------------
@@ -349,7 +323,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     saveTutorialState()
-  }, [rankedGoals, currentPlanIndex, currentStepIndex, currentSubstepIndex, isActive, saveTutorialState])
+  }, [rankedGoals, currentSlotIndex, isActive, saveTutorialState])
 
   useEffect(() => {
     if (!profile) return
@@ -371,15 +345,12 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   const value: TutorialContextType = {
     isActive,
-    currentPath,
-    currentPlanIndex,
-    currentRank,
     rankedGoals,
-    currentStepIndex,
+    flatSequence,
+    currentSlotIndex,
+    currentSlot,
     currentStep,
-    currentSubstepIndex,
     currentSubstep,
-    visibleSubsteps,
     tutorialCompleted,
     tutorialPath,
     tutorialCompletedAt,
