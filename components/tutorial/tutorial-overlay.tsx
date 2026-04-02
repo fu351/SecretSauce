@@ -404,7 +404,7 @@ export function TutorialOverlay() {
               <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
               <p className="text-sm font-medium opacity-60">Preparing next step...</p>
             </div>
-          ) : !targetRect && !hasSyncTimedOut && !isExploreMode ? (
+          ) : !!expectedSelector && !targetRect && !hasSyncTimedOut && !isExploreMode ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
               <p className="text-sm font-medium opacity-70">Scanning for element…</p>
