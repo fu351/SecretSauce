@@ -444,7 +444,16 @@ export function TutorialOverlay() {
                 <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentSlotIndex === 0}>
                   <ChevronLeft className="w-4 h-4 mr-2" /> Back
                 </Button>
-                <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-500 text-white px-8">
+                <Button
+                  onClick={() => {
+                    if (currentSubstep?.action === "click" && expectedSelector) {
+                      const el = document.querySelector(expectedSelector) as HTMLElement | null
+                      if (el) el.click()
+                    }
+                    nextStep()
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-8"
+                >
                   {isLastStep ? "Finish" : "Next"}
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>

@@ -461,16 +461,18 @@ export default function RecipeDetailPage() {
                 )}
 
                 {/* Tag Display System */}
-                <TagSelector
-                  tags={recipe.tags}
-                  mode="view"
-                  sections={{
-                    tags: true,
-                    protein: true,
-                    mealType: true,
-                    cuisine: recipe.cuisine_name ? false : true,
-                  }}
-                />
+                <div data-tutorial="recipe-detail-tags">
+                  <TagSelector
+                    tags={recipe.tags}
+                    mode="view"
+                    sections={{
+                      tags: true,
+                      protein: true,
+                      mealType: true,
+                      cuisine: recipe.cuisine_name ? false : true,
+                    }}
+                  />
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -523,7 +525,7 @@ export default function RecipeDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className={sectionCardClass}>
+          <Card className={sectionCardClass} data-tutorial="recipe-detail-instructions">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <h3
                 className={clsx(

@@ -68,8 +68,8 @@ export const healthPath: TutorialPath = {
         },
         {
           id: 2,
-          instruction: "Scan ingredients for anything that conflicts with your dietary restrictions before adding to your plan.",
-          highlightSelector: "[data-tutorial='recipe-detail-ingredients']",
+          instruction: "Check the dietary tags to confirm the recipe fits your restrictions before adding it to your plan.",
+          highlightSelector: "[data-tutorial='recipe-detail-tags']",
           action: "highlight",
         },
       ],

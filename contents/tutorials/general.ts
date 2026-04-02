@@ -27,6 +27,14 @@ export const generalPages: GeneralPageEntry[] = [
         highlightSelector: "[data-tutorial='recipe-card']",
       },
     ],
+    postSubsteps: [
+      {
+        id: 1,
+        instruction: "Try clicking a recipe card now to continue the tour on its detail page.",
+        highlightSelector: "[data-tutorial='recipe-card']",
+        action: "click",
+      },
+    ],
   },
   {
     page: "/recipes/*",
