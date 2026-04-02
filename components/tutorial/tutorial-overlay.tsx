@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
-import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, ChevronDown, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
 
@@ -241,10 +241,11 @@ export function TutorialOverlay() {
       Math.abs(newRect.left - targetRect.left) > 2;
 
     if (hasMoved) {
-      if (shouldScroll) scrollToTarget(newRect);
+      const isOffScreen = newRect.top > window.innerHeight || newRect.bottom < headerHeight;
+      if (shouldScroll || isOffScreen) scrollToTarget(newRect);
       setTargetRect(newRect);
     }
-  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, scrollToTarget, syncRetries]);
+  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, scrollToTarget, syncRetries, headerHeight]);
 
   /**
    * 5. Filtered Mutation Observer
@@ -294,10 +295,15 @@ export function TutorialOverlay() {
 
   if (!isActive || !currentSlot) return null;
 
+  const windowHeight = typeof window !== "undefined" ? window.innerHeight : 800
+  const isTargetAbove = !!targetRect && targetRect.bottom < headerHeight
+  const isTargetBelow = !!targetRect && targetRect.top > windowHeight
+  const isTargetOffScreen = isTargetAbove || isTargetBelow
+
   return (
     <>
       {/* Background Mask */}
-      {!isMinimized && !isChangingPage && !isPageLoading && targetRect && !hasSyncTimedOut && (
+      {!isMinimized && !isChangingPage && !isPageLoading && targetRect && !hasSyncTimedOut && !isTargetOffScreen && (
         <svg className="fixed inset-0 z-40 pointer-events-none w-full h-full">
           <defs>
             <mask id="tutorial-mask">
@@ -322,6 +328,23 @@ export function TutorialOverlay() {
             className="backdrop-blur-[2px] transition-opacity duration-500"
           />
         </svg>
+      )}
+
+      {/* Scroll indicator — shown when highlighted element is off-screen */}
+      {!isMinimized && !isChangingPage && !isPageLoading && isTargetOffScreen && targetRect && (
+        <button
+          onClick={() => scrollToTarget(targetRect)}
+          className={clsx(
+            "fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border text-sm font-semibold transition-all animate-bounce",
+            isTargetAbove ? "top-20" : "bottom-24",
+            isDark
+              ? "bg-[#1c1c16] border-[#e8dcc4]/30 text-[#e8dcc4]"
+              : "bg-white border-gray-200 text-gray-800"
+          )}
+        >
+          {isTargetAbove ? <ChevronUp className="w-4 h-4 text-blue-500" /> : <ChevronDown className="w-4 h-4 text-blue-500" />}
+          {isTargetAbove ? "Scroll up to see highlight" : "Scroll down to see highlight"}
+        </button>
       )}
 
       {/* Main Control Card */}
