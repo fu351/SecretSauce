@@ -202,7 +202,7 @@ export function RecipeFilterSidebar({
           </div>
         </div>
 
-        <div className="border-t pt-4 space-y-3">
+        <div className="border-t pt-4 space-y-3" data-tutorial="recipe-filter-cuisine">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cuisine</h4>
           <div className="space-y-1 max-h-40 overflow-auto pr-1">
             <ChecklistItem
@@ -221,7 +221,7 @@ export function RecipeFilterSidebar({
           </div>
         </div>
 
-        <div className="border-t pt-4 space-y-3">
+        <div className="border-t pt-4 space-y-3" data-tutorial="recipe-filter-dietary">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dietary</h4>
           <div className="space-y-1 max-h-40 overflow-auto pr-1">
             <ChecklistItem

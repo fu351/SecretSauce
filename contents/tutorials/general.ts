@@ -21,6 +21,22 @@ export const generalPages: GeneralPageEntry[] = [
         id: 1,
         instruction: "Search and filter the full recipe library by cuisine, dietary needs, or prep time.",
       },
+      {
+        id: 2,
+        instruction: "Tap any recipe card to open its full detail page — ingredients, instructions, and nutrition breakdown.",
+        highlightSelector: "[data-tutorial='recipe-card']",
+      },
+    ],
+  },
+  {
+    page: "/recipes/*",
+    title: "Recipe Detail",
+    description: "Everything you need to decide, prepare, and shop for a recipe.",
+    substeps: [
+      {
+        id: 1,
+        instruction: "This page has the full ingredient list, step-by-step instructions, and a nutrition summary.",
+      },
     ],
   },
   {
