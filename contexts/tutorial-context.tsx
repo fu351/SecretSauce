@@ -147,7 +147,6 @@ export function useTutorial() {
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [isActive, setIsActive] = useState(false)
   const [rankedGoals, setRankedGoals] = useState<RankedGoals | null>(null)
-  const [flatSequence, setFlatSequence] = useState<FlatTutorialSlot[]>([])
   const [currentSlotIndex, setCurrentSlotIndex] = useState(0)
   const [tutorialCompleted, setTutorialCompleted] = useState(false)
   const [tutorialPath, setTutorialPath] = useState<TutorialPathId | null>(null)
@@ -161,6 +160,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const TUTORIAL_STATE_VERSION = 4
 
   // Derived state
+  const flatSequence = rankedGoals ? buildFlatSequence(rankedGoals) : []
   const currentSlot = flatSequence[currentSlotIndex] ?? null
   const currentStep = currentSlot?.step ?? null
   const currentSubstep = currentSlot?.substep ?? null
@@ -206,7 +206,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         const goals = state.rankedGoals as RankedGoals
         const sequence = buildFlatSequence(goals)
         setRankedGoals(goals)
-        setFlatSequence(sequence)
         setCurrentSlotIndex(
           Number.isInteger(state.currentSlotIndex)
             ? Math.min(state.currentSlotIndex, sequence.length - 1)
@@ -230,7 +229,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     }
     const sequence = buildFlatSequence(ranked)
     setRankedGoals(ranked)
-    setFlatSequence(sequence)
     setCurrentSlotIndex(0)
     setIsActive(true)
     trackEvent("tutorial_started", { path: ranked[0] })
@@ -345,7 +343,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     }
     setIsActive(false)
     setRankedGoals(null)
-    setFlatSequence([])
     setCurrentSlotIndex(0)
   }, [])
 
@@ -360,6 +357,19 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     saveTutorialState()
   }, [rankedGoals, currentSlotIndex, isActive, saveTutorialState])
+
+  useEffect(() => {
+    if (flatSequence.length === 0) {
+      if (currentSlotIndex !== 0) {
+        setCurrentSlotIndex(0)
+      }
+      return
+    }
+
+    if (currentSlotIndex > flatSequence.length - 1) {
+      setCurrentSlotIndex(flatSequence.length - 1)
+    }
+  }, [flatSequence, currentSlotIndex])
 
   useEffect(() => {
     if (!profile) return
