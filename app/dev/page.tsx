@@ -2,37 +2,21 @@ import { requireAdmin } from "@/lib/auth/admin"
 import Link from "next/link"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import SeedMockRecipesButton from "./seed-mock-recipes-button"
+// Experiments are managed in PostHog — see /dev/feature-flags
 
 export const dynamic = "force-dynamic"
 
 async function getDevStats() {
   const supabase = createServiceSupabaseClient()
 
-  // Get database stats
-  const [
-    { count: userCount },
-    { count: recipeCount },
-    { count: experimentCount },
-    { count: activeExperimentCount },
-  ] = await Promise.all([
+  const [{ count: userCount }, { count: recipeCount }] = await Promise.all([
     supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("recipes").select("*", { count: "exact", head: true }),
-    supabase
-      .schema("ab_testing")
-      .from("experiments")
-      .select("*", { count: "exact", head: true }),
-    supabase
-      .schema("ab_testing")
-      .from("experiments")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "active"),
   ])
 
   return {
     userCount: userCount || 0,
     recipeCount: recipeCount || 0,
-    experimentCount: experimentCount || 0,
-    activeExperimentCount: activeExperimentCount || 0,
   }
 }
 
@@ -41,7 +25,7 @@ export default async function DevPage() {
   await requireAdmin()
 
   const stats = await getDevStats()
-  const seedAuthorId = process.env.NEXT_PUBLIC_DEV_EXPERIMENT_CREATED_BY_UUID ?? null
+  const seedAuthorId = process.env.NEXT_PUBLIC_DEV_SEED_AUTHOR_UUID ?? null
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -71,36 +55,20 @@ export default async function DevPage() {
               {stats.recipeCount.toLocaleString()}
             </div>
           </div>
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-500">
-              Total Experiments
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-gray-900">
-              {stats.experimentCount}
-            </div>
-          </div>
-          <div className="rounded-lg bg-white p-6 shadow">
-            <div className="text-sm font-medium text-gray-500">
-              Active Experiments
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-green-600">
-              {stats.activeExperimentCount}
-            </div>
-          </div>
         </div>
 
         {/* Dev Tools Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {/* A/B Testing Dashboard */}
+          {/* A/B Testing — PostHog */}
           <Link
-            href="/dev/experiments"
+            href="/dev/feature-flags"
             className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg"
           >
             <h3 className="text-lg font-semibold text-gray-900">
               🧪 Experiments
             </h3>
             <p className="mt-2 text-sm text-gray-600">
-              Manage A/B tests and view analytics
+              Manage A/B tests and feature flags in PostHog
             </p>
           </Link>
 
