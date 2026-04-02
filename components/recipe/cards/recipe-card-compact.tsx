@@ -180,7 +180,9 @@ function RecipeCardCompactComponent({
             <button
               onClick={toggleFavorite}
               disabled={loading}
-              className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background transition-colors z-10"
+              aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+              title={isFavorited ? "Remove from favorites" : "Add to favorites"}
+              className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background transition-colors z-[5]"
               data-favorite-button
             >
               <Heart

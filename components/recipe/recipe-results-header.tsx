@@ -7,6 +7,8 @@ export interface RecipeResultsHeaderProps {
   totalPages: number
   searchTerm?: string
   hasActiveFilters: boolean
+  showPagination?: boolean
+  showSummary?: boolean
   onPageChange: (page: number) => void
 }
 
@@ -20,27 +22,33 @@ export function RecipeResultsHeader({
   totalPages,
   searchTerm,
   hasActiveFilters,
+  showPagination = true,
+  showSummary = true,
   onPageChange
 }: RecipeResultsHeaderProps) {
   return (
-    <div className="mb-6 flex items-center justify-between">
-      <p className="text-muted-foreground">
-        {searchTerm && `Search results for "${searchTerm}" - `}
-        {totalCount > 0 ? (
-          <>
-            Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} of {totalCount} recipe{totalCount !== 1 ? 's' : ''}
-          </>
-        ) : (
-          <>Showing 0 recipes</>
-        )}
-        {hasActiveFilters && " (filtered)"}
-      </p>
-      {totalPages > 1 && (
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={onPageChange}
-        />
+    <div className="mb-4 md:mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {showSummary && (
+        <p className="text-sm md:text-base text-muted-foreground">
+          {searchTerm && `Search results for "${searchTerm}" - `}
+          {totalCount > 0 ? (
+            <>
+              Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} of {totalCount} recipe{totalCount !== 1 ? 's' : ''}
+            </>
+          ) : (
+            <>Showing 0 recipes</>
+          )}
+          {hasActiveFilters && " (filtered)"}
+        </p>
+      )}
+      {showPagination && totalPages > 1 && (
+        <div className="self-start sm:self-auto">
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+          />
+        </div>
       )}
     </div>
   )

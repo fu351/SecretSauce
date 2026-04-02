@@ -16,7 +16,6 @@ function ChecklistItem({ label, selected, onClick }: ChecklistItemProps) {
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={selected}
       className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-sm transition ${
         selected ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
       }`}
@@ -46,6 +45,8 @@ interface RecipeFilterSidebarProps {
   showUserOnly: boolean
   onUserRecipesToggle: () => void
   onClearFilters: () => void
+  showSearchControls?: boolean
+  showSortControls?: boolean
 }
 
 const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
@@ -87,6 +88,8 @@ export function RecipeFilterSidebar({
   showUserOnly,
   onUserRecipesToggle,
   onClearFilters,
+  showSearchControls = true,
+  showSortControls = true,
 }: RecipeFilterSidebarProps) {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -102,65 +105,68 @@ export function RecipeFilterSidebar({
   }
 
   return (
-    <div className="sticky top-6" data-tutorial="recipe-filter">
+    <div className="lg:sticky lg:top-6" data-tutorial="recipe-filter">
       <div className="rounded-2xl border bg-card shadow-sm p-4 space-y-5">
-        <div className="space-y-3">
-          <div className="relative" data-tutorial="recipe-search">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search recipes..."
-              value={searchInput}
-              onChange={(e) => onSearchInputChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="pl-9 h-10 text-sm"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === "tile" ? "default" : "outline"}
-              size="sm"
-              onClick={() => onViewModeChange("tile")}
-              className="flex-1"
-            >
-              <Grid className="h-4 w-4 mr-1" />
-              Tiles
-            </Button>
-            <Button
-              variant={viewMode === "details" ? "default" : "outline"}
-              size="sm"
-              onClick={() => onViewModeChange("details")}
-              className="flex-1"
-            >
-              <List className="h-4 w-4 mr-1" />
-              Details
-            </Button>
-          </div>
-          <Button variant="outline" size="sm" onClick={onSearch} className="w-full">
-            Search
-          </Button>
-        </div>
-
-        <div className="border-t pt-4 space-y-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sort By</h4>
-          <div className="space-y-1">
-            {SORT_OPTIONS.map((option) => (
-              <ChecklistItem
-                key={option.value}
-                label={option.label}
-                selected={sortBy === option.value}
-                onClick={() => onSortChange(option.value)}
+        {showSearchControls && (
+          <div className="space-y-3">
+            <div className="relative" data-tutorial="recipe-search">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Search recipes..."
+                value={searchInput}
+                onChange={(e) => onSearchInputChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="pl-9 h-10 text-sm"
               />
-            ))}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={viewMode === "tile" ? "default" : "outline"}
+                size="sm"
+                onClick={() => onViewModeChange("tile")}
+                className="flex-1"
+              >
+                <Grid className="h-4 w-4 mr-1" />
+                Tiles
+              </Button>
+              <Button
+                variant={viewMode === "details" ? "default" : "outline"}
+                size="sm"
+                onClick={() => onViewModeChange("details")}
+                className="flex-1"
+              >
+                <List className="h-4 w-4 mr-1" />
+                Details
+              </Button>
+            </div>
+            <Button variant="outline" size="sm" onClick={onSearch} className="w-full">
+              Search
+            </Button>
           </div>
-        </div>
+        )}
 
-        <div className="border-t pt-4 space-y-3">
+        {showSortControls && (
+          <div id="recipe-filter-sort" className="border-t pt-4 space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sort By</h4>
+            <div className="space-y-1">
+              {SORT_OPTIONS.map((option) => (
+                <ChecklistItem
+                  key={option.value}
+                  label={option.label}
+                  selected={sortBy === option.value}
+                  onClick={() => onSortChange(option.value)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div id="recipe-filter-personal" className="border-t pt-4 space-y-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Personal</h4>
           <div className="space-y-1">
             <button
               type="button"
               onClick={onFavoritesToggle}
-              aria-pressed={showFavoritesOnly}
               className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-sm transition ${
                 showFavoritesOnly ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
               }`}
@@ -174,7 +180,6 @@ export function RecipeFilterSidebar({
             <button
               type="button"
               onClick={onUserRecipesToggle}
-              aria-pressed={showUserOnly}
               className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-sm transition ${
                 showUserOnly ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
               }`}
@@ -188,7 +193,7 @@ export function RecipeFilterSidebar({
           </div>
         </div>
 
-        <div className="border-t pt-4 space-y-3">
+        <div id="recipe-filter-difficulty" className="border-t pt-4 space-y-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Difficulty</h4>
           <div className="space-y-1">
             {DIFFICULTY_OPTIONS.map((option) => (
@@ -202,7 +207,7 @@ export function RecipeFilterSidebar({
           </div>
         </div>
 
-        <div className="border-t pt-4 space-y-3">
+        <div id="recipe-filter-cuisine" className="border-t pt-4 space-y-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cuisine</h4>
           <div className="space-y-1 max-h-40 overflow-auto pr-1">
             <ChecklistItem
@@ -221,7 +226,7 @@ export function RecipeFilterSidebar({
           </div>
         </div>
 
-        <div className="border-t pt-4 space-y-3">
+        <div id="recipe-filter-dietary" className="border-t pt-4 space-y-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dietary</h4>
           <div className="space-y-1 max-h-40 overflow-auto pr-1">
             <ChecklistItem

@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Calendar, LogOut, Plus, Settings, ShoppingCart, User, Wrench } from "lucide-react"
+import { BookOpen, Calendar, Home, LogOut, Plus, Settings, ShoppingCart, Trophy, User, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { useIsMobile } from "@/hooks"
 import { useIsAdmin } from "@/hooks/use-admin"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -24,13 +23,13 @@ import { useState, useEffect } from "react"
 export function Header() {
   const { user, signOut } = useAuth()
   const { theme } = useTheme()
-  const isMobile = useIsMobile()
   const { isAdmin } = useIsAdmin()
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
+  const [mobileLogoMenuOpen, setMobileLogoMenuOpen] = useState(false)
 
   // Prevent hydration mismatch by only rendering after mount
   useEffect(() => {
@@ -97,39 +96,24 @@ export function Header() {
       pathname === path ? "opacity-100" : isDark ? "text-muted-foreground" : "text-gray-700"
     }`
 
+  const closeMobileLogoMenu = () => setMobileLogoMenuOpen(false)
+
   return (
-    <header
-      className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b sticky top-0 z-40 ${
-        isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
-      }`}
-    >
-      {/* Left: nav icons on mobile, logo+title on desktop */}
-      <div className="flex min-w-0 flex-1 items-center justify-start gap-2 md:flex-initial md:flex-none md:gap-4 lg:gap-6">
-        {/* Mobile: nav icon links */}
-        <nav className="flex md:hidden items-center gap-0.5">
-          <Button variant="ghost" size="icon" className={navIconClass("/recipes")} asChild>
-            <Link href="/recipes" aria-label="Recipes">
-              <BookOpen className="h-5 w-5" />
-            </Link>
-          </Button>
-          <Button variant="ghost" size="icon" className={navIconClass("/meal-planner")} asChild>
-            <Link href="/meal-planner" aria-label="Meal Planner">
-              <Calendar className="h-5 w-5" />
-            </Link>
-          </Button>
-          <Button variant="ghost" size="icon" className={navIconClass("/store")} asChild>
-            <Link href="/store" aria-label="Shopping">
-              <ShoppingCart className="h-5 w-5" />
-            </Link>
-          </Button>
-        </nav>
+    <>
+      <header
+        className={`hidden md:flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b md:sticky md:top-0 z-40 ${
+          isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
+        }`}
+      >
+        {/* Left: logo+title on desktop */}
+        <div className="flex min-w-0 flex-1 items-center justify-start gap-2 md:flex-initial md:flex-none md:gap-4 lg:gap-6">
         {/* Desktop: logo + title */}
         <Link href="/home" className="hidden md:block flex-shrink-0">
           <Image
             src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
             alt="Secret Sauce"
-            width={40}
-            height={40}
+            width={60}
+            height={60}
             className="cursor-pointer"
           />
         </Link>
@@ -143,20 +127,9 @@ export function Header() {
             </span>
           </div>
         )}
-      </div>
+        </div>
 
-      {/* Center: logo on mobile only (centered between nav and account) */}
-      <Link href="/home" className="flex-shrink-0 md:hidden">
-        <Image
-          src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
-          alt="Secret Sauce"
-          width={32}
-          height={32}
-          className="cursor-pointer"
-        />
-      </Link>
-
-      <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden md:flex items-center gap-6">
         <Link
           href="/recipes"
           className={`hover:opacity-80 transition-opacity ${
@@ -195,11 +168,11 @@ export function Header() {
             Add Recipe
           </Link>
         </Button>
-      </nav>
+        </nav>
 
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:flex-initial md:gap-3 md:min-w-[200px]">
-        {user ? (
-          <>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:flex-initial md:gap-3 md:min-w-[200px]">
+          {user ? (
+            <>
             {/* Account action buttons */}
             <div className="flex items-center gap-1 md:gap-2">
               <Button
@@ -275,31 +248,203 @@ export function Header() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </>
-        ) : (
-          <div className="flex items-center gap-2">
+              </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="default"
+                asChild
+                className={isDark ? "text-foreground hover:bg-muted" : "hover:bg-gray-100"}
+              >
+                <Link href="/auth/signin">Sign In</Link>
+              </Button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Mobile bottom navbar */}
+      <nav
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-[60] border-t px-2 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] overflow-visible ${
+          isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
+        }`}
+      >
+        <div className="relative mx-auto flex max-w-md items-center justify-between px-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`${navIconClass("/home")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
+            asChild
+          >
+            <Link href="/home" aria-label="Home">
+              <Home className="h-5 w-5" />
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`${navIconClass("/recipes")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
+            asChild
+          >
+            <Link href="/recipes" aria-label="Recipes">
+              <BookOpen className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div className="absolute left-1/2 -translate-x-1/2 -top-11 h-24 w-24 z-[100]">
+            {mobileLogoMenuOpen && (
+              <div className="absolute inset-0">
+                {user ? (
+                  <>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(-150deg) translateX(74px) rotate(150deg)" }}
+                      asChild
+                    >
+                      <Link href="/settings" aria-label="Settings" onClick={closeMobileLogoMenu}>
+                        <Settings className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(-110deg) translateX(74px) rotate(110deg)" }}
+                      asChild
+                    >
+                      <Link href="/challenges/join" aria-label="Challenges" onClick={closeMobileLogoMenu}>
+                        <Trophy className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(-70deg) translateX(74px) rotate(70deg)" }}
+                      asChild
+                    >
+                      <Link href="/upload-recipe" aria-label="Add Recipe" onClick={closeMobileLogoMenu}>
+                        <Plus className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(-30deg) translateX(74px) rotate(30deg)" }}
+                      asChild
+                    >
+                      <Link
+                        href="/pantry"
+                        aria-label="Pantry"
+                        onClick={() => closeMobileLogoMenu()}
+                      >
+                        <Wrench className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(-140deg) translateX(76px) rotate(140deg)" }}
+                      asChild
+                    >
+                      <Link href="/auth/signin" onClick={closeMobileLogoMenu}>Sign In</Link>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(-90deg) translateX(76px) rotate(90deg)" }}
+                      asChild
+                    >
+                      <Link href="/challenges/join" aria-label="Challenges" onClick={closeMobileLogoMenu}>
+                        <Trophy className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(-40deg) translateX(76px) rotate(40deg)" }}
+                      asChild
+                    >
+                      <Link href="/settings" aria-label="Settings" onClick={closeMobileLogoMenu}>
+                        <Settings className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              aria-label="Toggle quick menu"
+              onClick={() => setMobileLogoMenuOpen((prev) => !prev)}
+              className={`relative z-10 flex h-24 w-24 items-center justify-center rounded-full border shadow-lg transition-transform ${
+                mobileLogoMenuOpen ? "scale-105" : "scale-100"
+              } ${isDark ? "bg-card border-border" : "bg-white border-gray-200"}`}
+            >
+              <Image
+                src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
+                alt="Secret Sauce"
+                width={64}
+                height={64}
+                className="object-contain"
+              />
+            </button>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`${navIconClass("/meal-planner")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
+            asChild
+          >
+            <Link href="/meal-planner" aria-label="Meal Planner">
+              <Calendar className="h-5 w-5" />
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`${navIconClass("/store")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
+            asChild
+          >
+            <Link href="/store" aria-label="Shopping">
+              <ShoppingCart className="h-5 w-5" />
+            </Link>
+          </Button>
+          {user ? (
             <Button
               variant="ghost"
-              size={isMobile ? "sm" : "default"}
+              size="icon"
+              className={`${navIconClass("/dashboard")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
               asChild
-              className={isDark ? "text-foreground hover:bg-muted" : "hover:bg-gray-100"}
+            >
+              <Link href="/dashboard" aria-label="Dashboard">
+                <User className="h-5 w-5" />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className={`${isDark ? "text-foreground hover:bg-muted" : "hover:bg-gray-100"} ${
+                mobileLogoMenuOpen ? "pointer-events-none" : ""
+              }`}
             >
               <Link href="/auth/signin">Sign In</Link>
             </Button>
-            <Button
-              size={isMobile ? "sm" : "default"}
-              asChild
-              className={
-                isDark
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                  : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"
-              }
-            >
-              <Link href="/auth/signup">{isMobile ? "Sign Up" : "Get Started"}</Link>
-            </Button>
-          </div>
-        )}
-      </div>
-    </header>
+          )}
+        </div>
+      </nav>
+    </>
   )
 }

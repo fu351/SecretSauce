@@ -61,6 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clerk = useClerk()
   const mounted = useRef(true)
   const fetchingProfile = useRef(false)
+  const hasTriggeredForceReload = useRef(false)
+  const ensureProfileInFlightRef = useRef<{ userId: string; promise: Promise<void> } | null>(null)
 
   const clearAuthState = () => {
     if (!mounted.current) return
@@ -101,6 +103,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true)
 
     let cancelled = false
+    let forceReloadTimeoutId: ReturnType<typeof setTimeout> | undefined
+
+    const triggerForceReloadOnce = () => {
+      if (cancelled || !mounted.current) return
+      if (hasTriggeredForceReload.current) return
+      hasTriggeredForceReload.current = true
+
+      // Prevent infinite reload loops if the underlying issue persists.
+      const COOLDOWN_MS = 60_000
+      const cooldownKey = "secretSauce__forceReloadAuthCooldown"
+      try {
+        const now = Date.now()
+        const last = Number(sessionStorage.getItem(cooldownKey) ?? "0")
+        if (!Number.isNaN(last) && now - last < COOLDOWN_MS) return
+        sessionStorage.setItem(cooldownKey, String(now))
+      } catch {
+        // If sessionStorage isn't available, still attempt reload once.
+      }
+
+      window.location.reload()
+    }
 
     const bootstrap = async () => {
       try {
@@ -108,47 +131,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
+        // Safety net: the landing page shows a centered logo while `loading` is true.
+        // If auth bootstrap hangs (e.g. ensure-profile fetch), the user sees that logo forever.
+        forceReloadTimeoutId = window.setTimeout(triggerForceReloadOnce, 5000)
+
         if (!clerkUserId) {
           clearAuthState()
           return
         }
 
-        const response = await fetch("/api/auth/ensure-profile", {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        })
-        if (cancelled || !mounted.current) return
-
-        if (!response.ok) {
-          console.warn("[v0] Failed to ensure Clerk profile:", response.status)
-          clearAuthState()
+        // Avoid duplicate ensure-profile requests (common in React StrictMode during dev).
+        const userId = clerkUserId
+        if (ensureProfileInFlightRef.current?.userId === userId) {
+          await ensureProfileInFlightRef.current.promise
           return
         }
 
-        const payload = await response.json()
-        const linkedProfile = payload?.profile
-        if (!linkedProfile?.id || !linkedProfile?.email) {
-          clearAuthState()
-          return
-        }
+        const controller = new AbortController()
+        const ENSURE_PROFILE_TIMEOUT_MS = 4500
+        const fetchTimeoutId = window.setTimeout(() => {
+          controller.abort(new Error("ensure-profile timeout"))
+        }, ENSURE_PROFILE_TIMEOUT_MS)
 
-        setUser(
-          buildAuthUser(
-            linkedProfile.id,
-            linkedProfile.email,
-            linkedProfile.created_at ?? null
+        const promise = (async () => {
+          const response = await fetch("/api/auth/ensure-profile", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            signal: controller.signal,
+          })
+          if (cancelled || !mounted.current) return
+
+          if (!response.ok) {
+            console.warn("[v0] Failed to ensure Clerk profile:", response.status)
+            clearAuthState()
+            return
+          }
+
+          const payload = await response.json()
+          const linkedProfile = payload?.profile
+          if (!linkedProfile?.id || !linkedProfile?.email) {
+            clearAuthState()
+            return
+          }
+
+          setUser(
+            buildAuthUser(linkedProfile.id, linkedProfile.email, linkedProfile.created_at ?? null),
           )
-        )
-        setProfile(linkedProfile)
+          setProfile(linkedProfile)
+        })()
+
+        ensureProfileInFlightRef.current = { userId, promise }
+        try {
+          await promise
+        } finally {
+          clearTimeout(fetchTimeoutId)
+          if (ensureProfileInFlightRef.current?.userId === userId) {
+            ensureProfileInFlightRef.current = null
+          }
+        }
       } catch (error) {
         console.error("[v0] Error retrieving Clerk-backed session:", error)
         if (!cancelled && mounted.current) {
           clearAuthState()
         }
       } finally {
+        if (forceReloadTimeoutId) {
+          clearTimeout(forceReloadTimeoutId)
+        }
         if (!cancelled && mounted.current && clerkLoaded) {
           setLoading(false)
         }

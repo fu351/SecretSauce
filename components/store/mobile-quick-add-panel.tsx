@@ -65,6 +65,8 @@ export function MobileQuickAddPanel({
     return Array.from(map.values())
   }, [shoppingList])
 
+  const isRecipesInCartEmpty = recipesInCart.length === 0
+
   useEffect(() => {
     let cancelled = false
 
@@ -122,79 +124,83 @@ export function MobileQuickAddPanel({
         </div>
 
         <div className="flex gap-2 overflow-x-hidden">
-          {/* Scrollable recipe cards */}
-          <div className="flex-1 overflow-x-auto snap-x snap-mandatory scrollbar-hide">
-            <div className="flex gap-2">
-              {recipesInCart.map((recipe) => {
-                const details = recipeDetailsById[recipe.id]
-                const recipeTitle = details?.title || recipe.title
-                const imageUrl = details?.imageUrl
+          {!isRecipesInCartEmpty && (
+            // Scrollable recipe cards
+            <div className="flex-1 overflow-x-auto snap-x snap-mandatory scrollbar-hide">
+              <div className="flex gap-2">
+                {recipesInCart.map((recipe) => {
+                  const details = recipeDetailsById[recipe.id]
+                  const recipeTitle = details?.title || recipe.title
+                  const imageUrl = details?.imageUrl
 
-                return (
-                  <div
-                    key={recipe.id}
-                    onClick={() => handleRecipeClick(recipe.id)}
-                    className={`snap-start shrink-0 w-[109px] rounded-lg border overflow-hidden relative cursor-pointer ${
-                      theme === "dark"
-                        ? "border-[#e8dcc4]/15 bg-[#181813] hover:bg-[#2a2924]"
-                        : "border-gray-200 bg-white hover:bg-gray-50"
-                    }`}
-                  >
-                    {/* Remove button */}
-                    {onRemoveRecipe && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onRemoveRecipe(recipe.id)
-                        }}
-                        className={`absolute top-1 right-1 z-10 w-5 h-5 rounded-full flex items-center justify-center ${
-                          theme === "dark"
-                            ? "bg-[#181813]/80 hover:bg-[#181813] text-[#e8dcc4]"
-                            : "bg-white/80 hover:bg-white text-gray-900"
-                        } shadow-sm border ${
-                          theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-300"
-                        }`}
-                        aria-label="Remove recipe"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-
-                    <div className={`h-16 ${
-                      imageUrl
-                        ? ""
-                        : theme === "dark" ? "bg-[#2a2924]" : "bg-gray-100"
-                    }`}>
-                      {imageUrl ? (
-                        <img
-                          src={imageUrl}
-                          alt={recipeTitle}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center">
-                          <ChefHat className={`h-4 w-4 ${mutedTextClass}`} />
-                        </div>
+                  return (
+                    <div
+                      key={recipe.id}
+                      onClick={() => handleRecipeClick(recipe.id)}
+                      className={`snap-start shrink-0 w-[109px] rounded-lg border overflow-hidden relative cursor-pointer ${
+                        theme === "dark"
+                          ? "border-[#e8dcc4]/15 bg-[#181813] hover:bg-[#2a2924]"
+                          : "border-gray-200 bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      {/* Remove button */}
+                      {onRemoveRecipe && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onRemoveRecipe(recipe.id)
+                          }}
+                          className={`absolute top-1 right-1 z-10 w-5 h-5 rounded-full flex items-center justify-center ${
+                            theme === "dark"
+                              ? "bg-[#181813]/80 hover:bg-[#181813] text-[#e8dcc4]"
+                              : "bg-white/80 hover:bg-white text-gray-900"
+                          } shadow-sm border ${
+                            theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-300"
+                          }`}
+                          aria-label="Remove recipe"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       )}
+
+                      <div className={`h-16 ${
+                        imageUrl
+                          ? ""
+                          : theme === "dark" ? "bg-[#2a2924]" : "bg-gray-100"
+                      }`}>
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={recipeTitle}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <ChefHat className={`h-4 w-4 ${mutedTextClass}`} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-2">
+                        <p className={`text-[10px] font-medium leading-tight line-clamp-2 ${textClass}`}>{recipeTitle}</p>
+                        <p className={`text-[9px] mt-0.5 ${mutedTextClass}`}>{recipe.servings} servings</p>
+                      </div>
                     </div>
-                    <div className="p-2">
-                      <p className={`text-[10px] font-medium leading-tight line-clamp-2 ${textClass}`}>{recipeTitle}</p>
-                      <p className={`text-[9px] mt-0.5 ${mutedTextClass}`}>{recipe.servings} servings</p>
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Static + Add Recipe button */}
           <button
             type="button"
             onClick={() => setShowRecipeModal(true)}
-            className={`shrink-0 w-[109px] h-[106px] rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 ${
+            className={`${
+              isRecipesInCartEmpty ? "w-full flex-1" : "shrink-0 w-[109px]"
+            } h-[106px] rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 ${
               theme === "dark"
                 ? "border-[#e8dcc4]/25 bg-[#181813] text-[#e8dcc4]"
                 : "border-gray-300 bg-gray-50 text-gray-700"

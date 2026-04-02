@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useTutorial } from "@/contexts/tutorial-context"
-import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen, Camera, Mail, Lock, UserCircle } from "lucide-react"
+import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen, Camera, Mail, Lock, UserCircle, LogOut } from "lucide-react"
 import { supabase } from "@/lib/database/supabase"
 import { profileDB, type Profile } from "@/lib/database/profile-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
@@ -17,6 +17,7 @@ import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import { useToast } from "@/hooks"
 import { AuthGate } from "@/components/auth/tier-gate"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 
@@ -31,7 +32,7 @@ export default function SettingsPage() {
 }
 
 function SettingsPageContent() {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const {
     tutorialCompleted: contextTutorialCompleted,
@@ -40,7 +41,9 @@ function SettingsPageContent() {
     resetTutorial,
   } = useTutorial()
   const { toast } = useToast()
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
 
   // Profile state
   const [fullName, setFullName] = useState("")
@@ -938,6 +941,8 @@ function SettingsPageContent() {
                   <input
                     id="avatar-upload"
                     type="file"
+                    aria-label="Upload avatar"
+                    title="Upload avatar"
                     accept="image/*"
                     onChange={handleAvatarUpload}
                     disabled={uploadingAvatar}
@@ -1142,6 +1147,57 @@ function SettingsPageContent() {
                 </div>
                 <Switch defaultChecked />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Danger Zone */}
+        <Card className={isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"} id="danger-zone">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <LogOut className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
+              <div>
+                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Account</CardTitle>
+                <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
+                  Manage your session
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Button
+                onClick={async () => {
+                  const ok = window.confirm("Sign out of Secret Sauce?")
+                  if (!ok) return
+                  setSigningOut(true)
+                  try {
+                    await signOut()
+                    toast({
+                      title: "Signed out",
+                      description: "You have been signed out successfully.",
+                    })
+                    router.push("/home")
+                    router.refresh()
+                  } catch (error) {
+                    console.error("Sign out error:", error)
+                    toast({
+                      title: "Error signing out",
+                      description: "Please try again or refresh the page.",
+                      variant: "destructive",
+                    })
+                  } finally {
+                    setSigningOut(false)
+                  }
+                }}
+                disabled={signingOut}
+                className={isDark ? "bg-red-600 hover:bg-red-700 text-white" : "bg-red-500 hover:bg-red-600 text-white"}
+              >
+                {signingOut ? "Signing out..." : "Sign Out"}
+              </Button>
+              <p className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"} sm:ml-auto`}>
+                Logout is always safe: it only ends your session; it does not change your data.
+              </p>
             </div>
           </CardContent>
         </Card>

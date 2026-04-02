@@ -24,6 +24,7 @@ import { useTutorial } from "@/contexts/tutorial-context"
 import IOSWebAppPromptBanner from "@/components/shared/ios-webapp-prompt-banner"
 import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
 import { shouldShowIOSPrompt } from "@/lib/utils"
+import { GraphTracker } from "@/components/dashboard/graph-tracker"
 
 interface DashboardStats {
   totalRecipes: number
@@ -318,40 +319,8 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Quick Actions */}
-          <Card className="mb-8 border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-foreground">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button asChild className="w-full h-24 flex flex-col gap-2">
-                  <Link href="/upload-recipe">
-                    <Plus className="h-6 w-6" />
-                    <span>Add Recipe</span>
-                  </Link>
-                </Button>
-                <Button asChild className="w-full h-24 flex flex-col gap-2">
-                  <Link href="/meal-planner">
-                    <Calendar className="h-6 w-6" />
-                    <span>Plan Meals</span>
-                  </Link>
-                </Button>
-                <Button asChild className="w-full h-24 flex flex-col gap-2">
-                  <Link href="/pantry">
-                    <ShoppingCart className="h-6 w-6" />
-                    <span>Manage Pantry</span>
-                  </Link>
-                </Button>
-                <Button asChild className="w-full h-24 flex flex-col gap-2">
-                  <Link href="/delivery">
-                    <Truck className="h-6 w-6" />
-                    <span>My Deliveries</span>
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Graph Tracker */}
+          <GraphTracker />
 
           {/* Recent Recipes */}
           <Card className="border-border bg-card">

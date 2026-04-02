@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { useToast } from "@/hooks"
+import { useIsMobile, useToast } from "@/hooks"
 import { RecipeSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { useRecipesFiltered, useRecipesCount, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
 import { Pagination } from "@/components/ui/pagination"
@@ -15,6 +15,10 @@ import { RecipeResultsHeader } from "@/components/recipe/recipe-results-header"
 import { RecipeGrid } from "@/components/recipe/recipe-grid"
 import { RecipeListView } from "@/components/recipe/recipe-list-view"
 import { RecipeEmptyState } from "@/components/recipe/recipe-empty-state"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ArrowDownUp, LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 export default function RecipesPage() {
   // UI state
@@ -28,12 +32,17 @@ export default function RecipesPage() {
   const [page, setPage] = useState(1)
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [showUserOnly, setShowUserOnly] = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [mobileSortOpen, setMobileSortOpen] = useState(false)
 
   const { user } = useAuth()
+  const isMobile = useIsMobile()
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
+  const mobileLoadMoreRef = useRef<HTMLDivElement | null>(null)
+  const loadingMoreRef = useRef(false)
 
   // Fetch favorites
   const { data: favorites = new Set<string>() } = useFavorites(user?.id || null)
@@ -91,9 +100,21 @@ export default function RecipesPage() {
 
   useEffect(() => {
     if (!recipesFetching) {
-      setDisplayRecipes(recipes)
+      setDisplayRecipes((prev) => {
+        if (isMobile && page > 1) {
+          const merged = [...prev, ...recipes]
+          const seen = new Set<string>()
+          return merged.filter((recipe) => {
+            if (seen.has(recipe.id)) return false
+            seen.add(recipe.id)
+            return true
+          })
+        }
+        return recipes
+      })
+      loadingMoreRef.current = false
     }
-  }, [recipes, recipesFetching])
+  }, [recipes, recipesFetching, isMobile, page])
 
   const updateURL = useCallback(
     (updates: Record<string, string | undefined>, resetPage = false) => {
@@ -125,6 +146,30 @@ export default function RecipesPage() {
     },
     [searchParams, router],
   )
+
+  useEffect(() => {
+    if (!isMobile || !mobileLoadMoreRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry.isIntersecting) return
+        if (loadingMoreRef.current || recipesFetching || page >= totalPages) return
+
+        loadingMoreRef.current = true
+        setPage((prev) => {
+          const next = prev + 1
+          if (next > totalPages) return prev
+          updateURL({ page: String(next) })
+          return next
+        })
+      },
+      { rootMargin: "240px 0px" }
+    )
+
+    observer.observe(mobileLoadMoreRef.current)
+    return () => observer.disconnect()
+  }, [isMobile, recipesFetching, page, totalPages, updateURL])
 
   const toggleFavorite = async (recipeId: string, e?: React.MouseEvent) => {
     e?.preventDefault()
@@ -187,17 +232,66 @@ export default function RecipesPage() {
     showFavoritesOnly ||
     showUserOnly
 
+  const activeFilterCount = [
+    selectedDifficulty !== "all",
+    selectedCuisine !== "all",
+    selectedDiet.length > 0,
+    showFavoritesOnly,
+    showUserOnly,
+  ].filter(Boolean).length
+
+  const filterSectionCounts = {
+    personal: (showFavoritesOnly ? 1 : 0) + (showUserOnly ? 1 : 0),
+    difficulty: selectedDifficulty !== "all" ? 1 : 0,
+    cuisine: selectedCuisine !== "all" ? 1 : 0,
+    dietary: selectedDiet.length,
+  }
+
+  const scrollToFilterSection = (id: string) => {
+    const el = document.getElementById(id)
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }
+
+  const sortLabelMap: Record<SortBy, string> = {
+    created_at: "Newest",
+    rating_avg: "Top Rated",
+    prep_time: "Quickest",
+    title: "A-Z",
+  }
+
   if (loading && displayRecipes.length === 0) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto p-6">
-          <div className="mb-8">
+        <div className="max-w-7xl mx-auto p-4 md:p-6">
+          <div className="mb-6 md:mb-8">
             <div className="h-10 w-48 bg-muted rounded animate-pulse mb-2"></div>
             <div className="h-6 w-64 bg-muted rounded animate-pulse"></div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <RecipeSkeleton key={i} />
+          <div className="columns-2 md:columns-3 lg:columns-4 gap-3 md:gap-4">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="mb-3 md:mb-4 break-inside-avoid">
+                <div
+                  className={`w-full rounded-2xl bg-muted animate-pulse ${
+                    i % 8 === 0
+                      ? "aspect-[2/3]"
+                      : i % 8 === 1
+                        ? "aspect-[9/16]"
+                        : i % 8 === 2
+                          ? "aspect-[3/4]"
+                          : i % 8 === 3
+                            ? "aspect-[4/5]"
+                            : i % 8 === 4
+                              ? "aspect-square"
+                              : i % 8 === 5
+                                ? "aspect-[5/6]"
+                                : i % 8 === 6
+                                  ? "aspect-[7/9]"
+                                  : "aspect-[10/13]"
+                  }`}
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -207,67 +301,258 @@ export default function RecipesPage() {
 
   return (
     <div className="min-h-screen bg-background" data-tutorial="recipe-overview">
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8">
+      <div className="max-w-7xl mx-auto p-4 md:p-6">
+        <div className="mb-4 md:mb-8">
           <RecipeHeader />
+        </div>
 
+        <div className="lg:hidden mb-4 space-y-3 sticky top-0 z-20 bg-background/95 backdrop-blur pt-2 pb-2 -mx-4 md:-mx-6 px-4 md:px-6">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search recipes"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSearch()
+                }}
+                className="pl-9 h-11 rounded-full"
+              />
+            </div>
+            <Button onClick={handleSearch} className="h-11 rounded-full px-5">
+              Search
+            </Button>
+          </div>
+
+          <div className="flex justify-center gap-2 overflow-x-auto pb-1">
+            <Dialog open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-full whitespace-nowrap">
+                  <SlidersHorizontal className="h-4 w-4 mr-2" />
+                  Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="left-0 top-0 h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0 overflow-hidden">
+                <div className="flex h-full flex-col">
+                  <DialogHeader className="border-b px-4 py-3 text-left">
+                    <DialogTitle className="text-base">Filter Recipes</DialogTitle>
+                    <p className="text-xs text-muted-foreground">Refine your results</p>
+                  </DialogHeader>
+
+                  <div className="border-b bg-background px-3 py-2">
+                    <div className="flex gap-2 overflow-x-auto">
+                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("recipe-filter-personal")}>
+                        Personal{filterSectionCounts.personal > 0 ? ` (${filterSectionCounts.personal})` : ""}
+                      </Button>
+                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("recipe-filter-difficulty")}>
+                        Difficulty{filterSectionCounts.difficulty > 0 ? ` (${filterSectionCounts.difficulty})` : ""}
+                      </Button>
+                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("recipe-filter-cuisine")}>
+                        Cuisine{filterSectionCounts.cuisine > 0 ? ` (${filterSectionCounts.cuisine})` : ""}
+                      </Button>
+                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("recipe-filter-dietary")}>
+                        Dietary{filterSectionCounts.dietary > 0 ? ` (${filterSectionCounts.dietary})` : ""}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto px-3 py-3">
+                    <RecipeFilterSidebar
+                      searchInput={searchInput}
+                      onSearchInputChange={setSearchInput}
+                      onSearch={handleSearch}
+                      viewMode={viewMode}
+                      onViewModeChange={setViewMode}
+                      selectedDifficulty={selectedDifficulty}
+                      onDifficultyChange={(value) => {
+                        setSelectedDifficulty(value)
+                        setPage(1)
+                        updateURL({ difficulty: value }, true)
+                      }}
+                      selectedCuisine={selectedCuisine}
+                      onCuisineChange={(value) => {
+                        setSelectedCuisine(value)
+                        setPage(1)
+                        updateURL({ cuisine: value }, true)
+                      }}
+                      selectedDiet={selectedDiet}
+                      onDietChange={(value) => {
+                        setSelectedDiet(value)
+                        setPage(1)
+                        updateURL({ diet: value.length > 0 ? value.join(",") : undefined }, true)
+                      }}
+                      sortBy={sortBy}
+                      onSortChange={(value) => {
+                        setSortBy(value as SortBy)
+                        setPage(1)
+                        updateURL({ sort: value }, true)
+                      }}
+                      showFavoritesOnly={showFavoritesOnly}
+                      onFavoritesToggle={() => {
+                        const newValue = !showFavoritesOnly
+                        setShowFavoritesOnly(newValue)
+                        setPage(1)
+                        updateURL({ favorites: newValue ? "true" : undefined }, true)
+                      }}
+                      showUserOnly={showUserOnly}
+                      onUserRecipesToggle={() => {
+                        if (!user) {
+                          toast({
+                            title: "Sign in required",
+                            description: "Please sign in to view your recipes",
+                            variant: "destructive",
+                          })
+                          return
+                        }
+                        const newValue = !showUserOnly
+                        setShowUserOnly(newValue)
+                        setPage(1)
+                        updateURL({ mine: newValue ? "true" : undefined }, true)
+                      }}
+                      onClearFilters={handleClearFilters}
+                      showSearchControls={false}
+                      showSortControls={false}
+                    />
+                  </div>
+
+                  <div className="sticky bottom-0 border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={handleClearFilters}
+                      >
+                        Clear all
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => setMobileFiltersOpen(false)}
+                      >
+                        Show results
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={mobileSortOpen} onOpenChange={setMobileSortOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-full whitespace-nowrap">
+                  <ArrowDownUp className="h-4 w-4 mr-2" />
+                  Sort: {sortLabelMap[sortBy]}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>Sort Recipes</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2">
+                  {([
+                    ["created_at", "Newest"],
+                    ["rating_avg", "Top Rated"],
+                    ["prep_time", "Quickest"],
+                    ["title", "A-Z"],
+                  ] as [SortBy, string][]).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      variant={sortBy === value ? "default" : "outline"}
+                      className="w-full justify-start"
+                      onClick={() => {
+                        setSortBy(value)
+                        setPage(1)
+                        updateURL({ sort: value }, true)
+                        setMobileSortOpen(false)
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Button
+              variant={viewMode === "tile" ? "default" : "outline"}
+              size="icon"
+              className="rounded-full shrink-0"
+              onClick={() => setViewMode("tile")}
+              aria-label="Tile view"
+              title="Tile view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "details" ? "default" : "outline"}
+              size="icon"
+              className="rounded-full shrink-0"
+              onClick={() => setViewMode("details")}
+              aria-label="Details view"
+              title="Details view"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-          <RecipeFilterSidebar
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            onSearch={handleSearch}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            selectedDifficulty={selectedDifficulty}
-            onDifficultyChange={(value) => {
-              setSelectedDifficulty(value)
-              setPage(1)
-              updateURL({ difficulty: value }, true)
-            }}
-            selectedCuisine={selectedCuisine}
-            onCuisineChange={(value) => {
-              setSelectedCuisine(value)
-              setPage(1)
-              updateURL({ cuisine: value }, true)
-            }}
-            selectedDiet={selectedDiet}
-            onDietChange={(value) => {
-              setSelectedDiet(value)
-              setPage(1)
-              updateURL({ diet: value.length > 0 ? value.join(",") : undefined }, true)
-            }}
-            sortBy={sortBy}
-            onSortChange={(value) => {
-              setSortBy(value as SortBy)
-              setPage(1)
-              updateURL({ sort: value }, true)
-            }}
-            showFavoritesOnly={showFavoritesOnly}
-            onFavoritesToggle={() => {
-              const newValue = !showFavoritesOnly
-              setShowFavoritesOnly(newValue)
-              setPage(1)
-              updateURL({ favorites: newValue ? "true" : undefined }, true)
-            }}
-            showUserOnly={showUserOnly}
-            onUserRecipesToggle={() => {
-              if (!user) {
-                toast({
-                  title: "Sign in required",
-                  description: "Please sign in to view your recipes",
-                  variant: "destructive",
-                })
-                return
-              }
-              const newValue = !showUserOnly
-              setShowUserOnly(newValue)
-              setPage(1)
-              updateURL({ mine: newValue ? "true" : undefined }, true)
-            }}
-            onClearFilters={handleClearFilters}
-          />
+          <div className="hidden lg:block">
+            <RecipeFilterSidebar
+              searchInput={searchInput}
+              onSearchInputChange={setSearchInput}
+              onSearch={handleSearch}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              selectedDifficulty={selectedDifficulty}
+              onDifficultyChange={(value) => {
+                setSelectedDifficulty(value)
+                setPage(1)
+                updateURL({ difficulty: value }, true)
+              }}
+              selectedCuisine={selectedCuisine}
+              onCuisineChange={(value) => {
+                setSelectedCuisine(value)
+                setPage(1)
+                updateURL({ cuisine: value }, true)
+              }}
+              selectedDiet={selectedDiet}
+              onDietChange={(value) => {
+                setSelectedDiet(value)
+                setPage(1)
+                updateURL({ diet: value.length > 0 ? value.join(",") : undefined }, true)
+              }}
+              sortBy={sortBy}
+              onSortChange={(value) => {
+                setSortBy(value as SortBy)
+                setPage(1)
+                updateURL({ sort: value }, true)
+              }}
+              showFavoritesOnly={showFavoritesOnly}
+              onFavoritesToggle={() => {
+                const newValue = !showFavoritesOnly
+                setShowFavoritesOnly(newValue)
+                setPage(1)
+                updateURL({ favorites: newValue ? "true" : undefined }, true)
+              }}
+              showUserOnly={showUserOnly}
+              onUserRecipesToggle={() => {
+                if (!user) {
+                  toast({
+                    title: "Sign in required",
+                    description: "Please sign in to view your recipes",
+                    variant: "destructive",
+                  })
+                  return
+                }
+                const newValue = !showUserOnly
+                setShowUserOnly(newValue)
+                setPage(1)
+                updateURL({ mine: newValue ? "true" : undefined }, true)
+              }}
+              onClearFilters={handleClearFilters}
+            />
+          </div>
 
           <div>
             <RecipeResultsHeader
@@ -277,6 +562,8 @@ export default function RecipesPage() {
               totalPages={totalPages}
               searchTerm={searchTerm}
               hasActiveFilters={hasActiveFilters}
+              showPagination={!isMobile}
+              showSummary={!isMobile}
               onPageChange={(newPage) => {
                 setPage(newPage)
                 updateURL({ page: String(newPage) })
@@ -304,18 +591,33 @@ export default function RecipesPage() {
               />
             )}
 
-            {totalPages > 1 && displayRecipes.length > 0 && (
-              <div className="mt-8">
-                <Pagination
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={(newPage) => {
-                    setPage(newPage)
-                    updateURL({ page: String(newPage) })
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                  }}
-                />
-              </div>
+            {isMobile ? (
+              totalPages > 1 && displayRecipes.length > 0 && (
+                <div className="mt-6">
+                  <p className="text-center text-xs text-muted-foreground">
+                    {page < totalPages
+                      ? recipesFetching
+                        ? "Loading more recipes..."
+                        : "Scroll down for more"
+                      : "You've reached the end"}
+                  </p>
+                  <div ref={mobileLoadMoreRef} className="h-8" />
+                </div>
+              )
+            ) : (
+              totalPages > 1 && displayRecipes.length > 0 && (
+                <div className="mt-8">
+                  <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={(newPage) => {
+                      setPage(newPage)
+                      updateURL({ page: String(newPage) })
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                  />
+                </div>
+              )
             )}
           </div>
         </div>

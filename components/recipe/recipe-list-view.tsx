@@ -42,7 +42,7 @@ export const RecipeListView = memo(function RecipeListView({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {recipes.map((recipe: Recipe, idx: number) => (
         <div
           key={recipe.id}
@@ -52,8 +52,8 @@ export const RecipeListView = memo(function RecipeListView({
           <Link href={`/recipes/${recipe.id}`}>
             <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 bg-card backdrop-blur-sm shadow-lg overflow-hidden">
               <CardContent className="p-0">
-                <div className="flex">
-                  <div className="w-1/2 relative min-h-[300px]">
+                <div className="flex flex-col md:flex-row">
+                  <div className="w-full md:w-1/2 relative min-h-[200px] md:min-h-[300px]">
                     <Image
                       src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
                       alt={recipe.title}
@@ -64,10 +64,10 @@ export const RecipeListView = memo(function RecipeListView({
                     />
                   </div>
 
-                  <div className="w-1/2 p-8 flex flex-col justify-between">
+                  <div className="w-full md:w-1/2 p-4 md:p-8 flex flex-col justify-between">
                     <div>
-                      <div className="flex items-start justify-between mb-4">
-                        <h3 className="text-2xl font-bold group-hover:text-primary transition-colors text-foreground">
+                      <div className="flex items-start justify-between mb-3 md:mb-4 gap-3">
+                        <h3 className="text-lg md:text-2xl font-bold group-hover:text-primary transition-colors text-foreground">
                           {recipe.title}
                         </h3>
                         <Badge className={getDifficultyColor(recipe.difficulty)}>
@@ -75,11 +75,11 @@ export const RecipeListView = memo(function RecipeListView({
                         </Badge>
                       </div>
 
-                      <p className="mb-6 line-clamp-3 text-muted-foreground">
+                      <p className="mb-4 md:mb-6 line-clamp-3 text-sm md:text-base text-muted-foreground">
                         {recipe.content?.description}
                       </p>
 
-                      <div className="grid grid-cols-2 gap-6 mb-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
                         <div className="flex items-center gap-3">
                           <Clock className="h-5 w-5 text-muted-foreground" />
                           <div>
@@ -151,13 +151,17 @@ export const RecipeListView = memo(function RecipeListView({
             </Card>
           </Link>
 
-          <div className="absolute top-4 right-4 z-10">
+          <div className="absolute top-2 right-2 md:top-4 md:right-4 z-[5]">
             <Button
               variant="ghost"
               size="sm"
               data-favorite-button
               className={`bg-white/90 hover:bg-white ${favorites.has(recipe.id) ? "text-red-500" : "text-gray-600"}`}
-              onClick={(e) => onFavoriteToggle(recipe.id, e)}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                void onFavoriteToggle(recipe.id, e)
+              }}
             >
               <Heart className={`h-4 w-4 ${favorites.has(recipe.id) ? "fill-current" : ""}`} />
             </Button>

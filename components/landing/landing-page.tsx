@@ -41,14 +41,14 @@ export function LandingPage() {
             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
           }`}
         >
-          {/* Bottle / Logo — fixed size for consistency */}
+          {/* Bottle / Logo — slightly larger for emphasis */}
           <div className="mb-8 flex justify-center">
             <div className="relative">
               <Image
                 src="/logo-dark.png"
                 alt="Secret Sauce"
-                width={80}
-                height={80}
+                width={216}
+                height={216}
                 className="opacity-90 object-contain"
                 priority
               />

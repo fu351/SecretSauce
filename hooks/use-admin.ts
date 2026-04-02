@@ -38,6 +38,8 @@ function useAdminStatus() {
 
   useEffect(() => {
     const controller = new AbortController()
+    const ADMIN_STATUS_TIMEOUT_MS = 4500
+    const timeoutId = setTimeout(() => controller.abort(new Error("admin-status timeout")), ADMIN_STATUS_TIMEOUT_MS)
     setLoading(true)
 
     async function checkStatus() {
@@ -66,9 +68,10 @@ function useAdminStatus() {
     checkStatus()
 
     return () => {
+      clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [user])
+  }, [user?.id])
 
   return { isAdmin, canViewAnalytics, loading }
 }

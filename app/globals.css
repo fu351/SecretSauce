@@ -103,6 +103,13 @@
     @apply bg-background text-foreground;
   }
 
+  /* Reserve room for fixed mobile bottom navbar without adding top gap */
+  @media (max-width: 767px) {
+    body {
+      padding-bottom: 6rem;
+    }
+  }
+
   /* Enhanced focus states for better accessibility */
   *:focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;

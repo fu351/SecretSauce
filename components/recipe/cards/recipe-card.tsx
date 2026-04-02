@@ -202,7 +202,7 @@ function RecipeCardComponent({
         </div>
 
         {showFavorite && (
-          <div className="absolute top-2 md:top-4 right-2 md:right-4 z-20 pointer-events-auto">
+          <div className="absolute top-2 md:top-4 right-2 md:right-4 z-[5] pointer-events-auto">
             <Button
               size="icon"
               variant="secondary"

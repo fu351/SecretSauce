@@ -20,7 +20,7 @@ export function RecipeEmptyState({
     <div className="space-y-6">
       {hasNoRecipes && <DatabaseSetupNotice />}
       <Card className="bg-card backdrop-blur-sm shadow-lg">
-        <CardContent className="p-12 text-center">
+        <CardContent className="p-6 md:p-12 text-center">
           <h3 className="text-lg font-medium text-foreground mb-2">
             {hasNoRecipes ? "No recipes in database" : "No recipes found"}
           </h3>

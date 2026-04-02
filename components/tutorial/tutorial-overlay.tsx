@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
+import { useIsMobile } from "@/hooks"
 
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -28,6 +29,7 @@ export function TutorialOverlay() {
   const { theme } = useTheme()
   const pathname = usePathname()
   const router = useRouter()
+  const isMobile = useIsMobile()
 
   // --- State Management ---
   const [isMinimized, setIsMinimized] = useState(false)
@@ -341,12 +343,39 @@ export function TutorialOverlay() {
     };
   }, [isActive, isMinimized, currentStepIndex, currentSubstepIndex, updateHighlight, pathname, currentStep?.page, targetRect]);
 
+  if (isMobile) return null;
   if (!isActive || !currentPath || !currentStep) return null;
 
   const totalUnits = currentPath.steps.reduce((sum, s) => sum + (s.substeps?.length || 1), 0);
   const completedUnits = currentPath.steps.slice(0, currentStepIndex).reduce((sum, s) => sum + (s.substeps?.length || 1), 0) + (currentSubstepIndex + 1);
   const progress = (completedUnits / totalUnits) * 100;
   const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore";
+
+  // Avoid inline styles for the progress bar width (linter rule).
+  // We bucket to 10% steps so Tailwind can statically include the classes.
+  const progressBucket = Math.max(0, Math.min(100, Math.round(progress / 10) * 10))
+  const progressWidthClass =
+    progressBucket === 0
+      ? "w-0"
+      : progressBucket === 10
+        ? "w-[10%]"
+        : progressBucket === 20
+          ? "w-[20%]"
+          : progressBucket === 30
+            ? "w-[30%]"
+            : progressBucket === 40
+              ? "w-[40%]"
+              : progressBucket === 50
+                ? "w-[50%]"
+                : progressBucket === 60
+                  ? "w-[60%]"
+                  : progressBucket === 70
+                    ? "w-[70%]"
+                    : progressBucket === 80
+                      ? "w-[80%]"
+                      : progressBucket === 90
+                        ? "w-[90%]"
+                        : "w-full"
 
   return (
     <>
@@ -398,7 +427,7 @@ export function TutorialOverlay() {
         )}
       >
         <div className="h-1.5 w-full bg-gray-200/20">
-          <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+          <div className={`h-full bg-blue-500 transition-all duration-500 ${progressWidthClass}`} />
         </div>
 
         <div className="flex items-center justify-between p-4 border-b border-white/5">
