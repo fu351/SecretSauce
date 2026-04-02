@@ -14,6 +14,7 @@ import Link from "next/link"
 import { getWeek, getYear } from "date-fns"
 import { RecipeCard } from "@/components/recipe/cards/recipe-card"
 import { Recipe } from "@/lib/types"
+import type { RankedGoals } from "@/lib/types/tutorial"
 
 // Tutorial Components
 // TutorialOverlay is rendered globally in layout.tsx
@@ -32,6 +33,10 @@ interface DashboardStats {
   shoppingItems: number
 }
 
+function hasStoredTutorialRanking(value: unknown): value is RankedGoals {
+  return Array.isArray(value) && value.length >= 1
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     totalRecipes: 0,
@@ -47,7 +52,7 @@ export default function DashboardPage() {
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false)
   const { user, profile } = useAuth()
   const { theme } = useTheme()
-  const { isActive, resetTutorial } = useTutorial()
+  const { isActive, resetTutorial, startRankedSession } = useTutorial()
   const isDark = theme === "dark"
 
   useEffect(() => {
@@ -147,6 +152,12 @@ export default function DashboardPage() {
   const handleStartTutorial = () => {
     resetTutorial()
     setShowTutorialPrompt(false)
+
+    if (hasStoredTutorialRanking(profile?.tutorial_goals_ranking)) {
+      startRankedSession(profile.tutorial_goals_ranking)
+      return
+    }
+
     setShowTutorialModal(true)
   }
 
