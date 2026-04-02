@@ -313,9 +313,9 @@ function fallbackResults(inputs: IngredientStandardizationInput[]): IngredientSt
     id: item.id || String(index),
     originalName: item.name,
     canonicalName: normalizeCanonicalOutput(item.name) || item.name.toLowerCase(),
-    isFoodItem: true,
+    isFoodItem: false,
     category: null,
-    confidence: 0.2,
+    confidence: 0,
   }))
 }
 

@@ -132,7 +132,7 @@ jobs:
                   fh.write(f"{key}={section[key]}\n")
           PY
 
-  resolve-ingredient-match-queue:
+  ingredient-match-queue-pipeline:
     name: Resolve Ingredient Match Queue
     needs: load-config
     runs-on: ubuntu-latest
@@ -171,7 +171,7 @@ jobs:
           cache-dependency-path: backend/scripts/package-lock.json
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --prefix scripts
+        run: npm ci --prefix backend/scripts
 
       - name: Expose scripts dependencies to shared imports
         run: ln -sfn "$GITHUB_WORKSPACE/backend/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
@@ -282,7 +282,7 @@ jobs:
             echo "=== Queue Batch ${batch}/${max_batches} (resolver=${resolver_name}) ==="
             retry_failed
 
-            QUEUE_RESOLVER_NAME="$resolver_name" QUEUE_MAX_CYCLES="1" npm --prefix scripts run resolve-ingredient-match-queue
+            QUEUE_RESOLVER_NAME="$resolver_name" QUEUE_MAX_CYCLES="1" npm --prefix backend/scripts run ingredient-match-queue-pipeline
 
             CLAIM_FILTER=""
             if [ "${QUEUE_REVIEW_MODE}" = "ingredient" ]; then

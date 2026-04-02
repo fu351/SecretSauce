@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "../../../lib/database/supabase"
 
-export type EmbeddingSourceType = "recipe" | "ingredient"
+export type EmbeddingSourceType = "recipe" | "ingredient" | "canonical_candidate"
+export type CandidateEmbeddingInsert = Database["public"]["Tables"]["canonical_candidate_embeddings"]["Insert"]
 export type EmbeddingQueueStatus = "pending" | "processing" | "completed" | "failed"
 export type EmbeddingQueueRow = Database["public"]["Tables"]["embedding_queue"]["Row"]
 export type EmbeddingQueueInsert = Database["public"]["Tables"]["embedding_queue"]["Insert"]
@@ -342,6 +343,56 @@ class EmbeddingQueueDB {
     }
 
     return "inserted"
+  }
+
+  async upsertCandidateEmbedding(params: {
+    canonicalName: string
+    inputText: string
+    embedding: number[]
+    model: string
+  }): Promise<boolean> {
+    const nowIso = new Date().toISOString()
+
+    const payload: CandidateEmbeddingInsert = {
+      canonical_name: params.canonicalName,
+      input_text: params.inputText,
+      embedding: params.embedding,
+      embedding_model: params.model,
+      updated_at: nowIso,
+    }
+
+    const { error } = await supabase
+      .from("canonical_candidate_embeddings")
+      .upsert(payload, { onConflict: "canonical_name" })
+
+    if (error) {
+      logError(error, "upsertCandidateEmbedding")
+      return false
+    }
+
+    return true
+  }
+
+  async fetchCandidateEmbeddingsByInputTexts(
+    inputTexts: string[],
+    model: string
+  ): Promise<Map<string, number[]>> {
+    if (!inputTexts.length) return new Map()
+
+    const { data, error } = await supabase
+      .from("canonical_candidate_embeddings")
+      .select("canonical_name, embedding")
+      .in("canonical_name", inputTexts)
+      .eq("embedding_model", model)
+
+    if (error) {
+      logError(error, "fetchCandidateEmbeddingsByInputTexts")
+      return new Map()
+    }
+
+    return new Map(
+      (data || []).map((row) => [row.canonical_name, row.embedding as number[]])
+    )
   }
 }
 

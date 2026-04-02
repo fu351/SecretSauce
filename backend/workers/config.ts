@@ -50,7 +50,7 @@ export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfi
   const dryRun = readBoolean(process.env.DRY_RUN, false)
 
   return {
-    resolverName: process.env.QUEUE_RESOLVER_NAME || "queue-worker",
+    resolverName: process.env.QUEUE_RESOLVER_NAME || "ingredient-match-queue-pipeline",
     batchLimit: readPositiveInt(process.env.QUEUE_BATCH_LIMIT, 25),
     maxCycles: overrides?.maxCycles ?? defaultMaxCycles,
     chunkSize: readPositiveInt(process.env.QUEUE_CHUNK_SIZE, 10),

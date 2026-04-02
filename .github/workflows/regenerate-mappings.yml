@@ -395,7 +395,7 @@ jobs:
           NODE_ENV: production
         run: |
           # First cycle generates fresh drift telemetry from current queue content.
-          QUEUE_RESOLVER_NAME="relink-map-run-b1" QUEUE_MAX_CYCLES="1" npm run resolve-ingredient-match-queue
+          QUEUE_RESOLVER_NAME="relink-map-run-b1" QUEUE_MAX_CYCLES="1" npm run ingredient-match-queue-pipeline
 
       - name: "Resolve Ingredient Match Queue (Pass 2: Drift-Informed)"
         env:
@@ -411,7 +411,7 @@ jobs:
           QUEUE_REVIEW_MODE: 'ingredient'
           QUEUE_RESOLVER_NAME: 'relink-map-run-b2'
           NODE_ENV: production
-        run: npm run resolve-ingredient-match-queue
+        run: npm run ingredient-match-queue-pipeline
 
       - name: Queue Summary
         run: |

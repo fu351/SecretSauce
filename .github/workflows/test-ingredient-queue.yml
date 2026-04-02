@@ -64,4 +64,4 @@ jobs:
           QUEUE_RESOLVER_NAME: 'test-run'
           DRY_RUN: 'true'
           NODE_ENV: production
-        run: npm run resolve-ingredient-match-queue
+        run: npm run ingredient-match-queue-pipeline

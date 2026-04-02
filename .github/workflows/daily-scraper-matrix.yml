@@ -122,7 +122,6 @@ jobs:
       scraper_timeout_minutes: ${{ steps.defaults.outputs.scraper_timeout_minutes }}
       scraper_batch_size: ${{ steps.defaults.outputs.scraper_batch_size }}
       scraper_batch_concurrency: ${{ steps.defaults.outputs.scraper_batch_concurrency }}
-      traderjoes_batch_size: ${{ steps.defaults.outputs.traderjoes_batch_size }}
       traderjoes_batch_concurrency: ${{ steps.defaults.outputs.traderjoes_batch_concurrency }}
     steps:
       - name: Checkout code
@@ -152,7 +151,6 @@ jobs:
               "scraper_timeout_minutes",
               "scraper_batch_size",
               "scraper_batch_concurrency",
-              "traderjoes_batch_size",
               "traderjoes_batch_concurrency",
           )
 
@@ -305,7 +303,7 @@ jobs:
 
       - name: Install dependencies
         timeout-minutes: 15
-        run: npm ci --prefix scripts
+        run: npm ci --prefix backend/scripts
 
       - name: Expose scripts dependencies to shared imports
         run: ln -sfn "$GITHUB_WORKSPACE/backend/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
@@ -337,7 +335,6 @@ jobs:
           SCRAPER_TIMEOUT_MS: ${{ needs['load-config'].outputs.request_timeout_ms }}
           SCRAPER_TIMEOUT_MINUTES: ${{ needs['load-config'].outputs.scraper_timeout_minutes }}
           SCRAPER_BATCH_SIZE: ${{ needs['load-config'].outputs.scraper_batch_size }}
-          TRADERJOES_BATCH_SIZE: ${{ needs['load-config'].outputs.traderjoes_batch_size }}
           TRADERJOES_BATCH_CONCURRENCY: ${{ needs['load-config'].outputs.traderjoes_batch_concurrency }}
           NODE_ENV: production
         run: |
@@ -360,10 +357,6 @@ jobs:
           if [ "$SCRAPER_BATCH_CONCURRENCY" -lt 1 ]; then SCRAPER_BATCH_CONCURRENCY=1; fi
           if [ "$SCRAPER_BATCH_CONCURRENCY" -gt 20 ]; then SCRAPER_BATCH_CONCURRENCY=20; fi
 
-          if ! [[ "${TRADERJOES_BATCH_SIZE:-}" =~ ^[0-9]+$ ]]; then TRADERJOES_BATCH_SIZE=20; fi
-          if [ "$TRADERJOES_BATCH_SIZE" -lt 1 ]; then TRADERJOES_BATCH_SIZE=1; fi
-          if [ "$TRADERJOES_BATCH_SIZE" -gt 200 ]; then TRADERJOES_BATCH_SIZE=200; fi
-
           if ! [[ "${TRADERJOES_BATCH_CONCURRENCY:-}" =~ ^[0-9]+$ ]]; then TRADERJOES_BATCH_CONCURRENCY=2; fi
           if [ "$TRADERJOES_BATCH_CONCURRENCY" -lt 1 ]; then TRADERJOES_BATCH_CONCURRENCY=1; fi
           if [ "$TRADERJOES_BATCH_CONCURRENCY" -gt 10 ]; then TRADERJOES_BATCH_CONCURRENCY=10; fi
@@ -380,7 +373,6 @@ jobs:
           export SCRAPER_TIMEOUT_MS
           export SCRAPER_BATCH_SIZE
           export SCRAPER_BATCH_CONCURRENCY
-          export TRADERJOES_BATCH_SIZE
           export TRADERJOES_BATCH_CONCURRENCY
 
           echo "🚀 Starting scraper for ${{ matrix.store }}"
@@ -388,7 +380,6 @@ jobs:
           echo "   Job hard timeout (m): $SCRAPER_TIMEOUT_MINUTES"
           echo "   Default batch size: $SCRAPER_BATCH_SIZE"
           echo "   Default batch concurrency: $SCRAPER_BATCH_CONCURRENCY"
-          echo "   Trader Joe's batch size: $TRADERJOES_BATCH_SIZE"
           echo "   Trader Joe's batch concurrency: $TRADERJOES_BATCH_CONCURRENCY"
           echo "   State filter: ${STORE_STATE:-<none>}"
           echo "   City filter: ${STORE_CITIES_CSV:-<none>}"

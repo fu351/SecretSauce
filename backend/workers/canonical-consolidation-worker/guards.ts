@@ -6,6 +6,12 @@ export interface ConsolidationCandidateAssessment {
   reason: string
 }
 
+export interface WeightedHeuristicContext {
+  productCounts: Map<string, number>
+  weightedSimilarityThreshold: number
+  minWeightedProductCount: number
+}
+
 function stripSimplePluralS(value: string): string {
   return value
     .split(" ")
@@ -15,7 +21,8 @@ function stripSimplePluralS(value: string): string {
 }
 
 export function assessConsolidationCandidate(
-  row: CanonicalDoubleCheckDailyStatsRow
+  row: CanonicalDoubleCheckDailyStatsRow,
+  context?: WeightedHeuristicContext
 ): ConsolidationCandidateAssessment {
   const sourceCategory = row.source_category?.trim() || null
   const targetCategory = row.target_category?.trim() || null
@@ -45,6 +52,26 @@ export function assessConsolidationCandidate(
 
   if (singularizeCanonicalName(normalizedSource) === singularizeCanonicalName(normalizedTarget)) {
     return { allowed: true, reason: "singularized_match" }
+  }
+
+  // Weighted Lp heuristic: non-trivial lateral variants may still be safe to
+  // consolidate when embedding similarity is very high AND both canonicals have
+  // meaningful product usage. High product counts act as weights in the
+  // projection space — the more products reference an ingredient, the more
+  // confident we can be that a near-identical embedding truly means the same
+  // underlying ingredient.
+  if (context) {
+    const sourceCount = context.productCounts.get(row.source_canonical) ?? 0
+    const targetCount = context.productCounts.get(row.target_canonical) ?? 0
+    const geometricMean = Math.sqrt(sourceCount * targetCount)
+    const similarity = row.max_similarity ?? 0
+
+    if (
+      similarity >= context.weightedSimilarityThreshold &&
+      geometricMean >= context.minWeightedProductCount
+    ) {
+      return { allowed: true, reason: "weighted_product_count_vector_match" }
+    }
   }
 
   return { allowed: false, reason: "non_trivial_lateral_variant_requires_manual_review" }

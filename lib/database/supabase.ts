@@ -192,6 +192,9 @@ export const supabase =
   supabaseUrl && supabaseAnonKey ? createBrowserClient() : createMissingEnvProxy(missingEnvMessage)
 
 export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: "12.2.3 (519615d)"
+  }
   public: {
     Tables: {
       profiles: {
@@ -599,10 +602,37 @@ export type Database = {
           product_mapping_id?: string | null
         }
       }
+      canonical_candidate_embeddings: {
+        Row: {
+          canonical_name: string
+          input_text: string
+          embedding: number[]
+          embedding_model: string
+          embedded_at: string
+          updated_at: string
+        }
+        Insert: {
+          canonical_name: string
+          input_text: string
+          embedding: number[]
+          embedding_model: string
+          embedded_at?: string
+          updated_at?: string
+        }
+        Update: {
+          canonical_name?: string
+          input_text?: string
+          embedding?: number[]
+          embedding_model?: string
+          embedded_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       embedding_queue: {
         Row: {
           id: string
-          source_type: "recipe" | "ingredient"
+          source_type: "recipe" | "ingredient" | "canonical_candidate"
           source_id: string
           input_text: string
           status: "pending" | "processing" | "completed" | "failed"
@@ -616,7 +646,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          source_type: "recipe" | "ingredient"
+          source_type: "recipe" | "ingredient" | "canonical_candidate"
           source_id: string
           input_text: string
           status?: "pending" | "processing" | "completed" | "failed"
@@ -630,7 +660,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          source_type?: "recipe" | "ingredient"
+          source_type?: "recipe" | "ingredient" | "canonical_candidate"
           source_id?: string
           input_text?: string
           status?: "pending" | "processing" | "completed" | "failed"
@@ -642,6 +672,7 @@ export type Database = {
           created_at?: string | null
           updated_at?: string | null
         }
+        Relationships: []
       }
       recipe_embeddings: {
         Row: {
@@ -671,6 +702,7 @@ export type Database = {
           created_at?: string | null
           updated_at?: string | null
         }
+        Relationships: []
       }
       ingredient_embeddings: {
         Row: {
@@ -700,6 +732,7 @@ export type Database = {
           created_at?: string | null
           updated_at?: string | null
         }
+        Relationships: []
       }
       /**
        * Supabase schema reference:

@@ -7,9 +7,9 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "resolve-ingredient-match-queue": "tsx --env-file=.env.local backend/scripts/resolve-ingredient-match-queue.ts",
-    "resolve-embedding-queue": "tsx --env-file=.env.local backend/scripts/resolve-embedding-queue.ts",
-    "embedding-queue-worker": "tsx --env-file=.env.local backend/workers/embedding-worker/runner.ts",
+    "ingredient-match-queue-pipeline": "tsx --env-file=.env.local backend/orchestrators/ingredient-match-queue-pipeline/pipeline.ts",
+    "embedding-queue-pipeline": "tsx --env-file=.env.local backend/orchestrators/embedding-queue-pipeline/pipeline.ts",
+    "embedding-queue-pipeline-runner": "tsx --env-file=.env.local backend/orchestrators/embedding-queue-pipeline/runner.ts",
     "backfill-embedding-queue": "tsx --env-file=.env.local backend/scripts/temp/backfill-embedding-queue.ts",
     "cleanup-recent-standardized-ingredients": "tsx --env-file=.env.local backend/scripts/cleanup-recent-standardized-ingredients.ts",
     "test": "vitest",
@@ -27,8 +27,8 @@
     "test:api": "vitest run app/api/",
     "test:traderjoes-scraper": "node backend/scripts/test-traderjoes-scraper.js",
     "test:99ranch-scraper": "node backend/scripts/test-99ranch-scraper.js",
-    "queue-worker": "tsx --env-file=.env.local backend/workers/ingredient-worker/runner.ts",
-    "vector-double-check-worker": "tsx --env-file=.env.local backend/workers/vector-double-check-worker/runner.ts",
+    "ingredient-match-queue-pipeline-runner": "tsx --env-file=.env.local backend/orchestrators/ingredient-match-queue-pipeline/runner.ts",
+    "vector-double-check-pipeline-runner": "tsx --env-file=.env.local backend/orchestrators/vector-double-check-pipeline/runner.ts",
     "backfill-clerk-user-ids": "tsx --env-file=.env.local backend/scripts/backfill-clerk-user-ids.ts"
   },
   "dependencies": {

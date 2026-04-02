@@ -6,12 +6,12 @@ Last verified: 2026-03-26.
 
 Core files:
 
-- `backend/workers/index.ts`
+- `backend/orchestrators/ingredient-match-queue-pipeline.ts`
 - `backend/workers/config.ts`
-- `backend/scripts/resolve-ingredient-match-queue.ts`
+- `backend/orchestrators/ingredient-match-queue-pipeline.ts`
 - `backend/scripts/package.json`
 - `backend/workers/ingredient-worker/processor.ts`
-- `backend/workers/ingredient-worker/runner.ts`
+- `backend/orchestrators/ingredient-match-queue-pipeline-runner.ts`
 
 ### Responsibilities
 
@@ -44,8 +44,8 @@ Core files:
 - `backend/workers/embedding-worker/openai-embeddings.ts`
 - `backend/workers/embedding-worker/ollama-embeddings.ts`
 - `backend/workers/embedding-worker/processor.ts`
-- `backend/workers/embedding-worker/runner.ts`
-- `backend/scripts/resolve-embedding-queue.ts`
+- `backend/orchestrators/embedding-queue-pipeline-runner.ts`
+- `backend/orchestrators/embedding-queue-pipeline.ts`
 - `backend/scripts/package.json`
 
 Responsibilities:
@@ -69,8 +69,8 @@ Core files:
 
 - `backend/workers/vector-double-check-worker/config.ts`
 - `backend/workers/vector-double-check-worker/processor.ts`
-- `backend/workers/vector-double-check-worker/runner.ts`
-- `backend/workers/vector-double-check-worker/resolve-vector-double-check.ts`
+- `backend/orchestrators/vector-double-check-pipeline-runner.ts`
+- `backend/orchestrators/vector-double-check-pipeline.ts`
 
 Purpose:
 
@@ -87,9 +87,9 @@ Core files:
 
 - `backend/workers/canonical-consolidation-worker/config.ts`
 - `backend/workers/canonical-consolidation-worker/processor.ts`
-- `backend/workers/canonical-consolidation-worker/runner.ts`
+- `backend/orchestrators/canonical-consolidation-pipeline-runner.ts`
 - `backend/workers/canonical-consolidation-worker/survivor.ts`
-- `backend/workers/canonical-consolidation-worker/resolve-canonical-consolidation.ts`
+- `backend/orchestrators/canonical-consolidation-pipeline.ts`
 - `lib/database/canonical-consolidation-db.ts`
 
 Purpose:
@@ -125,19 +125,19 @@ Key points:
 ## Operational entry points
 
 - One-shot ingredient queue run:
-  - `npm run resolve-ingredient-match-queue`
+  - `npm run ingredient-match-queue-pipeline`
 - Continuous ingredient queue loop:
-  - `npm run queue-worker`
+  - `npm run ingredient-match-queue-pipeline-runner`
 - One-shot embedding queue run:
-  - `npm run resolve-embedding-queue`
+  - `npm run embedding-queue-pipeline`
 - Continuous embedding queue loop:
-  - `npm run embedding-queue-worker`
+  - `npm run embedding-queue-pipeline-runner`
 - Continuous vector double-check loop:
-  - `npm run vector-double-check-worker`
+  - `npm run vector-double-check-pipeline-runner`
 - One-shot vector double-check run:
-  - `npm --prefix scripts run resolve-vector-double-check`
+  - `npm --prefix backend/scripts run vector-double-check-pipeline`
 - One-shot canonical consolidation run:
-  - `npm --prefix scripts run resolve-canonical-consolidation`
+  - `npm --prefix backend/scripts run canonical-consolidation-pipeline`
 - Backfill embedding queue:
   - `npm run backfill-embedding-queue`
 

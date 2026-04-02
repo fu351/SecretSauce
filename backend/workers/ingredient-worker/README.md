@@ -15,7 +15,7 @@ This worker claims pending ingredient queue rows, standardizes ingredient names,
 
 ## Key Files
 
-- `backend/scripts/resolve-ingredient-match-queue.ts` - one-shot resolver used by the root script alias and workflow runs.
+- `backend/orchestrators/ingredient-match-queue-pipeline/pipeline.ts` - one-shot pipeline entrypoint used by the root script alias and workflow runs.
 - `runner.ts` - long-running worker loop; calls the processor once per cycle and sleeps between cycles.
 - `processor.ts` - main queue resolver; claims rows, runs ingredient/unit standardization, applies safety checks, and persists results.
 - `batching.ts` - chunking and bounded concurrency helpers.
@@ -34,8 +34,8 @@ This worker claims pending ingredient queue rows, standardizes ingredient names,
 
 From the repo root:
 
-- One-shot queue run: `npm run resolve-ingredient-match-queue` or `npm --prefix scripts run resolve-ingredient-match-queue`
-- Continuous loop: `npm run queue-worker` or `npm --prefix scripts run queue-worker`
+- One-shot queue run: `npm run ingredient-match-queue-pipeline` or `npm --prefix backend/scripts run ingredient-match-queue-pipeline`
+- Continuous loop: `npm run ingredient-match-queue-pipeline-runner` or `npm --prefix backend/scripts run ingredient-match-queue-pipeline-runner`
 
 The repo root script aliases and the shared `backend/scripts` package point at the same runner, and the Fly worker process uses the shared package entrypoint.
 
@@ -54,7 +54,7 @@ Common optional knobs:
 - `OPENAI_MODEL` - chat model used by ingredient/unit standardizers; defaults to `gpt-4o-mini`
 - `EMBEDDING_OPENAI_MODEL` - embedding model used by vector matching; defaults to `text-embedding-3-small`
 - `QUEUE_MAX_CYCLES` - stop after N cycles when running one-shot or bounded loops; default `0` means unlimited loop mode
-- `QUEUE_RESOLVER_NAME` - resolver label written to queue rows; default `queue-worker`
+- `QUEUE_RESOLVER_NAME` - resolver label written to queue rows; default `ingredient-match-queue-pipeline`
 - `QUEUE_BATCH_LIMIT` - rows fetched per cycle; default `25`
 - `QUEUE_CHUNK_SIZE` - chunk size within a cycle; default `10`
 - `QUEUE_CHUNK_CONCURRENCY` - concurrent chunk workers; default `1`

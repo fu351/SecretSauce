@@ -2,7 +2,7 @@ app = "secretsauce-queue"
 primary_region = "ord"
 
 [build]
-  dockerfile = "backend/docker/Dockerfile.fly-queue"
+  dockerfile = "backend/docker/Dockerfile.ingredient-match-queue-runner"
 
 [env]
   WORKER_INTERVAL_SECONDS = "300"
@@ -13,7 +13,7 @@ primary_region = "ord"
   QUEUE_REVIEW_MODE = "ingredient"
 
 [processes]
-  worker = "npm --prefix backend/scripts run queue-worker"
+  worker = "npm --prefix backend/scripts run ingredient-match-queue-pipeline-runner"
 
 [[vm]]
   cpu_kind = "shared"

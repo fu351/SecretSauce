@@ -42,6 +42,36 @@ describe("unit standardizer parser", () => {
     })
   })
 
+  it("preserves the original input id when a matched model response rewrites it", () => {
+    const inputs: UnitStandardizationInput[] = [
+      {
+        id: "milk|64 oz|scraper|whole milk",
+        rawProductName: "Whole Milk 64 oz",
+        cleanedName: "whole milk",
+        rawUnit: "64 oz",
+        source: "scraper",
+      },
+    ]
+
+    const parsed = parseUnitStandardizationPayload(inputs, [
+      {
+        id: "milk",
+        resolvedUnit: "oz",
+        resolvedQuantity: 64,
+        confidence: 0.93,
+        status: "success",
+      },
+    ])
+
+    expect(parsed[0]).toMatchObject({
+      id: "milk|64 oz|scraper|whole milk",
+      resolvedUnit: "oz",
+      resolvedQuantity: 64,
+      confidence: 0.93,
+      status: "success",
+    })
+  })
+
   it("returns deterministic errors for invalid payload entries", () => {
     const inputs: UnitStandardizationInput[] = [
       {

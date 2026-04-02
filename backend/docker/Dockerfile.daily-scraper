@@ -14,6 +14,7 @@ RUN npm ci --prefix backend/scripts --omit=dev --no-audit --no-fund \
 
 COPY backend/scripts ./backend/scripts
 COPY backend/workers ./backend/workers
+COPY backend/orchestrators ./backend/orchestrators
 
 ENV NODE_ENV=production
 ENV DAILY_SCRAPER_DRY_RUN=true
@@ -24,4 +25,4 @@ ENV STORE_LIMIT=1
 ENV INGREDIENT_LIMIT=5
 ENV INGREDIENT_DELAY_MS=0
 
-CMD ["node", "backend/workers/daily-scraper-worker/runner.js"]
+CMD ["node", "backend/orchestrators/daily-scraper-pipeline/pipeline.js"]

@@ -1,0 +1,21 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# The ingredient remap worker runs from the root package and uses tsx at
+# runtime, so install the root dependency set rather than the smaller shared
+# backend/scripts package.
+COPY package.json ./package.json
+COPY pnpm-lock.yaml ./pnpm-lock.yaml
+RUN npm install --no-audit --no-fund
+
+COPY tsconfig.json ./tsconfig.json
+COPY backend/workers ./backend/workers
+COPY backend/orchestrators ./backend/orchestrators
+COPY backend/scripts ./backend/scripts
+COPY lib/database ./lib/database
+COPY lib/openai ./lib/openai
+COPY lib/ollama ./lib/ollama
+COPY lib/utils ./lib/utils
+
+CMD ["node_modules/.bin/tsx", "backend/orchestrators/ingredient-match-queue-pipeline/pipeline.ts"]

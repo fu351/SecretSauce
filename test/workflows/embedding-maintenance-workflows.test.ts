@@ -12,7 +12,7 @@ describe("workflow contracts for embedding infrastructure", () => {
     const workflow = readWorkflow(".github/workflows/nightly-embedding-queue.yml")
 
     expect(workflow).toContain("name: Nightly Embedding Queue")
-    expect(workflow).toContain("EMBEDDING_QUEUE_MAX_CYCLES=\"1\" npm --prefix scripts run resolve-embedding-queue")
+    expect(workflow).toContain("EMBEDDING_QUEUE_MAX_CYCLES=\"1\" npm --prefix backend/scripts run embedding-queue-pipeline")
     expect(workflow).toContain("embedding_source_type:")
     expect(workflow).toContain("- ingredient")
     expect(workflow).toContain("- recipe")
