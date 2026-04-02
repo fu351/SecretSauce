@@ -49,14 +49,30 @@ export function TutorialOverlay() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const isDark = theme === "dark"
 
+  const pageNames: Record<string, string> = {
+    "/recipes": "Recipes",
+    "/meal-planner": "Meal Planner",
+    "/store": "Shopping",
+    "/settings": "Settings",
+    "/dashboard": "Dashboard",
+    "/home": "Home",
+  }
+
   const totalSteps = flatSequence.length
   const completedSteps = currentSlotIndex + 1
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
   const isLastStep = currentSlotIndex === totalSteps - 1
   const stepHighlightSelector = currentStep && 'highlightSelector' in currentStep ? currentStep.highlightSelector : undefined
-  const stepAction = currentStep && 'action' in currentStep ? currentStep.action : undefined
-  const isExploreMode = (currentSubstep?.action ?? stepAction) === "explore"
-  const expectedSelector = currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
+  const nextSlot = currentSlotIndex < flatSequence.length - 1 ? flatSequence[currentSlotIndex + 1] : null
+  const isPageTransition =
+    isActive &&
+    nextSlot !== null &&
+    currentSlot !== null &&
+    nextSlot.page !== currentSlot.page &&
+    !nextSlot.page.endsWith("*") &&
+    (!currentSubstep?.mandatory || isMandatoryCompleted)
+  const transitionNavSelector = isPageTransition ? `[data-tutorial-nav="${nextSlot!.page}"]` : null
+  const expectedSelector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
 
   const handleGoToExpectedPage = useCallback(() => {
     if (!currentStep?.page || currentStep.page.endsWith("*")) return
@@ -133,22 +149,6 @@ export function TutorialOverlay() {
       if (debounceTimer) clearTimeout(debounceTimer);
     };
   }, [isActive]);
-
-  /**
-   * 3. Explore Mode: Global Click Handler
-   */
-  useEffect(() => {
-    if (!isActive || isMinimized) return;
-    const handleGlobalClick = (e: MouseEvent) => {
-      if (isChangingPage || isPageLocked || isPageLoading) return;
-      if (currentSubstep?.mandatory && !isMandatoryCompleted) return;
-      if (overlayRef.current && !overlayRef.current.contains(e.target as Node)) {
-        setIsMinimized(true);
-      }
-    };
-    window.addEventListener("click", handleGlobalClick, true);
-    return () => window.removeEventListener("click", handleGlobalClick, true);
-  }, [isActive, isMinimized, isChangingPage, isPageLocked, isPageLoading, currentSubstep, isMandatoryCompleted]);
 
   /**
    * 2b. Tutorial Activation State Reset
@@ -233,18 +233,8 @@ export function TutorialOverlay() {
   const updateHighlight = useCallback(() => {
     if (!isActive || !currentStep || isMinimized || isPageLoading) return;
 
-    const stepAct = currentStep && 'action' in currentStep ? currentStep.action : undefined
-    const currentAction = currentSubstep?.action ?? stepAct;
-    if (currentAction === "explore") {
-      setTargetRect(null);
-      setIsChangingPage(false);
-      setHasSyncTimedOut(false);
-      setSyncRetries(0);
-      return;
-    }
-
     const stepSel = currentStep && 'highlightSelector' in currentStep ? currentStep.highlightSelector : undefined
-    const selector = currentSubstep?.highlightSelector ?? stepSel;
+    const selector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepSel;
     if (!selector) {
       setTargetRect(null);
       setIsChangingPage(false);
@@ -287,7 +277,7 @@ export function TutorialOverlay() {
     if (hasMoved) {
       setTargetRect(newRect);
     }
-  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, syncRetries]);
+  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, syncRetries, transitionNavSelector]);
 
   /** Keep a stable ref so delayed callbacks always call the latest version */
   useEffect(() => { updateHighlightRef.current = updateHighlight; }, [updateHighlight]);
@@ -336,6 +326,16 @@ export function TutorialOverlay() {
       window.removeEventListener("scroll", handlePosUpdate);
     };
   }, [isActive, isMinimized, currentSlotIndex, updateHighlight, pathname, currentStep?.page, targetRect]);
+
+  /**
+   * 6. Auto-advance when user navigates to the next page via the highlighted nav link
+   */
+  useEffect(() => {
+    if (!isPageTransition || !nextSlot) return
+    if (pageMatches(nextSlot.page, pathname)) {
+      nextStep()
+    }
+  }, [isPageTransition, nextSlot, pathname, nextStep])
 
   if (!isActive || !currentSlot) return null;
 
@@ -497,7 +497,7 @@ export function TutorialOverlay() {
               <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
               <p className="text-sm font-medium opacity-60">Preparing next step...</p>
             </div>
-          ) : !!expectedSelector && !targetRect && !hasSyncTimedOut && !isExploreMode ? (
+          ) : !!expectedSelector && !targetRect && !hasSyncTimedOut ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
               <p className="text-sm font-medium opacity-70">Scanning for element…</p>
@@ -547,7 +547,9 @@ export function TutorialOverlay() {
               </p>
               <h3 className="text-xl font-bold mb-2 leading-tight">{currentStep?.title}</h3>
               <p className={clsx("text-sm leading-relaxed mb-6", isDark ? "text-gray-400" : "text-gray-600")}>
-                {currentSubstep?.instruction ?? currentStep?.description}
+                {isPageTransition
+                  ? `You're done here. Use the navigation to go to ${pageNames[nextSlot!.page] ?? nextSlot!.page}.`
+                  : (currentSubstep?.instruction ?? currentStep?.description)}
               </p>
 
               {/* Tips — only shown at rank 1 (primary goal), not on general slots */}
@@ -562,25 +564,34 @@ export function TutorialOverlay() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentSlotIndex === 0}>
-                  <ChevronLeft className="w-4 h-4 mr-2" /> Back
-                </Button>
-                <Button
-                  disabled={!!currentSubstep?.mandatory && !isMandatoryCompleted}
-                  onClick={() => {
-                    if (currentSubstep?.action === "click" && expectedSelector) {
-                      const el = document.querySelector(expectedSelector) as HTMLElement | null
-                      if (el) el.click()
-                    }
-                    nextStep()
-                  }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-8 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {isLastStep ? "Finish" : "Next"}
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
+              {isPageTransition ? (
+                <div className={clsx("flex items-center gap-3 rounded-xl px-4 py-3 border", isDark ? "bg-blue-500/10 border-blue-400/25 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-700")}>
+                  <ChevronUp className="w-4 h-4 shrink-0" />
+                  <p className="text-xs font-medium leading-snug">
+                    Click <strong>{pageNames[nextSlot!.page] ?? nextSlot!.page}</strong> in the navigation above to continue
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentSlotIndex === 0}>
+                    <ChevronLeft className="w-4 h-4 mr-2" /> Back
+                  </Button>
+                  <Button
+                    disabled={!!currentSubstep?.mandatory && !isMandatoryCompleted}
+                    onClick={() => {
+                      if (currentSubstep?.action === "click" && expectedSelector) {
+                        const el = document.querySelector(expectedSelector) as HTMLElement | null
+                        if (el) el.click()
+                      }
+                      nextStep()
+                    }}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-8 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isLastStep ? "Finish" : "Next"}
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </div>

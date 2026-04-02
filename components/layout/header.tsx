@@ -108,17 +108,17 @@ export function Header() {
         {/* Mobile: nav icon links */}
         <nav className="flex md:hidden items-center gap-0.5">
           <Button variant="ghost" size="icon" className={navIconClass("/recipes")} asChild>
-            <Link href="/recipes" aria-label="Recipes">
+            <Link href="/recipes" aria-label="Recipes" data-tutorial-nav="/recipes">
               <BookOpen className="h-5 w-5" />
             </Link>
           </Button>
           <Button variant="ghost" size="icon" className={navIconClass("/meal-planner")} asChild>
-            <Link href="/meal-planner" aria-label="Meal Planner">
+            <Link href="/meal-planner" aria-label="Meal Planner" data-tutorial-nav="/meal-planner">
               <Calendar className="h-5 w-5" />
             </Link>
           </Button>
           <Button variant="ghost" size="icon" className={navIconClass("/store")} asChild>
-            <Link href="/store" aria-label="Shopping">
+            <Link href="/store" aria-label="Shopping" data-tutorial-nav="/store">
               <ShoppingCart className="h-5 w-5" />
             </Link>
           </Button>
@@ -159,6 +159,7 @@ export function Header() {
       <nav className="hidden md:flex items-center gap-6">
         <Link
           href="/recipes"
+          data-tutorial-nav="/recipes"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/recipes" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -167,6 +168,7 @@ export function Header() {
         </Link>
         <Link
           href="/meal-planner"
+          data-tutorial-nav="/meal-planner"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -175,6 +177,7 @@ export function Header() {
         </Link>
         <Link
           href="/store"
+          data-tutorial-nav="/store"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/store" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -208,7 +211,7 @@ export function Header() {
                 asChild
                 className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
               >
-                <Link href="/dashboard">
+                <Link href="/dashboard" data-tutorial-nav="/dashboard">
                   <User className="h-5 w-5" />
                   <span className="sr-only">Dashboard</span>
                 </Link>
@@ -220,7 +223,7 @@ export function Header() {
                 asChild
                 className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
               >
-                <Link href="/settings">
+                <Link href="/settings" data-tutorial-nav="/settings">
                   <Settings className="h-5 w-5" />
                   <span className="sr-only">Settings</span>
                 </Link>
