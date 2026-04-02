@@ -340,6 +340,19 @@ export function TutorialOverlay() {
     }
   }, [isPageTransition, nextSlot, pathname, nextStep])
 
+  /**
+   * 6b. Auto-advance when a mandatory click navigates to a wildcard next page.
+   * (Effect #6 / isPageTransition excludes wildcard pages, so this handles that case.)
+   */
+  useEffect(() => {
+    if (!isMandatoryCompleted || !nextSlot || !currentSlot) return
+    if (nextSlot.page === currentSlot.page) return
+    if (!nextSlot.page.endsWith("*")) return
+    if (pageMatches(nextSlot.page, pathname)) {
+      nextStep()
+    }
+  }, [isMandatoryCompleted, nextSlot, currentSlot, pathname, nextStep])
+
   if (!isActive || !currentSlot) return null;
 
   const windowHeight = typeof window !== "undefined" ? window.innerHeight : 800
