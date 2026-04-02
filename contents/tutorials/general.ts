@@ -30,9 +30,9 @@ export const generalPages: GeneralPageEntry[] = [
     postSubsteps: [
       {
         id: 1,
-        instruction: "Try clicking a recipe card now to continue the tour on its detail page.",
+        instruction: "Click a recipe card to open its detail page.",
         highlightSelector: "[data-tutorial='recipe-card']",
-        action: "click",
+        mandatory: true,
       },
     ],
   },
