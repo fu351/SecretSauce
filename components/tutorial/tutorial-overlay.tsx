@@ -405,46 +405,6 @@ export function TutorialOverlay() {
         </>
       )}
 
-      {/* Scroll indicator — shown when highlighted element is off-screen */}
-      {showScrollPrompt && (
-        <>
-          <div
-            className={clsx(
-              "fixed left-0 right-0 z-[45] pointer-events-none flex justify-center",
-              isTargetAbove ? "top-[4.5rem]" : "bottom-[5.5rem]"
-            )}
-          >
-            <div
-              className={clsx(
-                "h-20 w-[min(92vw,38rem)] rounded-full blur-2xl opacity-80",
-                isDark ? "bg-blue-500/25" : "bg-blue-400/20"
-              )}
-            />
-          </div>
-          <button
-            onClick={() => scrollToTarget(targetRect!)}
-            className={clsx(
-              "fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border px-5 py-4 text-left shadow-2xl transition-all duration-300 hover:scale-[1.02]",
-              isTargetAbove ? "top-20 animate-bounce" : "bottom-24 animate-bounce",
-              isDark
-                ? "bg-[#11110d]/95 border-blue-300/35 text-[#f5ecd8]"
-                : "bg-white/95 border-blue-200 text-gray-900"
-            )}
-          >
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg shadow-blue-500/30">
-              {isTargetAbove ? <ChevronUp className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-500">
-                Highlight off screen
-              </span>
-              <span className="text-sm font-semibold">
-                {isTargetAbove ? "Scroll up to the highlighted step" : "Scroll down to the highlighted step"}
-              </span>
-            </div>
-          </button>
-        </>
-      )}
 
       {/* Main Control Card */}
       <div
@@ -564,7 +524,22 @@ export function TutorialOverlay() {
                 </div>
               )}
 
-              {isPageTransition ? (
+              {showScrollPrompt ? (
+                <button
+                  onClick={() => scrollToTarget(targetRect!)}
+                  className={clsx(
+                    "w-full flex items-center gap-3 rounded-xl border px-4 py-3 animate-bounce transition-colors",
+                    isDark ? "border-blue-400/25 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  )}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
+                    {isTargetAbove ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </div>
+                  <span className="text-sm font-medium">
+                    {isTargetAbove ? "Scroll up to highlighted element" : "Scroll down to highlighted element"}
+                  </span>
+                </button>
+              ) : isPageTransition ? (
                 <div className={clsx("flex items-center gap-3 rounded-xl px-4 py-3 border", isDark ? "bg-blue-500/10 border-blue-400/25 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-700")}>
                   <ChevronUp className="w-4 h-4 shrink-0" />
                   <p className="text-xs font-medium leading-snug">
