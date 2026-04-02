@@ -97,5 +97,22 @@ export const budgetingPath: TutorialPath = {
         },
       ],
     },
+    {
+      id: 5,
+      title: "Adjust as Your Budget Changes",
+      description: "When spending targets shift, this is where to update them.",
+      page: "/settings",
+      highlightSelector: "[data-tutorial='settings-preferences']",
+      action: "highlight",
+      substeps: [
+        {
+          id: 1,
+          instruction: "Come back here if your budget range shifts — narrowing preferences also reduces ingredient variety.",
+          highlightSelector: "[data-tutorial='settings-preferences']",
+          action: "highlight",
+          essential: true,
+        },
+      ],
+    },
   ],
 }
