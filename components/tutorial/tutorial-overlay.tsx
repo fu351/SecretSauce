@@ -174,11 +174,11 @@ export function TutorialOverlay() {
   }, [isActive, currentStep?.page, pathname]);
 
   /**
-   * 2c. Reset targetRect on every slot change
+   * 2c. Reset state on every slot change — intentionally keep targetRect so the
+   * backdrop stays visible while updateHighlight finds the new element (avoids flicker).
    */
   useEffect(() => {
     if (!isActive) return;
-    setTargetRectBoth(null);
     setSyncRetries(0);
     setHasSyncTimedOut(false);
     setIsMandatoryCompleted(false);
