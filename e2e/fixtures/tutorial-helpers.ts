@@ -5,49 +5,81 @@
 import type { Page } from "@playwright/test"
 import { expect } from "@playwright/test"
 
+const TUTORIAL_STATE_KEY = "tutorial_state_v1"
+const DISMISS_KEY = "tutorial_dismissed_v1"
+const TUTORIAL_STATE_VERSION = 4
+
 /** Resets tutorial state in localStorage before a test. */
 export async function resetTutorialState(page: Page) {
-  await page.evaluate(() => {
-    localStorage.removeItem("tutorial_state_v1")
-    localStorage.removeItem("tutorial_dismissed_v1")
-  })
+  await page.evaluate(
+    ({ stateKey, dismissKey }) => {
+      localStorage.removeItem(stateKey)
+      localStorage.removeItem(dismissKey)
+    },
+    { stateKey: TUTORIAL_STATE_KEY, dismissKey: DISMISS_KEY }
+  )
 }
 
-/** Opens the tutorial selection modal and starts the given path. */
-export async function startTutorialPath(
+/**
+ * Injects tutorial state directly into localStorage, bypassing the UI.
+ * Useful for testing mid-session behavior without clicking through earlier steps.
+ */
+export async function injectTutorialState(
   page: Page,
-  pathName: "Mastering the Craft" | "Optimize Resources" | "Elevate Your Journey"
+  rankedGoals: string[],
+  currentSlotIndex = 0
 ) {
-  // The dashboard shows a tutorial prompt or there's a settings entry point.
-  // Try the prompt banner first; fall back to settings.
-  const prompt = page.locator("[data-testid='tutorial-prompt'], button:has-text('Start Tutorial'), button:has-text('Get Started')").first()
-  if (await prompt.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await prompt.click()
-  } else {
-    // Navigate to settings and use the rewatch button
-    await page.goto("/settings")
-    await page.getByRole("button", { name: /tutorial|start|rewatch/i }).first().click()
-  }
+  await page.evaluate(
+    ({ key, version, rankedGoals, currentSlotIndex }) => {
+      localStorage.setItem(
+        key,
+        JSON.stringify({ version, rankedGoals, currentSlotIndex })
+      )
+      localStorage.removeItem("tutorial_dismissed_v1")
+    },
+    { key: TUTORIAL_STATE_KEY, version: TUTORIAL_STATE_VERSION, rankedGoals, currentSlotIndex }
+  )
+}
 
-  // Select the path in the modal
-  await expect(page.getByText(pathName)).toBeVisible({ timeout: 5_000 })
-  await page.getByText(pathName).click()
+/**
+ * Opens the tutorial modal from the settings page and clicks Start Tour.
+ * Returns after the overlay is visible and the browser has navigated to the first page.
+ */
+export async function startRankedTutorial(page: Page) {
+  await page.goto("/settings")
+  await page.getByRole("button", { name: /rewatch|start|tutorial/i }).first().click()
+  await expect(page.locator("[data-testid='tutorial-overlay']").or(
+    page.getByRole("dialog")
+  )).toBeVisible({ timeout: 5_000 })
+  await page.getByRole("button", { name: /start tour/i }).click()
+  await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
+}
+
+/** Clicks Next on the tutorial overlay. */
+export async function clickNext(page: Page) {
+  await page.getByRole("button", { name: /^next$|^finish$/i }).filter({ visible: true }).first().click()
+}
+
+/** Clicks Back on the tutorial overlay. */
+export async function clickBack(page: Page) {
+  await page.getByRole("button", { name: /back/i }).filter({ visible: true }).first().click()
+}
+
+/** Returns the current header label text (e.g. "OVERVIEW" or "TUTORIAL"). */
+export async function getOverlayHeaderLabel(page: Page): Promise<string> {
+  const overlay = page.locator("[data-testid='tutorial-overlay']")
+  // The label is the small uppercase span in the overlay header
+  return (await overlay.locator("span.uppercase").first().textContent() ?? "").trim()
 }
 
 /** Asserts the tutorial overlay is visible with the expected step title. */
 export async function expectOverlayTitle(page: Page, title: string) {
   await expect(
-    page.locator("[data-testid='tutorial-overlay'], [class*='tutorial']").getByText(title)
+    page.locator("[data-testid='tutorial-overlay']").getByText(title)
   ).toBeVisible({ timeout: 10_000 })
-}
-
-/** Clicks the Next button on the tutorial overlay. */
-export async function clickNext(page: Page) {
-  await page.getByRole("button", { name: /next|continue/i }).filter({ visible: true }).first().click()
 }
 
 /** Waits for the overlay to disappear (tutorial completed or skipped). */
 export async function waitForOverlayGone(page: Page) {
-  // The overlay SVG mask disappears on completion
   await expect(page.locator("[data-testid='tutorial-overlay']")).not.toBeVisible({ timeout: 10_000 })
 }
