@@ -97,5 +97,22 @@ export const cookingPath: TutorialPath = {
         },
       ],
     },
+    {
+      id: 5,
+      title: "Keep Your Preferences Current",
+      description: "As your skills grow, update your level and cuisines here to keep recipes challenging.",
+      page: "/settings",
+      highlightSelector: "[data-tutorial='settings-preferences']",
+      action: "highlight",
+      substeps: [
+        {
+          id: 1,
+          instruction: "Revisit these whenever your skill level or goals change — they shape every recipe recommendation.",
+          highlightSelector: "[data-tutorial='settings-preferences']",
+          action: "highlight",
+          essential: true,
+        },
+      ],
+    },
   ],
 }
