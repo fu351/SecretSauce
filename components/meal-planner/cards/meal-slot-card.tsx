@@ -43,6 +43,8 @@ function MealSlotCardComponent({
 }: MealSlotCardProps) {
   const recipeImageUrl = recipe?.image_url ?? recipe?.content?.image_url
   const lastTapRef = useRef(0)
+  const todayStr = new Date().toISOString().split("T")[0]
+  const isTodayBreakfast = date === todayStr && mealType === "breakfast"
   const singleClickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -157,6 +159,7 @@ function MealSlotCardComponent({
         <div
           className={`relative h-full w-full min-h-[80px] flex items-center justify-center rounded-lg cursor-pointer transition-colors border-2 ${isDropTarget ? "border-accent bg-accent/10" : "border-transparent hover:border-accent/60 hover:bg-accent/5"}`}
           data-draggable="true"
+          data-tutorial={isTodayBreakfast ? "planner-today-slot" : undefined}
           onClick={() => onAdd?.(mealType, date)}
           role="button"
           tabIndex={0}

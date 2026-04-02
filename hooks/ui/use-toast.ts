@@ -11,6 +11,7 @@ import type {
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
 const TOAST_AUTO_DISMISS_MS = 3000
+let suppressNonCriticalToasts = false
 
 type ToasterToast = ToastProps & {
   id: string
@@ -145,6 +146,23 @@ const listeners: Array<(state: State) => void> = []
 
 let memoryState: State = { toasts: [] }
 
+function shouldAllowToast(toast: Toast) {
+  if (!suppressNonCriticalToasts) return true
+  return toast.variant === "destructive"
+}
+
+function setTutorialToastSuppression(isSuppressed: boolean) {
+  suppressNonCriticalToasts = isSuppressed
+
+  if (isSuppressed) {
+    memoryState.toasts
+      .filter((toast) => toast.variant !== "destructive")
+      .forEach((toast) => {
+        dispatch({ type: "DISMISS_TOAST", toastId: toast.id })
+      })
+  }
+}
+
 function dispatch(action: Action) {
   memoryState = reducer(memoryState, action)
   listeners.forEach((listener) => {
@@ -163,6 +181,14 @@ function toast({ ...props }: Toast) {
       toast: { ...props, id },
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
+
+  if (!shouldAllowToast(props)) {
+    return {
+      id,
+      dismiss,
+      update,
+    }
+  }
 
   dispatch({
     type: "ADD_TOAST",
@@ -206,4 +232,4 @@ function useToast() {
   }
 }
 
-export { useToast, toast }
+export { useToast, toast, setTutorialToastSuppression }

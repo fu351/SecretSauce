@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 import { useRouter } from "next/navigation"
 import { useAuth } from "./auth-context"
 import { useAnalytics } from "@/hooks/use-analytics"
+import { setTutorialToastSuppression } from "@/hooks/ui/use-toast"
 
 import type {
   TutorialStep,
@@ -373,6 +374,11 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [profile])
+
+  useEffect(() => {
+    setTutorialToastSuppression(isActive)
+    return () => setTutorialToastSuppression(false)
+  }, [isActive])
 
   // -------------------
   // Context Value

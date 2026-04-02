@@ -55,6 +55,7 @@ function DayCardComponent({
 
   return (
     <div
+      data-tutorial={isToday ? "planner-today" : undefined}
       className={`bg-card rounded-lg md:rounded-2xl p-2 md:px-1.5 md:py-1.5 flex flex-row md:flex-col gap-2 md:gap-1 w-full border-2 items-center md:items-stretch md:min-h-[360px] ${
         isToday
           ? "border-accent bg-accent/5"

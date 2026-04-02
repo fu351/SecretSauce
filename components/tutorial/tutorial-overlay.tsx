@@ -42,6 +42,7 @@ export function TutorialOverlay() {
   const [syncRetries, setSyncRetries] = useState(0)
   const [hasSyncTimedOut, setHasSyncTimedOut] = useState(false)
   const [isPageLoading, setIsPageLoading] = useState(false)
+  const [isMandatoryCompleted, setIsMandatoryCompleted] = useState(false)
 
   const MAX_RETRIES = 15;
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -142,13 +143,14 @@ export function TutorialOverlay() {
     if (!isActive || isMinimized) return;
     const handleGlobalClick = (e: MouseEvent) => {
       if (isChangingPage || isPageLocked || isPageLoading) return;
+      if (currentSubstep?.mandatory && !isMandatoryCompleted) return;
       if (overlayRef.current && !overlayRef.current.contains(e.target as Node)) {
         setIsMinimized(true);
       }
     };
     window.addEventListener("click", handleGlobalClick, true);
     return () => window.removeEventListener("click", handleGlobalClick, true);
-  }, [isActive, isMinimized, isChangingPage, isPageLocked, isPageLoading]);
+  }, [isActive, isMinimized, isChangingPage, isPageLocked, isPageLoading, currentSubstep, isMandatoryCompleted]);
 
   /**
    * 2b. Tutorial Activation State Reset
@@ -174,7 +176,20 @@ export function TutorialOverlay() {
     setTargetRect(null);
     setSyncRetries(0);
     setHasSyncTimedOut(false);
+    setIsMandatoryCompleted(false);
   }, [isActive, currentSlotIndex]);
+
+  /**
+   * 2f. Mandatory step — listen for a click on the highlighted element to unlock Next
+   */
+  useEffect(() => {
+    if (!isActive || !currentSubstep?.mandatory || !expectedSelector) return;
+    const el = document.querySelector(expectedSelector);
+    if (!el) return;
+    const handler = () => setIsMandatoryCompleted(true);
+    el.addEventListener("click", handler);
+    return () => el.removeEventListener("click", handler);
+  }, [isActive, currentSubstep, expectedSelector]);
 
   /**
    * 2d. Kick off highlight after a short delay on each slot change.
@@ -357,52 +372,107 @@ export function TutorialOverlay() {
   const isTargetAbove = !!targetRect && targetRect.bottom < headerHeight
   const isTargetBelow = !!targetRect && targetRect.top > windowHeight
   const isTargetOffScreen = isTargetAbove || isTargetBelow
+  const showTutorialBackdrop = !isMinimized && !isChangingPage && !isPageLoading && !!targetRect && !hasSyncTimedOut
+  const showVisibleHighlight = showTutorialBackdrop && !isTargetOffScreen
+  const showScrollPrompt = showTutorialBackdrop && isTargetOffScreen
 
   return (
     <>
       {/* Background Mask */}
-      {!isMinimized && !isChangingPage && !isPageLoading && targetRect && !hasSyncTimedOut && !isTargetOffScreen && (
-        <svg className="fixed inset-0 z-40 pointer-events-none w-full h-full">
-          <defs>
-            <mask id="tutorial-mask">
-              <rect width="100%" height="100%" fill="white" />
+      {showTutorialBackdrop && (
+        <>
+          {showVisibleHighlight ? (
+            <svg className="fixed inset-0 z-40 pointer-events-none w-full h-full">
+              <defs>
+                <mask id="tutorial-mask">
+                  <rect width="100%" height="100%" fill="white" />
+                  <rect
+                    x={targetRect!.left - 10}
+                    y={targetRect!.top - 10}
+                    width={targetRect!.width + 20}
+                    height={targetRect!.height + 20}
+                    rx="12"
+                    fill="black"
+                    className="transition-all duration-300 ease-out"
+                  />
+                  <rect x="0" y="0" width="100%" height={headerHeight} fill="black" />
+                </mask>
+              </defs>
               <rect
-                x={targetRect.left - 10}
-                y={targetRect.top - 10}
-                width={targetRect.width + 20}
-                height={targetRect.height + 20}
-                rx="12"
-                fill="black"
-                className="transition-all duration-300 ease-out"
+                width="100%"
+                height="100%"
+                fill={isDark ? "rgba(0,0,0,0.78)" : "rgba(17,24,39,0.45)"}
+                mask="url(#tutorial-mask)"
+                className="backdrop-blur-[2px] transition-opacity duration-500"
               />
-              <rect x="0" y="0" width="100%" height={headerHeight} fill="black" />
-            </mask>
-          </defs>
-          <rect
-            width="100%"
-            height="100%"
-            fill={isDark ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.4)"}
-            mask="url(#tutorial-mask)"
-            className="backdrop-blur-[2px] transition-opacity duration-500"
-          />
-        </svg>
+            </svg>
+          ) : (
+            <div
+              className={clsx(
+                "fixed inset-0 z-40 pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
+                isDark ? "bg-black/80" : "bg-slate-950/45"
+              )}
+            />
+          )}
+
+          {showVisibleHighlight && (
+            <div
+              className="fixed z-[45] pointer-events-none rounded-[18px] border-2 border-blue-400 transition-all duration-300 ease-out"
+              style={{
+                top: targetRect!.top - 12,
+                left: targetRect!.left - 12,
+                width: targetRect!.width + 24,
+                height: targetRect!.height + 24,
+                boxShadow: isDark
+                  ? "0 0 0 2px rgba(96,165,250,0.9), 0 0 24px rgba(96,165,250,0.55)"
+                  : "0 0 0 2px rgba(37,99,235,0.9), 0 0 24px rgba(59,130,246,0.35)",
+              }}
+            >
+              <div className="absolute inset-0 rounded-[16px] border border-white/50" />
+            </div>
+          )}
+        </>
       )}
 
       {/* Scroll indicator — shown when highlighted element is off-screen */}
-      {!isMinimized && !isChangingPage && !isPageLoading && isTargetOffScreen && targetRect && (
-        <button
-          onClick={() => scrollToTarget(targetRect)}
-          className={clsx(
-            "fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full shadow-lg border text-sm font-semibold transition-all animate-bounce",
-            isTargetAbove ? "top-20" : "bottom-24",
-            isDark
-              ? "bg-[#1c1c16] border-[#e8dcc4]/30 text-[#e8dcc4]"
-              : "bg-white border-gray-200 text-gray-800"
-          )}
-        >
-          {isTargetAbove ? <ChevronUp className="w-4 h-4 text-blue-500" /> : <ChevronDown className="w-4 h-4 text-blue-500" />}
-          {isTargetAbove ? "Scroll up to see highlight" : "Scroll down to see highlight"}
-        </button>
+      {showScrollPrompt && (
+        <>
+          <div
+            className={clsx(
+              "fixed left-0 right-0 z-[45] pointer-events-none flex justify-center",
+              isTargetAbove ? "top-[4.5rem]" : "bottom-[5.5rem]"
+            )}
+          >
+            <div
+              className={clsx(
+                "h-20 w-[min(92vw,38rem)] rounded-full blur-2xl opacity-80",
+                isDark ? "bg-blue-500/25" : "bg-blue-400/20"
+              )}
+            />
+          </div>
+          <button
+            onClick={() => scrollToTarget(targetRect!)}
+            className={clsx(
+              "fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border px-5 py-4 text-left shadow-2xl transition-all duration-300 hover:scale-[1.02]",
+              isTargetAbove ? "top-20 animate-bounce" : "bottom-24 animate-bounce",
+              isDark
+                ? "bg-[#11110d]/95 border-blue-300/35 text-[#f5ecd8]"
+                : "bg-white/95 border-blue-200 text-gray-900"
+            )}
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg shadow-blue-500/30">
+              {isTargetAbove ? <ChevronUp className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-500">
+                Highlight off screen
+              </span>
+              <span className="text-sm font-semibold">
+                {isTargetAbove ? "Scroll up to the highlighted step" : "Scroll down to the highlighted step"}
+              </span>
+            </div>
+          </button>
+        </>
       )}
 
       {/* Main Control Card */}
@@ -526,6 +596,7 @@ export function TutorialOverlay() {
                   <ChevronLeft className="w-4 h-4 mr-2" /> Back
                 </Button>
                 <Button
+                  disabled={!!currentSubstep?.mandatory && !isMandatoryCompleted}
                   onClick={() => {
                     if (currentSubstep?.action === "click" && expectedSelector) {
                       const el = document.querySelector(expectedSelector) as HTMLElement | null
@@ -533,7 +604,7 @@ export function TutorialOverlay() {
                     }
                     nextStep()
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-8"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-8 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isLastStep ? "Finish" : "Next"}
                   <ChevronRight className="w-4 h-4 ml-2" />

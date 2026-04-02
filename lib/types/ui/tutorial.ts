@@ -12,6 +12,8 @@ export interface TutorialSubstep {
   actionTarget?: string
   /** If true, this substep is shown even at rank 3 (minimal depth). */
   essential?: boolean
+  /** If true, the user must interact with the highlighted element before Next is enabled. */
+  mandatory?: boolean
 }
 
 /**
