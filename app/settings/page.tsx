@@ -20,8 +20,13 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
+import type { RankedGoals } from "@/lib/types/tutorial"
 
 type ProfileUpdates = Partial<Profile>
+
+function hasStoredTutorialRanking(value: unknown): value is RankedGoals {
+  return Array.isArray(value) && value.length >= 1
+}
 
 export default function SettingsPage() {
   return (
@@ -32,12 +37,13 @@ export default function SettingsPage() {
 }
 
 function SettingsPageContent() {
-  const { user, updateProfile, signOut } = useAuth()
+  const { user, profile, updateProfile, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const {
     tutorialPath,
     tutorialCompletedAt,
     resetTutorial,
+    startRankedSession,
   } = useTutorial()
   const { toast } = useToast()
   const router = useRouter()
@@ -277,6 +283,12 @@ function SettingsPageContent() {
 
   const handleRewatchTutorial = () => {
     resetTutorial()
+
+    if (hasStoredTutorialRanking(profile?.tutorial_goals_ranking)) {
+      startRankedSession(profile.tutorial_goals_ranking)
+      return
+    }
+
     setShowTutorialModal(true)
   }
 
