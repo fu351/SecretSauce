@@ -243,8 +243,9 @@ export function TutorialOverlay() {
       Math.abs(newRect.left - targetRect.left) > 2;
 
     if (hasMoved) {
+      const isFirstFind = !targetRect;
       const isOffScreen = newRect.top > window.innerHeight || newRect.bottom < headerHeight;
-      if (shouldScroll || isOffScreen) scrollToTarget(newRect);
+      if (shouldScroll || (isFirstFind && isOffScreen)) scrollToTarget(newRect);
       setTargetRect(newRect);
     }
   }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, scrollToTarget, syncRetries, headerHeight]);
