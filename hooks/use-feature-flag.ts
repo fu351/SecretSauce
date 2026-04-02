@@ -1,73 +1,29 @@
 "use client"
 
-import { useMemo } from "react"
-import {
-  useExperiment,
-  type TrackExperimentEventOptions,
-  type UseExperimentOptions,
-} from "./use-experiment"
+import { useFeatureFlagEnabled, useFeatureFlagPayload } from "posthog-js/react"
 
-export interface UseFeatureFlagOptions
-  extends Pick<
-    UseExperimentOptions,
-    "enabled" | "autoTrackExposure" | "exposureEventName" | "exposureProperties"
-  > {
-  flagKey?: string
+export interface UseFeatureFlagOptions {
+  enabled?: boolean
   fallback?: boolean
 }
 
-export function useFeatureFlag(
-  experimentIdentifier: string,
-  options: UseFeatureFlagOptions = {},
-) {
-  const {
-    flagKey = "feature_enabled",
-    fallback = false,
-    enabled,
-    autoTrackExposure,
-    exposureEventName,
-    exposureProperties,
-  } = options
+export function useFeatureFlag(flagKey: string, options: UseFeatureFlagOptions = {}) {
+  const { enabled = true, fallback = false } = options
 
-  const experiment = useExperiment(experimentIdentifier, {
-    enabled,
-    autoTrackExposure,
-    exposureEventName,
-    exposureProperties,
-  })
-
-  const isEnabled = useMemo(() => {
-    const primary = experiment.config[flagKey]
-    if (typeof primary === "boolean") {
-      return primary
-    }
-
-    const secondary = experiment.config.enabled
-    if (typeof secondary === "boolean") {
-      return secondary
-    }
-
-    return fallback
-  }, [experiment.config, fallback, flagKey])
+  const isEnabled = useFeatureFlagEnabled(enabled ? flagKey : "") ?? fallback
+  const payload = useFeatureFlagPayload(enabled ? flagKey : "") as Record<string, unknown> | null | undefined
+  const config: Record<string, unknown> = payload && typeof payload === "object" ? payload : {}
 
   const getConfigValue = <T,>(key: string, fallbackValue: T): T => {
-    const value = experiment.config[key]
+    const value = config[key]
     return value === undefined ? fallbackValue : (value as T)
   }
 
-  const trackEnabledClick = (eventOptions: TrackExperimentEventOptions = {}) => {
-    if (!isEnabled) {
-      return Promise.resolve(false)
-    }
-
-    return experiment.trackClick(eventOptions)
-  }
-
   return {
-    ...experiment,
-    isEnabled,
-    flagKey,
+    isEnabled: isEnabled ?? fallback,
+    config,
+    loading: false,
+    error: null,
     getConfigValue,
-    trackEnabledClick,
   }
 }
