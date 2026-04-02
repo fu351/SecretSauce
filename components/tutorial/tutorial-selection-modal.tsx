@@ -30,6 +30,9 @@ import { CSS } from "@dnd-kit/utilities"
 interface TutorialSelectionModalProps {
   isOpen: boolean
   onClose: () => void
+  title?: string
+  description?: string
+  confirmLabel?: string
 }
 
 const tutorials = [
@@ -145,6 +148,9 @@ function SortableTutorialItem({
 export function TutorialSelectionModal({
   isOpen,
   onClose,
+  title = "Your Primary Intention",
+  description = "Choose where you want to focus first, just like onboarding.",
+  confirmLabel = "Start Tour",
 }: TutorialSelectionModalProps) {
   const { startRankedSession } = useTutorial()
   const { profile } = useAuth()
@@ -224,7 +230,7 @@ export function TutorialSelectionModal({
                 isDark ? "text-[#e8dcc4]" : "text-amber-950"
               )}
             >
-              Your Primary Intention
+              {title}
             </h2>
             <p
               className={clsx(
@@ -232,7 +238,7 @@ export function TutorialSelectionModal({
                 isDark ? "text-[#e8dcc4]/65" : "text-amber-900/80"
               )}
             >
-              Choose where you want to focus first, just like onboarding.
+              {description}
             </p>
           </div>
 
@@ -272,7 +278,7 @@ export function TutorialSelectionModal({
                   : "bg-orange-500 text-white hover:bg-orange-600"
               )}
             >
-              Start Tour
+              {confirmLabel}
             </Button>
             <Button
               variant="outline"
