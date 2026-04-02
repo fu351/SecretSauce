@@ -132,6 +132,7 @@ export function Header() {
         <nav className="hidden md:flex items-center gap-6">
         <Link
           href="/recipes"
+          data-tutorial-nav="/recipes"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/recipes" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -140,6 +141,7 @@ export function Header() {
         </Link>
         <Link
           href="/meal-planner"
+          data-tutorial-nav="/meal-planner"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -148,6 +150,7 @@ export function Header() {
         </Link>
         <Link
           href="/store"
+          data-tutorial-nav="/store"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/store" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -181,7 +184,7 @@ export function Header() {
                 asChild
                 className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
               >
-                <Link href="/dashboard">
+                <Link href="/dashboard" data-tutorial-nav="/dashboard">
                   <User className="h-5 w-5" />
                   <span className="sr-only">Dashboard</span>
                 </Link>
@@ -193,7 +196,7 @@ export function Header() {
                 asChild
                 className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
               >
-                <Link href="/settings">
+                <Link href="/settings" data-tutorial-nav="/settings">
                   <Settings className="h-5 w-5" />
                   <span className="sr-only">Settings</span>
                 </Link>
