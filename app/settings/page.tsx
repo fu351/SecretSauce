@@ -20,13 +20,8 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
-import type { RankedGoals } from "@/lib/types/tutorial"
 
 type ProfileUpdates = Partial<Profile>
-
-function hasStoredTutorialRanking(value: unknown): value is RankedGoals {
-  return Array.isArray(value) && value.length >= 1
-}
 
 export default function SettingsPage() {
   return (
@@ -37,13 +32,12 @@ export default function SettingsPage() {
 }
 
 function SettingsPageContent() {
-  const { user, profile, updateProfile, signOut } = useAuth()
+  const { user, updateProfile, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const {
     tutorialPath,
     tutorialCompletedAt,
     resetTutorial,
-    startRankedSession,
   } = useTutorial()
   const { toast } = useToast()
   const router = useRouter()
@@ -283,12 +277,6 @@ function SettingsPageContent() {
 
   const handleRewatchTutorial = () => {
     resetTutorial()
-
-    if (hasStoredTutorialRanking(profile?.tutorial_goals_ranking)) {
-      startRankedSession(profile.tutorial_goals_ranking)
-      return
-    }
-
     setShowTutorialModal(true)
   }
 
@@ -850,7 +838,7 @@ function SettingsPageContent() {
                   Learning & Tutorials
                 </CardTitle>
                 <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                  Revisit your guided tour with the same path-first approach used in onboarding
+                  Revisit your guided tour and fine-tune the order of what matters most
                 </CardDescription>
               </div>
             </div>
@@ -859,7 +847,7 @@ function SettingsPageContent() {
             <div className="space-y-4">
               <div className={`rounded-lg p-3 ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
                 <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/70" : "text-orange-900/80"}`}>
-                  Choose your primary intention and jump right into the tutorial flow.
+                  Rerank your priorities before you start, and we will use that order for the tutorial.
                 </p>
               </div>
 
@@ -890,7 +878,7 @@ function SettingsPageContent() {
                     : "bg-orange-500 text-white hover:bg-orange-600"
                 }`}
               >
-                Start Tutorial
+                Rerank Your Priorities
               </Button>
             </div>
           </CardContent>
@@ -1198,6 +1186,9 @@ function SettingsPageContent() {
       <TutorialSelectionModal
         isOpen={showTutorialModal}
         onClose={() => setShowTutorialModal(false)}
+        title="Rerank Your Priorities"
+        description="Adjust the order of your tutorial priorities before restarting the tour."
+        confirmLabel="Start Tour"
       />
     </div>
   )
