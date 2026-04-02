@@ -22,7 +22,7 @@ export const cookingPath: TutorialPath = {
         },
         {
           id: 2,
-          instruction: "Your activity stats show how consistently you've been cooking and planning.",
+          instruction: "Your activity stats show how consistently you've been cooking and planning week to week.",
           highlightSelector: "[data-tutorial='dashboard-stats']",
           action: "highlight",
         },
@@ -38,14 +38,14 @@ export const cookingPath: TutorialPath = {
       substeps: [
         {
           id: 1,
-          instruction: "Search by ingredient, dish name, or cuisine to find recipes that match your skill level.",
+          instruction: "Search by cuisine, technique, or main ingredient to find recipes worth developing.",
           highlightSelector: "[data-tutorial='recipe-search']",
           action: "highlight",
           essential: true,
         },
         {
           id: 2,
-          instruction: "Filters let you narrow by dietary needs, prep time, or cuisine without scrolling.",
+          instruction: "Narrow by cuisine type or prep time once you know the style you want to practice.",
           highlightSelector: "[data-tutorial='recipe-filter']",
           action: "highlight",
         },
@@ -53,6 +53,29 @@ export const cookingPath: TutorialPath = {
     },
     {
       id: 3,
+      title: "Recipe Detail",
+      description: "Check ingredients and instructions before committing to a recipe.",
+      page: "/recipes/*",
+      highlightSelector: "[data-tutorial='recipe-detail-ingredients']",
+      action: "highlight",
+      substeps: [
+        {
+          id: 1,
+          instruction: "The ingredient list is everything you need to source — add it to your cart directly from here.",
+          highlightSelector: "[data-tutorial='recipe-detail-ingredients']",
+          action: "highlight",
+          essential: true,
+        },
+        {
+          id: 2,
+          instruction: "Nutrition info shows calories and macros per serving — useful when calibrating difficulty vs. payoff.",
+          highlightSelector: "[data-tutorial='nutrition-info']",
+          action: "highlight",
+        },
+      ],
+    },
+    {
+      id: 4,
       title: "Meal Planning",
       description: "Turn recipe ideas into a practical week.",
       page: "/meal-planner",
@@ -61,21 +84,21 @@ export const cookingPath: TutorialPath = {
       substeps: [
         {
           id: 1,
-          instruction: "Smart Plan generates a balanced week of meals — a good starting point to adjust from.",
+          instruction: "Smart Plan generates a balanced week of meals — a useful starting point to customize from.",
           highlightSelector: "[data-tutorial='planner-smart']",
           action: "highlight",
           essential: true,
         },
         {
           id: 2,
-          instruction: "Drag meals into days on the weekly grid to build your week manually.",
-          highlightSelector: "[data-tutorial='planner-overview']",
+          instruction: "The recipe sidebar lets you search and drag meals directly into your week without leaving the planner.",
+          highlightSelector: "[data-tutorial='planner-sidebar']",
           action: "highlight",
         },
       ],
     },
     {
-      id: 4,
+      id: 5,
       title: "Store Checkout Prep",
       description: "Compare totals and finalize your list before checkout.",
       page: "/store",
@@ -84,21 +107,21 @@ export const cookingPath: TutorialPath = {
       substeps: [
         {
           id: 1,
-          instruction: "Switch stores here to compare totals and choose the best option before you shop.",
+          instruction: "Switch stores to find which one best carries the ingredients your recipes call for.",
           highlightSelector: "[data-tutorial='store-selector']",
           action: "highlight",
           essential: true,
         },
         {
           id: 2,
-          instruction: "Your estimated total updates live as your plan changes.",
-          highlightSelector: "[data-tutorial='store-total']",
+          instruction: "Review the item breakdown before heading out to catch anything missing or needing adjustment.",
+          highlightSelector: "[data-tutorial='store-items']",
           action: "highlight",
         },
       ],
     },
     {
-      id: 5,
+      id: 6,
       title: "Keep Your Preferences Current",
       description: "As your skills grow, update your level and cuisines here to keep recipes challenging.",
       page: "/settings",

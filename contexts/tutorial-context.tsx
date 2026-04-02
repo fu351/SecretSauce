@@ -43,6 +43,17 @@ export interface FlatTutorialSlot {
 }
 
 /**
+ * Returns true if the current pathname matches a step's page.
+ * Supports wildcard suffix: "/recipes/*" matches any "/recipes/[anything]" URL.
+ */
+export function pageMatches(stepPage: string, pathname: string): boolean {
+  if (stepPage.endsWith("*")) {
+    return pathname.startsWith(stepPage.slice(0, -1))
+  }
+  return pathname === stepPage
+}
+
+/**
  * Returns substeps visible for a given rank.
  * Rank 1: all substeps
  * Rank 2: first substep only
@@ -102,7 +113,7 @@ interface TutorialContextType {
   flatSequence: FlatTutorialSlot[]
   currentSlotIndex: number
   currentSlot: FlatTutorialSlot | null
-  currentStep: TutorialStep | null
+  currentStep: TutorialStep | GeneralPageEntry | null
   currentSubstep: TutorialSubstep | null
 
   tutorialCompleted: boolean
@@ -267,10 +278,13 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       const nextSlot = flatSequence[nextIndex]
       const currentPage = flatSequence[currentSlotIndex].page
 
-      trackEvent("tutorial_step_completed", {
-        path: flatSequence[currentSlotIndex].tutorialId,
-        slot_index: currentSlotIndex,
-      })
+      const completedSlot = flatSequence[currentSlotIndex]
+      if (completedSlot.tutorialId) {
+        trackEvent("tutorial_step_completed", {
+          path: completedSlot.tutorialId,
+          step_index: currentSlotIndex,
+        })
+      }
 
       if (nextSlot.page !== currentPage) {
         router.push(nextSlot.page)
@@ -299,10 +313,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const skipTutorial = useCallback(async () => {
     if (!user) return
     try {
-      if (currentSlot) {
+      if (currentSlot?.tutorialId) {
         trackEvent("tutorial_skipped", {
           path: currentSlot.tutorialId,
-          slot_index: currentSlotIndex,
+          step_abandoned: currentSlotIndex,
         })
       }
 

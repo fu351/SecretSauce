@@ -537,11 +537,11 @@ export default function RecipeDetailPage() {
 
         {/* Recipe Pricing Section */}
         <div className="space-y-6 sm:space-y-8">
-          <div className="w-full">
+          <div className="w-full" data-tutorial="recipe-detail-pricing">
             <RecipePricingInfo recipeId={recipe.id} />
           </div>
 
-          <Card className={sectionCardClass}>
+          <Card className={sectionCardClass} data-tutorial="recipe-detail-ingredients">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h3 className={clsx("text-2xl font-bold", isDark ? "text-foreground" : "text-gray-900")}>
