@@ -103,8 +103,11 @@ export function RecipeFilterSidebar({
 
   return (
     <div className="sticky top-6" data-tutorial="recipe-filter">
-      <div className="rounded-2xl border bg-card shadow-sm p-4 space-y-5">
-        <div className="space-y-3">
+      <div
+        className="max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-card shadow-sm"
+        data-tutorial="recipe-filter-scroll"
+      >
+        <div className="sticky top-0 z-10 space-y-3 border-b bg-card/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-card/85">
           <div className="relative" data-tutorial="recipe-search">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
@@ -140,110 +143,112 @@ export function RecipeFilterSidebar({
           </Button>
         </div>
 
-        <div className="border-t pt-4 space-y-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sort By</h4>
-          <div className="space-y-1">
-            {SORT_OPTIONS.map((option) => (
+        <div className="space-y-5 p-4">
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sort By</h4>
+            <div className="space-y-1">
+              {SORT_OPTIONS.map((option) => (
+                <ChecklistItem
+                  key={option.value}
+                  label={option.label}
+                  selected={sortBy === option.value}
+                  onClick={() => onSortChange(option.value)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Personal</h4>
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={onFavoritesToggle}
+                aria-pressed={showFavoritesOnly}
+                className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-sm transition ${
+                  showFavoritesOnly ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Heart className={`h-4 w-4 ${showFavoritesOnly ? "fill-current" : ""}`} />
+                  Favorites
+                </span>
+                {showFavoritesOnly ? <Check className="h-4 w-4 text-foreground" /> : <span className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={onUserRecipesToggle}
+                aria-pressed={showUserOnly}
+                className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-sm transition ${
+                  showUserOnly ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  My Recipes
+                </span>
+                {showUserOnly ? <Check className="h-4 w-4 text-foreground" /> : <span className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Difficulty</h4>
+            <div className="space-y-1">
+              {DIFFICULTY_OPTIONS.map((option) => (
+                <ChecklistItem
+                  key={option.value}
+                  label={option.label}
+                  selected={selectedDifficulty === option.value}
+                  onClick={() => onDifficultyChange(option.value)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-3" data-tutorial="recipe-filter-cuisine">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cuisine</h4>
+            <div className="space-y-1 max-h-40 overflow-auto pr-1">
               <ChecklistItem
-                key={option.value}
-                label={option.label}
-                selected={sortBy === option.value}
-                onClick={() => onSortChange(option.value)}
+                label="All Cuisines"
+                selected={selectedCuisine === "all"}
+                onClick={() => onCuisineChange("all")}
               />
-            ))}
+              {CUISINE_TYPES.map((cuisine) => (
+                <ChecklistItem
+                  key={cuisine}
+                  label={formatCuisineName(cuisine)}
+                  selected={selectedCuisine === cuisine}
+                  onClick={() => onCuisineChange(cuisine)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="border-t pt-4 space-y-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Personal</h4>
-          <div className="space-y-1">
-            <button
-              type="button"
-              onClick={onFavoritesToggle}
-              aria-pressed={showFavoritesOnly}
-              className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-sm transition ${
-                showFavoritesOnly ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Heart className={`h-4 w-4 ${showFavoritesOnly ? "fill-current" : ""}`} />
-                Favorites
-              </span>
-              {showFavoritesOnly ? <Check className="h-4 w-4 text-foreground" /> : <span className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={onUserRecipesToggle}
-              aria-pressed={showUserOnly}
-              className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-sm transition ${
-                showUserOnly ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                My Recipes
-              </span>
-              {showUserOnly ? <Check className="h-4 w-4 text-foreground" /> : <span className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
-
-        <div className="border-t pt-4 space-y-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Difficulty</h4>
-          <div className="space-y-1">
-            {DIFFICULTY_OPTIONS.map((option) => (
+          <div className="border-t pt-4 space-y-3" data-tutorial="recipe-filter-dietary">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dietary</h4>
+            <div className="space-y-1 max-h-40 overflow-auto pr-1">
               <ChecklistItem
-                key={option.value}
-                label={option.label}
-                selected={selectedDifficulty === option.value}
-                onClick={() => onDifficultyChange(option.value)}
+                label="Any Diet"
+                selected={selectedDiet.length === 0}
+                onClick={() => onDietChange([])}
               />
-            ))}
+              {DIETARY_TAGS.map((diet) => (
+                <ChecklistItem
+                  key={diet}
+                  label={formatDietaryTag(diet)}
+                  selected={selectedDiet.includes(diet)}
+                  onClick={() => toggleDiet(diet)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="border-t pt-4 space-y-3" data-tutorial="recipe-filter-cuisine">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cuisine</h4>
-          <div className="space-y-1 max-h-40 overflow-auto pr-1">
-            <ChecklistItem
-              label="All Cuisines"
-              selected={selectedCuisine === "all"}
-              onClick={() => onCuisineChange("all")}
-            />
-            {CUISINE_TYPES.map((cuisine) => (
-              <ChecklistItem
-                key={cuisine}
-                label={formatCuisineName(cuisine)}
-                selected={selectedCuisine === cuisine}
-                onClick={() => onCuisineChange(cuisine)}
-              />
-            ))}
+          <div className="border-t pt-4">
+            <Button variant="outline" size="sm" onClick={onClearFilters} className="w-full">
+              Clear Filters
+            </Button>
           </div>
-        </div>
-
-        <div className="border-t pt-4 space-y-3" data-tutorial="recipe-filter-dietary">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dietary</h4>
-          <div className="space-y-1 max-h-40 overflow-auto pr-1">
-            <ChecklistItem
-              label="Any Diet"
-              selected={selectedDiet.length === 0}
-              onClick={() => onDietChange([])}
-            />
-            {DIETARY_TAGS.map((diet) => (
-              <ChecklistItem
-                key={diet}
-                label={formatDietaryTag(diet)}
-                selected={selectedDiet.includes(diet)}
-                onClick={() => toggleDiet(diet)}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="border-t pt-4">
-          <Button variant="outline" size="sm" onClick={onClearFilters} className="w-full">
-            Clear Filters
-          </Button>
         </div>
       </div>
     </div>

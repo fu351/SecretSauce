@@ -34,12 +34,14 @@ export const cookingPath: TutorialPath = {
       description: "Find the right meal for your goals and schedule.",
       page: "/recipes",
       highlightSelector: "[data-tutorial='recipe-search']",
+      scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
       action: "highlight",
       substeps: [
         {
           id: 1,
           instruction: "Search by cuisine, technique, or main ingredient to find recipes worth developing.",
           highlightSelector: "[data-tutorial='recipe-search']",
+          scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
           action: "highlight",
           essential: true,
         },

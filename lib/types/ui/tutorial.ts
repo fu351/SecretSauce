@@ -8,6 +8,7 @@ export interface TutorialSubstep {
   id: number
   instruction: string
   highlightSelector?: string
+  scrollContainerSelector?: string
   action?: 'explore' | 'click' | 'navigate' | 'highlight' | 'search'
   actionTarget?: string
   /** If true, this substep is shown even at rank 3 (minimal depth). */
@@ -40,6 +41,7 @@ export interface TutorialStep {
   tips?: string[]
   page: string
   highlightSelector?: string
+  scrollContainerSelector?: string
   action?: 'navigate' | 'click' | 'highlight' | 'explore'
   actionTarget?: string
   nextButtonText?: string

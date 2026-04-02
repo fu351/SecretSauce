@@ -34,12 +34,14 @@ export const budgetingPath: TutorialPath = {
       description: "Choose recipes that fit your budget targets.",
       page: "/recipes",
       highlightSelector: "[data-tutorial='recipe-filter-cuisine']",
+      scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
       action: "highlight",
       substeps: [
         {
           id: 1,
           instruction: "Picking a single cuisine limits ingredient overlap across meals — fewer unique items means a smaller, cheaper grocery list.",
           highlightSelector: "[data-tutorial='recipe-filter-cuisine']",
+          scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
           action: "highlight",
           essential: true,
         },
@@ -47,6 +49,7 @@ export const budgetingPath: TutorialPath = {
           id: 2,
           instruction: "Search for a specific ingredient to plan around what you already have at home.",
           highlightSelector: "[data-tutorial='recipe-search']",
+          scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
           action: "highlight",
         },
       ],
