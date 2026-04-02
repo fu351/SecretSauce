@@ -68,12 +68,10 @@ function SortableTutorialItem({
   tutorial,
   rank,
   isDark,
-  onQuickStart,
 }: {
   tutorial: (typeof tutorials)[number]
   rank: number
   isDark: boolean
-  onQuickStart: (tutorialId: TutorialId) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tutorial.id })
   const style = {
@@ -88,9 +86,8 @@ function SortableTutorialItem({
     <div
       ref={setNodeRef}
       style={style}
-      onClick={() => onQuickStart(tutorial.id)}
       className={clsx(
-        "w-full p-5 rounded-lg border transition-all duration-200 cursor-pointer",
+        "w-full p-5 rounded-lg border transition-all duration-200",
         isDark
           ? "bg-[#181813] border-[#e8dcc4]/20 text-[#e8dcc4]"
           : "bg-[#FFF8F0] border-orange-400 text-amber-950"
@@ -101,12 +98,11 @@ function SortableTutorialItem({
           type="button"
           {...attributes}
           {...listeners}
-          onClick={(event) => event.stopPropagation()}
           className={clsx(
             "cursor-grab active:cursor-grabbing p-1 touch-none rounded",
             isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-orange-100"
           )}
-          aria-label={`Drag to rank ${tutorial.title}`}
+          aria-label={`Reorder ${tutorial.title}`}
         >
           <GripVertical className={clsx("h-5 w-5", isDark ? "text-[#e8dcc4]/40" : "text-orange-500")} />
         </button>
@@ -141,23 +137,6 @@ function SortableTutorialItem({
             {tutorial.description}
           </p>
         </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          className={clsx(
-            "shrink-0",
-            isDark
-              ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10"
-              : "border-orange-300 text-orange-800 hover:bg-orange-100"
-          )}
-          onClick={(event) => {
-            event.stopPropagation()
-            onQuickStart(tutorial.id)
-          }}
-        >
-          Start
-        </Button>
       </div>
     </div>
   )
@@ -167,7 +146,7 @@ export function TutorialSelectionModal({
   isOpen,
   onClose,
 }: TutorialSelectionModalProps) {
-  const { startTutorial, startRankedSession } = useTutorial()
+  const { startRankedSession } = useTutorial()
   const { profile } = useAuth()
   const { theme } = useTheme()
   const isDark = theme === "dark"
@@ -189,11 +168,6 @@ export function TutorialSelectionModal({
 
     setRankedTutorials(defaultTutorialOrder)
   }, [isOpen, profile?.tutorial_goals_ranking])
-
-  const handleSelectTutorial = (tutorialId: TutorialId) => {
-    startTutorial(tutorialId)
-    onClose()
-  }
 
   const handleRankDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -280,7 +254,6 @@ export function TutorialSelectionModal({
                         tutorial={tutorial}
                         rank={index + 1}
                         isDark={isDark}
-                        onQuickStart={handleSelectTutorial}
                       />
                     )
                   })}
@@ -288,12 +261,6 @@ export function TutorialSelectionModal({
               </SortableContext>
             </DndContext>
 
-            <p className={clsx(
-              "text-xs mt-4",
-              isDark ? "text-[#e8dcc4]/45" : "text-amber-900/80"
-            )}>
-              Drag the handle to rank. Rank 1 gets the deepest tutorial. You can also use Start on any row for a quick single-path run.
-            </p>
           </div>
 
           <div className="flex gap-3 justify-end px-8 pb-8">
@@ -305,7 +272,7 @@ export function TutorialSelectionModal({
                   : "bg-orange-500 text-white hover:bg-orange-600"
               )}
             >
-              Start Ranked Tour
+              Start Tour
             </Button>
             <Button
               variant="outline"
