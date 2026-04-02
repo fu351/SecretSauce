@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { useTutorial } from "@/contexts/tutorial-context"
+import { useTutorial, pageMatches } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
 import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, ChevronDown, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
@@ -44,6 +44,7 @@ export function TutorialOverlay() {
   const MAX_RETRIES = 15;
   const overlayRef = useRef<HTMLDivElement>(null);
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const updateHighlightRef = useRef<() => void>(() => {});
   const [headerHeight, setHeaderHeight] = useState(0);
   const isDark = theme === "dark"
 
@@ -57,7 +58,7 @@ export function TutorialOverlay() {
   const expectedSelector = currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
 
   const handleGoToExpectedPage = useCallback(() => {
-    if (!currentStep?.page) return
+    if (!currentStep?.page || currentStep.page.endsWith("*")) return
     const expectedPage = currentStep.page
     setSyncRetries(0)
     setHasSyncTimedOut(false)
@@ -66,7 +67,7 @@ export function TutorialOverlay() {
 
     // Fallback if client navigation fails to fire from the overlay context.
     window.setTimeout(() => {
-      if (window.location.pathname !== expectedPage) {
+      if (!pageMatches(expectedPage, window.location.pathname)) {
         window.location.assign(expectedPage)
       }
     }, 350)
@@ -154,7 +155,7 @@ export function TutorialOverlay() {
     if (!isActive) return;
     setShowSkipConfirmation(false);
     setIsMinimized(false);
-    if (pathname !== currentStep?.page) {
+    if (currentStep?.page && !pageMatches(currentStep.page, pathname)) {
       setTargetRect(null);
     }
     setSyncRetries(0);
@@ -164,7 +165,7 @@ export function TutorialOverlay() {
   }, [isActive, currentStep?.page, pathname]);
 
   /**
-   * 2c. Reset targetRect on every slot change so auto-scroll fires for each new substep
+   * 2c. Reset targetRect on every slot change
    */
   useEffect(() => {
     if (!isActive) return;
@@ -174,11 +175,30 @@ export function TutorialOverlay() {
   }, [isActive, currentSlotIndex]);
 
   /**
+   * 2d. Kick off highlight after a short delay on each slot change.
+   * Covers cases where the element isn't in the DOM yet when 2c's state resets land.
+   */
+  useEffect(() => {
+    if (!isActive) return;
+    const timer = setTimeout(() => updateHighlightRef.current(), 150);
+    return () => clearTimeout(timer);
+  }, [isActive, currentSlotIndex]);
+
+  /**
+   * 2e. Re-trigger highlight when page loading clears — updateHighlight exits early
+   * while isPageLoading is true, so we need an explicit retry once it settles.
+   */
+  useEffect(() => {
+    if (!isActive || isPageLoading) return;
+    updateHighlightRef.current();
+  }, [isActive, isPageLoading]);
+
+  /**
    * 3. Page Navigation & Transition Management
    */
   useEffect(() => {
     if (!isActive || !currentStep) return;
-    if (pathname !== currentStep.page) {
+    if (!pageMatches(currentStep.page, pathname)) {
       setIsChangingPage(true);
       setTargetRect(null);
       setSyncRetries(0);
@@ -226,7 +246,7 @@ export function TutorialOverlay() {
 
     if (!element) {
       if (syncRetries < MAX_RETRIES && !isPageLoading) {
-        const delayMs = Math.min(Math.max(2000, 1000 * Math.pow(1.5, syncRetries)), 10000);
+        const delayMs = Math.min(300 * Math.pow(1.8, syncRetries), 8000);
         const retryTimer = setTimeout(() => {
           setSyncRetries(prev => prev + 1);
           updateHighlight();
@@ -254,6 +274,9 @@ export function TutorialOverlay() {
     }
   }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, syncRetries]);
 
+  /** Keep a stable ref so delayed callbacks always call the latest version */
+  useEffect(() => { updateHighlightRef.current = updateHighlight; }, [updateHighlight]);
+
   /**
    * 5. Filtered Mutation Observer
    */
@@ -275,7 +298,6 @@ export function TutorialOverlay() {
       const delay = Math.max(0, DEBOUNCE_INTERVAL - timeSinceLastMutation);
       stabilityTimerRef.current = setTimeout(() => {
         lastHighlightAttempt = Date.now();
-        const shouldScroll = pathname === currentStep?.page && !targetRect;
         updateHighlight();
         lastMutationTime = Date.now();
       }, delay);
@@ -417,7 +439,7 @@ export function TutorialOverlay() {
             <div className="flex flex-col items-center justify-center py-4 text-center">
               <AlertCircle className="w-10 h-10 text-amber-500 mb-3" />
               <h4 className="font-bold text-lg mb-1">We lost track</h4>
-              {pathname !== currentStep?.page ? (
+              {currentStep?.page && !pageMatches(currentStep.page, pathname) ? (
                 <>
                   <p className="text-xs opacity-60 mb-1">Not on the right page?</p>
                   <p className="text-[10px] opacity-40 mb-6">Expected: <span className="font-mono">{currentStep?.page}</span> · Current: <span className="font-mono">{pathname}</span></p>
