@@ -68,8 +68,8 @@ export const cookingPath: TutorialPath = {
         },
         {
           id: 2,
-          instruction: "Nutrition info shows calories and macros per serving — useful when calibrating difficulty vs. payoff.",
-          highlightSelector: "[data-tutorial='nutrition-info']",
+          instruction: "Scan the step-by-step instructions to gauge technique complexity before committing to the recipe.",
+          highlightSelector: "[data-tutorial='recipe-detail-instructions']",
           action: "highlight",
         },
       ],

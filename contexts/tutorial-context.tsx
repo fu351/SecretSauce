@@ -102,6 +102,13 @@ function buildFlatSequence(rankedGoals: RankedGoals): FlatTutorialSlot[] {
         slots.push({ page, step, substep, tutorialId, rank, isGeneral: false })
       }
     }
+
+    // 3. Post-ranked general substeps — appended after all ranked substeps
+    if (general?.postSubsteps) {
+      for (const substep of general.postSubsteps) {
+        slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
+      }
+    }
   }
 
   return slots
@@ -286,7 +293,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         })
       }
 
-      if (nextSlot.page !== currentPage) {
+      if (nextSlot.page !== currentPage && !nextSlot.page.endsWith("*")) {
         router.push(nextSlot.page)
       }
 

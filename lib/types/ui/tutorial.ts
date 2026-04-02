@@ -75,6 +75,8 @@ export interface GeneralPageEntry {
   title: string
   description: string
   substeps: TutorialSubstep[]
+  /** Substeps appended after all ranked tutorial substeps for this page. */
+  postSubsteps?: TutorialSubstep[]
 }
 
 /**
