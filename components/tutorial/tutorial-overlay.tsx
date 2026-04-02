@@ -33,8 +33,12 @@ export function TutorialOverlay() {
   const [isMinimized, setIsMinimized] = useState(false)
   const [showSkipConfirmation, setShowSkipConfirmation] = useState(false)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
+  const targetRectRef = useRef<DOMRect | null>(null)
+  const setTargetRectBoth = (rect: DOMRect | null) => {
+    targetRectRef.current = rect
+    setTargetRect(rect)
+  }
   const [isChangingPage, setIsChangingPage] = useState(false)
-  const [isPageLocked, setIsPageLocked] = useState(false)
 
   // Retry Logic: Attempt to find element before timing out
   const [syncRetries, setSyncRetries] = useState(0)
@@ -109,14 +113,12 @@ export function TutorialOverlay() {
    * 1. Stability-Aware Scroll Calculation
    */
   const scrollToTarget = useCallback((rect: DOMRect) => {
-    const EXTRA_PADDING = 20;
-    const totalTopOffset = headerHeight + EXTRA_PADDING;
     const elementAbsoluteTop = rect.top + window.pageYOffset;
-    const fullyVisible = rect.top >= totalTopOffset && rect.bottom <= window.innerHeight - EXTRA_PADDING;
-    if (fullyVisible) return;
-    const scrollPosition = Math.max(0, elementAbsoluteTop - totalTopOffset);
+    const elementCenter = elementAbsoluteTop + rect.height / 2;
+    const viewportCenter = window.innerHeight / 2;
+    const scrollPosition = Math.max(0, elementCenter - viewportCenter);
     window.scrollTo({ top: scrollPosition, behavior: "smooth" });
-  }, [headerHeight]);
+  }, []);
 
   /**
    * 2. Loading State Detector
@@ -158,7 +160,7 @@ export function TutorialOverlay() {
     setShowSkipConfirmation(false);
     setIsMinimized(false);
     if (currentStep?.page && !pageMatches(currentStep.page, pathname)) {
-      setTargetRect(null);
+      setTargetRectBoth(null);
     }
     setSyncRetries(0);
     setHasSyncTimedOut(false);
@@ -171,7 +173,7 @@ export function TutorialOverlay() {
    */
   useEffect(() => {
     if (!isActive) return;
-    setTargetRect(null);
+    setTargetRectBoth(null);
     setSyncRetries(0);
     setHasSyncTimedOut(false);
     setIsMandatoryCompleted(false);
@@ -215,15 +217,12 @@ export function TutorialOverlay() {
     if (!isActive || !currentStep) return;
     if (!pageMatches(currentStep.page, pathname)) {
       setIsChangingPage(true);
-      setTargetRect(null);
+      setTargetRectBoth(null);
       setSyncRetries(0);
       setHasSyncTimedOut(false);
       setIsPageLoading(false);
     } else {
       setIsChangingPage(false);
-      setIsPageLocked(true);
-      const timer = setTimeout(() => setIsPageLocked(false), 800);
-      return () => clearTimeout(timer);
     }
   }, [isActive, currentStep?.page, pathname]);
 
@@ -236,7 +235,7 @@ export function TutorialOverlay() {
     const stepSel = currentStep && 'highlightSelector' in currentStep ? currentStep.highlightSelector : undefined
     const selector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepSel;
     if (!selector) {
-      setTargetRect(null);
+      setTargetRectBoth(null);
       setIsChangingPage(false);
       return;
     }
@@ -270,14 +269,15 @@ export function TutorialOverlay() {
     setSyncRetries(0);
 
     const newRect = element.getBoundingClientRect();
-    const hasMoved = !targetRect ||
-      Math.abs(newRect.top - targetRect.top) > 2 ||
-      Math.abs(newRect.left - targetRect.left) > 2;
+    const prev = targetRectRef.current;
+    const hasMoved = !prev ||
+      Math.abs(newRect.top - prev.top) > 2 ||
+      Math.abs(newRect.left - prev.left) > 2;
 
     if (hasMoved) {
-      setTargetRect(newRect);
+      setTargetRectBoth(newRect);
     }
-  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, syncRetries, transitionNavSelector]);
+  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, syncRetries, transitionNavSelector]);
 
   /** Keep a stable ref so delayed callbacks always call the latest version */
   useEffect(() => { updateHighlightRef.current = updateHighlight; }, [updateHighlight]);
@@ -325,7 +325,7 @@ export function TutorialOverlay() {
       window.removeEventListener("resize", handlePosUpdate);
       window.removeEventListener("scroll", handlePosUpdate);
     };
-  }, [isActive, isMinimized, currentSlotIndex, updateHighlight, pathname, currentStep?.page, targetRect]);
+  }, [isActive, isMinimized, currentSlotIndex, updateHighlight, pathname, currentStep?.page]);
 
   /**
    * 6. Auto-advance when user navigates to the next page via the highlighted nav link
