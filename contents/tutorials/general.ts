@@ -62,11 +62,15 @@ export const generalPages: GeneralPageEntry[] = [
     substeps: [
       {
         id: 1,
-        instruction: "Your week is laid out here. Today is highlighted — click on any empty slot in today's column to open the recipe panel.",
-        highlightSelector: "[data-tutorial='planner-today']",
+        instruction: "Plan your week by assigning meals to each day. Scheduled meals automatically populate your shopping list.",
       },
       {
         id: 2,
+        instruction: "Today is highlighted in your calendar. Click on any empty slot in today's column to open the recipe panel.",
+        highlightSelector: "[data-tutorial='planner-today']",
+      },
+      {
+        id: 3,
         instruction: "Click the breakfast slot for today to get started.",
         highlightSelector: "[data-tutorial='planner-today-slot']",
         mandatory: true,
