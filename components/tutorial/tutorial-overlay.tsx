@@ -96,9 +96,8 @@ export function TutorialOverlay() {
     const EXTRA_PADDING = 20;
     const totalTopOffset = headerHeight + EXTRA_PADDING;
     const elementAbsoluteTop = rect.top + window.pageYOffset;
-    if (rect.top > totalTopOffset && rect.top < window.innerHeight) {
-      return;
-    }
+    const fullyVisible = rect.top >= totalTopOffset && rect.bottom <= window.innerHeight - EXTRA_PADDING;
+    if (fullyVisible) return;
     const scrollPosition = Math.max(0, elementAbsoluteTop - totalTopOffset);
     window.scrollTo({ top: scrollPosition, behavior: "smooth" });
   }, [headerHeight]);
@@ -167,6 +166,16 @@ export function TutorialOverlay() {
   }, [isActive, currentStep?.page, pathname]);
 
   /**
+   * 2c. Reset targetRect on every slot change so auto-scroll fires for each new substep
+   */
+  useEffect(() => {
+    if (!isActive) return;
+    setTargetRect(null);
+    setSyncRetries(0);
+    setHasSyncTimedOut(false);
+  }, [isActive, currentSlotIndex]);
+
+  /**
    * 3. Page Navigation & Transition Management
    */
   useEffect(() => {
@@ -188,7 +197,7 @@ export function TutorialOverlay() {
   /**
    * 4. Stabilized Highlight Engine
    */
-  const updateHighlight = useCallback((shouldScroll = false) => {
+  const updateHighlight = useCallback(() => {
     if (!isActive || !currentStep || isMinimized || isPageLoading) return;
 
     const stepAct = currentStep && 'action' in currentStep ? currentStep.action : undefined
@@ -222,7 +231,7 @@ export function TutorialOverlay() {
         const delayMs = Math.min(Math.max(2000, 1000 * Math.pow(1.5, syncRetries)), 10000);
         const retryTimer = setTimeout(() => {
           setSyncRetries(prev => prev + 1);
-          updateHighlight(shouldScroll);
+          updateHighlight();
         }, delayMs);
         return () => clearTimeout(retryTimer);
       } else if (!isPageLoading) {
@@ -243,12 +252,9 @@ export function TutorialOverlay() {
       Math.abs(newRect.left - targetRect.left) > 2;
 
     if (hasMoved) {
-      const isFirstFind = !targetRect;
-      const isOffScreen = newRect.top > window.innerHeight || newRect.bottom < headerHeight;
-      if (shouldScroll || (isFirstFind && isOffScreen)) scrollToTarget(newRect);
       setTargetRect(newRect);
     }
-  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, scrollToTarget, syncRetries, headerHeight]);
+  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, syncRetries]);
 
   /**
    * 5. Filtered Mutation Observer
@@ -272,20 +278,20 @@ export function TutorialOverlay() {
       stabilityTimerRef.current = setTimeout(() => {
         lastHighlightAttempt = Date.now();
         const shouldScroll = pathname === currentStep?.page && !targetRect;
-        updateHighlight(shouldScroll);
+        updateHighlight();
         lastMutationTime = Date.now();
       }, delay);
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
 
-    const handlePosUpdate = () => updateHighlight(false);
+    const handlePosUpdate = () => updateHighlight();
     window.addEventListener("resize", handlePosUpdate);
     window.addEventListener("scroll", handlePosUpdate, { capture: true, passive: true });
 
     if (Date.now() - lastHighlightAttempt > MIN_HIGHLIGHT_INTERVAL) {
       lastHighlightAttempt = Date.now();
-      updateHighlight(pathname === currentStep?.page && !targetRect);
+      updateHighlight();
     }
 
     return () => {
@@ -461,7 +467,7 @@ export function TutorialOverlay() {
                     {expectedSelector ? <> · Selector: <span className="font-mono">{expectedSelector}</span></> : null}
                   </p>
                   <div className="flex gap-3 w-full">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); updateHighlight(true); }}>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); updateHighlight(); }}>
                       Retry
                     </Button>
                     <Button size="sm" className="flex-1 bg-blue-600" onClick={nextStep}>
