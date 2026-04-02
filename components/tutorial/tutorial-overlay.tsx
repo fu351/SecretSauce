@@ -51,8 +51,10 @@ export function TutorialOverlay() {
   const completedSteps = currentSlotIndex + 1
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
   const isLastStep = currentSlotIndex === totalSteps - 1
-  const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore"
-  const expectedSelector = currentSubstep?.highlightSelector ?? currentStep?.highlightSelector ?? null
+  const stepHighlightSelector = currentStep && 'highlightSelector' in currentStep ? currentStep.highlightSelector : undefined
+  const stepAction = currentStep && 'action' in currentStep ? currentStep.action : undefined
+  const isExploreMode = (currentSubstep?.action ?? stepAction) === "explore"
+  const expectedSelector = currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
 
   const handleGoToExpectedPage = useCallback(() => {
     if (!currentStep?.page) return
@@ -187,7 +189,8 @@ export function TutorialOverlay() {
   const updateHighlight = useCallback((shouldScroll = false) => {
     if (!isActive || !currentStep || isMinimized || isPageLoading) return;
 
-    const currentAction = currentSubstep?.action ?? currentStep?.action;
+    const stepAct = currentStep && 'action' in currentStep ? currentStep.action : undefined
+    const currentAction = currentSubstep?.action ?? stepAct;
     if (currentAction === "explore") {
       setTargetRect(null);
       setIsChangingPage(false);
@@ -196,7 +199,8 @@ export function TutorialOverlay() {
       return;
     }
 
-    const selector = currentSubstep?.highlightSelector ?? currentStep?.highlightSelector;
+    const stepSel = currentStep && 'highlightSelector' in currentStep ? currentStep.highlightSelector : undefined
+    const selector = currentSubstep?.highlightSelector ?? stepSel;
     if (!selector) {
       setTargetRect(null);
       setIsChangingPage(false);
@@ -342,7 +346,7 @@ export function TutorialOverlay() {
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
               {isMinimized
                 ? `Paused · ${completedSteps}/${totalSteps}`
-                : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : "Tutorial"))}
+                : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : (currentSlot.isGeneral ? "Overview" : "Tutorial")))}
             </span>
           </div>
           <div className="flex gap-1">
@@ -424,8 +428,8 @@ export function TutorialOverlay() {
                 {currentSubstep?.instruction ?? currentStep?.description}
               </p>
 
-              {/* Tips — only shown at rank 1 (primary goal) */}
-              {currentSlot.rank === 1 && currentStep?.tips && currentStep.tips.length > 0 && (
+              {/* Tips — only shown at rank 1 (primary goal), not on general slots */}
+              {!currentSlot.isGeneral && currentSlot.rank === 1 && currentStep && 'tips' in currentStep && currentStep.tips && currentStep.tips.length > 0 && (
                 <div className={clsx("mb-6 p-3 rounded-lg", isDark ? "bg-blue-500/10" : "bg-blue-50")}>
                   <p className="text-xs font-semibold mb-1 opacity-60">Tips</p>
                   <ul className="space-y-1">

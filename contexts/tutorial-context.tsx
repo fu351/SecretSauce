@@ -11,9 +11,10 @@ import type {
   TutorialSubstep,
   GoalRank,
   RankedGoals,
+  GeneralPageEntry,
 } from "../contents/tutorial-content"
 
-import { tutorialPaths } from "../contents/tutorial-content"
+import { tutorialPaths, generalPages } from "../contents/tutorial-content"
 
 type TutorialPathId = "cooking" | "budgeting" | "health"
 
@@ -32,10 +33,13 @@ function isRankedGoals(value: unknown): value is RankedGoals {
 
 export interface FlatTutorialSlot {
   page: string
-  step: TutorialStep
+  step: TutorialStep | GeneralPageEntry
   substep: TutorialSubstep
-  tutorialId: TutorialPathId
-  rank: GoalRank
+  /** null for general orientation slots */
+  tutorialId: TutorialPathId | null
+  /** null for general orientation slots */
+  rank: GoalRank | null
+  isGeneral: boolean
 }
 
 /**
@@ -55,17 +59,27 @@ export function getVisibleSubsteps(step: TutorialStep, rank: GoalRank): Tutorial
 }
 
 /**
- * Builds the flat sequence of tutorial slots organized by page, then by ranked
- * tutorial within each page. Each tutorial's depth is proportional to its rank:
- * rank 1 gets all substeps, rank 2 gets one, rank 3 gets only essential ones.
+ * Builds the flat sequence of tutorial slots organized by page.
+ * For each page: general orientation substeps first (same for everyone),
+ * then ranked tutorial substeps in order (rank 1 gets more depth than rank 2/3).
  */
 function buildFlatSequence(rankedGoals: RankedGoals): FlatTutorialSlot[] {
   // Derive canonical page order from the first ranked path
   const firstPath = tutorialPaths[rankedGoals[0]]
   const pages = firstPath.steps.map(s => s.page)
+  const generalByPage = Object.fromEntries(generalPages.map(g => [g.page, g]))
   const slots: FlatTutorialSlot[] = []
 
   for (const page of pages) {
+    // 1. General orientation substeps — shown regardless of tutorial order
+    const general = generalByPage[page]
+    if (general) {
+      for (const substep of general.substeps) {
+        slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
+      }
+    }
+
+    // 2. Ranked tutorial substeps — ordered by rank, depth proportional to rank
     for (let rankIdx = 0; rankIdx < rankedGoals.length; rankIdx++) {
       const tutorialId = rankedGoals[rankIdx] as TutorialPathId
       const rank = Math.min(rankIdx + 1, 3) as GoalRank
@@ -74,7 +88,7 @@ function buildFlatSequence(rankedGoals: RankedGoals): FlatTutorialSlot[] {
       if (!step) continue
       const substeps = getVisibleSubsteps(step, rank)
       for (const substep of substeps) {
-        slots.push({ page, step, substep, tutorialId, rank })
+        slots.push({ page, step, substep, tutorialId, rank, isGeneral: false })
       }
     }
   }

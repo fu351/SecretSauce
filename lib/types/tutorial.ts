@@ -1,1 +1,1 @@
-export type { TutorialPath, TutorialStep, TutorialSubstep, GoalRank, RankedGoals } from "./ui/tutorial"
+export type { TutorialPath, TutorialStep, TutorialSubstep, GoalRank, RankedGoals, GeneralPageEntry } from "./ui/tutorial"

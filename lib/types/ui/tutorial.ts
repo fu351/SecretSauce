@@ -67,6 +67,17 @@ export interface TutorialPath {
 }
 
 /**
+ * General page-level tips shown before ranked tutorial substeps.
+ * These are orientation tips that appear regardless of tutorial order.
+ */
+export interface GeneralPageEntry {
+  page: string
+  title: string
+  description: string
+  substeps: TutorialSubstep[]
+}
+
+/**
  * The rank a path occupies in the user's session.
  * Rank 1 = primary (full depth), rank 2 = reduced, rank 3 = minimal.
  */
