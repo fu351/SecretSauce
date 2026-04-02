@@ -34,12 +34,14 @@ export const healthPath: TutorialPath = {
       description: "Find meals that align with your dietary goals.",
       page: "/recipes",
       highlightSelector: "[data-tutorial='recipe-filter-dietary']",
+      scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
       action: "highlight",
       substeps: [
         {
           id: 1,
           instruction: "Set your dietary tags here to cut out anything that doesn't fit your restrictions before exploring.",
           highlightSelector: "[data-tutorial='recipe-filter-dietary']",
+          scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
           action: "highlight",
           essential: true,
         },
@@ -47,6 +49,7 @@ export const healthPath: TutorialPath = {
           id: 2,
           instruction: "Search for specific ingredients you're trying to eat more of, or dishes targeting your macros.",
           highlightSelector: "[data-tutorial='recipe-search']",
+          scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
           action: "highlight",
         },
       ],

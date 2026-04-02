@@ -11,6 +11,115 @@ import clsx from "clsx"
 import { useIsMobile } from "@/hooks"
 
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+const WINDOW_SCROLL_OVERSHOOT = 80;
+const WINDOW_SCROLL_PADDING = 24;
+const CONTAINER_SCROLL_PADDING = 0;
+const tutorialDebugCache = new Map<string, string>()
+
+function debugTutorialScroll(event: string, payload: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "production") return
+
+  const serialized = JSON.stringify(payload)
+  if (tutorialDebugCache.get(event) === serialized) return
+
+  tutorialDebugCache.set(event, serialized)
+  console.log(`[tutorial-scroll] ${event}`, payload)
+}
+
+function describeElement(element: HTMLElement | null) {
+  if (!element) return null
+
+  return {
+    tag: element.tagName,
+    tutorial: element.getAttribute("data-tutorial"),
+    id: element.id || null,
+    className: element.className || null,
+  }
+}
+
+function isHTMLElement(value: Element | null): value is HTMLElement {
+  return value instanceof HTMLElement;
+}
+
+function isScrollableElement(element: HTMLElement) {
+  const styles = window.getComputedStyle(element);
+  const overflowY = styles.overflowY;
+  return (
+    (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+    element.scrollHeight > element.clientHeight + 1
+  );
+}
+
+function findScrollableAncestor(element: HTMLElement | null): HTMLElement | null {
+  let current = element?.parentElement ?? null;
+  while (current) {
+    if (isScrollableElement(current)) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function resolveScrollContainer(targetElement: HTMLElement, selector?: string | null): HTMLElement | null {
+  if (selector) {
+    const closestContainer = targetElement.closest(selector)
+    if (isHTMLElement(closestContainer)) {
+      debugTutorialScroll("resolve-scroll-container", {
+        mode: "closest",
+        selector,
+        target: describeElement(targetElement),
+        container: describeElement(closestContainer),
+      })
+      return closestContainer
+    }
+
+    const explicitContainer = document.querySelector(selector);
+    // Only use the explicit container if it is actually an ancestor of the target,
+    // not a sibling or descendant (which would cause inverted clipping checks).
+    if (isHTMLElement(explicitContainer) && explicitContainer.contains(targetElement)) {
+      debugTutorialScroll("resolve-scroll-container", {
+        mode: "explicit",
+        selector,
+        target: describeElement(targetElement),
+        container: describeElement(explicitContainer),
+      })
+      return explicitContainer;
+    }
+
+    debugTutorialScroll("resolve-scroll-container-rejected", {
+      selector,
+      target: describeElement(targetElement),
+      container: isHTMLElement(explicitContainer) ? describeElement(explicitContainer) : null,
+      reason: isHTMLElement(explicitContainer) ? "not-ancestor" : "missing-or-not-element",
+    })
+  }
+
+  const fallbackContainer = findScrollableAncestor(targetElement);
+  debugTutorialScroll("resolve-scroll-container", {
+    mode: "fallback",
+    selector,
+    target: describeElement(targetElement),
+    container: describeElement(fallbackContainer),
+  })
+  return fallbackContainer;
+}
+
+function isRectOutsideViewport(
+  rect: DOMRect,
+  topPadding = 0,
+  bottomPadding = 0,
+) {
+  return rect.bottom <= topPadding || rect.top >= window.innerHeight - bottomPadding;
+}
+
+function isRectWithinHeader(rect: DOMRect, headerHeight: number) {
+  return rect.top < headerHeight && rect.bottom > 0
+}
+
+function isRectClippedByContainer(rect: DOMRect, containerRect: DOMRect, padding = CONTAINER_SCROLL_PADDING) {
+  return rect.top < containerRect.top + padding || rect.bottom > containerRect.bottom - padding;
+}
 
 export function TutorialOverlay() {
   const {
@@ -34,11 +143,23 @@ export function TutorialOverlay() {
   // --- State Management ---
   const [isMinimized, setIsMinimized] = useState(false)
   const [showSkipConfirmation, setShowSkipConfirmation] = useState(false)
+  const [targetElement, setTargetElement] = useState<HTMLElement | null>(null)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
+  const [activeScrollContainer, setActiveScrollContainer] = useState<HTMLElement | null>(null)
+  const targetElementRef = useRef<HTMLElement | null>(null)
   const targetRectRef = useRef<DOMRect | null>(null)
+  const activeScrollContainerRef = useRef<HTMLElement | null>(null)
+  const setTargetElementBoth = (element: HTMLElement | null) => {
+    targetElementRef.current = element
+    setTargetElement(element)
+  }
   const setTargetRectBoth = (rect: DOMRect | null) => {
     targetRectRef.current = rect
     setTargetRect(rect)
+  }
+  const setActiveScrollContainerBoth = (container: HTMLElement | null) => {
+    activeScrollContainerRef.current = container
+    setActiveScrollContainer(container)
   }
   const [isChangingPage, setIsChangingPage] = useState(false)
 
@@ -52,6 +173,7 @@ export function TutorialOverlay() {
   const overlayRef = useRef<HTMLDivElement>(null);
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const updateHighlightRef = useRef<() => void>(() => {});
+  const autoScrollKeyRef = useRef<string | null>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const isDark = theme === "dark"
 
@@ -69,6 +191,7 @@ export function TutorialOverlay() {
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
   const isLastStep = currentSlotIndex === totalSteps - 1
   const stepHighlightSelector = currentStep && 'highlightSelector' in currentStep ? currentStep.highlightSelector : undefined
+  const stepScrollContainerSelector = currentStep && "scrollContainerSelector" in currentStep ? currentStep.scrollContainerSelector : undefined
   const nextSlot = currentSlotIndex < flatSequence.length - 1 ? flatSequence[currentSlotIndex + 1] : null
   const isPageTransition =
     isActive &&
@@ -79,6 +202,7 @@ export function TutorialOverlay() {
     (!currentSubstep?.mandatory || isMandatoryCompleted)
   const transitionNavSelector = isPageTransition ? `[data-tutorial-nav="${nextSlot!.page}"]` : null
   const expectedSelector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
+  const expectedScrollContainerSelector = currentSubstep?.scrollContainerSelector ?? stepScrollContainerSelector ?? null
 
   const handleGoToExpectedPage = useCallback(() => {
     if (!currentStep?.page || currentStep.page.endsWith("*")) return
@@ -114,16 +238,71 @@ export function TutorialOverlay() {
   /**
    * 1. Stability-Aware Scroll Calculation
    */
-  const scrollToTarget = useCallback((rect: DOMRect) => {
-    const OVERSHOOT = 80;
-    const elementAbsoluteTop = rect.top + window.pageYOffset;
-    const elementCenter = elementAbsoluteTop + rect.height / 2;
-    const viewportCenter = window.innerHeight / 2;
-    const raw = elementCenter - viewportCenter;
-    // Only overshoot when scrolling down — upward/top-of-page scrolls clamp to 0 naturally
-    const scrollPosition = Math.max(0, raw > 0 ? raw + OVERSHOOT : raw);
-    window.scrollTo({ top: scrollPosition, behavior: "smooth" });
-  }, []);
+  const scrollToTarget = useCallback((element: HTMLElement, scrollContainer?: HTMLElement | null) => {
+    const viewportTopPadding = headerHeight + WINDOW_SCROLL_PADDING;
+    const targetViewportRect = element.getBoundingClientRect();
+    const targetIsWithinHeader = isRectWithinHeader(targetViewportRect, headerHeight);
+    const viewportTopBoundary = scrollContainer || targetIsWithinHeader ? 0 : viewportTopPadding;
+    const viewportBottomBoundary = scrollContainer ? 0 : WINDOW_SCROLL_PADDING;
+
+    if (scrollContainer && isScrollableElement(scrollContainer)) {
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+
+      if (isRectClippedByContainer(elementRect, containerRect)) {
+        const elementCenterWithinContainer =
+          elementRect.top - containerRect.top + scrollContainer.scrollTop + elementRect.height / 2;
+        const nextScrollTop = Math.max(
+          0,
+          elementCenterWithinContainer - scrollContainer.clientHeight / 2
+        );
+
+        debugTutorialScroll("scroll-container", {
+          target: describeElement(element),
+          container: describeElement(scrollContainer),
+          elementRect: {
+            top: elementRect.top,
+            bottom: elementRect.bottom,
+            height: elementRect.height,
+          },
+          containerRect: {
+            top: containerRect.top,
+            bottom: containerRect.bottom,
+            height: containerRect.height,
+          },
+          currentScrollTop: scrollContainer.scrollTop,
+          nextScrollTop,
+        })
+        scrollContainer.scrollTo({ top: nextScrollTop, behavior: "smooth" });
+      }
+    }
+
+    if (isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)) {
+      const elementAbsoluteTop = targetViewportRect.top + window.pageYOffset;
+      const elementCenter = elementAbsoluteTop + targetViewportRect.height / 2;
+      const viewportCenter = window.innerHeight / 2;
+      const raw = elementCenter - viewportCenter;
+      const scrollPosition = Math.max(0, raw > 0 ? raw + WINDOW_SCROLL_OVERSHOOT : raw);
+      debugTutorialScroll("scroll-window", {
+        target: describeElement(element),
+        scrollContainer: describeElement(scrollContainer ?? null),
+        targetViewportRect: {
+          top: targetViewportRect.top,
+          bottom: targetViewportRect.bottom,
+          height: targetViewportRect.height,
+        },
+        viewportTopBoundary,
+        viewportBottomBoundary,
+        currentScrollY: window.scrollY,
+        nextScrollY: scrollPosition,
+      })
+      window.scrollTo({ top: scrollPosition, behavior: "smooth" });
+    }
+
+    window.setTimeout(() => {
+      updateHighlightRef.current();
+    }, 250);
+  }, [headerHeight]);
 
   /**
    * 2. Loading State Detector
@@ -165,12 +344,15 @@ export function TutorialOverlay() {
     setShowSkipConfirmation(false);
     setIsMinimized(false);
     if (currentStep?.page && !pageMatches(currentStep.page, pathname)) {
+      setTargetElementBoth(null);
       setTargetRectBoth(null);
+      setActiveScrollContainerBoth(null);
     }
     setSyncRetries(0);
     setHasSyncTimedOut(false);
     setIsPageLoading(false);
     setIsChangingPage(false);
+    autoScrollKeyRef.current = null;
   }, [isActive, currentStep?.page, pathname]);
 
   /**
@@ -182,6 +364,7 @@ export function TutorialOverlay() {
     setSyncRetries(0);
     setHasSyncTimedOut(false);
     setIsMandatoryCompleted(false);
+    autoScrollKeyRef.current = null;
   }, [isActive, currentSlotIndex]);
 
   /**
@@ -215,6 +398,17 @@ export function TutorialOverlay() {
     updateHighlightRef.current();
   }, [isActive, isPageLoading]);
 
+  useEffect(() => {
+    if (!isActive || !activeScrollContainer) return;
+
+    const handleScroll = () => updateHighlightRef.current();
+    activeScrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      activeScrollContainer.removeEventListener("scroll", handleScroll);
+    };
+  }, [isActive, activeScrollContainer]);
+
   /**
    * 3. Page Navigation & Transition Management
    */
@@ -222,7 +416,9 @@ export function TutorialOverlay() {
     if (!isActive || !currentStep) return;
     if (!pageMatches(currentStep.page, pathname)) {
       setIsChangingPage(true);
+      setTargetElementBoth(null);
       setTargetRectBoth(null);
+      setActiveScrollContainerBoth(null);
       setSyncRetries(0);
       setHasSyncTimedOut(false);
       setIsPageLoading(false);
@@ -237,10 +433,12 @@ export function TutorialOverlay() {
   const updateHighlight = useCallback(() => {
     if (!isActive || !currentStep || isMinimized || isPageLoading) return;
 
-    const stepSel = currentStep && 'highlightSelector' in currentStep ? currentStep.highlightSelector : undefined
+    const stepSel = currentStep && "highlightSelector" in currentStep ? currentStep.highlightSelector : undefined
     const selector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepSel;
     if (!selector) {
+      setTargetElementBoth(null);
       setTargetRectBoth(null);
+      setActiveScrollContainerBoth(null);
       setIsChangingPage(false);
       return;
     }
@@ -273,7 +471,46 @@ export function TutorialOverlay() {
     setHasSyncTimedOut(false);
     setSyncRetries(0);
 
+    const scrollContainer = resolveScrollContainer(element, expectedScrollContainerSelector);
     const newRect = element.getBoundingClientRect();
+    const containerRect = scrollContainer?.getBoundingClientRect() ?? null;
+    const needsContainerScroll =
+      !!scrollContainer &&
+      isScrollableElement(scrollContainer) &&
+      !!containerRect &&
+      isRectClippedByContainer(newRect, containerRect);
+
+    const autoScrollKey = `${currentSlotIndex}:${selector}:${expectedScrollContainerSelector ?? ""}`;
+    debugTutorialScroll("update-highlight", {
+      selector,
+      expectedScrollContainerSelector,
+      target: describeElement(element),
+      targetRect: {
+        top: newRect.top,
+        bottom: newRect.bottom,
+        height: newRect.height,
+      },
+      scrollContainer: describeElement(scrollContainer),
+      containerRect: containerRect
+        ? {
+            top: containerRect.top,
+            bottom: containerRect.bottom,
+            height: containerRect.height,
+          }
+        : null,
+      needsContainerScroll,
+      autoScrollKey,
+      autoScrollSeen: autoScrollKeyRef.current,
+      windowScrollY: typeof window !== "undefined" ? window.scrollY : null,
+    })
+    if (needsContainerScroll && autoScrollKeyRef.current !== autoScrollKey) {
+      autoScrollKeyRef.current = autoScrollKey;
+      scrollToTarget(element, scrollContainer);
+    }
+
+    setTargetElementBoth(element);
+    setActiveScrollContainerBoth(scrollContainer);
+
     const prev = targetRectRef.current;
     const hasMoved = !prev ||
       Math.abs(newRect.top - prev.top) > 2 ||
@@ -282,7 +519,18 @@ export function TutorialOverlay() {
     if (hasMoved) {
       setTargetRectBoth(newRect);
     }
-  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, syncRetries, transitionNavSelector]);
+  }, [
+    isActive,
+    currentStep,
+    currentSubstep,
+    currentSlotIndex,
+    expectedScrollContainerSelector,
+    isMinimized,
+    isPageLoading,
+    scrollToTarget,
+    syncRetries,
+    transitionNavSelector,
+  ]);
 
   /** Keep a stable ref so delayed callbacks always call the latest version */
   useEffect(() => { updateHighlightRef.current = updateHighlight; }, [updateHighlight]);
@@ -385,12 +633,89 @@ export function TutorialOverlay() {
                         : "w-full"
 
   const windowHeight = typeof window !== "undefined" ? window.innerHeight : 800
-  const isTargetAbove = !!targetRect && targetRect.top < 0
-  const isTargetBelow = !!targetRect && targetRect.top > windowHeight
+  const viewportTopPadding = headerHeight + WINDOW_SCROLL_PADDING
+  const activeScrollContainerRect = activeScrollContainer?.getBoundingClientRect() ?? null
+  const targetIsWithinHeader = !!targetRect && isRectWithinHeader(targetRect, headerHeight)
+  const viewportTopBoundary = activeScrollContainer || targetIsWithinHeader ? 0 : viewportTopPadding
+  const viewportBottomBoundary = activeScrollContainer ? 0 : WINDOW_SCROLL_PADDING
+  // Only treat page targets as off-screen when they are fully above or fully below
+  // the visible viewport. Large targets like the sticky recipe filter sidebar can
+  // legitimately extend beyond the fold while still needing to be highlighted.
+  const isTargetAbove = !!targetRect && targetRect.bottom <= viewportTopBoundary
+  const isTargetBelow = !!targetRect && targetRect.top >= windowHeight - viewportBottomBoundary
+  // Use bottom/top thresholds (fully hidden) rather than a loose overlap check,
+  // so sticky-at-top elements inside the container aren't incorrectly flagged.
+  const isTargetAboveContainer =
+    !!targetRect &&
+    !!activeScrollContainerRect &&
+    targetRect.bottom <= activeScrollContainerRect.top + CONTAINER_SCROLL_PADDING
+  const isTargetBelowContainer =
+    !!targetRect &&
+    !!activeScrollContainerRect &&
+    targetRect.top >= activeScrollContainerRect.bottom - CONTAINER_SCROLL_PADDING
   const isTargetOffScreen = isTargetAbove || isTargetBelow
+  const isTargetClippedByContainer = isTargetAboveContainer || isTargetBelowContainer
   const showTutorialBackdrop = !isMinimized && !isChangingPage && !isPageLoading && !!targetRect && !hasSyncTimedOut
-  const showVisibleHighlight = showTutorialBackdrop && !isTargetOffScreen
-  const showScrollPrompt = showTutorialBackdrop && isTargetOffScreen
+  const showVisibleHighlight = showTutorialBackdrop && !isTargetOffScreen && !isTargetClippedByContainer
+  const showScrollPrompt = showTutorialBackdrop && (isTargetOffScreen || isTargetClippedByContainer)
+  const scrollPromptLabel = isTargetClippedByContainer
+    ? "Scroll the filter panel to the highlighted option"
+    : isTargetAbove
+      ? "Scroll up to highlighted element"
+      : "Scroll down to highlighted element"
+  const scrollPromptDirectionUp = isTargetClippedByContainer ? isTargetAboveContainer : isTargetAbove
+
+  useEffect(() => {
+    if (!isActive || !targetRect) return
+
+    debugTutorialScroll("visibility-state", {
+      target: describeElement(targetElement),
+      scrollContainer: describeElement(activeScrollContainer),
+      targetRect: {
+        top: targetRect.top,
+        bottom: targetRect.bottom,
+        height: targetRect.height,
+      },
+      activeScrollContainerRect: activeScrollContainerRect
+        ? {
+            top: activeScrollContainerRect.top,
+            bottom: activeScrollContainerRect.bottom,
+            height: activeScrollContainerRect.height,
+          }
+        : null,
+      viewportTopBoundary,
+      viewportBottomBoundary,
+      isTargetAbove,
+      isTargetBelow,
+      isTargetAboveContainer,
+      isTargetBelowContainer,
+      isTargetOffScreen,
+      isTargetClippedByContainer,
+      showVisibleHighlight,
+      showScrollPrompt,
+      scrollPromptLabel,
+      windowScrollY: typeof window !== "undefined" ? window.scrollY : null,
+    })
+  }, [
+    activeScrollContainer,
+    activeScrollContainerRect,
+    isActive,
+    isTargetAbove,
+    isTargetAboveContainer,
+    isTargetBelow,
+    isTargetBelowContainer,
+    isTargetClippedByContainer,
+    isTargetOffScreen,
+    scrollPromptLabel,
+    showScrollPrompt,
+    showVisibleHighlight,
+    targetElement,
+    targetRect,
+    viewportBottomBoundary,
+    viewportTopBoundary,
+  ])
+
+  if (!isActive || !currentSlot) return null;
 
   return (
     <>
@@ -571,18 +896,19 @@ export function TutorialOverlay() {
 
               {showScrollPrompt ? (
                 <button
-                  onClick={() => scrollToTarget(targetRect!)}
+                  onClick={() => {
+                    if (!targetElement) return
+                    scrollToTarget(targetElement, activeScrollContainer)
+                  }}
                   className={clsx(
                     "w-full flex items-center gap-3 rounded-xl border px-4 py-3 animate-bounce transition-colors",
                     isDark ? "border-blue-400/25 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                   )}
                 >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white">
-                    {isTargetAbove ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {scrollPromptDirectionUp ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </div>
-                  <span className="text-sm font-medium">
-                    {isTargetAbove ? "Scroll up to highlighted element" : "Scroll down to highlighted element"}
-                  </span>
+                  <span className="text-sm font-medium">{scrollPromptLabel}</span>
                 </button>
               ) : isPageTransition ? (
                 <div className={clsx("flex items-center gap-3 rounded-xl px-4 py-3 border", isDark ? "bg-blue-500/10 border-blue-400/25 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-700")}>
