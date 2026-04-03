@@ -668,6 +668,16 @@ export function TutorialOverlay() {
   }, [isActive, isMinimized, currentSlotIndex, pathname, currentStep?.page, scheduleHighlightUpdate]);
 
   /**
+   * 5b. When a mandatory step completes and flips isPageTransition to true, Effect 5's
+   * deps don't include the transition selector change, so we explicitly re-run the
+   * highlight engine here to pick up the new nav-link selector.
+   */
+  useEffect(() => {
+    if (!isActive || !isPageTransition) return;
+    scheduleHighlightUpdate({ immediate: true });
+  }, [isActive, isPageTransition, scheduleHighlightUpdate]);
+
+  /**
    * 6. Auto-advance when user navigates to the next page via the highlighted nav link
    */
   useEffect(() => {
@@ -678,7 +688,20 @@ export function TutorialOverlay() {
   }, [isPageTransition, nextSlot, pathname, nextStep])
 
   /**
-   * 6b. Auto-advance when a mandatory click navigates to a wildcard next page.
+   * 6b. Auto-advance when a mandatory click completes on the same page (no navigation).
+   * Page-transition cases (isPageTransition=true or wildcard next page) are handled by
+   * effects 6 and 6c respectively — this covers in-page mandatory actions like opening
+   * a sidebar, switching tabs, or closing a panel.
+   */
+  useEffect(() => {
+    if (!isMandatoryCompleted || !nextSlot || !currentSlot) return
+    if (isPageTransition) return  // handled by effect 6
+    if (nextSlot.page !== currentSlot.page) return  // cross-page: handled by 6c
+    nextStep()
+  }, [isMandatoryCompleted, isPageTransition, nextSlot, currentSlot, nextStep])
+
+  /**
+   * 6c. Auto-advance when a mandatory click navigates to a wildcard next page.
    * (Effect #6 / isPageTransition excludes wildcard pages, so this handles that case.)
    */
   useEffect(() => {

@@ -71,7 +71,7 @@ export const generalPages: GeneralPageEntry[] = [
       },
       {
         id: 3,
-        instruction: "Click the breakfast slot in today's column to open the recipe panel.",
+        instruction: "Click the dinner slot in today's column to open the recipe panel.",
         highlightSelector: "[data-tutorial='planner-today-slot']",
         mandatory: true,
       },
