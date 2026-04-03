@@ -23,6 +23,24 @@ const CONTAINER_SCROLL_PADDING = 0;
 const SCROLL_HIGHLIGHT_INTERVAL = 48;
 const tutorialDebugCache = new Map<string, string>()
 
+function smoothScrollTo(target: HTMLElement | Window, toValue: number, durationMs = 700) {
+  const isWindow = target === window
+  const getPos = () => isWindow ? window.scrollY : (target as HTMLElement).scrollTop
+  const start = getPos()
+  const delta = toValue - start
+  if (Math.abs(delta) < 2) return
+  const startTime = performance.now()
+  const ease = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+  const step = (now: number) => {
+    const elapsed = Math.min((now - startTime) / durationMs, 1)
+    const pos = start + delta * ease(elapsed)
+    if (isWindow) window.scrollTo(0, pos)
+    else (target as HTMLElement).scrollTop = pos
+    if (elapsed < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
 function debugTutorialScroll(event: string, payload: Record<string, unknown>) {
   if (process.env.NODE_ENV === "production") return
   if (typeof window === "undefined" || window.__TUTORIAL_DEBUG_SCROLL__ !== true) return
@@ -352,7 +370,7 @@ export function TutorialOverlay() {
           nextScrollTop,
           force: shouldForceScroll,
         })
-        scrollContainer.scrollTo({ top: nextScrollTop, behavior: "smooth" });
+        smoothScrollTo(scrollContainer, nextScrollTop);
       }
     }
 
@@ -381,7 +399,7 @@ export function TutorialOverlay() {
         nextScrollY: scrollPosition,
         force: shouldForceScroll,
       })
-      window.scrollTo({ top: scrollPosition, behavior: "smooth" });
+      smoothScrollTo(window, scrollPosition);
     }
 
     window.setTimeout(() => {
