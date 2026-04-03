@@ -463,14 +463,15 @@ export function TutorialOverlay() {
   }, [isActive, currentSubstep, expectedSelector]);
 
   /**
-   * 2d. Kick off highlight after a short delay on each slot change.
-   * Covers cases where the element isn't in the DOM yet when 2c's state resets land.
+   * 2d. Kick off highlight after a short delay on each slot or substep change.
+   * Covers cases where the element isn't in the DOM yet (e.g. sidebar opening after
+   * a mandatory click advances the substep without changing the slot index).
    */
   useEffect(() => {
     if (!isActive) return;
     const timer = setTimeout(() => scheduleHighlightUpdate({ immediate: true }), 150);
     return () => clearTimeout(timer);
-  }, [isActive, currentSlotIndex, scheduleHighlightUpdate]);
+  }, [isActive, currentSlotIndex, currentSubstep?.id, scheduleHighlightUpdate]);
 
   /**
    * 2e. Re-trigger highlight when page loading clears — updateHighlight exits early
