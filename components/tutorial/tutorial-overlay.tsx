@@ -10,14 +10,22 @@ import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
 import { useIsMobile } from "@/hooks"
 
+declare global {
+  interface Window {
+    __TUTORIAL_DEBUG_SCROLL__?: boolean
+  }
+}
+
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 const WINDOW_SCROLL_OVERSHOOT = 80;
 const WINDOW_SCROLL_PADDING = 24;
 const CONTAINER_SCROLL_PADDING = 0;
+const SCROLL_HIGHLIGHT_INTERVAL = 48;
 const tutorialDebugCache = new Map<string, string>()
 
 function debugTutorialScroll(event: string, payload: Record<string, unknown>) {
   if (process.env.NODE_ENV === "production") return
+  if (typeof window === "undefined" || window.__TUTORIAL_DEBUG_SCROLL__ !== true) return
 
   const serialized = JSON.stringify(payload)
   if (tutorialDebugCache.get(event) === serialized) return
@@ -174,7 +182,11 @@ export function TutorialOverlay() {
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const updateHighlightRef = useRef<() => void>(() => {});
   const autoScrollKeyRef = useRef<string | null>(null);
+  const pendingNextAutoScrollRef = useRef(false);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const highlightFrameRef = useRef<number | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
+  const lastHighlightRunAtRef = useRef(0);
   const isDark = theme === "dark"
 
   const pageNames: Record<string, string> = {
@@ -203,6 +215,10 @@ export function TutorialOverlay() {
   const transitionNavSelector = isPageTransition ? `[data-tutorial-nav="${nextSlot!.page}"]` : null
   const expectedSelector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
   const expectedScrollContainerSelector = currentSubstep?.scrollContainerSelector ?? stepScrollContainerSelector ?? null
+  const shouldAutoScrollNextWithinPage =
+    !!nextSlot &&
+    !!currentSlot &&
+    nextSlot.page === currentSlot.page
 
   const handleGoToExpectedPage = useCallback(() => {
     if (!currentStep?.page || currentStep.page.endsWith("*")) return
@@ -235,21 +251,83 @@ export function TutorialOverlay() {
     return () => window.removeEventListener('resize', detectHeaderHeight);
   }, []);
 
+  const clearScheduledHighlightUpdate = useCallback(() => {
+    if (typeof window === "undefined") return
+
+    if (highlightTimerRef.current !== null) {
+      window.clearTimeout(highlightTimerRef.current)
+      highlightTimerRef.current = null
+    }
+
+    if (highlightFrameRef.current !== null) {
+      window.cancelAnimationFrame(highlightFrameRef.current)
+      highlightFrameRef.current = null
+    }
+  }, [])
+
+  const scheduleHighlightUpdate = useCallback((options?: {
+    immediate?: boolean
+    minIntervalMs?: number
+  }) => {
+    if (typeof window === "undefined") return
+
+    const shouldRunImmediately = options?.immediate === true
+    const minIntervalMs = options?.minIntervalMs ?? 0
+
+    if (shouldRunImmediately) {
+      clearScheduledHighlightUpdate()
+      lastHighlightRunAtRef.current = Date.now()
+      updateHighlightRef.current()
+      return
+    }
+
+    if (highlightTimerRef.current !== null || highlightFrameRef.current !== null) {
+      return
+    }
+
+    const elapsed = Date.now() - lastHighlightRunAtRef.current
+    const waitMs = Math.max(0, minIntervalMs - elapsed)
+    const queueFrame = () => {
+      highlightFrameRef.current = window.requestAnimationFrame(() => {
+        highlightFrameRef.current = null
+        lastHighlightRunAtRef.current = Date.now()
+        updateHighlightRef.current()
+      })
+    }
+
+    if (waitMs > 0) {
+      highlightTimerRef.current = window.setTimeout(() => {
+        highlightTimerRef.current = null
+        queueFrame()
+      }, waitMs)
+      return
+    }
+
+    queueFrame()
+  }, [clearScheduledHighlightUpdate])
+
+  useEffect(() => clearScheduledHighlightUpdate, [clearScheduledHighlightUpdate])
+
   /**
    * 1. Stability-Aware Scroll Calculation
    */
-  const scrollToTarget = useCallback((element: HTMLElement, scrollContainer?: HTMLElement | null) => {
+  const scrollToTarget = useCallback((
+    element: HTMLElement,
+    scrollContainer?: HTMLElement | null,
+    options?: { force?: boolean },
+  ) => {
     const viewportTopPadding = headerHeight + WINDOW_SCROLL_PADDING;
     const targetViewportRect = element.getBoundingClientRect();
     const targetIsWithinHeader = isRectWithinHeader(targetViewportRect, headerHeight);
     const viewportTopBoundary = scrollContainer || targetIsWithinHeader ? 0 : viewportTopPadding;
     const viewportBottomBoundary = scrollContainer ? 0 : WINDOW_SCROLL_PADDING;
+    const shouldForceScroll = options?.force === true;
 
     if (scrollContainer && isScrollableElement(scrollContainer)) {
       const elementRect = element.getBoundingClientRect();
       const containerRect = scrollContainer.getBoundingClientRect();
 
-      if (isRectClippedByContainer(elementRect, containerRect)) {
+      if (shouldForceScroll || isRectClippedByContainer(elementRect, containerRect)) {
         const elementCenterWithinContainer =
           elementRect.top - containerRect.top + scrollContainer.scrollTop + elementRect.height / 2;
         const nextScrollTop = Math.max(
@@ -272,17 +350,23 @@ export function TutorialOverlay() {
           },
           currentScrollTop: scrollContainer.scrollTop,
           nextScrollTop,
+          force: shouldForceScroll,
         })
         scrollContainer.scrollTo({ top: nextScrollTop, behavior: "smooth" });
       }
     }
 
-    if (isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)) {
+    if (shouldForceScroll || isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)) {
       const elementAbsoluteTop = targetViewportRect.top + window.pageYOffset;
-      const elementCenter = elementAbsoluteTop + targetViewportRect.height / 2;
-      const viewportCenter = window.innerHeight / 2;
-      const raw = elementCenter - viewportCenter;
-      const scrollPosition = Math.max(0, raw > 0 ? raw + WINDOW_SCROLL_OVERSHOOT : raw);
+      const visibleViewportHeight = window.innerHeight - viewportTopBoundary - viewportBottomBoundary;
+      const scrollPosition = targetViewportRect.height > visibleViewportHeight
+        ? Math.max(0, elementAbsoluteTop - viewportTopBoundary - WINDOW_SCROLL_PADDING)
+        : (() => {
+            const elementCenter = elementAbsoluteTop + targetViewportRect.height / 2;
+            const viewportCenter = window.innerHeight / 2;
+            const raw = elementCenter - viewportCenter;
+            return Math.max(0, raw > 0 ? raw + WINDOW_SCROLL_OVERSHOOT : raw);
+          })()
       debugTutorialScroll("scroll-window", {
         target: describeElement(element),
         scrollContainer: describeElement(scrollContainer ?? null),
@@ -295,14 +379,15 @@ export function TutorialOverlay() {
         viewportBottomBoundary,
         currentScrollY: window.scrollY,
         nextScrollY: scrollPosition,
+        force: shouldForceScroll,
       })
       window.scrollTo({ top: scrollPosition, behavior: "smooth" });
     }
 
     window.setTimeout(() => {
-      updateHighlightRef.current();
+      scheduleHighlightUpdate({ immediate: true });
     }, 250);
-  }, [headerHeight]);
+  }, [headerHeight, scheduleHighlightUpdate]);
 
   /**
    * 2. Loading State Detector
@@ -385,9 +470,9 @@ export function TutorialOverlay() {
    */
   useEffect(() => {
     if (!isActive) return;
-    const timer = setTimeout(() => updateHighlightRef.current(), 150);
+    const timer = setTimeout(() => scheduleHighlightUpdate({ immediate: true }), 150);
     return () => clearTimeout(timer);
-  }, [isActive, currentSlotIndex]);
+  }, [isActive, currentSlotIndex, scheduleHighlightUpdate]);
 
   /**
    * 2e. Re-trigger highlight when page loading clears — updateHighlight exits early
@@ -395,19 +480,19 @@ export function TutorialOverlay() {
    */
   useEffect(() => {
     if (!isActive || isPageLoading) return;
-    updateHighlightRef.current();
-  }, [isActive, isPageLoading]);
+    scheduleHighlightUpdate({ immediate: true });
+  }, [isActive, isPageLoading, scheduleHighlightUpdate]);
 
   useEffect(() => {
     if (!isActive || !activeScrollContainer) return;
 
-    const handleScroll = () => updateHighlightRef.current();
+    const handleScroll = () => scheduleHighlightUpdate({ minIntervalMs: SCROLL_HIGHLIGHT_INTERVAL });
     activeScrollContainer.addEventListener("scroll", handleScroll, { passive: true });
 
     return () => {
       activeScrollContainer.removeEventListener("scroll", handleScroll);
     };
-  }, [isActive, activeScrollContainer]);
+  }, [isActive, activeScrollContainer, scheduleHighlightUpdate]);
 
   /**
    * 3. Page Navigation & Transition Management
@@ -501,11 +586,14 @@ export function TutorialOverlay() {
       needsContainerScroll,
       autoScrollKey,
       autoScrollSeen: autoScrollKeyRef.current,
+      pendingNextAutoScroll: pendingNextAutoScrollRef.current,
       windowScrollY: typeof window !== "undefined" ? window.scrollY : null,
     })
-    if (needsContainerScroll && autoScrollKeyRef.current !== autoScrollKey) {
+    const shouldAutoScrollForNext = pendingNextAutoScrollRef.current && autoScrollKeyRef.current !== autoScrollKey
+    if ((needsContainerScroll || shouldAutoScrollForNext) && autoScrollKeyRef.current !== autoScrollKey) {
       autoScrollKeyRef.current = autoScrollKey;
-      scrollToTarget(element, scrollContainer);
+      scrollToTarget(element, scrollContainer, { force: shouldAutoScrollForNext });
+      pendingNextAutoScrollRef.current = false;
     }
 
     setTargetElementBoth(element);
@@ -556,29 +644,30 @@ export function TutorialOverlay() {
       const delay = Math.max(0, DEBOUNCE_INTERVAL - timeSinceLastMutation);
       stabilityTimerRef.current = setTimeout(() => {
         lastHighlightAttempt = Date.now();
-        updateHighlight();
+        scheduleHighlightUpdate({ immediate: true });
         lastMutationTime = Date.now();
       }, delay);
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
 
-    const handlePosUpdate = () => updateHighlight();
-    window.addEventListener("resize", handlePosUpdate);
-    window.addEventListener("scroll", handlePosUpdate, { capture: true, passive: true });
+    const handleResize = () => scheduleHighlightUpdate({ immediate: true });
+    const handleWindowScroll = () => scheduleHighlightUpdate({ minIntervalMs: SCROLL_HIGHLIGHT_INTERVAL });
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("scroll", handleWindowScroll, { capture: true, passive: true });
 
     if (Date.now() - lastHighlightAttempt > MIN_HIGHLIGHT_INTERVAL) {
       lastHighlightAttempt = Date.now();
-      updateHighlight();
+      scheduleHighlightUpdate({ immediate: true });
     }
 
     return () => {
       observer.disconnect();
       if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
-      window.removeEventListener("resize", handlePosUpdate);
-      window.removeEventListener("scroll", handlePosUpdate);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("scroll", handleWindowScroll, true);
     };
-  }, [isActive, isMinimized, currentSlotIndex, updateHighlight, pathname, currentStep?.page]);
+  }, [isActive, isMinimized, currentSlotIndex, pathname, currentStep?.page, scheduleHighlightUpdate]);
 
   if (isMobile) return null;
 
@@ -929,6 +1018,7 @@ export function TutorialOverlay() {
                         const el = document.querySelector(expectedSelector) as HTMLElement | null
                         if (el) el.click()
                       }
+                      pendingNextAutoScrollRef.current = shouldAutoScrollNextWithinPage
                       nextStep()
                     }}
                     className="bg-blue-600 hover:bg-blue-500 text-white px-8 disabled:opacity-40 disabled:cursor-not-allowed"

@@ -199,7 +199,11 @@ export function RecipeFilterSidebar({
             </div>
           </div>
 
-          <div id="recipe-filter-difficulty" className="border-t pt-4 space-y-3">
+          <div
+            id="recipe-filter-difficulty"
+            className="border-t pt-4 space-y-3"
+            data-tutorial="recipe-filter-difficulty"
+          >
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Difficulty</h4>
             <div className="space-y-1">
               {DIFFICULTY_OPTIONS.map((option) => (
