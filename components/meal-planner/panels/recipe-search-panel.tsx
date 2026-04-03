@@ -149,7 +149,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
               </TabButton>
             </div>
           </div>
-          <Button onClick={onToggleCollapse} variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+          <Button onClick={onToggleCollapse} variant="ghost" size="icon" className="h-8 w-8 rounded-full" data-tutorial="planner-sidebar-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -237,7 +237,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
             {displayRecipes.map((recipe) => {
               const isSelected = isMobileMode && sessionSelectedIds?.has(recipe.id)
               return (
-                <div key={recipe.id} onClick={() => onSelect(recipe)} className="group cursor-pointer relative">
+                <div key={recipe.id} onClick={() => onSelect(recipe)} className="group cursor-pointer relative" data-tutorial="planner-sidebar-recipe">
                   <RecipeCardCompact
                     {...recipe}
                     difficulty={recipe.difficulty as any}
