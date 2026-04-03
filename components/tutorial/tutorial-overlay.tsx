@@ -23,22 +23,26 @@ const CONTAINER_SCROLL_PADDING = 0;
 const SCROLL_HIGHLIGHT_INTERVAL = 48;
 const tutorialDebugCache = new Map<string, string>()
 
-function smoothScrollTo(target: HTMLElement | Window, toValue: number, durationMs = 700) {
-  const isWindow = target === window
-  const getPos = () => isWindow ? window.scrollY : (target as HTMLElement).scrollTop
-  const start = getPos()
-  const delta = toValue - start
-  if (Math.abs(delta) < 2) return
-  const startTime = performance.now()
-  const ease = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
-  const step = (now: number) => {
-    const elapsed = Math.min((now - startTime) / durationMs, 1)
-    const pos = start + delta * ease(elapsed)
-    if (isWindow) window.scrollTo(0, pos)
-    else (target as HTMLElement).scrollTop = pos
-    if (elapsed < 1) requestAnimationFrame(step)
-  }
-  requestAnimationFrame(step)
+function smoothScrollTo(target: HTMLElement | Window, toValue: number, durationMs = 600): Promise<void> {
+  return new Promise((resolve) => {
+    const isWindow = target === window
+    const getPos = () => isWindow ? window.scrollY : (target as HTMLElement).scrollTop
+    const start = getPos()
+    const delta = toValue - start
+    if (Math.abs(delta) < 2) { resolve(); return }
+    const startTime = performance.now()
+    // Ease-out cubic: starts at full speed, decelerates to stop
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3)
+    const step = (now: number) => {
+      const elapsed = Math.min((now - startTime) / durationMs, 1)
+      const pos = start + delta * ease(elapsed)
+      if (isWindow) window.scrollTo(0, pos)
+      else (target as HTMLElement).scrollTop = pos
+      if (elapsed < 1) requestAnimationFrame(step)
+      else resolve()
+    }
+    requestAnimationFrame(step)
+  })
 }
 
 function debugTutorialScroll(event: string, payload: Record<string, unknown>) {
@@ -329,7 +333,7 @@ export function TutorialOverlay() {
   /**
    * 1. Stability-Aware Scroll Calculation
    */
-  const scrollToTarget = useCallback((
+  const scrollToTarget = useCallback(async (
     element: HTMLElement,
     scrollContainer?: HTMLElement | null,
     options?: { force?: boolean },
@@ -340,6 +344,7 @@ export function TutorialOverlay() {
     const viewportTopBoundary = scrollContainer || targetIsWithinHeader ? 0 : viewportTopPadding;
     const viewportBottomBoundary = scrollContainer ? 0 : WINDOW_SCROLL_PADDING;
     const shouldForceScroll = options?.force === true;
+    const scrollPromises: Promise<void>[] = [];
 
     if (scrollContainer && isScrollableElement(scrollContainer)) {
       const elementRect = element.getBoundingClientRect();
@@ -370,7 +375,7 @@ export function TutorialOverlay() {
           nextScrollTop,
           force: shouldForceScroll,
         })
-        smoothScrollTo(scrollContainer, nextScrollTop);
+        scrollPromises.push(smoothScrollTo(scrollContainer, nextScrollTop));
       }
     }
 
@@ -399,12 +404,14 @@ export function TutorialOverlay() {
         nextScrollY: scrollPosition,
         force: shouldForceScroll,
       })
-      smoothScrollTo(window, scrollPosition);
+      scrollPromises.push(smoothScrollTo(window, scrollPosition));
     }
 
-    window.setTimeout(() => {
-      scheduleHighlightUpdate({ immediate: true });
-    }, 250);
+    // Wait for all scroll animations to finish, then update highlight once at rest.
+    if (scrollPromises.length > 0) {
+      await Promise.all(scrollPromises);
+    }
+    scheduleHighlightUpdate({ immediate: true });
   }, [headerHeight, scheduleHighlightUpdate]);
 
   /**
@@ -725,13 +732,15 @@ export function TutorialOverlay() {
 
   /**
    * 6c. Auto-advance when a mandatory click navigates to a wildcard next page.
-   * (Effect #6 / isPageTransition excludes wildcard pages, so this handles that case.)
+   * Only fires when the current slot is still on the source page — once nextStep()
+   * increments the slot index, currentSlot.page will match the wildcard page and
+   * this guard prevents it from firing again and skipping the overview.
    */
   useEffect(() => {
     if (!isMandatoryCompleted || !nextSlot || !currentSlot) return
     if (nextSlot.page === currentSlot.page) return
     if (!nextSlot.page.endsWith("*")) return
-    if (pageMatches(nextSlot.page, pathname)) {
+    if (!pageMatches(currentSlot.page, pathname) && pageMatches(nextSlot.page, pathname)) {
       nextStep()
     }
   }, [isMandatoryCompleted, nextSlot, currentSlot, pathname, nextStep])
