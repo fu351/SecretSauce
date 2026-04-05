@@ -589,6 +589,22 @@ export function TutorialOverlay() {
     setSyncRetries(0);
 
     const scrollContainer = resolveScrollContainer(element, expectedScrollContainerSelector);
+
+    // If the element or any ancestor has a running CSS transition/animation, wait for it
+    // to finish before locking in the rect — otherwise we capture a mid-animation position
+    // (e.g. a sidebar sliding open returns an intermediate width/offset).
+    let animEl: Element | null = element;
+    while (animEl && animEl !== document.documentElement) {
+      const running = animEl.getAnimations().filter(a => a.playState === 'running');
+      if (running.length > 0) {
+        Promise.all(running.map(a => a.finished.catch(() => {}))).then(() => {
+          scheduleHighlightUpdate({ immediate: true });
+        });
+        break;
+      }
+      animEl = animEl.parentElement;
+    }
+
     const newRect = element.getBoundingClientRect();
     const containerRect = scrollContainer?.getBoundingClientRect() ?? null;
     const needsContainerScroll =
