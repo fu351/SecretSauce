@@ -386,7 +386,7 @@ jobs:
           echo "   ZIP min/max: ${STORE_ZIP_MIN:-<none>} / ${STORE_ZIP_MAX:-<none>}"
 
           set +e
-          timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node backend/workers/daily-scraper-worker/runner.js
+          timeout --signal=SIGTERM --kill-after=90s "${SCRAPER_TIMEOUT_MINUTES}m" node backend/orchestrators/daily-scraper-pipeline/pipeline.js
           status=$?
           set -e
 
