@@ -378,13 +378,25 @@ export function TutorialOverlay() {
     // Step 2: After container scroll settles, re-measure and scroll window if needed.
     // Always account for the header regardless of whether a scroll container was used.
     const targetViewportRect = element.getBoundingClientRect();
-    const targetIsWithinHeader = isRectWithinHeader(targetViewportRect, headerHeight);
-    const viewportTopBoundary = targetIsWithinHeader ? 0 : viewportTopPadding;
+    // Use a DOM containment check, NOT a rect overlap check: rect overlap returns true for
+    // any element scrolled behind the header, which would incorrectly suppress window scroll.
+    // We only want to suppress window scroll for elements that actually live inside the header
+    // (e.g. nav links), which genuinely can't be scrolled into the viewport.
+    const headerEl = document.querySelector('header');
+    const elementIsInHeader = !!headerEl?.contains(element);
+    const viewportTopBoundary = elementIsInHeader ? 0 : viewportTopPadding;
     const viewportBottomBoundary = WINDOW_SCROLL_PADDING;
+
+    // Skip window scroll on pages whose main content lives in its own scroll container
+    // that fills the viewport (e.g. meal planner). On those pages the window can only
+    // scroll by ~headerHeight px, and forcing it there traps scroll events inside the
+    // overflow-hidden/overscroll-none wrapper so users can't scroll back.
+    const windowScrollRange = document.documentElement.scrollHeight - window.innerHeight;
+    const windowIsEffectivelyFixed = windowScrollRange <= viewportTopPadding;
 
     // Never force window scroll — isRectOutsideViewport is always reliable for the page.
     // force is only meaningful for container scrolls (element clipped by inner panel).
-    if (isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)) {
+    if (!windowIsEffectivelyFixed && isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)) {
       const elementAbsoluteTop = targetViewportRect.top + window.pageYOffset;
       const visibleViewportHeight = window.innerHeight - viewportTopBoundary - viewportBottomBoundary;
       const scrollPosition = targetViewportRect.height > visibleViewportHeight
@@ -600,7 +612,7 @@ export function TutorialOverlay() {
         Promise.all(running.map(a => a.finished.catch(() => {}))).then(() => {
           scheduleHighlightUpdate({ immediate: true });
         });
-        break;
+        return; // Don't capture a mid-animation rect — wait for the callback above
       }
       animEl = animEl.parentElement;
     }

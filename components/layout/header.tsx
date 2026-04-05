@@ -19,7 +19,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
 import Image from "next/image"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 export function Header() {
   const { user, signOut } = useAuth()
@@ -31,11 +31,23 @@ export function Header() {
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
+  const headerRef = useRef<HTMLElement>(null)
 
   // Prevent hydration mismatch by only rendering after mount
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Block wheel events so hovering over the header never scrolls the window.
+  // Depends on `mounted` because the header returns null before mount,
+  // so headerRef.current is only populated after the first real render.
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const block = (e: WheelEvent) => e.preventDefault()
+    el.addEventListener("wheel", block, { passive: false })
+    return () => el.removeEventListener("wheel", block)
+  }, [mounted])
 
   // Use theme directly from context - it handles defaults properly
   const isDark = theme === "dark"
@@ -99,6 +111,7 @@ export function Header() {
 
   return (
     <header
+      ref={headerRef}
       className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b sticky top-0 z-40 ${
         isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
       }`}
