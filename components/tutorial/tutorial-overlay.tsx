@@ -134,12 +134,14 @@ function resolveScrollContainer(targetElement: HTMLElement, selector?: string | 
   return fallbackContainer;
 }
 
+// Returns true if any part of the rect is not fully visible within the padded viewport.
+// This ensures the element is completely on screen, not just partially.
 function isRectOutsideViewport(
   rect: DOMRect,
   topPadding = 0,
   bottomPadding = 0,
 ) {
-  return rect.bottom <= topPadding || rect.top >= window.innerHeight - bottomPadding;
+  return rect.top < topPadding || rect.bottom > window.innerHeight - bottomPadding;
 }
 
 function isRectWithinHeader(rect: DOMRect, headerHeight: number) {
@@ -337,13 +339,9 @@ export function TutorialOverlay() {
     options?: { force?: boolean },
   ) => {
     const viewportTopPadding = headerHeight + WINDOW_SCROLL_PADDING;
-    const targetViewportRect = element.getBoundingClientRect();
-    const targetIsWithinHeader = isRectWithinHeader(targetViewportRect, headerHeight);
-    const viewportTopBoundary = scrollContainer || targetIsWithinHeader ? 0 : viewportTopPadding;
-    const viewportBottomBoundary = scrollContainer ? 0 : WINDOW_SCROLL_PADDING;
     const shouldForceScroll = options?.force === true;
-    const scrollPromises: Promise<void>[] = [];
 
+    // Step 1: Container scroll first so the element's viewport rect is stable for window scroll.
     if (scrollContainer && isScrollableElement(scrollContainer)) {
       const elementRect = element.getBoundingClientRect();
       const containerRect = scrollContainer.getBoundingClientRect();
@@ -373,11 +371,20 @@ export function TutorialOverlay() {
           nextScrollTop,
           force: shouldForceScroll,
         })
-        scrollPromises.push(smoothScrollTo(scrollContainer, nextScrollTop));
+        await smoothScrollTo(scrollContainer, nextScrollTop);
       }
     }
 
-    if (shouldForceScroll || isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)) {
+    // Step 2: After container scroll settles, re-measure and scroll window if needed.
+    // Always account for the header regardless of whether a scroll container was used.
+    const targetViewportRect = element.getBoundingClientRect();
+    const targetIsWithinHeader = isRectWithinHeader(targetViewportRect, headerHeight);
+    const viewportTopBoundary = targetIsWithinHeader ? 0 : viewportTopPadding;
+    const viewportBottomBoundary = WINDOW_SCROLL_PADDING;
+
+    // Never force window scroll — isRectOutsideViewport is always reliable for the page.
+    // force is only meaningful for container scrolls (element clipped by inner panel).
+    if (isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)) {
       const elementAbsoluteTop = targetViewportRect.top + window.pageYOffset;
       const visibleViewportHeight = window.innerHeight - viewportTopBoundary - viewportBottomBoundary;
       const scrollPosition = targetViewportRect.height > visibleViewportHeight
@@ -386,7 +393,8 @@ export function TutorialOverlay() {
             const elementCenter = elementAbsoluteTop + targetViewportRect.height / 2;
             const viewportCenter = window.innerHeight / 2;
             const raw = elementCenter - viewportCenter;
-            return Math.max(0, raw > 0 ? raw + WINDOW_SCROLL_OVERSHOOT : raw);
+            const minScrollForHeader = Math.max(0, elementAbsoluteTop - viewportTopBoundary);
+            return Math.max(minScrollForHeader, raw > 0 ? raw + WINDOW_SCROLL_OVERSHOOT : raw);
           })()
       debugTutorialScroll("scroll-window", {
         target: describeElement(element),
@@ -402,13 +410,9 @@ export function TutorialOverlay() {
         nextScrollY: scrollPosition,
         force: shouldForceScroll,
       })
-      scrollPromises.push(smoothScrollTo(window, scrollPosition));
+      await smoothScrollTo(window, scrollPosition);
     }
 
-    // Wait for all scroll animations to finish, then update highlight once at rest.
-    if (scrollPromises.length > 0) {
-      await Promise.all(scrollPromises);
-    }
     scheduleHighlightUpdate({ immediate: true });
   }, [headerHeight, scheduleHighlightUpdate]);
 
@@ -473,6 +477,10 @@ export function TutorialOverlay() {
     setHasSyncTimedOut(false);
     setIsMandatoryCompleted(false);
     autoScrollKeyRef.current = null;
+    // Clear the scroll container so stale container rect from the previous substep
+    // doesn't incorrectly trigger isTargetAboveContainer/isTargetBelowContainer on
+    // the next substep before updateHighlight re-evaluates it.
+    setActiveScrollContainerBoth(null);
   }, [isActive, currentSlotIndex]);
 
   /**
@@ -721,10 +729,11 @@ export function TutorialOverlay() {
    */
   useEffect(() => {
     if (!isMandatoryCompleted || !nextSlot || !currentSlot) return
+    if (!currentSubstep?.mandatory) return  // only advance from the substep that was mandatory
     if (isPageTransition) return  // handled by effect 6
     if (nextSlot.page !== currentSlot.page) return  // cross-page: handled by 6c
     nextStep()
-  }, [isMandatoryCompleted, isPageTransition, nextSlot, currentSlot, nextStep])
+  }, [isMandatoryCompleted, isPageTransition, nextSlot, currentSlot, currentSubstep, nextStep])
 
   /**
    * 6c. Auto-advance when a mandatory click navigates to a wildcard next page.
@@ -845,7 +854,11 @@ export function TutorialOverlay() {
                     fill="black"
                     className="transition-all duration-300 ease-out"
                   />
-                  <rect x="0" y="0" width="100%" height={headerHeight} fill="black" />
+                  {/* When highlighting a header element, darken the rest of the header too.
+                      Otherwise, keep the full header unmasked so navigation remains visible. */}
+                  {!targetIsWithinHeader && (
+                    <rect x="0" y="0" width="100%" height={headerHeight} fill="black" />
+                  )}
                 </mask>
               </defs>
               <rect
@@ -876,6 +889,11 @@ export function TutorialOverlay() {
                 boxShadow: isDark
                   ? "0 0 0 2px rgba(96,165,250,0.9), 0 0 24px rgba(96,165,250,0.55)"
                   : "0 0 0 2px rgba(37,99,235,0.9), 0 0 24px rgba(59,130,246,0.35)",
+                // Only clip the highlight border when it overlaps the header from below.
+                // Header link targets are fully within the header so no clipping needed.
+                clipPath: targetIsWithinHeader
+                  ? undefined
+                  : `inset(${Math.max(0, headerHeight - (targetRect!.top - 12))}px 0px 0px 0px round 18px)`,
               }}
             >
               <div className="absolute inset-0 rounded-[16px] border border-white/50" />
