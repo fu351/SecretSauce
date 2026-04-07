@@ -364,7 +364,7 @@ export async function runFrontendScraperApiProcessor(
   if (hasClerkSession) {
     try {
       if (userId && !zipToUse) {
-        const profile = await profileDB.fetchProfileFields(userId, ["zip_code"])
+        const profile = await profileDB.fetchProfileByClerkUserId(userId)
         profileZip = normalizeZipCode(profile?.zip_code) ?? null
         if (profileZip) {
           zipToUse = profileZip
