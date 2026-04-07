@@ -25,6 +25,7 @@ export const generalPages: GeneralPageEntry[] = [
         id: 2,
         instruction: "Tap any recipe card to open its full detail page — ingredients, instructions, and nutrition breakdown.",
         highlightSelector: "[data-tutorial='recipe-card']",
+        blockClick: true,
       },
     ],
     postSubsteps: [

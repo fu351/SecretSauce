@@ -937,6 +937,18 @@ export function TutorialOverlay() {
             />
           )}
 
+          {showVisibleHighlight && currentSubstep?.blockClick && (
+            <div
+              className="fixed z-[45] pointer-events-auto"
+              style={{
+                top: targetRect!.top,
+                left: targetRect!.left,
+                width: targetRect!.width,
+                height: targetRect!.height,
+              }}
+            />
+          )}
+
           {showVisibleHighlight && (
             <div
               className="fixed z-[45] pointer-events-none rounded-[18px] border-2 border-blue-400 transition-all duration-300 ease-out"

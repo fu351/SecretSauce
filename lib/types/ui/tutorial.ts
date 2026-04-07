@@ -15,6 +15,8 @@ export interface TutorialSubstep {
   essential?: boolean
   /** If true, the user must interact with the highlighted element before Next is enabled. */
   mandatory?: boolean
+  /** If true, pointer events on the highlighted element are blocked (display-only highlight). */
+  blockClick?: boolean
 }
 
 /**
