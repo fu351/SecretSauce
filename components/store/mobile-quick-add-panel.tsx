@@ -117,7 +117,7 @@ export function MobileQuickAddPanel({
   }, [onAddRecipe])
 
   return (
-    <div className="space-y-3 md:hidden">
+    <div className="space-y-3">
       <div className="space-y-1.5">
         <div>
           <p className={`text-xs font-semibold ${textClass}`}>Recipes In Cart</p>
