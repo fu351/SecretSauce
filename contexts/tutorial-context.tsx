@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "./auth-context"
 import { useAnalytics } from "@/hooks/use-analytics"
 import { setTutorialToastSuppression } from "@/hooks/ui/use-toast"
@@ -152,6 +152,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [tutorialPath, setTutorialPath] = useState<TutorialPathId | null>(null)
   const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
   const router = useRouter()
+  const pathname = usePathname()
   const { user, profile, updateProfile } = useAuth()
   const { trackEvent } = useAnalytics()
   const DISMISS_KEY = "tutorial_dismissed_v1"
@@ -305,16 +306,26 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const prevStep = useCallback(() => {
     if (currentSlotIndex <= 0) return
 
-    const prevIndex = currentSlotIndex - 1
-    const prevSlot = flatSequence[prevIndex]
-    const currentPage = flatSequence[currentSlotIndex].page
+    // Walk backwards to find the target index, skipping wildcard pages that we
+    // can't navigate back to (we don't store the original dynamic URL the user
+    // visited, so "/recipes/*" is unreachable from a different page).
+    let prevIndex = currentSlotIndex - 1
+    while (prevIndex > 0) {
+      const slot = flatSequence[prevIndex]
+      if (!slot.page.endsWith("*") || pageMatches(slot.page, pathname)) break
+      prevIndex--
+    }
 
-    if (prevSlot.page !== currentPage) {
+    const prevSlot = flatSequence[prevIndex]
+
+    // Only navigate if the browser isn't already on a matching page.
+    // Use pageMatches (not strict equality) so wildcard pages work correctly.
+    if (!pageMatches(prevSlot.page, pathname)) {
       router.push(prevSlot.page)
     }
 
     setCurrentSlotIndex(prevIndex)
-  }, [currentSlotIndex, flatSequence, router])
+  }, [currentSlotIndex, flatSequence, pathname, router])
 
   const skipTutorial = useCallback(async () => {
     if (!user) return

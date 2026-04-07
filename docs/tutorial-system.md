@@ -384,6 +384,8 @@ _Mobile_ — the `<aside>` is never shown (`hidden` until `md:`). The same `Reci
 
 **MutationObserver debounce:** After a highlight runs, DOM mutations within 500ms (`MIN_HIGHLIGHT_INTERVAL`) are ignored to prevent jitter. This means if a panel animates open and its content loads within 500ms of the last highlight, the mutation will be skipped — the retry timer in effect 2d (150ms) is the primary recovery path.
 
+**Back navigation across wildcard pages:** `prevStep` skips any wildcard-page slots (e.g. `/recipes/*`) that don't match the current browser URL, because the original dynamic URL (e.g. `/recipes/123`) is not stored anywhere. Pressing Back from `/meal-planner` lands on the last non-wildcard page before the wildcard block — typically `/recipes` — rather than navigating to a literal `"/recipes/*"` URL. `nextStep` avoids this by never calling `router.push` for wildcard pages at all (forward navigation to a dynamic route is always driven by a mandatory user click). Navigation is also guarded by `pageMatches` rather than strict string equality so the browser is never sent to a page it's already on.
+
 **`hasMoved` check:** Only compares `top` and `left` (threshold: 2px). Width and height changes (e.g. an element resizing) do not trigger a rect update. The element must move for the highlight to reposition.
 
 **Toast suppression:** `setTutorialToastSuppression(true)` is called while the tutorial is active to reduce visual noise from background operations.
