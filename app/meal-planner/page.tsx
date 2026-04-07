@@ -366,7 +366,10 @@ function MealPlannerPageContent() {
             1. transform-gpu forces layer compositing.
             2. backface-hidden reduces paint flashing.
           */}
-          <main className="flex-1 overflow-y-auto p-2 md:p-6 transform-gpu backface-hidden scroll-smooth">
+          <main
+            className="flex-1 overflow-y-auto p-2 md:p-6 transform-gpu backface-hidden scroll-smooth"
+            data-tutorial-scroll-root="page"
+          >
             <div className="max-w-7xl mx-auto will-change-transform min-w-0">
               {/* Header - title/subtext moved to navbar */}
               <div className="flex flex-col gap-2 md:gap-4 mb-3 md:mb-6">

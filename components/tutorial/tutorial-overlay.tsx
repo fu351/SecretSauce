@@ -576,6 +576,27 @@ export function TutorialOverlay() {
     autoScrollKeyRef.current = null
     setActiveScrollContainerBoth(null)
     window.scrollTo({ top: 0, left: 0, behavior: "auto" })
+
+    let frameId: number | null = null
+    let nestedFrameId: number | null = null
+    frameId = window.requestAnimationFrame(() => {
+      const pageScrollRoot = document.querySelector("[data-tutorial-scroll-root='page']")
+      if (isHTMLElement(pageScrollRoot)) {
+        pageScrollRoot.scrollTo({ top: 0, left: 0, behavior: "auto" })
+      }
+
+      nestedFrameId = window.requestAnimationFrame(() => {
+        const latestPageScrollRoot = document.querySelector("[data-tutorial-scroll-root='page']")
+        if (isHTMLElement(latestPageScrollRoot)) {
+          latestPageScrollRoot.scrollTo({ top: 0, left: 0, behavior: "auto" })
+        }
+      })
+    })
+
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+      if (nestedFrameId !== null) window.cancelAnimationFrame(nestedFrameId)
+    }
   }, [isActive, currentStep, pathname])
 
   /**
@@ -636,6 +657,25 @@ export function TutorialOverlay() {
       activeScrollContainer.removeEventListener("scroll", handleScroll);
     };
   }, [isActive, activeScrollContainer, scheduleHighlightUpdate]);
+
+  useEffect(() => {
+    if (!isActive) return
+
+    const overlayElement = overlayRef.current
+    if (!overlayElement) return
+
+    const preventScrollChaining = (event: WheelEvent | TouchEvent) => {
+      event.preventDefault()
+    }
+
+    overlayElement.addEventListener("wheel", preventScrollChaining, { passive: false })
+    overlayElement.addEventListener("touchmove", preventScrollChaining, { passive: false })
+
+    return () => {
+      overlayElement.removeEventListener("wheel", preventScrollChaining)
+      overlayElement.removeEventListener("touchmove", preventScrollChaining)
+    }
+  }, [isActive, currentSlotIndex, isMinimized])
 
   /**
    * 3. Page Navigation & Transition Management
