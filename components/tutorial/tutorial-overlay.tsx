@@ -743,8 +743,6 @@ export function TutorialOverlay() {
     };
   }, [isActive, isMinimized, currentSlotIndex, pathname, currentStep?.page, scheduleHighlightUpdate]);
 
-  if (isMobile) return null;
-
   /**
    * 5b. When a mandatory step completes and flips isPageTransition to true, Effect 5's
    * deps don't include the transition selector change, so we explicitly re-run the
@@ -793,7 +791,6 @@ export function TutorialOverlay() {
       nextStep()
     }
   }, [isMandatoryCompleted, nextSlot, currentSlot, pathname, nextStep])
-  if (!isActive || !currentSlot) return null;
 
   // Avoid inline styles for the progress bar width (linter rule).
   // We bucket to 10% steps so Tailwind can statically include the classes.
@@ -904,7 +901,7 @@ export function TutorialOverlay() {
     viewportTopBoundary,
   ])
 
-  if (!isActive || !currentSlot) return null;
+  if (isMobile || !isActive || !currentSlot) return null;
 
   return (
     <>
