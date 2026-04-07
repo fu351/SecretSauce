@@ -142,9 +142,24 @@ function isPinnedWithinScrollContainer(targetElement: HTMLElement, scrollContain
   return false
 }
 
+function isTutorialPageScrollRoot(element: HTMLElement) {
+  return element.getAttribute("data-tutorial-scroll-root") === "page"
+}
+
 function resolveScrollContainer(targetElement: HTMLElement, selector?: string | null): HTMLElement | null {
   const selectScrollableContainer = (candidate: HTMLElement | null, mode: "closest" | "explicit" | "fallback") => {
     if (!candidate) {
+      return null
+    }
+
+    if (mode === "fallback" && isTutorialPageScrollRoot(candidate)) {
+      debugTutorialScroll("resolve-scroll-container-rejected", {
+        selector,
+        mode,
+        target: describeElement(targetElement),
+        container: describeElement(candidate),
+        reason: "page-scroll-root",
+      })
       return null
     }
 
@@ -321,11 +336,20 @@ export function TutorialOverlay() {
     (!currentSubstep?.mandatory || isMandatoryCompleted)
   const transitionNavSelector = isPageTransition ? `[data-tutorial-nav="${nextSlot!.page}"]` : null
   const expectedSelector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
+  const completionSelector = currentSubstep?.completionSelector ?? null
   const expectedScrollContainerSelector = currentSubstep?.scrollContainerSelector ?? stepScrollContainerSelector ?? null
+  const nextStepScrollContainerSelector =
+    nextSlot?.substep.scrollContainerSelector ??
+    (nextSlot?.step && "scrollContainerSelector" in nextSlot.step ? nextSlot.step.scrollContainerSelector : undefined) ??
+    null
   const shouldAutoScrollNextWithinPage =
     !!nextSlot &&
     !!currentSlot &&
-    nextSlot.page === currentSlot.page
+    nextSlot.page === currentSlot.page &&
+    (
+      !!nextStepScrollContainerSelector ||
+      currentSlot.page === "/recipes/*"
+    )
 
   const handleGoToExpectedPage = useCallback(() => {
     if (!currentStep?.page || currentStep.page.endsWith("*")) return
@@ -619,13 +643,40 @@ export function TutorialOverlay() {
    * 2f. Mandatory step — listen for a click on the highlighted element to unlock Next
    */
   useEffect(() => {
-    if (!isActive || !currentSubstep?.mandatory || !expectedSelector) return;
+    if (!isActive || !currentSubstep?.mandatory) return;
+
+    if (completionSelector) {
+      const markCompletedIfMatched = () => {
+        const completionEl = document.querySelector(completionSelector)
+        if (!completionEl) return false
+        setCompletedMandatorySlotIndex(currentSlotIndex)
+        return true
+      }
+
+      if (markCompletedIfMatched()) return
+
+      const observer = new MutationObserver(() => {
+        if (markCompletedIfMatched()) {
+          observer.disconnect()
+        }
+      })
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      })
+
+      return () => observer.disconnect()
+    }
+
+    if (!expectedSelector) return;
     const el = document.querySelector(expectedSelector);
     if (!el) return;
     const handler = () => setCompletedMandatorySlotIndex(currentSlotIndex);
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
-  }, [isActive, currentSubstep, currentSlotIndex, expectedSelector]);
+  }, [isActive, completionSelector, currentSubstep, currentSlotIndex, expectedSelector]);
 
   /**
    * 2d. Kick off highlight after a short delay on each slot or substep change.

@@ -91,6 +91,7 @@ export const generalPages: GeneralPageEntry[] = [
         id: 6,
         instruction: "Tap a recipe card to add it to today's breakfast slot.",
         highlightSelector: "[data-tutorial='planner-sidebar-recipe']",
+        completionSelector: "[data-tutorial='planner-today-filled-slot']",
         mandatory: true,
       },
       {
