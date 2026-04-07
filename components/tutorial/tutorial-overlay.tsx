@@ -7,6 +7,10 @@ import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
 import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, ChevronDown, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/ui/use-toast"
+import {
+  isTutorialHighlightSuppressed,
+  _registerHighlightReleaseCallback,
+} from "@/lib/tutorial-highlight-suppression"
 import clsx from "clsx"
 import { useIsMobile } from "@/hooks"
 
@@ -563,6 +567,7 @@ export function TutorialOverlay() {
    */
   const updateHighlight = useCallback(() => {
     if (!isActive || !currentStep || isMinimized || isPageLoading) return;
+    if (isTutorialHighlightSuppressed()) return;
 
     const stepSel = currentStep && "highlightSelector" in currentStep ? currentStep.highlightSelector : undefined
     const selector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepSel;
@@ -685,6 +690,12 @@ export function TutorialOverlay() {
   /** Keep a stable ref so delayed callbacks always call the latest version */
   useEffect(() => { updateHighlightRef.current = updateHighlight; }, [updateHighlight]);
 
+  /** Register the release callback so suppression auto-triggers a re-run on release. */
+  useEffect(() => {
+    _registerHighlightReleaseCallback(() => scheduleHighlightUpdate({ immediate: true }));
+    return () => _registerHighlightReleaseCallback(() => {});
+  }, [scheduleHighlightUpdate]);
+
   /**
    * 5. Filtered Mutation Observer
    */
@@ -699,6 +710,7 @@ export function TutorialOverlay() {
     const observer = new MutationObserver((mutations) => {
       const isInternal = mutations.every(m => overlayRef.current?.contains(m.target));
       if (isInternal) return;
+      if (isTutorialHighlightSuppressed()) return;
       const now = Date.now();
       if (now - lastHighlightAttempt < MIN_HIGHLIGHT_INTERVAL) return;
       if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);

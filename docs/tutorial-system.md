@@ -259,6 +259,70 @@ This test catches dead selectors before they silently time out in production.
 
 ---
 
+## Highlight Suppression — `lib/tutorial-highlight-suppression.ts`
+
+A module-level flag that pauses the highlight engine without touching React state. Use it from any component or hook when a local animation or transition would otherwise cause the overlay to chase a moving target.
+
+### API
+
+```ts
+import {
+  suppressTutorialHighlight,
+  releaseTutorialHighlightSuppression,
+  isTutorialHighlightSuppressed,
+} from "@/lib/tutorial-highlight-suppression"
+```
+
+| Function | Signature | Description |
+|---|---|---|
+| `suppressTutorialHighlight` | `(durationMs?: number) => void` | Pauses all highlight updates. If `durationMs` is provided, auto-releases after that many milliseconds. Calling again while already suppressed resets the timer. |
+| `releaseTutorialHighlightSuppression` | `() => void` | Releases suppression immediately and fires an instant highlight update so the position is correct once the animation settles. |
+| `isTutorialHighlightSuppressed` | `() => boolean` | Returns current suppression state. Read by `updateHighlight` and the MutationObserver on every call. |
+
+`_registerHighlightReleaseCallback` is internal — called once by `TutorialOverlay` on mount to wire up the re-run on release.
+
+### What is suppressed
+
+Both `updateHighlight` (the core rect engine) and the MutationObserver callback check `isTutorialHighlightSuppressed()` and return early if true. This covers:
+- Scroll-triggered updates (scroll listeners call `scheduleHighlightUpdate` → `updateHighlight`)
+- Mutation-triggered updates (DOM changes elsewhere on the page)
+- Effect-triggered updates (e.g. `isPageLoading` clearing)
+
+On release, the registered callback fires `scheduleHighlightUpdate({ immediate: true })`, giving the overlay one clean measurement after the triggering animation has settled.
+
+### What is NOT suppressed
+
+- The mandatory-click listener (effect 2f) — clicks are always detected regardless of suppression
+- `nextStep` / `prevStep` — tutorial navigation is unaffected
+- `isPageLoading` detection — the MutationObserver for class changes runs independently
+
+### Usage patterns
+
+**Fixed duration (most common):**
+```ts
+// Suppress for slightly longer than your animation
+suppressTutorialHighlight(350) // auto-releases after 350 ms
+```
+
+**Manual release:**
+```ts
+suppressTutorialHighlight()
+// ... do the work ...
+releaseTutorialHighlightSuppression() // triggers immediate re-run
+```
+
+**Inside a React component or hook:**
+```ts
+import { suppressTutorialHighlight, releaseTutorialHighlightSuppression } from "@/lib/tutorial-highlight-suppression"
+
+function openPanel() {
+  suppressTutorialHighlight(400)
+  setIsOpen(true)
+}
+```
+
+---
+
 ## localStorage Keys
 
 | Key | Value | Purpose |
