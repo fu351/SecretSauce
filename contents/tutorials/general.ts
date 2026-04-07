@@ -95,6 +95,11 @@ export const generalPages: GeneralPageEntry[] = [
       },
       {
         id: 7,
+        instruction: "Your filled day card updates right away, so you can confirm the meal landed where you expected.",
+        highlightSelector: "[data-tutorial='planner-today']",
+      },
+      {
+        id: 8,
         instruction: "Great — your meal is planned. Close the panel to see the full week.",
         highlightSelector: "[data-tutorial='planner-sidebar-close']",
         mandatory: true,

@@ -47,7 +47,6 @@ export const cookingPath: TutorialPath = {
           id: 2,
           instruction: "Search by cuisine, technique, or main ingredient once you have a rough idea of what you want to practice.",
           highlightSelector: "[data-tutorial='recipe-search']",
-          scrollContainerSelector: "[data-tutorial='recipe-filter-scroll']",
           action: "highlight",
         },
         {

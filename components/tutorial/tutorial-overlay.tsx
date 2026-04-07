@@ -26,26 +26,59 @@ const WINDOW_SCROLL_PADDING = 24;
 const CONTAINER_SCROLL_PADDING = 0;
 const SCROLL_HIGHLIGHT_INTERVAL = 48;
 const tutorialDebugCache = new Map<string, string>()
+const activeScrollAnimations = new WeakMap<object, () => void>()
 
 function smoothScrollTo(target: HTMLElement | Window, toValue: number, durationMs = 600): Promise<void> {
   return new Promise((resolve) => {
+    const targetKey = target as object
+    activeScrollAnimations.get(targetKey)?.()
+
     const isWindow = target === window
     const getPos = () => isWindow ? window.scrollY : (target as HTMLElement).scrollTop
     const start = getPos()
     const delta = toValue - start
-    if (Math.abs(delta) < 2) { resolve(); return }
+    if (Math.abs(delta) < 2) {
+      activeScrollAnimations.delete(targetKey)
+      resolve()
+      return
+    }
+
+    let frameId: number | null = null
+    let settled = false
+    const settle = () => {
+      if (settled) return
+      settled = true
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId)
+        frameId = null
+      }
+      if (activeScrollAnimations.get(targetKey) === cancelCurrentAnimation) {
+        activeScrollAnimations.delete(targetKey)
+      }
+      resolve()
+    }
+    const cancelCurrentAnimation = () => {
+      settle()
+    }
+
+    activeScrollAnimations.set(targetKey, cancelCurrentAnimation)
+
     const startTime = performance.now()
     // Ease-out cubic: starts at full speed, decelerates to stop
     const ease = (t: number) => 1 - Math.pow(1 - t, 3)
     const step = (now: number) => {
+      if (settled) return
       const elapsed = Math.min((now - startTime) / durationMs, 1)
       const pos = start + delta * ease(elapsed)
       if (isWindow) window.scrollTo(0, pos)
       else (target as HTMLElement).scrollTop = pos
-      if (elapsed < 1) requestAnimationFrame(step)
-      else resolve()
+      if (elapsed < 1) {
+        frameId = requestAnimationFrame(step)
+      } else {
+        settle()
+      }
     }
-    requestAnimationFrame(step)
+    frameId = requestAnimationFrame(step)
   })
 }
 
@@ -95,30 +128,73 @@ function findScrollableAncestor(element: HTMLElement | null): HTMLElement | null
   return null;
 }
 
+function isPinnedWithinScrollContainer(targetElement: HTMLElement, scrollContainer: HTMLElement) {
+  let current: HTMLElement | null = targetElement
+
+  while (current && current !== scrollContainer) {
+    const styles = window.getComputedStyle(current)
+    if (styles.position === "sticky" || styles.position === "fixed") {
+      return true
+    }
+    current = current.parentElement
+  }
+
+  return false
+}
+
 function resolveScrollContainer(targetElement: HTMLElement, selector?: string | null): HTMLElement | null {
+  const selectScrollableContainer = (candidate: HTMLElement | null, mode: "closest" | "explicit" | "fallback") => {
+    if (!candidate) {
+      return null
+    }
+
+    if (isPinnedWithinScrollContainer(targetElement, candidate)) {
+      debugTutorialScroll("resolve-scroll-container-rejected", {
+        selector,
+        mode,
+        target: describeElement(targetElement),
+        container: describeElement(candidate),
+        reason: "target-pinned-within-container",
+      })
+      return null
+    }
+
+    return candidate
+  }
+
   if (selector) {
     const closestContainer = targetElement.closest(selector)
     if (isHTMLElement(closestContainer)) {
+      const resolvedContainer = selectScrollableContainer(closestContainer, "closest")
+      if (!resolvedContainer) {
+        return null
+      }
+
       debugTutorialScroll("resolve-scroll-container", {
         mode: "closest",
         selector,
         target: describeElement(targetElement),
-        container: describeElement(closestContainer),
+        container: describeElement(resolvedContainer),
       })
-      return closestContainer
+      return resolvedContainer
     }
 
     const explicitContainer = document.querySelector(selector);
     // Only use the explicit container if it is actually an ancestor of the target,
     // not a sibling or descendant (which would cause inverted clipping checks).
     if (isHTMLElement(explicitContainer) && explicitContainer.contains(targetElement)) {
+      const resolvedContainer = selectScrollableContainer(explicitContainer, "explicit")
+      if (!resolvedContainer) {
+        return null
+      }
+
       debugTutorialScroll("resolve-scroll-container", {
         mode: "explicit",
         selector,
         target: describeElement(targetElement),
-        container: describeElement(explicitContainer),
+        container: describeElement(resolvedContainer),
       })
-      return explicitContainer;
+      return resolvedContainer;
     }
 
     debugTutorialScroll("resolve-scroll-container-rejected", {
@@ -130,13 +206,14 @@ function resolveScrollContainer(targetElement: HTMLElement, selector?: string | 
   }
 
   const fallbackContainer = findScrollableAncestor(targetElement);
+  const resolvedFallbackContainer = selectScrollableContainer(fallbackContainer, "fallback")
   debugTutorialScroll("resolve-scroll-container", {
     mode: "fallback",
     selector,
     target: describeElement(targetElement),
-    container: describeElement(fallbackContainer),
+    container: describeElement(resolvedFallbackContainer),
   })
-  return fallbackContainer;
+  return resolvedFallbackContainer;
 }
 
 // Returns true if any part of the rect is not fully visible within the padded viewport.
@@ -203,7 +280,7 @@ export function TutorialOverlay() {
   const [syncRetries, setSyncRetries] = useState(0)
   const [hasSyncTimedOut, setHasSyncTimedOut] = useState(false)
   const [isPageLoading, setIsPageLoading] = useState(false)
-  const [isMandatoryCompleted, setIsMandatoryCompleted] = useState(false)
+  const [completedMandatorySlotIndex, setCompletedMandatorySlotIndex] = useState<number | null>(null)
 
   const MAX_RETRIES = 15;
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -211,6 +288,7 @@ export function TutorialOverlay() {
   const updateHighlightRef = useRef<() => void>(() => {});
   const autoScrollKeyRef = useRef<string | null>(null);
   const pendingNextAutoScrollRef = useRef(false);
+  const lastPathnameRef = useRef(pathname);
   const [headerHeight, setHeaderHeight] = useState(0);
   const highlightFrameRef = useRef<number | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
@@ -230,6 +308,7 @@ export function TutorialOverlay() {
   const completedSteps = currentSlotIndex + 1
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
   const isLastStep = currentSlotIndex === totalSteps - 1
+  const isMandatoryCompleted = completedMandatorySlotIndex === currentSlotIndex
   const stepHighlightSelector = currentStep && 'highlightSelector' in currentStep ? currentStep.highlightSelector : undefined
   const stepScrollContainerSelector = currentStep && "scrollContainerSelector" in currentStep ? currentStep.scrollContainerSelector : undefined
   const nextSlot = currentSlotIndex < flatSequence.length - 1 ? flatSequence[currentSlotIndex + 1] : null
@@ -485,6 +564,20 @@ export function TutorialOverlay() {
     autoScrollKeyRef.current = null;
   }, [isActive, currentStep?.page, pathname]);
 
+  useEffect(() => {
+    const previousPathname = lastPathnameRef.current
+    lastPathnameRef.current = pathname
+
+    if (!isActive || !currentStep) return
+    if (previousPathname === pathname) return
+    if (!pageMatches(currentStep.page, pathname)) return
+
+    pendingNextAutoScrollRef.current = false
+    autoScrollKeyRef.current = null
+    setActiveScrollContainerBoth(null)
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" })
+  }, [isActive, currentStep, pathname])
+
   /**
    * 2c. Reset state on every slot change — intentionally keep targetRect so the
    * backdrop stays visible while updateHighlight finds the new element (avoids flicker).
@@ -493,7 +586,7 @@ export function TutorialOverlay() {
     if (!isActive) return;
     setSyncRetries(0);
     setHasSyncTimedOut(false);
-    setIsMandatoryCompleted(false);
+    setCompletedMandatorySlotIndex(null);
     autoScrollKeyRef.current = null;
     // Clear the scroll container so stale container rect from the previous substep
     // doesn't incorrectly trigger isTargetAboveContainer/isTargetBelowContainer on
@@ -508,10 +601,10 @@ export function TutorialOverlay() {
     if (!isActive || !currentSubstep?.mandatory || !expectedSelector) return;
     const el = document.querySelector(expectedSelector);
     if (!el) return;
-    const handler = () => setIsMandatoryCompleted(true);
+    const handler = () => setCompletedMandatorySlotIndex(currentSlotIndex);
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
-  }, [isActive, currentSubstep, expectedSelector]);
+  }, [isActive, currentSubstep, currentSlotIndex, expectedSelector]);
 
   /**
    * 2d. Kick off highlight after a short delay on each slot or substep change.

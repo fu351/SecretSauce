@@ -421,7 +421,7 @@ function MealPlannerPageContent() {
               "hidden md:flex flex-col bg-background border-l border-border transition-[width] duration-300 ease-in-out overflow-hidden h-full",
               showRecipeSidebar ? "w-[380px]" : "w-0"
             )}
-            data-tutorial="planner-sidebar"
+            data-tutorial="planner-sidebar-shell"
             style={{ contain: 'layout paint size' }}
           >
             {showRecipeSidebar && (
