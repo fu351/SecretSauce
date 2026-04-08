@@ -121,7 +121,7 @@ export function Header() {
         {/* Left: logo+title on desktop */}
         <div className="flex min-w-0 flex-1 items-center justify-start gap-2 md:flex-initial md:flex-none md:gap-4 lg:gap-6">
         {/* Desktop: logo + title */}
-        <Link href="/home" className="hidden md:block flex-shrink-0">
+        <Link href="/home" className="hidden md:block flex-shrink-0" data-tutorial-nav="/home">
           <Image
             src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
             alt="Secret Sauce"
@@ -293,7 +293,7 @@ export function Header() {
             className={`${navIconClass("/home")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
             asChild
           >
-            <Link href="/home" aria-label="Home">
+            <Link href="/home" aria-label="Home" data-tutorial-nav="/home">
               <Home className="h-5 w-5" />
             </Link>
           </Button>

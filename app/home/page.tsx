@@ -163,7 +163,7 @@ export default function HomeReturningPage() {
   )
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" data-tutorial="home-overview">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 space-y-6 md:space-y-10">
         {/* Top bar */}
         <div className="flex items-center justify-between">

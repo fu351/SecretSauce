@@ -127,5 +127,11 @@ export const cookingPath: TutorialPath = {
         },
       ],
     },
+    {
+      id: 6,
+      title: "Home Wrap-Up",
+      description: "Take a quick look at Home before returning to your dashboard.",
+      page: "/home",
+    },
   ],
 }

@@ -158,7 +158,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
   // Bump this when the payload shape changes; old payloads will be silently discarded
-  const TUTORIAL_STATE_VERSION = 5
+  const TUTORIAL_STATE_VERSION = 6
 
   // Derived state
   const flatSequence = rankedGoals ? buildFlatSequence(rankedGoals) : []

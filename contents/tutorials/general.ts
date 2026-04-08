@@ -120,7 +120,27 @@ export const generalPages: GeneralPageEntry[] = [
     postSubsteps: [
       {
         id: 1,
-        instruction: "Use the dashboard link to head back to your overview and wrap up the tour.",
+        instruction: "Head to Home for a quick wrap-up before you jump back into your planning flow.",
+        highlightSelector: "[data-tutorial-nav='/home']",
+        mandatory: true,
+      },
+    ],
+  },
+  {
+    page: "/home",
+    title: "Thanks for Exploring",
+    description: "Take a moment to explore Home and see what is trending, recommended, and worth doing next.",
+    substeps: [
+      {
+        id: 1,
+        instruction: "Thanks for taking the tour. Home is a great place to explore featured activity, recipe inspiration, and shortcuts into the rest of the app.",
+        highlightSelector: "[data-tutorial='home-overview']",
+      },
+    ],
+    postSubsteps: [
+      {
+        id: 1,
+        instruction: "Spend a moment exploring Home, and when you're ready, click Dashboard to get back to your main cooking overview.",
         highlightSelector: "[data-tutorial-nav='/dashboard']",
         mandatory: true,
       },
