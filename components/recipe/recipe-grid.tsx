@@ -115,7 +115,7 @@ export const RecipeGrid = memo(function RecipeGrid({
                 e.stopPropagation()
                 void onFavoriteToggle(recipe.id, e)
               }}
-              className={`absolute right-2 top-2 z-[9999] pointer-events-auto rounded-full p-2 backdrop-blur-sm transition ${
+              className={`absolute right-2 top-2 z-10 pointer-events-auto rounded-full p-2 backdrop-blur-sm transition ${
                 favorites.has(recipe.id)
                   ? "bg-black/45 text-red-400"
                   : "bg-black/35 text-white/90 hover:text-white"

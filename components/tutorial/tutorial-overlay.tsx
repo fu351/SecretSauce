@@ -334,6 +334,16 @@ export function TutorialOverlay() {
     nextSlot.page !== currentSlot.page &&
     !nextSlot.page.endsWith("*") &&
     (!currentSubstep?.mandatory || isMandatoryCompleted)
+  // Wildcard-page transition: next step is on a wildcard page (e.g. /recipes/*) and the
+  // current substep is mandatory — the user must click a card to navigate there.
+  const isWildcardTransition =
+    isActive &&
+    nextSlot !== null &&
+    currentSlot !== null &&
+    nextSlot.page !== currentSlot.page &&
+    nextSlot.page.endsWith("*") &&
+    currentSubstep?.mandatory === true &&
+    !isMandatoryCompleted
   const transitionNavSelector = isPageTransition ? `[data-tutorial-nav="${nextSlot!.page}"]` : null
   const expectedSelector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
   const completionSelector = currentSubstep?.completionSelector ?? null
@@ -1093,7 +1103,7 @@ export function TutorialOverlay() {
       {showTutorialBackdrop && (
         <>
           {showVisibleHighlight ? (
-            <svg className="fixed inset-0 z-40 pointer-events-none w-full h-full">
+            <svg className="fixed inset-0 z-[10000] pointer-events-none w-full h-full">
               <defs>
                 <mask id="tutorial-mask">
                   <rect width="100%" height="100%" fill="white" />
@@ -1124,7 +1134,7 @@ export function TutorialOverlay() {
           ) : (
             <div
               className={clsx(
-                "fixed inset-0 z-40 pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
+                "fixed inset-0 z-[10000] pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
                 isDark ? "bg-black/80" : "bg-slate-950/45"
               )}
             />
@@ -1132,7 +1142,7 @@ export function TutorialOverlay() {
 
           {showVisibleHighlight && currentSubstep?.blockClick && (
             <div
-              className="fixed z-[45] pointer-events-auto"
+              className="fixed z-[10005] pointer-events-auto"
               style={{
                 top: targetRect!.top,
                 left: targetRect!.left,
@@ -1144,7 +1154,7 @@ export function TutorialOverlay() {
 
           {showVisibleHighlight && (
             <div
-              className="fixed z-[45] pointer-events-none rounded-[18px] border-2 border-blue-400 transition-all duration-300 ease-out"
+              className="fixed z-[10005] pointer-events-none rounded-[18px] border-2 border-blue-400 transition-all duration-300 ease-out"
               style={{
                 top: targetRect!.top - 12,
                 left: targetRect!.left - 12,
@@ -1172,7 +1182,7 @@ export function TutorialOverlay() {
         ref={overlayRef}
         data-testid="tutorial-overlay"
         className={clsx(
-          "fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-50 transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
+          "fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-[10010] transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
           isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900",
           isMinimized ? "w-72 max-w-[calc(100vw-2rem)]" : "w-[calc(100vw-2rem)] max-w-[400px]"
         )}
@@ -1270,6 +1280,8 @@ export function TutorialOverlay() {
               <p className={clsx("text-sm leading-relaxed mb-6", isDark ? "text-gray-400" : "text-gray-600")}>
                 {isPageTransition
                   ? `You're done here. Use the navigation to go to ${pageNames[nextSlot!.page] ?? nextSlot!.page}.`
+                  : isWildcardTransition
+                  ? `You're done here. ${currentSubstep?.instruction ?? "Click a card to continue to the next step."}`
                   : (currentSubstep?.instruction ?? currentStep?.description)}
               </p>
 
@@ -1308,6 +1320,13 @@ export function TutorialOverlay() {
                     Click <strong>{pageNames[nextSlot!.page] ?? nextSlot!.page}</strong> in the navigation above to continue
                   </p>
                 </div>
+              ) : isWildcardTransition ? (
+                <div className={clsx("flex items-center gap-3 rounded-xl px-4 py-3 border", isDark ? "bg-blue-500/10 border-blue-400/25 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-700")}>
+                  <ChevronRight className="w-4 h-4 shrink-0" />
+                  <p className="text-xs font-medium leading-snug">
+                    Click <strong>any recipe card</strong> above to continue
+                  </p>
+                </div>
               ) : (
                 <div className="flex items-center justify-between">
                   <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentSlotIndex === 0}>
@@ -1337,7 +1356,7 @@ export function TutorialOverlay() {
 
       {/* Skip Confirmation Modal */}
       {showSkipConfirmation && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+        <div className="fixed inset-0 z-[10020] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
           <div className={clsx("w-full max-w-sm p-8 rounded-3xl border shadow-2xl", isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20" : "bg-white border-gray-200")}>
             <h2 className="text-2xl font-bold mb-2">End Tutorial?</h2>
             <div className="flex gap-3 mt-8">
