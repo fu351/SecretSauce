@@ -291,7 +291,7 @@ export default function DashboardPage() {
             </Link>
 
             <Link href="/recipes?favorites=true" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card" data-tutorial="dashboard-actions">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-3 md:p-6">
                   <div className="flex items-center justify-between mb-2 md:mb-4">
                     <Heart className="h-5 w-5 md:h-8 md:w-8 text-red-500" />
@@ -304,7 +304,7 @@ export default function DashboardPage() {
             </Link>
 
             <Link href="/meal-planner" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card" data-tutorial="dashboard-recents">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-3 md:p-6">
                   <div className="flex items-center justify-between mb-2 md:mb-4">
                     <Calendar className="h-5 w-5 md:h-8 md:w-8 text-blue-500" />
@@ -331,10 +331,12 @@ export default function DashboardPage() {
           </div>
 
           {/* Graph Tracker */}
-          <GraphTracker />
+          <div data-tutorial="dashboard-actions">
+            <GraphTracker />
+          </div>
 
           {/* Recent Recipes */}
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-card" data-tutorial="dashboard-recents">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-foreground">Recent Recipes</CardTitle>

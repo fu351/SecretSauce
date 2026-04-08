@@ -7,23 +7,29 @@ export const healthPath: TutorialPath = {
   steps: [
     {
       id: 1,
-      title: "Health Snapshot",
-      description: "Check your current momentum at a glance.",
+      title: "Dashboard Overview",
+      description: "Scan the page from top to bottom to see what needs your attention.",
       page: "/dashboard",
-      highlightSelector: "[data-tutorial='dashboard-recents']",
+      highlightSelector: "[data-tutorial='dashboard-stats']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Your recently planned meals appear here — a quick check to see if your routine is holding.",
-          highlightSelector: "[data-tutorial='dashboard-recents']",
+          instruction: "Start with your stats for a quick snapshot of recipes, favorites, planned meals, and shopping activity.",
+          highlightSelector: "[data-tutorial='dashboard-stats']",
           action: "highlight",
           essential: true,
         },
         {
           id: 2,
-          instruction: "Track consistency in your stats — small drops here often predict larger habit breaks ahead.",
-          highlightSelector: "[data-tutorial='dashboard-stats']",
+          instruction: "Graph Tracker shows recent trends so you can see how your activity is moving over time.",
+          highlightSelector: "[data-tutorial='dashboard-actions']",
+          action: "highlight",
+        },
+        {
+          id: 3,
+          instruction: "Recent Recipes gives you a fast way to jump back into dishes you've been working with lately.",
+          highlightSelector: "[data-tutorial='dashboard-recents']",
           action: "highlight",
         },
       ],

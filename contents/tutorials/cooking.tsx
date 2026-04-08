@@ -7,23 +7,29 @@ export const cookingPath: TutorialPath = {
   steps: [
     {
       id: 1,
-      title: "Kitchen Dashboard",
-      description: "Get a quick snapshot before you decide what to cook.",
+      title: "Dashboard Overview",
+      description: "Scan the page from top to bottom to see what needs your attention.",
       page: "/dashboard",
-      highlightSelector: "[data-tutorial='dashboard-actions']",
+      highlightSelector: "[data-tutorial='dashboard-stats']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Quick action cards let you jump straight into recipes, meal planning, or your shopping list.",
-          highlightSelector: "[data-tutorial='dashboard-actions']",
+          instruction: "Start with your stats for a quick snapshot of recipes, favorites, planned meals, and shopping activity.",
+          highlightSelector: "[data-tutorial='dashboard-stats']",
           action: "highlight",
           essential: true,
         },
         {
           id: 2,
-          instruction: "Your activity stats show how consistently you've been cooking and planning week to week.",
-          highlightSelector: "[data-tutorial='dashboard-stats']",
+          instruction: "Graph Tracker shows recent trends so you can see how your activity is moving over time.",
+          highlightSelector: "[data-tutorial='dashboard-actions']",
+          action: "highlight",
+        },
+        {
+          id: 3,
+          instruction: "Recent Recipes gives you a fast way to jump back into dishes you've been working with lately.",
+          highlightSelector: "[data-tutorial='dashboard-recents']",
           action: "highlight",
         },
       ],

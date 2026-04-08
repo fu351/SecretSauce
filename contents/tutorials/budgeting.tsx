@@ -7,23 +7,29 @@ export const budgetingPath: TutorialPath = {
   steps: [
     {
       id: 1,
-      title: "Budget Snapshot",
-      description: "Track activity and spot unplanned spending before it happens.",
+      title: "Dashboard Overview",
+      description: "Scan the page from top to bottom to see what needs your attention.",
       page: "/dashboard",
       highlightSelector: "[data-tutorial='dashboard-stats']",
       action: "highlight",
       substeps: [
         {
           id: 1,
-          instruction: "Your stats show planning momentum — use them to spot when you're falling behind before it costs you.",
+          instruction: "Start with your stats for a quick snapshot of recipes, favorites, planned meals, and shopping activity.",
           highlightSelector: "[data-tutorial='dashboard-stats']",
           action: "highlight",
           essential: true,
         },
         {
           id: 2,
-          instruction: "Act on what the stats are showing — jump directly to planning or shopping without losing context.",
+          instruction: "Graph Tracker shows recent trends so you can see how your activity is moving over time.",
           highlightSelector: "[data-tutorial='dashboard-actions']",
+          action: "highlight",
+        },
+        {
+          id: 3,
+          instruction: "Recent Recipes gives you a fast way to jump back into dishes you've been working with lately.",
+          highlightSelector: "[data-tutorial='dashboard-recents']",
           action: "highlight",
         },
       ],
