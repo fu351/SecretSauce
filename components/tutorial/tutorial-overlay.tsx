@@ -274,6 +274,11 @@ function shouldUseRecipeDetailScrollHelper(element: HTMLElement, pathname: strin
   return tutorialTarget !== null && RECIPE_DETAIL_TOP_ALIGN_TARGETS.has(tutorialTarget)
 }
 
+function isMealPlannerLayoutTransitionElement(element: HTMLElement | null, pathname: string) {
+  if (pathname !== "/meal-planner") return false
+  return element?.getAttribute("data-tutorial") === "planner-sidebar-shell"
+}
+
 export function TutorialOverlay() {
   const {
     isActive,
@@ -762,6 +767,26 @@ export function TutorialOverlay() {
   }, [isActive, activeScrollContainer, scheduleHighlightUpdate]);
 
   useEffect(() => {
+    if (!isActive || pathname !== "/meal-planner") return
+
+    const sidebarShell = document.querySelector("[data-tutorial='planner-sidebar-shell']")
+    if (!isHTMLElement(sidebarShell)) return
+
+    const handleLayoutSettled = (event: TransitionEvent) => {
+      if (event.target !== sidebarShell || event.propertyName !== "width") return
+      scheduleHighlightUpdate({ immediate: true })
+    }
+
+    sidebarShell.addEventListener("transitionend", handleLayoutSettled)
+    sidebarShell.addEventListener("transitioncancel", handleLayoutSettled)
+
+    return () => {
+      sidebarShell.removeEventListener("transitionend", handleLayoutSettled)
+      sidebarShell.removeEventListener("transitioncancel", handleLayoutSettled)
+    }
+  }, [isActive, pathname, scheduleHighlightUpdate])
+
+  useEffect(() => {
     if (!isActive) return
 
     const overlayElement = overlayRef.current
@@ -852,6 +877,20 @@ export function TutorialOverlay() {
         return; // Don't capture a mid-animation rect — wait for the callback above
       }
       animEl = animEl.parentElement;
+    }
+
+    const mealPlannerLayoutElement = document.querySelector("[data-tutorial='planner-sidebar-shell']")
+    if (isHTMLElement(mealPlannerLayoutElement) && isMealPlannerLayoutTransitionElement(mealPlannerLayoutElement, pathname)) {
+      const runningLayoutAnimations = mealPlannerLayoutElement
+        .getAnimations()
+        .filter((animation) => animation.playState === "running")
+
+      if (runningLayoutAnimations.length > 0) {
+        Promise.all(runningLayoutAnimations.map((animation) => animation.finished.catch(() => {}))).then(() => {
+          scheduleHighlightUpdate({ immediate: true })
+        })
+        return
+      }
     }
 
     const newRect = element.getBoundingClientRect();
