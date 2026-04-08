@@ -935,6 +935,9 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                   const blockedCanonical = canonicalForWrite
                   const fallback = await resolveBlockedNewCanonicalFallback({
                     canonicalName: canonicalForWrite,
+                    category: ingredientCategory,
+                    confidence: ingredientConfidence,
+                    tokenIdfScorer,
                   })
 
                   if (fallback) {
@@ -944,6 +947,11 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                     if (existingCanonical) {
                       console.warn(
                         `[QueueResolver] Recovered blocked canonical "${blockedCanonical}" -> "${canonicalForWrite}" ` +
+                          `(source=${fallback.source}, block_reason=${risk.reason})`
+                      )
+                    } else {
+                      console.warn(
+                        `[QueueResolver] Rewrote blocked canonical "${blockedCanonical}" -> "${canonicalForWrite}" ` +
                           `(source=${fallback.source}, block_reason=${risk.reason})`
                       )
                     }

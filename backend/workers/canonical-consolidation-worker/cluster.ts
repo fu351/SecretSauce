@@ -15,6 +15,14 @@ export interface ClusterConsolidationProposal {
   maxSimilarity: number
 }
 
+export interface CanonicalClusterCommunity {
+  members: string[]
+  commonTokens: string[]
+  clusterSize: number
+  averageCoverage: number
+  maxSimilarity: number
+}
+
 function tokenize(name: string): Set<string> {
   return new Set(toCanonicalTokens(name).filter((token) => token.length > 1))
 }
@@ -180,6 +188,32 @@ export function buildClusterConsolidationProposals(
   rows: CanonicalDoubleCheckDailyStatsRow[],
   productCounts: Map<string, number>
 ): ClusterConsolidationProposal[] {
+  const communities = buildCanonicalClusterCommunities(rows)
+  const proposals: ClusterConsolidationProposal[] = []
+  for (const community of communities) {
+    const target = selectTarget(community.members, new Set(community.commonTokens), productCounts)
+    for (const member of community.members) {
+      if (member === target) continue
+      proposals.push({
+        fromCanonical: member,
+        toCanonical: target,
+        commonTokens: community.commonTokens,
+        clusterMembers: community.members,
+        clusterSize: community.clusterSize,
+        maxSimilarity: community.maxSimilarity,
+      })
+    }
+  }
+
+  return proposals.sort((a, b) => {
+    if (b.clusterSize !== a.clusterSize) return b.clusterSize - a.clusterSize
+    return a.fromCanonical.localeCompare(b.fromCanonical)
+  })
+}
+
+export function buildCanonicalClusterCommunities(
+  rows: CanonicalDoubleCheckDailyStatsRow[]
+): CanonicalClusterCommunity[] {
   const lateralRows = rows.filter((row) => row.direction === "lateral")
   if (!lateralRows.length) return []
 
@@ -192,43 +226,37 @@ export function buildClusterConsolidationProposals(
     similarityByPair.set(key, Math.max(similarityByPair.get(key) ?? 0, row.max_similarity ?? 0))
   }
 
-  const proposals: ClusterConsolidationProposal[] = []
+  const communities: CanonicalClusterCommunity[] = []
   for (const component of components) {
     if (component.length < MIN_CLUSTER_SIZE) continue
-    const communities = partitionComponent(component)
-    for (const community of communities) {
+
+    for (const community of partitionComponent(component)) {
       if (community.length < MIN_CLUSTER_SIZE) continue
 
       const tokenSets = community.map((member) => tokenize(member))
       const commonTokens = intersectTokenSets(tokenSets)
       if (!commonTokens.size) continue
 
-      const avgCoverage =
+      const averageCoverage =
         tokenSets.reduce((sum, tokens) => {
           const overlap = [...tokens].filter((token) => commonTokens.has(token)).length
           return sum + overlap / Math.max(tokens.size, 1)
         }, 0) / tokenSets.length
 
-      if (avgCoverage < MIN_MEMBER_COVERAGE) continue
+      if (averageCoverage < MIN_MEMBER_COVERAGE) continue
 
-      const target = selectTarget(community, commonTokens, productCounts)
-      const maxSimilarity = maxSimilarityForMembers(community, similarityByPair)
-      for (const member of community) {
-        if (member === target) continue
-        proposals.push({
-          fromCanonical: member,
-          toCanonical: target,
-          commonTokens: [...commonTokens].sort((a, b) => a.localeCompare(b)),
-          clusterMembers: [...community].sort((a, b) => a.localeCompare(b)),
-          clusterSize: community.length,
-          maxSimilarity,
-        })
-      }
+      communities.push({
+        members: [...community].sort((a, b) => a.localeCompare(b)),
+        commonTokens: [...commonTokens].sort((a, b) => a.localeCompare(b)),
+        clusterSize: community.length,
+        averageCoverage,
+        maxSimilarity: maxSimilarityForMembers(community, similarityByPair),
+      })
     }
   }
 
-  return proposals.sort((a, b) => {
+  return communities.sort((a, b) => {
     if (b.clusterSize !== a.clusterSize) return b.clusterSize - a.clusterSize
-    return a.fromCanonical.localeCompare(b.fromCanonical)
+    return a.members.join("|").localeCompare(b.members.join("|"))
   })
 }

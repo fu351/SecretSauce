@@ -107,6 +107,37 @@ Key config:
 
 Note: uses a service-role Supabase client (`lib/database/supabase-worker.ts`) to bypass RLS on `canonical_double_check_daily_stats`.
 
+## Canonical medoid worker
+
+Core files:
+
+- `backend/workers/canonical-medoid-worker/config.ts`
+- `backend/workers/canonical-medoid-worker/processor.ts`
+- `backend/orchestrators/canonical-medoid-pipeline/pipeline.ts`
+- `backend/orchestrators/canonical-medoid-pipeline/runner.ts`
+- `lib/database/canonical-medoid-db.ts`
+
+Purpose:
+
+- Builds coherent lateral canonical clusters from `canonical_double_check_daily_stats`.
+- Chooses a monthly medoid per cluster and snapshots the full cluster membership.
+- Supports two modes:
+  - `initiation`: pick the best medoid from scratch.
+  - `perturbation`: start from the latest medoid and only switch when a better candidate clears the configured stability delta.
+
+Key config:
+
+- `CANONICAL_MEDOID_MODE` (default `perturbation`; also accepts legacy spelling `pertubation`)
+- `CANONICAL_MEDOID_INTERVAL_SECONDS` (default `2592000`, roughly monthly)
+- `CANONICAL_MEDOID_MIN_SIMILARITY` (default `0.92`)
+- `CANONICAL_MEDOID_STABILITY_DELTA` (default `0.015`)
+- `CANONICAL_MEDOID_DRY_RUN` (default `false`)
+
+Run via:
+
+- One-shot: `npm --prefix backend/scripts run canonical-medoid-pipeline`
+- Continuous monthly runner: `npm run canonical-medoid-pipeline-runner`
+
 ## Standardizer modules
 
 Core files:
@@ -138,6 +169,8 @@ Key points:
   - `npm --prefix backend/scripts run vector-double-check-pipeline`
 - One-shot canonical consolidation run:
   - `npm --prefix backend/scripts run canonical-consolidation-pipeline`
+- One-shot canonical medoid run:
+  - `npm --prefix backend/scripts run canonical-medoid-pipeline`
 - Backfill embedding queue:
   - `npm run backfill-embedding-queue`
 

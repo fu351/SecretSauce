@@ -55,6 +55,155 @@ const NEW_CANONICAL_NOISE_TOKENS = new Set([
   "table",
 ])
 
+const RETAIL_SUFFIX_TOKENS = new Set([
+  "oz",
+  "ounce",
+  "ounces",
+  "lb",
+  "lbs",
+  "pound",
+  "pounds",
+  "g",
+  "gram",
+  "grams",
+  "kg",
+  "kilogram",
+  "kilograms",
+  "ml",
+  "milliliter",
+  "milliliters",
+  "l",
+  "liter",
+  "liters",
+  "litre",
+  "litres",
+  "ltr",
+  "qt",
+  "quart",
+  "quarts",
+  "pt",
+  "pint",
+  "pints",
+  "gal",
+  "gallon",
+  "gallons",
+  "fl",
+  "floz",
+  "ct",
+  "count",
+  "counts",
+  "pk",
+  "pkg",
+  "pack",
+  "packs",
+  "package",
+  "packages",
+  "bottle",
+  "bottles",
+  "bag",
+  "bags",
+  "box",
+  "boxes",
+  "can",
+  "cans",
+  "jar",
+  "jars",
+  "carton",
+  "cartons",
+  "tray",
+  "trays",
+  "case",
+  "cases",
+  "pouch",
+  "pouches",
+  "unit",
+  "units",
+  "each",
+  "ea",
+  "piece",
+  "pieces",
+])
+
+function isRetailQuantityToken(token: string): boolean {
+  return /^\d+(?:\.\d+)?$/.test(token)
+}
+
+function isCompactRetailMeasurementToken(token: string): boolean {
+  return (
+    /^\d+(?:\.\d+)?(?:oz|ounce|ounces|lb|lbs|pound|pounds|g|gram|grams|kg|kilogram|kilograms|ml|milliliter|milliliters|l|liter|liters|litre|litres|ltr|qt|quart|quarts|pt|pint|pints|gal|gallon|gallons|ct|count|counts|pk|pkg|pack|packs)$/i.test(
+      token
+    ) ||
+    /^(?:oz|lb|lbs|g|kg|ml|l|ltr|qt|pt|gal)\d+(?:\.\d+)?$/i.test(token)
+  )
+}
+
+function stripRetailSuffixTokens(tokens: string[]): string[] {
+  let end = tokens.length
+
+  while (end > 0) {
+    const token = tokens[end - 1]
+    const previous = end > 1 ? tokens[end - 2] : null
+
+    if (isCompactRetailMeasurementToken(token) || RETAIL_SUFFIX_TOKENS.has(token)) {
+      end -= 1
+      if (previous && isRetailQuantityToken(previous)) {
+        end -= 1
+      }
+      continue
+    }
+
+    if (isRetailQuantityToken(token)) {
+      end -= 1
+      continue
+    }
+
+    break
+  }
+
+  return tokens.slice(0, end)
+}
+
+function buildBlockedCanonicalFallbackCandidates(canonicalName: string): Array<{ canonicalName: string; source: string }> {
+  const candidates: Array<{ canonicalName: string; source: string }> = []
+  const seen = new Set<string>()
+  const baseCanonical = normalizeCanonicalName(canonicalName)
+
+  const addCandidate = (value: string | null | undefined, source: string): void => {
+    const normalized = normalizeCanonicalName(value || "")
+    if (!normalized || normalized === baseCanonical || seen.has(normalized)) return
+    if (INVALID_CANONICAL_NAMES.has(normalized)) return
+    seen.add(normalized)
+    candidates.push({ canonicalName: normalized, source })
+  }
+
+  const baseTokens = toCanonicalTokens(baseCanonical)
+  const strippedRetailTokens = stripRetailSuffixTokens(baseTokens)
+
+  if (strippedRetailTokens.length > 0 && strippedRetailTokens.length < baseTokens.length) {
+    addCandidate(strippedRetailTokens.join(" "), "strip_retail_suffix")
+
+    if (strippedRetailTokens.length >= 2) {
+      addCandidate(
+        strippedRetailTokens.slice(-2).join(" "),
+        "strip_retail_suffix_tail_2_tokens"
+      )
+    }
+    addCandidate(
+      strippedRetailTokens.slice(-1).join(" "),
+      "strip_retail_suffix_tail_1_token"
+    )
+  }
+
+  if (baseTokens.length >= 2) {
+    addCandidate(baseTokens.slice(-2).join(" "), "tail_2_tokens")
+  }
+  if (baseTokens.length >= 3) {
+    addCandidate(baseTokens.slice(-3).join(" "), "tail_3_tokens")
+  }
+
+  return candidates
+}
+
 function getDynamicTokenConfidenceFloor(tokenCount: number): number {
   if (tokenCount <= 2) return 0
 
@@ -129,26 +278,12 @@ export function assessNewCanonicalRisk(params: {
 
 export async function resolveBlockedNewCanonicalFallback(params: {
   canonicalName: string
+  category: string | null | undefined
+  confidence: number
+  tokenIdfScorer?: CanonicalTokenIdfScorer
 }): Promise<{ canonicalName: string; category: string | null; source: string } | null> {
-  const candidates: Array<{ canonicalName: string; source: string }> = []
-  const seen = new Set<string>()
-  const baseCanonical = normalizeCanonicalName(params.canonicalName)
-
-  const addCandidate = (value: string | null | undefined, source: string): void => {
-    const normalized = normalizeCanonicalName(value || "")
-    if (!normalized || normalized === baseCanonical || seen.has(normalized)) return
-    if (INVALID_CANONICAL_NAMES.has(normalized)) return
-    seen.add(normalized)
-    candidates.push({ canonicalName: normalized, source })
-  }
-
-  const baseTokens = toCanonicalTokens(baseCanonical)
-  if (baseTokens.length >= 2) {
-    addCandidate(baseTokens.slice(-2).join(" "), "tail_2_tokens")
-  }
-  if (baseTokens.length >= 3) {
-    addCandidate(baseTokens.slice(-3).join(" "), "tail_3_tokens")
-  }
+  const candidates = buildBlockedCanonicalFallbackCandidates(params.canonicalName)
+  const derivedCandidates = candidates.filter((candidate) => candidate.source.startsWith("strip_retail_suffix"))
 
   for (const candidate of candidates) {
     const existing = await standardizedIngredientsDB.findByCanonicalName(candidate.canonicalName)
@@ -157,6 +292,22 @@ export async function resolveBlockedNewCanonicalFallback(params: {
       canonicalName: existing.canonical_name,
       category: existing.category ?? null,
       source: candidate.source,
+    }
+  }
+
+  for (const candidate of derivedCandidates) {
+    const risk = assessNewCanonicalRisk({
+      canonicalName: candidate.canonicalName,
+      category: params.category,
+      confidence: params.confidence,
+      tokenIdfScorer: params.tokenIdfScorer,
+    })
+    if (risk.blocked) continue
+
+    return {
+      canonicalName: candidate.canonicalName,
+      category: params.category ?? null,
+      source: `derived_${candidate.source}`,
     }
   }
 
