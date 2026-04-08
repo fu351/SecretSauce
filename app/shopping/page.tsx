@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { profileDB } from "@/lib/database/profile-db"
+import { getUserLocation, reverseGeocodeToPostalCode } from "@/lib/location-client"
 import { storeListHistoryDB } from "@/lib/database/store-list-history-db"
 import type { GroceryItem } from "@/lib/types/store"
 
@@ -86,14 +87,25 @@ export default function ShoppingPage() {
   useEffect(() => {
     if (authLoading) return
     const loadPrefs = async () => {
+      let zip: string | null = null
+
       if (user) {
         const profileData = await profileDB.fetchProfileFields(user.id, ["zip_code"])
-
-        if (profileData?.zip_code) setZipCode(profileData.zip_code)
-      } else {
-        const saved = localStorage.getItem("shopping_zip_code")
-        if (saved) setZipCode(saved)
+        zip = profileData?.zip_code ?? null
       }
+
+      if (!zip) {
+        zip = localStorage.getItem("shopping_zip_code")
+      }
+
+      if (!zip) {
+        const coords = await getUserLocation()
+        if (coords) {
+          zip = await reverseGeocodeToPostalCode(coords)
+        }
+      }
+
+      if (zip) setZipCode(zip)
     }
     loadPrefs()
   }, [user, authLoading])

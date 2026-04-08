@@ -145,10 +145,14 @@ async function hydratePricingGaps(
 
   for (const gap of gaps) {
     const gapZip = gap.zip_code || fallbackZip
+    if (!gapZip) {
+      console.error("[useStoreComparison] Skipping pricing gap — no zip code available", { store: gap.store })
+      continue
+    }
     for (const ingredient of gap.ingredients) {
       const storeResults = await searchGroceryStores(
         ingredient.name,
-        gapZip || undefined,
+        gapZip,
         gap.store,
         true,
         ingredient.id
@@ -415,6 +419,11 @@ export function useStoreComparison(
   const performMassSearch = useCallback(async (options?: PerformMassSearchOptions) => {
     if (!shoppingList || shoppingList.length === 0) {
       toast({ title: "Empty List", description: "Add items first.", variant: "destructive" })
+      return
+    }
+
+    if (!resolvedZipCode) {
+      toast({ title: "Zip Code Required", description: "Set your zip code in your profile to compare store prices.", variant: "destructive" })
       return
     }
 

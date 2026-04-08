@@ -7,7 +7,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { useShoppingList } from "@/hooks/shopping/use-shopping-list"
 import { useStoreComparison } from "@/hooks/shopping/use-store-comparison"
-import { updateLocation } from "@/lib/location-client"
+import { updateLocation, getUserLocation, reverseGeocodeToPostalCode } from "@/lib/location-client"
 import dynamic from "next/dynamic"
 import { ShoppingReceiptView } from "@/components/store/shopping-receipt-view"
 import { ItemReplacementModal } from "@/components/store/store-replacement"
@@ -109,11 +109,18 @@ export default function ShoppingReceiptPage() {
     const loadUserZip = async () => {
       if (!user) return
       try {
+        let zip: string | null = null
+
         const { profileDB } = await import("@/lib/database/profile-db")
         const profileData = await profileDB.fetchProfileFields(user.id, ["zip_code"])
-        if (profileData?.zip_code) {
-          setZipCode(profileData.zip_code)
+        zip = profileData?.zip_code ?? null
+
+        if (!zip) {
+          const coords = await getUserLocation()
+          if (coords) zip = await reverseGeocodeToPostalCode(coords)
         }
+
+        if (zip) setZipCode(zip)
       } catch (error) {
         console.error("Failed to load user zip:", error)
       } finally {
