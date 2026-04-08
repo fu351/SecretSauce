@@ -25,6 +25,15 @@ const WINDOW_SCROLL_OVERSHOOT = 80;
 const WINDOW_SCROLL_PADDING = 24;
 const CONTAINER_SCROLL_PADDING = 0;
 const SCROLL_HIGHLIGHT_INTERVAL = 48;
+const RECIPE_DETAIL_SCROLL_PADDING_MOBILE = 12;
+const RECIPE_DETAIL_SCROLL_PADDING_DESKTOP = 32;
+const RECIPE_DETAIL_TOP_ALIGN_TARGETS = new Set([
+  "nutrition-info",
+  "recipe-detail-tags",
+  "recipe-detail-pricing",
+  "recipe-detail-ingredients",
+  "recipe-detail-instructions",
+])
 const tutorialDebugCache = new Map<string, string>()
 const activeScrollAnimations = new WeakMap<object, () => void>()
 
@@ -259,6 +268,12 @@ function isRectClippedByContainer(rect: DOMRect, containerRect: DOMRect, padding
   return rect.top < containerRect.top + padding || rect.bottom > containerRect.bottom - padding;
 }
 
+function shouldUseRecipeDetailScrollHelper(element: HTMLElement, pathname: string) {
+  if (!pathname.startsWith("/recipes/")) return false
+  const tutorialTarget = element.getAttribute("data-tutorial")
+  return tutorialTarget !== null && RECIPE_DETAIL_TOP_ALIGN_TARGETS.has(tutorialTarget)
+}
+
 export function TutorialOverlay() {
   const {
     isActive,
@@ -469,6 +484,10 @@ export function TutorialOverlay() {
   ) => {
     const viewportTopPadding = headerHeight + WINDOW_SCROLL_PADDING;
     const shouldForceScroll = options?.force === true;
+    const shouldUseRecipeDetailHelper = shouldUseRecipeDetailScrollHelper(element, pathname)
+    const recipeDetailScrollPadding = isMobile
+      ? RECIPE_DETAIL_SCROLL_PADDING_MOBILE
+      : RECIPE_DETAIL_SCROLL_PADDING_DESKTOP
 
     // Step 1: Container scroll first so the element's viewport rect is stable for window scroll.
     if (scrollContainer && isScrollableElement(scrollContainer)) {
@@ -523,20 +542,24 @@ export function TutorialOverlay() {
     const windowScrollRange = document.documentElement.scrollHeight - window.innerHeight;
     const windowIsEffectivelyFixed = windowScrollRange <= viewportTopPadding;
 
-    // Never force window scroll — isRectOutsideViewport is always reliable for the page.
-    // force is only meaningful for container scrolls (element clipped by inner panel).
-    if (!windowIsEffectivelyFixed && isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)) {
+    const needsWindowScroll = shouldUseRecipeDetailHelper
+      ? shouldForceScroll || isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)
+      : isRectOutsideViewport(targetViewportRect, viewportTopBoundary, viewportBottomBoundary)
+
+    if (!windowIsEffectivelyFixed && needsWindowScroll) {
       const elementAbsoluteTop = targetViewportRect.top + window.pageYOffset;
       const visibleViewportHeight = window.innerHeight - viewportTopBoundary - viewportBottomBoundary;
-      const scrollPosition = targetViewportRect.height > visibleViewportHeight
-        ? Math.max(0, elementAbsoluteTop - viewportTopBoundary - WINDOW_SCROLL_PADDING)
-        : (() => {
-            const elementCenter = elementAbsoluteTop + targetViewportRect.height / 2;
-            const viewportCenter = window.innerHeight / 2;
-            const raw = elementCenter - viewportCenter;
-            const minScrollForHeader = Math.max(0, elementAbsoluteTop - viewportTopBoundary);
-            return Math.max(minScrollForHeader, raw > 0 ? raw + WINDOW_SCROLL_OVERSHOOT : raw);
-          })()
+      const scrollPosition = shouldUseRecipeDetailHelper
+        ? Math.max(0, elementAbsoluteTop - viewportTopBoundary - recipeDetailScrollPadding)
+        : targetViewportRect.height > visibleViewportHeight
+          ? Math.max(0, elementAbsoluteTop - viewportTopBoundary - WINDOW_SCROLL_PADDING)
+          : (() => {
+              const elementCenter = elementAbsoluteTop + targetViewportRect.height / 2;
+              const viewportCenter = window.innerHeight / 2;
+              const raw = elementCenter - viewportCenter;
+              const minScrollForHeader = Math.max(0, elementAbsoluteTop - viewportTopBoundary);
+              return Math.max(minScrollForHeader, raw > 0 ? raw + WINDOW_SCROLL_OVERSHOOT : raw);
+            })()
       debugTutorialScroll("scroll-window", {
         target: describeElement(element),
         scrollContainer: describeElement(scrollContainer ?? null),
@@ -549,13 +572,16 @@ export function TutorialOverlay() {
         viewportBottomBoundary,
         currentScrollY: window.scrollY,
         nextScrollY: scrollPosition,
+        recipeDetailHelper: shouldUseRecipeDetailHelper,
+        recipeDetailScrollPadding: shouldUseRecipeDetailHelper ? recipeDetailScrollPadding : null,
+        needsWindowScroll,
         force: shouldForceScroll,
       })
       await smoothScrollTo(window, scrollPosition);
     }
 
     scheduleHighlightUpdate({ immediate: true });
-  }, [headerHeight, scheduleHighlightUpdate]);
+  }, [headerHeight, isMobile, pathname, scheduleHighlightUpdate]);
 
   /**
    * 2. Loading State Detector
