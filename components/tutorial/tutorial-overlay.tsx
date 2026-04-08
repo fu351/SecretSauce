@@ -38,14 +38,6 @@ const DASHBOARD_AUTO_SCROLL_SELECTORS = new Set([
   "[data-tutorial='dashboard-actions']",
   "[data-tutorial='dashboard-recents']",
 ])
-const MOBILE_TOP_DOCK_TUTORIAL_TARGETS = new Set([
-  "recipe-filter",
-  "recipe-filter-scroll",
-  "recipe-filter-difficulty",
-  "recipe-filter-cuisine",
-  "recipe-filter-dietary",
-  "recipe-mobile-filters-show-results",
-])
 const tutorialDebugCache = new Map<string, string>()
 const activeScrollAnimations = new WeakMap<object, () => void>()
 
@@ -291,11 +283,6 @@ function isMealPlannerLayoutTransitionElement(element: HTMLElement | null, pathn
   return element?.getAttribute("data-tutorial") === "planner-sidebar-shell"
 }
 
-function shouldDockMobileOverlayTop(targetElement: HTMLElement | null) {
-  const tutorialTarget = targetElement?.getAttribute("data-tutorial")
-  return tutorialTarget !== null && MOBILE_TOP_DOCK_TUTORIAL_TARGETS.has(tutorialTarget)
-}
-
 export function TutorialOverlay() {
   const {
     isActive,
@@ -343,9 +330,12 @@ export function TutorialOverlay() {
   const [hasSyncTimedOut, setHasSyncTimedOut] = useState(false)
   const [isPageLoading, setIsPageLoading] = useState(false)
   const [completedMandatorySlotIndex, setCompletedMandatorySlotIndex] = useState<number | null>(null)
+  const [overlayPosition, setOverlayPosition] = useState<{ left: number; top: number } | null>(null)
+  const [isDraggingOverlay, setIsDraggingOverlay] = useState(false)
 
   const MAX_RETRIES = 15;
   const overlayRef = useRef<HTMLDivElement>(null);
+  const overlayDragStateRef = useRef<{ pointerId: number; startX: number; startY: number; startLeft: number; startTop: number } | null>(null)
   const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const updateHighlightRef = useRef<() => void>(() => {});
   const autoScrollKeyRef = useRef<string | null>(null);
@@ -365,6 +355,36 @@ export function TutorialOverlay() {
     "/dashboard": "Dashboard",
     "/home": "Home",
   }
+
+  const clampOverlayPosition = useCallback((left: number, top: number) => {
+    const overlayElement = overlayRef.current
+    const overlayWidth = overlayElement?.offsetWidth ?? 320
+    const overlayHeight = overlayElement?.offsetHeight ?? 240
+    const margin = 12
+    const maxLeft = Math.max(margin, window.innerWidth - overlayWidth - margin)
+    const maxTop = Math.max(margin, window.innerHeight - overlayHeight - margin)
+
+    return {
+      left: Math.min(Math.max(margin, left), maxLeft),
+      top: Math.min(Math.max(margin, top), maxTop),
+    }
+  }, [])
+
+  const ensureOverlayPosition = useCallback(() => {
+    if (overlayPosition) return overlayPosition
+
+    const overlayElement = overlayRef.current
+    if (!overlayElement) {
+      const fallback = clampOverlayPosition(12, 12)
+      setOverlayPosition(fallback)
+      return fallback
+    }
+
+    const rect = overlayElement.getBoundingClientRect()
+    const nextPosition = clampOverlayPosition(rect.left, rect.top)
+    setOverlayPosition(nextPosition)
+    return nextPosition
+  }, [clampOverlayPosition, overlayPosition])
 
   const totalSteps = flatSequence.length
   const completedSteps = currentSlotIndex + 1
@@ -1117,25 +1137,19 @@ export function TutorialOverlay() {
                         : "w-full"
 
   const windowHeight = typeof window !== "undefined" ? window.innerHeight : 800
-  const mobileOverlayShouldDockTop =
-    isMobile &&
-    (
-      shouldDockMobileOverlayTop(targetElement) ||
-      (!!targetRect && targetRect.top > Math.max(headerHeight + 96, windowHeight * 0.44))
-    )
   const overlayDockClass = isMobile
-    ? mobileOverlayShouldDockTop
-      ? "left-3 right-3 w-auto max-w-none top-[calc(0.75rem+env(safe-area-inset-top))]"
-      : "left-3 right-3 w-auto max-w-none bottom-[calc(6.25rem+env(safe-area-inset-bottom))]"
+    ? "left-3 bottom-[calc(6.25rem+env(safe-area-inset-bottom))]"
     : "bottom-4 right-4 sm:bottom-8 sm:right-8"
   const overlayWidthClass = isMinimized
     ? isMobile
-      ? "max-w-none"
+      ? "w-[calc(100vw-1.5rem)] max-w-none"
       : "w-72 max-w-[calc(100vw-2rem)]"
     : isMobile
-      ? "max-w-none"
+      ? "w-[calc(100vw-1.5rem)] max-w-none"
       : "w-[calc(100vw-2rem)] max-w-[400px]"
-  const overlayHeaderClass = isMobile ? "flex items-center justify-between border-b border-white/5 p-3" : "flex items-center justify-between p-4 border-b border-white/5"
+  const overlayHeaderClass = isMobile
+    ? clsx("flex items-center justify-between border-b border-white/5 p-3 touch-none", isDraggingOverlay ? "cursor-grabbing" : "cursor-grab")
+    : clsx("flex items-center justify-between p-4 border-b border-white/5", isDraggingOverlay ? "cursor-grabbing" : "cursor-grab")
   const overlayBodyClass = isMobile ? "max-h-[min(44vh,24rem)] overflow-y-auto p-3" : "p-6"
   const overlayActionRowClass = isMobile ? "flex items-center gap-2" : "flex items-center justify-between"
   const overlayDualActionClass = isMobile ? "flex flex-col gap-3 w-full" : "flex gap-3 w-full"
@@ -1220,6 +1234,59 @@ export function TutorialOverlay() {
     viewportBottomBoundary,
     viewportTopBoundary,
   ])
+
+  useEffect(() => {
+    if (isActive) return
+    setOverlayPosition(null)
+    setIsDraggingOverlay(false)
+    overlayDragStateRef.current = null
+  }, [isActive])
+
+  useEffect(() => {
+    setOverlayPosition(null)
+  }, [isMobile])
+
+  useEffect(() => {
+    if (!overlayPosition || !isActive) return
+
+    const frameId = window.requestAnimationFrame(() => {
+      const clamped = clampOverlayPosition(overlayPosition.left, overlayPosition.top)
+      if (clamped.left !== overlayPosition.left || clamped.top !== overlayPosition.top) {
+        setOverlayPosition(clamped)
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [clampOverlayPosition, currentSlotIndex, hasSyncTimedOut, isActive, isChangingPage, isMinimized, isPageLoading, overlayPosition])
+
+  useEffect(() => {
+    if (!isDraggingOverlay) return
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const dragState = overlayDragStateRef.current
+      if (!dragState || dragState.pointerId !== event.pointerId) return
+
+      const nextLeft = dragState.startLeft + (event.clientX - dragState.startX)
+      const nextTop = dragState.startTop + (event.clientY - dragState.startY)
+      setOverlayPosition(clampOverlayPosition(nextLeft, nextTop))
+    }
+
+    const stopDragging = (event: PointerEvent) => {
+      if (overlayDragStateRef.current?.pointerId !== event.pointerId) return
+      overlayDragStateRef.current = null
+      setIsDraggingOverlay(false)
+    }
+
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", stopDragging)
+    window.addEventListener("pointercancel", stopDragging)
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", stopDragging)
+      window.removeEventListener("pointercancel", stopDragging)
+    }
+  }, [clampOverlayPosition, isDraggingOverlay])
 
   if (!isActive || !currentSlot) return null
 
@@ -1311,17 +1378,35 @@ export function TutorialOverlay() {
         data-testid="tutorial-overlay"
         data-tutorial-overlay
         className={clsx(
-          "fixed z-[10010] transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
+          "fixed z-[10010] shadow-2xl rounded-2xl border overflow-hidden",
+          isDraggingOverlay ? "transition-none" : "transition-all duration-500 ease-in-out",
           isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900",
-          overlayDockClass,
+          overlayPosition ? "left-0 top-0" : overlayDockClass,
           overlayWidthClass
         )}
+        style={overlayPosition ? { left: overlayPosition.left, top: overlayPosition.top } : undefined}
       >
         <div className="h-1.5 w-full bg-gray-200/20">
           <div className={`h-full bg-blue-500 transition-all duration-500 ${progressWidthClass}`} />
         </div>
 
-        <div className={overlayHeaderClass}>
+        <div
+          className={overlayHeaderClass}
+          onPointerDown={(event) => {
+            const target = event.target as HTMLElement | null
+            if (target?.closest("button, a, input, textarea, select")) return
+
+            const startPosition = ensureOverlayPosition()
+            overlayDragStateRef.current = {
+              pointerId: event.pointerId,
+              startX: event.clientX,
+              startY: event.clientY,
+              startLeft: startPosition.left,
+              startTop: startPosition.top,
+            }
+            setIsDraggingOverlay(true)
+          }}
+        >
           <div className="flex items-center gap-2">
             <div className="bg-blue-500/10 text-blue-500 p-1.5 rounded-lg">
               {isChangingPage || isPageLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
