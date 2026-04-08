@@ -10,10 +10,14 @@ export interface TutorialSubstep {
   highlightSelector?: string
   scrollContainerSelector?: string
   completionSelector?: string
-  action?: 'explore' | 'click' | 'navigate' | 'highlight' | 'search'
+  action?: "explore" | "click" | "navigate" | "highlight" | "search"
   actionTarget?: string
   /** If true, this substep is shown even at rank 3 (minimal depth). */
   essential?: boolean
+  /** If true, this substep only appears on mobile-sized layouts. */
+  mobileOnly?: boolean
+  /** If true, this substep only appears on desktop-sized layouts. */
+  desktopOnly?: boolean
   /** If true, the user must interact with the highlighted element before Next is enabled. */
   mandatory?: boolean
   /** If true, pointer events on the highlighted element are blocked (display-only highlight). */
@@ -45,7 +49,7 @@ export interface TutorialStep {
   page: string
   highlightSelector?: string
   scrollContainerSelector?: string
-  action?: 'navigate' | 'click' | 'highlight' | 'explore'
+  action?: "navigate" | "click" | "highlight" | "explore"
   actionTarget?: string
   nextButtonText?: string
   estimatedSeconds?: number
@@ -67,7 +71,7 @@ export interface TutorialStep {
  * }
  */
 export interface TutorialPath {
-  id: 'cooking' | 'budgeting' | 'health'
+  id: "cooking" | "budgeting" | "health"
   name: string
   description: string
   steps: TutorialStep[]
@@ -97,4 +101,4 @@ export type GoalRank = 1 | 2 | 3
  * A single-element array runs only that path (used by the manual track picker).
  * A 3-element array runs all paths in ranked order (used by onboarding drag-to-rank).
  */
-export type RankedGoals = ('cooking' | 'budgeting' | 'health')[]
+export type RankedGoals = ("cooking" | "budgeting" | "health")[]

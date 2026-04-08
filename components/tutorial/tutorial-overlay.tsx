@@ -38,6 +38,14 @@ const DASHBOARD_AUTO_SCROLL_SELECTORS = new Set([
   "[data-tutorial='dashboard-actions']",
   "[data-tutorial='dashboard-recents']",
 ])
+const MOBILE_TOP_DOCK_TUTORIAL_TARGETS = new Set([
+  "recipe-filter",
+  "recipe-filter-scroll",
+  "recipe-filter-difficulty",
+  "recipe-filter-cuisine",
+  "recipe-filter-dietary",
+  "recipe-mobile-filters-show-results",
+])
 const tutorialDebugCache = new Map<string, string>()
 const activeScrollAnimations = new WeakMap<object, () => void>()
 
@@ -281,6 +289,11 @@ function shouldUseRecipeDetailScrollHelper(element: HTMLElement, pathname: strin
 function isMealPlannerLayoutTransitionElement(element: HTMLElement | null, pathname: string) {
   if (pathname !== "/meal-planner") return false
   return element?.getAttribute("data-tutorial") === "planner-sidebar-shell"
+}
+
+function shouldDockMobileOverlayTop(targetElement: HTMLElement | null) {
+  const tutorialTarget = targetElement?.getAttribute("data-tutorial")
+  return tutorialTarget !== null && MOBILE_TOP_DOCK_TUTORIAL_TARGETS.has(tutorialTarget)
 }
 
 export function TutorialOverlay() {
@@ -1104,6 +1117,28 @@ export function TutorialOverlay() {
                         : "w-full"
 
   const windowHeight = typeof window !== "undefined" ? window.innerHeight : 800
+  const mobileOverlayShouldDockTop =
+    isMobile &&
+    (
+      shouldDockMobileOverlayTop(targetElement) ||
+      (!!targetRect && targetRect.top > Math.max(headerHeight + 96, windowHeight * 0.44))
+    )
+  const overlayDockClass = isMobile
+    ? mobileOverlayShouldDockTop
+      ? "left-3 right-3 w-auto max-w-none top-[calc(0.75rem+env(safe-area-inset-top))]"
+      : "left-3 right-3 w-auto max-w-none bottom-[calc(6.25rem+env(safe-area-inset-bottom))]"
+    : "bottom-4 right-4 sm:bottom-8 sm:right-8"
+  const overlayWidthClass = isMinimized
+    ? isMobile
+      ? "max-w-none"
+      : "w-72 max-w-[calc(100vw-2rem)]"
+    : isMobile
+      ? "max-w-none"
+      : "w-[calc(100vw-2rem)] max-w-[400px]"
+  const overlayHeaderClass = isMobile ? "flex items-center justify-between border-b border-white/5 p-3" : "flex items-center justify-between p-4 border-b border-white/5"
+  const overlayBodyClass = isMobile ? "max-h-[min(44vh,24rem)] overflow-y-auto p-3" : "p-6"
+  const overlayActionRowClass = isMobile ? "flex items-center gap-2" : "flex items-center justify-between"
+  const overlayDualActionClass = isMobile ? "flex flex-col gap-3 w-full" : "flex gap-3 w-full"
   const viewportTopPadding = headerHeight + WINDOW_SCROLL_PADDING
   const activeScrollContainerRect = activeScrollContainer?.getBoundingClientRect() ?? null
   const targetIsWithinHeader = !!targetRect && isRectWithinHeader(targetRect, headerHeight)
@@ -1186,49 +1221,51 @@ export function TutorialOverlay() {
     viewportTopBoundary,
   ])
 
-  if (isMobile || !isActive || !currentSlot) return null;
+  if (!isActive || !currentSlot) return null
 
   return (
     <>
       {/* Background Mask */}
       {showTutorialBackdrop && (
         <>
-          {showVisibleHighlight ? (
-            <svg className="fixed inset-0 z-[10000] pointer-events-none w-full h-full">
-              <defs>
-                <mask id="tutorial-mask">
-                  <rect width="100%" height="100%" fill="white" />
-                  <rect
-                    x={targetRect!.left - 10}
-                    y={targetRect!.top - 10}
-                    width={targetRect!.width + 20}
-                    height={targetRect!.height + 20}
-                    rx="12"
-                    fill="black"
-                    className="transition-all duration-300 ease-out"
-                  />
-                  {/* When highlighting a header element, darken the rest of the header too.
-                      Otherwise, keep the full header unmasked so navigation remains visible. */}
-                  {!targetIsWithinHeader && (
-                    <rect x="0" y="0" width="100%" height={headerHeight} fill="black" />
-                  )}
-                </mask>
-              </defs>
-              <rect
-                width="100%"
-                height="100%"
-                fill={isDark ? "rgba(0,0,0,0.78)" : "rgba(17,24,39,0.45)"}
-                mask="url(#tutorial-mask)"
-                className="backdrop-blur-[2px] transition-opacity duration-500"
+          {!isMobile && (
+            showVisibleHighlight ? (
+              <svg className="fixed inset-0 z-[10000] pointer-events-none w-full h-full">
+                <defs>
+                  <mask id="tutorial-mask">
+                    <rect width="100%" height="100%" fill="white" />
+                    <rect
+                      x={targetRect!.left - 10}
+                      y={targetRect!.top - 10}
+                      width={targetRect!.width + 20}
+                      height={targetRect!.height + 20}
+                      rx="12"
+                      fill="black"
+                      className="transition-all duration-300 ease-out"
+                    />
+                    {/* When highlighting a header element, darken the rest of the header too.
+                        Otherwise, keep the full header unmasked so navigation remains visible. */}
+                    {!targetIsWithinHeader && (
+                      <rect x="0" y="0" width="100%" height={headerHeight} fill="black" />
+                    )}
+                  </mask>
+                </defs>
+                <rect
+                  width="100%"
+                  height="100%"
+                  fill={isDark ? "rgba(0,0,0,0.78)" : "rgba(17,24,39,0.45)"}
+                  mask="url(#tutorial-mask)"
+                  className="backdrop-blur-[2px] transition-opacity duration-500"
+                />
+              </svg>
+            ) : (
+              <div
+                className={clsx(
+                  "fixed inset-0 z-[10000] pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
+                  isDark ? "bg-black/80" : "bg-slate-950/45"
+                )}
               />
-            </svg>
-          ) : (
-            <div
-              className={clsx(
-                "fixed inset-0 z-[10000] pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
-                isDark ? "bg-black/80" : "bg-slate-950/45"
-              )}
-            />
+            )
           )}
 
           {showVisibleHighlight && currentSubstep?.blockClick && (
@@ -1272,17 +1309,19 @@ export function TutorialOverlay() {
       <div
         ref={overlayRef}
         data-testid="tutorial-overlay"
+        data-tutorial-overlay
         className={clsx(
-          "fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-[10010] transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
+          "fixed z-[10010] transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
           isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900",
-          isMinimized ? "w-72 max-w-[calc(100vw-2rem)]" : "w-[calc(100vw-2rem)] max-w-[400px]"
+          overlayDockClass,
+          overlayWidthClass
         )}
       >
         <div className="h-1.5 w-full bg-gray-200/20">
           <div className={`h-full bg-blue-500 transition-all duration-500 ${progressWidthClass}`} />
         </div>
 
-        <div className="flex items-center justify-between p-4 border-b border-white/5">
+        <div className={overlayHeaderClass}>
           <div className="flex items-center gap-2">
             <div className="bg-blue-500/10 text-blue-500 p-1.5 rounded-lg">
               {isChangingPage || isPageLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
@@ -1303,7 +1342,7 @@ export function TutorialOverlay() {
           </div>
         </div>
 
-        <div className="p-6">
+        <div className={overlayBodyClass}>
           {isMinimized ? (
             <div className="px-1 py-1 flex items-center justify-between bg-blue-500/5 group cursor-pointer" onClick={() => setIsMinimized(false)}>
               <p className="text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity">Click to resume tutorial</p>
@@ -1335,7 +1374,7 @@ export function TutorialOverlay() {
                 <>
                   <p className="text-xs opacity-60 mb-1">Not on the right page?</p>
                   <p className="text-[10px] opacity-40 mb-6">Expected: <span className="font-mono">{currentStep?.page}</span> · Current: <span className="font-mono">{pathname}</span></p>
-                  <div className="flex gap-3 w-full">
+                  <div className={overlayDualActionClass}>
                     <Button variant="outline" size="sm" className="flex-1" onClick={handleGoToExpectedPage}>
                       Go There
                     </Button>
@@ -1351,7 +1390,7 @@ export function TutorialOverlay() {
                     Step {completedSteps} of {totalSteps}
                     {expectedSelector ? <> · Selector: <span className="font-mono">{expectedSelector}</span></> : null}
                   </p>
-                  <div className="flex gap-3 w-full">
+                  <div className={overlayDualActionClass}>
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); updateHighlight(); }}>
                       Retry
                     </Button>
@@ -1370,7 +1409,7 @@ export function TutorialOverlay() {
               <h3 className="text-xl font-bold mb-2 leading-tight">{currentStep?.title}</h3>
               <p className={clsx("text-sm leading-relaxed mb-6", isDark ? "text-gray-400" : "text-gray-600")}>
                 {isPageTransition
-                  ? `You're done here. Use the navigation to go to ${pageNames[nextSlot!.page] ?? nextSlot!.page}.`
+                  ? `You're done here. Use the navigation ${isMobile ? "below" : "above"} to go to ${pageNames[nextSlot!.page] ?? nextSlot!.page}.`
                   : isWildcardTransition
                   ? `You're done here. ${currentSubstep?.instruction ?? "Click a card to continue to the next step."}`
                   : (currentSubstep?.instruction ?? currentStep?.description)}
@@ -1408,7 +1447,7 @@ export function TutorialOverlay() {
                 <div className={clsx("flex items-center gap-3 rounded-xl px-4 py-3 border", isDark ? "bg-blue-500/10 border-blue-400/25 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-700")}>
                   <ChevronUp className="w-4 h-4 shrink-0" />
                   <p className="text-xs font-medium leading-snug">
-                    Click <strong>{pageNames[nextSlot!.page] ?? nextSlot!.page}</strong> in the navigation above to continue
+                    Click <strong>{pageNames[nextSlot!.page] ?? nextSlot!.page}</strong> in the navigation {isMobile ? "below" : "above"} to continue
                   </p>
                 </div>
               ) : isWildcardTransition ? (
@@ -1419,8 +1458,8 @@ export function TutorialOverlay() {
                   </p>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentSlotIndex === 0}>
+                <div className={overlayActionRowClass}>
+                  <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentSlotIndex === 0} className={isMobile ? "flex-1 justify-center" : undefined}>
                     <ChevronLeft className="w-4 h-4 mr-2" /> Back
                   </Button>
                   <Button
@@ -1433,7 +1472,10 @@ export function TutorialOverlay() {
                       pendingNextAutoScrollRef.current = shouldAutoScrollNextWithinPage
                       nextStep()
                     }}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-8 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className={clsx(
+                      "bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed",
+                      isMobile ? "flex-1" : "px-8"
+                    )}
                   >
                     {isLastStep ? "Finish" : "Next"}
                     <ChevronRight className="w-4 h-4 ml-2" />

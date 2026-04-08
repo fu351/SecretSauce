@@ -303,7 +303,7 @@ export function Header() {
             className={`${navIconClass("/recipes")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
             asChild
           >
-            <Link href="/recipes" aria-label="Recipes">
+            <Link href="/recipes" aria-label="Recipes" data-tutorial-nav="/recipes">
               <BookOpen className="h-5 w-5" />
             </Link>
           </Button>
@@ -422,7 +422,7 @@ export function Header() {
             className={`${navIconClass("/meal-planner")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
             asChild
           >
-            <Link href="/meal-planner" aria-label="Meal Planner">
+            <Link href="/meal-planner" aria-label="Meal Planner" data-tutorial-nav="/meal-planner">
               <Calendar className="h-5 w-5" />
             </Link>
           </Button>
@@ -432,7 +432,7 @@ export function Header() {
             className={`${navIconClass("/store")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
             asChild
           >
-            <Link href="/store" aria-label="Shopping">
+            <Link href="/store" aria-label="Shopping" data-tutorial-nav="/store">
               <ShoppingCart className="h-5 w-5" />
             </Link>
           </Button>

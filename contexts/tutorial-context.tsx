@@ -1,9 +1,10 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect, useCallback } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "./auth-context"
+import { useIsMobile } from "@/hooks"
 import { useAnalytics } from "@/hooks/use-analytics"
 import { setTutorialToastSuppression } from "@/hooks/ui/use-toast"
 
@@ -70,12 +71,18 @@ export function getVisibleSubsteps(step: TutorialStep, rank: GoalRank): Tutorial
   return essential.length > 0 ? essential : substeps.slice(0, 1)
 }
 
+function isSubstepVisibleOnDevice(substep: TutorialSubstep, isMobile: boolean) {
+  if (substep.mobileOnly && !isMobile) return false
+  if (substep.desktopOnly && isMobile) return false
+  return true
+}
+
 /**
  * Builds the flat sequence of tutorial slots organized by page.
  * For each page: general orientation substeps first (same for everyone),
  * then ranked tutorial substeps in order (rank 1 gets more depth than rank 2/3).
  */
-function buildFlatSequence(rankedGoals: RankedGoals): FlatTutorialSlot[] {
+function buildFlatSequence(rankedGoals: RankedGoals, isMobile: boolean): FlatTutorialSlot[] {
   // Derive canonical page order from the first ranked path
   const firstPath = tutorialPaths[rankedGoals[0]]
   const pages = firstPath.steps.map(s => s.page)
@@ -86,7 +93,7 @@ function buildFlatSequence(rankedGoals: RankedGoals): FlatTutorialSlot[] {
     // 1. General orientation substeps — shown regardless of tutorial order
     const general = generalByPage[page]
     if (general) {
-      for (const substep of general.substeps) {
+      for (const substep of general.substeps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
         slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
       }
     }
@@ -98,7 +105,7 @@ function buildFlatSequence(rankedGoals: RankedGoals): FlatTutorialSlot[] {
       const path = tutorialPaths[tutorialId]
       const step = path.steps.find(s => s.page === page)
       if (!step) continue
-      const substeps = getVisibleSubsteps(step, rank)
+      const substeps = getVisibleSubsteps(step, rank).filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))
       for (const substep of substeps) {
         slots.push({ page, step, substep, tutorialId, rank, isGeneral: false })
       }
@@ -106,7 +113,7 @@ function buildFlatSequence(rankedGoals: RankedGoals): FlatTutorialSlot[] {
 
     // 3. Post-ranked general substeps — appended after all ranked substeps
     if (general?.postSubsteps) {
-      for (const substep of general.postSubsteps) {
+      for (const substep of general.postSubsteps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
         slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
       }
     }
@@ -154,14 +161,18 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const { user, profile, updateProfile } = useAuth()
+  const isMobile = useIsMobile()
   const { trackEvent } = useAnalytics()
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
   // Bump this when the payload shape changes; old payloads will be silently discarded
-  const TUTORIAL_STATE_VERSION = 6
+  const TUTORIAL_STATE_VERSION = 8
 
   // Derived state
-  const flatSequence = rankedGoals ? buildFlatSequence(rankedGoals) : []
+  const flatSequence = useMemo(
+    () => (rankedGoals ? buildFlatSequence(rankedGoals, isMobile) : []),
+    [rankedGoals, isMobile]
+  )
   const currentSlot = flatSequence[currentSlotIndex] ?? null
   const currentStep = currentSlot?.step ?? null
   const currentSubstep = currentSlot?.substep ?? null
@@ -205,7 +216,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         }
 
         const goals = state.rankedGoals as RankedGoals
-        const sequence = buildFlatSequence(goals)
+        const sequence = buildFlatSequence(goals, window.innerWidth < 768)
         setRankedGoals(goals)
         setCurrentSlotIndex(
           Number.isInteger(state.currentSlotIndex)
@@ -228,7 +239,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(DISMISS_KEY)
     }
-    const sequence = buildFlatSequence(ranked)
+    const sequence = buildFlatSequence(ranked, isMobile)
     setRankedGoals(ranked)
     setCurrentSlotIndex(0)
     setIsActive(true)
@@ -236,7 +247,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (sequence.length > 0) {
       router.push(sequence[0].page)
     }
-  }, [trackEvent, router])
+  }, [isMobile, trackEvent, router])
 
   const startTutorial = useCallback((pathId: TutorialPathId) => {
     startRankedSession([pathId])

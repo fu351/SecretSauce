@@ -23,14 +23,29 @@ export const generalPages: GeneralPageEntry[] = [
       },
       {
         id: 2,
-        instruction: "Tap any recipe card to open its full detail page — ingredients, instructions, and nutrition breakdown.",
-        highlightSelector: "[data-tutorial='recipe-card']",
-        blockClick: true,
+        instruction: "On mobile, start with the search bar since it stays visible even before the filter panel is opened.",
+        highlightSelector: "[data-tutorial='recipe-mobile-search']",
+        mobileOnly: true,
+      },
+      {
+        id: 3,
+        instruction: "On mobile, tap Filters to open the recipe filter panel before we walk through the sidebar.",
+        highlightSelector: "[data-tutorial='recipe-mobile-filters-button']",
+        completionSelector: "[data-tutorial='recipe-filter']",
+        mandatory: true,
+        mobileOnly: true,
       },
     ],
     postSubsteps: [
       {
         id: 1,
+        instruction: "Tap Show results to return to the recipe list.",
+        highlightSelector: "[data-tutorial='recipe-mobile-filters-show-results']",
+        mandatory: true,
+        mobileOnly: true,
+      },
+      {
+        id: 2,
         instruction: "Click a recipe card to open its detail page.",
         highlightSelector: "[data-tutorial='recipe-card']",
         mandatory: true,

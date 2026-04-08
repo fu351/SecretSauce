@@ -7,7 +7,7 @@ import { expect } from "@playwright/test"
 
 const TUTORIAL_STATE_KEY = "tutorial_state_v1"
 const DISMISS_KEY = "tutorial_dismissed_v1"
-const TUTORIAL_STATE_VERSION = 6
+const TUTORIAL_STATE_VERSION = 8
 
 /** Resets tutorial state in localStorage before a test. */
 export async function resetTutorialState(page: Page) {

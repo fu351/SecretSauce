@@ -308,7 +308,7 @@ export default function RecipesPage() {
 
         <div className="lg:hidden mb-4 space-y-3 sticky top-0 z-20 bg-background/95 backdrop-blur pt-2 pb-2 -mx-4 md:-mx-6 px-4 md:px-6">
           <div className="flex gap-2">
-            <div className="relative flex-1">
+            <div className="relative flex-1" data-tutorial="recipe-mobile-search">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search recipes"
@@ -328,7 +328,7 @@ export default function RecipesPage() {
           <div className="flex justify-center gap-2 overflow-x-auto pb-1">
             <Dialog open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="rounded-full whitespace-nowrap">
+                <Button variant="outline" className="rounded-full whitespace-nowrap" data-tutorial="recipe-mobile-filters-button">
                   <SlidersHorizontal className="h-4 w-4 mr-2" />
                   Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
                 </Button>
@@ -427,6 +427,7 @@ export default function RecipesPage() {
                       </Button>
                       <Button
                         className="flex-1"
+                        data-tutorial="recipe-mobile-filters-show-results"
                         onClick={() => setMobileFiltersOpen(false)}
                       >
                         Show results
@@ -613,7 +614,7 @@ export default function RecipesPage() {
                     onPageChange={(newPage) => {
                       setPage(newPage)
                       updateURL({ page: String(newPage) })
-                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                      window.scrollTo({ top: 0, behavior: "smooth" })
                     }}
                   />
                 </div>

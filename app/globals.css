@@ -360,7 +360,7 @@ html:not(.dark) .tutorial-highlight {
 
 /* Tutorial overlay should be above most elements */
 [data-tutorial-overlay] {
-  z-index: 9998 !important;
+  z-index: 10010 !important;
 }
 
 /* ───────── Landing Page Animations ───────── */

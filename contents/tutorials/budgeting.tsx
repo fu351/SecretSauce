@@ -56,6 +56,7 @@ export const budgetingPath: TutorialPath = {
           instruction: "Search for a specific ingredient to plan around what you already have at home.",
           highlightSelector: "[data-tutorial='recipe-search']",
           action: "highlight",
+          desktopOnly: true,
         },
       ],
     },

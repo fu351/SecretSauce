@@ -56,6 +56,7 @@ export const healthPath: TutorialPath = {
           instruction: "Search for specific ingredients you're trying to eat more of, or dishes targeting your macros.",
           highlightSelector: "[data-tutorial='recipe-search']",
           action: "highlight",
+          desktopOnly: true,
         },
       ],
     },
