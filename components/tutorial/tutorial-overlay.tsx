@@ -34,6 +34,10 @@ const RECIPE_DETAIL_TOP_ALIGN_TARGETS = new Set([
   "recipe-detail-ingredients",
   "recipe-detail-instructions",
 ])
+const DASHBOARD_AUTO_SCROLL_SELECTORS = new Set([
+  "[data-tutorial='dashboard-actions']",
+  "[data-tutorial='dashboard-recents']",
+])
 const tutorialDebugCache = new Map<string, string>()
 const activeScrollAnimations = new WeakMap<object, () => void>()
 
@@ -378,17 +382,29 @@ export function TutorialOverlay() {
   const expectedSelector = transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
   const completionSelector = currentSubstep?.completionSelector ?? null
   const expectedScrollContainerSelector = currentSubstep?.scrollContainerSelector ?? stepScrollContainerSelector ?? null
+  const nextStepHighlightSelector =
+    nextSlot?.substep.highlightSelector ??
+    (nextSlot?.step && "highlightSelector" in nextSlot.step ? nextSlot.step.highlightSelector : undefined) ??
+    null
   const nextStepScrollContainerSelector =
     nextSlot?.substep.scrollContainerSelector ??
     (nextSlot?.step && "scrollContainerSelector" in nextSlot.step ? nextSlot.step.scrollContainerSelector : undefined) ??
     null
+  const shouldAutoScrollDashboardNextWithinPage =
+    !!nextSlot &&
+    !!currentSlot &&
+    nextSlot.page === currentSlot.page &&
+    currentSlot.page === "/dashboard" &&
+    !!nextStepHighlightSelector &&
+    DASHBOARD_AUTO_SCROLL_SELECTORS.has(nextStepHighlightSelector)
   const shouldAutoScrollNextWithinPage =
     !!nextSlot &&
     !!currentSlot &&
     nextSlot.page === currentSlot.page &&
     (
       !!nextStepScrollContainerSelector ||
-      currentSlot.page === "/recipes/*"
+      currentSlot.page === "/recipes/*" ||
+      shouldAutoScrollDashboardNextWithinPage
     )
 
   const handleGoToExpectedPage = useCallback(() => {
