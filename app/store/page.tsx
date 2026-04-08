@@ -435,7 +435,7 @@ export default function ShoppingReceiptPage() {
     <div className={`min-h-screen ${styles.bgClass}`}>
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-4 py-4">
-        <div className="flex flex-col lg:flex-row h-[calc(100vh-5rem)] gap-3" data-tutorial="store-overview">
+        <div className="flex flex-col lg:flex-row h-[calc(100vh-5rem)] gap-3">
 
           {/* Panel: recipes in cart + add item + map (desktop sidebar) */}
           {/* Mobile: order-1 (top) | Desktop: order-2 (right sidebar, fixed width) */}

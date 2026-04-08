@@ -117,15 +117,12 @@ export const generalPages: GeneralPageEntry[] = [
         instruction: "Compare totals across stores before you shop, then check off items as you go.",
       },
     ],
-  },
-  {
-    page: "/settings",
-    title: "Preferences",
-    description: "Your onboarding choices live here — update them as your needs change.",
-    substeps: [
+    postSubsteps: [
       {
         id: 1,
-        instruction: "Anything you set during onboarding can be adjusted here at any time.",
+        instruction: "Use the dashboard link to head back to your overview and wrap up the tour.",
+        highlightSelector: "[data-tutorial-nav='/dashboard']",
+        mandatory: true,
       },
     ],
   },

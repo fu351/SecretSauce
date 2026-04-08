@@ -108,6 +108,16 @@ function isHTMLElement(value: Element | null): value is HTMLElement {
   return value instanceof HTMLElement;
 }
 
+function findFirstVisibleElement(selector: string): HTMLElement | null {
+  const candidates = Array.from(document.querySelectorAll(selector)) as HTMLElement[]
+  return candidates.find((candidate) => {
+    const style = window.getComputedStyle(candidate)
+    if (style.display === "none" || style.visibility === "hidden") return false
+    const rect = candidate.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0
+  }) || candidates[0] || null
+}
+
 function isScrollableElement(element: HTMLElement) {
   const styles = window.getComputedStyle(element);
   const overflowY = styles.overflowY;
@@ -681,12 +691,18 @@ export function TutorialOverlay() {
     }
 
     if (!expectedSelector) return;
-    const el = document.querySelector(expectedSelector);
+    const el = findFirstVisibleElement(expectedSelector);
     if (!el) return;
     const handler = () => setCompletedMandatorySlotIndex(currentSlotIndex);
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
   }, [isActive, completionSelector, currentSubstep, currentSlotIndex, expectedSelector]);
+
+  useEffect(() => {
+    if (!isActive || !isLastStep) return
+    if (!currentSubstep?.mandatory || !isMandatoryCompleted) return
+    nextStep()
+  }, [isActive, isLastStep, currentSubstep, isMandatoryCompleted, nextStep])
 
   /**
    * 2d. Kick off highlight after a short delay on each slot or substep change.
@@ -773,13 +789,7 @@ export function TutorialOverlay() {
       return;
     }
 
-    const candidates = Array.from(document.querySelectorAll(selector)) as HTMLElement[]
-    const element = candidates.find((candidate) => {
-      const style = window.getComputedStyle(candidate)
-      if (style.display === "none" || style.visibility === "hidden") return false
-      const rect = candidate.getBoundingClientRect()
-      return rect.width > 0 && rect.height > 0
-    }) || candidates[0] || null
+    const element = findFirstVisibleElement(selector)
 
     if (!element) {
       if (syncRetries < MAX_RETRIES && !isPageLoading) {
@@ -1336,7 +1346,7 @@ export function TutorialOverlay() {
                     disabled={!!currentSubstep?.mandatory && !isMandatoryCompleted}
                     onClick={() => {
                       if (currentSubstep?.action === "click" && expectedSelector) {
-                        const el = document.querySelector(expectedSelector) as HTMLElement | null
+                        const el = findFirstVisibleElement(expectedSelector)
                         if (el) el.click()
                       }
                       pendingNextAutoScrollRef.current = shouldAutoScrollNextWithinPage

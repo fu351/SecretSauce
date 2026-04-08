@@ -122,22 +122,5 @@ export const healthPath: TutorialPath = {
         },
       ],
     },
-    {
-      id: 6,
-      title: "Update When Your Needs Change",
-      description: "Health goals evolve — this is where to reflect that when they do.",
-      page: "/settings",
-      highlightSelector: "[data-tutorial='settings-preferences']",
-      action: "highlight",
-      substeps: [
-        {
-          id: 1,
-          instruction: "Update dietary restrictions and cooking time here as your health needs evolve.",
-          highlightSelector: "[data-tutorial='settings-preferences']",
-          action: "highlight",
-          essential: true,
-        },
-      ],
-    },
   ],
 }

@@ -443,7 +443,7 @@ export function Header() {
               className={`${navIconClass("/dashboard")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
               asChild
             >
-              <Link href="/dashboard" aria-label="Dashboard">
+              <Link href="/dashboard" aria-label="Dashboard" data-tutorial-nav="/dashboard">
                 <User className="h-5 w-5" />
               </Link>
             </Button>
