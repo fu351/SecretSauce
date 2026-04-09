@@ -212,18 +212,18 @@ export const generalPages: GeneralPageEntry[] = [
       },
       {
         id: 2,
-        instruction: "The running total is the fastest health check for whether the current plan still feels right.",
-        highlightSelector: "[data-tutorial='store-total']",
-      },
-      {
-        id: 3,
         instruction: "Review the item list to catch missing quantities, overlaps, or anything that looks off before checkout.",
         highlightSelector: "[data-tutorial='store-items']",
       },
       {
-        id: 4,
+        id: 3,
         instruction: "If anything is missing, this section shows where substitutes or another store might still be worth it.",
         highlightSelector: "[data-tutorial='store-missing']",
+      },
+           {
+        id: 4,
+        instruction: "The running total is the fastest health check for whether the current plan still feels right.",
+        highlightSelector: "[data-tutorial='store-total']",
       },
       {
         id: 5,
@@ -241,13 +241,11 @@ export const generalPages: GeneralPageEntry[] = [
       {
         id: 1,
         instruction: "Home is a good place to browse inspiration, featured content, and shortcuts back into the rest of the app.",
-        highlightSelector: "[data-tutorial='home-overview']",
       },
       {
         id: 2,
         instruction: "When you are ready, go back to Dashboard to start using everything you just toured.",
         highlightSelector: "[data-tutorial-nav='/dashboard']",
-        mandatory: true,
       },
     ],
   },
