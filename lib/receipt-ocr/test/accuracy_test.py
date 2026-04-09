@@ -25,7 +25,7 @@ from pathlib import Path
 
 import cv2
 import easyocr
-import numpy as np
+import numpy as np  # used in _deskew
 from PIL import Image
 
 # ── Load receipt_parser from repo ─────────────────────────────────────────────

@@ -23,11 +23,11 @@ _PRICE_RE = re.compile(
     r'(\d{1,6})'                # integer part (1–6 digits — excludes barcodes)
     r'[\s]*[.,]{1,2}[\s]*'      # decimal separator (possibly spaced or doubled)
     r'(\d{1,3})'                # fractional part
-    r'(?:\s*[A-Za-z/]+)?$',     # optional trailing flag (A, E, FS, R, kg …)
+    r'(?:\s*[A-Za-z0-9/]+)?$',  # optional trailing flag (A, E, FS, R, kg, 0 …)
 )
 
-_BARCODE_STANDALONE = re.compile(r'^\d{10,15}(?:\s*[A-Za-z])?$')  # optional trailing tax flag
-_BARCODE_TRAILING   = re.compile(r'\s\d{10,15}(?:\s*[A-Za-z])?$')  # optional trailing tax flag
+_BARCODE_STANDALONE = re.compile(r'^\d{10,15}(?:\s*[A-Za-z]{1,2})?$')  # optional trailing tax flag(s)
+_BARCODE_TRAILING   = re.compile(r'\s\d{10,15}(?:\s*[A-Za-z]{1,2})?$')  # optional trailing tax flag(s)
 
 _KW_SUBTOTAL = re.compile(r'\bsubt[o0q]', re.IGNORECASE)  # q catches SUBTQT OCR variant
 _KW_TOTAL    = re.compile(r'\btot[a4][l1]?\b', re.IGNORECASE)
@@ -64,11 +64,11 @@ _STORE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r'\bthornton\b', re.IGNORECASE), 'Costco/Thornton'),
     (re.compile(r'\bcostco\b', re.IGNORECASE), 'Costco'),
     # New US stores
-    (re.compile(r'\baldi\b', re.IGNORECASE),            'Aldi'),
-    (re.compile(r'\bkroger\b', re.IGNORECASE),          'Kroger'),
+    (re.compile(r'\bald[i1]\b', re.IGNORECASE),           'Aldi'),
+    (re.compile(r'\bkr[o0]ger\b', re.IGNORECASE),       'Kroger'),
     (re.compile(r'\bsafeway\b', re.IGNORECASE),         'Safeway'),
     (re.compile(r'\bmeijer\b', re.IGNORECASE),          'Meijer'),
-    (re.compile(r'\btarget\b', re.IGNORECASE),          'Target'),
+    (re.compile(r'\btar[gq]et\b', re.IGNORECASE),       'Target'),
     (re.compile(r'\btrader\s*joe', re.IGNORECASE),      "Trader Joe's"),
     (re.compile(r'\b99\s*ranch\b', re.IGNORECASE),      '99 Ranch'),
     (re.compile(r'\bandronico', re.IGNORECASE),         "Andronico's"),
@@ -99,26 +99,36 @@ _FUZZY_STORE_MAP: list[tuple[str, str]] = [
     ('ANDRONICO',    "Andronico's"),
 ]
 # Minimum SequenceMatcher ratio to accept a fuzzy match.
-_FUZZY_THRESHOLD = 0.76
+_FUZZY_THRESHOLD = 0.68
+
+# OCR digit→letter map used during fuzzy store detection.  Translates common
+# digit substitutions back to letters so that "KR0GER" matches "KROGER".
+_OCR_DIGIT_TO_ALPHA = str.maketrans('015839', 'OISBEG')
 
 
 def _fuzzy_detect_store(header_tokens: list[str]) -> str | None:
     """Token-level fuzzy match against canonical store names.
 
     Handles 1–2 character OCR substitution errors (e.g. WALAMART → WALMART).
+    Also tries an OCR-corrected version of each token (digit→letter) to
+    catch confusions like 0→O, 1→I, 5→S.
     Called only after all regex patterns have already failed.
     """
     for tok in header_tokens:
         t = normalise_token(tok).upper()
         if len(t) < 3:
             continue
+        # Try both the raw token and an OCR-corrected variant
+        t_corrected = t.translate(_OCR_DIGIT_TO_ALPHA)
+        candidates = [t] if t == t_corrected else [t, t_corrected]
         best_ratio = 0.0
         best_name: str | None = None
-        for canonical, store_name in _FUZZY_STORE_MAP:
-            ratio = difflib.SequenceMatcher(None, t, canonical).ratio()
-            if ratio > best_ratio:
-                best_ratio = ratio
-                best_name = store_name
+        for candidate in candidates:
+            for canonical, store_name in _FUZZY_STORE_MAP:
+                ratio = difflib.SequenceMatcher(None, candidate, canonical).ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best_name = store_name
         if best_ratio >= _FUZZY_THRESHOLD:
             return best_name
     return None
@@ -183,6 +193,10 @@ _OCR_IN_NUM: list[tuple[re.Pattern, str]] = [
     (re.compile(r'(?<=\d)[Il](?!\d)'),  '1'),   # I/l after digit  → 1
     (re.compile(r'(?<!\d)[Ss](?=\d)'),  '5'),   # S before digit → 5
     (re.compile(r'(?<=\d)[Ss](?!\d)'),  '5'),   # S after digit  → 5
+    (re.compile(r'(?<!\d)[Bb](?=\d)'),  '8'),   # B before digit → 8
+    (re.compile(r'(?<=\d)[Bb](?!\d)'),  '8'),   # B after digit  → 8
+    (re.compile(r'(?<!\d)[Zz](?=\d)'),  '2'),   # Z before digit → 2
+    (re.compile(r'(?<=\d)[Zz](?!\d)'),  '2'),   # Z after digit  → 2
 ]
 
 # A token is "price-like" when its non-whitespace characters are mostly digits
@@ -399,7 +413,14 @@ def _is_size_token(token: str) -> bool:
     # Retry with OCR digit-letter confusions normalised (O→0, S→5, l/I→1).
     # Catches tokens like '8OGR' (80GR), 'Soogr' (500GR), '27OGR' (270GR).
     t2 = t.translate(_SIZE_DIGIT_TR)
-    return t2 != t and any(t2.endswith(u) for u in units)
+    if t2 != t and any(t2.endswith(u) for u in units):
+        return True
+    # OCR often reads G as S (e.g. '400S' for '400G'): try S→G substitution.
+    if t.endswith('S') and len(t) >= 2 and t[-2].isdigit():
+        t3 = t[:-1] + 'G'
+        if any(t3.endswith(u) for u in units):
+            return True
+    return False
 
 
 _DATE_EMBEDDED = re.compile(r'(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})')
@@ -599,6 +620,15 @@ def extract_walmart(tokens: list[str]) -> dict:
         if _KW_SUBTOTAL.search(n) or _KW_TOTAL.search(n) or _KW_TAX.search(n):
             continue
         if _UNIT_DESCRIPTOR.match(n):
+            continue
+        # Skip weight/per-unit breakdown lines (e.g. "2.51 lb", "@ 1.44/lb",
+        # "1 1b") — these are weight details, not item names or prices.
+        if re.match(r'^[\d.]+\s*(?:lb|1b|kg|oz)\b', n, re.IGNORECASE):
+            continue
+        if re.match(r'^@\s*[\d.]', n):
+            continue
+        # OCR often reads "lb" as "1b" — skip standalone weight units
+        if re.match(r'^(?:1b|11b)$', n, re.IGNORECASE):
             continue
 
         # Name+barcode fused: strip trailing barcode
@@ -1268,29 +1298,59 @@ def extract_trader_joes(tokens: list[str]) -> dict:
 
     items: list[dict] = []
     pending_name: str | None = None
+    region = tokens[header_end:subtotal_idx]
 
-    for t in tokens[header_end:subtotal_idx]:
+    idx = 0
+    while idx < len(region):
+        t = region[idx]
         n = normalise_token(t)
+        # Split-price recovery: OCR may fragment "$4.99" into tokens "4"+"99".
+        # Check BEFORE noise filter since single-digit tokens are otherwise
+        # discarded.  Only merge when a pending name exists to attach the
+        # price to.
+        if (pending_name and re.match(r'^\d{1,2}$', n)
+                and idx + 1 < len(region)):
+            nxt = normalise_token(region[idx + 1])
+            if re.match(r'^\d{2}$', nxt):
+                merged_price = parse_price(f"{n}.{nxt}")
+                if merged_price is not None and merged_price > 0:
+                    cleaned = _clean_tj_name(pending_name)
+                    if cleaned and len(cleaned) >= 2:
+                        qty, name = extract_quantity_prefix(cleaned)
+                        items.append({"name": name, "quantity": qty,
+                                      "price": merged_price})
+                    pending_name = None
+                    idx += 2  # consume both fragments
+                    continue
+
         if is_noise_token(n) or _SINGLE_FLAG.match(n):
+            idx += 1
             continue
         if _KW_SUBTOTAL.search(n) or _KW_TOTAL.search(n) or _KW_TAX.search(n):
+            idx += 1
             continue
         if _UNIT_DESCRIPTOR.match(n):
+            idx += 1
             continue
         # Skip "GROCERY NON TAXABLE" section headers
         if re.search(r'\bGROCERY\b.*\bTAXABLE\b', n, re.IGNORECASE):
+            idx += 1
             continue
         # Skip qty-at-price lines like "@ 0.49", "3EA", "0.29/EA"
         if re.match(r'^[@\d]+\s*(?:EA\s*)?@?\s*\d', n, re.IGNORECASE):
+            idx += 1
             continue
         if re.match(r'^\d+EA$', n, re.IGNORECASE):   # "3EA" quantity descriptor
+            idx += 1
             continue
 
         price = parse_price(n)
+
         if price is not None and price > 0:
             # Skip per-unit prices (e.g. "0.29/EA") — these are breakdowns,
             # not item totals.
             if re.search(r'/EA\b', n, re.IGNORECASE):
+                idx += 1
                 continue
             if pending_name:
                 cleaned = _clean_tj_name(pending_name)
@@ -1298,6 +1358,7 @@ def extract_trader_joes(tokens: list[str]) -> dict:
                     qty, name = extract_quantity_prefix(cleaned)
                     items.append({"name": name, "quantity": qty, "price": price})
                 pending_name = None
+            idx += 1
             continue
 
         # Clean TJ-specific formatting before accumulating
@@ -1306,8 +1367,10 @@ def extract_trader_joes(tokens: list[str]) -> dict:
             # Skip tokens that are mostly non-alpha (OCR garbage like "{58")
             alpha_count = sum(1 for c in cleaned if c.isalpha())
             if alpha_count < 2:
+                idx += 1
                 continue
             pending_name = cleaned
+        idx += 1
 
     result["items"] = items
     _fill_totals(result, tokens, subtotal_idx)
@@ -1536,86 +1599,136 @@ def extract_99ranch(tokens: list[str]) -> dict:
 # Generic fallback parser
 # ---------------------------------------------------------------------------
 
+def _classify_generic_zones(tokens: list[str]) -> tuple[int, int]:
+    """Split a generic receipt token list into header / item / footer zones.
+
+    Returns (item_start, footer_start) indices.
+    - Header:  tokens[0 : item_start]
+    - Items:   tokens[item_start : footer_start]
+    - Footer:  tokens[footer_start :]
+    """
+    n = len(tokens)
+
+    # Footer: first SUBTOTAL, TAX, or TOTAL keyword (not inside an item name).
+    # TAX is included because it always follows the item section.
+    footer_start = n
+    for i in range(n):
+        t = normalise_token(tokens[i])
+        if _KW_SUBTOTAL.search(t):
+            footer_start = i
+            break
+        if _KW_TAX.search(t):
+            # TAX keyword — check it's followed by a price (not a dept name)
+            for j in range(i + 1, min(i + 4, n)):
+                if parse_price(normalise_token(tokens[j])) is not None:
+                    footer_start = i
+                    break
+            if footer_start != n:
+                break
+        if _KW_TOTAL.search(t) and not _KW_SUBTOTAL.search(t):
+            footer_start = i
+            break
+
+    # Header: ends when we first encounter a plausible item (text + nearby price).
+    # Cap search at min(20, footer_start).
+    item_start = 0
+    cap = min(20, footer_start)
+    for i in range(cap):
+        t = normalise_token(tokens[i])
+        has_text = len(t) >= 3 and not is_noise_token(t) and not is_barcode(t)
+        if not has_text:
+            continue
+        # Check if a price follows within the next 3 tokens
+        for j in range(i + 1, min(i + 4, cap)):
+            if parse_price(normalise_token(tokens[j])) is not None:
+                item_start = i
+                return item_start, footer_start
+
+    # Fallback: if nothing looks like header+price, assume items start at 0
+    return item_start, footer_start
+
+
 def extract_generic(tokens: list[str]) -> dict:
+    """Generic receipt extractor using zone classification and forward-scan.
+
+    Works on any store layout by:
+    1.  Classifying tokens into header / item / footer zones.
+    2.  Extracting subtotal, total, tax from the footer zone.
+    3.  Forward-scanning the item zone: accumulate name tokens until a price
+        is found, then emit an item.  Handles discount lines, weight lines,
+        barcodes, and department headers.
+    """
     result = _empty_result("Unknown")
 
-    # Collect all price positions
-    price_positions: list[tuple[int, float]] = []
-    for i, t in enumerate(tokens):
-        p = parse_price(normalise_token(t))
-        if p is not None:
-            price_positions.append((i, p))
+    item_start, footer_start = _classify_generic_zones(tokens)
 
-    if not price_positions:
-        return result
-
-    # Identify total: use LAST total keyword (avoids column headers like "Total")
-    total_price_idx: int | None = None
-    for i, t in reversed(list(enumerate(tokens))):
+    # ── Footer: total / subtotal / tax ──────────────────────────────────
+    footer = tokens[footer_start:]
+    for i, t in enumerate(footer):
         n = normalise_token(t)
-        if _KW_TOTAL.search(n) and not _KW_SUBTOTAL.search(n):
-            for j in range(i + 1, min(i + 4, len(tokens))):
-                p = parse_price(normalise_token(tokens[j]))
-                if p is not None:
-                    result["total"] = p
-                    total_price_idx = j
-                    break
-            if result["total"] is not None:
-                break
-
-    exclude_idxs: set[int] = set()
-    if total_price_idx is not None:
-        exclude_idxs.add(total_price_idx)
-
-    # Subtotal
-    for i, t in enumerate(tokens):
-        if _KW_SUBTOTAL.search(normalise_token(t)):
-            for tt in tokens[i + 1: i + 4]:
+        if _KW_SUBTOTAL.search(n):
+            for tt in footer[i + 1: i + 4]:
                 p = parse_price(normalise_token(tt))
                 if p is not None:
                     result["subtotal"] = p
                     break
-            break
+
+    # Total: prefer LAST total keyword in footer (avoids header "Total" labels)
+    for i in range(len(footer) - 1, -1, -1):
+        n = normalise_token(footer[i])
+        if _KW_TOTAL.search(n) and not _KW_SUBTOTAL.search(n):
+            for j in range(i + 1, min(i + 4, len(footer))):
+                p = parse_price(normalise_token(footer[j]))
+                if p is not None:
+                    result["total"] = p
+                    break
+            if result["total"] is not None:
+                break
 
     # Tax
-    for i, t in enumerate(tokens):
-        if _KW_TAX.search(normalise_token(t)):
-            for tt in tokens[i + 1: i + 4]:
+    for i, t in enumerate(footer):
+        n = normalise_token(t)
+        if _KW_TAX.search(n):
+            for tt in footer[i + 1: i + 4]:
                 p = parse_price(normalise_token(tt))
                 if p is not None:
                     result["taxes"].append({"rate": 0.0, "amount": p})
                     break
 
-    # Bug fix: also exclude the tax-value token indices so that tax amounts
-    # are not picked up as item prices in the generic fallback.
-    for i, t in enumerate(tokens):
-        if _KW_TAX.search(normalise_token(t)):
-            for j in range(i + 1, min(i + 4, len(tokens))):
-                p = parse_price(normalise_token(tokens[j]))
-                if p is not None:
-                    exclude_idxs.add(j)
-                    break
-
-    # Items: for each price, look back for a name
+    # ── Items: forward-scan in the item zone ────────────────────────────
+    item_tokens = tokens[item_start:footer_start]
     items: list[dict] = []
-    for pi, price in price_positions:
-        if pi in exclude_idxs:
+    name_parts: list[str] = []
+
+    for t in item_tokens:
+        n = normalise_token(t)
+
+        # Skip non-item lines
+        if _SAVINGS_LINE.search(n) or _DEPT_HEADER.match(n):
             continue
-        name_parts: list[str] = []
-        for j in range(pi - 1, max(pi - 5, -1), -1):
-            n = normalise_token(tokens[j])
-            if is_noise_token(n) or is_barcode(n):
-                break
-            if _KW_TAX.search(n) or _KW_TOTAL.search(n) or _KW_SUBTOTAL.search(n):
-                break
-            if parse_price(n) is not None:
-                break
-            if len(n) >= 2:
-                name_parts.insert(0, n)
-        if name_parts:
-            name = ' '.join(name_parts)
-            qty, clean = extract_quantity_prefix(name)
-            items.append({"name": clean, "quantity": qty, "price": price})
+        if _WEIGHT_LINE.match(n) or _QTY_AT_LINE.match(n):
+            continue
+        if _CHINESE_LINE.search(n):
+            continue
+
+        # Discount lines: attach to previous item
+        if _DISCOUNT_LINE.match(n):
+            discount_price = parse_price(n.lstrip('-').strip())
+            if discount_price is not None and items:
+                items[-1].setdefault("discount", 0.0)
+                items[-1]["discount"] += discount_price
+            continue
+
+        price = parse_price(n)
+        if price is not None:
+            if name_parts:
+                name = ' '.join(name_parts)
+                qty, clean = extract_quantity_prefix(name)
+                items.append({"name": clean, "quantity": qty, "price": price})
+                name_parts = []
+            # else: orphan price (no preceding name) — skip
+        elif not is_noise_token(n) and not is_barcode(n) and len(n) >= 2:
+            name_parts.append(n)
 
     result["items"] = items
     result["date"] = _find_date_in_tokens(tokens)
@@ -1657,21 +1770,47 @@ def _y_mid(bbox) -> float:
     return (min(ys) + max(ys)) / 2
 
 
+def _is_plausible_price(text: str) -> bool:
+    """Check if a price token ends in a common receipt price pattern (.X9, .X8, .X0, etc.)."""
+    p = parse_price(normalise_token(text))
+    if p is None:
+        return False
+    cents = round(p * 100) % 100
+    # Common receipt price endings: .99, .49, .29, .79, .98, .00, .50, etc.
+    return cents in (99, 98, 97, 49, 48, 29, 28, 79, 78, 0, 50, 25, 75,
+                     88, 68, 58, 38, 18, 9, 8, 44, 54, 74, 84, 94)
+
+
 def _pick_winner(det_a: tuple, det_b: tuple) -> tuple:
     """Choose the better detection from a matched pair.
 
-    Primary: higher confidence.
-    Tiebreak (within 0.1): prefer text that looks like a valid price or
-    receipt keyword — these are the fields where OCR quality matters most.
+    Strategy:
+    1. If both are prices but disagree, prefer the one with a receipt-plausible
+       ending (e.g. .99, .49, .00) when confidence is close.
+    2. Primary: higher confidence.
+    3. Tiebreak (within 0.1): prefer text that looks like a valid price or
+       receipt keyword — these are the fields where OCR quality matters most.
     """
     conf_a, conf_b = det_a[2], det_b[2]
+
+    # Both are prices but different text: prefer plausible price endings
+    price_a = parse_price(normalise_token(det_a[1]))
+    price_b = parse_price(normalise_token(det_b[1]))
+    if (price_a is not None and price_b is not None
+            and price_a != price_b and abs(conf_a - conf_b) <= 0.15):
+        plaus_a = _is_plausible_price(det_a[1])
+        plaus_b = _is_plausible_price(det_b[1])
+        if plaus_a and not plaus_b:
+            return det_a
+        if plaus_b and not plaus_a:
+            return det_b
 
     if abs(conf_a - conf_b) <= 0.1:
         # Tiebreak: prefer receipt-meaningful text
         score_a = score_b = 0
-        if parse_price(normalise_token(det_a[1])) is not None:
+        if price_a is not None:
             score_a += 2
-        if parse_price(normalise_token(det_b[1])) is not None:
+        if price_b is not None:
             score_b += 2
         if _RECEIPT_KW.search(det_a[1]):
             score_a += 1
@@ -1859,11 +1998,14 @@ def spatial_reorder(
     if not detections:
         return []
 
-    # ── 1. Extract geometry ──────────────────────────────────────────────
+    # ── 1. Extract geometry, filter low-confidence junk ────────────────
+    _MIN_CONF = 0.15
     entries: list[dict] = []
     for bbox, text, conf in detections:
         if not text or not text.strip():
             continue
+        if conf < _MIN_CONF:
+            continue  # drop very-low-confidence OCR noise
         xs = [p[0] for p in bbox]
         ys = [p[1] for p in bbox]
         entries.append({
@@ -1872,13 +2014,24 @@ def spatial_reorder(
             'x_max': max(xs),
             'x_mid': (min(xs) + max(xs)) / 2,
             'y_mid': (min(ys) + max(ys)) / 2,
+            'y_min': min(ys),
+            'y_max': max(ys),
             'conf': conf,
         })
 
     if not entries:
         return []
 
-    # ── 2. Determine column split ────────────────────────────────────────
+    # ── 2. Adaptive y_tolerance from median bbox height ─────────────────
+    bbox_heights = [e['y_max'] - e['y_min'] for e in entries if e['y_max'] > e['y_min']]
+    if bbox_heights and y_tolerance > 0:
+        bbox_heights.sort()
+        median_h = bbox_heights[len(bbox_heights) // 2]
+        adaptive_tol = max(10, int(median_h * 0.8))
+        # Use the smaller of caller's tolerance and the adaptive one
+        y_tolerance = min(y_tolerance, adaptive_tol)
+
+    # ── 3. Determine column split ────────────────────────────────────────
     x_range = max(e['x_max'] for e in entries) - min(e['x_min'] for e in entries)
     col_threshold: float | None = None
     use_bands = force_band_order
@@ -1897,11 +2050,25 @@ def spatial_reorder(
             col_threshold = best_gap_pos
             use_bands = True   # two-column always uses band ordering
 
+    # Price-right-bias validation: if column split puts most prices on the
+    # LEFT, the gap detection found a false column boundary — disable it.
+    if col_threshold is not None:
+        prices_right = sum(
+            1 for e in entries
+            if e['x_mid'] >= col_threshold and parse_price(normalise_token(e['text'])) is not None
+        )
+        prices_left = sum(
+            1 for e in entries
+            if e['x_mid'] < col_threshold and parse_price(normalise_token(e['text'])) is not None
+        )
+        if prices_left > prices_right * 2:
+            col_threshold = None  # false column split — prices are on the left
+
     if not use_bands:
         # Single-engine, single-column: preserve easyOCR reading order.
         return [e['text'] for e in entries]
 
-    # ── 3. Group into Y-bands ────────────────────────────────────────────
+    # ── 4. Group into Y-bands ────────────────────────────────────────────
     entries.sort(key=lambda e: e['y_mid'])
 
     bands: list[list[dict]] = []
@@ -1916,7 +2083,7 @@ def spatial_reorder(
             current_band = [e]
     bands.append(current_band)
 
-    # ── 4. Emit tokens: left-to-right within each band ───────────────────
+    # ── 5. Emit tokens: left-to-right within each band ───────────────────
     tokens: list[str] = []
     for band in bands:
         if col_threshold is not None:
@@ -1938,6 +2105,293 @@ def spatial_reorder(
 # ---------------------------------------------------------------------------
 # Unified entry point
 # ---------------------------------------------------------------------------
+
+_COMMON_PRICE_SWAPS: list[tuple[str, str]] = [
+    ('8', '3'), ('3', '8'),
+    ('6', '5'), ('5', '6'),
+    ('1', '7'), ('7', '1'),
+    ('0', '6'), ('6', '0'),
+    ('4', '9'), ('9', '4'),
+    ('9', '5'), ('5', '9'),
+    ('8', '6'), ('6', '8'),
+    ('0', '8'), ('8', '0'),
+    ('1', '4'), ('4', '1'),
+]
+
+
+def _try_price_corrections(price_str: str) -> list[float]:
+    """Generate plausible alternative prices by single-digit OCR corrections."""
+    candidates: list[float] = []
+    for old, new in _COMMON_PRICE_SWAPS:
+        if old in price_str:
+            for i, ch in enumerate(price_str):
+                if ch == old:
+                    alt = price_str[:i] + new + price_str[i + 1:]
+                    try:
+                        candidates.append(float(alt))
+                    except ValueError:
+                        pass
+    return candidates
+
+
+def _defuse_price(value: float) -> list[float]:
+    """Return possible de-fused prices by stripping 1 or 2 leading digits.
+
+    e.g. 828.28 → [28.28, 8.28], 81.29 → [1.29]
+    """
+    s = f"{value:.2f}"
+    int_part = s.split('.')[0]
+    candidates = []
+    for drop in range(1, min(3, len(int_part))):
+        try:
+            c = float(s[drop:])
+            if c > 0:
+                candidates.append(c)
+        except ValueError:
+            pass
+    return candidates
+
+
+def _checksum_validate(result: dict) -> dict:
+    """Post-parse validation: detect and fix fused-digit OCR errors.
+
+    Fused-digit: adjacent text (column header, barcode) bleeds a leading
+    digit into a price (e.g. $28.28 → $828.28, $1.29 → $81.29).
+
+    Strategy: for small receipts (<=8 items), enumerate combinations of
+    original vs de-fused prices to find the set that best matches the
+    (possibly de-fused) total/subtotal.  For larger receipts, use a greedy
+    median-based heuristic.
+    """
+    items = result.get("items", [])
+    if not items:
+        return result
+
+    tax_total = sum(t.get("amount", 0) for t in result.get("taxes", []))
+
+    # Build candidate totals: original + de-fused variants
+    raw_total = result.get("total")
+    raw_subtotal = result.get("subtotal")
+    target_val = raw_subtotal or raw_total
+    if target_val is None or target_val <= 0:
+        return result
+
+    candidate_targets: list[float] = [target_val] + _defuse_price(target_val)
+    # Adjust for tax when using total as proxy for subtotal
+    if raw_subtotal is None and tax_total > 0:
+        candidate_targets = [t - tax_total for t in candidate_targets if t - tax_total > 0]
+        if not candidate_targets:
+            return result
+
+    prices = [it["price"] for it in items]
+    n = len(prices)
+    item_sum = sum(prices)
+
+    # Guard: skip validation when item sum is implausibly far from ALL
+    # candidate targets (including defused variants).  This prevents
+    # incorrect corrections when most items are missing, while still
+    # allowing the fused-digit case (where both items and target need fixing).
+    min_target = min(candidate_targets)
+    max_target = max(candidate_targets)
+    # Also consider defused item_sum for the guard check
+    min_possible_sum = sum(
+        min([p] + _defuse_price(p)) for p in prices
+    )
+    if min_possible_sum > max_target * 4 or item_sum < min_target * 0.25:
+        return result
+
+    # Build per-item candidate lists: [original, defused1, defused2, ...]
+    # Only allow defusing for prices that look suspiciously inflated (> 3x
+    # the median peer price), which is the signature of a fused leading digit.
+    sorted_prices = sorted(prices)
+    median_price = sorted_prices[n // 2] if n > 0 else 0
+    item_candidates: list[list[float]] = []
+    for p in prices:
+        if n >= 3 and p > max(median_price * 3, 50):
+            cands = [p] + _defuse_price(p)
+        elif n < 3:
+            # With very few items, allow defusing more broadly
+            cands = [p] + _defuse_price(p)
+        else:
+            cands = [p]
+        item_candidates.append(cands)
+
+    best_combo: list[float] | None = None
+    best_target: float = candidate_targets[0]
+    best_residual: float = float('inf')
+    best_changes: int = n + 1  # number of items changed (fewer is better)
+
+    if n <= 8:
+        # Enumerate all combinations (at most 3^8 = 6561)
+        from itertools import product
+        for combo in product(*item_candidates):
+            s = sum(combo)
+            changes = sum(1 for a, b in zip(combo, prices) if a != b)
+            for t in candidate_targets:
+                r = abs(s - t)
+                # Prefer: lowest residual, then fewest changes
+                if (r < best_residual
+                        or (r == best_residual and changes < best_changes)):
+                    best_residual = r
+                    best_combo = list(combo)
+                    best_target = t
+                    best_changes = changes
+    else:
+        # Greedy: de-fuse items whose price is > 3x the median
+        sorted_prices = sorted(prices)
+        median = sorted_prices[n // 2]
+        combo = list(prices)
+        for i, p in enumerate(prices):
+            if p > max(median * 3, 50):
+                defused = _defuse_price(p)
+                if defused:
+                    combo[i] = defused[0]  # take first (strip 1 digit)
+        s = sum(combo)
+        for t in candidate_targets:
+            r = abs(s - t)
+            if r < best_residual:
+                best_residual = r
+                best_combo = combo
+                best_target = t
+
+    if best_combo is None:
+        return result
+
+    # Only apply fixes if residual is very small (within 1% or $0.50).
+    # A tight threshold prevents incorrect corrections when items are missing.
+    threshold = max(best_target * 0.01, 0.50)
+
+    # Try single-digit swap corrections when the residual is large enough
+    # to indicate a real OCR error (not just rounding/missing-item noise).
+    # Require residual > $0.30 to avoid micro-correcting small differences.
+    if best_residual > 0.30:
+        swap_combo = list(best_combo)
+        swap_target = best_target
+        swap_residual = best_residual
+        swap_delta = float('inf')  # price change magnitude (tiebreaker)
+        for t in candidate_targets:
+            combo_sum = sum(best_combo)
+            for i, p in enumerate(best_combo):
+                for alt in _try_price_corrections(f"{p:.2f}"):
+                    if alt <= 0:
+                        continue
+                    new_sum = combo_sum - p + alt
+                    r = abs(new_sum - t)
+                    delta = abs(p - alt)
+                    # Prefer smallest residual; tiebreak by smallest price change
+                    if r < swap_residual or (r == swap_residual and delta < swap_delta):
+                        swap_residual = r
+                        swap_delta = delta
+                        swap_combo = list(best_combo)
+                        swap_combo[i] = alt
+                        swap_target = t
+        if swap_residual < best_residual:
+            best_combo = swap_combo
+            best_target = swap_target
+            best_residual = swap_residual
+
+    if best_residual > threshold:
+        return result
+
+    # Apply the winning combination
+    for i, new_price in enumerate(best_combo):
+        if new_price != prices[i]:
+            result["items"][i]["price"] = new_price
+
+    # Fix total/subtotal if a de-fused target was selected
+    if best_target != target_val:
+        adjusted = best_target
+        if raw_subtotal is not None and raw_subtotal == target_val:
+            result["subtotal"] = adjusted
+        if raw_total is not None and raw_total == target_val:
+            # Restore tax when fixing total
+            result["total"] = adjusted + tax_total if raw_subtotal is None else adjusted
+
+    # Sync subtotal/total if both exist and were the same fused value
+    if (raw_subtotal is not None and raw_total is not None
+            and raw_subtotal == raw_total and raw_subtotal == target_val
+            and best_target != target_val):
+        result["subtotal"] = best_target
+        result["total"] = best_target
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Weight / quantity-at-price parsing
+# ---------------------------------------------------------------------------
+
+_WEIGHT_PRICE_RE = re.compile(
+    r'(\d+[.,]\d+)\s*(lb|kg|oz)\s*[@xX]\s*\$?(\d+[.,]\d+)', re.IGNORECASE,
+)
+_QTY_AT_PRICE_RE = re.compile(
+    r'^(\d+)\s*[@xX]\s*\$?(\d+[.,]\d{2})', re.IGNORECASE,
+)
+
+
+def parse_weight_line(text: str) -> dict | None:
+    """Parse a weight-priced line like '2.43 lb @ $3.99'.
+
+    Returns a dict with weight, unit, unit_price, and computed total price.
+    """
+    m = _WEIGHT_PRICE_RE.search(text)
+    if not m:
+        return None
+    weight = float(m.group(1).replace(',', '.'))
+    unit_price = float(m.group(3).replace(',', '.'))
+    return {
+        "weight": weight,
+        "unit": m.group(2).lower(),
+        "unit_price": unit_price,
+        "price": round(weight * unit_price, 2),
+    }
+
+
+def parse_qty_at_line(text: str) -> dict | None:
+    """Parse a quantity-at-price line like '3 @ $2.99'.
+
+    Returns a dict with quantity, unit_price, and computed total price.
+    """
+    m = _QTY_AT_PRICE_RE.match(normalise_token(text))
+    if not m:
+        return None
+    qty = int(m.group(1))
+    unit_price = float(m.group(2).replace(',', '.'))
+    return {"quantity": qty, "unit_price": unit_price, "price": round(qty * unit_price, 2)}
+
+
+# ---------------------------------------------------------------------------
+# Payment method extraction
+# ---------------------------------------------------------------------------
+
+_PAYMENT_RE = re.compile(
+    r'\b(visa|mastercard|amex|american\s+express|discover|debit|credit|'
+    r'cash|ebt|snap|apple\s+pay|google\s+pay)\b', re.IGNORECASE,
+)
+_CARD_LAST4_RE = re.compile(r'(?:ending\s+in\s+|[xX*]{4,})(\d{4})')
+
+
+def extract_payment_method(tokens: list[str]) -> dict | None:
+    """Extract payment method from footer of receipt tokens.
+
+    Scans the last 30 tokens for payment keywords (VISA, DEBIT, CASH, etc.)
+    and optionally the last 4 digits of a card number.
+    """
+    footer = ' '.join(normalise_token(t) for t in tokens[-30:])
+    m = _PAYMENT_RE.search(footer)
+    if not m:
+        return None
+    last4_m = _CARD_LAST4_RE.search(footer)
+    return {
+        "method": m.group(1).strip().upper(),
+        "last4": last4_m.group(1) if last4_m else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Unified entry point
+# ---------------------------------------------------------------------------
+
 
 def parse_receipt(tokens: list[str]) -> dict:
     """Parse a flat easyOCR (detail=0) token list into structured receipt metadata."""
@@ -1966,4 +2420,26 @@ def parse_receipt(tokens: list[str]) -> dict:
     extractor = dispatch.get(store, extract_generic)
     result = extractor(tokens)  # type: ignore[operator]
     result['store'] = store or 'Unknown'
+
+    # Post-extraction: fuzzy-correct item names against grocery dictionary.
+    try:
+        from pathlib import Path as _P
+        import importlib.util as _iu
+        _dp = _P(__file__).resolve().parent / "receipt_dictionary.py"
+        if _dp.exists():
+            _ds = _iu.spec_from_file_location("receipt_dictionary", _dp)
+            _dm = _iu.module_from_spec(_ds)          # type: ignore[arg-type]
+            _ds.loader.exec_module(_dm)               # type: ignore[union-attr]
+            for item in result.get("items", []):
+                item["name"] = _dm.correct_item_name(item["name"])
+    except Exception:
+        pass  # dictionary module optional — degrade gracefully
+
+    result = _checksum_validate(result)
+
+    # Extract payment method from footer tokens
+    payment = extract_payment_method(tokens)
+    if payment:
+        result['payment_method'] = payment
+
     return result

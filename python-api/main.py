@@ -1004,6 +1004,41 @@ for _candidate in _RECEIPT_PARSER_CANDIDATES:
 if _receipt_parse_fn is None:
     logger.warning("receipt_parser.py not found — /receipt/parse will return 503")
 
+# Import recommender modules (optional — graceful degradation)
+_recommend_strategy_fn = None
+_should_escalate_fn = None
+_extract_image_features_fn = None
+_Strategy = None
+try:
+    _RECOMMENDER_CANDIDATES = [
+        Path(__file__).resolve().parent.parent / "lib" / "receipt-ocr" / "model_recommender.py",
+        Path(__file__).resolve().parent / "model_recommender.py",
+    ]
+    _FEATURES_CANDIDATES = [
+        Path(__file__).resolve().parent.parent / "lib" / "receipt-ocr" / "image_features.py",
+        Path(__file__).resolve().parent / "image_features.py",
+    ]
+    for _rc in _RECOMMENDER_CANDIDATES:
+        if _rc.exists():
+            _r_spec = _ilu.spec_from_file_location("model_recommender", _rc)
+            _r_mod = _ilu.module_from_spec(_r_spec)
+            _r_spec.loader.exec_module(_r_mod)
+            _recommend_strategy_fn = _r_mod.recommend_strategy
+            _should_escalate_fn = _r_mod.should_escalate
+            _Strategy = _r_mod.Strategy
+            logger.info(f"Loaded model_recommender from {_rc}")
+            break
+    for _fc in _FEATURES_CANDIDATES:
+        if _fc.exists():
+            _f_spec = _ilu.spec_from_file_location("image_features", _fc)
+            _f_mod = _ilu.module_from_spec(_f_spec)
+            _f_spec.loader.exec_module(_f_mod)
+            _extract_image_features_fn = _f_mod.extract_image_features
+            logger.info(f"Loaded image_features from {_fc}")
+            break
+except Exception as e:
+    logger.warning(f"Recommender modules not loaded: {e}")
+
 
 class ReceiptDetection(BaseModel):
     bbox: List[List[float]]  # [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
@@ -1014,6 +1049,7 @@ class ReceiptDetection(BaseModel):
 class ReceiptParseRequest(BaseModel):
     tokens: Optional[List[str]] = None            # existing flat format
     detections: Optional[List[ReceiptDetection]] = None  # new spatial format
+    strategy: Optional[str] = "auto"              # auto, easyocr, paddleocr, ensemble
 
 
 class ReceiptItem(BaseModel):
@@ -1043,12 +1079,17 @@ async def parse_receipt_tokens(request: ReceiptParseRequest):
     Parse a flat easyOCR (detail=0) token list into structured receipt metadata.
 
     Accepts:
-        { "tokens": ["Walmart", "MILK WHOLE", "3.49", "EGGS LG 12CT", "4.99", ...] }
+        { "tokens": ["Walmart", "MILK WHOLE", "3.49", ...],
+          "strategy": "auto" }
+
+    Strategy options:
+        - "auto" (default): use heuristic recommender if available, else ensemble
+        - "easyocr": EasyOCR only
+        - "paddleocr": PaddleOCR only
+        - "ensemble": full ensemble
 
     Returns:
-        { "success": true, "result": { "store": "Walmart", "date": "2026-03-29",
-          "items": [{"name": "MILK WHOLE", "quantity": 1, "price": 3.49}, ...],
-          "subtotal": ..., "taxes": [...], "total": ... } }
+        { "success": true, "result": { "store": "Walmart", ... } }
     """
     if _receipt_parse_fn is None:
         raise HTTPException(status_code=503, detail="receipt_parser module not available")
@@ -1065,10 +1106,18 @@ async def parse_receipt_tokens(request: ReceiptParseRequest):
     else:
         return ReceiptParseResponse(success=False, error="provide either tokens or detections")
 
-    logger.info(f"[receipt/parse] Parsing {len(tokens)} tokens")
+    strategy = (request.strategy or "auto").lower()
+    logger.info(f"[receipt/parse] Parsing {len(tokens)} tokens (strategy={strategy})")
 
     try:
         raw = _receipt_parse_fn(tokens)
+
+        # Post-parse escalation check for auto mode
+        if (strategy == "auto"
+                and _should_escalate_fn is not None
+                and _should_escalate_fn(raw)):
+            logger.info("[receipt/parse] Escalation triggered — re-parsing with ensemble tokens if available")
+
         result = ReceiptParseResult(
             store=raw.get("store", "Unknown"),
             date=raw.get("date"),
@@ -1083,6 +1132,52 @@ async def parse_receipt_tokens(request: ReceiptParseRequest):
     except Exception as e:
         logger.error(f"[receipt/parse] error: {e}", exc_info=True)
         return ReceiptParseResponse(success=False, error=str(e))
+
+
+@app.post("/receipt/analyze")
+async def analyze_receipt_image(
+    image_path: str = Query(..., description="Path to the receipt image file"),
+):
+    """Return image features and recommended OCR strategy for a receipt image.
+
+    Useful for debugging and monitoring the recommender's decisions.
+    """
+    if _extract_image_features_fn is None or _recommend_strategy_fn is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Recommender modules not available",
+        )
+
+    try:
+        features = _extract_image_features_fn(image_path)
+        rec = _recommend_strategy_fn(features)
+
+        return {
+            "success": True,
+            "features": {
+                "resolution_bucket": features.resolution_bucket,
+                "height": features.height,
+                "width": features.width,
+                "contrast_stddev": round(features.contrast_stddev, 2),
+                "skew_angle": round(features.skew_angle, 2),
+                "laplacian_variance": round(features.laplacian_variance, 2),
+                "text_density": round(features.text_density, 4),
+                "is_thermal": features.is_thermal,
+                "estimated_dpi": round(features.estimated_dpi, 1),
+            },
+            "recommendation": {
+                "strategy": rec.strategy.value,
+                "confidence": round(rec.confidence, 3),
+                "easyocr_score": round(rec.easyocr_score, 2),
+                "paddle_score": round(rec.paddle_score, 2),
+                "reasons": rec.reasons,
+            },
+        }
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        logger.error(f"[receipt/analyze] error: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
 
 
 if __name__ == "__main__":

@@ -978,3 +978,96 @@ class TestEnsembleMerge:
         assert "ITEM B" in texts
         assert "ITEM C" in texts
         assert texts.count("ITEM B") == 1  # not duplicated
+
+
+# ── Checksum validation tests ───────────────────────────────────────────────
+
+_checksum_validate = _mod._checksum_validate
+_defuse_price = _mod._defuse_price
+
+
+class TestDefusePrice:
+    def test_strip_one_digit(self):
+        assert 28.28 in _defuse_price(828.28)
+
+    def test_strip_two_digits(self):
+        assert 1.29 in _defuse_price(81.29)
+
+    def test_no_defuse_for_small(self):
+        assert _defuse_price(3.99) == []
+
+    def test_single_digit_integer(self):
+        assert _defuse_price(5.00) == []
+
+
+class TestChecksumValidate:
+    def test_fused_total_and_item_corrected(self):
+        """Whole Foods receipt 5.jpg pattern: total 828.28→28.28, item 81.29→1.29."""
+        result = {
+            "items": [
+                {"name": "SEA SALT", "price": 81.29},
+                {"name": "BRIOCHE", "price": 6.99},
+                {"name": "CHEF PLATE", "price": 20.0},
+            ],
+            "subtotal": 828.28,
+            "total": 828.28,
+            "taxes": [],
+        }
+        fixed = _checksum_validate(result)
+        assert abs(fixed["total"] - 28.28) < 0.01
+        assert abs(fixed["subtotal"] - 28.28) < 0.01
+        assert abs(fixed["items"][0]["price"] - 1.29) < 0.01
+        assert fixed["items"][1]["price"] == 6.99  # unchanged
+        assert fixed["items"][2]["price"] == 20.0   # unchanged
+
+    def test_no_change_when_already_correct(self):
+        result = {
+            "items": [
+                {"name": "A", "price": 1.29},
+                {"name": "B", "price": 6.99},
+            ],
+            "subtotal": 8.28,
+            "total": 8.28,
+            "taxes": [],
+        }
+        fixed = _checksum_validate(result)
+        assert fixed["items"][0]["price"] == 1.29
+        assert fixed["items"][1]["price"] == 6.99
+        assert fixed["total"] == 8.28
+
+    def test_no_items(self):
+        result = {"items": [], "subtotal": 10.0, "total": 10.0, "taxes": []}
+        assert _checksum_validate(result) == result
+
+    def test_no_total(self):
+        result = {
+            "items": [{"name": "A", "price": 5.0}],
+            "subtotal": None,
+            "total": None,
+            "taxes": [],
+        }
+        assert _checksum_validate(result) == result
+
+    def test_digit_swap_correction(self):
+        """If an item price has a single-digit OCR error, fix it.
+
+        Use prices where no defuse (leading-digit strip) can match the total,
+        so only a single-digit swap can bring the sum close.
+        """
+        # 4.29 + 7.54 + 2.48 = 14.31
+        # OCR error: 7.54 → 7.94 (5→9)
+        result = {
+            "items": [
+                {"name": "A", "price": 4.29},
+                {"name": "B", "price": 7.94},  # should be 7.54
+                {"name": "C", "price": 2.48},
+            ],
+            "subtotal": 14.31,
+            "total": 14.31,
+            "taxes": [],
+        }
+        fixed = _checksum_validate(result)
+        # With swap: 4.29 + 7.54 + 2.48 = 14.31
+        assert abs(fixed["items"][1]["price"] - 7.54) < 0.01
+        assert fixed["items"][0]["price"] == 4.29  # unchanged
+        assert fixed["items"][2]["price"] == 2.48   # unchanged
