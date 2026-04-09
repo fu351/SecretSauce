@@ -28,12 +28,11 @@ interface GeneralPageEntry {
   page: string
   title: string
   description: string
-  substeps: TutorialSubstep[]
-  postSubsteps?: TutorialSubstep[]
+  steps: TutorialSubstep[]
 }
 ```
 
-`substeps` are the main walkthrough for the page. `postSubsteps` are follow-up actions that still belong to that page, like opening a recipe card or navigating to the next page.
+`steps` are stored in the exact order the page should be taught, including follow-up actions like opening a recipe card or navigating to the next page.
 
 The current shared page order is:
 

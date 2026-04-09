@@ -49,14 +49,8 @@ function buildFlatSequence(isMobile: boolean): FlatTutorialSlot[] {
   for (const general of generalPages) {
     const page = general.page
 
-    for (const substep of general.substeps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
+    for (const substep of general.steps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
       slots.push({ page, step: general, substep })
-    }
-
-    if (general?.postSubsteps) {
-      for (const substep of general.postSubsteps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
-        slots.push({ page, step: general, substep })
-      }
     }
   }
 

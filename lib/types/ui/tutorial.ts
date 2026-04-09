@@ -30,7 +30,5 @@ export interface GeneralPageEntry {
   page: string
   title: string
   description: string
-  substeps: TutorialSubstep[]
-  /** Substeps appended after the main page walkthrough for this page. */
-  postSubsteps?: TutorialSubstep[]
+  steps: TutorialSubstep[]
 }

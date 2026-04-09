@@ -156,32 +156,17 @@ describe("Tutorial selector contracts", () => {
         ).toBe(true)
       })
 
-      for (const substep of page.substeps ?? []) {
+      for (const substep of page.steps ?? []) {
         if (!substep.highlightSelector) continue
         const attr = extractAttr(substep.highlightSelector)
-        it(`substep ${substep.id} "[data-tutorial='${attr}']" exists in source`, () => {
+        it(`step ${substep.id} "[data-tutorial='${attr}']" exists in source`, () => {
           expect(
             attr,
             `Could not parse attribute from selector: ${substep.highlightSelector}`
           ).not.toBeNull()
           expect(
             selectorIndex.has(attr!),
-            `data-tutorial="${attr}" is not present in any source file (used in substep ${substep.id} of page ${page.page})`
-          ).toBe(true)
-        })
-      }
-
-      for (const substep of page.postSubsteps ?? []) {
-        if (!substep.highlightSelector) continue
-        const attr = extractAttr(substep.highlightSelector)
-        it(`post substep ${substep.id} "[data-tutorial='${attr}']" exists in source`, () => {
-          expect(
-            attr,
-            `Could not parse attribute from selector: ${substep.highlightSelector}`
-          ).not.toBeNull()
-          expect(
-            selectorIndex.has(attr!),
-            `data-tutorial="${attr}" is not present in any source file (used in post substep ${substep.id} of page ${page.page})`
+            `data-tutorial="${attr}" is not present in any source file (used in step ${substep.id} of page ${page.page})`
           ).toBe(true)
         })
       }
