@@ -334,7 +334,7 @@ export default function RecipesPage() {
                 </Button>
               </DialogTrigger>
               <DialogContent className="left-0 top-0 h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0 overflow-hidden">
-                <div className="flex h-full flex-col">
+                <div className="flex h-full flex-col" data-tutorial="recipe-mobile-filter-dialog">
                   <DialogHeader className="border-b px-4 py-3 text-left">
                     <DialogTitle className="text-base">Filter Recipes</DialogTitle>
                     <p className="text-xs text-muted-foreground">Refine your results</p>

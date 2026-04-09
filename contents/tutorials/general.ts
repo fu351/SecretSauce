@@ -29,9 +29,9 @@ export const generalPages: GeneralPageEntry[] = [
       },
       {
         id: 3,
-        instruction: "On mobile, tap Filters to open the recipe filter panel before we walk through the sidebar.",
+        instruction: "On mobile, tap Filters to open the recipe filter panel and explore the filter options.",
         highlightSelector: "[data-tutorial='recipe-mobile-filters-button']",
-        completionSelector: "[data-tutorial='recipe-filter']",
+        completionSelector: "[data-tutorial='recipe-mobile-filter-dialog']",
         mandatory: true,
         mobileOnly: true,
       },
@@ -39,8 +39,8 @@ export const generalPages: GeneralPageEntry[] = [
     postSubsteps: [
       {
         id: 1,
-        instruction: "Tap Show results to return to the recipe list.",
-        highlightSelector: "[data-tutorial='recipe-mobile-filters-show-results']",
+        instruction: "Tap the X to close the filter panel and return to the recipe list.",
+        highlightSelector: "[data-tutorial='recipe-mobile-filters-close']",
         mandatory: true,
         mobileOnly: true,
       },

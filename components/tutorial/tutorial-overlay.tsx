@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react"
+import { createPortal } from "react-dom"
 import { usePathname, useRouter } from "next/navigation"
 import { useTutorial, pageMatches } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
@@ -455,6 +456,18 @@ export function TutorialOverlay() {
       }
     }, 350)
   }, [currentStep?.page, router])
+
+  /**
+   * 0a. Mark body with data-tutorial-active so CSS can add padding where needed.
+   */
+  useEffect(() => {
+    if (isActive) {
+      document.body.setAttribute("data-tutorial-active", "true")
+    } else {
+      document.body.removeAttribute("data-tutorial-active")
+    }
+    return () => document.body.removeAttribute("data-tutorial-active")
+  }, [isActive])
 
   /**
    * 0. Detect Header Height
@@ -1290,14 +1303,14 @@ export function TutorialOverlay() {
 
   if (!isActive || !currentSlot) return null
 
-  return (
+  const overlayMarkup = (
     <>
       {/* Background Mask */}
       {showTutorialBackdrop && (
         <>
           {!isMobile && (
             showVisibleHighlight ? (
-              <svg className="fixed inset-0 z-[10000] pointer-events-none w-full h-full">
+              <svg className="fixed inset-0 z-[10030] pointer-events-none w-full h-full">
                 <defs>
                   <mask id="tutorial-mask">
                     <rect width="100%" height="100%" fill="white" />
@@ -1328,7 +1341,7 @@ export function TutorialOverlay() {
             ) : (
               <div
                 className={clsx(
-                  "fixed inset-0 z-[10000] pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
+                  "fixed inset-0 z-[10030] pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
                   isDark ? "bg-black/80" : "bg-slate-950/45"
                 )}
               />
@@ -1337,7 +1350,7 @@ export function TutorialOverlay() {
 
           {showVisibleHighlight && currentSubstep?.blockClick && (
             <div
-              className="fixed z-[10005] pointer-events-auto"
+              className="fixed z-[10040] pointer-events-auto"
               style={{
                 top: targetRect!.top,
                 left: targetRect!.left,
@@ -1349,7 +1362,7 @@ export function TutorialOverlay() {
 
           {showVisibleHighlight && (
             <div
-              className="fixed z-[10005] pointer-events-none rounded-[18px] border-2 border-blue-400 transition-all duration-300 ease-out"
+              className="fixed z-[10040] pointer-events-none rounded-[18px] border-2 border-blue-400 transition-all duration-300 ease-out"
               style={{
                 top: targetRect!.top - 12,
                 left: targetRect!.left - 12,
@@ -1378,13 +1391,14 @@ export function TutorialOverlay() {
         data-testid="tutorial-overlay"
         data-tutorial-overlay
         className={clsx(
-          "fixed z-[10010] shadow-2xl rounded-2xl border overflow-hidden",
+          "fixed z-[10060] pointer-events-auto shadow-2xl rounded-2xl border overflow-hidden",
           isDraggingOverlay ? "transition-none" : "transition-all duration-500 ease-in-out",
           isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900",
           overlayPosition ? "left-0 top-0" : overlayDockClass,
           overlayWidthClass
         )}
         style={overlayPosition ? { left: overlayPosition.left, top: overlayPosition.top } : undefined}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="h-1.5 w-full bg-gray-200/20">
           <div className={`h-full bg-blue-500 transition-all duration-500 ${progressWidthClass}`} />
@@ -1574,7 +1588,7 @@ export function TutorialOverlay() {
 
       {/* Skip Confirmation Modal */}
       {showSkipConfirmation && (
-        <div className="fixed inset-0 z-[10020] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+        <div className="fixed inset-0 z-[10020] pointer-events-auto flex items-center justify-center p-6 bg-black/80 backdrop-blur-md" onPointerDown={(e) => e.stopPropagation()}>
           <div className={clsx("w-full max-w-sm p-8 rounded-3xl border shadow-2xl", isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20" : "bg-white border-gray-200")}>
             <h2 className="text-2xl font-bold mb-2">End Tutorial?</h2>
             <div className="flex gap-3 mt-8">
@@ -1589,4 +1603,10 @@ export function TutorialOverlay() {
       )}
     </>
   )
+
+  if (typeof document === "undefined") {
+    return overlayMarkup
+  }
+
+  return createPortal(overlayMarkup, document.body)
 }

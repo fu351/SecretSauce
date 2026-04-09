@@ -358,9 +358,19 @@ html:not(.dark) .tutorial-highlight {
   animation: tutorial-pulse-warm 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
 }
 
-/* Tutorial overlay should be above most elements */
+/* Tutorial overlay should be above most elements and interactive even when
+   Radix Dialog sets body { pointer-events: none } via disableOutsidePointerEvents */
 [data-tutorial-overlay] {
-  z-index: 10010 !important;
+  z-index: 10060 !important;
+  pointer-events: auto !important;
+}
+
+/* On mobile, add bottom padding to scrollable pages when the tutorial card is
+   docked at the bottom so it doesn't cover content the user needs to interact with. */
+@media (max-width: 1023px) {
+  body[data-tutorial-active] [data-tutorial="recipe-overview"] {
+    padding-bottom: 20rem;
+  }
 }
 
 /* ───────── Landing Page Animations ───────── */
