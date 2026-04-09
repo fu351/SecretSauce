@@ -1,2 +1,2 @@
 export type { SkeletonLineProps, SkeletonComponentProps } from './skeleton'
-export type { TutorialPath, TutorialStep, TutorialSubstep } from './tutorial'
+export type { TutorialSubstep, GeneralPageEntry } from './tutorial'

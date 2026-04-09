@@ -7,7 +7,7 @@ import { expect } from "@playwright/test"
 
 const TUTORIAL_STATE_KEY = "tutorial_state_v1"
 const DISMISS_KEY = "tutorial_dismissed_v1"
-const TUTORIAL_STATE_VERSION = 9
+const TUTORIAL_STATE_VERSION = 10
 
 /** Resets tutorial state in localStorage before a test. */
 export async function resetTutorialState(page: Page) {
@@ -26,18 +26,17 @@ export async function resetTutorialState(page: Page) {
  */
 export async function injectTutorialState(
   page: Page,
-  rankedGoals: string[],
   currentSlotIndex = 0
 ) {
   await page.evaluate(
-    ({ key, version, rankedGoals, currentSlotIndex }) => {
+    ({ key, version, currentSlotIndex }) => {
       localStorage.setItem(
         key,
-        JSON.stringify({ version, rankedGoals, currentSlotIndex })
+        JSON.stringify({ version, currentSlotIndex })
       )
       localStorage.removeItem("tutorial_dismissed_v1")
     },
-    { key: TUTORIAL_STATE_KEY, version: TUTORIAL_STATE_VERSION, rankedGoals, currentSlotIndex }
+    { key: TUTORIAL_STATE_KEY, version: TUTORIAL_STATE_VERSION, currentSlotIndex }
   )
 }
 
@@ -45,7 +44,7 @@ export async function injectTutorialState(
  * Opens the tutorial modal from the settings page and clicks Start Tour.
  * Returns after the overlay is visible and the browser has navigated to the first page.
  */
-export async function startRankedTutorial(page: Page) {
+export async function startTutorialFromSettings(page: Page) {
   await page.goto("/settings")
   await page.getByRole("button", { name: /rewatch|start|tutorial/i }).first().click()
   await expect(page.locator("[data-testid='tutorial-overlay']").or(

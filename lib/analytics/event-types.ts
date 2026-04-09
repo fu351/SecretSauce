@@ -53,8 +53,6 @@ export type AnalyticsEventName =
   | "tutorial_step_completed"
   | "tutorial_completed"
   | "tutorial_skipped"
-  | "tutorial_path_advanced"
-  | "tutorial_goals_ranked"
 
   // General navigation
   | "page_view"
@@ -172,27 +170,16 @@ export interface EventProperties {
 
   // Tutorial events
   tutorial_started: {
-    path: "cooking" | "budgeting" | "health"
+    steps_total: number
   }
   tutorial_step_completed: {
-    path: "cooking" | "budgeting" | "health"
     step_index: number
   }
   tutorial_completed: {
-    path: "cooking" | "budgeting" | "health"
     steps_completed: number
   }
   tutorial_skipped: {
-    path: "cooking" | "budgeting" | "health"
     step_abandoned: number
-  }
-  tutorial_path_advanced: {
-    from_path: "cooking" | "budgeting" | "health"
-    to_path: "cooking" | "budgeting" | "health"
-    plan_index: number
-  }
-  tutorial_goals_ranked: {
-    priorities: string[]
   }
 
   // General events
@@ -250,8 +237,6 @@ export const EVENT_TYPE_MAPPING: Record<AnalyticsEventName, ABEventType> = {
   tutorial_step_completed: "custom",
   tutorial_completed: "custom",
   tutorial_skipped: "custom",
-  tutorial_path_advanced: "custom",
-  tutorial_goals_ranked: "custom",
 
   // General events → custom
   page_view: "custom",

@@ -9,7 +9,6 @@ import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { AuthGate } from "@/components/auth/tier-gate"
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react"
-import type { RankedGoals } from "@/lib/types/tutorial"
 
 export default function WelcomePage() {
   return (
@@ -21,7 +20,7 @@ export default function WelcomePage() {
 
 function WelcomePageContent() {
   const { profile, loading } = useAuth()
-  const { startRankedSession, skipTutorial, isActive } = useTutorial()
+  const { startTutorial, skipTutorial } = useTutorial()
   const { theme } = useTheme()
   const router = useRouter()
   const [isStarting, setIsStarting] = useState(false)
@@ -35,23 +34,7 @@ function WelcomePageContent() {
     }
 
     setIsStarting(true)
-
-    // Prefer explicit ranking saved during onboarding
-    const ranking = profile.tutorial_goals_ranking
-    if (ranking && ranking.length >= 1) {
-      startRankedSession(ranking as RankedGoals)
-      return
-    }
-
-    // Fallback for legacy users: derive from primary_goal
-    const primaryMap: Record<string, "cooking" | "budgeting" | "health"> = {
-      cooking: "cooking",
-      budgeting: "budgeting",
-      both: "health",
-      health: "health",
-    }
-    const primary = primaryMap[profile.primary_goal ?? ""] ?? "cooking"
-    startRankedSession([primary])
+    startTutorial()
   }
 
   const handleSkipTutorial = () => {
@@ -126,8 +109,7 @@ function WelcomePageContent() {
               Quick Tour
             </h2>
             <p className={`text-sm mb-4 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-700"}`}>
-              We've prepared a personalized tour based on your preferences.
-              It will guide you through:
+              We&apos;ve prepared one shared tour that walks you through:
             </p>
             <ul className={`space-y-2 text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-700"}`}>
               <li className="flex items-start gap-2">

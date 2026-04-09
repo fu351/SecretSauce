@@ -10,8 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { FlatTutorialSlot } from "@/contexts/tutorial-context"
-import type { TutorialStep, TutorialSubstep, GeneralPageEntry } from "@/lib/types/ui/tutorial"
+import type { TutorialSubstep, GeneralPageEntry } from "@/lib/types/ui/tutorial"
 import { findFirstVisibleElement } from "@/lib/tutorial-utils"
 import clsx from "clsx"
 
@@ -28,8 +27,7 @@ interface TutorialCardBodyProps {
   isLastStep: boolean
 
   // Data
-  currentSlot: FlatTutorialSlot
-  currentStep: TutorialStep | GeneralPageEntry | null | undefined
+  currentStep: GeneralPageEntry | null | undefined
   currentSubstep: TutorialSubstep | null | undefined
   currentSlotIndex: number
   nextSlot: FlatTutorialSlot | null
@@ -87,7 +85,6 @@ export function TutorialCardBody({
   showScrollPrompt,
   isMandatoryCompleted,
   isLastStep,
-  currentSlot,
   currentStep,
   currentSubstep,
   currentSlotIndex,
@@ -233,30 +230,6 @@ export function TutorialCardBody({
               ? `You're done here. ${currentSubstep?.instruction ?? "Click a card to continue to the next step."}`
               : currentSubstep?.instruction ?? currentStep?.description}
           </p>
-
-          {/* Legacy path tips remain available if step-specific content is reintroduced. */}
-          {!currentSlot.isGeneral &&
-            currentSlot.rank === 1 &&
-            currentStep &&
-            "tips" in currentStep &&
-            currentStep.tips &&
-            currentStep.tips.length > 0 && (
-              <div
-                className={clsx(
-                  "mb-6 p-3 rounded-lg",
-                  isDark ? "bg-blue-500/10" : "bg-blue-50"
-                )}
-              >
-                <p className="text-xs font-semibold mb-1 opacity-60">Tips</p>
-                <ul className="space-y-1">
-                  {currentStep.tips.map((tip, i) => (
-                    <li key={i} className="text-xs opacity-70">
-                      {tip}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
           {showScrollPrompt ? (
             <button

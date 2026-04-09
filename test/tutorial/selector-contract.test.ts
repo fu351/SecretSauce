@@ -9,25 +9,62 @@
  */
 
 import { describe, it, expect } from "vitest"
-import { readFileSync } from "node:fs"
-import { globSync } from "glob"
+import { readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 
-import { tutorialPaths } from "../../contents/tutorial-content"
+import { generalPages } from "../../contents/tutorial-content"
 
 const ROOT = path.resolve(__dirname, "../..")
 
+function collectFiles(
+  startDir: string,
+  {
+    includeFile,
+    ignoreDir,
+  }: {
+    includeFile: (relPath: string) => boolean
+    ignoreDir: (relPath: string) => boolean
+  }
+): string[] {
+  const files: string[] = []
+
+  const visit = (relDir: string) => {
+    const absDir = path.join(ROOT, relDir)
+    const entries = readdirSync(absDir, { withFileTypes: true })
+
+    for (const entry of entries) {
+      const relPath = relDir ? path.join(relDir, entry.name) : entry.name
+
+      if (entry.isDirectory()) {
+        if (ignoreDir(relPath)) continue
+        visit(relPath)
+        continue
+      }
+
+      if (includeFile(relPath)) {
+        files.push(relPath)
+      }
+    }
+  }
+
+  visit(startDir)
+  return files
+}
+
 // Build a map of attribute value → list of files it appears in
 function buildSelectorIndex(): Map<string, string[]> {
-  const files = globSync("**/*.{tsx,ts}", {
-    cwd: ROOT,
-    ignore: [
-      "node_modules/**",
-      ".next/**",
-      "test/**",
-      "e2e/**",
-      "contents/tutorials/**", // exclude the definition files themselves
-    ],
+  const files = collectFiles("", {
+    includeFile: (relPath) =>
+      /\.(tsx|ts)$/.test(relPath) &&
+      !relPath.startsWith("test/") &&
+      !relPath.startsWith("e2e/") &&
+      !relPath.startsWith("contents/tutorials/"),
+    ignoreDir: (relPath) =>
+      relPath === "node_modules" ||
+      relPath === ".next" ||
+      relPath === "test" ||
+      relPath === "e2e" ||
+      relPath === "contents/tutorials",
   })
 
   const index = new Map<string, string[]>()
@@ -41,11 +78,23 @@ function buildSelectorIndex(): Map<string, string[]> {
       continue
     }
 
-    if (!src.includes("data-tutorial")) continue
+    if (!src.includes("data-tutorial") && !src.includes("dataTutorial")) continue
 
     // Match static: data-tutorial="value" or data-tutorial='value'
     const staticMatches = src.matchAll(/data-tutorial=["']([^"']+)["']/g)
     for (const [, value] of staticMatches) {
+      if (!index.has(value)) index.set(value, [])
+      index.get(value)!.push(relPath)
+    }
+
+    const navMatches = src.matchAll(/data-tutorial-nav=["']([^"']+)["']/g)
+    for (const [, value] of navMatches) {
+      if (!index.has(value)) index.set(value, [])
+      index.get(value)!.push(relPath)
+    }
+
+    const camelMatches = src.matchAll(/dataTutorial=["']([^"']+)["']/g)
+    for (const [, value] of camelMatches) {
       if (!index.has(value)) index.set(value, [])
       index.get(value)!.push(relPath)
     }
@@ -55,7 +104,7 @@ function buildSelectorIndex(): Map<string, string[]> {
     // near a data-tutorial attribute. Strategy: find all lines with data-tutorial and
     // extract any quoted string on that line.
     for (const line of src.split("\n")) {
-      if (!line.includes("data-tutorial")) continue
+      if (!line.includes("data-tutorial") && !line.includes("dataTutorial")) continue
       const lineMatches = line.matchAll(/["']([a-z][a-z0-9-]+)["']/g)
       for (const [, value] of lineMatches) {
         // Filter to plausible tutorial IDs (lowercase, hyphenated, no spaces)
@@ -72,9 +121,9 @@ function buildSelectorIndex(): Map<string, string[]> {
 
 // Build a map of page route → whether an app directory exists for it
 function buildPageIndex(): Set<string> {
-  const appDirs = globSync("app/**/page.{tsx,ts}", {
-    cwd: ROOT,
-    ignore: ["node_modules/**", ".next/**"],
+  const appDirs = collectFiles("app", {
+    includeFile: (relPath) => /\/page\.(tsx|ts)$/.test(relPath),
+    ignoreDir: (relPath) => relPath === "node_modules" || relPath === ".next",
   })
 
   const routes = new Set<string>()
@@ -88,7 +137,7 @@ function buildPageIndex(): Set<string> {
 
 // Extract the attribute value from a selector string like "[data-tutorial='foo']"
 function extractAttr(selector: string): string | null {
-  const m = selector.match(/data-tutorial=["']([^"']+)["']/)
+  const m = selector.match(/data-tutorial(?:-nav)?=["']([^"']+)["']/)
   return m ? m[1] : null
 }
 
@@ -96,45 +145,44 @@ const selectorIndex = buildSelectorIndex()
 const pageIndex = buildPageIndex()
 
 describe("Tutorial selector contracts", () => {
-  for (const [pathId, tutorialPath] of Object.entries(tutorialPaths)) {
-    describe(`${pathId} path`, () => {
-      for (const step of tutorialPath.steps) {
-        describe(`Step ${step.id}: ${step.title}`, () => {
-          it(`page "${step.page}" maps to a real app route`, () => {
-            expect(
-              pageIndex.has(step.page),
-              `Step ${step.id} references page "${step.page}" but no app directory was found for it`
-            ).toBe(true)
-          })
+  for (const [pageIndexValue, page] of generalPages.entries()) {
+    describe(`Page ${pageIndexValue + 1}: ${page.title}`, () => {
+      it(`page "${page.page}" maps to a real app route`, () => {
+        const routeToCheck = page.page.endsWith("*") ? page.page.slice(0, -2) : page.page
 
-          if (step.highlightSelector) {
-            const attr = extractAttr(step.highlightSelector)
-            it(`step highlightSelector "[data-tutorial='${attr}']" exists in source`, () => {
-              expect(
-                attr,
-                `Could not parse attribute from selector: ${step.highlightSelector}`
-              ).not.toBeNull()
-              expect(
-                selectorIndex.has(attr!),
-                `data-tutorial="${attr}" is not present in any source file (used in step ${step.id} of ${pathId})`
-              ).toBe(true)
-            })
-          }
+        expect(
+          pageIndex.has(routeToCheck),
+          `Page "${page.page}" references route "${routeToCheck}" but no app directory was found for it`
+        ).toBe(true)
+      })
 
-          for (const substep of step.substeps ?? []) {
-            if (!substep.highlightSelector) continue
-            const attr = extractAttr(substep.highlightSelector)
-            it(`substep ${substep.id} "[data-tutorial='${attr}']" exists in source`, () => {
-              expect(
-                attr,
-                `Could not parse attribute from selector: ${substep.highlightSelector}`
-              ).not.toBeNull()
-              expect(
-                selectorIndex.has(attr!),
-                `data-tutorial="${attr}" is not present in any source file (used in substep ${substep.id} of step ${step.id}, path ${pathId})`
-              ).toBe(true)
-            })
-          }
+      for (const substep of page.substeps ?? []) {
+        if (!substep.highlightSelector) continue
+        const attr = extractAttr(substep.highlightSelector)
+        it(`substep ${substep.id} "[data-tutorial='${attr}']" exists in source`, () => {
+          expect(
+            attr,
+            `Could not parse attribute from selector: ${substep.highlightSelector}`
+          ).not.toBeNull()
+          expect(
+            selectorIndex.has(attr!),
+            `data-tutorial="${attr}" is not present in any source file (used in substep ${substep.id} of page ${page.page})`
+          ).toBe(true)
+        })
+      }
+
+      for (const substep of page.postSubsteps ?? []) {
+        if (!substep.highlightSelector) continue
+        const attr = extractAttr(substep.highlightSelector)
+        it(`post substep ${substep.id} "[data-tutorial='${attr}']" exists in source`, () => {
+          expect(
+            attr,
+            `Could not parse attribute from selector: ${substep.highlightSelector}`
+          ).not.toBeNull()
+          expect(
+            selectorIndex.has(attr!),
+            `data-tutorial="${attr}" is not present in any source file (used in post substep ${substep.id} of page ${page.page})`
+          ).toBe(true)
         })
       }
     })

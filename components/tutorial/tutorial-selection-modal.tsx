@@ -1,31 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useTutorial } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
-import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ChefHat, DollarSign, GripVertical, Users, X } from "lucide-react"
-import type { RankedGoals } from "@/lib/types/tutorial"
+import { BookOpen, CheckCircle2, Sparkles, X } from "lucide-react"
 import clsx from "clsx"
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 
 interface TutorialSelectionModalProps {
   isOpen: boolean
@@ -35,159 +15,25 @@ interface TutorialSelectionModalProps {
   confirmLabel?: string
 }
 
-const tutorials = [
-  {
-    id: "cooking" as const,
-    title: "Mastering the Craft",
-    description: "Learn to cook with confidence",
-    icon: ChefHat,
-  },
-  {
-    id: "budgeting" as const,
-    title: "Optimize Resources",
-    description: "Save money on groceries",
-    icon: DollarSign,
-  },
-  {
-    id: "health" as const,
-    title: "Elevate Your Journey",
-    description: "Save time and prioritize your health",
-    icon: Users,
-  },
+const TOUR_HIGHLIGHTS = [
+  "Learn the dashboard, recipe library, planner, shopping flow, and home screen in one steady order.",
+  "Follow one shared walkthrough that moves top to bottom on each page.",
+  "Jump in anytime and exit whenever you want.",
 ]
-
-type TutorialId = (typeof tutorials)[number]["id"]
-const defaultTutorialOrder: TutorialId[] = ["cooking", "budgeting", "health"]
-
-function isTutorialId(value: unknown): value is TutorialId {
-  return value === "cooking" || value === "budgeting" || value === "health"
-}
-
-function isTutorialRanking(value: unknown): value is TutorialId[] {
-  return Array.isArray(value) && value.length > 0 && value.every(isTutorialId)
-}
-
-function SortableTutorialItem({
-  tutorial,
-  rank,
-  isDark,
-}: {
-  tutorial: (typeof tutorials)[number]
-  rank: number
-  isDark: boolean
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tutorial.id })
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.6 : 1,
-  }
-
-  const Icon = tutorial.icon
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={clsx(
-        "w-full p-5 rounded-lg border transition-all duration-200",
-        isDark
-          ? "bg-[#181813] border-[#e8dcc4]/20 text-[#e8dcc4]"
-          : "bg-[#FFF8F0] border-orange-400 text-amber-950"
-      )}
-    >
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className={clsx(
-            "cursor-grab active:cursor-grabbing p-1 touch-none rounded",
-            isDark ? "hover:bg-[#e8dcc4]/10" : "hover:bg-orange-100"
-          )}
-          aria-label={`Reorder ${tutorial.title}`}
-        >
-          <GripVertical className={clsx("h-5 w-5", isDark ? "text-[#e8dcc4]/40" : "text-orange-500")} />
-        </button>
-
-        <div className={clsx(
-          "w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
-          isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4]" : "bg-orange-100 text-orange-700"
-        )}>
-          {rank}
-        </div>
-
-        <div className={clsx(
-          "p-2 rounded-lg border shrink-0",
-          isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-600 bg-orange-100"
-        )}>
-          <Icon className={clsx("w-5 h-5", isDark ? "text-[#e8dcc4]" : "text-orange-700")} />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <h3 className={clsx(
-            "font-light text-base",
-            isDark ? "text-[#e8dcc4]" : "text-amber-950"
-          )}>
-            {tutorial.title}
-          </h3>
-          <p
-            className={clsx(
-              "text-xs font-light",
-              isDark ? "text-[#e8dcc4]/60" : "text-amber-900"
-            )}
-          >
-            {tutorial.description}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export function TutorialSelectionModal({
   isOpen,
   onClose,
   title = "Guided Product Tour",
-  description = "We’ll walk through one shared tour in a steady page-by-page flow. Your goal order is still saved for personalization outside the tutorial.",
+  description = "Take the shared Secret Sauce tour for a clear, start-to-finish walkthrough of the app.",
   confirmLabel = "Start Tour",
 }: TutorialSelectionModalProps) {
-  const { startRankedSession } = useTutorial()
-  const { profile } = useAuth()
+  const { startTutorial } = useTutorial()
   const { theme } = useTheme()
   const isDark = theme === "dark"
-  const [rankedTutorials, setRankedTutorials] = useState<TutorialId[]>(defaultTutorialOrder)
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    const savedRanking = profile?.tutorial_goals_ranking
-    if (isTutorialRanking(savedRanking)) {
-      setRankedTutorials(savedRanking)
-      return
-    }
-
-    setRankedTutorials(defaultTutorialOrder)
-  }, [isOpen, profile?.tutorial_goals_ranking])
-
-  const handleRankDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    setRankedTutorials((prev) => {
-      const oldIndex = prev.indexOf(active.id as TutorialId)
-      const newIndex = prev.indexOf(over.id as TutorialId)
-      return arrayMove(prev, oldIndex, newIndex)
-    })
-  }
-
-  const handleStartRankedTour = () => {
-    startRankedSession(rankedTutorials as RankedGoals)
+  const handleStartTour = () => {
+    startTutorial()
     onClose()
   }
 
@@ -197,11 +43,10 @@ export function TutorialSelectionModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <Card
         className={clsx(
-          "w-full max-w-2xl mx-4 p-0 relative overflow-hidden",
+          "relative w-full max-w-2xl overflow-hidden p-0 mx-4",
           isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/30" : "bg-[#FAF4E5] border-orange-200"
         )}
       >
-        {/* Close button */}
         <button
           onClick={onClose}
           className={clsx(
@@ -214,14 +59,18 @@ export function TutorialSelectionModal({
         </button>
 
         <div className="space-y-0">
-          <div className={clsx(
-            "px-8 pt-8 pb-6 border-b",
-            isDark ? "bg-[#181813] border-[#e8dcc4]/15" : "bg-orange-50 border-orange-200"
-          )}>
-            <p className={clsx(
-              "uppercase tracking-[0.25em] text-[11px] mb-2",
-              isDark ? "text-[#e8dcc4]/60" : "text-orange-700/80"
-            )}>
+          <div
+            className={clsx(
+              "px-8 pt-8 pb-6 border-b",
+              isDark ? "bg-[#181813] border-[#e8dcc4]/15" : "bg-orange-50 border-orange-200"
+            )}
+          >
+            <p
+              className={clsx(
+                "uppercase tracking-[0.25em] text-[11px] mb-2",
+                isDark ? "text-[#e8dcc4]/60" : "text-orange-700/80"
+              )}
+            >
               Tutorial
             </p>
             <h2
@@ -242,36 +91,63 @@ export function TutorialSelectionModal({
             </p>
           </div>
 
-          <div className="px-8 py-6">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleRankDragEnd}
+          <div className="px-8 py-8">
+            <div
+              className={clsx(
+                "rounded-2xl border p-6",
+                isDark ? "border-[#e8dcc4]/20 bg-[#181813]" : "border-orange-200 bg-white/80"
+              )}
             >
-              <SortableContext items={rankedTutorials} strategy={verticalListSortingStrategy}>
-                <div className="space-y-3">
-                  {rankedTutorials.map((tutorialId, index) => {
-                    const tutorial = tutorials.find((item) => item.id === tutorialId)
-                    if (!tutorial) return null
-
-                    return (
-                      <SortableTutorialItem
-                        key={tutorial.id}
-                        tutorial={tutorial}
-                        rank={index + 1}
-                        isDark={isDark}
-                      />
-                    )
-                  })}
+              <div className="flex items-center gap-3 mb-5">
+                <div
+                  className={clsx(
+                    "rounded-xl p-3",
+                    isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4]" : "bg-orange-100 text-orange-700"
+                  )}
+                >
+                  <BookOpen className="w-5 h-5" />
                 </div>
-              </SortableContext>
-            </DndContext>
+                <div>
+                  <p className={clsx("text-base font-medium", isDark ? "text-[#e8dcc4]" : "text-amber-950")}>
+                    One shared tour
+                  </p>
+                  <p className={clsx("text-sm", isDark ? "text-[#e8dcc4]/60" : "text-amber-900/70")}>
+                    No branching paths, just the clearest route through the product.
+                  </p>
+                </div>
+              </div>
 
+              <div className="space-y-3">
+                {TOUR_HIGHLIGHTS.map((item) => (
+                  <div key={item} className="flex items-start gap-3">
+                    <CheckCircle2
+                      className={clsx(
+                        "w-4 h-4 mt-0.5 shrink-0",
+                        isDark ? "text-[#e8dcc4]/80" : "text-orange-600"
+                      )}
+                    />
+                    <p className={clsx("text-sm font-light", isDark ? "text-[#e8dcc4]/75" : "text-amber-950/80")}>
+                      {item}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                className={clsx(
+                  "mt-6 rounded-xl px-4 py-3 text-sm flex items-center gap-3",
+                  isDark ? "bg-[#e8dcc4]/5 text-[#e8dcc4]/70" : "bg-orange-50 text-orange-900/80"
+                )}
+              >
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <p>The walkthrough saves your place automatically while it is active.</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-3 justify-end px-8 pb-8">
             <Button
-              onClick={handleStartRankedTour}
+              onClick={handleStartTour}
               className={clsx(
                 isDark
                   ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"

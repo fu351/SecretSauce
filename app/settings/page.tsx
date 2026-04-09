@@ -35,7 +35,6 @@ function SettingsPageContent() {
   const { user, updateProfile, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const {
-    tutorialPath,
     tutorialCompletedAt,
     resetTutorial,
   } = useTutorial()
@@ -838,7 +837,7 @@ function SettingsPageContent() {
                   Learning & Tutorials
                 </CardTitle>
                 <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                  Revisit your guided tour and fine-tune the order of what matters most
+                  Revisit the shared guided tour whenever you want a refresher
                 </CardDescription>
               </div>
             </div>
@@ -847,24 +846,22 @@ function SettingsPageContent() {
             <div className="space-y-4">
               <div className={`rounded-lg p-3 ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
                 <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/70" : "text-orange-900/80"}`}>
-                  Rerank your priorities before you start, and we will use that order for the tutorial.
+                  The tour follows one clear page-by-page path through the product.
                 </p>
               </div>
 
               {/* Completion Stats */}
-              {tutorialPath && (
+              {tutorialCompletedAt && (
                 <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
                   <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
                     <span className="font-medium">Completed</span>
-                    {tutorialCompletedAt && (
-                      <span className={`text-xs ml-2 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
-                        {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </span>
-                    )}
+                    <span className={`text-xs ml-2 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
+                      {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </span>
                   </p>
                 </div>
               )}
@@ -878,7 +875,7 @@ function SettingsPageContent() {
                     : "bg-orange-500 text-white hover:bg-orange-600"
                 }`}
               >
-                Rerank Your Priorities
+                Start the Tour Again
               </Button>
             </div>
           </CardContent>
@@ -1186,8 +1183,8 @@ function SettingsPageContent() {
       <TutorialSelectionModal
         isOpen={showTutorialModal}
         onClose={() => setShowTutorialModal(false)}
-        title="Rerank Your Priorities"
-        description="Adjust the order of your tutorial priorities before restarting the tour."
+        title="Start the Tour Again"
+        description="Restart the shared Secret Sauce tour from the beginning."
         confirmLabel="Start Tour"
       />
     </div>

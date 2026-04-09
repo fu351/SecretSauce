@@ -687,7 +687,6 @@ export default function OnboardingPage() {
 
       const onboardingData = {
         primary_goal: goalRanking[0],
-        tutorial_goals_ranking: goalRanking,
         cooking_level: cookingLevel,
         budget_range: budgetRange,
         dietary_preferences: dbDietaryPreferences,

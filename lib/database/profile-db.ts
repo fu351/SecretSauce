@@ -31,8 +31,6 @@ const PROFILE_SAFE_COLUMNS = [
   "theme_preference",
   "tutorial_completed",
   "tutorial_completed_at",
-  "tutorial_path",
-  "tutorial_goals_ranking",
   "formatted_address",
   "address_line1",
   "address_line2",
@@ -52,59 +50,6 @@ const PROFILE_SAFE_COLUMNS = [
   "stripe_price_id",
   "stripe_current_period_end",
 ].join(", ")
-
-const PROFILE_SAFE_COLUMNS_LEGACY = [
-  "id",
-  "email",
-  "full_name",
-  "avatar_url",
-  "cooking_level",
-  "budget_range",
-  "dietary_preferences",
-  "primary_goal",
-  "created_at",
-  "updated_at",
-  "cuisine_preferences",
-  "cooking_time_preference",
-  "zip_code",
-  "grocery_distance_miles",
-  "theme_preference",
-  "tutorial_completed",
-  "tutorial_completed_at",
-  "tutorial_path",
-  "formatted_address",
-  "address_line1",
-  "address_line2",
-  "city",
-  "state",
-  "country",
-  "latitude",
-  "longitude",
-  "email_verified",
-  "clerk_user_id",
-  "subscription_tier",
-  "subscription_started_at",
-  "subscription_expires_at",
-  "subscription_status",
-  "stripe_customer_id",
-  "stripe_subscription_id",
-  "stripe_price_id",
-  "stripe_current_period_end",
-].join(", ")
-
-function isMissingTutorialGoalsRankingColumnError(error: any): boolean {
-  if (!error) return false
-  const message = String(error.message ?? "")
-  const details = String(error.details ?? "")
-  const hint = String(error.hint ?? "")
-  const combined = `${message} ${details} ${hint}`.toLowerCase()
-
-  return (
-    error.code === "42703" ||
-    combined.includes("profiles.tutorial_goals_ranking") ||
-    combined.includes("tutorial_goals_ranking does not exist")
-  )
-}
 
 /**
  * Database operations for user profiles
@@ -113,7 +58,6 @@ function isMissingTutorialGoalsRankingColumnError(error: any): boolean {
 class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, ProfileUpdate> {
   private static instance: ProfileTable | null = null
   readonly tableName = "profiles" as const
-  private hasTutorialGoalsRankingColumn = true
 
   private constructor() {
     super()
@@ -124,23 +68,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       ProfileTable.instance = new ProfileTable()
     }
     return ProfileTable.instance
-  }
-
-  private getProfileSafeSelectColumns(): string {
-    return this.hasTutorialGoalsRankingColumn ? PROFILE_SAFE_COLUMNS : PROFILE_SAFE_COLUMNS_LEGACY
-  }
-
-  private handlePotentialLegacySchemaError(error: any, context: string): boolean {
-    if (!isMissingTutorialGoalsRankingColumnError(error)) {
-      return false
-    }
-
-    if (this.hasTutorialGoalsRankingColumn) {
-      this.hasTutorialGoalsRankingColumn = false
-      console.warn(`[Profile DB] ${context}: falling back to legacy profile schema (missing tutorial_goals_ranking column)`)
-    }
-
-    return true
   }
 
   /**
@@ -166,8 +93,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       theme_preference: dbItem.theme_preference ?? "dark",
       tutorial_completed: dbItem.tutorial_completed ?? false,
       tutorial_completed_at: dbItem.tutorial_completed_at ?? null,
-      tutorial_path: dbItem.tutorial_path ?? null,
-      tutorial_goals_ranking: dbItem.tutorial_goals_ranking ?? null,
       formatted_address: dbItem.formatted_address ?? null,
       address_line1: dbItem.address_line1 ?? null,
       address_line2: dbItem.address_line2 ?? null,
@@ -195,22 +120,11 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * Used by AuthContext, Settings page, and other components needing full profile data
    */
   async findById(userId: string): Promise<Profile | null> {
-    let { data, error } = await this.supabase
+    const { data, error } = await this.supabase
       .from(this.tableName)
-      .select(this.getProfileSafeSelectColumns())
+      .select(PROFILE_SAFE_COLUMNS)
       .eq("id", userId)
       .single()
-
-    if (error && this.handlePotentialLegacySchemaError(error, `findById(${userId})`)) {
-      const retry = await this.supabase
-        .from(this.tableName)
-        .select(this.getProfileSafeSelectColumns())
-        .eq("id", userId)
-        .single()
-
-      data = retry.data
-      error = retry.error
-    }
 
     if (error) {
       // Special handling for PGRST116 (not found) - caller decides how to handle
@@ -236,22 +150,11 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * Fetch profile by email (for onboarding flow before authentication)
    */
   async fetchProfileByEmail(email: string): Promise<Profile | null> {
-    let { data, error } = await this.supabase
+    const { data, error } = await this.supabase
       .from(this.tableName)
-      .select(this.getProfileSafeSelectColumns())
+      .select(PROFILE_SAFE_COLUMNS)
       .eq("email", email)
       .maybeSingle()
-
-    if (error && this.handlePotentialLegacySchemaError(error, "fetchProfileByEmail")) {
-      const retry = await this.supabase
-        .from(this.tableName)
-        .select(this.getProfileSafeSelectColumns())
-        .eq("email", email)
-        .maybeSingle()
-
-      data = retry.data
-      error = retry.error
-    }
 
     if (error) {
       this.handleError(error, "fetchProfileByEmail")
@@ -265,22 +168,11 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * Fetch profile by Clerk user id
    */
   async fetchProfileByClerkUserId(clerkUserId: string): Promise<Profile | null> {
-    let { data, error } = await this.supabase
+    const { data, error } = await this.supabase
       .from(this.tableName)
-      .select(this.getProfileSafeSelectColumns())
+      .select(PROFILE_SAFE_COLUMNS)
       .eq("clerk_user_id", clerkUserId)
       .maybeSingle()
-
-    if (error && this.handlePotentialLegacySchemaError(error, "fetchProfileByClerkUserId")) {
-      const retry = await this.supabase
-        .from(this.tableName)
-        .select(this.getProfileSafeSelectColumns())
-        .eq("clerk_user_id", clerkUserId)
-        .maybeSingle()
-
-      data = retry.data
-      error = retry.error
-    }
 
     if (error) {
       this.handleError(error, "fetchProfileByClerkUserId")
@@ -300,32 +192,14 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
     userId: string,
     fields: T[]
   ): Promise<Pick<ProfileRow, T> | null> {
-    const removeUnsupportedField = (items: string[]) =>
-      this.hasTutorialGoalsRankingColumn ? items : items.filter((item) => item !== "tutorial_goals_ranking")
-
-    const requestedFields = fields.map((field) => String(field))
-    let selectedFields = removeUnsupportedField(requestedFields)
+    const selectedFields = fields.map((field) => String(field))
     if (selectedFields.length === 0) return null
 
-    let { data, error } = await this.supabase
+    const { data, error } = await this.supabase
       .from(this.tableName)
       .select(selectedFields.join(", "))
       .eq("id", userId)
       .maybeSingle()
-
-    if (error && this.handlePotentialLegacySchemaError(error, "fetchProfileFields")) {
-      selectedFields = removeUnsupportedField(requestedFields)
-      if (selectedFields.length === 0) return null
-
-      const retry = await this.supabase
-        .from(this.tableName)
-        .select(selectedFields.join(", "))
-        .eq("id", userId)
-        .maybeSingle()
-
-      data = retry.data
-      error = retry.error
-    }
 
     if (error) {
       this.handleError(error, "fetchProfileFields")
@@ -405,7 +279,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
 
     const upsertOptions = options?.onConflict ? { onConflict: options.onConflict } : undefined
 
-    let { data, error } = await this.supabase
+    const { data, error } = await this.supabase
       .from(this.tableName)
       .upsert(
         {
@@ -414,25 +288,8 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
         } as any,
         upsertOptions
       )
-      .select(this.getProfileSafeSelectColumns())
+      .select(PROFILE_SAFE_COLUMNS)
       .single()
-
-    if (error && this.handlePotentialLegacySchemaError(error, "upsertProfile")) {
-      const retry = await this.supabase
-        .from(this.tableName)
-        .upsert(
-          {
-            ...profileData,
-            updated_at: new Date().toISOString(),
-          } as any,
-          upsertOptions
-        )
-        .select(this.getProfileSafeSelectColumns())
-        .single()
-
-      data = retry.data
-      error = retry.error
-    }
 
     if (error) {
       this.handleError(error, "upsertProfile")

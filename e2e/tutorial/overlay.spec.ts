@@ -17,7 +17,7 @@ test.describe("Tutorial overlay UI", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/dashboard")
     await resetTutorialState(page)
-    await injectTutorialState(page, ["cooking", "budgeting", "health"], 0)
+    await injectTutorialState(page, 0)
     await page.goto("/dashboard")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
   })
@@ -50,7 +50,7 @@ test.describe("Tutorial overlay UI", () => {
 
   test("progress label shows 1 of total on first slot", async ({ page }) => {
     const overlay = page.locator("[data-testid='tutorial-overlay']")
-    await expect(overlay.getByText(/step 1 of 17/i)).toBeVisible({ timeout: 5_000 })
+    await expect(overlay.getByText(/step 1 of 27/i)).toBeVisible({ timeout: 5_000 })
   })
 
   test("progress bar fills as steps advance", async ({ page }) => {

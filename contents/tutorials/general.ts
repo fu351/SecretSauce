@@ -4,32 +4,51 @@ export const generalPages: GeneralPageEntry[] = [
   {
     page: "/dashboard",
     title: "Your Command Center",
-    description: "A quick snapshot of where you are and what needs your attention.",
+    description: "Start with the high-level view, then work downward into what deserves attention next.",
     substeps: [
       {
         id: 1,
-        instruction: "The dashboard shows upcoming meals, recent activity, and shortcuts to every part of the app.",
+        instruction: "Start with your stats for a quick snapshot of recipes, favorites, planned meals, and shopping activity.",
+        highlightSelector: "[data-tutorial='dashboard-stats']",
+      },
+      {
+        id: 2,
+        instruction: "The activity tracker helps you spot trends before you decide what to cook, plan, or improve next.",
+        highlightSelector: "[data-tutorial='dashboard-actions']",
+      },
+      {
+        id: 3,
+        instruction: "Recent Recipes gives you a fast way to jump back into dishes you have already explored.",
+        highlightSelector: "[data-tutorial='dashboard-recents']",
       },
     ],
   },
   {
     page: "/recipes",
     title: "Recipe Library",
-    description: "Browse, search, and save recipes that match your goals.",
+    description: "Narrow the library first, then browse once the list reflects what you actually want to make.",
     substeps: [
       {
         id: 1,
-        instruction: "Search and filter the full recipe library by cuisine, dietary needs, or prep time.",
+        instruction: "This filter area is your main control center for narrowing by cuisine, dietary needs, or difficulty before you browse.",
+        highlightSelector: "[data-tutorial='recipe-filter']",
+        desktopOnly: true,
       },
       {
         id: 2,
-        instruction: "On mobile, start with the search bar since it stays visible even before the filter panel is opened.",
+        instruction: "Search is the fastest way to plan around an ingredient, technique, or kind of dish already on your mind.",
+        highlightSelector: "[data-tutorial='recipe-search']",
+        desktopOnly: true,
+      },
+      {
+        id: 3,
+        instruction: "On mobile, start with the search bar since it stays visible before the filter panel is opened.",
         highlightSelector: "[data-tutorial='recipe-mobile-search']",
         mobileOnly: true,
       },
       {
-        id: 3,
-        instruction: "On mobile, tap Filters to open the recipe filter panel and explore the filter options.",
+        id: 4,
+        instruction: "On mobile, open Filters when you want to refine the list before you start browsing cards.",
         highlightSelector: "[data-tutorial='recipe-mobile-filters-button']",
         completionSelector: "[data-tutorial='recipe-mobile-filter-dialog']",
         mandatory: true,
@@ -39,14 +58,14 @@ export const generalPages: GeneralPageEntry[] = [
     postSubsteps: [
       {
         id: 1,
-        instruction: "Tap the X to close the filter panel and return to the recipe list.",
+        instruction: "Close the filter panel to get back to the full recipe list once your filters look right.",
         highlightSelector: "[data-tutorial='recipe-mobile-filters-close']",
         mandatory: true,
         mobileOnly: true,
       },
       {
         id: 2,
-        instruction: "Click a recipe card to open its detail page.",
+        instruction: "Pick a recipe card to open the detail view and see cost, ingredients, nutrition context, and instructions together.",
         highlightSelector: "[data-tutorial='recipe-card']",
         mandatory: true,
       },
@@ -55,17 +74,33 @@ export const generalPages: GeneralPageEntry[] = [
   {
     page: "/recipes/*",
     title: "Recipe Detail",
-    description: "Everything you need to decide, prepare, and shop for a recipe.",
+    description: "Use the detail page to decide whether a recipe fits your plan before you commit it to the week.",
     substeps: [
       {
         id: 1,
-        instruction: "This page has the full ingredient list, step-by-step instructions, and a nutrition summary.",
+        instruction: "Check the tags first to confirm the recipe fits the style of meal or dietary direction you want.",
+        highlightSelector: "[data-tutorial='recipe-detail-tags']",
+      },
+      {
+        id: 2,
+        instruction: "The pricing section helps you judge cost before this recipe turns into shopping list items.",
+        highlightSelector: "[data-tutorial='recipe-detail-pricing']",
+      },
+      {
+        id: 3,
+        instruction: "Review the ingredient list to see what you need to buy and where overlap with other meals might help.",
+        highlightSelector: "[data-tutorial='recipe-detail-ingredients']",
+      },
+      {
+        id: 4,
+        instruction: "Scan the instructions to understand the effort, pacing, and technique before you add the recipe to your routine.",
+        highlightSelector: "[data-tutorial='recipe-detail-instructions']",
       },
     ],
     postSubsteps: [
       {
         id: 1,
-        instruction: "Favorite this recipe to save it to your collection — you can pull saved recipes directly into your meal plan.",
+        instruction: "Favorite this recipe so it is easy to find from the planner when you are ready to schedule it.",
         highlightSelector: "[data-tutorial='recipe-favorite']",
         mandatory: true,
       },
@@ -74,58 +109,63 @@ export const generalPages: GeneralPageEntry[] = [
   {
     page: "/meal-planner",
     title: "Weekly Planner",
-    description: "Assign meals to days and let the app handle the rest.",
+    description: "Move from week-level planning into one real scheduling action, then back out to confirm the result.",
     substeps: [
       {
         id: 1,
-        instruction: "Plan your week by assigning meals to each day. Scheduled meals automatically populate your shopping list.",
+        instruction: "Smart Plan is the quickest way to draft a week before you make manual adjustments.",
+        highlightSelector: "[data-tutorial='planner-smart']",
       },
       {
         id: 2,
-        instruction: "Today's column is highlighted. Each column holds three meal slots — breakfast, lunch, and dinner.",
-        highlightSelector: "[data-tutorial='planner-today']",
+        instruction: "This full-week view helps you spot balance, repetition, and where ingredient overlap can save work later.",
+        highlightSelector: "[data-tutorial='planner-overview']",
       },
       {
         id: 3,
-        instruction: "Click the dinner slot in today's column to open the recipe panel.",
+        instruction: "Today's column is highlighted here so you always know exactly which day you are editing.",
+        highlightSelector: "[data-tutorial='planner-today']",
+      },
+      {
+        id: 4,
+        instruction: "Open today's dinner slot so you can schedule the recipe you just saved.",
         highlightSelector: "[data-tutorial='planner-today-slot']",
         mandatory: true,
         desktopOnly: true,
       },
       {
-        id: 4,
-        instruction: "Tap the dinner slot in today's column to open the recipe panel.",
+        id: 5,
+        instruction: "Open today's dinner slot so you can schedule the recipe you just saved.",
         highlightSelector: "[data-tutorial='planner-today-slot']",
         mandatory: true,
         mobileOnly: true,
       },
       {
-        id: 5,
-        instruction: "The recipe panel lets you browse and search for recipes to drop into any meal slot.",
+        id: 6,
+        instruction: "The recipe panel is where search, saved recipes, and slot assignment all come together.",
         highlightSelector: "[data-tutorial='planner-sidebar']",
       },
       {
-        id: 6,
-        instruction: "Switch to Saved to see the recipe you just favorited.",
+        id: 7,
+        instruction: "Switch to Saved so the recipe you favorited is ready to drop into the plan.",
         highlightSelector: "[data-tutorial='planner-favorites-tab']",
         mandatory: true,
       },
       {
-        id: 7,
-        instruction: "Tap a recipe card to add it to today's dinner slot.",
+        id: 8,
+        instruction: "Choose the saved recipe to add it to today's dinner slot.",
         highlightSelector: "[data-tutorial='planner-sidebar-recipe']",
         completionSelector: "[data-tutorial='planner-today-filled-slot']",
         mandatory: true,
       },
       {
-        id: 8,
-        instruction: "Your filled day card updates right away, so you can confirm the meal landed where you expected.",
+        id: 9,
+        instruction: "Your filled day card updates right away, so you can verify the meal landed where you expected.",
         highlightSelector: "[data-tutorial='planner-today']",
-        desktopOnly: true,
       },
       {
-        id: 9,
-        instruction: "Great — your meal is planned. Close the panel to see the full week.",
+        id: 10,
+        instruction: "Close the panel to return to the full planner once the meal is scheduled.",
         highlightSelector: "[data-tutorial='planner-sidebar-close']",
         mandatory: true,
       },
@@ -134,17 +174,33 @@ export const generalPages: GeneralPageEntry[] = [
   {
     page: "/store",
     title: "Store & Shopping",
-    description: "Your consolidated list with live pricing across nearby stores.",
+    description: "Review the shopping outcome from top to bottom before you move on.",
     substeps: [
       {
         id: 1,
-        instruction: "Compare totals across stores before you shop, then check off items as you go.",
+        instruction: "Start with the store switcher so you know which store's pricing and availability you are reviewing.",
+        highlightSelector: "[data-tutorial='store-selector']",
+      },
+      {
+        id: 2,
+        instruction: "The running total is the fastest health check for whether the current plan still feels right.",
+        highlightSelector: "[data-tutorial='store-total']",
+      },
+      {
+        id: 3,
+        instruction: "Review the item list to catch missing quantities, overlaps, or anything that looks off before checkout.",
+        highlightSelector: "[data-tutorial='store-items']",
+      },
+      {
+        id: 4,
+        instruction: "If anything is missing, this section shows where substitutes or another store might still be worth it.",
+        highlightSelector: "[data-tutorial='store-missing']",
       },
     ],
     postSubsteps: [
       {
         id: 1,
-        instruction: "Head to Home for a quick wrap-up before you jump back into your planning flow.",
+        instruction: "Head to Home for a quick wrap-up before you return to your everyday dashboard flow.",
         highlightSelector: "[data-tutorial-nav='/home']",
         mandatory: true,
       },
@@ -153,18 +209,18 @@ export const generalPages: GeneralPageEntry[] = [
   {
     page: "/home",
     title: "Thanks for Exploring",
-    description: "Take a moment to explore Home and see what is trending, recommended, and worth doing next.",
+    description: "Finish the tour here, then jump back to the dashboard when you are ready to use the app for real.",
     substeps: [
       {
         id: 1,
-        instruction: "Thanks for taking the tour. Home is a great place to explore featured activity, recipe inspiration, and shortcuts into the rest of the app.",
+        instruction: "Home is a good place to browse inspiration, featured content, and shortcuts back into the rest of the app.",
         highlightSelector: "[data-tutorial='home-overview']",
       },
     ],
     postSubsteps: [
       {
         id: 1,
-        instruction: "Spend a moment exploring Home, and when you're ready, click Dashboard to get back to your main cooking overview.",
+        instruction: "When you are ready, go back to Dashboard to start using everything you just toured.",
         highlightSelector: "[data-tutorial-nav='/dashboard']",
         mandatory: true,
       },

@@ -216,8 +216,6 @@ export type Database = {
           theme_preference: string | null
           tutorial_completed: boolean | null
           tutorial_completed_at: string | null
-          tutorial_path: string | null
-          tutorial_goals_ranking: string[] | null
           formatted_address: string | null
           address_line1: string | null
           address_line2: string | null
@@ -255,8 +253,6 @@ export type Database = {
           theme_preference?: string | null
           tutorial_completed?: boolean | null
           tutorial_completed_at?: string | null
-          tutorial_path?: string | null
-          tutorial_goals_ranking?: string[] | null
           formatted_address?: string | null
           address_line1?: string | null
           address_line2?: string | null
@@ -294,8 +290,6 @@ export type Database = {
           theme_preference?: string | null
           tutorial_completed?: boolean | null
           tutorial_completed_at?: string | null
-          tutorial_path?: string | null
-          tutorial_goals_ranking?: string[] | null
           formatted_address?: string | null
           address_line1?: string | null
           address_line2?: string | null

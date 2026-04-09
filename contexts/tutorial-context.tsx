@@ -9,39 +9,16 @@ import { useAnalytics } from "@/hooks/use-analytics"
 import { setTutorialToastSuppression } from "@/hooks/ui/use-toast"
 
 import type {
-  TutorialStep,
   TutorialSubstep,
-  GoalRank,
-  RankedGoals,
   GeneralPageEntry,
 } from "../contents/tutorial-content"
 
 import { generalPages } from "../contents/tutorial-content"
 
-type TutorialPathId = "cooking" | "budgeting" | "health"
-
-function isTutorialPathId(value: unknown): value is TutorialPathId {
-  return value === "cooking" || value === "budgeting" || value === "health"
-}
-
-function isRankedGoals(value: unknown): value is RankedGoals {
-  return (
-    Array.isArray(value) &&
-    value.length >= 1 &&
-    value.length <= 3 &&
-    value.every(isTutorialPathId)
-  )
-}
-
 export interface FlatTutorialSlot {
   page: string
-  step: TutorialStep | GeneralPageEntry
+  step: GeneralPageEntry
   substep: TutorialSubstep
-  /** null for general orientation slots */
-  tutorialId: TutorialPathId | null
-  /** null for general orientation slots */
-  rank: GoalRank | null
-  isGeneral: boolean
 }
 
 /**
@@ -53,22 +30,6 @@ export function pageMatches(stepPage: string, pathname: string): boolean {
     return pathname.startsWith(stepPage.slice(0, -1))
   }
   return pathname === stepPage
-}
-
-/**
- * Returns substeps visible for a given rank.
- * Rank 1: all substeps
- * Rank 2: first substep only
- * Rank 3: only essential substeps (fallback to first if none marked)
- */
-export function getVisibleSubsteps(step: TutorialStep, rank: GoalRank): TutorialSubstep[] {
-  const substeps = step.substeps ?? []
-  if (substeps.length === 0) return []
-  if (rank === 1) return substeps
-  if (rank === 2) return substeps.slice(0, 1)
-  // rank === 3: essential only
-  const essential = substeps.filter(s => s.essential)
-  return essential.length > 0 ? essential : substeps.slice(0, 1)
 }
 
 function isSubstepVisibleOnDevice(substep: TutorialSubstep, isMobile: boolean) {
@@ -89,12 +50,12 @@ function buildFlatSequence(isMobile: boolean): FlatTutorialSlot[] {
     const page = general.page
 
     for (const substep of general.substeps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
-      slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
+      slots.push({ page, step: general, substep })
     }
 
     if (general?.postSubsteps) {
       for (const substep of general.postSubsteps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
-        slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
+        slots.push({ page, step: general, substep })
       }
     }
   }
@@ -104,19 +65,16 @@ function buildFlatSequence(isMobile: boolean): FlatTutorialSlot[] {
 
 interface TutorialContextType {
   isActive: boolean
-  rankedGoals: RankedGoals | null
   flatSequence: FlatTutorialSlot[]
   currentSlotIndex: number
   currentSlot: FlatTutorialSlot | null
-  currentStep: TutorialStep | GeneralPageEntry | null
+  currentStep: GeneralPageEntry | null
   currentSubstep: TutorialSubstep | null
 
   tutorialCompleted: boolean
-  tutorialPath: TutorialPathId | null
   tutorialCompletedAt: string | null
 
-  startRankedSession: (ranked: RankedGoals) => void
-  startTutorial: (pathId: TutorialPathId) => void
+  startTutorial: () => void
   nextStep: () => void
   prevStep: () => void
   skipTutorial: () => void
@@ -133,10 +91,8 @@ export function useTutorial() {
 
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [isActive, setIsActive] = useState(false)
-  const [rankedGoals, setRankedGoals] = useState<RankedGoals | null>(null)
   const [currentSlotIndex, setCurrentSlotIndex] = useState(0)
   const [tutorialCompleted, setTutorialCompleted] = useState(false)
-  const [tutorialPath, setTutorialPath] = useState<TutorialPathId | null>(null)
   const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
@@ -146,13 +102,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
   // Bump this when the payload shape changes; old payloads will be silently discarded
-  const TUTORIAL_STATE_VERSION = 9
+  const TUTORIAL_STATE_VERSION = 10
 
   // Derived state
-  const flatSequence = useMemo(
-    () => (rankedGoals ? buildFlatSequence(isMobile) : []),
-    [rankedGoals, isMobile]
-  )
+  const flatSequence = useMemo(() => buildFlatSequence(isMobile), [isMobile])
   const currentSlot = flatSequence[currentSlotIndex] ?? null
   const currentStep = currentSlot?.step ?? null
   const currentSubstep = currentSlot?.substep ?? null
@@ -161,7 +114,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const saveTutorialState = useCallback(() => {
     if (typeof window === "undefined") return
 
-    if (!isActive || !rankedGoals) {
+    if (!isActive) {
       window.localStorage.removeItem(TUTORIAL_STATE_KEY)
       return
     }
@@ -170,11 +123,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       TUTORIAL_STATE_KEY,
       JSON.stringify({
         version: TUTORIAL_STATE_VERSION,
-        rankedGoals,
         currentSlotIndex,
       })
     )
-  }, [rankedGoals, currentSlotIndex, isActive])
+  }, [currentSlotIndex, isActive])
 
   // Restore tutorial state from localStorage
   const restoreTutorialState = useCallback(() => {
@@ -190,14 +142,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
           window.localStorage.removeItem(TUTORIAL_STATE_KEY)
           return
         }
-        if (!isRankedGoals(state.rankedGoals)) {
-          window.localStorage.removeItem(TUTORIAL_STATE_KEY)
-          return
-        }
-
-        const goals = state.rankedGoals as RankedGoals
         const sequence = buildFlatSequence(window.innerWidth < 768)
-        setRankedGoals(goals)
         setCurrentSlotIndex(
           Number.isInteger(state.currentSlotIndex)
             ? Math.min(state.currentSlotIndex, sequence.length - 1)
@@ -215,34 +160,27 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   // Core Functions
   // -------------------
 
-  const startRankedSession = useCallback((ranked: RankedGoals) => {
+  const startTutorial = useCallback(() => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(DISMISS_KEY)
     }
     const sequence = buildFlatSequence(isMobile)
-    setRankedGoals(ranked)
     setCurrentSlotIndex(0)
     setIsActive(true)
-    trackEvent("tutorial_started", { path: ranked[0] })
+    trackEvent("tutorial_started", { steps_total: sequence.length })
     if (sequence.length > 0) {
       router.push(sequence[0].page)
     }
   }, [isMobile, trackEvent, router])
 
-  const startTutorial = useCallback((pathId: TutorialPathId) => {
-    startRankedSession([pathId])
-  }, [startRankedSession])
-
   const completeTutorial = useCallback(async () => {
-    if (!user || !rankedGoals) return
+    if (!user) return
     try {
       const completedAt = new Date().toISOString()
 
       await updateProfile({
         tutorial_completed: true,
         tutorial_completed_at: completedAt,
-        tutorial_path: rankedGoals[0],
-        tutorial_goals_ranking: [...rankedGoals],
       })
 
       if (typeof window !== "undefined") {
@@ -252,17 +190,15 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
       setIsActive(false)
       setTutorialCompleted(true)
-      setTutorialPath(rankedGoals[0])
       setTutorialCompletedAt(completedAt)
 
       trackEvent("tutorial_completed", {
-        path: rankedGoals[0],
         steps_completed: flatSequence.length,
       })
     } catch (error) {
       console.error("Error completing tutorial:", error)
     }
-  }, [user, rankedGoals, updateProfile, flatSequence, trackEvent])
+  }, [user, updateProfile, flatSequence, trackEvent])
 
   // -------------------
   // Navigation Functions
@@ -276,13 +212,9 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       const nextSlot = flatSequence[nextIndex]
       const currentPage = flatSequence[currentSlotIndex].page
 
-      const completedSlot = flatSequence[currentSlotIndex]
-      if (completedSlot.tutorialId) {
-        trackEvent("tutorial_step_completed", {
-          path: completedSlot.tutorialId,
-          step_index: currentSlotIndex,
-        })
-      }
+      trackEvent("tutorial_step_completed", {
+        step_index: currentSlotIndex,
+      })
 
       if (nextSlot.page !== currentPage && !nextSlot.page.endsWith("*")) {
         router.push(nextSlot.page)
@@ -321,12 +253,9 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const skipTutorial = useCallback(async () => {
     if (!user) return
     try {
-      if (currentSlot?.tutorialId) {
-        trackEvent("tutorial_skipped", {
-          path: currentSlot.tutorialId,
-          step_abandoned: currentSlotIndex,
-        })
-      }
+      trackEvent("tutorial_skipped", {
+        step_abandoned: currentSlotIndex,
+      })
 
       setIsActive(false)
       if (typeof window !== "undefined") {
@@ -336,7 +265,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error skipping tutorial:", error)
     }
-  }, [user, currentSlot, currentSlotIndex, trackEvent])
+  }, [user, currentSlotIndex, trackEvent])
 
   const resetTutorial = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -344,7 +273,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       window.localStorage.removeItem(TUTORIAL_STATE_KEY)
     }
     setIsActive(false)
-    setRankedGoals(null)
     setCurrentSlotIndex(0)
   }, [])
 
@@ -358,7 +286,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     saveTutorialState()
-  }, [rankedGoals, currentSlotIndex, isActive, saveTutorialState])
+  }, [currentSlotIndex, isActive, saveTutorialState])
 
   useEffect(() => {
     if (flatSequence.length === 0) {
@@ -377,7 +305,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (!profile) return
     setTutorialCompleted(profile.tutorial_completed === true)
     setTutorialCompletedAt(profile.tutorial_completed_at ?? null)
-    setTutorialPath(isTutorialPathId(profile.tutorial_path) ? profile.tutorial_path : null)
 
     if (profile.tutorial_completed === true) {
       setIsActive(false)
@@ -398,16 +325,13 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   const value: TutorialContextType = {
     isActive,
-    rankedGoals,
     flatSequence,
     currentSlotIndex,
     currentSlot,
     currentStep,
     currentSubstep,
     tutorialCompleted,
-    tutorialPath,
     tutorialCompletedAt,
-    startRankedSession,
     startTutorial,
     nextStep,
     prevStep,

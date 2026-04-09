@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import type { TutorialStep, TutorialSubstep, GeneralPageEntry } from "@/lib/types/ui/tutorial"
+import type { TutorialSubstep, GeneralPageEntry } from "@/lib/types/ui/tutorial"
 import {
   MAX_RETRIES,
   SCROLL_HIGHLIGHT_INTERVAL,
@@ -23,7 +23,7 @@ const useIsomorphicLayoutEffect =
 
 interface UseHighlightEngineOptions {
   isActive: boolean
-  currentStep: TutorialStep | GeneralPageEntry | null | undefined
+  currentStep: GeneralPageEntry | null | undefined
   currentSubstep: TutorialSubstep | null | undefined
   currentSlotIndex: number
   transitionNavSelector: string | null
@@ -134,12 +134,8 @@ export function useHighlightEngine({
     if (!isActive || !currentStep || isMinimized || isPageLoading) return
     if (isTutorialHighlightSuppressed()) return
 
-    const stepSel =
-      currentStep && "highlightSelector" in currentStep
-        ? currentStep.highlightSelector
-        : undefined
     const selector =
-      transitionNavSelector ?? currentSubstep?.highlightSelector ?? stepSel
+      transitionNavSelector ?? currentSubstep?.highlightSelector ?? null
 
     if (!selector) {
       setTargetElement(null)

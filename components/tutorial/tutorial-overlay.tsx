@@ -67,14 +67,6 @@ export function TutorialOverlay() {
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
   const isLastStep = currentSlotIndex === totalSteps - 1
 
-  const stepHighlightSelector =
-    currentStep && "highlightSelector" in currentStep
-      ? currentStep.highlightSelector
-      : undefined
-  const stepScrollContainerSelector =
-    currentStep && "scrollContainerSelector" in currentStep
-      ? currentStep.scrollContainerSelector
-      : undefined
   const nextSlot =
     currentSlotIndex < flatSequence.length - 1
       ? flatSequence[currentSlotIndex + 1]
@@ -84,27 +76,15 @@ export function TutorialOverlay() {
 
   // Substep-level selector, used by the mandatory completion hook.
   // transitionNavSelector is computed after isMandatoryCompleted is known.
-  const substepExpectedSelector =
-    currentSubstep?.highlightSelector ?? stepHighlightSelector ?? null
+  const substepExpectedSelector = currentSubstep?.highlightSelector ?? null
 
-  const expectedScrollContainerSelector =
-    currentSubstep?.scrollContainerSelector ??
-    stepScrollContainerSelector ??
-    null
+  const expectedScrollContainerSelector = currentSubstep?.scrollContainerSelector ?? null
 
   const nextStepHighlightSelector =
-    nextSlot?.substep.highlightSelector ??
-    (nextSlot?.step && "highlightSelector" in nextSlot.step
-      ? nextSlot.step.highlightSelector
-      : undefined) ??
-    null
+    nextSlot?.substep.highlightSelector ?? null
 
   const nextStepScrollContainerSelector =
-    nextSlot?.substep.scrollContainerSelector ??
-    (nextSlot?.step && "scrollContainerSelector" in nextSlot.step
-      ? nextSlot.step.scrollContainerSelector
-      : undefined) ??
-    null
+    nextSlot?.substep.scrollContainerSelector ?? null
 
   const shouldAutoScrollDashboardNextWithinPage =
     !!nextSlot &&
@@ -645,7 +625,6 @@ export function TutorialOverlay() {
             showScrollPrompt={showScrollPrompt}
             isMandatoryCompleted={isMandatoryCompleted}
             isLastStep={isLastStep}
-            currentSlot={currentSlot}
             currentStep={currentStep}
             currentSubstep={currentSubstep}
             currentSlotIndex={currentSlotIndex}
