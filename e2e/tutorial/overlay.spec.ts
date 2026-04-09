@@ -50,8 +50,7 @@ test.describe("Tutorial overlay UI", () => {
 
   test("progress label shows 1 of total on first slot", async ({ page }) => {
     const overlay = page.locator("[data-testid='tutorial-overlay']")
-    // Total for 3 ranked goals = 24 slots
-    await expect(overlay.getByText(/step 1 of 24/i)).toBeVisible({ timeout: 5_000 })
+    await expect(overlay.getByText(/step 1 of 17/i)).toBeVisible({ timeout: 5_000 })
   })
 
   test("progress bar fills as steps advance", async ({ page }) => {

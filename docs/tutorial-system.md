@@ -1,6 +1,6 @@
 # Tutorial System
 
-A guided, multi-path in-app tutorial that overlays the live UI. Users choose up to three goal-oriented paths, which are then interleaved into a single flat sequence of steps and played back page by page.
+A guided in-app tutorial that overlays the live UI. The walkthrough now follows one shared page-by-page sequence built from the general tutorial content, so each page reads top-to-bottom and only jumps when transitioning to a new page.
 
 ---
 
@@ -8,7 +8,7 @@ A guided, multi-path in-app tutorial that overlays the live UI. Users choose up 
 
 ```
 TutorialProvider (context)
-  └── builds flatSequence from rankedGoals + content files
+  └── builds flatSequence from generalPages
   └── persists state to localStorage
   └── exposes nextStep / prevStep / skipTutorial / startRankedSession
 
@@ -29,8 +29,8 @@ TutorialOverlay (component)
 |---|---|
 | `TutorialSubstep` | A single instruction panel, optionally tied to a UI element |
 | `TutorialStep` | A named step within a path, grouping substeps for one page |
-| `TutorialPath` | A complete goal-oriented path (cooking / budgeting / health) |
-| `GeneralPageEntry` | Page-orientation slots shown to every user regardless of path |
+| `TutorialPath` | Legacy goal-oriented path content retained for ranking/profile data |
+| `GeneralPageEntry` | Page-level walkthrough content used by the shared tutorial |
 | `GoalRank` | `1 \| 2 \| 3` — how deeply a path is explored |
 | `RankedGoals` | Ordered array of 1–3 path IDs chosen by the user |
 
@@ -63,31 +63,22 @@ contents/
 
 #### Path content structure
 
-Each path has a fixed set of `steps`, one per app page, in the same page order:
-
-| Page | cooking | budgeting | health |
-|---|---|---|---|
-| `/dashboard` | Kitchen Dashboard | Budget Snapshot | Health Snapshot |
-| `/recipes` | Recipe Discovery | Recipe Cost Control | Healthy Recipe Selection |
-| `/recipes/*` | Recipe Detail | Recipe Detail | Recipe Detail |
-| `/meal-planner` | Meal Planning | Budget-Friendly Plan | Nutrition Planning |
-| `/store` | Store Checkout Prep | Store Comparison | Smart Shopping |
-| `/settings` | Keep Preferences Current | Adjust as Budget Changes | Update When Needs Change |
-
-The page order is always derived from the **rank-1 path** (the user's primary goal).
+Legacy path files are still present for goal ranking and profile data, but the active walkthrough no longer derives its sequence from them.
 
 #### General page entries (`general.ts`)
 
-Every page also has a `GeneralPageEntry` with orientation `substeps` (shown first on the page, before path-specific content) and optional `postSubsteps` (shown last, after all path content).
+Every page in the shared tutorial has a `GeneralPageEntry` with `substeps` for the main walkthrough and optional `postSubsteps` for follow-up interactions on that same page.
 
 Current general content:
 
 | Page | Substeps (orientation) | PostSubsteps (interactive) |
 |---|---|---|
 | `/dashboard` | 1 — dashboard overview | — |
-| `/recipes` | 1 — search/filter intro; 2 — recipe card highlight (blockClick) | 1 — **mandatory** click recipe card |
+| `/recipes` | 1 — search/filter intro | 1 — **mandatory** click recipe card |
 | `/recipes/*` | 1 — detail page overview | 1 — **mandatory** favorite the recipe |
-| `/meal-planner` | 1 — planner intro; 2 — today column; 3 — **mandatory** click dinner slot; 4 — sidebar overview; 5 — **mandatory** switch to Saved; 6 — **mandatory** tap recipe card; 7 — **mandatory** close sidebar | — |
+| `/meal-planner` | 1 — planner intro; 2 — today column; 3 — **mandatory** click dinner slot; 4 — sidebar overview; 5 — **mandatory** switch to Saved; 6 — **mandatory** tap recipe card; 7 — filled-slot confirmation; 8 — **mandatory** close sidebar | — |
+| `/store` | 1 — store overview | 1 — **mandatory** navigate to Home |
+| `/home` | 1 — home overview | 1 — **mandatory** navigate to Dashboard |
 
 ---
 
@@ -99,29 +90,25 @@ Owns all tutorial state. Mounted at the app root.
 
 **State:**
 - `isActive: boolean` — whether the tutorial overlay is showing
-- `rankedGoals: RankedGoals | null` — the user's ordered path selection
+- `rankedGoals: RankedGoals | null` — the user's ordered goal selection, still persisted for personalization/profile data
 - `currentSlotIndex: number` — position within `flatSequence`
 
 **Derived:**
-- `flatSequence` — built from `rankedGoals` on every render via `buildFlatSequence()`
+- `flatSequence` — built from `generalPages` on every render via `buildFlatSequence()`
 - `currentSlot / currentStep / currentSubstep` — indexed from `flatSequence`
 
 **Persistence:** State is written to `localStorage` (`tutorial_state_v1`) on every change and restored on mount. Dismissed state is stored separately under `tutorial_dismissed_v1`. Version-mismatch on restore causes a silent discard and re-prompt.
 
 **Completion:** Written to the user's database profile via `updateProfile` with `tutorial_completed`, `tutorial_completed_at`, `tutorial_path`, and `tutorial_goals_ranking`. Completion clears localStorage and deactivates the overlay.
 
-### `buildFlatSequence(rankedGoals)`
+### `buildFlatSequence()`
 
-Produces the ordered list of `FlatTutorialSlot` objects. For each page (in the rank-1 path's page order):
+Produces the ordered list of `FlatTutorialSlot` objects directly from `generalPages`.
 
-1. General orientation substeps (`general.substeps`)
-2. For each ranked goal in order: path substeps filtered by rank depth
-3. General post-substeps (`general.postSubsteps`)
+1. Page walkthrough substeps (`general.substeps`)
+2. Follow-up page interactions (`general.postSubsteps`)
 
-**Rank depth:**
-- Rank 1 — all substeps
-- Rank 2 — first substep only
-- Rank 3 — `essential: true` substeps only (falls back to first if none marked)
+The page order is the order defined in `contents/tutorials/general.ts`.
 
 ### `pageMatches(stepPage, pathname)`
 

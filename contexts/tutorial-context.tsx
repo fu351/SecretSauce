@@ -16,7 +16,7 @@ import type {
   GeneralPageEntry,
 } from "../contents/tutorial-content"
 
-import { tutorialPaths, generalPages } from "../contents/tutorial-content"
+import { generalPages } from "../contents/tutorial-content"
 
 type TutorialPathId = "cooking" | "budgeting" | "health"
 
@@ -78,40 +78,20 @@ function isSubstepVisibleOnDevice(substep: TutorialSubstep, isMobile: boolean) {
 }
 
 /**
- * Builds the flat sequence of tutorial slots organized by page.
- * For each page: general orientation substeps first (same for everyone),
- * then ranked tutorial substeps in order (rank 1 gets more depth than rank 2/3).
+ * Builds the flat sequence from the shared general walkthrough.
+ * Each page is shown in a single canonical order so the tour reads top-to-bottom
+ * within a page and only jumps when transitioning to a new page.
  */
-function buildFlatSequence(rankedGoals: RankedGoals, isMobile: boolean): FlatTutorialSlot[] {
-  // Derive canonical page order from the first ranked path
-  const firstPath = tutorialPaths[rankedGoals[0]]
-  const pages = firstPath.steps.map(s => s.page)
-  const generalByPage = Object.fromEntries(generalPages.map(g => [g.page, g]))
+function buildFlatSequence(isMobile: boolean): FlatTutorialSlot[] {
   const slots: FlatTutorialSlot[] = []
 
-  for (const page of pages) {
-    // 1. General orientation substeps — shown regardless of tutorial order
-    const general = generalByPage[page]
-    if (general) {
-      for (const substep of general.substeps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
-        slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
-      }
+  for (const general of generalPages) {
+    const page = general.page
+
+    for (const substep of general.substeps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
+      slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
     }
 
-    // 2. Ranked tutorial substeps — ordered by rank, depth proportional to rank
-    for (let rankIdx = 0; rankIdx < rankedGoals.length; rankIdx++) {
-      const tutorialId = rankedGoals[rankIdx] as TutorialPathId
-      const rank = Math.min(rankIdx + 1, 3) as GoalRank
-      const path = tutorialPaths[tutorialId]
-      const step = path.steps.find(s => s.page === page)
-      if (!step) continue
-      const substeps = getVisibleSubsteps(step, rank).filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))
-      for (const substep of substeps) {
-        slots.push({ page, step, substep, tutorialId, rank, isGeneral: false })
-      }
-    }
-
-    // 3. Post-ranked general substeps — appended after all ranked substeps
     if (general?.postSubsteps) {
       for (const substep of general.postSubsteps.filter((candidate) => isSubstepVisibleOnDevice(candidate, isMobile))) {
         slots.push({ page, step: general, substep, tutorialId: null, rank: null, isGeneral: true })
@@ -166,11 +146,11 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const DISMISS_KEY = "tutorial_dismissed_v1"
   const TUTORIAL_STATE_KEY = "tutorial_state_v1"
   // Bump this when the payload shape changes; old payloads will be silently discarded
-  const TUTORIAL_STATE_VERSION = 8
+  const TUTORIAL_STATE_VERSION = 9
 
   // Derived state
   const flatSequence = useMemo(
-    () => (rankedGoals ? buildFlatSequence(rankedGoals, isMobile) : []),
+    () => (rankedGoals ? buildFlatSequence(isMobile) : []),
     [rankedGoals, isMobile]
   )
   const currentSlot = flatSequence[currentSlotIndex] ?? null
@@ -216,7 +196,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
         }
 
         const goals = state.rankedGoals as RankedGoals
-        const sequence = buildFlatSequence(goals, window.innerWidth < 768)
+        const sequence = buildFlatSequence(window.innerWidth < 768)
         setRankedGoals(goals)
         setCurrentSlotIndex(
           Number.isInteger(state.currentSlotIndex)
@@ -239,7 +219,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(DISMISS_KEY)
     }
-    const sequence = buildFlatSequence(ranked, isMobile)
+    const sequence = buildFlatSequence(isMobile)
     setRankedGoals(ranked)
     setCurrentSlotIndex(0)
     setIsActive(true)

@@ -148,8 +148,8 @@ function SortableTutorialItem({
 export function TutorialSelectionModal({
   isOpen,
   onClose,
-  title = "Your Primary Intention",
-  description = "Choose where you want to focus first, just like onboarding.",
+  title = "Guided Product Tour",
+  description = "We’ll walk through one shared tour in a steady page-by-page flow. Your goal order is still saved for personalization outside the tutorial.",
   confirmLabel = "Start Tour",
 }: TutorialSelectionModalProps) {
   const { startRankedSession } = useTutorial()

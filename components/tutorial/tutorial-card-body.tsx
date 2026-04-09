@@ -234,7 +234,7 @@ export function TutorialCardBody({
               : currentSubstep?.instruction ?? currentStep?.description}
           </p>
 
-          {/* Tips — only shown at rank 1 (primary goal), not on general slots */}
+          {/* Legacy path tips remain available if step-specific content is reintroduced. */}
           {!currentSlot.isGeneral &&
             currentSlot.rank === 1 &&
             currentStep &&

@@ -20,8 +20,8 @@ test.describe("Tutorial state persistence", () => {
   })
 
   test("resumes at the correct slot after a hard refresh", async ({ page }) => {
-    // Inject state at slot 6 (recipes page, cooking rank-1 substep 1)
-    await injectTutorialState(page, ["cooking", "budgeting", "health"], 6)
+    // Inject state at slot 1 (recipes page overview)
+    await injectTutorialState(page, ["cooking", "budgeting", "health"], 1)
     await page.goto("/recipes")
 
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
@@ -36,18 +36,18 @@ test.describe("Tutorial state persistence", () => {
   })
 
   test("advancing a step then refreshing resumes at the new slot", async ({ page }) => {
-    await injectTutorialState(page, ["cooking", "budgeting", "health"], 6)
+    await injectTutorialState(page, ["cooking", "budgeting", "health"], 1)
     await page.goto("/recipes")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 
-    // Advance to slot 7 (recipe-search)
+    // Advance to slot 2 (recipe-card)
     await clickNext(page)
-    await expect(page.locator("[data-tutorial='recipe-search']")).toBeVisible({ timeout: 8_000 })
+    await expect(page.locator("[data-tutorial='recipe-card']")).toBeVisible({ timeout: 8_000 })
 
-    // Reload — should resume at slot 7
+    // Reload — should resume at slot 2
     await page.reload()
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator("[data-tutorial='recipe-search']")).toBeVisible({ timeout: 8_000 })
+    await expect(page.locator("[data-tutorial='recipe-card']")).toBeVisible({ timeout: 8_000 })
   })
 
   test("dismiss flag prevents tutorial from resuming after refresh", async ({ page }) => {
@@ -64,11 +64,11 @@ test.describe("Tutorial state persistence", () => {
   })
 
   test("completing the tutorial clears localStorage state", async ({ page }) => {
-    await injectTutorialState(page, ["cooking", "budgeting", "health"], 23)
-    await page.goto("/settings")
+    await injectTutorialState(page, ["cooking", "budgeting", "health"], 16)
+    await page.goto("/home")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 
-    await page.getByRole("button", { name: /finish/i }).click()
+    await page.locator("[data-tutorial-nav='/dashboard']").first().click()
     await waitForOverlayGone(page)
 
     const stored = await page.evaluate(() => localStorage.getItem("tutorial_state_v1"))

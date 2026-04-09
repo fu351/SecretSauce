@@ -594,8 +594,6 @@ export function TutorialOverlay() {
                 ? "Loading content..."
                 : isChangingPage
                 ? "Syncing UI..."
-                : currentSlot.isGeneral
-                ? "Overview"
                 : "Tutorial"}
             </span>
           </div>

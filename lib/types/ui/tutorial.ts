@@ -78,15 +78,15 @@ export interface TutorialPath {
 }
 
 /**
- * General page-level tips shown before ranked tutorial substeps.
- * These are orientation tips that appear regardless of tutorial order.
+ * General page-level tutorial content used for the shared walkthrough.
+ * Each entry owns the top-to-bottom guidance for a single page.
  */
 export interface GeneralPageEntry {
   page: string
   title: string
   description: string
   substeps: TutorialSubstep[]
-  /** Substeps appended after all ranked tutorial substeps for this page. */
+  /** Substeps appended after the main page walkthrough for this page. */
   postSubsteps?: TutorialSubstep[]
 }
 
