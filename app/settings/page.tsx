@@ -72,6 +72,7 @@ function SettingsPageContent() {
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
   const [showTutorialModal, setShowTutorialModal] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(theme === "dark" ? "dark" : "light")
+  const [isPrivate, setIsPrivate] = useState(false)
   const preferencesRef = useRef<ProfileUpdates | null>(null)
   const lastSavedSnapshotRef = useRef<string>("")
   const hasRecordedInitialSnapshot = useRef(false)
@@ -214,6 +215,16 @@ function SettingsPageContent() {
     }
   }
 
+  const handlePrivacyToggle = async (checked: boolean) => {
+    setIsPrivate(checked)
+    try {
+      await updateProfile({ is_private: checked })
+    } catch (error) {
+      console.error("Error saving privacy setting:", error)
+      setIsPrivate(!checked)
+    }
+  }
+
   const fetchUserPreferences = async () => {
     if (!user) return
 
@@ -237,6 +248,7 @@ function SettingsPageContent() {
       setFullName(profile.full_name || "")
       setAvatarUrl(profile.avatar_url || null)
       setNewEmail(profile.email || "")
+      setIsPrivate(profile.is_private ?? false)
 
       // Initialize theme from database preference if available
       if (profile.theme_preference) {
@@ -1114,14 +1126,23 @@ function SettingsPageContent() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                    Public Profile
+                  <Label
+                    htmlFor="private-account-toggle"
+                    className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}
+                  >
+                    Private Account
                   </Label>
                   <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                    Make your recipes visible to others
+                    {isPrivate
+                      ? "New followers require your approval."
+                      : "Anyone can follow you without approval."}
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch
+                  id="private-account-toggle"
+                  checked={isPrivate}
+                  onCheckedChange={handlePrivacyToggle}
+                />
               </div>
             </div>
           </CardContent>

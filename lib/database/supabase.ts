@@ -234,6 +234,7 @@ export type Database = {
           stripe_subscription_id: string | null
           stripe_price_id: string | null
           stripe_current_period_end: string | null
+          is_private: boolean
         }
         Insert: {
           id: string
@@ -271,6 +272,7 @@ export type Database = {
           stripe_subscription_id?: string | null
           stripe_price_id?: string | null
           stripe_current_period_end?: string | null
+          is_private?: boolean
         }
         Update: {
           id?: string
@@ -308,6 +310,33 @@ export type Database = {
           stripe_subscription_id?: string | null
           stripe_price_id?: string | null
           stripe_current_period_end?: string | null
+          is_private?: boolean
+        }
+      }
+      follow_requests: {
+        Row: {
+          id: string
+          follower_id: string
+          following_id: string
+          status: Database["public"]["Enums"]["follow_request_status"]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          follower_id: string
+          following_id: string
+          status?: Database["public"]["Enums"]["follow_request_status"]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          follower_id?: string
+          following_id?: string
+          status?: Database["public"]["Enums"]["follow_request_status"]
+          created_at?: string
+          updated_at?: string
         }
       }
       recipes: {
@@ -1249,6 +1278,15 @@ export type Database = {
         }
       }
     }
+    Views: {
+      follower_counts: {
+        Row: {
+          profile_id: string
+          follower_count: number
+          following_count: number
+        }
+      }
+    }
     Functions: {
       calculate_recipe_cost: {
         Args: {
@@ -1463,6 +1501,7 @@ export type Database = {
       unit_category: "weight" | "volume" | "count" | "other"
       unit_label: "oz" | "lb" | "fl oz" | "ml" | "gal" | "ct" | "each" | "bunch" | "gram" | "unit"
       subscription_tier: "free" | "premium"
+      follow_request_status: "pending" | "accepted" | "rejected"
       admin_role: "admin" | "analyst"
       experiment_status: "draft" | "scheduled" | "active" | "paused" | "completed" | "archived"
       allocation_method: "random" | "weighted" | "deterministic"

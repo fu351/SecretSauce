@@ -28,6 +28,7 @@ const USER_WRITABLE_FIELDS = new Set([
   "country",
   "latitude",
   "longitude",
+  "is_private",
 ])
 
 const PROFILE_SELECT = [
