@@ -72,31 +72,64 @@ export const generalPages: GeneralPageEntry[] = [
   {
     page: "/recipes/*",
     title: "Recipe Detail",
-    description: "Use the detail page to decide whether a recipe fits your plan before you commit it to the week.",
+    description: "Work top-to-bottom through the detail page to evaluate, plan, and act on a recipe before you commit it to the week.",
     steps: [
       {
         id: 1,
-        instruction: "Check the tags first to confirm the recipe fits the style of meal or dietary direction you want.",
-        highlightSelector: "[data-tutorial='recipe-detail-tags']",
+        instruction: "Start with the title and description to get a feel for what this recipe is before diving into the details.",
+        highlightSelector: "[data-tutorial='recipe-detail-header']",
       },
       {
         id: 2,
-        instruction: "The pricing section helps you judge cost before this recipe turns into shopping list items.",
-        highlightSelector: "[data-tutorial='recipe-detail-pricing']",
+        instruction: "The stats panel shows total time, difficulty, servings, and rating. Use these four numbers to decide whether the recipe fits your schedule and skill level today.",
+        highlightSelector: "[data-tutorial='recipe-detail-stats']",
       },
       {
         id: 3,
-        instruction: "Review the ingredient list to see what you need to buy and where overlap with other meals might help.",
-        highlightSelector: "[data-tutorial='recipe-detail-ingredients']",
+        instruction: "Nutrition shows calories, protein, and fat per serving so you can confirm the recipe fits your macro goals before you cook it.",
+        highlightSelector: "[data-tutorial='nutrition-info']",
       },
-      {
+            {
         id: 4,
-        instruction: "Scan the instructions to understand the effort, pacing, and technique before you add the recipe to your routine.",
-        highlightSelector: "[data-tutorial='recipe-detail-instructions']",
+        instruction: "Check the tags — cuisine, meal type, protein, and dietary labels tell you at a glance whether this recipe fits your plan.",
+        highlightSelector: "[data-tutorial='recipe-detail-tags']",
       },
       {
         id: 5,
-        instruction: "Favorite this recipe so it is easy to find from the planner when you are ready to schedule it.",
+        instruction: "The pricing section estimates what this recipe will cost at your store. Check it before adding anything to your shopping list.",
+        highlightSelector: "[data-tutorial='recipe-detail-pricing']",
+      },
+      {
+        id: 6,
+        instruction: "Review the ingredient list to see exactly what you need and spot where this recipe overlaps with other meals in your plan.",
+        highlightSelector: "[data-tutorial='recipe-detail-ingredients']",
+      },
+      {
+        id: 7,
+        instruction: "Send all ingredients to your shopping list in one tap. The button stays disabled until every ingredient has been matched to a store product.",
+        highlightSelector: "[data-tutorial='recipe-add-to-cart']",
+        blockClick: true,
+      },
+      {
+        id: 8,
+        instruction: "Read through the steps to gauge the technique and pacing before you commit this recipe to the week.",
+        highlightSelector: "[data-tutorial='recipe-detail-instructions']",
+      },
+      {
+        id: 9,
+        instruction: "On mobile, Start Cooking launches a step-by-step mode so you can follow the recipe hands-free while you cook.",
+        highlightSelector: "[data-tutorial='recipe-start-cooking']",
+        blockClick: true,
+        mobileOnly: true,
+      },
+      {
+        id: 10,
+        instruction: "Check the reviews to see how other cooks rated this recipe and what tweaks they recommended.",
+        highlightSelector: "[data-tutorial='recipe-reviews']",
+      },
+      {
+        id: 11,
+        instruction: "Favorite this recipe so it shows up in the planner's Saved tab when you are ready to schedule it for the week.",
         highlightSelector: "[data-tutorial='recipe-favorite']",
         mandatory: true,
       },
