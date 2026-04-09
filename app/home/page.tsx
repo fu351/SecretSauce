@@ -13,6 +13,7 @@ import { useEffect, useState, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
+import { supabase } from "@/lib/database/supabase"
 import Image from "next/image"
 import {
   Bell,
@@ -20,18 +21,29 @@ import {
   Clock,
   Crown,
   Heart,
-  MessageCircle,
+  Repeat2,
   Share2,
   Sparkles,
   Trophy,
+  Upload,
   Users,
 } from "lucide-react"
 import { RecipeCardCompact } from "@/components/recipe/cards/recipe-card-compact"
 import { RecipeGrid } from "@/components/recipe/recipe-grid"
 import { Recipe } from "@/lib/types"
 import { useToast } from "@/hooks"
+import type { PostWithMeta } from "@/lib/database/post-db"
 
 type HomePageRecipe = Recipe
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
 
 export default function HomeReturningPage() {
   const { user, loading } = useAuth()
@@ -40,38 +52,44 @@ export default function HomeReturningPage() {
   const [flavorsOfWeek, setFlavorsOfWeek] = useState<HomePageRecipe[]>([])
   const [recommendedRecipes, setRecommendedRecipes] = useState<HomePageRecipe[]>([])
   const [loadingRecipes, setLoadingRecipes] = useState(true)
+
+  // Post creation
   const [postDishOpen, setPostDishOpen] = useState(false)
   const [postDishTitle, setPostDishTitle] = useState("")
   const [postDishCaption, setPostDishCaption] = useState("")
+  const [postImage, setPostImage] = useState<File | null>(null)
+  const [postImagePreview, setPostImagePreview] = useState<string | null>(null)
+  const [submittingPost, setSubmittingPost] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Feed
+  const [feedPosts, setFeedPosts] = useState<PostWithMeta[]>([])
+  const [loadingFeed, setLoadingFeed] = useState(true)
 
   const fetchingRecipes = useRef(false)
   const isMounted = useRef(true)
 
   useEffect(() => {
     isMounted.current = true
-    return () => {
-      isMounted.current = false
-    }
+    return () => { isMounted.current = false }
   }, [])
 
   useEffect(() => {
     if (!loading && isMounted.current && !fetchingRecipes.current) {
       fetchHomeRecipes()
+      fetchFeed()
     }
   }, [loading])
 
   const fetchHomeRecipes = async () => {
     if (fetchingRecipes.current || !isMounted.current) return
-
     fetchingRecipes.current = true
     setLoadingRecipes(true)
-
     try {
       const [topRated, newest] = await Promise.all([
         recipeDB.fetchRecipes({ sortBy: "rating_avg", limit: 10 }),
         recipeDB.fetchRecipes({ sortBy: "created_at", limit: 24 }),
       ])
-
       if (isMounted.current) {
         setFlavorsOfWeek(topRated?.slice(0, 8) ?? [])
         setRecommendedRecipes(newest ?? [])
@@ -79,10 +97,148 @@ export default function HomeReturningPage() {
     } catch (error) {
       console.error("Error fetching recipes:", error)
     } finally {
-      if (isMounted.current) {
-        setLoadingRecipes(false)
-      }
+      if (isMounted.current) setLoadingRecipes(false)
       fetchingRecipes.current = false
+    }
+  }
+
+  const fetchFeed = async () => {
+    setLoadingFeed(true)
+    try {
+      const res = await fetch("/api/posts/feed?limit=20")
+      if (!res.ok) throw new Error("Feed fetch failed")
+      const json = await res.json()
+      if (isMounted.current) setFeedPosts(json.posts ?? [])
+    } catch (error) {
+      console.error("Error fetching feed:", error)
+    } finally {
+      if (isMounted.current) setLoadingFeed(false)
+    }
+  }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file type", description: "Please choose an image.", variant: "destructive" })
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 10 MB.", variant: "destructive" })
+      return
+    }
+    setPostImage(file)
+    setPostImagePreview(URL.createObjectURL(file))
+  }
+
+  const handlePostSubmit = async () => {
+    if (!postImage || !postDishTitle.trim()) {
+      toast({ title: "Missing fields", description: "Add a photo and a dish name.", variant: "destructive" })
+      return
+    }
+    setSubmittingPost(true)
+    try {
+      // Upload image to Supabase Storage
+      const ext  = postImage.name.split(".").pop()
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from("post-images")
+        .upload(path, postImage, { upsert: false })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("post-images")
+        .getPublicUrl(path)
+
+      // Create post via API
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: publicUrl,
+          title:    postDishTitle.trim(),
+          caption:  postDishCaption.trim() || undefined,
+        }),
+      })
+
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error ?? "Failed to post")
+      }
+
+      toast({ title: "Posted!", description: "Your dish is live." })
+      setPostDishOpen(false)
+      setPostDishTitle("")
+      setPostDishCaption("")
+      setPostImage(null)
+      setPostImagePreview(null)
+      fetchFeed()
+    } catch (error: any) {
+      toast({ title: "Post failed", description: error.message, variant: "destructive" })
+    } finally {
+      setSubmittingPost(false)
+    }
+  }
+
+  const handleLike = async (postId: string) => {
+    // Optimistic update
+    setFeedPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              liked_by_viewer: !p.liked_by_viewer,
+              like_count: p.liked_by_viewer ? p.like_count - 1 : p.like_count + 1,
+            }
+          : p
+      )
+    )
+    try {
+      await fetch(`/api/posts/${postId}/like`, { method: "POST" })
+    } catch {
+      // revert on failure
+      setFeedPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                liked_by_viewer: !p.liked_by_viewer,
+                like_count: p.liked_by_viewer ? p.like_count - 1 : p.like_count + 1,
+              }
+            : p
+        )
+      )
+    }
+  }
+
+  const handleRepost = async (postId: string) => {
+    // Optimistic update
+    setFeedPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              reposted_by_viewer: !p.reposted_by_viewer,
+              repost_count: p.reposted_by_viewer ? p.repost_count - 1 : p.repost_count + 1,
+            }
+          : p
+      )
+    )
+    try {
+      await fetch(`/api/posts/${postId}/repost`, { method: "POST" })
+    } catch {
+      setFeedPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                reposted_by_viewer: !p.reposted_by_viewer,
+                repost_count: p.reposted_by_viewer ? p.repost_count - 1 : p.repost_count + 1,
+              }
+            : p
+        )
+      )
     }
   }
 
@@ -90,20 +246,8 @@ export default function HomeReturningPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse relative size-[120px]">
-          <Image
-            src="/logo-warm.png"
-            alt="Secret Sauce"
-            width={120}
-            height={120}
-            className="dark:hidden block object-contain"
-          />
-          <Image
-            src="/logo-dark.png"
-            alt="Secret Sauce"
-            width={120}
-            height={120}
-            className="hidden dark:block object-contain"
-          />
+          <Image src="/logo-warm.png" alt="Secret Sauce" width={120} height={120} className="dark:hidden block object-contain" />
+          <Image src="/logo-dark.png" alt="Secret Sauce" width={120} height={120} className="hidden dark:block object-contain" />
         </div>
       </div>
     )
@@ -116,48 +260,15 @@ export default function HomeReturningPage() {
     user?.email?.split("@")[0] ||
     "there"
 
-  const friendsPosts = [
-    {
-      id: "post-1",
-      name: "Ava",
-      tag: "Challenge Winner",
-      timeAgo: "3h ago",
-      title: "Chili crisp noodles",
-      quote: "Used leftovers and it slapped",
-      likes: 24,
-      comments: 4,
-      image: "/placeholder.svg?height=800&width=1200",
-    },
-    {
-      id: "post-2",
-      name: "Maya",
-      tag: "Pantry Rescue",
-      timeAgo: "1d ago",
-      title: "One-pan lemon chickpeas",
-      quote: "10 minutes, zero stress.",
-      likes: 41,
-      comments: 7,
-      image: "/placeholder.svg?height=800&width=1200",
-    },
-  ]
-
   const leaders = [
     { name: "Maya", pts: 420, me: false },
     { name: "Kevin", pts: 390, me: false },
     { name: "You", pts: 355, me: true },
   ]
 
-  const SectionHeader = ({
-    title,
-    right,
-  }: {
-    title: string
-    right?: React.ReactNode
-  }) => (
+  const SectionHeader = ({ title, right }: { title: string; right?: React.ReactNode }) => (
     <div className="flex items-center justify-between gap-3">
-      <h2 className="text-lg md:text-xl font-serif font-light text-foreground">
-        {title}
-      </h2>
+      <h2 className="text-lg md:text-xl font-serif font-light text-foreground">{title}</h2>
       {right}
     </div>
   )
@@ -165,6 +276,7 @@ export default function HomeReturningPage() {
   return (
     <div className="min-h-screen bg-background" data-tutorial="home-overview">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 space-y-6 md:space-y-10">
+
         {/* Top bar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -187,65 +299,66 @@ export default function HomeReturningPage() {
           <CardContent className="p-4 md:p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">This week’s challenge</p>
-                <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">
-                  Pantry Rescue
-                </h1>
+                <p className="text-xs text-muted-foreground">This week's challenge</p>
+                <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">Pantry Rescue</h1>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" /> 2d left
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5" /> 184 joined
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Trophy className="h-3.5 w-3.5" /> #8 among friends
-                  </span>
+                  <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> 2d left</span>
+                  <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> 184 joined</span>
+                  <span className="inline-flex items-center gap-1"><Trophy className="h-3.5 w-3.5" /> #8 among friends</span>
                 </div>
               </div>
-              <Badge className="bg-primary/15 text-primary border border-primary/20">
-                +100 pts
-              </Badge>
+              <Badge className="bg-primary/15 text-primary border border-primary/20">+100 pts</Badge>
             </div>
             <div className="mt-4 flex gap-2">
               <Button className="flex-1" asChild>
                 <Link href="/challenges/join">Join Challenge</Link>
               </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setPostDishOpen(true)}
-              >
+              <Button variant="outline" className="flex-1" onClick={() => setPostDishOpen(true)}>
                 Post Your Dish
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        <Dialog open={postDishOpen} onOpenChange={setPostDishOpen}>
+        {/* Post Your Dish dialog */}
+        <Dialog open={postDishOpen} onOpenChange={(open) => {
+          if (!open) {
+            setPostDishTitle("")
+            setPostDishCaption("")
+            setPostImage(null)
+            setPostImagePreview(null)
+          }
+          setPostDishOpen(open)
+        }}>
           <DialogContent className="w-[96vw] max-w-md p-0 overflow-hidden">
             <DialogHeader className="px-4 py-3 border-b text-left">
               <DialogTitle className="text-base">Post your dish</DialogTitle>
-              <p className="text-xs text-muted-foreground">
-                Share what you cooked this week. (Placeholder UI)
-              </p>
+              <p className="text-xs text-muted-foreground">Share what you cooked.</p>
             </DialogHeader>
             <div className="p-4 space-y-4">
               <div className="space-y-2">
                 <Label>Photo</Label>
-                <div className="relative w-full aspect-[4/3] rounded-xl border bg-muted overflow-hidden">
-                  <Image
-                    src="/placeholder.svg?height=600&width=800&text=Upload+Photo"
-                    alt="Upload placeholder"
-                    fill
-                    className="object-cover opacity-80"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Button variant="secondary" size="sm">
-                      Choose image (placeholder)
-                    </Button>
-                  </div>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageSelect}
+                />
+                <button
+                  type="button"
+                  className="relative w-full aspect-[4/3] rounded-xl border bg-muted overflow-hidden flex items-center justify-center hover:bg-muted/80 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {postImagePreview ? (
+                    <Image src={postImagePreview} alt="Preview" fill className="object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <Upload className="h-8 w-8" />
+                      <span className="text-sm">Tap to choose a photo</span>
+                    </div>
+                  )}
+                </button>
               </div>
 
               <div className="space-y-2">
@@ -264,7 +377,8 @@ export default function HomeReturningPage() {
                   id="post-caption"
                   value={postDishCaption}
                   onChange={(e) => setPostDishCaption(e.target.value)}
-                  placeholder="Lorem ipsum dolor sit amet, consectetur adipiscing elit..."
+                  placeholder="What's your secret?"
+                  rows={3}
                 />
               </div>
 
@@ -281,24 +395,17 @@ export default function HomeReturningPage() {
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => {
-                    setPostDishTitle("")
-                    setPostDishCaption("")
-                  }}
+                  disabled={submittingPost}
+                  onClick={() => setPostDishOpen(false)}
                 >
-                  Clear
+                  Cancel
                 </Button>
                 <Button
                   className="flex-1"
-                  onClick={() => {
-                    setPostDishOpen(false)
-                    toast({
-                      title: "Posted (placeholder)",
-                      description: "Your dish post UI submitted successfully.",
-                    })
-                  }}
+                  disabled={submittingPost || !postImage || !postDishTitle.trim()}
+                  onClick={handlePostSubmit}
                 >
-                  Post
+                  {submittingPost ? "Posting…" : "Post"}
                 </Button>
               </div>
             </div>
@@ -317,7 +424,6 @@ export default function HomeReturningPage() {
               </Button>
             }
           />
-
           {loadingRecipes ? (
             <div className="flex gap-3 overflow-x-auto pb-2">
               {[...Array(6)].map((_, i) => (
@@ -347,63 +453,116 @@ export default function HomeReturningPage() {
           )}
         </div>
 
-        {/* Made by your circle */}
+        {/* Made by Your Circle — real posts feed */}
         <div className="space-y-3">
-          <SectionHeader title="Made by Your Circle" />
-          <div className="space-y-4">
-            {friendsPosts.map((post) => (
-              <Card key={post.id} className="overflow-hidden">
-                <CardHeader className="p-4 pb-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
-                        {post.name[0]}
-                      </div>
-                      <div className="leading-tight">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-foreground">{post.name}</span>
-                          <Badge variant="secondary" className="h-5 text-[10px]">
-                            {post.tag}
-                          </Badge>
+          <SectionHeader
+            title="Made by Your Circle"
+            right={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setPostDishOpen(true)}
+              >
+                + Post
+              </Button>
+            }
+          />
+
+          {loadingFeed ? (
+            <div className="space-y-4">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="rounded-2xl bg-muted animate-pulse h-[420px]" />
+              ))}
+            </div>
+          ) : feedPosts.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  No posts yet. Follow people or be the first to post a dish!
+                </p>
+                <Button onClick={() => setPostDishOpen(true)}>Post Your Dish</Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {feedPosts.map((post) => {
+                const authorName = post.author.full_name ?? "Chef"
+                const initials = authorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+
+                return (
+                  <Card key={post.id} className="overflow-hidden">
+                    <CardHeader className="p-4 pb-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          {post.author.avatar_url ? (
+                            <Image
+                              src={post.author.avatar_url}
+                              alt={authorName}
+                              width={36}
+                              height={36}
+                              className="rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
+                              {initials}
+                            </div>
+                          )}
+                          <div className="leading-tight">
+                            <span className="text-sm font-medium text-foreground">{authorName}</span>
+                            <div className="text-xs text-muted-foreground">{timeAgo(post.created_at)}</div>
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">{post.timeAgo}</div>
+                        <Button variant="ghost" size="icon">
+                          <Share2 className="h-4 w-4" />
+                          <span className="sr-only">Share</span>
+                        </Button>
                       </div>
+                    </CardHeader>
+
+                    <div className="relative w-full aspect-[16/10] bg-muted">
+                      <Image src={post.image_url} alt={post.title} fill className="object-cover" />
                     </div>
-                    <Button variant="ghost" size="icon">
-                      <Share2 className="h-4 w-4" />
-                      <span className="sr-only">Share</span>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <div className="relative w-full aspect-[16/10] bg-muted">
-                  <Image src={post.image} alt={post.title} fill className="object-cover" />
-                </div>
-                <CardContent className="p-4 space-y-3">
-                  <div className="space-y-1">
-                    <h3 className="text-base font-semibold text-foreground">{post.title}</h3>
-                    <p className="text-sm text-muted-foreground">“{post.quote}”</p>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Heart className="h-4 w-4" /> {post.likes}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <MessageCircle className="h-4 w-4" /> {post.comments}
-                    </span>
-                    <Button variant="ghost" size="sm" className="ml-auto">
-                      Save
-                    </Button>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button className="flex-1">Cook this</Button>
-                    <Button variant="outline" className="flex-1">
-                      Add to My Week
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+
+                    <CardContent className="p-4 space-y-3">
+                      <div className="space-y-1">
+                        <h3 className="text-base font-semibold text-foreground">{post.title}</h3>
+                        {post.caption && (
+                          <p className="text-sm text-muted-foreground">"{post.caption}"</p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <button
+                          onClick={() => handleLike(post.id)}
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-muted ${
+                            post.liked_by_viewer ? "text-red-500" : ""
+                          }`}
+                        >
+                          <Heart
+                            className={`h-4 w-4 ${post.liked_by_viewer ? "fill-red-500 text-red-500" : ""}`}
+                          />
+                          {post.like_count}
+                        </button>
+
+                        <button
+                          onClick={() => handleRepost(post.id)}
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-muted ${
+                            post.reposted_by_viewer ? "text-green-500" : ""
+                          }`}
+                        >
+                          <Repeat2
+                            className={`h-4 w-4 ${post.reposted_by_viewer ? "text-green-500" : ""}`}
+                          />
+                          {post.repost_count}
+                        </button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Leaders + signals */}
@@ -411,19 +570,13 @@ export default function HomeReturningPage() {
           <Card className="md:col-span-1">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-medium flex items-center justify-between">
-                This Week’s Leaders
+                This Week's Leaders
                 <Crown className="h-4 w-4 text-primary" />
               </CardTitle>
               <div className="flex gap-2">
-                <Button size="sm" variant="secondary" className="rounded-full">
-                  Friends
-                </Button>
-                <Button size="sm" variant="ghost" className="rounded-full">
-                  Local
-                </Button>
-                <Button size="sm" variant="ghost" className="rounded-full">
-                  Global
-                </Button>
+                <Button size="sm" variant="secondary" className="rounded-full">Friends</Button>
+                <Button size="sm" variant="ghost" className="rounded-full">Local</Button>
+                <Button size="sm" variant="ghost" className="rounded-full">Global</Button>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
@@ -470,12 +623,8 @@ export default function HomeReturningPage() {
               </div>
               <Separator />
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  18 people joined Pantry Rescue today
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Your saved pasta is trending near campus
-                </p>
+                <p className="text-xs text-muted-foreground">18 people joined Pantry Rescue today</p>
+                <p className="text-xs text-muted-foreground">Your saved pasta is trending near campus</p>
               </div>
             </CardContent>
           </Card>
@@ -488,25 +637,11 @@ export default function HomeReturningPage() {
             <div className="columns-2 md:columns-3 lg:columns-4 gap-3 md:gap-4">
               {[...Array(12)].map((_, i) => (
                 <div key={i} className="mb-3 md:mb-4 break-inside-avoid">
-                  <div
-                    className={`w-full rounded-2xl bg-muted animate-pulse ${
-                      i % 8 === 0
-                        ? "aspect-[2/3]"
-                        : i % 8 === 1
-                          ? "aspect-[9/16]"
-                          : i % 8 === 2
-                            ? "aspect-[3/4]"
-                            : i % 8 === 3
-                              ? "aspect-[4/5]"
-                              : i % 8 === 4
-                                ? "aspect-square"
-                                : i % 8 === 5
-                                  ? "aspect-[5/6]"
-                                  : i % 8 === 6
-                                    ? "aspect-[7/9]"
-                                    : "aspect-[10/13]"
-                    }`}
-                  />
+                  <div className={`w-full rounded-2xl bg-muted animate-pulse ${
+                    i % 8 === 0 ? "aspect-[2/3]" : i % 8 === 1 ? "aspect-[9/16]" : i % 8 === 2 ? "aspect-[3/4]" :
+                    i % 8 === 3 ? "aspect-[4/5]" : i % 8 === 4 ? "aspect-square" : i % 8 === 5 ? "aspect-[5/6]" :
+                    i % 8 === 6 ? "aspect-[7/9]" : "aspect-[10/13]"
+                  }`} />
                 </div>
               ))}
             </div>
@@ -515,9 +650,7 @@ export default function HomeReturningPage() {
               recipes={recommendedRecipes}
               favorites={new Set<string>()}
               onFavoriteToggle={async () => {}}
-              onRecipeClick={(id) => {
-                window.location.href = `/recipes/${id}`
-              }}
+              onRecipeClick={(id) => { window.location.href = `/recipes/${id}` }}
             />
           ) : (
             <Card>
@@ -527,6 +660,7 @@ export default function HomeReturningPage() {
             </Card>
           )}
         </div>
+
       </div>
     </div>
   )

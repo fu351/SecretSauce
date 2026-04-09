@@ -339,6 +339,75 @@ export type Database = {
           updated_at?: string
         }
       }
+      posts: {
+        Row: {
+          id: string
+          author_id: string
+          image_url: string
+          title: string
+          caption: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          author_id: string
+          image_url: string
+          title: string
+          caption?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          author_id?: string
+          image_url?: string
+          title?: string
+          caption?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      post_likes: {
+        Row: {
+          id: string
+          post_id: string
+          profile_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          profile_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          profile_id?: string
+          created_at?: string
+        }
+      }
+      post_reposts: {
+        Row: {
+          id: string
+          post_id: string
+          profile_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          profile_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          profile_id?: string
+          created_at?: string
+        }
+      }
       recipes: {
         Row: {
           id: string
