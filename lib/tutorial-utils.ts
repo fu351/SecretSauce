@@ -195,7 +195,7 @@ const activeScrollAnimations = new WeakMap<object, () => void>()
 export function smoothScrollTo(
   target: HTMLElement | Window,
   toValue: number,
-  durationMs = 600
+  durationMs?: number
 ): Promise<void> {
   return new Promise((resolve) => {
     const targetKey = target as object
@@ -211,6 +211,10 @@ export function smoothScrollTo(
       resolve()
       return
     }
+
+    const resolvedDurationMs =
+      durationMs ??
+      Math.max(450, Math.min(950, 420 + Math.abs(delta) * 0.18))
 
     let frameId: number | null = null
     let settled = false
@@ -232,16 +236,21 @@ export function smoothScrollTo(
     activeScrollAnimations.set(targetKey, cancelCurrentAnimation)
 
     const startTime = performance.now()
-    const ease = (t: number) => 1 - Math.pow(1 - t, 3) // ease-out cubic
+    const ease = (t: number) =>
+      t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2
     const step = (now: number) => {
       if (settled) return
-      const elapsed = Math.min((now - startTime) / durationMs, 1)
+      const elapsed = Math.min((now - startTime) / resolvedDurationMs, 1)
       const pos = start + delta * ease(elapsed)
       if (isWindow) window.scrollTo(0, pos)
       else (target as HTMLElement).scrollTop = pos
       if (elapsed < 1) {
         frameId = requestAnimationFrame(step)
       } else {
+        if (isWindow) window.scrollTo(0, toValue)
+        else (target as HTMLElement).scrollTop = toValue
         settle()
       }
     }
