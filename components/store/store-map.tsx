@@ -50,6 +50,7 @@ interface StoreMapProps {
   userPostalCode?: string
   selectedStoreIndex?: number
   maxDistanceMiles?: number
+  mapHeight?: string
 }
 
 // Helper component to control map view
@@ -122,6 +123,7 @@ export function StoreMap({
   userPostalCode,
   selectedStoreIndex,
   maxDistanceMiles,
+  mapHeight = "500px",
 }: StoreMapProps) {
   const { theme } = useTheme()
   const [isLoading, setIsLoading] = useState(true)
@@ -550,7 +552,7 @@ export function StoreMap({
       {!isLoading && userLocation && (
         <div
           className={clsx("w-full rounded-lg border overflow-hidden", isDark ? "border-[#e8dcc4]/30" : "border-orange-200")}
-          style={{ height: "500px" }}
+          style={{ height: mapHeight }}
         >
           <MapContainer
             center={[userLocation.lat, userLocation.lng]}

@@ -170,18 +170,15 @@ export interface EventProperties {
 
   // Tutorial events
   tutorial_started: {
-    path: "cooking" | "budgeting" | "health"
+    steps_total: number
   }
   tutorial_step_completed: {
-    path: "cooking" | "budgeting" | "health"
     step_index: number
   }
   tutorial_completed: {
-    path: "cooking" | "budgeting" | "health"
     steps_completed: number
   }
   tutorial_skipped: {
-    path: "cooking" | "budgeting" | "health"
     step_abandoned: number
   }
 

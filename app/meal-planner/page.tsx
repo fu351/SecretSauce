@@ -366,11 +366,14 @@ function MealPlannerPageContent() {
             1. transform-gpu forces layer compositing.
             2. backface-hidden reduces paint flashing.
           */}
-          <main className="flex-1 overflow-y-auto p-2 md:p-6 transform-gpu backface-hidden scroll-smooth">
+          <main
+            className="flex-1 overflow-y-auto p-2 md:p-6 transform-gpu backface-hidden scroll-smooth"
+            data-tutorial-scroll-root="page"
+          >
             <div className="max-w-7xl mx-auto will-change-transform min-w-0">
               {/* Header - title/subtext moved to navbar */}
               <div className="flex flex-col gap-2 md:gap-4 mb-3 md:mb-6">
-                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3" data-tutorial="planner-actions">
                 <PlannerActions
                   onHeuristicPlan={handleGenerateHeuristicPlan}
                   onUpgradeForSmartPlanner={handleUpgradeForSmartPlanner}
@@ -421,7 +424,7 @@ function MealPlannerPageContent() {
               "hidden md:flex flex-col bg-background border-l border-border transition-[width] duration-300 ease-in-out overflow-hidden h-full",
               showRecipeSidebar ? "w-[380px]" : "w-0"
             )}
-            data-tutorial="planner-sidebar"
+            data-tutorial="planner-sidebar-shell"
             style={{ contain: 'layout paint size' }}
           >
             {showRecipeSidebar && (

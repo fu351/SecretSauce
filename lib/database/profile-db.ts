@@ -31,7 +31,6 @@ const PROFILE_SAFE_COLUMNS = [
   "theme_preference",
   "tutorial_completed",
   "tutorial_completed_at",
-  "tutorial_path",
   "formatted_address",
   "address_line1",
   "address_line2",
@@ -94,7 +93,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       theme_preference: dbItem.theme_preference ?? "dark",
       tutorial_completed: dbItem.tutorial_completed ?? false,
       tutorial_completed_at: dbItem.tutorial_completed_at ?? null,
-      tutorial_path: dbItem.tutorial_path ?? null,
       formatted_address: dbItem.formatted_address ?? null,
       address_line1: dbItem.address_line1 ?? null,
       address_line2: dbItem.address_line2 ?? null,
@@ -122,7 +120,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * Used by AuthContext, Settings page, and other components needing full profile data
    */
   async findById(userId: string): Promise<Profile | null> {
-
     const { data, error } = await this.supabase
       .from(this.tableName)
       .select(PROFILE_SAFE_COLUMNS)
@@ -153,7 +150,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
    * Fetch profile by email (for onboarding flow before authentication)
    */
   async fetchProfileByEmail(email: string): Promise<Profile | null> {
-
     const { data, error } = await this.supabase
       .from(this.tableName)
       .select(PROFILE_SAFE_COLUMNS)
@@ -196,10 +192,12 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
     userId: string,
     fields: T[]
   ): Promise<Pick<ProfileRow, T> | null> {
+    const selectedFields = fields.map((field) => String(field))
+    if (selectedFields.length === 0) return null
 
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select(fields.join(", "))
+      .select(selectedFields.join(", "))
       .eq("id", userId)
       .maybeSingle()
 
@@ -301,35 +299,6 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
     return data ? this.map(data) : null
   }
 
-  /**
-   * Update tutorial completion status
-   * Specialized operation for tutorial flow
-   * @param userId - User ID
-   * @param tutorialPath - Tutorial path (cooking, budgeting, health)
-   */
-  async updateTutorialCompletion(
-    userId: string,
-    tutorialPath: ProfileRow["tutorial_path"]
-  ): Promise<boolean> {
-
-    const updateData: Partial<ProfileUpdate> = {
-      tutorial_completed: true,
-      tutorial_completed_at: new Date().toISOString(),
-      tutorial_path: tutorialPath,
-      updated_at: new Date().toISOString(),
-    }
-
-    const { error } = await (this.supabase.from(this.tableName) as any)
-      .update(updateData)
-      .eq("id", userId)
-
-    if (error) {
-      this.handleError(error, "updateTutorialCompletion")
-      return false
-    }
-    
-    return true
-  }
 }
 
 // Export singleton instance

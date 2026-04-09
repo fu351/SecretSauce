@@ -1,1 +1,1 @@
-export type { TutorialPath, TutorialStep, TutorialSubstep } from "./ui/tutorial"
+export type { TutorialSubstep, GeneralPageEntry } from "./ui/tutorial"

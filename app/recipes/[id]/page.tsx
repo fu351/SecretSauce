@@ -419,6 +419,7 @@ export default function RecipeDetailPage() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  data-tutorial="recipe-favorite"
                   className={clsx("transition-colors", imageActionButtonClass)}
                   onClick={toggleFavorite}
                   disabled={isTogglingFavorite}
@@ -437,33 +438,35 @@ export default function RecipeDetailPage() {
           <div className="lg:w-2/5 w-full">
             <Card className={infoPanelClass}>
               <CardContent className="p-5 sm:p-7 lg:p-8 space-y-6 sm:space-y-8">
-                <div className="flex items-start justify-between gap-4">
-                  <h1
-                    className={clsx(
-                      "text-2xl sm:text-3xl font-bold leading-tight",
-                      isDark ? "text-foreground" : "text-gray-900",
-                    )}
-                  >
-                    {recipe.title}
-                  </h1>
-                  {isRecipeOwner && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="whitespace-nowrap"
-                      onClick={() => router.push(`/edit-recipe/${recipe.id}`)}
+                <div data-tutorial="recipe-detail-header">
+                  <div className="flex items-start justify-between gap-4">
+                    <h1
+                      className={clsx(
+                        "text-2xl sm:text-3xl font-bold leading-tight",
+                        isDark ? "text-foreground" : "text-gray-900",
+                      )}
                     >
-                      <Pencil className="w-4 h-4" />
-                      Edit
-                    </Button>
-                  )}
+                      {recipe.title}
+                    </h1>
+                    {isRecipeOwner && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="whitespace-nowrap"
+                        onClick={() => router.push(`/edit-recipe/${recipe.id}`)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+
+                  <p className={clsx("leading-relaxed text-base sm:text-lg mt-6", descriptionTextClass)}>
+                    {recipe.content?.description || "No description available."}
+                  </p>
                 </div>
 
-                <p className={clsx("leading-relaxed text-base sm:text-lg", descriptionTextClass)}>
-                  {recipe.content?.description || "No description available."}
-                </p>
-
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4" data-tutorial="recipe-detail-stats">
                   <div className={statCardClass}>
                     <Clock className={clsx("h-5 w-5", statIconClass)} />
                     <div>
@@ -520,16 +523,18 @@ export default function RecipeDetailPage() {
                 )}
 
                 {/* Tag Display System */}
-                <TagSelector
-                  tags={recipe.tags}
-                  mode="view"
-                  sections={{
-                    tags: true,
-                    protein: true,
-                    mealType: true,
-                    cuisine: recipe.cuisine_name ? false : true,
-                  }}
-                />
+                <div data-tutorial="recipe-detail-tags">
+                  <TagSelector
+                    tags={recipe.tags}
+                    mode="view"
+                    sections={{
+                      tags: true,
+                      protein: true,
+                      mealType: true,
+                      cuisine: recipe.cuisine_name ? false : true,
+                    }}
+                  />
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -537,11 +542,11 @@ export default function RecipeDetailPage() {
 
         {/* Recipe Pricing Section */}
         <div className="space-y-6 sm:space-y-8">
-          <div className="w-full">
+          <div className="w-full" data-tutorial="recipe-detail-pricing">
             <RecipePricingInfo recipeId={recipe.id} />
           </div>
 
-          <Card className={sectionCardClass}>
+          <Card className={sectionCardClass} data-tutorial="recipe-detail-ingredients">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h3 className={clsx("text-2xl font-bold", isDark ? "text-foreground" : "text-gray-900")}>
@@ -556,6 +561,7 @@ export default function RecipeDetailPage() {
                       size="sm"
                       onClick={handleAddToShoppingList}
                       disabled={!allIngredientsLinked}
+                      data-tutorial="recipe-add-to-cart"
                       className={`${primaryButtonClass} w-full sm:w-auto`}
                     >
                       <ShoppingCart className="w-4 h-4 mr-2" />
@@ -582,7 +588,7 @@ export default function RecipeDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className={sectionCardClass}>
+          <Card className={sectionCardClass} data-tutorial="recipe-detail-instructions">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <h3
                 className={clsx(
@@ -610,6 +616,7 @@ export default function RecipeDetailPage() {
               {instructions.length > 0 && (
                 <Button
                   onClick={handleStartCooking}
+                  data-tutorial="recipe-start-cooking"
                   className={`${primaryButtonClass} w-full md:hidden mt-4`}
                   size="lg"
                 >
@@ -671,7 +678,7 @@ export default function RecipeDetailPage() {
             </div>
           )}
 
-          <div className="w-full">
+          <div className="w-full" data-tutorial="recipe-reviews">
             <RecipeReviews recipeId={recipe.id} />
           </div>
         </div>

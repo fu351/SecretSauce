@@ -20,7 +20,7 @@ export default function WelcomePage() {
 
 function WelcomePageContent() {
   const { profile, loading } = useAuth()
-  const { startTutorial, skipTutorial, isActive } = useTutorial()
+  const { startTutorial, skipTutorial } = useTutorial()
   const { theme } = useTheme()
   const router = useRouter()
   const [isStarting, setIsStarting] = useState(false)
@@ -28,39 +28,13 @@ function WelcomePageContent() {
   const isDark = theme === "dark"
 
   const handleStartTutorial = () => {
-    console.log('[Welcome] handleStartTutorial called', {
-      profile,
-      primaryGoal: profile?.primary_goal,
-      isActive
-    })
-
-    if (!profile?.primary_goal) {
-      console.warn('[Welcome] No primary_goal found, redirecting to dashboard')
+    if (!profile) {
       router.push("/dashboard")
       return
     }
 
     setIsStarting(true)
-
-    const pathMap: Record<string, "cooking" | "budgeting" | "health"> = {
-      cooking: "cooking",
-      budgeting: "budgeting",
-      both: "health",
-    }
-
-    const tutorialPath = pathMap[profile.primary_goal]
-    console.log('[Welcome] Mapped primary_goal to tutorial path:', {
-      primaryGoal: profile.primary_goal,
-      tutorialPath
-    })
-
-    if (tutorialPath) {
-      console.log('[Welcome] Starting tutorial and navigating to first step')
-      startTutorial(tutorialPath)
-    } else {
-      console.warn('[Welcome] No tutorial path found for primary_goal:', profile.primary_goal)
-      router.push("/dashboard")
-    }
+    startTutorial()
   }
 
   const handleSkipTutorial = () => {
@@ -122,7 +96,7 @@ function WelcomePageContent() {
               Welcome to Secret Sauce!
             </h1>
             <p className={`text-lg font-light ${isDark ? "text-[#e8dcc4]/70" : "text-gray-700"}`}>
-              Your email has been verified. Let's get you started.
+              Your account is ready. Let's get you started.
             </p>
           </div>
 
@@ -135,8 +109,7 @@ function WelcomePageContent() {
               Quick Tour
             </h2>
             <p className={`text-sm mb-4 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-700"}`}>
-              We've prepared a personalized tour based on your preferences.
-              It will guide you through:
+              We&apos;ve prepared one shared tour that walks you through:
             </p>
             <ul className={`space-y-2 text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-700"}`}>
               <li className="flex items-start gap-2">

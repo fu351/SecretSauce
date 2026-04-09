@@ -59,4 +59,4 @@ export type { GroceryItem, StoreComparison, ShoppingListSectionProps } from './s
 // UI DOMAIN
 // ============================================================================
 export type { SkeletonLineProps, SkeletonComponentProps } from './ui/skeleton'
-export type { TutorialPath, TutorialStep, TutorialSubstep } from './ui/tutorial'
+export type { TutorialSubstep, GeneralPageEntry } from './ui/tutorial'

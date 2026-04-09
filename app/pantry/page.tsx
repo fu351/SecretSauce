@@ -467,7 +467,7 @@ export default function PantryPage() {
             <div className="flex items-center gap-3">
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className={`${accentButtonClass} shadow-lg`}>
+                  <Button className={`${accentButtonClass} shadow-lg`} data-tutorial="pantry-add">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Item
                   </Button>
@@ -603,7 +603,7 @@ export default function PantryPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-tutorial="pantry-overview">
         {/* Expiration Notifications */}
         <div className="space-y-4 mb-8">
           {expirationNotifications.expiresToday.length > 0 && (

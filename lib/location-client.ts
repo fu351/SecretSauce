@@ -46,6 +46,33 @@ export async function geocodePostalCode(input: string): Promise<LatLng | null> {
   return geocodeAddress(input)
 }
 
+export async function reverseGeocodeToPostalCode(coords: LatLng): Promise<string | null> {
+  try {
+    const response = await fetch("/api/maps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "geocode",
+        params: { latlng: `${coords.lat},${coords.lng}` },
+      }),
+    })
+
+    if (!response.ok) return null
+
+    const data = await response.json()
+    for (const result of data?.results ?? []) {
+      for (const component of result?.address_components ?? []) {
+        if (component.types?.includes("postal_code")) {
+          return component.short_name ?? component.long_name ?? null
+        }
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export async function getUserLocation(): Promise<LatLng | null> {
   if (typeof window === "undefined" || !("geolocation" in navigator)) {
     return null

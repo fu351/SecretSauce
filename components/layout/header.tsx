@@ -18,7 +18,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
 import Image from "next/image"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 export function Header() {
   const { user, signOut } = useAuth()
@@ -30,11 +30,23 @@ export function Header() {
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
   const [mobileLogoMenuOpen, setMobileLogoMenuOpen] = useState(false)
+  const headerRef = useRef<HTMLElement>(null)
 
   // Prevent hydration mismatch by only rendering after mount
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Block wheel events so hovering over the header never scrolls the window.
+  // Depends on `mounted` because the header returns null before mount,
+  // so headerRef.current is only populated after the first real render.
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const block = (e: WheelEvent) => e.preventDefault()
+    el.addEventListener("wheel", block, { passive: false })
+    return () => el.removeEventListener("wheel", block)
+  }, [mounted])
 
   // Use theme directly from context - it handles defaults properly
   const isDark = theme === "dark"
@@ -101,6 +113,7 @@ export function Header() {
   return (
     <>
       <header
+        ref={headerRef}
         className={`hidden md:flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b md:sticky md:top-0 z-40 ${
           isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
         }`}
@@ -108,7 +121,7 @@ export function Header() {
         {/* Left: logo+title on desktop */}
         <div className="flex min-w-0 flex-1 items-center justify-start gap-2 md:flex-initial md:flex-none md:gap-4 lg:gap-6">
         {/* Desktop: logo + title */}
-        <Link href="/home" className="hidden md:block flex-shrink-0">
+        <Link href="/home" className="hidden md:block flex-shrink-0" data-tutorial-nav="/home">
           <Image
             src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
             alt="Secret Sauce"
@@ -132,6 +145,7 @@ export function Header() {
         <nav className="hidden md:flex items-center gap-6">
         <Link
           href="/recipes"
+          data-tutorial-nav="/recipes"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/recipes" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -140,6 +154,7 @@ export function Header() {
         </Link>
         <Link
           href="/meal-planner"
+          data-tutorial-nav="/meal-planner"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -148,6 +163,7 @@ export function Header() {
         </Link>
         <Link
           href="/store"
+          data-tutorial-nav="/store"
           className={`hover:opacity-80 transition-opacity ${
             pathname === "/store" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
           }`}
@@ -181,7 +197,7 @@ export function Header() {
                 asChild
                 className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
               >
-                <Link href="/dashboard">
+                <Link href="/dashboard" data-tutorial-nav="/dashboard">
                   <User className="h-5 w-5" />
                   <span className="sr-only">Dashboard</span>
                 </Link>
@@ -193,7 +209,7 @@ export function Header() {
                 asChild
                 className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
               >
-                <Link href="/settings">
+                <Link href="/settings" data-tutorial-nav="/settings">
                   <Settings className="h-5 w-5" />
                   <span className="sr-only">Settings</span>
                 </Link>
@@ -277,7 +293,7 @@ export function Header() {
             className={`${navIconClass("/home")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
             asChild
           >
-            <Link href="/home" aria-label="Home">
+            <Link href="/home" aria-label="Home" data-tutorial-nav="/home">
               <Home className="h-5 w-5" />
             </Link>
           </Button>
@@ -287,7 +303,7 @@ export function Header() {
             className={`${navIconClass("/recipes")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
             asChild
           >
-            <Link href="/recipes" aria-label="Recipes">
+            <Link href="/recipes" aria-label="Recipes" data-tutorial-nav="/recipes">
               <BookOpen className="h-5 w-5" />
             </Link>
           </Button>
@@ -406,7 +422,7 @@ export function Header() {
             className={`${navIconClass("/meal-planner")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
             asChild
           >
-            <Link href="/meal-planner" aria-label="Meal Planner">
+            <Link href="/meal-planner" aria-label="Meal Planner" data-tutorial-nav="/meal-planner">
               <Calendar className="h-5 w-5" />
             </Link>
           </Button>
@@ -416,7 +432,7 @@ export function Header() {
             className={`${navIconClass("/store")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
             asChild
           >
-            <Link href="/store" aria-label="Shopping">
+            <Link href="/store" aria-label="Shopping" data-tutorial-nav="/store">
               <ShoppingCart className="h-5 w-5" />
             </Link>
           </Button>
@@ -427,7 +443,7 @@ export function Header() {
               className={`${navIconClass("/dashboard")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
               asChild
             >
-              <Link href="/dashboard" aria-label="Dashboard">
+              <Link href="/dashboard" aria-label="Dashboard" data-tutorial-nav="/dashboard">
                 <User className="h-5 w-5" />
               </Link>
             </Button>

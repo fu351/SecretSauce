@@ -7,14 +7,25 @@ import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { useShoppingList } from "@/hooks/shopping/use-shopping-list"
 import { useStoreComparison } from "@/hooks/shopping/use-store-comparison"
-import { updateLocation } from "@/lib/location-client"
+import { updateLocation, getUserLocation, reverseGeocodeToPostalCode } from "@/lib/location-client"
+import dynamic from "next/dynamic"
 import { ShoppingReceiptView } from "@/components/store/shopping-receipt-view"
 import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { MobileQuickAddPanel } from "@/components/store/mobile-quick-add-panel"
-import { Button } from "@/components/ui/button"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
-import { Plus } from "lucide-react"
 import type { GroceryItem } from "@/lib/types/store"
+
+const StoreMap = dynamic(
+  () => import("@/components/store/store-map").then((mod) => mod.StoreMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+        Loading map...
+      </div>
+    ),
+  }
+)
 
 function buildListIdentitySignature(items: Array<{
   id: string
@@ -98,11 +109,18 @@ export default function ShoppingReceiptPage() {
     const loadUserZip = async () => {
       if (!user) return
       try {
+        let zip: string | null = null
+
         const { profileDB } = await import("@/lib/database/profile-db")
         const profileData = await profileDB.fetchProfileFields(user.id, ["zip_code"])
-        if (profileData?.zip_code) {
-          setZipCode(profileData.zip_code)
+        zip = profileData?.zip_code ?? null
+
+        if (!zip) {
+          const coords = await getUserLocation()
+          if (coords) zip = await reverseGeocodeToPostalCode(coords)
         }
+
+        if (zip) setZipCode(zip)
       } catch (error) {
         console.error("Failed to load user zip:", error)
       } finally {
@@ -177,6 +195,17 @@ export default function ShoppingReceiptPage() {
   ])
 
   const selectedStore = storeComparisons[carouselIndex]?.store ?? null
+
+  const sidebarSelectedStoreIndex = useMemo(() => {
+    if (!selectedStore) return 0
+    const index = storeComparisons.findIndex((s) => s.store === selectedStore)
+    return index >= 0 ? index : 0
+  }, [storeComparisons, selectedStore])
+
+  const handleSidebarMapStoreSelect = useCallback((storeIndex: number) => {
+    const store = storeComparisons[storeIndex]
+    if (store) scrollToStore(storeIndex)
+  }, [storeComparisons, scrollToStore])
 
   const handleStoreChange = useCallback((storeName: string | null) => {
     if (!storeName) {
@@ -405,107 +434,61 @@ export default function ShoppingReceiptPage() {
   return (
     <div className={`min-h-screen ${styles.bgClass}`}>
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Sidebar - Add Items (Desktop) */}
-          <div className="hidden lg:block lg:col-span-1">
-            <div className={`${styles.cardBgClass} rounded-lg p-6 sticky top-24`}>
-              <h2 className={`text-lg font-bold mb-4 ${styles.textClass}`}>
-                Quick Add
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className={`text-sm font-medium mb-2 block ${styles.textClass}`}>
-                    Add Custom Item
-                  </label>
-                  <div className="flex gap-2" data-tutorial="store-add">
-                    <input
-                      type="text"
-                      placeholder="Item name..."
-                      className={`flex-1 px-3 py-2 text-sm rounded-md border ${
-                        isDark
-                          ? 'bg-[#181813] border-[#e8dcc4]/20 text-[#e8dcc4]'
-                          : 'bg-white border-gray-300 text-gray-900'
-                      }`}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                          // Add item logic here
-                          e.currentTarget.value = ''
-                        }
-                      }}
-                    />
-                    <Button size="sm">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+      <div className="max-w-5xl mx-auto px-4 py-4">
+        <div className="flex flex-col lg:flex-row h-[calc(100vh-5rem)] gap-3">
 
-                <div className="pt-4 border-t border-gray-200 dark:border-white/10">
-                  <p className={`text-xs ${styles.mutedTextClass} mb-2`}>
-                    You can also:
-                  </p>
-                  <ul className={`text-xs space-y-1 ${styles.mutedTextClass}`}>
-                    <li>• Add items from recipes</li>
-                    <li>• Import shopping lists</li>
-                    <li>• Use voice input</li>
-                  </ul>
-                </div>
+          {/* Panel: recipes in cart + add item + map (desktop sidebar) */}
+          {/* Mobile: order-1 (top) | Desktop: order-2 (right sidebar, fixed width) */}
+          <div className="order-1 lg:order-2 lg:w-80 flex flex-col gap-3 lg:overflow-y-auto lg:flex-shrink-0">
+            <MobileQuickAddPanel
+              shoppingList={shoppingList}
+              onAddItem={handleMobileAddItem}
+              onAddRecipe={handleMobileAddRecipe}
+              onRemoveRecipe={handleMobileRemoveRecipe}
+              theme={styles.theme}
+              textClass={styles.textClass}
+              mutedTextClass={styles.mutedTextClass}
+              cardBgClass={styles.cardBgClass}
+            />
 
-                <div className="pt-4">
-                  <div className={`p-3 rounded-lg ${
-                    isDark ? 'bg-green-900/20' : 'bg-green-50'
-                  }`}>
-                    <p className={`text-xs font-semibold mb-1 ${
-                      isDark ? 'text-green-400' : 'text-green-900'
-                    }`}>
-                      💡 Pro Tip
-                    </p>
-                    <p className={`text-xs ${
-                      isDark ? 'text-green-300' : 'text-green-800'
-                    }`}>
-                      Prices update automatically as you add or modify items. Try different stores to find the best deals!
-                    </p>
-                  </div>
-                </div>
+            {/* Map: desktop sidebar only */}
+            {storeComparisons.length > 0 && (
+              <div className={`hidden lg:block rounded-lg overflow-hidden border ${
+                isDark ? "border-white/10 bg-[#1f1e1a]" : "border-gray-200 bg-white"
+              }`} data-tutorial="store-map">
+                <StoreMap
+                  comparisons={storeComparisons}
+                  onStoreSelected={handleSidebarMapStoreSelect}
+                  userPostalCode={zipCode}
+                  selectedStoreIndex={sidebarSelectedStoreIndex}
+                  mapHeight="320px"
+                />
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Right - Receipt View */}
-          <div className="lg:col-span-2">
-            {/* Mobile: Quick add at top for easy access, receipt below */}
-            {/* Desktop: Receipt takes full available height */}
-            <div className="flex flex-col h-[calc(100vh-2rem)] lg:h-[calc(100vh-12rem)] gap-3">
-              <MobileQuickAddPanel
-                shoppingList={shoppingList}
-                onAddItem={handleMobileAddItem}
-                onAddRecipe={handleMobileAddRecipe}
-                onRemoveRecipe={handleMobileRemoveRecipe}
-                theme={styles.theme}
-                textClass={styles.textClass}
-                mutedTextClass={styles.mutedTextClass}
-                cardBgClass={styles.cardBgClass}
-              />
-
-              <ShoppingReceiptView
-                shoppingList={shoppingList}
-                storeComparisons={storeComparisons}
-                selectedStore={selectedStore}
-                onStoreChange={handleStoreChange}
-                onQuantityChange={updateQuantity}
-                onRemoveItem={removeItem}
-                onSwapItem={handleSwapRequest}
-                onCheckout={handleCheckout}
-                onRefresh={handleRefresh}
-                loading={listLoading || comparisonLoading || (shoppingList.length > 0 && !comparisonFetched)}
-                isStale={comparisonFetched}
-                error={null}
-                userPostalCode={zipCode}
-                theme={styles.theme}
-                className="flex-1 min-h-[500px]"
-              />
-            </div>
+          {/* Receipt view */}
+          {/* Mobile: order-2 (bottom, fills rest) | Desktop: order-1 (left, flex-1) */}
+          <div className="order-2 lg:order-1 flex-1 min-h-0 flex flex-col">
+            <ShoppingReceiptView
+              shoppingList={shoppingList}
+              storeComparisons={storeComparisons}
+              selectedStore={selectedStore}
+              onStoreChange={handleStoreChange}
+              onQuantityChange={updateQuantity}
+              onRemoveItem={removeItem}
+              onSwapItem={handleSwapRequest}
+              onCheckout={handleCheckout}
+              onRefresh={handleRefresh}
+              loading={listLoading || comparisonLoading || (shoppingList.length > 0 && !comparisonFetched)}
+              isStale={comparisonFetched}
+              error={null}
+              userPostalCode={zipCode}
+              theme={styles.theme}
+              className="flex-1"
+            />
           </div>
+
         </div>
       </div>
 

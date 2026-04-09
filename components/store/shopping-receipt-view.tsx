@@ -236,7 +236,7 @@ export function ShoppingReceiptView({
                 onClick={() => setShowMap((prev) => !prev)}
                 aria-label={showMap ? "Hide store map" : "Show store map"}
                 title={showMap ? "Hide map" : "Show map"}
-                className="h-14 w-14 md:h-auto md:self-stretch md:min-h-14 flex-shrink-0"
+                className="lg:hidden h-14 w-14 md:h-auto md:self-stretch md:min-h-14 flex-shrink-0"
                 data-tutorial="store-map-toggle"
               >
                 {showMap ? <List className="h-5 w-5" /> : <MapIcon className="h-5 w-5" />}
@@ -244,7 +244,7 @@ export function ShoppingReceiptView({
             </div>
 
             {showMap && (
-              <div className={`mt-3 rounded-lg overflow-hidden border ${
+              <div className={`lg:hidden mt-3 rounded-lg overflow-hidden border ${
                 theme === "dark" ? "border-white/10 bg-[#1f1e1a]" : "border-gray-200 bg-white"
               }`} data-tutorial="store-map">
                 <StoreMap

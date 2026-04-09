@@ -5,6 +5,19 @@ import { profileIdFromClerkUserId } from "@/lib/auth/clerk-profile-id"
 
 export const runtime = "nodejs"
 
+const PROFILE_SELECT = [
+  "id", "email", "full_name", "clerk_user_id", "avatar_url",
+  "created_at", "updated_at", "email_verified",
+  "cooking_level", "budget_range", "dietary_preferences", "primary_goal",
+  "cuisine_preferences", "cooking_time_preference", "zip_code", "grocery_distance_miles",
+  "theme_preference", "tutorial_completed", "tutorial_completed_at",
+  "formatted_address", "address_line1", "address_line2", "city", "state", "country",
+  "latitude", "longitude",
+  "subscription_tier", "subscription_status", "subscription_started_at",
+  "subscription_expires_at", "stripe_customer_id", "stripe_subscription_id",
+  "stripe_price_id", "stripe_current_period_end",
+].join(", ")
+
 function getPrimaryEmailAddress(clerkUser: any): string | null {
   const primaryId = clerkUser?.primaryEmailAddressId
   const email = clerkUser?.emailAddresses?.find(
@@ -78,14 +91,13 @@ export async function POST() {
       .maybeSingle()
 
     if (byClerk?.id) {
-      await supabase.from("profiles").update(baseUpdate).eq("id", byClerk.id)
-      return NextResponse.json({
-        profile: {
-          id: byClerk.id,
-          email: email,
-          created_at: byClerk.created_at ?? null,
-        },
-      })
+      const { data: updated } = await supabase
+        .from("profiles")
+        .update(baseUpdate)
+        .eq("id", byClerk.id)
+        .select(PROFILE_SELECT)
+        .single()
+      return NextResponse.json({ profile: updated ?? { id: byClerk.id, email, created_at: byClerk.created_at ?? null } })
     }
 
     const { data: byEmail, error: byEmailError } = await supabase
@@ -95,14 +107,13 @@ export async function POST() {
       .maybeSingle()
 
     if (byEmail?.id) {
-      await supabase.from("profiles").update(baseUpdate).eq("id", byEmail.id)
-      return NextResponse.json({
-        profile: {
-          id: byEmail.id,
-          email: byEmail.email,
-          created_at: byEmail.created_at ?? null,
-        },
-      })
+      const { data: updated } = await supabase
+        .from("profiles")
+        .update(baseUpdate)
+        .eq("id", byEmail.id)
+        .select(PROFILE_SELECT)
+        .single()
+      return NextResponse.json({ profile: updated ?? { id: byEmail.id, email: byEmail.email, created_at: byEmail.created_at ?? null } })
     }
 
     const profileId = profileIdFromClerkUserId(clerkUserId)
@@ -120,7 +131,7 @@ export async function POST() {
     const { data: created, error: createError } = await supabase
       .from("profiles")
       .upsert(createPayload, { onConflict: "id" })
-      .select("id, email, created_at")
+      .select(PROFILE_SELECT)
       .single()
 
     // Race condition: another concurrent request already created this profile.
@@ -128,18 +139,12 @@ export async function POST() {
     if (createError?.code === "23505") {
       const { data: existing } = await supabase
         .from("profiles")
-        .select("id, email, created_at")
+        .select(PROFILE_SELECT)
         .eq("clerk_user_id", clerkUserId)
         .maybeSingle()
 
       if (existing?.id) {
-        return NextResponse.json({
-          profile: {
-            id: existing.id,
-            email: existing.email,
-            created_at: existing.created_at ?? null,
-          },
-        })
+        return NextResponse.json({ profile: existing })
       }
     }
 
@@ -154,13 +159,7 @@ export async function POST() {
       )
     }
 
-    return NextResponse.json({
-      profile: {
-        id: created.id,
-        email: created.email,
-        created_at: created.created_at ?? null,
-      },
-    })
+    return NextResponse.json({ profile: created })
   } catch (error) {
     console.error("[ensure-profile] Unexpected error:", error)
     return NextResponse.json(

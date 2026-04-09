@@ -145,10 +145,14 @@ async function hydratePricingGaps(
 
   for (const gap of gaps) {
     const gapZip = gap.zip_code || fallbackZip
+    if (!gapZip) {
+      console.error("[useStoreComparison] Skipping pricing gap — no zip code available", { store: gap.store })
+      continue
+    }
     for (const ingredient of gap.ingredients) {
       const storeResults = await searchGroceryStores(
         ingredient.name,
-        gapZip || undefined,
+        gapZip,
         gap.store,
         true,
         ingredient.id
@@ -418,6 +422,11 @@ export function useStoreComparison(
       return
     }
 
+    if (!resolvedZipCode) {
+      toast({ title: "Zip Code Required", description: "Set your zip code in your profile to compare store prices.", variant: "destructive" })
+      return
+    }
+
     setLoading(true)
     setHasFetched(false)
     setActiveStoreIndex(0)
@@ -512,13 +521,6 @@ export function useStoreComparison(
         setActiveStoreIndex(0)
         setHasFetched(true)
         renderedCachedPricing = true
-
-        if (options?.skipPricingGaps && cachedPricingData.length === 0) {
-          toast({
-            title: "No cached pricing in dev mode",
-            description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
-          })
-        }
       }
 
       let insertedFromGapHydration = 0
@@ -545,13 +547,6 @@ export function useStoreComparison(
       if (shouldRefreshPricing) {
         const pricingData = user ? await ingredientsRecentDB.getPricingForUser(user.id) : []
         logPricingData("final", pricingData)
-
-        if (options?.skipPricingGaps && pricingData.length === 0 && !renderedCachedPricing) {
-          toast({
-            title: "No cached pricing in dev mode",
-            description: "Dev Compare skips gap fill. Use Compare Prices to backfill missing cache rows.",
-          })
-        }
 
         const finalComparisons = buildFinalComparisons(pricingData, "final")
         setResults(finalComparisons)

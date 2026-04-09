@@ -1,547 +1,706 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback, useLayoutEffect } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { usePathname, useRouter } from "next/navigation"
-import { useTutorial } from "@/contexts/tutorial-context"
+import { useTutorial, pageMatches } from "@/contexts/tutorial-context"
 import { useTheme } from "@/contexts/theme-context"
 import { Button } from "@/components/ui/button"
-import { X, Minus, ChevronUp, ChevronRight, ChevronLeft, Lightbulb, Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { X, Minus, ChevronUp, Lightbulb, Loader2, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
 import { useIsMobile } from "@/hooks"
 
-const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+import { useScrollToTarget } from "@/hooks/tutorial/use-scroll-to-target"
+import { useHighlightEngine } from "@/hooks/tutorial/use-highlight-engine"
+import { useMandatoryCompletion } from "@/hooks/tutorial/use-mandatory-completion"
+import { useAutoAdvance } from "@/hooks/tutorial/use-auto-advance"
+import { useOverlayDrag } from "@/hooks/tutorial/use-overlay-drag"
+import { TutorialBackdrop } from "./tutorial-backdrop"
+import { TutorialCardBody } from "./tutorial-card-body"
+import {
+  isRectWithinHeader,
+  CONTAINER_SCROLL_PADDING,
+  WINDOW_SCROLL_PADDING,
+  DASHBOARD_AUTO_SCROLL_SELECTORS,
+} from "@/lib/tutorial-utils"
+
+declare global {
+  interface Window {
+    __TUTORIAL_DEBUG_SCROLL__?: boolean
+  }
+}
 
 export function TutorialOverlay() {
   const {
     isActive,
-    currentPath,
+    flatSequence,
+    currentSlotIndex,
+    currentSlot,
     currentStep,
-    currentStepIndex,
     currentSubstep,
-    currentSubstepIndex,
     nextStep,
     prevStep,
     skipTutorial,
   } = useTutorial()
   const { toast } = useToast()
-
   const { theme } = useTheme()
   const pathname = usePathname()
   const router = useRouter()
   const isMobile = useIsMobile()
-
-  // --- State Management ---
-  const [isMinimized, setIsMinimized] = useState(false)
-  const [showSkipConfirmation, setShowSkipConfirmation] = useState(false)
-  const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
-  const [isChangingPage, setIsChangingPage] = useState(false)
-  const [isPageLocked, setIsPageLocked] = useState(false)
-  
-  // Retry Logic: Attempt to find element before timing out
-  const [syncRetries, setSyncRetries] = useState(0)
-  const [hasSyncTimedOut, setHasSyncTimedOut] = useState(false)
-  const [isPageLoading, setIsPageLoading] = useState(false)
-
-  const MAX_RETRIES = 15;
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
   const isDark = theme === "dark"
 
-  /**
-   * 0. Detect Header Height
-   * Dynamically measures the sticky header to properly offset scroll calculations.
-   */
+  // ─── Local UI state ─────────────────────────────────────────────────────────
+
+  const [isMinimized, setIsMinimized] = useState(false)
+  const [showSkipConfirmation, setShowSkipConfirmation] = useState(false)
+  const [isChangingPage, setIsChangingPage] = useState(false)
+  const [isPageLoading, setIsPageLoading] = useState(false)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const lastPathnameRef = useRef(pathname)
+
+  // ─── Derived sequence values ─────────────────────────────────────────────────
+
+  const totalSteps = flatSequence.length
+  const completedSteps = currentSlotIndex + 1
+  const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0
+  const isLastStep = currentSlotIndex === totalSteps - 1
+
+  const nextSlot =
+    currentSlotIndex < flatSequence.length - 1
+      ? flatSequence[currentSlotIndex + 1]
+      : null
+
+  const completionSelector = currentSubstep?.completionSelector ?? null
+
+  // Substep-level selector, used by the mandatory completion hook.
+  // transitionNavSelector is computed after isMandatoryCompleted is known.
+  const substepExpectedSelector = currentSubstep?.highlightSelector ?? null
+
+  const expectedScrollContainerSelector = currentSubstep?.scrollContainerSelector ?? null
+
+  const nextStepHighlightSelector =
+    nextSlot?.substep.highlightSelector ?? null
+
+  const nextStepScrollContainerSelector =
+    nextSlot?.substep.scrollContainerSelector ?? null
+
+  const shouldAutoScrollDashboardNextWithinPage =
+    !!nextSlot &&
+    !!currentSlot &&
+    nextSlot.page === currentSlot.page &&
+    currentSlot.page === "/dashboard" &&
+    !!nextStepHighlightSelector &&
+    DASHBOARD_AUTO_SCROLL_SELECTORS.has(nextStepHighlightSelector)
+
+  const shouldAutoScrollNextWithinPage =
+    !!nextSlot &&
+    !!currentSlot &&
+    nextSlot.page === currentSlot.page &&
+    (!!nextStepScrollContainerSelector ||
+      currentSlot.page === "/recipes/*" ||
+      shouldAutoScrollDashboardNextWithinPage)
+
+  // ─── Effect 0a: mark body for CSS compensation ───────────────────────────────
+
+  useEffect(() => {
+    if (isActive) {
+      document.body.setAttribute("data-tutorial-active", "true")
+    } else {
+      document.body.removeAttribute("data-tutorial-active")
+    }
+    return () => document.body.removeAttribute("data-tutorial-active")
+  }, [isActive])
+
+  // ─── Effect 0: header height ─────────────────────────────────────────────────
+
   useEffect(() => {
     const detectHeaderHeight = () => {
-      const header = document.querySelector('header');
-      if (header) {
-        setHeaderHeight(header.offsetHeight);
-      }
-    };
-
-    // Initial detection
-    detectHeaderHeight();
-
-    // Re-detect on resize (header height may change on responsive breakpoints)
-    window.addEventListener('resize', detectHeaderHeight);
-    return () => window.removeEventListener('resize', detectHeaderHeight);
-  }, []);
-
-  /**
-   * 1. Stability-Aware Scroll Calculation
-   * Scrolls to make the highlighted element visible below the sticky header.
-   * Avoids excessive centering that can cause unwanted scrolling.
-   */
-  const scrollToTarget = useCallback((rect: DOMRect) => {
-    // Add extra padding beyond header height for comfortable viewing
-    const EXTRA_PADDING = 20;
-    const totalTopOffset = headerHeight + EXTRA_PADDING;
-
-    // Element's absolute position on the page
-    const elementAbsoluteTop = rect.top + window.pageYOffset;
-
-    // If element is already visible below header, don't scroll
-    if (rect.top > totalTopOffset && rect.top < window.innerHeight) {
-      return; // Element is already in comfortable viewing range
+      const header = document.querySelector("header")
+      if (header) setHeaderHeight(header.offsetHeight)
     }
+    detectHeaderHeight()
+    window.addEventListener("resize", detectHeaderHeight)
+    return () => window.removeEventListener("resize", detectHeaderHeight)
+  }, [])
 
-    // Scroll to position element just below the header
-    const scrollPosition = Math.max(0, elementAbsoluteTop - totalTopOffset);
+  // ─── Effect 2: page-loading detector ─────────────────────────────────────────
 
-    window.scrollTo({
-      top: scrollPosition,
-      behavior: "smooth"
-    });
-  }, [headerHeight]);
-
-  /**
-   * 2. Loading State Detector
-   * Watches for loading spinners and skeleton loaders on the page.
-   * Prevents highlight attempts while page content is still loading.
-   * Excludes overlay elements to avoid false positives.
-   */
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) return
 
     const detectPageLoading = () => {
-      // Check for common loading indicators, but exclude overlay ref
-      const getAllWithClass = (selector: string) => {
-        return Array.from(document.querySelectorAll(selector)).filter(el => {
-          // Exclude overlay and its children
-          return !overlayRef.current?.contains(el);
-        });
-      };
+      const getAllWithClass = (selector: string) =>
+        Array.from(document.querySelectorAll(selector)).filter(
+          (el) => !overlayRef.current?.contains(el)
+        )
+      const hasLoadingSpinner =
+        getAllWithClass('[class*="animate-spin"]').length > 0
+      const hasSkeletonLoader =
+        getAllWithClass('[class*="animate-pulse"]').length > 0
+      const hasLoadingClass =
+        getAllWithClass('[class*="loading"]').length > 0
+      setIsPageLoading(!!(hasLoadingSpinner || hasSkeletonLoader || hasLoadingClass))
+    }
 
-      const hasLoadingSpinner = getAllWithClass('[class*="animate-spin"]').length > 0;
-      const hasSkeletonLoader = getAllWithClass('[class*="animate-pulse"]').length > 0;
-      const hasLoadingClass = getAllWithClass('[class*="loading"]').length > 0;
+    detectPageLoading()
 
-      const isLoading = !!(hasLoadingSpinner || hasSkeletonLoader || hasLoadingClass);
-      setIsPageLoading(isLoading);
-    };
-
-    // Initial check
-    detectPageLoading();
-
-    // Watch for loading state changes via MutationObserver
-    let debounceTimer: NodeJS.Timeout | null = null;
+    let debounceTimer: NodeJS.Timeout | null = null
     const observer = new MutationObserver(() => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(detectPageLoading, 150);
-    });
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(detectPageLoading, 150)
+    })
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    })
+    return () => {
+      observer.disconnect()
+      if (debounceTimer) clearTimeout(debounceTimer)
+    }
+  }, [isActive])
 
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  // ─── Effect 2b: reset UI state on tutorial activation ────────────────────────
+
+  useEffect(() => {
+    if (!isActive) return
+    setShowSkipConfirmation(false)
+    setIsMinimized(false)
+    if (currentStep?.page && !pageMatches(currentStep.page, pathname)) {
+      setIsChangingPage(true)
+    }
+    setIsPageLoading(false)
+  }, [isActive, currentStep?.page, pathname])
+
+  // ─── Effect 2c: reset on slot change ─────────────────────────────────────────
+
+  useEffect(() => {
+    if (!isActive) return
+    // Don't reset isChangingPage here — it's managed by the page nav effect.
+    setIsPageLoading(false)
+  }, [isActive, currentSlotIndex])
+
+  // ─── Effect: scroll to top on page nav ───────────────────────────────────────
+
+  useEffect(() => {
+    const previousPathname = lastPathnameRef.current
+    lastPathnameRef.current = pathname
+
+    if (!isActive || !currentStep) return
+    if (previousPathname === pathname) return
+    if (!pageMatches(currentStep.page, pathname)) return
+
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" })
+
+    let frameId: number | null = null
+    let nestedFrameId: number | null = null
+    frameId = window.requestAnimationFrame(() => {
+      const pageScrollRoot = document.querySelector(
+        "[data-tutorial-scroll-root='page']"
+      )
+      if (pageScrollRoot instanceof HTMLElement) {
+        pageScrollRoot.scrollTo({ top: 0, left: 0, behavior: "auto" })
+      }
+      nestedFrameId = window.requestAnimationFrame(() => {
+        const latestPageScrollRoot = document.querySelector(
+          "[data-tutorial-scroll-root='page']"
+        )
+        if (latestPageScrollRoot instanceof HTMLElement) {
+          latestPageScrollRoot.scrollTo({ top: 0, left: 0, behavior: "auto" })
+        }
+      })
+    })
 
     return () => {
-      observer.disconnect();
-      if (debounceTimer) clearTimeout(debounceTimer);
-    };
-  }, [isActive]);
-
-  /**
-   * 3. Explore Mode: Global Click Handler
-   * Minimizes if clicking outside, but BLOCKED during page changes or locks.
-   */
-  useEffect(() => {
-    if (!isActive || isMinimized) return;
-
-    const handleGlobalClick = (e: MouseEvent) => {
-      // Logic Guard: Prevent minimization if we are currently transitioning pages or loading
-      if (isChangingPage || isPageLocked || isPageLoading) return;
-
-      if (overlayRef.current && !overlayRef.current.contains(e.target as Node)) {
-        setIsMinimized(true);
-      }
-    };
-
-    window.addEventListener("click", handleGlobalClick, true);
-    return () => window.removeEventListener("click", handleGlobalClick, true);
-  }, [isActive, isMinimized, isChangingPage, isPageLocked, isPageLoading]);
-
-  /**
-   * 2b. Tutorial Activation State Reset
-   * Resets local overlay state when tutorial is activated/restarted.
-   * Clears any lingering UI states from previous session.
-   */
-  useEffect(() => {
-    if (!isActive) return;
-
-    // Reset all local UI states when tutorial becomes active
-    // But preserve targetRect if we're on the correct page to avoid losing current highlight
-    setShowSkipConfirmation(false);
-    setIsMinimized(false);
-    if (pathname !== currentStep?.page) {
-      setTargetRect(null);
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+      if (nestedFrameId !== null) window.cancelAnimationFrame(nestedFrameId)
     }
-    setSyncRetries(0);
-    setHasSyncTimedOut(false);
-    setIsPageLoading(false);
-    setIsChangingPage(false);
-  }, [isActive, currentStep?.page, pathname]);
+  }, [isActive, currentStep, pathname])
 
-  /**
-   * 3. Page Navigation & Transition Management
-   * Handles page transitions and shows loading state during navigation.
-   * Locks Explore Mode when arriving on tutorial page to let DOM settle.
-   */
+  // ─── Effect 3: page navigation state ─────────────────────────────────────────
+
   useEffect(() => {
-    if (!isActive || !currentStep) return;
-
-    if (pathname !== currentStep.page) {
-      // User is on a different page than the tutorial step requires
-      // Show loading state to indicate we're waiting for page transition
-      setIsChangingPage(true);
-      setTargetRect(null);
-      setSyncRetries(0);
-      setHasSyncTimedOut(false);
-      // Keep loading state on while not on correct page
-      setIsPageLoading(false);
+    if (!isActive || !currentStep) return
+    if (!pageMatches(currentStep.page, pathname)) {
+      setIsChangingPage(true)
     } else {
-      // Arrived on the tutorial step's page: clear the transition state
-      // and lock Explore Mode to let DOM fully settle before highlighting
-      setIsChangingPage(false);
-      setIsPageLocked(true);
-      const timer = setTimeout(() => {
-        setIsPageLocked(false);
-      }, 800);
-      return () => clearTimeout(timer);
+      setIsChangingPage(false)
     }
-  }, [isActive, currentStep?.page, pathname]);
+  }, [isActive, currentStep?.page, pathname])
 
-  /**
-   * 4. Stabilized Highlight Engine
-   * Includes retry logic with exponential backoff to "wait" for elements that might be slow to hydrate.
-   * Skips attempts while page is loading to avoid finding skeleton/placeholder elements.
-   * For "explore" action substeps/steps, skips element-finding entirely.
-   */
-  const updateHighlight = useCallback((shouldScroll = false) => {
-    if (!isActive || !currentStep || isMinimized || isPageLoading) return;
+  // ─── Navigation action ────────────────────────────────────────────────────────
 
-    // "explore" action: no element highlight needed — just show the step content freely
-    const currentAction = currentSubstep?.action ?? currentStep?.action;
-    if (currentAction === "explore") {
-      setTargetRect(null);
-      setIsChangingPage(false);
-      setHasSyncTimedOut(false);
-      setSyncRetries(0);
-      return;
-    }
-
-    const selector = currentSubstep?.highlightSelector ?? currentStep?.highlightSelector;
-    if (!selector) {
-      setTargetRect(null);
-      setIsChangingPage(false);
-      return;
-    }
-
-    const candidates = Array.from(document.querySelectorAll(selector)) as HTMLElement[]
-    const element = candidates.find((candidate) => {
-      const style = window.getComputedStyle(candidate)
-      if (style.display === "none" || style.visibility === "hidden") return false
-      const rect = candidate.getBoundingClientRect()
-      return rect.width > 0 && rect.height > 0
-    }) || candidates[0] || null
-
-    if (!element) {
-      // Retry Logic: Try to find the element again with exponential backoff
-      // But only retry if page is not loading (to wait for content to render)
-      if (syncRetries < MAX_RETRIES && !isPageLoading) {
-        // Exponential backoff with a 2s floor: 2s, 3s, 4.5s, 6.75s … capped at 10s
-        const delayMs = Math.min(Math.max(2000, 1000 * Math.pow(1.5, syncRetries)), 10000);
-        const retryTimer = setTimeout(() => {
-          setSyncRetries(prev => prev + 1);
-          updateHighlight(shouldScroll);
-        }, delayMs);
-        return () => clearTimeout(retryTimer);
-      } else if (!isPageLoading) {
-        // Stop spinning and show the fail-safe UI (only if page is fully loaded)
-        setHasSyncTimedOut(true);
-        setIsChangingPage(false);
-        return;
+  const handleGoToExpectedPage = useCallback(() => {
+    if (!currentStep?.page || currentStep.page.endsWith("*")) return
+    const expectedPage = currentStep.page
+    setIsChangingPage(true)
+    router.push(expectedPage)
+    window.setTimeout(() => {
+      if (!pageMatches(expectedPage, window.location.pathname)) {
+        window.location.assign(expectedPage)
       }
-      // If page is still loading, defer this attempt
-      return;
+    }, 350)
+  }, [currentStep?.page, router])
+
+  // ─── Mandatory completion (must run before transitionNavSelector is computed) ──
+
+  const { isMandatoryCompleted } = useMandatoryCompletion({
+    isActive,
+    currentSubstep,
+    currentSlotIndex,
+    completionSelector,
+    // Pass the substep's own selector here. The nav-link click for page transitions
+    // is handled by useAutoAdvance (pathname change), not by this hook.
+    expectedSelector: substepExpectedSelector,
+    isLastStep,
+    nextStep,
+  })
+
+  // ─── Page transition state (now uses real isMandatoryCompleted) ───────────────
+
+  const isPageTransition =
+    isActive &&
+    nextSlot !== null &&
+    currentSlot !== null &&
+    nextSlot.page !== currentSlot.page &&
+    !nextSlot.page.endsWith("*") &&
+    (!currentSubstep?.mandatory || isMandatoryCompleted)
+
+  const isWildcardTransition =
+    isActive &&
+    nextSlot !== null &&
+    currentSlot !== null &&
+    nextSlot.page !== currentSlot.page &&
+    nextSlot.page.endsWith("*") &&
+    currentSubstep?.mandatory === true &&
+    !isMandatoryCompleted
+
+  const transitionNavSelector = isPageTransition
+    ? `[data-tutorial-nav="${nextSlot!.page}"]`
+    : null
+
+  const expectedSelector =
+    transitionNavSelector ??
+    substepExpectedSelector
+
+  // ─── Scroll hook ──────────────────────────────────────────────────────────────
+
+  // scheduleHighlightUpdate is provided by the highlight engine below;
+  // we create a ref so the scroll hook can reference it without a circular dep.
+  const scheduleHighlightUpdateRef = useRef<
+    (opts?: { immediate?: boolean; minIntervalMs?: number }) => void
+  >(() => {})
+
+  const { scrollToTarget } = useScrollToTarget({
+    headerHeight,
+    isMobile,
+    pathname,
+    scheduleHighlightUpdate: useCallback(
+      (opts?: { immediate?: boolean; minIntervalMs?: number }) =>
+        scheduleHighlightUpdateRef.current(opts),
+      []
+    ),
+  })
+
+  // ─── Highlight engine ─────────────────────────────────────────────────────────
+
+  const {
+    targetElement,
+    targetRect,
+    activeScrollContainer,
+    scheduleHighlightUpdate,
+    pendingNextAutoScrollRef,
+    retriggerHighlight,
+    syncRetries,
+    hasSyncTimedOut,
+  } = useHighlightEngine({
+    isActive,
+    currentStep,
+    currentSubstep,
+    currentSlotIndex,
+    transitionNavSelector,
+    expectedScrollContainerSelector,
+    isMinimized,
+    isPageLoading,
+    scrollToTarget,
+    setIsChangingPage,
+    pathname,
+  })
+
+  // Wire schedule ref so the scroll hook calls the latest version
+  useEffect(() => {
+    scheduleHighlightUpdateRef.current = scheduleHighlightUpdate
+  }, [scheduleHighlightUpdate])
+
+  // Re-trigger highlight when mandatory completion flips isPageTransition on
+  useEffect(() => {
+    if (!isActive || !isPageTransition) return
+    retriggerHighlight()
+  }, [isActive, isPageTransition, retriggerHighlight])
+
+  // ─── Auto-advance ─────────────────────────────────────────────────────────────
+
+  useAutoAdvance({
+    isActive,
+    isPageTransition,
+    isMandatoryCompleted,
+    currentSlot,
+    nextSlot,
+    currentSubstep,
+    pathname,
+    nextStep,
+  })
+
+  // ─── Drag ─────────────────────────────────────────────────────────────────────
+
+  const { overlayPosition, isDraggingOverlay, handleDragStart } =
+    useOverlayDrag({
+      isActive,
+      isMobile,
+      overlayRef,
+      clampDeps: [
+        currentSlotIndex,
+        hasSyncTimedOut,
+        isChangingPage,
+        isMinimized,
+        isPageLoading,
+      ],
+    })
+
+  // ─── Scroll wheel prevention on overlay ──────────────────────────────────────
+
+  useEffect(() => {
+    if (!isActive) return
+    const overlayElement = overlayRef.current
+    if (!overlayElement) return
+
+    const preventScrollChaining = (event: WheelEvent | TouchEvent) => {
+      event.preventDefault()
     }
 
-    // Success: Found the element
-    setIsChangingPage(false);
-    setHasSyncTimedOut(false);
-    setSyncRetries(0);
-
-    const newRect = element.getBoundingClientRect();
-
-    // Prevent excessive updates if movement is sub-pixel
-    const hasMoved = !targetRect ||
-      Math.abs(newRect.top - targetRect.top) > 2 ||
-      Math.abs(newRect.left - targetRect.left) > 2;
-
-    if (hasMoved) {
-      if (shouldScroll) scrollToTarget(newRect);
-      setTargetRect(newRect);
-    }
-  }, [isActive, currentStep, currentSubstep, isMinimized, isPageLoading, targetRect, scrollToTarget, syncRetries]);
-
-  /**
-   * 5. Filtered Mutation Observer
-   * Watches for DOM changes and re-syncs highlight position.
-   * Includes guards to prevent rapid re-triggering and excessive sync attempts.
-   */
-  useIsomorphicLayoutEffect(() => {
-    if (!isActive || isMinimized) return;
-
-    let lastMutationTime = Date.now();
-    let lastHighlightAttempt = 0;
-    const DEBOUNCE_INTERVAL = 150;
-    const MIN_HIGHLIGHT_INTERVAL = 500; // Prevent spamming highlight attempts
-
-    const observer = new MutationObserver((mutations) => {
-      const isInternal = mutations.every(m => overlayRef.current?.contains(m.target));
-      if (isInternal) return;
-
-      const now = Date.now();
-
-      // Don't update if we just attempted highlight very recently
-      if (now - lastHighlightAttempt < MIN_HIGHLIGHT_INTERVAL) {
-        return;
-      }
-
-      if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
-
-      const timeSinceLastMutation = now - lastMutationTime;
-      const delay = Math.max(0, DEBOUNCE_INTERVAL - timeSinceLastMutation);
-
-      stabilityTimerRef.current = setTimeout(() => {
-        // Mark attempt time before calling updateHighlight
-        lastHighlightAttempt = Date.now();
-        // Only scroll on first successful highlight on the correct page
-        // Don't scroll on subsequent DOM mutations after we already have a target
-        const shouldScroll = pathname === currentStep?.page && !targetRect;
-        updateHighlight(shouldScroll);
-        lastMutationTime = Date.now();
-      }, delay);
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    const handlePosUpdate = () => updateHighlight(false);
-    window.addEventListener("resize", handlePosUpdate);
-    window.addEventListener("scroll", handlePosUpdate, { capture: true, passive: true });
-
-    // Initial sync when effect runs (only if we haven't just synced)
-    if (Date.now() - lastHighlightAttempt > MIN_HIGHLIGHT_INTERVAL) {
-      lastHighlightAttempt = Date.now();
-      updateHighlight(pathname === currentStep?.page && !targetRect);
-    }
-
+    overlayElement.addEventListener("wheel", preventScrollChaining, {
+      passive: false,
+    })
+    overlayElement.addEventListener("touchmove", preventScrollChaining, {
+      passive: false,
+    })
     return () => {
-      observer.disconnect();
-      if (stabilityTimerRef.current) clearTimeout(stabilityTimerRef.current);
-      window.removeEventListener("resize", handlePosUpdate);
-      window.removeEventListener("scroll", handlePosUpdate);
-    };
-  }, [isActive, isMinimized, currentStepIndex, currentSubstepIndex, updateHighlight, pathname, currentStep?.page, targetRect]);
+      overlayElement.removeEventListener("wheel", preventScrollChaining)
+      overlayElement.removeEventListener("touchmove", preventScrollChaining)
+    }
+  }, [isActive, currentSlotIndex, isMinimized])
 
-  if (isMobile) return null;
-  if (!isActive || !currentPath || !currentStep) return null;
+  // ─── Visibility calculations ──────────────────────────────────────────────────
 
-  const totalUnits = currentPath.steps.reduce((sum, s) => sum + (s.substeps?.length || 1), 0);
-  const completedUnits = currentPath.steps.slice(0, currentStepIndex).reduce((sum, s) => sum + (s.substeps?.length || 1), 0) + (currentSubstepIndex + 1);
-  const progress = (completedUnits / totalUnits) * 100;
-  const isExploreMode = (currentSubstep?.action ?? currentStep?.action) === "explore";
+  const windowHeight =
+    typeof window !== "undefined" ? window.innerHeight : 800
+  const viewportTopPadding = headerHeight + WINDOW_SCROLL_PADDING
+  const activeScrollContainerRect =
+    activeScrollContainer?.getBoundingClientRect() ?? null
+  const targetIsWithinHeader =
+    !!targetRect && isRectWithinHeader(targetRect, headerHeight)
+  const viewportTopBoundary =
+    activeScrollContainer || targetIsWithinHeader ? 0 : viewportTopPadding
+  const viewportBottomBoundary = activeScrollContainer
+    ? 0
+    : WINDOW_SCROLL_PADDING
 
-  // Avoid inline styles for the progress bar width (linter rule).
+  const isTargetAbove =
+    !!targetRect && targetRect.bottom <= viewportTopBoundary
+  const isTargetBelow =
+    !!targetRect && targetRect.top >= windowHeight - viewportBottomBoundary
+  const isTargetAboveContainer =
+    !!targetRect &&
+    !!activeScrollContainerRect &&
+    targetRect.bottom <=
+      activeScrollContainerRect.top + CONTAINER_SCROLL_PADDING
+  const isTargetBelowContainer =
+    !!targetRect &&
+    !!activeScrollContainerRect &&
+    targetRect.top >=
+      activeScrollContainerRect.bottom - CONTAINER_SCROLL_PADDING
+
+  const isTargetOffScreen = isTargetAbove || isTargetBelow
+  const isTargetClippedByContainer =
+    isTargetAboveContainer || isTargetBelowContainer
+
+  const showTutorialBackdrop =
+    !isMinimized &&
+    !isChangingPage &&
+    !isPageLoading &&
+    !!targetRect &&
+    !hasSyncTimedOut
+  const showVisibleHighlight =
+    showTutorialBackdrop && !isTargetOffScreen && !isTargetClippedByContainer
+  const showScrollPrompt =
+    showTutorialBackdrop && (isTargetOffScreen || isTargetClippedByContainer)
+  const scrollPromptLabel = isTargetClippedByContainer
+    ? "Scroll the filter panel to the highlighted option"
+    : isTargetAbove
+    ? "Scroll up to highlighted element"
+    : "Scroll down to highlighted element"
+  const scrollPromptDirectionUp = isTargetClippedByContainer
+    ? isTargetAboveContainer
+    : isTargetAbove
+
+  // ─── Layout helpers ───────────────────────────────────────────────────────────
+
+  // Avoid inline styles for the progress bar width.
   // We bucket to 10% steps so Tailwind can statically include the classes.
-  const progressBucket = Math.max(0, Math.min(100, Math.round(progress / 10) * 10))
+  const progressBucket = Math.max(
+    0,
+    Math.min(100, Math.round(progress / 10) * 10)
+  )
   const progressWidthClass =
     progressBucket === 0
       ? "w-0"
       : progressBucket === 10
-        ? "w-[10%]"
-        : progressBucket === 20
-          ? "w-[20%]"
-          : progressBucket === 30
-            ? "w-[30%]"
-            : progressBucket === 40
-              ? "w-[40%]"
-              : progressBucket === 50
-                ? "w-[50%]"
-                : progressBucket === 60
-                  ? "w-[60%]"
-                  : progressBucket === 70
-                    ? "w-[70%]"
-                    : progressBucket === 80
-                      ? "w-[80%]"
-                      : progressBucket === 90
-                        ? "w-[90%]"
-                        : "w-full"
+      ? "w-[10%]"
+      : progressBucket === 20
+      ? "w-[20%]"
+      : progressBucket === 30
+      ? "w-[30%]"
+      : progressBucket === 40
+      ? "w-[40%]"
+      : progressBucket === 50
+      ? "w-[50%]"
+      : progressBucket === 60
+      ? "w-[60%]"
+      : progressBucket === 70
+      ? "w-[70%]"
+      : progressBucket === 80
+      ? "w-[80%]"
+      : progressBucket === 90
+      ? "w-[90%]"
+      : "w-full"
 
-  return (
+  const overlayDockClass = isMobile
+    ? "left-3 bottom-[calc(6.25rem+env(safe-area-inset-bottom))]"
+    : "bottom-4 right-4 sm:bottom-8 sm:right-8"
+  const overlayWidthClass = isMinimized
+    ? isMobile
+      ? "w-[calc(100vw-1.5rem)] max-w-none"
+      : "w-72 max-w-[calc(100vw-2rem)]"
+    : isMobile
+    ? "w-[calc(100vw-1.5rem)] max-w-none"
+    : "w-[calc(100vw-2rem)] max-w-[400px]"
+  const overlayHeaderClass = isMobile
+    ? clsx(
+        "flex items-center justify-between border-b border-white/5 p-3 touch-none",
+        isDraggingOverlay ? "cursor-grabbing" : "cursor-grab"
+      )
+    : clsx(
+        "flex items-center justify-between p-4 border-b border-white/5",
+        isDraggingOverlay ? "cursor-grabbing" : "cursor-grab"
+      )
+  const overlayBodyClass = isMobile
+    ? "max-h-[min(44vh,24rem)] overflow-y-auto p-3"
+    : "p-6"
+  const overlayActionRowClass = isMobile
+    ? "flex items-center gap-2"
+    : "flex items-center justify-between"
+  const overlayDualActionClass = isMobile
+    ? "flex flex-col gap-3 w-full"
+    : "flex gap-3 w-full"
+
+  // ─── Render guard ─────────────────────────────────────────────────────────────
+
+  if (!isActive || !currentSlot) return null
+
+  // ─── Markup ───────────────────────────────────────────────────────────────────
+
+  const overlayMarkup = (
     <>
-      {/* Background Mask - Excludes header area to avoid overlap */}
-      {!isMinimized && !isChangingPage && !isPageLoading && targetRect && !hasSyncTimedOut && (
-        <svg className="fixed inset-0 z-40 pointer-events-none w-full h-full">
-          <defs>
-            <mask id="tutorial-mask">
-              {/* White background - visible area */}
-              <rect width="100%" height="100%" fill="white" />
-              {/* Black hole - the highlighted element (cut out from the dark overlay) */}
-              <rect
-                x={targetRect.left - 10}
-                y={targetRect.top - 10}
-                width={targetRect.width + 20}
-                height={targetRect.height + 20}
-                rx="12"
-                fill="black"
-                className="transition-all duration-300 ease-out"
-              />
-              {/* Also cut out the header area to prevent overlap */}
-              <rect
-                x="0"
-                y="0"
-                width="100%"
-                height={headerHeight}
-                fill="black"
-              />
-            </mask>
-          </defs>
-          <rect
-            width="100%"
-            height="100%"
-            fill={isDark ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.4)"}
-            mask="url(#tutorial-mask)"
-            className="backdrop-blur-[2px] transition-opacity duration-500"
-          />
-        </svg>
+      {/* Backdrop + highlight ring */}
+      {showTutorialBackdrop && targetRect && (
+        <TutorialBackdrop
+          targetRect={targetRect}
+          headerHeight={headerHeight}
+          targetIsWithinHeader={targetIsWithinHeader}
+          isDark={isDark}
+          isMobile={isMobile}
+          showVisibleHighlight={showVisibleHighlight}
+          blockClick={!!currentSubstep?.blockClick}
+        />
       )}
 
-      {/* Main Control Card - Strict Bottom Right */}
+      {/* Main control card */}
       <div
         ref={overlayRef}
         data-testid="tutorial-overlay"
+        data-tutorial-overlay
         className={clsx(
-          "fixed bottom-8 right-8 z-50 transition-all duration-500 ease-in-out shadow-2xl rounded-2xl border overflow-hidden",
-          isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-gray-200 text-gray-900",
-          isMinimized ? "w-72" : "w-[400px]"
+          "fixed z-[10060] pointer-events-auto shadow-2xl rounded-2xl border overflow-hidden",
+          isDraggingOverlay
+            ? "transition-none"
+            : "transition-all duration-500 ease-in-out",
+          isDark
+            ? "bg-[#1c1c16] border-[#e8dcc4]/20 text-[#e8dcc4]"
+            : "bg-white border-gray-200 text-gray-900",
+          overlayPosition ? "left-0 top-0" : overlayDockClass,
+          overlayWidthClass
         )}
+        style={
+          overlayPosition
+            ? { left: overlayPosition.left, top: overlayPosition.top }
+            : undefined
+        }
+        onPointerDown={(e) => e.stopPropagation()}
       >
+        {/* Progress bar */}
         <div className="h-1.5 w-full bg-gray-200/20">
-          <div className={`h-full bg-blue-500 transition-all duration-500 ${progressWidthClass}`} />
+          <div
+            className={`h-full bg-blue-500 transition-all duration-500 ${progressWidthClass}`}
+          />
         </div>
 
-        <div className="flex items-center justify-between p-4 border-b border-white/5">
+        {/* Card header (drag handle) */}
+        <div className={overlayHeaderClass} onPointerDown={handleDragStart}>
           <div className="flex items-center gap-2">
             <div className="bg-blue-500/10 text-blue-500 p-1.5 rounded-lg">
-              {isChangingPage || isPageLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
+              {isChangingPage || isPageLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Lightbulb className="w-4 h-4" />
+              )}
             </div>
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
               {isMinimized
-                ? `Paused · Step ${currentStepIndex + 1} of ${currentPath.steps.length}`
-                : (isPageLoading ? "Loading content..." : (isChangingPage ? "Syncing UI..." : currentPath.name))}
+                ? `Paused · ${completedSteps}/${totalSteps}`
+                : isPageLoading
+                ? "Loading content..."
+                : isChangingPage
+                ? "Syncing UI..."
+                : "Tutorial"}
             </span>
           </div>
           <div className="flex gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsMinimized(!isMinimized)}>
-              {isMinimized ? <ChevronUp className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setIsMinimized(!isMinimized)}
+            >
+              {isMinimized ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <Minus className="w-4 h-4" />
+              )}
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/20" onClick={() => setShowSkipConfirmation(true)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 hover:bg-red-500/20"
+              onClick={() => setShowSkipConfirmation(true)}
+            >
               <X className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
-        <div className="p-6">
-          {isMinimized ? (
-            <div className="px-1 py-1 flex items-center justify-between bg-blue-500/5 group cursor-pointer" onClick={() => setIsMinimized(false)}>
-              <p className="text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity">Click to resume tutorial</p>
+        {/* Card body */}
+        {isMinimized ? (
+          <div
+            className={overlayBodyClass}
+            onClick={() => setIsMinimized(false)}
+          >
+            <div className="px-1 py-1 flex items-center justify-between bg-blue-500/5 group cursor-pointer">
+              <p className="text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity">
+                Click to resume tutorial
+              </p>
               <RefreshCw className="w-3 h-3 text-blue-500 animate-spin-slow" />
             </div>
-          ) : isPageLoading ? (
-            <div className="flex flex-col items-center justify-center py-8">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
-              <p className="text-sm font-medium opacity-60">Waiting for page to load...</p>
-            </div>
-          ) : isChangingPage ? (
-            <div className="flex flex-col items-center justify-center py-8">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
-              <p className="text-sm font-medium opacity-60">Preparing next step...</p>
-            </div>
-          ) : !targetRect && !hasSyncTimedOut && !isExploreMode ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
-              <p className="text-sm font-medium opacity-70">Scanning for element…</p>
-              <p className="text-[10px] opacity-40 mt-1">
-                Attempt {syncRetries + 1} of {MAX_RETRIES}
-              </p>
-            </div>
-          ) : hasSyncTimedOut ? (
-            <div className="flex flex-col items-center justify-center py-4 text-center">
-              <AlertCircle className="w-10 h-10 text-amber-500 mb-3" />
-              <h4 className="font-bold text-lg mb-1">We lost track</h4>
-              {pathname !== currentStep?.page ? (
-                <>
-                  <p className="text-xs opacity-60 mb-1">Not on the right page?</p>
-                  <p className="text-[10px] opacity-40 mb-6">Expected: <span className="font-mono">{currentStep?.page}</span> · Current: <span className="font-mono">{pathname}</span></p>
-                  <div className="flex gap-3 w-full">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); router.push(currentStep!.page) }}>
-                      Go There
-                    </Button>
-                    <Button size="sm" className="flex-1 bg-blue-600" onClick={nextStep}>
-                      Continue Anyway
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs opacity-60 mb-6">We couldn't find the UI element for this step. Try the options below.</p>
-                  <div className="flex gap-3 w-full">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSyncRetries(0); setHasSyncTimedOut(false); updateHighlight(true); }}>
-                      Retry
-                    </Button>
-                    <Button size="sm" className="flex-1 bg-blue-600" onClick={nextStep}>
-                      Continue Anyway
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <>
-              <h3 className="text-xl font-bold mb-2 leading-tight">{currentStep.title}</h3>
-              <p className={clsx("text-sm leading-relaxed mb-6", isDark ? "text-gray-400" : "text-gray-600")}>
-                {currentSubstep?.instruction ?? currentStep.description}
-              </p>
-
-              <div className="flex items-center justify-between">
-                <Button variant="ghost" size="sm" onClick={prevStep} disabled={currentStepIndex === 0 && currentSubstepIndex === 0}>
-                  <ChevronLeft className="w-4 h-4 mr-2" /> Back
-                </Button>
-                <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-500 text-white px-8">
-                  {currentStepIndex === currentPath.steps.length - 1 && (!currentStep.substeps || currentSubstepIndex === currentStep.substeps.length - 1) ? "Finish" : "Next"}
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
+          </div>
+        ) : (
+          <TutorialCardBody
+            isMinimized={false}
+            isPageLoading={isPageLoading}
+            isChangingPage={isChangingPage}
+            hasSyncTimedOut={hasSyncTimedOut}
+            isPageTransition={isPageTransition}
+            isWildcardTransition={isWildcardTransition}
+            showScrollPrompt={showScrollPrompt}
+            isMandatoryCompleted={isMandatoryCompleted}
+            isLastStep={isLastStep}
+            currentStep={currentStep}
+            currentSubstep={currentSubstep}
+            currentSlotIndex={currentSlotIndex}
+            nextSlot={nextSlot}
+            totalSteps={totalSteps}
+            completedSteps={completedSteps}
+            expectedSelector={expectedSelector}
+            targetRect={targetRect}
+            syncRetries={syncRetries}
+            pathname={pathname}
+            isMobile={isMobile}
+            isDark={isDark}
+            scrollPromptLabel={scrollPromptLabel}
+            scrollPromptDirectionUp={scrollPromptDirectionUp}
+            targetElement={targetElement}
+            activeScrollContainer={activeScrollContainer}
+            prevStep={prevStep}
+            nextStep={nextStep}
+            handleGoToExpectedPage={handleGoToExpectedPage}
+            onRetryHighlight={() => {
+              scheduleHighlightUpdate({ immediate: true })
+            }}
+            onScrollToTarget={scrollToTarget}
+            pendingNextAutoScrollRef={pendingNextAutoScrollRef}
+            shouldAutoScrollNextWithinPage={shouldAutoScrollNextWithinPage}
+            overlayBodyClass={overlayBodyClass}
+            overlayDualActionClass={overlayDualActionClass}
+            overlayActionRowClass={overlayActionRowClass}
+          />
+        )}
       </div>
 
-      {/* Skip Confirmation Modal */}
+      {/* Skip confirmation modal */}
       {showSkipConfirmation && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
-          <div className={clsx("w-full max-w-sm p-8 rounded-3xl border shadow-2xl", isDark ? "bg-[#1c1c16] border-[#e8dcc4]/20" : "bg-white border-gray-200")}>
+        <div
+          className="fixed inset-0 z-[10020] pointer-events-auto flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <div
+            className={clsx(
+              "w-full max-w-sm p-8 rounded-3xl border shadow-2xl",
+              isDark
+                ? "bg-[#1c1c16] border-[#e8dcc4]/20"
+                : "bg-white border-gray-200"
+            )}
+          >
             <h2 className="text-2xl font-bold mb-2">End Tutorial?</h2>
             <div className="flex gap-3 mt-8">
-              <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowSkipConfirmation(false)}>Keep Going</Button>
-              <Button variant="destructive" className="flex-1 rounded-xl" onClick={() => {
-                skipTutorial()
-                toast({ title: "Tutorial ended", description: "You can restart it anytime from Settings → Learning & Tutorials." })
-              }}>Exit</Button>
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => setShowSkipConfirmation(false)}
+              >
+                Keep Going
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 rounded-xl"
+                onClick={() => {
+                  skipTutorial()
+                  toast({
+                    title: "Tutorial ended",
+                    description:
+                      "You can restart it anytime from Settings → Learning & Tutorials.",
+                  })
+                }}
+              >
+                Exit
+              </Button>
             </div>
           </div>
         </div>
       )}
     </>
   )
+
+  if (typeof document === "undefined") return overlayMarkup
+  return createPortal(overlayMarkup, document.body)
 }

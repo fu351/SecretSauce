@@ -43,6 +43,9 @@ function MealSlotCardComponent({
 }: MealSlotCardProps) {
   const recipeImageUrl = recipe?.image_url ?? recipe?.content?.image_url
   const lastTapRef = useRef(0)
+  const todayStr = new Date().toISOString().split("T")[0]
+  const isTodayDinner = date === todayStr && mealType === "dinner"
+  const isTodayDinnerFilled = isTodayDinner && !!recipe
   const singleClickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -110,6 +113,7 @@ function MealSlotCardComponent({
         // Filled state - border matches highlight for consistent selection/hover
         <div
           ref={setDragRef}
+          data-tutorial={isTodayDinnerFilled ? "planner-today-filled-slot" : undefined}
           className={`relative h-full w-full min-h-[80px] overflow-hidden rounded-lg shadow-sm transition-all border-2 ${isDragging ? "opacity-0 pointer-events-none" : ""} ${isDropTarget ? "border-accent brightness-90" : "border-transparent hover:border-accent/60 hover:brightness-95"}`}
         >
           {/* Draggable area - image: single click = select slot, double click = recipe overlay */}
@@ -157,6 +161,7 @@ function MealSlotCardComponent({
         <div
           className={`relative h-full w-full min-h-[80px] flex items-center justify-center rounded-lg cursor-pointer transition-colors border-2 ${isDropTarget ? "border-accent bg-accent/10" : "border-transparent hover:border-accent/60 hover:bg-accent/5"}`}
           data-draggable="true"
+          data-tutorial={isTodayDinner ? "planner-today-slot" : undefined}
           onClick={() => onAdd?.(mealType, date)}
           role="button"
           tabIndex={0}

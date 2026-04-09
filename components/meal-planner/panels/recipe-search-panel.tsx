@@ -134,8 +134,8 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   }, [])
 
   return (
-    <div className="flex flex-col h-full bg-card overflow-hidden" data-tutorial="planner-sidebar">
-      <div className="flex flex-col bg-card/80 backdrop-blur-md sticky top-0 z-10 border-b border-border">
+    <div className="relative flex h-full flex-col overflow-hidden bg-card" data-tutorial="planner-sidebar">
+      <div className="absolute inset-x-0 top-0 z-20 border-b border-border bg-card/95 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
             <h3 className="font-bold text-base tracking-tight">Recipes</h3>
@@ -143,13 +143,13 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
               <TabButton active={!showFavoritesOnly} onClick={() => setShowFavoritesOnly(false)}>
                 Browse
               </TabButton>
-              <TabButton active={showFavoritesOnly} onClick={() => setShowFavoritesOnly(true)}>
+              <TabButton active={showFavoritesOnly} onClick={() => setShowFavoritesOnly(true)} dataTutorial="planner-favorites-tab">
                 <Heart className={cn("h-3 w-3", showFavoritesOnly && "fill-current")} />
                 Saved
               </TabButton>
             </div>
           </div>
-          <Button onClick={onToggleCollapse} variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+          <Button onClick={onToggleCollapse} variant="ghost" size="icon" className="h-8 w-8 rounded-full" data-tutorial="planner-sidebar-close">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -199,7 +199,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
                   <SelectItem value="all">All Cuisines</SelectItem>
                   {CUISINE_TYPES.map((cuisine) => (
                     <SelectItem key={cuisine} value={cuisine}>
-                      {cuisine.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                      {cuisine.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
                     </SelectItem>
                   ))}
                 </FilterSelect>
@@ -227,17 +227,17 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-muted/30 transform-gpu">
+      <div className="flex-1 overflow-y-auto bg-muted/30 pt-28 transform-gpu">
         {loading ? (
-          <div className="flex items-center justify-center h-64">
+          <div className="flex items-center justify-center h-64 px-4">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
           </div>
         ) : displayRecipes.length > 0 ? (
-          <div className={cn("p-4 grid grid-cols-2 gap-4 auto-rows-max", isMobileMode && selectionCount > 0 && "pb-20")}>
+          <div className={cn("px-4 pb-4 grid grid-cols-2 gap-4 auto-rows-max", isMobileMode && selectionCount > 0 && "pb-20")}>
             {displayRecipes.map((recipe) => {
               const isSelected = isMobileMode && sessionSelectedIds?.has(recipe.id)
               return (
-                <div key={recipe.id} onClick={() => onSelect(recipe)} className="group cursor-pointer relative">
+                <div key={recipe.id} onClick={() => onSelect(recipe)} className="group cursor-pointer relative" data-tutorial="planner-sidebar-recipe">
                   <RecipeCardCompact
                     {...recipe}
                     difficulty={recipe.difficulty as any}
@@ -288,9 +288,10 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
 })
 
 // Sub-components to keep render tree lean
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
+const TabButton = ({ active, onClick, children, dataTutorial }: { active: boolean; onClick: () => void; children: React.ReactNode; dataTutorial?: string }) => (
   <button
     onClick={onClick}
+    data-tutorial={dataTutorial}
     className={cn(
       "px-3 py-1 text-[11px] font-bold rounded-md transition-all flex items-center gap-1",
       active ? "bg-background shadow-sm text-accent" : "text-muted-foreground hover:text-foreground"

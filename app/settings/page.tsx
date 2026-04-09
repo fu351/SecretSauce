@@ -35,9 +35,7 @@ function SettingsPageContent() {
   const { user, updateProfile, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const {
-    tutorialCompleted: contextTutorialCompleted,
-    tutorialPath: contextTutorialPath,
-    tutorialCompletedAt: contextTutorialCompletedAt,
+    tutorialCompletedAt,
     resetTutorial,
   } = useTutorial()
   const { toast } = useToast()
@@ -72,10 +70,6 @@ function SettingsPageContent() {
   const [lng, setLng] = useState<number | null>(null)
   const [groceryDistance, setGroceryDistance] = useState("10")
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
-  const [tutorialCompleted, setTutorialCompleted] = useState(false)
-  const [tutorialPath, setTutorialPath] = useState<string | null>(null)
-  const [tutorialCompletedAt, setTutorialCompletedAt] = useState<string | null>(null)
-  const [rewatchLoading, setRewatchLoading] = useState(false)
   const [showTutorialModal, setShowTutorialModal] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(theme === "dark" ? "dark" : "light")
   const preferencesRef = useRef<ProfileUpdates | null>(null)
@@ -137,18 +131,6 @@ function SettingsPageContent() {
     setSelectedTheme(theme === "dark" ? "dark" : "light")
   }, [theme])
 
-  // Sync tutorial completion state from context
-  useEffect(() => {
-    if (contextTutorialCompleted) {
-      setTutorialCompleted(contextTutorialCompleted)
-    }
-    if (contextTutorialPath) {
-      setTutorialPath(contextTutorialPath)
-    }
-    if (contextTutorialCompletedAt) {
-      setTutorialCompletedAt(contextTutorialCompletedAt)
-    }
-  }, [contextTutorialCompleted, contextTutorialPath, contextTutorialCompletedAt])
 
   useEffect(() => {
     const payload: ProfileUpdates = {
@@ -252,9 +234,6 @@ function SettingsPageContent() {
       setLng(profile.longitude ?? null)
       setGroceryDistance(String(profile.grocery_distance_miles || 10))
       setDietaryPreferences(profile.dietary_preferences || [])
-      setTutorialCompleted(profile.tutorial_completed || false)
-      setTutorialPath(profile.tutorial_path || null)
-      setTutorialCompletedAt(profile.tutorial_completed_at || null)
       setFullName(profile.full_name || "")
       setAvatarUrl(profile.avatar_url || null)
       setNewEmail(profile.email || "")
@@ -850,60 +829,57 @@ function SettingsPageContent() {
         </Card>
         {/* Learning & Tutorials */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <BookOpen className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
-                <div>
-                  <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>
-                    Learning & Tutorials
-                  </CardTitle>
-                  <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                    Explore the guided tutorial for any path at any time
-                  </CardDescription>
-                </div>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <BookOpen className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
+              <div>
+                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>
+                  Learning & Tutorials
+                </CardTitle>
+                <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
+                  Revisit the shared guided tour whenever you want a refresher
+                </CardDescription>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Completion Stats */}
-                {tutorialPath && (
-                  <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
-                    <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
-                      <span className="font-medium">Last completed:</span>{" "}
-                      {tutorialPath === "cooking"
-                        ? "Mastering the Craft"
-                        : tutorialPath === "budgeting"
-                        ? "Optimize Resources"
-                        : "Elevate Your Journey"}
-                    </p>
-                    {tutorialCompletedAt && (
-                      <p className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
-                        {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </p>
-                    )}
-                  </div>
-                )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className={`rounded-lg p-3 ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
+                <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/70" : "text-orange-900/80"}`}>
+                  The tour follows one clear page-by-page path through the product.
+                </p>
+              </div>
 
-                {/* Action Button */}
-                <Button
-                  onClick={handleRewatchTutorial}
-                  disabled={rewatchLoading}
-                  className={`w-full ${
-                    isDark
-                      ? "bg-[#e8dcc4]/10 text-[#e8dcc4] border border-[#e8dcc4]/30 hover:bg-[#e8dcc4]/20"
-                      : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
-                  }`}
-                  variant="outline"
-                >
-                  {rewatchLoading ? "Loading..." : "Rewatch Tutorial"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Completion Stats */}
+              {tutorialCompletedAt && (
+                <div className={`p-3 rounded-lg ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
+                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-gray-600"}`}>
+                    <span className="font-medium">Completed</span>
+                    <span className={`text-xs ml-2 ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
+                      {new Date(tutorialCompletedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </p>
+                </div>
+              )}
+
+              {/* Action Button */}
+              <Button
+                onClick={handleRewatchTutorial}
+                className={`w-full ${
+                  isDark
+                    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                    : "bg-orange-500 text-white hover:bg-orange-600"
+                }`}
+              >
+                Start the Tour Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         {/* Profile Settings */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
           <CardHeader>
@@ -1207,6 +1183,9 @@ function SettingsPageContent() {
       <TutorialSelectionModal
         isOpen={showTutorialModal}
         onClose={() => setShowTutorialModal(false)}
+        title="Start the Tour Again"
+        description="Restart the shared Secret Sauce tour from the beginning."
+        confirmLabel="Start Tour"
       />
     </div>
   )

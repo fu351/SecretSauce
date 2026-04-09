@@ -8,58 +8,27 @@ export interface TutorialSubstep {
   id: number
   instruction: string
   highlightSelector?: string
-  action?: 'explore' | 'click' | 'navigate' | 'highlight' | 'search'
+  scrollContainerSelector?: string
+  completionSelector?: string
+  action?: "explore" | "click" | "navigate" | "highlight" | "search"
   actionTarget?: string
+  /** If true, this substep only appears on mobile-sized layouts. */
+  mobileOnly?: boolean
+  /** If true, this substep only appears on desktop-sized layouts. */
+  desktopOnly?: boolean
+  /** If true, the user must interact with the highlighted element before Next is enabled. */
+  mandatory?: boolean
+  /** If true, pointer events on the highlighted element are blocked (display-only highlight). */
+  blockClick?: boolean
 }
 
 /**
- * Tutorial Step Type
- *
- * A major step in a tutorial path that guides users through a feature or workflow.
- * Can be broken down into substeps for more granular guidance.
- *
- * @example
- * const step: TutorialStep = {
- *   id: 1,
- *   title: "Search for Recipes",
- *   description: "Learn how to search for recipes by cuisine or ingredients",
- *   page: "/recipes",
- *   highlightSelector: ".search-input",
- *   action: "click",
- *   estimatedSeconds: 60
- * }
+ * General page-level tutorial content used for the shared walkthrough.
+ * Each entry owns the top-to-bottom guidance for a single page.
  */
-export interface TutorialStep {
-  id: number
+export interface GeneralPageEntry {
+  page: string
   title: string
   description: string
-  tips?: string[]
-  page: string
-  highlightSelector?: string
-  action?: 'navigate' | 'click' | 'highlight' | 'explore'
-  actionTarget?: string
-  nextButtonText?: string
-  estimatedSeconds?: number
-  substeps?: TutorialSubstep[]
-}
-
-/**
- * Tutorial Path Type
- *
- * A complete tutorial flow guiding users through related features or workflows.
- * Users can select which tutorial path to follow based on their interests.
- *
- * @example
- * const path: TutorialPath = {
- *   id: "cooking",
- *   name: "Learn to Cook",
- *   description: "Master the basics of cooking with our guided tutorial",
- *   steps: [{...}, {...}]
- * }
- */
-export interface TutorialPath {
-  id: 'cooking' | 'budgeting' | 'health'
-  name: string
-  description: string
-  steps: TutorialStep[]
+  steps: TutorialSubstep[]
 }
