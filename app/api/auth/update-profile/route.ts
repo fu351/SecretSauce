@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
+import { normalizeUsername, validateUsername } from "@/lib/auth/username"
 
 export const runtime = "nodejs"
 
@@ -29,6 +30,7 @@ const USER_WRITABLE_FIELDS = new Set([
   "latitude",
   "longitude",
   "is_private",
+  "username",
 ])
 
 const PROFILE_SELECT = [
@@ -39,6 +41,7 @@ const PROFILE_SELECT = [
   "theme_preference", "tutorial_completed", "tutorial_completed_at",
   "formatted_address", "address_line1", "address_line2", "city", "state", "country",
   "latitude", "longitude",
+  "username",
   "subscription_tier", "subscription_status", "subscription_started_at",
   "subscription_expires_at", "stripe_customer_id", "stripe_subscription_id",
   "stripe_price_id", "stripe_current_period_end",
@@ -69,6 +72,15 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
     }
 
+    if (typeof safeUpdates.username === "string") {
+      const normalizedUsername = normalizeUsername(safeUpdates.username)
+      const usernameError = validateUsername(normalizedUsername)
+      if (usernameError) {
+        return NextResponse.json({ error: usernameError }, { status: 400 })
+      }
+      safeUpdates.username = normalizedUsername
+    }
+
     const supabase = createServiceSupabaseClient()
 
     const { data, error } = await supabase
@@ -79,6 +91,12 @@ export async function PATCH(req: Request) {
       .single()
 
     if (error || !data) {
+      if (error?.code === "23505") {
+        return NextResponse.json(
+          { error: "Username is already taken", detail: error.message },
+          { status: 409 }
+        )
+      }
       console.error("[update-profile] Failed to update profile:", { clerkUserId, error })
       return NextResponse.json(
         { error: "Failed to update profile", detail: error?.message ?? "no rows returned" },

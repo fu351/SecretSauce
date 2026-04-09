@@ -13,9 +13,11 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks"
 import Image from "next/image"
 import { ArrowRight } from "lucide-react"
+import { normalizeUsername, validateUsername } from "@/lib/auth/username"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -24,9 +26,33 @@ export default function SignUpPage() {
   const { toast } = useToast()
   const router = useRouter()
 
+  const ensureProfile = async (normalizedUsername: string) => {
+    const response = await fetch("/api/auth/ensure-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: normalizedUsername }),
+    })
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      throw new Error(payload.error ?? "Failed to create profile")
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!isLoaded || !signUp) return
+
+    const normalizedUsername = normalizeUsername(username)
+    const usernameError = validateUsername(normalizedUsername)
+    if (usernameError) {
+      toast({
+        title: "Error",
+        description: usernameError,
+        variant: "destructive",
+      })
+      return
+    }
 
     // Validate password match
     if (password !== confirmPassword) {
@@ -54,11 +80,14 @@ export default function SignUpPage() {
       const result = await signUp.create({
         emailAddress: email,
         password,
+        unsafeMetadata: {
+          username: normalizedUsername,
+        },
       })
 
       if (result.status === "complete" && result.createdSessionId) {
         await setActive({ session: result.createdSessionId })
-        await fetch("/api/auth/ensure-profile", { method: "POST" })
+        await ensureProfile(normalizedUsername)
         toast({
           title: "Account created!",
           description: "Let's set up your preferences.",
@@ -75,7 +104,7 @@ export default function SignUpPage() {
         title: "Check your email",
         description: "Enter the verification code we sent to finish creating your account.",
       })
-      router.push(`/auth/check-email?email=${encodeURIComponent(email)}`)
+      router.push(`/auth/check-email?email=${encodeURIComponent(email)}&username=${encodeURIComponent(normalizedUsername)}`)
     } catch (error) {
       const firstError = (
         error as {
@@ -143,6 +172,23 @@ export default function SignUpPage() {
               required
               className="mt-2 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/30 focus:border-[#e8dcc4]/40"
             />
+          </div>
+          <div>
+            <Label htmlFor="username" className="text-[#e8dcc4]/80 font-light">
+              Username
+            </Label>
+            <Input
+              id="username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="chefhandle"
+              required
+              className="mt-2 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/30 focus:border-[#e8dcc4]/40"
+            />
+            <p className="text-xs text-[#e8dcc4]/40 mt-1">3-30 chars, lowercase letters, numbers, underscores</p>
           </div>
           <div>
             <Label htmlFor="password" className="text-[#e8dcc4]/80 font-light">

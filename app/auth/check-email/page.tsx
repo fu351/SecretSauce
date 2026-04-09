@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks"
 import { ArrowRight } from "lucide-react"
+import { normalizeUsername } from "@/lib/auth/username"
 
 export default function CheckEmailPage() {
   const { isLoaded, signUp, setActive } = useSignUp()
@@ -22,6 +23,20 @@ export default function CheckEmailPage() {
   const [verifying, setVerifying] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const [email, setEmail] = useState("")
+  const username = normalizeUsername(searchParams.get("username") ?? "")
+
+  const ensureProfile = async () => {
+    const response = await fetch("/api/auth/ensure-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    })
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      throw new Error(payload.error ?? "Failed to create profile")
+    }
+  }
 
   useEffect(() => {
     const emailFromSignUp = signUp?.emailAddress ?? ""
@@ -128,7 +143,7 @@ export default function CheckEmailPage() {
 
       if (result.status === "complete" && result.createdSessionId) {
         await setActive({ session: result.createdSessionId })
-        await fetch("/api/auth/ensure-profile", { method: "POST" })
+        await ensureProfile()
 
         toast({
           title: "Email verified",
@@ -167,7 +182,7 @@ export default function CheckEmailPage() {
         description:
           firstError?.longMessage ??
           firstError?.message ??
-          "The code is invalid or has expired.",
+          (error instanceof Error ? error.message : "The code is invalid or has expired."),
         variant: "destructive",
       })
     } finally {

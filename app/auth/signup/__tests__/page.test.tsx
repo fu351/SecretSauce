@@ -39,9 +39,10 @@ vi.mock('@clerk/nextjs', () => ({
 
 async function fillAndSubmit(
   user: ReturnType<typeof userEvent.setup>,
-  { email = 'new@example.com', password = 'password123', confirm = 'password123' } = {}
+  { email = 'new@example.com', username = 'chefhandle', password = 'password123', confirm = 'password123' } = {}
 ) {
   await user.type(screen.getByLabelText(/^email$/i), email)
+  await user.type(screen.getByLabelText(/^username$/i), username)
   await user.type(screen.getByLabelText(/^password$/i), password)
   await user.type(screen.getByLabelText(/confirm password/i), confirm)
   await user.click(screen.getByRole('button', { name: /request access/i }))
@@ -74,6 +75,7 @@ describe('SignUpPage', () => {
   it('renders email, password, confirm-password inputs and submit button', () => {
     render(<SignUpPage />)
     expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^username$/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /request access/i })).toBeInTheDocument()
@@ -102,6 +104,7 @@ describe('SignUpPage', () => {
     // Type values directly then use fireEvent.submit to bypass HTML minLength validation
     // so the JS-level check runs and we can assert on the toast
     await user.type(screen.getByLabelText(/^email$/i), 'test@example.com')
+    await user.type(screen.getByLabelText(/^username$/i), 'chefhandle')
     await user.type(screen.getByLabelText(/^password$/i), '123')
     await user.type(screen.getByLabelText(/confirm password/i), '123')
     container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
@@ -128,6 +131,9 @@ describe('SignUpPage', () => {
       expect(mockCreate).toHaveBeenCalledWith({
         emailAddress: 'new@example.com',
         password: 'securepass',
+        unsafeMetadata: {
+          username: 'chefhandle',
+        },
       })
     )
   })
@@ -141,7 +147,7 @@ describe('SignUpPage', () => {
     await fillAndSubmit(user, { email: 'new@example.com' })
     await waitFor(() => {
       expect(mockPrepareEmailVerification).toHaveBeenCalledWith({ strategy: 'email_code' })
-      expect(push).toHaveBeenCalledWith('/auth/check-email?email=new%40example.com')
+      expect(push).toHaveBeenCalledWith('/auth/check-email?email=new%40example.com&username=chefhandle')
     })
   })
 

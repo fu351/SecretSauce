@@ -226,6 +226,7 @@ export type Database = {
           longitude: number | null
           email_verified: boolean | null
           clerk_user_id: string | null
+          username: string | null
           subscription_tier: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at: string | null
           subscription_expires_at: string | null
@@ -264,6 +265,7 @@ export type Database = {
           longitude?: number | null
           email_verified?: boolean | null
           clerk_user_id?: string | null
+          username?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at?: string | null
           subscription_expires_at?: string | null
@@ -302,6 +304,7 @@ export type Database = {
           longitude?: number | null
           email_verified?: boolean | null
           clerk_user_id?: string | null
+          username?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at?: string | null
           subscription_expires_at?: string | null

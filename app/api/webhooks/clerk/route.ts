@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyWebhook } from "@clerk/nextjs/webhooks"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { profileIdFromClerkUserId } from "@/lib/auth/clerk-profile-id"
+import { normalizeUsername, validateUsername } from "@/lib/auth/username"
 
 export const runtime = "nodejs"
 
@@ -36,6 +37,23 @@ function getFullName(user: any): string | null {
   return joined.length > 0 ? joined : null
 }
 
+function getUsername(user: any): string | null {
+  const direct = user?.username
+  if (typeof direct === "string" && direct.trim().length > 0) {
+    return normalizeUsername(direct)
+  }
+
+  const unsafeMetadataUsername =
+    user?.unsafeMetadata?.username ??
+    user?.unsafe_metadata?.username
+
+  if (typeof unsafeMetadataUsername === "string" && unsafeMetadataUsername.trim().length > 0) {
+    return normalizeUsername(unsafeMetadataUsername)
+  }
+
+  return null
+}
+
 export async function POST(req: NextRequest) {
   let event: any
   try {
@@ -62,6 +80,7 @@ export async function POST(req: NextRequest) {
         const fullName = getFullName(user)
         const avatarUrl = user?.imageUrl ?? user?.image_url ?? null
         const emailVerified = getEmailVerified(user)
+        const username = getUsername(user)
         const nowIso = new Date().toISOString()
         const baseUpdate = {
           clerk_user_id: clerkUserId,
@@ -73,6 +92,9 @@ export async function POST(req: NextRequest) {
 
         if (emailVerified !== null) {
           baseUpdate.email_verified = emailVerified
+        }
+        if (username && !validateUsername(username)) {
+          baseUpdate.username = username
         }
 
         const { data: byClerkId } = await supabase
@@ -100,6 +122,7 @@ export async function POST(req: NextRequest) {
             email,
             full_name: fullName,
             avatar_url: avatarUrl,
+            username: baseUpdate.username ?? null,
             email_verified: emailVerified,
             created_at: nowIso,
             updated_at: nowIso,
