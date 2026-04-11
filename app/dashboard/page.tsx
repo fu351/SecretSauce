@@ -27,6 +27,8 @@ import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
 import { ProfileCard } from "@/components/social/profile-card"
 import { ChallengeWidget } from "@/components/social/challenge-widget"
+import { FriendsWidget } from "@/components/social/friends-widget"
+import { NotificationsWidget } from "@/components/social/notifications-widget"
 
 interface DashboardStats {
   totalRecipes: number
@@ -191,6 +193,12 @@ export default function DashboardPage() {
           {profile && <ProfileCard profile={profile} />}
 
           <ChallengeWidget />
+
+          {/* Social widgets */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <FriendsWidget />
+            <NotificationsWidget />
+          </div>
 
           {/* Prominent Tutorial Prompt - Only shows if tutorial not completed */}
           {showTutorialPrompt && !sessionStorage.getItem("tutorial_prompt_dismissed") ? (
