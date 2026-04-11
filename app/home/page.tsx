@@ -17,6 +17,7 @@ import { supabase } from "@/lib/database/supabase"
 import Image from "next/image"
 import {
   Bell,
+  CheckCircle2,
   ChevronRight,
   Clock,
   Crown,
@@ -33,6 +34,7 @@ import { RecipeGrid } from "@/components/recipe/recipe-grid"
 import { Recipe } from "@/lib/types"
 import { useToast } from "@/hooks"
 import type { PostWithMeta } from "@/lib/database/post-db"
+import type { Challenge, ChallengeEntry, LeaderboardEntry } from "@/lib/database/challenge-db"
 
 type HomePageRecipe = Recipe
 
@@ -45,6 +47,14 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+function timeUntil(dateStr: string): string {
+  const diff = new Date(dateStr).getTime() - Date.now()
+  if (diff <= 0) return "ended"
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  if (hours < 24) return `${hours}h left`
+  return `${Math.floor(hours / 24)}d left`
+}
+
 export default function HomeReturningPage() {
   const { user, loading } = useAuth()
   const { theme } = useTheme()
@@ -52,6 +62,14 @@ export default function HomeReturningPage() {
   const [flavorsOfWeek, setFlavorsOfWeek] = useState<HomePageRecipe[]>([])
   const [recommendedRecipes, setRecommendedRecipes] = useState<HomePageRecipe[]>([])
   const [loadingRecipes, setLoadingRecipes] = useState(true)
+
+  // Challenge state
+  const [activeChallenge, setActiveChallenge] = useState<(Challenge & { participant_count: number }) | null>(null)
+  const [challengeEntry, setChallengeEntry] = useState<ChallengeEntry | null>(null)
+  const [challengeRank, setChallengeRank] = useState<number | null>(null)
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [leaderboardScope, setLeaderboardScope] = useState<"friends" | "global">("friends")
+  const [loadingChallenge, setLoadingChallenge] = useState(true)
 
   // Post creation
   const [postDishOpen, setPostDishOpen] = useState(false)
@@ -78,6 +96,7 @@ export default function HomeReturningPage() {
     if (!loading && isMounted.current && !fetchingRecipes.current) {
       fetchHomeRecipes()
       fetchFeed()
+      fetchActiveChallenge()
     }
   }, [loading])
 
@@ -99,6 +118,37 @@ export default function HomeReturningPage() {
     } finally {
       if (isMounted.current) setLoadingRecipes(false)
       fetchingRecipes.current = false
+    }
+  }
+
+  const fetchActiveChallenge = async () => {
+    setLoadingChallenge(true)
+    try {
+      const res = await fetch("/api/challenges/active")
+      if (!res.ok) return
+      const json = await res.json()
+      if (!isMounted.current) return
+      setActiveChallenge(json.challenge ?? null)
+      setChallengeEntry(json.entry ?? null)
+      setChallengeRank(json.rank ?? null)
+      if (json.challenge) {
+        fetchLeaderboard(json.challenge.id, leaderboardScope)
+      }
+    } catch (error) {
+      console.error("Error fetching active challenge:", error)
+    } finally {
+      if (isMounted.current) setLoadingChallenge(false)
+    }
+  }
+
+  const fetchLeaderboard = async (challengeId: string, scope: "friends" | "global") => {
+    try {
+      const res = await fetch(`/api/challenges/${challengeId}/leaderboard?scope=${scope}&limit=10`)
+      if (!res.ok) return
+      const json = await res.json()
+      if (isMounted.current) setLeaderboard(json.leaders ?? [])
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error)
     }
   }
 
@@ -162,9 +212,23 @@ export default function HomeReturningPage() {
         }),
       })
 
+      const postJson = await res.json()
       if (!res.ok) {
-        const json = await res.json()
-        throw new Error(json.error ?? "Failed to post")
+        throw new Error(postJson.error ?? "Failed to post")
+      }
+
+      // Link post to active challenge if one exists
+      if (activeChallenge) {
+        const newPostId = postJson.post?.id
+        if (newPostId) {
+          await fetch(`/api/challenges/${activeChallenge.id}/join`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ postId: newPostId }),
+          }).then((r) => r.json()).then((j) => {
+            if (j.entry) setChallengeEntry(j.entry)
+          }).catch(() => {})
+        }
       }
 
       toast({ title: "Posted!", description: "Your dish is live." })
@@ -242,6 +306,11 @@ export default function HomeReturningPage() {
     }
   }
 
+  const handleLeaderboardScope = (scope: "friends" | "global") => {
+    setLeaderboardScope(scope)
+    if (activeChallenge) fetchLeaderboard(activeChallenge.id, scope)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -259,12 +328,6 @@ export default function HomeReturningPage() {
     (user as any)?.name?.split?.(" ")?.[0] ||
     user?.email?.split("@")[0] ||
     "there"
-
-  const leaders = [
-    { name: "Maya", pts: 420, me: false },
-    { name: "Kevin", pts: 390, me: false },
-    { name: "You", pts: 355, me: true },
-  ]
 
   const SectionHeader = ({ title, right }: { title: string; right?: React.ReactNode }) => (
     <div className="flex items-center justify-between gap-3">
@@ -295,30 +358,52 @@ export default function HomeReturningPage() {
         </div>
 
         {/* Weekly challenge hero */}
-        <Card>
-          <CardContent className="p-4 md:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">This week's challenge</p>
-                <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">Pantry Rescue</h1>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> 2d left</span>
-                  <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> 184 joined</span>
-                  <span className="inline-flex items-center gap-1"><Trophy className="h-3.5 w-3.5" /> #8 among friends</span>
+        {loadingChallenge ? (
+          <Card><CardContent className="p-4 md:p-6 h-32 animate-pulse bg-muted/30" /></Card>
+        ) : activeChallenge ? (
+          <Card>
+            <CardContent className="p-4 md:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">This week's challenge</p>
+                  <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">
+                    {activeChallenge.title}
+                  </h1>
+                  {activeChallenge.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2">{activeChallenge.description}</p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" /> {timeUntil(activeChallenge.ends_at)}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" /> {activeChallenge.participant_count} joined
+                    </span>
+                    {challengeRank != null && (
+                      <span className="inline-flex items-center gap-1">
+                        <Trophy className="h-3.5 w-3.5" /> #{challengeRank} among friends
+                      </span>
+                    )}
+                  </div>
                 </div>
+                <Badge className="bg-primary/15 text-primary border border-primary/20 flex-shrink-0">
+                  +{activeChallenge.points} pts
+                </Badge>
               </div>
-              <Badge className="bg-primary/15 text-primary border border-primary/20">+100 pts</Badge>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Button className="flex-1" asChild>
-                <Link href="/challenges/join">Join Challenge</Link>
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => setPostDishOpen(true)}>
-                Post Your Dish
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="mt-4">
+                {challengeEntry?.post_id ? (
+                  <Button variant="secondary" className="w-full gap-1.5" disabled>
+                    <CheckCircle2 className="h-4 w-4" /> Dish Submitted
+                  </Button>
+                ) : (
+                  <Button className="w-full" onClick={() => setPostDishOpen(true)}>
+                    Post Your Dish to Enter
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Post Your Dish dialog */}
         <Dialog open={postDishOpen} onOpenChange={(open) => {
@@ -382,12 +467,14 @@ export default function HomeReturningPage() {
                 />
               </div>
 
-              <div className="rounded-xl border p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Challenge</span>
-                  <Badge variant="secondary">Pantry Rescue</Badge>
+              {activeChallenge && (
+                <div className="rounded-xl border p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Challenge</span>
+                    <Badge variant="secondary">{activeChallenge.title}</Badge>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="border-t bg-background/95 px-4 py-3">
@@ -574,26 +661,47 @@ export default function HomeReturningPage() {
                 <Crown className="h-4 w-4 text-primary" />
               </CardTitle>
               <div className="flex gap-2">
-                <Button size="sm" variant="secondary" className="rounded-full">Friends</Button>
-                <Button size="sm" variant="ghost" className="rounded-full">Local</Button>
-                <Button size="sm" variant="ghost" className="rounded-full">Global</Button>
+                <Button
+                  size="sm"
+                  variant={leaderboardScope === "friends" ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => handleLeaderboardScope("friends")}
+                >
+                  Friends
+                </Button>
+                <Button
+                  size="sm"
+                  variant={leaderboardScope === "global" ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => handleLeaderboardScope("global")}
+                >
+                  Global
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <ol className="space-y-2">
-                {leaders.map((l, i) => (
-                  <li key={l.name} className={`flex items-center justify-between rounded-lg px-3 py-2 ${l.me ? "bg-primary/10" : "bg-muted/30"}`}>
-                    <span className="text-sm text-foreground">
-                      <span className="mr-2 text-muted-foreground">{i + 1}.</span>
-                      {l.name}
-                    </span>
-                    <span className="text-sm font-medium text-foreground">{l.pts} pts</span>
-                  </li>
-                ))}
-              </ol>
-              <Button variant="ghost" className="mt-3 w-full justify-between">
-                See full leaderboard <ChevronRight className="h-4 w-4" />
-              </Button>
+              {leaderboard.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">
+                  {leaderboardScope === "friends" ? "No friends in this challenge yet." : "No entries yet. Be the first!"}
+                </p>
+              ) : (
+                <ol className="space-y-2">
+                  {leaderboard.map((l, i) => (
+                    <li
+                      key={l.profile_id}
+                      className={`flex items-center justify-between rounded-lg px-3 py-2 ${l.is_viewer ? "bg-primary/10" : "bg-muted/30"}`}
+                    >
+                      <span className="text-sm text-foreground truncate">
+                        <span className="mr-2 text-muted-foreground">{i + 1}.</span>
+                        {l.is_viewer ? "You" : (l.full_name ?? l.username ?? "Chef")}
+                      </span>
+                      <span className="text-sm font-medium text-foreground flex-shrink-0 ml-2">
+                        {l.total_points} pts
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </CardContent>
           </Card>
 
@@ -621,11 +729,19 @@ export default function HomeReturningPage() {
                   </Button>
                 </div>
               </div>
-              <Separator />
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">18 people joined Pantry Rescue today</p>
-                <p className="text-xs text-muted-foreground">Your saved pasta is trending near campus</p>
-              </div>
+              {activeChallenge && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      {activeChallenge.participant_count} people joined {activeChallenge.title} this week
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {timeUntil(activeChallenge.ends_at)} to submit your entry · +{activeChallenge.points} pts
+                    </p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

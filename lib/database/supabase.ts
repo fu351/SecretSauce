@@ -411,6 +411,58 @@ export type Database = {
           created_at?: string
         }
       }
+      challenges: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          points: number
+          starts_at: string
+          ends_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          points?: number
+          starts_at: string
+          ends_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          points?: number
+          starts_at?: string
+          ends_at?: string
+          created_at?: string
+        }
+      }
+      challenge_entries: {
+        Row: {
+          id: string
+          challenge_id: string
+          profile_id: string
+          post_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          challenge_id: string
+          profile_id: string
+          post_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          challenge_id?: string
+          profile_id?: string
+          post_id?: string | null
+          created_at?: string
+        }
+      }
       recipes: {
         Row: {
           id: string
