@@ -192,6 +192,61 @@ export default function DashboardPage() {
 
           {profile && <ProfileCard profile={profile} />}
 
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">
+            <Link href="/recipes?mine=true" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <ChefHat className="h-5 w-5 md:h-8 md:w-8 text-primary" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Your Recipes</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.totalRecipes}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Recipes created</p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/recipes?favorites=true" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <Heart className="h-5 w-5 md:h-8 md:w-8 text-red-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Favorites</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.favoriteRecipes}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Saved recipes</p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/meal-planner" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <Calendar className="h-5 w-5 md:h-8 md:w-8 text-blue-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Meal Plan</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.plannedMeals}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Meals this week</p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/store" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <ShoppingCart className="h-5 w-5 md:h-8 md:w-8 text-green-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Shopping List</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.shoppingItems}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Items to buy</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+
           <ChallengeWidget />
 
           {/* Social widgets */}
@@ -277,61 +332,6 @@ export default function DashboardPage() {
               onShowInstructions={() => setShowIOSInstallModal(true)}
             />
           ) : null}
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">
-            <Link href="/recipes?mine=true" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-center justify-between mb-2 md:mb-4">
-                    <ChefHat className="h-5 w-5 md:h-8 md:w-8 text-primary" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Your Recipes</span>
-                  </div>
-                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.totalRecipes}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Recipes created</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/recipes?favorites=true" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-center justify-between mb-2 md:mb-4">
-                    <Heart className="h-5 w-5 md:h-8 md:w-8 text-red-500" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Favorites</span>
-                  </div>
-                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.favoriteRecipes}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Saved recipes</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/meal-planner" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-center justify-between mb-2 md:mb-4">
-                    <Calendar className="h-5 w-5 md:h-8 md:w-8 text-blue-500" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Meal Plan</span>
-                  </div>
-                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.plannedMeals}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Meals this week</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/store" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-center justify-between mb-2 md:mb-4">
-                    <ShoppingCart className="h-5 w-5 md:h-8 md:w-8 text-green-500" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Shopping List</span>
-                  </div>
-                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.shoppingItems}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Items to buy</p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
 
           {/* Graph Tracker */}
           <div data-tutorial="dashboard-actions">
