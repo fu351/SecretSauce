@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation"
 import { auth } from "@clerk/nextjs/server"
 import Image from "next/image"
-import Link from "next/link"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { followDB } from "@/lib/database/follow-db"
 import { normalizeUsername } from "@/lib/auth/username"
 import { ProfileFollowButton } from "@/components/social/profile-follow-button"
+import { UserRecipeGrid } from "@/components/social/user-recipe-grid"
 import { Badge } from "@/components/ui/badge"
-import { Lock, Globe, ChefHat } from "lucide-react"
+import { Lock, Globe } from "lucide-react"
 
 interface Props {
   params: Promise<{ username: string }>
@@ -52,14 +52,6 @@ export default async function UserProfilePage({ params }: Props) {
       }
     }
   }
-
-  const { data: recipes } = await supabase
-    .from("recipes")
-    .select("id, title, image_url, description, cuisine")
-    .eq("author_id", profile.id)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(24)
 
   const initials = profile.full_name
     ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
@@ -129,42 +121,7 @@ export default async function UserProfilePage({ params }: Props) {
         {/* Recipes */}
         <div className="mt-12">
           <h2 className="text-lg font-semibold text-[#e8dcc4] mb-4">Recipes</h2>
-          {recipes && recipes.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {recipes.map((recipe) => (
-                <Link
-                  key={recipe.id}
-                  href={`/recipes/${recipe.id}`}
-                  className="group rounded-lg overflow-hidden bg-[#1a1a1a] ring-1 ring-[#e8dcc4]/10 hover:ring-[#e8dcc4]/30 transition-all"
-                >
-                  {recipe.image_url ? (
-                    <div className="aspect-square relative">
-                      <Image
-                        src={recipe.image_url}
-                        alt={recipe.title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-                  ) : (
-                    <div className="aspect-square bg-[#222] flex items-center justify-center">
-                      <ChefHat className="h-8 w-8 text-[#e8dcc4]/20" />
-                    </div>
-                  )}
-                  <div className="p-3">
-                    <p className="text-sm font-medium text-[#e8dcc4] line-clamp-2 leading-snug">
-                      {recipe.title}
-                    </p>
-                    {recipe.cuisine && (
-                      <p className="text-xs text-[#e8dcc4]/40 mt-1 capitalize">{recipe.cuisine}</p>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-[#e8dcc4]/40">No recipes yet.</p>
-          )}
+          <UserRecipeGrid username={username} />
         </div>
       </div>
     </div>

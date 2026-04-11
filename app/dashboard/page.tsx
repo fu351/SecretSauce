@@ -25,6 +25,7 @@ import IOSWebAppPromptBanner from "@/components/shared/ios-webapp-prompt-banner"
 import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
 import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
+import { ProfileCard } from "@/components/social/profile-card"
 
 interface DashboardStats {
   totalRecipes: number
@@ -185,6 +186,8 @@ export default function DashboardPage() {
             </h2>
             <p className="text-sm md:text-base text-muted-foreground">Here's what's cooking in your kitchen</p>
           </div>
+
+          {profile && <ProfileCard profile={profile} />}
 
           {/* Prominent Tutorial Prompt - Only shows if tutorial not completed */}
           {showTutorialPrompt && !sessionStorage.getItem("tutorial_prompt_dismissed") ? (
