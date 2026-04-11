@@ -26,6 +26,7 @@ import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
 import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
 import { ProfileCard } from "@/components/social/profile-card"
+import { ChallengeWidget } from "@/components/social/challenge-widget"
 
 interface DashboardStats {
   totalRecipes: number
@@ -188,6 +189,8 @@ export default function DashboardPage() {
           </div>
 
           {profile && <ProfileCard profile={profile} />}
+
+          <ChallengeWidget />
 
           {/* Prominent Tutorial Prompt - Only shows if tutorial not completed */}
           {showTutorialPrompt && !sessionStorage.getItem("tutorial_prompt_dismissed") ? (
