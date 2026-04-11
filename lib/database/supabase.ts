@@ -1146,6 +1146,46 @@ export type Database = {
           created_at?: string | null
         }
       }
+      recipe_likes: {
+        Row: {
+          id: string
+          recipe_id: string
+          profile_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          recipe_id: string
+          profile_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          recipe_id?: string
+          profile_id?: string
+          created_at?: string
+        }
+      }
+      recipe_reposts: {
+        Row: {
+          id: string
+          recipe_id: string
+          profile_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          recipe_id: string
+          profile_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          recipe_id?: string
+          profile_id?: string
+          created_at?: string
+        }
+      }
       feedback: {
         Row: {
           id: string

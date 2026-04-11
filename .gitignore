@@ -38,6 +38,11 @@ AGENTS.md
 *.sql
 !supabase/migrations/0016_product_mapping_is_ingredient_flag.sql
 !supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql
+!supabase/migrations/20260409000000_add_social_follow_system.sql
+!supabase/migrations/20260409010000_add_posts_system.sql
+!supabase/migrations/20260411000000_add_challenges_system.sql
+!supabase/migrations/20260411001000_add_recipe_likes.sql
+!supabase/migrations/20260411002000_add_recipe_reposts.sql
 
 CLAUDE.md
 
@@ -61,20 +66,8 @@ lib/scrapers/test-walmart-rate-limit.js
 scripts/sync-codex-mcp-from-vscode.cjs
 docs/profiles-stripe-migrations.sql
 docs/profiles-clerk-bridge-migrations.sql
-supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql
-!supabase/migrations/20260219110000_add_canonical_probation_and_confidence_calibration.sql
-!supabase/migrations/20260223152000_add_queue_probation_status.sql
-!supabase/migrations/20260320000000_fn_vector_double_check_candidates.sql
-!supabase/migrations/20260323000000_fix_product_mapping_confidence.sql
-!supabase/migrations/20260323010000_fn_consolidate_canonical.sql
-!supabase/migrations/20260323020000_fix_token_idf_cache_delete.sql
-!supabase/migrations/20260324000000_fn_bulk_insert_statement_timeout.sql
-!supabase/migrations/20260324010000_fn_bulk_insert_skip_known_products.sql
-!supabase/migrations/20260324020000_idx_product_mappings_ingredient_store.sql
-!supabase/migrations/20260408100000_drop_tutorial_branching_columns.sql
-!supabase/migrations/20260409000000_add_social_follow_system.sql
-!supabase/migrations/20260409010000_add_posts_system.sql
-!supabase/migrations/20260411000000_add_challenges_system.sql
+
+
 supabase/.temp/
 
 # clerk configuration (can include secrets)

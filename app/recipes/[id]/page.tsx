@@ -5,11 +5,12 @@ import { useParams, useRouter } from "next/navigation"
 import clsx from "clsx"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils, Pencil, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Clock, Users, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils, Pencil, ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
 import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-info"
+import { RecipeActionBar } from "@/components/recipe/social/recipe-action-bar"
 import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
@@ -99,6 +100,12 @@ export default function RecipeDetailPage() {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   const [cookingMode, setCookingMode] = useState(false)
   const [cookingStep, setCookingStep] = useState(0)
+  const [likeCount, setLikeCount] = useState(0)
+  const [isLiked, setIsLiked] = useState(false)
+  const [repostCount, setRepostCount] = useState(0)
+  const [isReposted, setIsReposted] = useState(false)
+  const [friendLikes, setFriendLikes] = useState<{ id: string; full_name: string | null; avatar_url: string | null; username: string | null }[]>([])
+  const [friendProfileIds, setFriendProfileIds] = useState<string[]>([])
   const { theme } = useTheme()
   const isDark = theme === "dark"
 
@@ -109,7 +116,6 @@ export default function RecipeDetailPage() {
       ? "bg-card text-foreground border-border hover:bg-card/90"
       : "bg-white/80 text-gray-700 border-gray-200 hover:bg-white/90 backdrop-blur-sm",
   )
-  const imageActionButtonClass = isDark ? "bg-card/80 text-foreground hover:bg-card" : "bg-white/90 hover:bg-white"
   const infoPanelClass = clsx(
     "shadow-lg rounded-2xl border",
     isDark ? "bg-card border-border" : "bg-white/90 backdrop-blur-sm border-0",
@@ -155,11 +161,29 @@ export default function RecipeDetailPage() {
   useEffect(() => {
     if (params.id) {
       loadRecipe()
+      loadSocialData()
       if (user) {
         checkIfFavorite()
       }
     }
   }, [params.id, user])
+
+  const loadSocialData = async () => {
+    if (!params.id) return
+    try {
+      const res = await fetch(`/api/recipes/${params.id}/social`)
+      if (!res.ok) return
+      const json = await res.json()
+      setLikeCount(json.likeCount ?? 0)
+      setIsLiked(json.isLiked ?? false)
+      setRepostCount(json.repostCount ?? 0)
+      setIsReposted(json.isReposted ?? false)
+      setFriendLikes(json.friendLikes ?? [])
+      setFriendProfileIds(json.friendProfileIds ?? [])
+    } catch {
+      // social data is non-critical, fail silently
+    }
+  }
 
   useEffect(() => {
     const handleScroll = () => {
@@ -403,7 +427,7 @@ export default function RecipeDetailPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 items-center">
-          <div className="lg:w-3/5 w-full">
+          <div className="lg:w-3/5 w-full flex flex-col">
             <div
               className={clsx(
                 "relative overflow-hidden rounded-2xl shadow-xl",
@@ -415,24 +439,23 @@ export default function RecipeDetailPage() {
                 alt={recipe.title}
                 className="w-full h-[360px] sm:h-[420px] md:h-[500px] object-cover"
               />
-              <div className="absolute top-4 right-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  data-tutorial="recipe-favorite"
-                  className={clsx("transition-colors", imageActionButtonClass)}
-                  onClick={toggleFavorite}
-                  disabled={isTogglingFavorite}
-                >
-                  <Heart
-                    className={clsx(
-                      "h-4 w-4",
-                      isFavorite ? "fill-red-500 text-red-500" : isDark ? "text-foreground" : "text-gray-700",
-                    )}
-                  />
-                </Button>
-              </div>
             </div>
+
+            <RecipeActionBar
+              recipeId={recipe.id}
+              isFavorite={isFavorite}
+              isTogglingFavorite={isTogglingFavorite}
+              onToggleFavorite={toggleFavorite}
+              likeCount={likeCount}
+              isLiked={isLiked}
+              onLikeToggle={(liked, count) => { setIsLiked(liked); setLikeCount(count) }}
+              repostCount={repostCount}
+              isReposted={isReposted}
+              onRepostToggle={(reposted, count) => { setIsReposted(reposted); setRepostCount(count) }}
+              friendLikes={friendLikes}
+              isAuthenticated={!!user}
+              isDark={isDark}
+            />
           </div>
 
           <div className="lg:w-2/5 w-full">
@@ -679,7 +702,7 @@ export default function RecipeDetailPage() {
           )}
 
           <div className="w-full" data-tutorial="recipe-reviews">
-            <RecipeReviews recipeId={recipe.id} />
+            <RecipeReviews recipeId={recipe.id} friendProfileIds={friendProfileIds} />
           </div>
         </div>
       </div>
