@@ -45,20 +45,27 @@ async function getTotalCount() {
   return count;
 }
 
-async function runBatch(offset) {
-  const { data, error } = await supabase.rpc("fn_relink_product_mappings", {
-    p_reset_all: RESET_ALL,
-    p_queue_all: QUEUE_ALL,
-    p_limit: BATCH_SIZE,
-    p_offset: offset,
-  });
-  if (error) throw error;
-  return data ?? [];
-}
-
 function isStatementTimeoutError(err) {
   const text = String(err?.message ?? err ?? "");
   return /57014/.test(text) && /statement timeout/i.test(text);
+}
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === "object" && Array.isArray(payload.rows)) return payload.rows;
+  return [];
+}
+
+function buildBatchSignature(payload) {
+  const rows = extractRows(payload);
+  if (!rows.length) return null;
+
+  const ids = rows
+    .map((row) => row?.id ?? row?.product_mapping_id ?? row?.row_id ?? null)
+    .filter((value) => value !== null && value !== undefined)
+    .map((value) => String(value));
+
+  return ids.length > 0 ? ids.join(",") : null;
 }
 
 function summarise(rows) {
@@ -90,22 +97,30 @@ async function main() {
   console.log();
 
   if (DRY_RUN) {
-    console.log("[dry-run] No writes will be committed.");
+    console.log(
+      "[dry-run] Read-only mode: skipping fn_relink_product_mappings because the RPC mutates rows directly."
+    );
   }
 
   const total = await getTotalCount();
   console.log(`Total rows to process: ${total}\n`);
 
+  if (DRY_RUN) {
+    console.log(`Would process head batches of up to ${BATCH_SIZE} rows until the candidate set is exhausted.`);
+    return;
+  }
+
   const globalStats = { changed: 0, queued: 0, unchanged: 0 };
   const globalStrategies = {};
+  let totalProcessed = 0;
 
   let currentBatchSize = BATCH_SIZE;
-  let offset = 0;
   let batchNum = 1;
+  let previousBatchSignature = null;
 
-  while (offset < total) {
+  while (true) {
     process.stdout.write(
-      `Batch ${batchNum} (offset ${offset}, size ${currentBatchSize})... `
+      `Batch ${batchNum} (head batch, size ${currentBatchSize})... `
     );
 
     let rows;
@@ -114,7 +129,7 @@ async function main() {
         p_reset_all: RESET_ALL,
         p_queue_all: QUEUE_ALL,
         p_limit: currentBatchSize,
-        p_offset: offset,
+        p_offset: 0,
       });
       if (error) throw error;
       rows = data ?? [];
@@ -129,8 +144,10 @@ async function main() {
       process.exit(1);
     }
 
+    const batchSignature = buildBatchSignature(rows);
     const { stats, strategies } = summarise(rows);
 
+    totalProcessed += extractRows(rows).length;
     globalStats.changed += stats.changed;
     globalStats.queued += stats.queued;
     globalStats.unchanged += stats.unchanged;
@@ -139,19 +156,28 @@ async function main() {
     }
 
     console.log(
-      `done — ${rows.length} rows | changed: ${stats.changed} | queued: ${stats.queued} | unchanged: ${stats.unchanged}`
+      `done — ${extractRows(rows).length} rows | changed: ${stats.changed} | queued: ${stats.queued} | unchanged: ${stats.unchanged}`
     );
 
-    if (rows.length === 0 || rows.length < currentBatchSize) {
+    const batchRowCount = extractRows(rows).length;
+    if (batchRowCount === 0 || batchRowCount < currentBatchSize) {
       break;
     }
 
-    offset += currentBatchSize;
+    if (batchSignature && previousBatchSignature === batchSignature) {
+      console.error(
+        `Batch ${batchNum} repeated the same head batch without shrinking the candidate set; aborting to avoid looping forever.`
+      );
+      process.exit(1);
+    }
+
+    previousBatchSignature = batchSignature;
     batchNum += 1;
   }
 
   console.log("\n=== Summary ===");
-  console.log(`  Total processed : ${total}`);
+  console.log(`  Initial eligible: ${total}`);
+  console.log(`  Total processed : ${totalProcessed}`);
   console.log(`  Direct updates  : ${globalStats.changed}`);
   console.log(`  Queued for LLM  : ${globalStats.queued}`);
   console.log(`  Unchanged       : ${globalStats.unchanged}`);

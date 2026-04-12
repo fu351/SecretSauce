@@ -159,15 +159,15 @@ jobs:
           echo "Batch config: size=${batch_size}, max_batches=${max_batches}"
 
           min_batch_size=25
-          offset=0
           batch=1
           total_processed=0
           total_changed=0
           allow_batch_args=true
+          previous_batch_signature=""
 
           while [ "${batch}" -le "${max_batches}" ]; do
             if [ "${allow_batch_args}" = "true" ]; then
-              BODY=$(echo "${BASE_BODY}" | jq -c --argjson p_limit "${batch_size}" --argjson p_offset "${offset}" \
+              BODY=$(echo "${BASE_BODY}" | jq -c --argjson p_limit "${batch_size}" --argjson p_offset 0 \
                 '. + {p_limit: $p_limit, p_offset: $p_offset}')
             else
               BODY="${BASE_BODY}"
@@ -190,7 +190,6 @@ jobs:
                 echo "Batch args unsupported for fn_relink_product_mappings; falling back to single non-batched call."
                 allow_batch_args=false
                 batch=1
-                offset=0
                 total_processed=0
                 total_changed=0
                 continue
@@ -205,7 +204,7 @@ jobs:
                     next_batch_size="${min_batch_size}"
                   fi
 
-                  echo "Product relink batch timed out at offset=${offset} with size=${batch_size}; retrying with size=${next_batch_size}."
+                  echo "Product relink head batch timed out with size=${batch_size}; retrying with size=${next_batch_size}."
                   batch_size="${next_batch_size}"
                   continue
                 fi
@@ -268,7 +267,23 @@ jobs:
               break
             fi
 
-            offset=$((offset + batch_size))
+            current_batch_signature=$(echo "$RESULT" | jq -r '
+              def norm: if type == "string" then (try fromjson catch .) else . end;
+              (norm) as $n
+              | if ($n | type) == "array" then $n
+                elif ($n | type) == "object" and ($n | has("rows")) and (($n.rows | type) == "array") then $n.rows
+                else [] end
+              | map(.id // .product_mapping_id // .row_id // empty)
+              | map(tostring)
+              | join(",")
+            ')
+
+            if [ -n "${current_batch_signature}" ] && [ "${current_batch_signature}" = "${previous_batch_signature}" ]; then
+              echo "Product relink repeated the same head batch without shrinking the candidate set; aborting to avoid looping forever."
+              exit 1
+            fi
+
+            previous_batch_signature="${current_batch_signature}"
             batch=$((batch + 1))
           done
 

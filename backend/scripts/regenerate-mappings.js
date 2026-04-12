@@ -98,6 +98,25 @@ function queuedCount(result) {
   return 0
 }
 
+function extractRows(result) {
+  const n = normalizeResult(result)
+  if (Array.isArray(n)) return n
+  if (n && typeof n === "object" && Array.isArray(n.rows)) return n.rows
+  return []
+}
+
+function buildBatchSignature(result) {
+  const rows = extractRows(result)
+  if (!rows.length) return null
+
+  const ids = rows
+    .map((row) => row?.id ?? row?.product_mapping_id ?? row?.recipe_ingredient_id ?? row?.row_id ?? null)
+    .filter((value) => value !== null && value !== undefined)
+    .map((value) => String(value))
+
+  return ids.length > 0 ? ids.join(",") : null
+}
+
 function errorText(payload) {
   if (typeof payload === "string") return payload
   try {
@@ -151,21 +170,20 @@ async function runRecipeRelinkBatched() {
   console.log(`Batch config: size=${RELINK_BATCH_SIZE}, max_batches=${RELINK_MAX_BATCHES}`)
 
   let allowBatchArgs = true
-  let offset = 0
   let batch = 1
   let totalProcessed = 0
   let totalChanged = 0
   let totalQueued = 0
+  let previousBatchSignature = null
 
   while (batch <= RELINK_MAX_BATCHES) {
-    const body = allowBatchArgs ? { p_limit: RELINK_BATCH_SIZE, p_offset: offset } : {}
+    const body = allowBatchArgs ? { p_limit: RELINK_BATCH_SIZE, p_offset: 0 } : {}
     const { ok, status, payload } = await postRpc("fn_relink_recipe_ingredients", body)
 
     if (!ok) {
       if (allowBatchArgs && isMissingFunctionError(payload, "fn_relink_recipe_ingredients")) {
         console.log("Batch args unsupported for fn_relink_recipe_ingredients; falling back to single non-batched call.")
         allowBatchArgs = false
-        offset = 0
         batch = 1
         totalProcessed = 0
         totalChanged = 0
@@ -193,7 +211,14 @@ async function runRecipeRelinkBatched() {
     if (!allowBatchArgs) break
     if (batchProcessed === 0 || batchProcessed < RELINK_BATCH_SIZE) break
 
-    offset += RELINK_BATCH_SIZE
+    const batchSignature = buildBatchSignature(payload)
+    if (batchSignature && previousBatchSignature === batchSignature) {
+      throw new Error(
+        "Recipe relink repeated the same head batch without shrinking the candidate set; aborting to avoid looping forever."
+      )
+    }
+
+    previousBatchSignature = batchSignature
     batch += 1
   }
 
@@ -212,14 +237,14 @@ async function runProductRelinkBatched() {
 
   let allowBatchArgs = true
   let currentBatchSize = RELINK_BATCH_SIZE
-  let offset = 0
   let batch = 1
   let totalProcessed = 0
   let totalChanged = 0
+  let previousBatchSignature = null
 
   while (batch <= RELINK_MAX_BATCHES) {
     const body = allowBatchArgs
-      ? { ...baseBody, p_limit: currentBatchSize, p_offset: offset }
+      ? { ...baseBody, p_limit: currentBatchSize, p_offset: 0 }
       : baseBody
 
     const { ok, status, payload } = await postRpc("fn_relink_product_mappings", body)
@@ -228,7 +253,6 @@ async function runProductRelinkBatched() {
       if (allowBatchArgs && isMissingFunctionError(payload, "fn_relink_product_mappings")) {
         console.log("Batch args unsupported for fn_relink_product_mappings; falling back to single non-batched call.")
         allowBatchArgs = false
-        offset = 0
         batch = 1
         totalProcessed = 0
         totalChanged = 0
@@ -239,7 +263,7 @@ async function runProductRelinkBatched() {
         if (currentBatchSize > MIN_RELINK_BATCH_SIZE) {
           const nextBatchSize = Math.max(MIN_RELINK_BATCH_SIZE, Math.floor(currentBatchSize / 2))
           console.log(
-            `Product relink batch timed out at offset=${offset} with size=${currentBatchSize}; retrying with size=${nextBatchSize}.`
+            `Product relink head batch timed out with size=${currentBatchSize}; retrying with size=${nextBatchSize}.`
           )
           currentBatchSize = nextBatchSize
           continue
@@ -274,7 +298,14 @@ async function runProductRelinkBatched() {
     if (!allowBatchArgs) break
     if (batchProcessed === 0 || batchProcessed < currentBatchSize) break
 
-    offset += currentBatchSize
+    const batchSignature = buildBatchSignature(payload)
+    if (batchSignature && previousBatchSignature === batchSignature) {
+      throw new Error(
+        "Product relink repeated the same head batch without shrinking the candidate set; aborting to avoid looping forever."
+      )
+    }
+
+    previousBatchSignature = batchSignature
     batch += 1
   }
 
