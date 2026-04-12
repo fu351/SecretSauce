@@ -174,7 +174,7 @@ async function scrapeDirectFallback(
         try {
           const metadataKey = normalizeStoreName(store)
           const storeData = preferredStoresMap?.get(metadataKey)
-          const storeZip = storeData?.zip_code ?? undefined
+          const storeZip = storeData?.zip_code ?? zip
           const storeLocation = storeData && storeData.address && storeData.city && storeData.state && storeData.zip_code
             ? `${storeData.address}, ${storeData.city}, ${storeData.state} ${storeData.zip_code}`
             : null
@@ -453,7 +453,7 @@ export async function runFrontendScraperApiProcessor(
             const metadataKey = normalizeStoreName(item.provider)
             const storeInfo = preferredStoresMap.get(metadataKey)
             const groceryStoreId = storeInfo?.storeId ?? storeInfo?.grocery_store_id ?? null
-            const storeZip = storeInfo?.zip_code ?? null
+            const storeZip = storeInfo?.zip_code ?? zipToUse
 
             return {
               standardizedIngredientId: standardizedIngredientId!,
@@ -593,7 +593,7 @@ export async function runFrontendScraperApiProcessor(
             const metadataKey = normalizeStoreName(item.provider)
             const storeInfo = preferredStoresMap.get(metadataKey)
             const groceryStoreId = storeInfo?.storeId ?? storeInfo?.grocery_store_id ?? null
-            const storeZip = storeInfo?.zip_code ?? null
+            const storeZip = storeInfo?.zip_code ?? zipToUse
 
             return {
               standardizedIngredientId: standardizedId,
