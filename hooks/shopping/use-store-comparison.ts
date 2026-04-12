@@ -149,7 +149,15 @@ async function hydratePricingGaps(
       console.error("[useStoreComparison] Skipping pricing gap — no zip code available", { store: gap.store })
       continue
     }
-    for (const ingredient of gap.ingredients) {
+    // Deduplicate ingredients by ID — the same standardized ingredient can appear
+    // multiple times when several shopping list items share one canonical ingredient.
+    const seenIngredientIds = new Set<string>()
+    const uniqueIngredients = gap.ingredients.filter(ing => {
+      if (seenIngredientIds.has(ing.id)) return false
+      seenIngredientIds.add(ing.id)
+      return true
+    })
+    for (const ingredient of uniqueIngredients) {
       const storeResults = await searchGroceryStores(
         ingredient.name,
         gapZip,
