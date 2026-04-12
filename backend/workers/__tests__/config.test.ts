@@ -21,14 +21,14 @@ describe("getQueueWorkerConfigFromEnv", () => {
     expect(config.scraperStandardizerContext).toBe("scraper")
   })
 
-  it("defaults source-specific dynamic contexts to recipe and scraper", () => {
+  it("defaults source-specific dynamic contexts to pantry and scraper", () => {
     process.env.QUEUE_STANDARDIZER_CONTEXT = "dynamic"
     delete process.env.QUEUE_RECIPE_STANDARDIZER_CONTEXT
     delete process.env.QUEUE_SCRAPER_STANDARDIZER_CONTEXT
 
     const config = getQueueWorkerConfigFromEnv()
 
-    expect(config.recipeStandardizerContext).toBe("recipe")
+    expect(config.recipeStandardizerContext).toBe("pantry")
     expect(config.scraperStandardizerContext).toBe("scraper")
   })
 })

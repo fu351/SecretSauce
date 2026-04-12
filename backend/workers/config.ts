@@ -72,7 +72,7 @@ export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfi
     standardizerContext: resolveStandardizerContextMode(process.env.QUEUE_STANDARDIZER_CONTEXT),
     recipeStandardizerContext: resolveScopedStandardizerContext(
       process.env.QUEUE_RECIPE_STANDARDIZER_CONTEXT,
-      "recipe"
+      "pantry"
     ),
     scraperStandardizerContext: resolveScopedStandardizerContext(
       process.env.QUEUE_SCRAPER_STANDARDIZER_CONTEXT,

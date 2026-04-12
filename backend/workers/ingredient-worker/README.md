@@ -61,7 +61,7 @@ Common optional knobs:
 - `QUEUE_LEASE_SECONDS` - processing lease duration; default `180`
 - `WORKER_INTERVAL_SECONDS` - sleep between loop cycles; default `300`
 - `QUEUE_STANDARDIZER_CONTEXT` - `recipe`, `pantry`, `scraper`, or `dynamic`
-- `QUEUE_RECIPE_STANDARDIZER_CONTEXT` - context for `recipe` source rows when `QUEUE_STANDARDIZER_CONTEXT=dynamic`; default `recipe`
+- `QUEUE_RECIPE_STANDARDIZER_CONTEXT` - context for `recipe` source rows when `QUEUE_STANDARDIZER_CONTEXT=dynamic`; default `pantry`
 - `QUEUE_SCRAPER_STANDARDIZER_CONTEXT` - context for `scraper` source rows when `QUEUE_STANDARDIZER_CONTEXT=dynamic`; default `scraper`
 - `QUEUE_REVIEW_MODE` - `ingredient`, `unit`, or `any`
 - `QUEUE_SOURCE` - `scraper`, `recipe`, or `any`; default `scraper`
