@@ -183,10 +183,47 @@ export async function appendBrandFailureMetadata(storeEnum, details, config) {
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
+async function fetchPreferredStoreIds(config) {
+  const allIds = new Set()
+  let offset = 0
+
+  while (true) {
+    const { data, error } = await getSupabase(config)
+      .from('user_preferred_stores')
+      .select('grocery_store_id')
+      .range(offset, offset + config.pageSize - 1)
+
+    if (error) {
+      console.error('❌ Error fetching preferred store IDs:', error.message)
+      throw error
+    }
+
+    for (const row of data || []) {
+      if (row.grocery_store_id) allIds.add(row.grocery_store_id)
+    }
+
+    if (!data || data.length < config.pageSize) break
+    offset += config.pageSize
+  }
+
+  return [...allIds]
+}
+
 export async function fetchStores(config) {
   console.log('📍 Fetching grocery stores for scraper...')
   if (hasStoreRangeFilters(config.storeFilterContext)) {
     console.log(`🔎 Store filters: ${formatStoreFilterSummary(config.storeFilterContext)}`)
+  }
+
+  let preferredStoreIds = null
+  if (config.preferredStoresOnly) {
+    const ids = await fetchPreferredStoreIds(config)
+    if (ids.length === 0) {
+      console.warn('⚠️ No preferred stores found in user_preferred_stores; falling back to all stores')
+    } else {
+      preferredStoreIds = ids
+      console.log(`🎯 Filtering to ${ids.length} store location(s) preferred by users`)
+    }
   }
 
   const allStores = []
@@ -205,6 +242,10 @@ export async function fetchStores(config) {
 
     if (normalizedBrand) {
       query = query.eq('store_enum', normalizedBrand)
+    }
+
+    if (preferredStoreIds) {
+      query = query.in('id', preferredStoreIds)
     }
 
     query = applyStoreRangeFilters(query, config.storeFilterContext)

@@ -57,6 +57,8 @@ export function getScraperConfigFromEnv() {
       ? 'detailed'
       : 'basic',
 
+    preferredStoresOnly: getBooleanEnv('PREFERRED_STORES_ONLY', true),
+
     ingredientLimit: getIntEnv('INGREDIENT_LIMIT', 0, 0),
     storeLimit: getIntEnv('STORE_LIMIT', 0, 0),
     storeConcurrency,
