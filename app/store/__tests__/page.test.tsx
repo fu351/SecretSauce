@@ -144,6 +144,10 @@ vi.mock('@/components/store/mobile-quick-add-panel', () => ({
   ),
 }))
 
+vi.mock('@/components/store/store-map', () => ({
+  StoreMap: () => <div data-testid="store-map" />,
+}))
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -255,10 +259,11 @@ describe('ShoppingReceiptPage', () => {
       })
     })
 
-    it('renders the Quick Add sidebar on desktop', async () => {
+    it('renders the store map in the sidebar when comparisons are available', async () => {
+      mockStoreComparisonWith({ results: sampleStoreComparisons as any, hasFetched: true })
       render(<ShoppingReceiptPage />)
       await waitFor(() => {
-        expect(screen.getByText('Quick Add')).toBeInTheDocument()
+        expect(screen.getByTestId('store-map')).toBeInTheDocument()
       })
     })
 
