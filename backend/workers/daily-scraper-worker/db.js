@@ -232,21 +232,50 @@ export async function fetchStores(config) {
 }
 
 export async function fetchAllCanonicalIngredients(config) {
-  console.log('📚 Fetching canonical ingredients...')
+  console.log('📚 Fetching canonical ingredients used in recipes...')
 
-  const allIngredients = []
+  // Step 1: collect all distinct standardized_ingredient_ids from recipe_ingredients
+  const ingredientIdSet = new Set()
   let offset = 0
 
   while (true) {
     const { data, error } = await getSupabase(config)
-      .from('standardized_ingredients')
-      .select('canonical_name')
-      .not('canonical_name', 'is', null)
-      .order('canonical_name', { ascending: true })
+      .from('recipe_ingredients')
+      .select('standardized_ingredient_id')
+      .not('standardized_ingredient_id', 'is', null)
+      .is('deleted_at', null)
       .range(offset, offset + config.pageSize - 1)
 
     if (error) {
-      console.error('❌ Error fetching ingredients:', error.message)
+      console.error('❌ Error fetching recipe ingredient ids:', error.message)
+      throw error
+    }
+
+    for (const row of data || []) {
+      if (row.standardized_ingredient_id) ingredientIdSet.add(row.standardized_ingredient_id)
+    }
+
+    if (!data || data.length < config.pageSize) break
+    offset += config.pageSize
+  }
+
+  console.log(`   Found ${ingredientIdSet.size} unique standardized ingredient ids in recipe_ingredients`)
+
+  // Step 2: fetch canonical names for those IDs in batches
+  const ids = [...ingredientIdSet]
+  const ID_BATCH_SIZE = 500
+  const allIngredients = []
+
+  for (let i = 0; i < ids.length; i += ID_BATCH_SIZE) {
+    const batch = ids.slice(i, i + ID_BATCH_SIZE)
+    const { data, error } = await getSupabase(config)
+      .from('standardized_ingredients')
+      .select('canonical_name')
+      .in('id', batch)
+      .not('canonical_name', 'is', null)
+
+    if (error) {
+      console.error('❌ Error fetching canonical names:', error.message)
       throw error
     }
 
@@ -256,13 +285,10 @@ export async function fetchAllCanonicalIngredients(config) {
       .map(name => name.trim())
 
     allIngredients.push(...names)
-
-    if (!data || data.length < config.pageSize) break
-    offset += config.pageSize
   }
 
-  const uniqueIngredients = [...new Set(allIngredients)]
+  const uniqueIngredients = [...new Set(allIngredients)].sort()
   const ingredients = config.ingredientLimit > 0 ? uniqueIngredients.slice(0, config.ingredientLimit) : uniqueIngredients
-  console.log(`✅ Found ${ingredients.length} canonical ingredients`)
+  console.log(`✅ Found ${ingredients.length} canonical ingredients used in recipes`)
   return ingredients
 }
