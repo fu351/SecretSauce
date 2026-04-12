@@ -298,7 +298,7 @@ describe('ShoppingReceiptPage', () => {
       await waitFor(() => {
         expect(mockPerformMassSearch).toHaveBeenCalledWith({
           showCachedFirst: true,
-          skipPricingGaps: true,
+          skipPricingGaps: false,
         })
       })
     })
