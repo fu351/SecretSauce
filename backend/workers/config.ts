@@ -14,6 +14,8 @@ export interface QueueWorkerConfig {
   workerIntervalSeconds: number
   dryRun: boolean
   standardizerContext: QueueStandardizerContextMode
+  recipeStandardizerContext: IngredientStandardizerContext
+  scraperStandardizerContext: IngredientStandardizerContext
   reviewMode: IngredientMatchQueueReviewMode
   queueSource: IngredientMatchQueueSource | "any"
   doubleCheckMinConfidence: number
@@ -45,6 +47,15 @@ function resolveStandardizerContextMode(value: string | undefined): QueueStandar
   return resolveIngredientStandardizerContext(value)
 }
 
+function resolveScopedStandardizerContext(
+  value: string | undefined,
+  fallback: IngredientStandardizerContext
+): IngredientStandardizerContext {
+  const normalized = String(value ?? "").trim()
+  if (!normalized) return fallback
+  return resolveIngredientStandardizerContext(value)
+}
+
 export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfig>): QueueWorkerConfig {
   const defaultMaxCycles = readPositiveInt(process.env.QUEUE_MAX_CYCLES, 0)
   const dryRun = readBoolean(process.env.DRY_RUN, false)
@@ -59,6 +70,14 @@ export function getQueueWorkerConfigFromEnv(overrides?: Partial<QueueWorkerConfi
     workerIntervalSeconds: readPositiveInt(process.env.WORKER_INTERVAL_SECONDS, 300),
     dryRun,
     standardizerContext: resolveStandardizerContextMode(process.env.QUEUE_STANDARDIZER_CONTEXT),
+    recipeStandardizerContext: resolveScopedStandardizerContext(
+      process.env.QUEUE_RECIPE_STANDARDIZER_CONTEXT,
+      "pantry"
+    ),
+    scraperStandardizerContext: resolveScopedStandardizerContext(
+      process.env.QUEUE_SCRAPER_STANDARDIZER_CONTEXT,
+      "scraper"
+    ),
     reviewMode: resolveReviewMode(process.env.QUEUE_REVIEW_MODE),
     queueSource: resolveQueueSource(process.env.QUEUE_SOURCE),
     doubleCheckMinConfidence: HARD_CODED_DOUBLE_CHECK_MIN_CONFIDENCE,

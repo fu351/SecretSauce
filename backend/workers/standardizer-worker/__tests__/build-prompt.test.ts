@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+import { getIngredientStandardizerContextRules } from "../ingredient-standardizer"
+import { buildIngredientStandardizerPrompt } from "../prompts/ingredient/build-prompt"
 import { buildUnitStandardizerPrompt } from "../prompts/unit/build-prompt"
 
 describe("buildUnitStandardizerPrompt", () => {
@@ -20,5 +22,21 @@ describe("buildUnitStandardizerPrompt", () => {
     expect(prompt).toContain("Return ONLY valid JSON")
     expect(prompt).toContain("oz, lb, unit")
     expect(prompt).toContain("\"id\": \"q1\"")
+  })
+})
+
+describe("buildIngredientStandardizerPrompt", () => {
+  it("includes scraper-specific guidance and the updated prompt version", () => {
+    const prompt = buildIngredientStandardizerPrompt({
+      inputs: [{ id: "i1", name: "Hamburger Helper Deluxe Beef Stroganoff Pasta Meal Kit - 5.5oz" }],
+      canonicalNames: ["pasta", "tomato soup"],
+      context: "scraper",
+      contextRules: getIngredientStandardizerContextRules("scraper"),
+    })
+
+    expect(prompt).toContain("Prompt version: ingredient-v5")
+    expect(prompt).toContain("CURRENT CONTEXT: SCRAPER")
+    expect(prompt).toContain("Retail-title noise is a red flag")
+    expect(prompt).toContain("\"id\": \"i1\"")
   })
 })

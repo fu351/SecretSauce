@@ -32,6 +32,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<GroceryItem[]>([])
   const prevOpenRef = useRef(false)
+  const searchGenerationRef = useRef(0)
 
   useEffect(() => {
     prevOpenRef.current = isOpen
@@ -87,6 +88,8 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
 
   const performSearch = async (searchTerm: string) => {
     if (!searchTerm) return
+    const generation = ++searchGenerationRef.current
+    const isStale = () => searchGenerationRef.current !== generation
     setLoading(true)
     try {
       const normalizedTargetStore = normalizeStoreName(target?.store || "")
@@ -144,6 +147,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         return itemProvider === normalizedTargetStore
       })
 
+      if (isStale()) return
       setResults(flatResults)
 
       const validResults = flatResults.filter(item => typeof item.price === "number" && item.price > 0)
@@ -201,13 +205,13 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
           }))
 
         if (dbItems.length > 0) {
-          setResults(dbItems)
+          if (!isStale()) setResults(dbItems)
         }
       }
     } catch (e) {
       console.error(e)
     } finally {
-      setLoading(false)
+      if (!isStale()) setLoading(false)
     }
   }
 

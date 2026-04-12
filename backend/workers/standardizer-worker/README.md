@@ -8,7 +8,7 @@ Shared ingredient and unit standardization module used by queue workers and the 
 - `processor.ts` - worker-style processor entrypoint for ingredient/unit standardization jobs.
 - `runner.ts` - worker-style loop runner for processor jobs.
 - `utils.ts` - shared summary helpers used by the processor.
-- `ingredient-standardizer.ts` - ingredient canonicalization with context rules (`recipe` vs `pantry`).
+- `ingredient-standardizer.ts` - ingredient canonicalization with context rules (`recipe`, `pantry`, `scraper`).
 - `unit-standardizer.ts` - unit normalization and parsing for scraper/recipe rows.
 - `prompts/ingredient/*` - ingredient prompt builder and sections.
 - `prompts/unit/*` - unit prompt builder and sections.
@@ -26,7 +26,7 @@ Import from:
 - `OPENAI_MODEL` (optional, defaults to `gpt-4o-mini`)
 - `STANDARDIZER_RUNNER_MODE` (`ingredient` or `unit`) for `runner.ts` execution
 - `STANDARDIZER_RUNNER_INPUTS_JSON` (JSON array payload for runner execution)
-- `STANDARDIZER_RUNNER_CONTEXT` (optional context for ingredient mode)
+- `STANDARDIZER_RUNNER_CONTEXT` (optional context for ingredient mode: `recipe`, `pantry`, or `scraper`)
 - `STANDARDIZER_RUNNER_MAX_CYCLES` and `STANDARDIZER_WORKER_INTERVAL_SECONDS` (runner loop controls)
 
 ## Tests

@@ -10,7 +10,7 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
 // Context types (previously in lib/utils/ingredient-standardizer-context.ts)
 // ---------------------------------------------------------------------------
 
-export type IngredientStandardizerContext = "recipe" | "pantry"
+export type IngredientStandardizerContext = "recipe" | "pantry" | "scraper"
 
 export interface IngredientStandardizerContextRules {
   contextGuidance: string
@@ -29,6 +29,8 @@ export function resolveIngredientStandardizerContext(
       return "recipe"
     case "pantry":
       return "pantry"
+    case "scraper":
+      return "scraper"
     default:
       return "pantry"
   }
@@ -40,56 +42,50 @@ export function getIngredientStandardizerContextRules(
   switch (context) {
     case "recipe":
       return {
-        contextGuidance: `**RECIPE CONTEXT**: Ingredients should be RAW, BASIC food items only.
-- REJECT packaged meal kits, pre-seasoned mixes, branded convenience foods
-- If you see "Helper", "Mix", "Kit", "Meal Kit", "Sides" -> LOW confidence (0.40-0.50)
-- Strip to base ingredient: "Hamburger Helper Beef Stroganoff" -> "pasta"
-- These indicate bad recipe data and should be flagged for manual review in ingredient_match_queue`,
+        contextGuidance: `**RECIPE CONTEXT**: Recipe-created ingredients can legitimately include prepared, branded, or packaged products.
+- Do NOT treat convenience foods as automatic red flags just because they came from a recipe
+- Keep canonical names concise and ingredient-like, but preserve recipe-significant prepared-food concepts
+- Remove brand names, packaging/count/size noise, and marketing copy before returning a canonical`,
         foodVsNonFoodRule:
           "- ONLY process FOOD items meant for human consumption\n   - Recipes should NEVER contain household supplies",
         convenienceFoodsRules: `
-   [Warning] **RECIPE CONTEXT - These are RED FLAGS:**
+   [OK] **RECIPE CONTEXT - Prepared ingredient products are ACCEPTABLE when they plausibly belong in a recipe:**
 
-   Packaged meal kits RARELY belong in real recipes. If you encounter:
-   - "[Brand] Helper" (Hamburger Helper, Tuna Helper)
-   - "[Brand] Sides" (Rice-A-Roni, Pasta Roni, Knorr Rice Sides)
-   - "[Anything] Meal Kit"
-   - "[Anything] Mix" (unless it's a dry ingredient like "flour mix")
-   - Pre-seasoned pouches (flavored tuna, rice pouches)
+   Users and recipe imports often include prepared products like canned soups, baking mixes, boxed sides, jarred sauces,
+   seasoned tomatoes, broth concentrates, and branded pantry staples. Normalize them, but do not automatically down-rank them.
 
-   **Handle as follows:**
-   - Confidence: 0.40-0.50 (flags for ingredient_match_queue review)
-   - Strip to BASE ingredient only:
-     * "Hamburger Helper Beef Stroganoff" -> "pasta"
-     * "Rice-A-Roni Chicken Flavor" -> "rice"
-     * "StarKist Herb & Garlic Tuna Pouch" -> "tuna"
-     * "Betty Crocker Brownie Mix" -> "brownie mix" (OK - this is a baking mix)
-   - These likely indicate bad recipe scraping or user error
+   **Rules:**
+   1. Remove brand names (always)
+   2. Keep the prepared-food concept when it matters to the recipe
+   3. Remove packaging/count/size/vintage noise (11 slices, 6 ct, 2024, 750ml)
+   4. Avoid full retail-title canonicals; keep output concise
+   5. Full multi-component meal kits can still be low-confidence if the ingredient concept is unclear
+   6. Confidence: 0.65-0.85 for plausible recipe ingredients after cleanup
 
    **Examples:**
 
-   ? "1 box Hamburger Helper Deluxe Beef Stroganoff Pasta Meal Kit"
-     -> canonicalName: "pasta"
+   [OK] "Campbell's Condensed Cream of Mushroom Soup - 10.5oz"
+     -> canonicalName: "cream of mushroom soup"
      -> category: "pantry_staples"
-     -> confidence: 0.45
-     -> [Warning] Low confidence will flag for manual review
+     -> confidence: 0.84
 
-   ? "90 Second Long Grain & Wild Rice with Herbs Microwavable Pouch"
-     -> canonicalName: "rice"
-     -> category: "pantry_staples"
-     -> confidence: 0.45
+   [OK] "RO*TEL Original Diced Tomatoes & Green Chilies"
+     -> canonicalName: "diced tomatoes with green chilies"
+     -> category: "canned_goods"
+     -> confidence: 0.82
 
-   ? "StarKist Tuna Creations Herb & Garlic Pouch"
-     -> canonicalName: "tuna"
+   [OK] "Jiffy Corn Muffin Mix"
+     -> canonicalName: "corn muffin mix"
+     -> category: "baking"
+     -> confidence: 0.78
+
+   [Warning] "Hamburger Helper Deluxe Beef Stroganoff Pasta Meal Kit"
+     -> canonicalName: "pasta kit"
      -> category: "pantry_staples"
      -> confidence: 0.48
-
-   [OK] "Betty Crocker Brownie Mix" (baking mixes ARE legitimate)
-     -> canonicalName: "brownie mix"
-     -> category: "baking"
-     -> confidence: 0.75
+     -> [Warning] Full meal kits can still require manual review
    `,
-        lowConfidenceBandLabel: "Convenience food in recipe (red flag)",
+        lowConfidenceBandLabel: "Ambiguous ingredient",
       }
     case "pantry":
       return {
@@ -156,6 +152,50 @@ export function getIngredientStandardizerContextRules(
      -> confidence: 0.86
    `,
         lowConfidenceBandLabel: "Ambiguous ingredient",
+      }
+    case "scraper":
+      return {
+        contextGuidance: `**SCRAPER CONTEXT**: Scraper-created ingredient names often come from noisy retail product titles.
+- Be stricter than recipe or pantry contexts
+- Prefer raw/base ingredients or existing canonicals over branded prepared-product canonicals
+- Packaged convenience foods, meal kits, and heavily marketed titles should often be reduced to a cleaner base concept or sent for review`,
+        foodVsNonFoodRule:
+          "- PRIMARILY process FOOD items\n   - Non-food items (household supplies, personal care, pet supplies, etc.) must be REJECTED with confidence 0.0-0.2 and category: null, even in scraper context",
+        convenienceFoodsRules: `
+   [Warning] **SCRAPER CONTEXT - Retail-title noise is a red flag:**
+
+   Scraped rows frequently contain brand names, marketing language, pack sizes, and over-specific prepared-food titles.
+   Be conservative when deciding whether these deserve a prepared-food canonical.
+
+   **Rules:**
+   1. Remove brand names and retail-title noise first
+   2. If the product is basically a convenience kit/side/pouch, prefer the clean base concept
+   3. If the remaining concept is still unclear after cleanup, use low confidence so it lands in review
+   4. Confidence: 0.40-0.55 for meal kits, heavily branded sides, and noisy prepared products
+
+   **Examples:**
+
+   [Warning] "Hamburger Helper Deluxe Beef Stroganoff Pasta Meal Kit - 5.5oz"
+     -> canonicalName: "pasta"
+     -> category: "pantry_staples"
+     -> confidence: 0.45
+
+   [Warning] "90 Second Long Grain & Wild Rice with Herbs & Seasonings Pouch"
+     -> canonicalName: "rice"
+     -> category: "pantry_staples"
+     -> confidence: 0.45
+
+   [Warning] "StarKist Tuna Creations Herb & Garlic Pouch - 2.6oz"
+     -> canonicalName: "tuna"
+     -> category: "pantry_staples"
+     -> confidence: 0.48
+
+   [OK] "Campbell's Condensed Tomato Soup - 10.75oz"
+     -> canonicalName: "tomato soup"
+     -> category: "pantry_staples"
+     -> confidence: 0.76
+   `,
+        lowConfidenceBandLabel: "Convenience food from scraper row",
       }
     default: {
       const exhaustiveCheck: never = context
