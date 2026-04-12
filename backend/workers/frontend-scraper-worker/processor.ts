@@ -446,38 +446,38 @@ export async function runFrontendScraperApiProcessor(
 
     if (directItems.length > 0) {
       if (standardizedIngredientId) {
-        Promise.resolve()
-          .then(async () => {
-            const payloads = directItems.map((item) => {
-              const metadataKey = normalizeStoreName(item.provider)
-              const storeInfo = preferredStoresMap.get(metadataKey)
-              const groceryStoreId = storeInfo?.storeId ?? storeInfo?.grocery_store_id ?? null
-              const storeZip = storeInfo?.zip_code ?? zipToUse
+        try {
+          const payloads = directItems.map((item) => {
+            const metadataKey = normalizeStoreName(item.provider)
+            const storeInfo = preferredStoresMap.get(metadataKey)
+            const groceryStoreId = storeInfo?.storeId ?? storeInfo?.grocery_store_id ?? null
+            const storeZip = storeInfo?.zip_code ?? zipToUse
 
-              return {
-                standardizedIngredientId: standardizedIngredientId!,
-                store: item.provider.toLowerCase(),
-                productName: item.title,
-                price: item.price,
-                quantity: 1,
-                unit: item.unit || "unit",
-                rawUnit: item.rawUnit ?? item.unit ?? null,
-                unitPrice: item.pricePerUnit
-                  ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
-                  : null,
-                imageUrl: item.image_url || null,
-                productId: item.id,
-                productMappingId: null,
-                location: item.location || null,
-                zipCode: storeZip || null,
-                groceryStoreId,
-              }
-            })
-
-            await ingredientsHistoryDB.batchInsertPrices(payloads)
-            console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
+            return {
+              standardizedIngredientId: standardizedIngredientId!,
+              store: item.provider.toLowerCase(),
+              productName: item.title,
+              price: item.price,
+              quantity: 1,
+              unit: item.unit || "unit",
+              rawUnit: item.rawUnit ?? item.unit ?? null,
+              unitPrice: item.pricePerUnit
+                ? Number(String(item.pricePerUnit).replace(/[^0-9.]/g, ""))
+                : null,
+              imageUrl: item.image_url || null,
+              productId: item.id,
+              productMappingId: null,
+              location: item.location || null,
+              zipCode: storeZip || null,
+              groceryStoreId,
+            }
           })
-          .catch((error) => console.error("[grocery-search] Force refresh cache write failed", error))
+
+          await ingredientsHistoryDB.batchInsertPrices(payloads)
+          console.log("[grocery-search] Force refresh cache update complete", { itemCount: directItems.length })
+        } catch (error) {
+          console.error("[grocery-search] Force refresh cache write failed", error)
+        }
       }
 
       return {
@@ -569,21 +569,18 @@ export async function runFrontendScraperApiProcessor(
     )
 
     if (directItems.length > 0) {
-      Promise.resolve()
-        .then(async () => {
-          console.log("[grocery-search] Starting background cache write for direct scraper results", {
-            itemCount: directItems.length,
+      try {
+        console.log("[grocery-search] Starting cache write for direct scraper results", {
+          itemCount: directItems.length,
+          searchTerm: sanitizedSearchTerm,
+        })
+
+        const standardizedId = standardizedIngredientId
+        if (!standardizedId) {
+          console.warn("[grocery-search] Could not resolve standardized ID for caching", {
             searchTerm: sanitizedSearchTerm,
           })
-
-          const standardizedId = standardizedIngredientId
-          if (!standardizedId) {
-            console.warn("[grocery-search] Could not resolve standardized ID for caching", {
-              searchTerm: sanitizedSearchTerm,
-            })
-            return
-          }
-
+        } else {
           console.log("[grocery-search] Resolved standardized ID for caching", {
             standardizedId,
             searchTerm: sanitizedSearchTerm,
@@ -618,31 +615,30 @@ export async function runFrontendScraperApiProcessor(
 
           if (payloads.length === 0) {
             console.log("[grocery-search] No new items to cache (all from cache)")
-            return
-          }
-
-          console.log("[grocery-search] Batch upserting cache entries", {
-            count: payloads.length,
-            stores: payloads.map((payload) => payload.store),
-          })
-
-          const count = await ingredientsHistoryDB.batchInsertPrices(payloads)
-
-          if (count === 0) {
-            console.error("[grocery-search] Batch cache upsert FAILED", { payloadCount: payloads.length })
           } else {
-            console.log("[grocery-search] Batch cache upsert SUCCESS", {
-              count,
+            console.log("[grocery-search] Batch upserting cache entries", {
+              count: payloads.length,
               stores: payloads.map((payload) => payload.store),
             })
+
+            const count = await ingredientsHistoryDB.batchInsertPrices(payloads)
+
+            if (count === 0) {
+              console.error("[grocery-search] Batch cache upsert FAILED", { payloadCount: payloads.length })
+            } else {
+              console.log("[grocery-search] Batch cache upsert SUCCESS", {
+                count,
+                stores: payloads.map((payload) => payload.store),
+              })
+            }
           }
+        }
+      } catch (error: any) {
+        console.error("[grocery-search] Failed to cache direct scraper results", {
+          error: error.message,
+          stack: error.stack,
         })
-        .catch((error) =>
-          console.error("[grocery-search] Failed to cache direct scraper results", {
-            error: error.message,
-            stack: error.stack,
-          })
-        )
+      }
 
       return {
         status: 200,
