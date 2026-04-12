@@ -36,6 +36,7 @@ const RUN_PRODUCT_RELINK = readBoolean(process.env.RUN_PRODUCT_RELINK, true)
 const RESET_ALL = readBoolean(process.env.RESET_ALL, false)
 const RELINK_BATCH_SIZE = readPositiveInt(process.env.RELINK_BATCH_SIZE, 500)
 const RELINK_MAX_BATCHES = readPositiveInt(process.env.RELINK_MAX_BATCHES, 200)
+const MIN_RELINK_BATCH_SIZE = 25
 
 function normalizeResult(input) {
   if (typeof input === "string") {
@@ -116,6 +117,11 @@ function isKnownProductSchemaDrift(payload) {
   return /"code"\s*:\s*"42703"/i.test(text) &&
     /ingredients_history/i.test(text) &&
     /standardized_ingredient_id/i.test(text)
+}
+
+function isStatementTimeoutError(payload) {
+  const text = errorText(payload)
+  return /"code"\s*:\s*"57014"/i.test(text) && /statement timeout/i.test(text)
 }
 
 async function postRpc(functionName, body) {
@@ -205,6 +211,7 @@ async function runProductRelinkBatched() {
   const baseBody = RESET_ALL ? { p_reset_all: true } : { p_older_than: "1 month" }
 
   let allowBatchArgs = true
+  let currentBatchSize = RELINK_BATCH_SIZE
   let offset = 0
   let batch = 1
   let totalProcessed = 0
@@ -212,7 +219,7 @@ async function runProductRelinkBatched() {
 
   while (batch <= RELINK_MAX_BATCHES) {
     const body = allowBatchArgs
-      ? { ...baseBody, p_limit: RELINK_BATCH_SIZE, p_offset: offset }
+      ? { ...baseBody, p_limit: currentBatchSize, p_offset: offset }
       : baseBody
 
     const { ok, status, payload } = await postRpc("fn_relink_product_mappings", body)
@@ -226,6 +233,17 @@ async function runProductRelinkBatched() {
         totalProcessed = 0
         totalChanged = 0
         continue
+      }
+
+      if (allowBatchArgs && isStatementTimeoutError(payload)) {
+        if (currentBatchSize > MIN_RELINK_BATCH_SIZE) {
+          const nextBatchSize = Math.max(MIN_RELINK_BATCH_SIZE, Math.floor(currentBatchSize / 2))
+          console.log(
+            `Product relink batch timed out at offset=${offset} with size=${currentBatchSize}; retrying with size=${nextBatchSize}.`
+          )
+          currentBatchSize = nextBatchSize
+          continue
+        }
       }
 
       if (isMissingFunctionError(payload, "fn_relink_product_mappings")) {
@@ -254,9 +272,9 @@ async function runProductRelinkBatched() {
     console.log(`Product batch ${batch}: processed=${batchProcessed}, relinked=${batchChanged}`)
 
     if (!allowBatchArgs) break
-    if (batchProcessed === 0 || batchProcessed < RELINK_BATCH_SIZE) break
+    if (batchProcessed === 0 || batchProcessed < currentBatchSize) break
 
-    offset += RELINK_BATCH_SIZE
+    offset += currentBatchSize
     batch += 1
   }
 

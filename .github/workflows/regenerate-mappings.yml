@@ -158,6 +158,7 @@ jobs:
           echo "=== Relinking Product Mappings ==="
           echo "Batch config: size=${batch_size}, max_batches=${max_batches}"
 
+          min_batch_size=25
           offset=0
           batch=1
           total_processed=0
@@ -193,6 +194,21 @@ jobs:
                 total_processed=0
                 total_changed=0
                 continue
+              fi
+
+              if [ "${allow_batch_args}" = "true" ] && \
+                 echo "${RESULT}" | grep -qi '"code":"57014"' && \
+                 echo "${RESULT}" | grep -qi 'statement timeout'; then
+                if [ "${batch_size}" -gt "${min_batch_size}" ]; then
+                  next_batch_size=$((batch_size / 2))
+                  if [ "${next_batch_size}" -lt "${min_batch_size}" ]; then
+                    next_batch_size="${min_batch_size}"
+                  fi
+
+                  echo "Product relink batch timed out at offset=${offset} with size=${batch_size}; retrying with size=${next_batch_size}."
+                  batch_size="${next_batch_size}"
+                  continue
+                fi
               fi
 
               echo "Product relink RPC failed (HTTP ${HTTP_STATUS})."

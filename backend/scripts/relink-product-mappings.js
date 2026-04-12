@@ -22,6 +22,7 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE ?? "500", 10);
+const MIN_BATCH_SIZE = 25;
 const RESET_ALL = (process.env.RESET_ALL ?? "true") === "true";
 const QUEUE_ALL = (process.env.QUEUE_ALL ?? "false") === "true";
 const DRY_RUN = (process.env.DRY_RUN ?? "false") === "true";
@@ -53,6 +54,11 @@ async function runBatch(offset) {
   });
   if (error) throw error;
   return data ?? [];
+}
+
+function isStatementTimeoutError(err) {
+  const text = String(err?.message ?? err ?? "");
+  return /57014/.test(text) && /statement timeout/i.test(text);
 }
 
 function summarise(rows) {
@@ -88,23 +94,37 @@ async function main() {
   }
 
   const total = await getTotalCount();
-  const batches = Math.ceil(total / BATCH_SIZE);
-  console.log(`Total rows to process: ${total} across ${batches} batch(es)\n`);
+  console.log(`Total rows to process: ${total}\n`);
 
   const globalStats = { changed: 0, queued: 0, unchanged: 0 };
   const globalStrategies = {};
 
-  for (let i = 0; i < batches; i++) {
-    const offset = i * BATCH_SIZE;
-    const batchNum = i + 1;
+  let currentBatchSize = BATCH_SIZE;
+  let offset = 0;
+  let batchNum = 1;
+
+  while (offset < total) {
     process.stdout.write(
-      `Batch ${batchNum}/${batches} (offset ${offset})... `
+      `Batch ${batchNum} (offset ${offset}, size ${currentBatchSize})... `
     );
 
     let rows;
     try {
-      rows = await runBatch(offset);
+      const { data, error } = await supabase.rpc("fn_relink_product_mappings", {
+        p_reset_all: RESET_ALL,
+        p_queue_all: QUEUE_ALL,
+        p_limit: currentBatchSize,
+        p_offset: offset,
+      });
+      if (error) throw error;
+      rows = data ?? [];
     } catch (err) {
+      if (isStatementTimeoutError(err) && currentBatchSize > MIN_BATCH_SIZE) {
+        const nextBatchSize = Math.max(MIN_BATCH_SIZE, Math.floor(currentBatchSize / 2));
+        console.log(`timed out; retrying with batch size ${nextBatchSize}`);
+        currentBatchSize = nextBatchSize;
+        continue;
+      }
       console.error(`\nBatch ${batchNum} failed:`, err.message);
       process.exit(1);
     }
@@ -121,6 +141,13 @@ async function main() {
     console.log(
       `done — ${rows.length} rows | changed: ${stats.changed} | queued: ${stats.queued} | unchanged: ${stats.unchanged}`
     );
+
+    if (rows.length === 0 || rows.length < currentBatchSize) {
+      break;
+    }
+
+    offset += currentBatchSize;
+    batchNum += 1;
   }
 
   console.log("\n=== Summary ===");
