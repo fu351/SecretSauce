@@ -174,6 +174,7 @@ async function phase3ApplyCache() {
   const strategies = {};
   let batchNum = 1;
   let currentBatchSize = BATCH_SIZE;
+  let previousBatchSignature = null;
 
   while (true) {
     process.stdout.write(
@@ -210,6 +211,31 @@ async function phase3ApplyCache() {
     console.log(
       `done — ${rows.length} rows | updated: ${rows.filter((r) => r.changed).length} | queued: ${rows.filter((r) => r.queued).length} | unchanged: ${rows.filter((r) => !r.changed && !r.queued).length}`
     );
+
+    // Guard: if a full batch applied nothing, the remaining cache entries are
+    // already up-to-date — fn_apply_relink_cache won't shrink the eligible set
+    // so we'd loop forever without this check.
+    const batchApplied = rows.filter((r) => r.changed || r.queued).length;
+    if (rows.length >= currentBatchSize && batchApplied === 0) {
+      console.log("  Full batch with no applied rows; cache fully consumed.");
+      break;
+    }
+
+    // Guard: detect repeated head batch as a belt-and-suspenders fallback for
+    // any case where the all-unchanged check above doesn't fire but the same
+    // rows keep coming back.
+    const batchSignature = rows
+      .map((r) => r?.id ?? r?.product_mapping_id ?? r?.cache_id ?? r?.row_id ?? null)
+      .filter((v) => v != null)
+      .map(String)
+      .join(",");
+    if (batchSignature && batchSignature === previousBatchSignature) {
+      console.error(
+        "\n  Phase 3 repeated the same head batch; aborting to prevent infinite loop."
+      );
+      process.exit(1);
+    }
+    previousBatchSignature = batchSignature;
 
     if (rows.length < currentBatchSize) break;
 

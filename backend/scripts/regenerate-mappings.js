@@ -171,13 +171,14 @@ async function runRecipeRelinkBatched() {
 
   let allowBatchArgs = true
   let batch = 1
+  let offset = 0
   let totalProcessed = 0
   let totalChanged = 0
   let totalQueued = 0
   let previousBatchSignature = null
 
   while (batch <= RELINK_MAX_BATCHES) {
-    const body = allowBatchArgs ? { p_limit: RELINK_BATCH_SIZE, p_offset: 0 } : {}
+    const body = allowBatchArgs ? { p_limit: RELINK_BATCH_SIZE, p_offset: offset } : {}
     const { ok, status, payload } = await postRpc("fn_relink_recipe_ingredients", body)
 
     if (!ok) {
@@ -185,6 +186,7 @@ async function runRecipeRelinkBatched() {
         console.log("Batch args unsupported for fn_relink_recipe_ingredients; falling back to single non-batched call.")
         allowBatchArgs = false
         batch = 1
+        offset = 0
         totalProcessed = 0
         totalChanged = 0
         totalQueued = 0
@@ -219,6 +221,7 @@ async function runRecipeRelinkBatched() {
     }
 
     previousBatchSignature = batchSignature
+    offset += batchProcessed
     batch += 1
   }
 
@@ -238,13 +241,14 @@ async function runProductRelinkBatched() {
   let allowBatchArgs = true
   let currentBatchSize = RELINK_BATCH_SIZE
   let batch = 1
+  let offset = 0
   let totalProcessed = 0
   let totalChanged = 0
   let previousBatchSignature = null
 
   while (batch <= RELINK_MAX_BATCHES) {
     const body = allowBatchArgs
-      ? { ...baseBody, p_limit: currentBatchSize, p_offset: 0 }
+      ? { ...baseBody, p_limit: currentBatchSize, p_offset: offset }
       : baseBody
 
     const { ok, status, payload } = await postRpc("fn_relink_product_mappings", body)
@@ -254,6 +258,7 @@ async function runProductRelinkBatched() {
         console.log("Batch args unsupported for fn_relink_product_mappings; falling back to single non-batched call.")
         allowBatchArgs = false
         batch = 1
+        offset = 0
         totalProcessed = 0
         totalChanged = 0
         continue
@@ -306,6 +311,7 @@ async function runProductRelinkBatched() {
     }
 
     previousBatchSignature = batchSignature
+    offset += batchProcessed
     batch += 1
   }
 
