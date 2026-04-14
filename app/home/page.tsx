@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { useEffect, useEffectEvent, useState, useRef } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
@@ -179,16 +179,12 @@ export default function HomeReturningPage() {
     }
   }
 
-  const loadInitialHomeData = useEffectEvent(() => {
+  useEffect(() => {
+    if (loading || !isMounted.current || fetchingRecipes.current) return
     void fetchHomeRecipes()
     void fetchFeed()
     void fetchActiveChallenge()
-  })
-
-  useEffect(() => {
-    if (loading || !isMounted.current || fetchingRecipes.current) return
-    loadInitialHomeData()
-  }, [loading, loadInitialHomeData])
+  }, [loading])
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
