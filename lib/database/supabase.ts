@@ -236,6 +236,8 @@ export type Database = {
           stripe_price_id: string | null
           stripe_current_period_end: string | null
           is_private: boolean
+          follower_count: number
+          following_count: number
         }
         Insert: {
           id: string
@@ -275,6 +277,8 @@ export type Database = {
           stripe_price_id?: string | null
           stripe_current_period_end?: string | null
           is_private?: boolean
+          follower_count?: number
+          following_count?: number
         }
         Update: {
           id?: string
@@ -314,6 +318,8 @@ export type Database = {
           stripe_price_id?: string | null
           stripe_current_period_end?: string | null
           is_private?: boolean
+          follower_count?: number
+          following_count?: number
         }
       }
       follow_requests: {
@@ -1443,13 +1449,7 @@ export type Database = {
       }
     }
     Views: {
-      follower_counts: {
-        Row: {
-          profile_id: string
-          follower_count: number
-          following_count: number
-        }
-      }
+      [_ in never]: never
     }
     Functions: {
       calculate_recipe_cost: {

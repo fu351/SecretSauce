@@ -276,19 +276,21 @@ class FollowTable extends BaseTable<
   }
 
   // -----------------------------------------------------------------------
-  // COUNTS (from materialized view)
+  // COUNTS (denormalized columns on profiles — maintained by DB trigger)
   // -----------------------------------------------------------------------
 
   /**
    * Fetch follower and following counts in a single round-trip.
+   * Reads directly from profiles.follower_count / profiles.following_count,
+   * which are kept fresh by the trg_update_follower_counts trigger.
    */
   async getCounts(
     profileId: string
   ): Promise<{ followerCount: number; followingCount: number }> {
     const { data, error } = await (this.db as any)
-      .from("follower_counts")
+      .from("profiles")
       .select("follower_count, following_count")
-      .eq("profile_id", profileId)
+      .eq("id", profileId)
       .maybeSingle()
 
     if (error) {

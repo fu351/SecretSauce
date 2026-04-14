@@ -113,6 +113,9 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       stripe_subscription_id: dbItem.stripe_subscription_id ?? null,
       stripe_price_id: dbItem.stripe_price_id ?? null,
       stripe_current_period_end: dbItem.stripe_current_period_end ?? null,
+      is_private: dbItem.is_private ?? false,
+      follower_count: dbItem.follower_count ?? 0,
+      following_count: dbItem.following_count ?? 0,
     }
   }
 
