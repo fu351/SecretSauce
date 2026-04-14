@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useEffectEvent, useState, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
@@ -55,6 +55,27 @@ function timeUntil(dateStr: string): string {
   return `${Math.floor(hours / 24)}d left`
 }
 
+function getRecommendationSkeletonAspect(index: number): string {
+  switch (index % 8) {
+    case 0:
+      return "aspect-[2/3]"
+    case 1:
+      return "aspect-[9/16]"
+    case 2:
+      return "aspect-[3/4]"
+    case 3:
+      return "aspect-[4/5]"
+    case 4:
+      return "aspect-square"
+    case 5:
+      return "aspect-[5/6]"
+    case 6:
+      return "aspect-[7/9]"
+    default:
+      return "aspect-[10/13]"
+  }
+}
+
 export default function HomeReturningPage() {
   const { user, loading } = useAuth()
   const { theme } = useTheme()
@@ -91,14 +112,6 @@ export default function HomeReturningPage() {
     isMounted.current = true
     return () => { isMounted.current = false }
   }, [])
-
-  useEffect(() => {
-    if (!loading && isMounted.current && !fetchingRecipes.current) {
-      fetchHomeRecipes()
-      fetchFeed()
-      fetchActiveChallenge()
-    }
-  }, [loading])
 
   const fetchHomeRecipes = async () => {
     if (fetchingRecipes.current || !isMounted.current) return
@@ -165,6 +178,17 @@ export default function HomeReturningPage() {
       if (isMounted.current) setLoadingFeed(false)
     }
   }
+
+  const loadInitialHomeData = useEffectEvent(() => {
+    void fetchHomeRecipes()
+    void fetchFeed()
+    void fetchActiveChallenge()
+  })
+
+  useEffect(() => {
+    if (loading || !isMounted.current || fetchingRecipes.current) return
+    loadInitialHomeData()
+  }, [loading, loadInitialHomeData])
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -251,10 +275,10 @@ export default function HomeReturningPage() {
       prev.map((p) =>
         p.id === postId
           ? {
-              ...p,
-              liked_by_viewer: !p.liked_by_viewer,
-              like_count: p.liked_by_viewer ? p.like_count - 1 : p.like_count + 1,
-            }
+            ...p,
+            liked_by_viewer: !p.liked_by_viewer,
+            like_count: p.liked_by_viewer ? p.like_count - 1 : p.like_count + 1,
+          }
           : p
       )
     )
@@ -266,10 +290,10 @@ export default function HomeReturningPage() {
         prev.map((p) =>
           p.id === postId
             ? {
-                ...p,
-                liked_by_viewer: !p.liked_by_viewer,
-                like_count: p.liked_by_viewer ? p.like_count - 1 : p.like_count + 1,
-              }
+              ...p,
+              liked_by_viewer: !p.liked_by_viewer,
+              like_count: p.liked_by_viewer ? p.like_count - 1 : p.like_count + 1,
+            }
             : p
         )
       )
@@ -282,10 +306,10 @@ export default function HomeReturningPage() {
       prev.map((p) =>
         p.id === postId
           ? {
-              ...p,
-              reposted_by_viewer: !p.reposted_by_viewer,
-              repost_count: p.reposted_by_viewer ? p.repost_count - 1 : p.repost_count + 1,
-            }
+            ...p,
+            reposted_by_viewer: !p.reposted_by_viewer,
+            repost_count: p.reposted_by_viewer ? p.repost_count - 1 : p.repost_count + 1,
+          }
           : p
       )
     )
@@ -296,10 +320,10 @@ export default function HomeReturningPage() {
         prev.map((p) =>
           p.id === postId
             ? {
-                ...p,
-                reposted_by_viewer: !p.reposted_by_viewer,
-                repost_count: p.reposted_by_viewer ? p.repost_count - 1 : p.repost_count + 1,
-              }
+              ...p,
+              reposted_by_viewer: !p.reposted_by_viewer,
+              repost_count: p.reposted_by_viewer ? p.repost_count - 1 : p.repost_count + 1,
+            }
             : p
         )
       )
@@ -365,7 +389,7 @@ export default function HomeReturningPage() {
             <CardContent className="p-4 md:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">This week's challenge</p>
+                  <p className="text-xs text-muted-foreground">This week&apos;s challenge</p>
                   <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">
                     {activeChallenge.title}
                   </h1>
@@ -615,7 +639,7 @@ export default function HomeReturningPage() {
                       <div className="space-y-1">
                         <h3 className="text-base font-semibold text-foreground">{post.title}</h3>
                         {post.caption && (
-                          <p className="text-sm text-muted-foreground">"{post.caption}"</p>
+                          <p className="text-sm text-muted-foreground">&quot;{post.caption}&quot;</p>
                         )}
                       </div>
 
@@ -657,7 +681,7 @@ export default function HomeReturningPage() {
           <Card className="md:col-span-1">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-medium flex items-center justify-between">
-                This Week's Leaders
+                This Week&apos;s Leaders
                 <Crown className="h-4 w-4 text-primary" />
               </CardTitle>
               <div className="flex gap-2">
@@ -753,11 +777,9 @@ export default function HomeReturningPage() {
             <div className="columns-2 md:columns-3 lg:columns-4 gap-3 md:gap-4">
               {[...Array(12)].map((_, i) => (
                 <div key={i} className="mb-3 md:mb-4 break-inside-avoid">
-                  <div className={`w-full rounded-2xl bg-muted animate-pulse ${
-                    i % 8 === 0 ? "aspect-[2/3]" : i % 8 === 1 ? "aspect-[9/16]" : i % 8 === 2 ? "aspect-[3/4]" :
-                    i % 8 === 3 ? "aspect-[4/5]" : i % 8 === 4 ? "aspect-square" : i % 8 === 5 ? "aspect-[5/6]" :
-                    i % 8 === 6 ? "aspect-[7/9]" : "aspect-[10/13]"
-                  }`} />
+                  <div
+                    className={`w-full rounded-2xl bg-muted animate-pulse ${getRecommendationSkeletonAspect(i)}`}
+                  />
                 </div>
               ))}
             </div>

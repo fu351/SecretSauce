@@ -78,15 +78,23 @@ export function NotificationsWidget() {
         body: JSON.stringify({ requestId, action }),
       })
       if (res.ok) {
-        setNotifications((prev) =>
-          action === "accept"
-            ? prev.map((n) =>
-                n.type === "follow_request" && n.requestId === requestId
-                  ? { type: "new_follower" as const, from: n.from, created_at: new Date().toISOString() }
-                  : n
-              )
-            : prev.filter((n) => !(n.type === "follow_request" && n.requestId === requestId))
-        )
+        setNotifications((prev) => {
+          if (action === "accept") {
+            return prev.map((n) => {
+              if (!(n.type === "follow_request" && n.requestId === requestId)) {
+                return n
+              }
+
+              return {
+                type: "new_follower" as const,
+                from: n.from,
+                created_at: new Date().toISOString(),
+              }
+            })
+          }
+
+          return prev.filter((n) => !(n.type === "follow_request" && n.requestId === requestId))
+        })
       }
     } finally {
       setResponding(null)
@@ -136,8 +144,16 @@ export function NotificationsWidget() {
                     </Link>{" "}
                     {n.type === "follow_request" && "wants to follow you"}
                     {n.type === "new_follower"   && "started following you"}
-                    {n.type === "post_like"      && <>liked your post <span className="italic">"{n.post.title}"</span></>}
-                    {n.type === "post_repost"    && <>reposted <span className="italic">"{n.post.title}"</span></>}
+                    {n.type === "post_like" && (
+                      <>
+                        liked your post <span className="italic">&quot;{n.post.title}&quot;</span>
+                      </>
+                    )}
+                    {n.type === "post_repost" && (
+                      <>
+                        reposted <span className="italic">&quot;{n.post.title}&quot;</span>
+                      </>
+                    )}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">{timeAgo(n.created_at)} ago</p>
 

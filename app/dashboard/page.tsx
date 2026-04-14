@@ -56,9 +56,52 @@ export default function DashboardPage() {
   const isDark = theme === "dark"
 
   useEffect(() => {
-    if (user) {
-      loadDashboardData()
+    if (!user) return
+
+    const run = async () => {
+      try {
+        setLoading(true)
+
+        // Fetch recipes by author to get count
+        const userRecipes = await recipeDB.fetchRecipesByAuthor(user.id, { limit: 1000 })
+        const recipesCount = userRecipes.length
+
+        // Fetch favorite recipe IDs to get count
+        const favoriteIds = await recipeFavoritesDB.fetchFavoriteRecipeIds(user.id)
+        const favoritesCount = favoriteIds.length
+
+        // Fetch meal schedule for current week via week index
+        const now = new Date()
+        const currentWeekIndex = getYear(now) * 100 + getWeek(now, { weekStartsOn: 1 })
+        const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(user.id, currentWeekIndex)
+        const plannedMealsCount = mealSchedule.length
+
+        // Fetch shopping list items
+        const shoppingItems = await shoppingListDB.fetchUserItems(user.id)
+        const shoppingItemsCount = shoppingItems.length
+
+        setStats({
+          totalRecipes: recipesCount,
+          favoriteRecipes: favoritesCount,
+          plannedMeals: plannedMealsCount,
+          shoppingItems: shoppingItemsCount,
+        })
+
+        // Fetch recent recipes
+        const recentRecipesData = await recipeDB.fetchRecipesByAuthor(user.id, {
+          sortBy: "created_at",
+          limit: 3,
+        })
+
+        setRecentRecipes(recentRecipesData)
+      } catch (error) {
+        console.error("Error loading dashboard data:", error)
+      } finally {
+        setLoading(false)
+      }
     }
+
+    void run()
   }, [user])
 
   // Check if user needs to see tutorial prompt
@@ -74,14 +117,14 @@ export default function DashboardPage() {
   // Check if user should see iOS web app prompt
   useEffect(() => {
     // Only check on client side
-    if (typeof window === 'undefined') return
+    if (typeof window === "undefined") return
 
     // Check if iOS/Safari and not installed
     if (!shouldShowIOSPrompt()) return
 
     // Don't show if permanently dismissed
-    const dismissed = localStorage.getItem('ios_webapp_prompt_dismissed')
-    if (dismissed === 'true') return
+    const dismissed = localStorage.getItem("ios_webapp_prompt_dismissed")
+    if (dismissed === "true") return
 
     // Tutorial takes priority - don't show iOS prompt if tutorial should show
     if (profile && profile.tutorial_completed === false) {
@@ -95,51 +138,6 @@ export default function DashboardPage() {
       setShowIOSPrompt(true)
     }
   }, [profile])
-
-  const loadDashboardData = async () => {
-    if (!user) return
-
-    try {
-      setLoading(true)
-
-      // Fetch recipes by author to get count
-      const userRecipes = await recipeDB.fetchRecipesByAuthor(user.id, { limit: 1000 })
-      const recipesCount = userRecipes.length
-
-      // Fetch favorite recipe IDs to get count
-      const favoriteIds = await recipeFavoritesDB.fetchFavoriteRecipeIds(user.id)
-      const favoritesCount = favoriteIds.length
-
-      // Fetch meal schedule for current week via week index
-      const now = new Date()
-      const currentWeekIndex = getYear(now) * 100 + getWeek(now, { weekStartsOn: 1 })
-      const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(user.id, currentWeekIndex)
-      const plannedMealsCount = mealSchedule.length
-
-      // Fetch shopping list items
-      const shoppingItems = await shoppingListDB.fetchUserItems(user.id)
-      const shoppingItemsCount = shoppingItems.length
-
-      setStats({
-        totalRecipes: recipesCount,
-        favoriteRecipes: favoritesCount,
-        plannedMeals: plannedMealsCount,
-        shoppingItems: shoppingItemsCount,
-      })
-
-      // Fetch recent recipes
-      const recentRecipesData = await recipeDB.fetchRecipesByAuthor(user.id, {
-        sortBy: "created_at",
-        limit: 3,
-      })
-
-      setRecentRecipes(recentRecipesData)
-    } catch (error) {
-      console.error("Error loading dashboard data:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleDismissTutorialPrompt = () => {
     setShowTutorialPrompt(false)
@@ -157,8 +155,8 @@ export default function DashboardPage() {
 
   const handleDismissIOSPrompt = () => {
     setShowIOSPrompt(false)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ios_webapp_prompt_dismissed', 'true')
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ios_webapp_prompt_dismissed", "true")
     }
   }
 
@@ -187,7 +185,7 @@ export default function DashboardPage() {
             <h2 className="text-xl md:text-3xl font-serif font-light mb-1 md:mb-2 text-foreground">
               Welcome back, {user?.email?.split("@")[0]}!
             </h2>
-            <p className="text-sm md:text-base text-muted-foreground">Here's what's cooking in your kitchen</p>
+            <p className="text-sm md:text-base text-muted-foreground">Here&apos;s what&apos;s cooking in your kitchen</p>
           </div>
 
           {profile && <ProfileCard profile={profile} />}

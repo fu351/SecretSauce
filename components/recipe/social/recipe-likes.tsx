@@ -104,8 +104,8 @@ export function RecipeLikes({
               ? "bg-blue-500/20 border-blue-500/40 text-blue-400 hover:bg-blue-500/30"
               : "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
             : isDark
-            ? "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
-            : "border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50",
+              ? "border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+              : "border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50",
         )}
         title={isAuthenticated ? (isLiked ? "Unlike" : "Like this recipe") : "Sign in to like"}
       >

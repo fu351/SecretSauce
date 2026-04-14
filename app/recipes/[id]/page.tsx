@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Image from "next/image"
 import clsx from "clsx"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -159,31 +160,79 @@ export default function RecipeDetailPage() {
     recipe.ingredients.every((ing: any) => ing.standardizedIngredientId ?? ing.standardized_ingredient_id)
 
   useEffect(() => {
-    if (params.id) {
-      loadRecipe()
-      loadSocialData()
-      if (user) {
-        checkIfFavorite()
+    if (!params.id) return
+
+    const recipeId = params.id as string
+
+    const loadSocialData = async () => {
+      try {
+        const res = await fetch(`/api/recipes/${recipeId}/social`)
+        if (!res.ok) return
+        const json = await res.json()
+        setLikeCount(json.likeCount ?? 0)
+        setIsLiked(json.isLiked ?? false)
+        setRepostCount(json.repostCount ?? 0)
+        setIsReposted(json.isReposted ?? false)
+        setFriendLikes(json.friendLikes ?? [])
+        setFriendProfileIds(json.friendProfileIds ?? [])
+      } catch {
+        // social data is non-critical, fail silently
       }
     }
-  }, [params.id, user])
 
-  const loadSocialData = async () => {
-    if (!params.id) return
-    try {
-      const res = await fetch(`/api/recipes/${params.id}/social`)
-      if (!res.ok) return
-      const json = await res.json()
-      setLikeCount(json.likeCount ?? 0)
-      setIsLiked(json.isLiked ?? false)
-      setRepostCount(json.repostCount ?? 0)
-      setIsReposted(json.isReposted ?? false)
-      setFriendLikes(json.friendLikes ?? [])
-      setFriendProfileIds(json.friendProfileIds ?? [])
-    } catch {
-      // social data is non-critical, fail silently
+    const loadRecipe = async () => {
+      try {
+        const [recipe, ingredients] = await Promise.all([
+          recipeDB.fetchRecipeById(recipeId),
+          recipeIngredientsDB.findByRecipeIdWithStandardized(recipeId),
+        ])
+
+        if (!recipe) {
+          throw new Error("Recipe not found")
+        }
+
+        const mappedIngredients = ingredients.map((ing) => ({
+          id: ing.id,
+          display_name: ing.display_name,
+          name: ing.display_name,
+          quantity: ing.quantity ?? undefined,
+          units: ing.units ?? undefined,
+          unit: ing.units ?? undefined,
+          standardizedIngredientId: ing.standardized_ingredient_id ?? undefined,
+          standardized_ingredient_id: ing.standardized_ingredient_id ?? undefined,
+          standardizedName: ing.standardized_ingredient?.canonical_name ?? undefined,
+        }))
+
+        setRecipe({
+          ...recipe,
+          ingredients: mappedIngredients.length > 0 ? mappedIngredients : recipe.ingredients,
+        })
+      } catch (error) {
+        console.error("Error loading recipe:", error)
+        router.push("/recipes")
+      } finally {
+        setLoading(false)
+      }
     }
-  }
+
+    const checkIfFavorite = async () => {
+      if (!user) return
+
+      try {
+        const favorited = await recipeFavoritesDB.isFavorite(user.id, recipeId)
+        setIsFavorite(favorited)
+      } catch (error) {
+        console.error("Error checking if favorited:", error)
+        setIsFavorite(false)
+      }
+    }
+
+    void loadRecipe()
+    void loadSocialData()
+    if (user) {
+      void checkIfFavorite()
+    }
+  }, [params.id, router, user])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -239,57 +288,6 @@ export default function RecipeDetailPage() {
     const t = window.setTimeout(() => setShowSwipeHint(false), 1400)
     return () => window.clearTimeout(t)
   }, [showSwipeHint])
-
-  const loadRecipe = async () => {
-    if (!params.id) {
-      return
-    }
-
-    try {
-      const [recipe, ingredients] = await Promise.all([
-        recipeDB.fetchRecipeById(params.id as string),
-        recipeIngredientsDB.findByRecipeIdWithStandardized(params.id as string)
-      ])
-
-      if (!recipe) {
-        throw new Error("Recipe not found")
-      }
-
-      const mappedIngredients = ingredients.map((ing) => ({
-        id: ing.id,
-        display_name: ing.display_name,
-        name: ing.display_name,
-        quantity: ing.quantity ?? undefined,
-        units: ing.units ?? undefined,
-        unit: ing.units ?? undefined,
-        standardizedIngredientId: ing.standardized_ingredient_id ?? undefined,
-        standardized_ingredient_id: ing.standardized_ingredient_id ?? undefined,
-        standardizedName: ing.standardized_ingredient?.canonical_name ?? undefined,
-      }))
-
-      setRecipe({
-        ...recipe,
-        ingredients: mappedIngredients.length > 0 ? mappedIngredients : recipe.ingredients
-      })
-    } catch (error) {
-      console.error("Error loading recipe:", error)
-      router.push("/recipes")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const checkIfFavorite = async () => {
-    if (!user || !params.id) return
-
-    try {
-      const favorited = await recipeFavoritesDB.isFavorite(user.id, params.id as string)
-      setIsFavorite(favorited)
-    } catch (error) {
-      console.error("Error checking if favorited:", error)
-      setIsFavorite(false)
-    }
-  }
 
   const toggleFavorite = async () => {
     if (!user) {
@@ -386,7 +384,7 @@ export default function RecipeDetailPage() {
         >
           <CardContent className="p-6 text-center space-y-4">
             <h2 className={clsx("text-2xl font-bold", isDark ? "text-foreground" : "text-gray-900")}>Recipe Not Found</h2>
-            <p className={clsx("mb-2", descriptionTextClass)}>The recipe you're looking for doesn't exist.</p>
+            <p className={clsx("mb-2", descriptionTextClass)}>The recipe you&apos;re looking for doesn&apos;t exist.</p>
             <Button onClick={() => router.push("/recipes")} className={primaryButtonClass}>
               Browse Recipes
             </Button>
@@ -434,10 +432,12 @@ export default function RecipeDetailPage() {
                 isDark ? "border border-border" : "border border-white/40",
               )}
             >
-              <img
+              <Image
                 src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
                 alt={recipe.title}
-                className="w-full h-[360px] sm:h-[420px] md:h-[500px] object-cover"
+                fill
+                sizes="(min-width: 1024px) 60vw, 100vw"
+                className="object-cover"
               />
             </div>
 
