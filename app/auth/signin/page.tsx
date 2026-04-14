@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useSignIn } from "@clerk/nextjs"
+import { useAuth, useSignIn } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -86,6 +86,7 @@ export default function SignInPage() {
   const [availableSecondFactors, setAvailableSecondFactors] = useState<SupportedSecondFactor[]>([])
 
   const { isLoaded, signIn, setActive } = useSignIn()
+  const { isLoaded: authLoaded, userId } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
 
@@ -95,6 +96,11 @@ export default function SignInPage() {
     () => availableSecondFactors.find((factor) => factor.strategy === secondFactorStrategy) ?? null,
     [availableSecondFactors, secondFactorStrategy]
   )
+
+  useEffect(() => {
+    if (!authLoaded || !userId) return
+    router.replace("/dashboard")
+  }, [authLoaded, router, userId])
 
   const completeSignIn = async (createdSessionId: string | null) => {
     if (!createdSessionId) {
@@ -468,7 +474,7 @@ export default function SignInPage() {
           <Button
             type="submit"
             className="w-full bg-[#e8dcc4] text-[#0a0a0a] hover:bg-[#d4c8b0] py-6 font-light tracking-wide"
-            disabled={loading}
+            disabled={loading || !isLoaded}
           >
             {loading ? "Authenticating..." : isMfaStep ? "Verify & Sign In" : "Sign In"}
             <ArrowRight className="ml-2 h-4 w-4" />

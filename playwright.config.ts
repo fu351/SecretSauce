@@ -1,4 +1,9 @@
 import { defineConfig, devices } from "@playwright/test"
+import { config } from "dotenv"
+
+// Load .env.local so E2E_TEST_EMAIL, E2E_TEST_PASSWORD, and E2E_TARGET_USERNAME
+// are available without any wrapper command.
+config({ path: ".env.local" })
 
 export default defineConfig({
   testDir: "./e2e",
@@ -23,6 +28,13 @@ export default defineConfig({
     {
       name: "tutorial",
       testMatch: /e2e\/tutorial\/.+\.spec\.ts/,
+      dependencies: ["setup"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+    // Main-flow QA tests — signup/username, social, posts, feed, recipes, notifications, challenges
+    {
+      name: "flows",
+      testMatch: /e2e\/flows\/.+\.spec\.ts/,
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"] },
     },
