@@ -64,7 +64,10 @@ test.describe("Tutorial state persistence", () => {
   })
 
   test("completing the tutorial clears localStorage state", async ({ page }) => {
-    await injectTutorialState(page, 26)
+    // Last desktop slot is 31 (/home step 2: "go back to Dashboard").
+    // The /store page (5 slots, 25-29) was added after /meal-planner, shifting
+    // the original last slot from 26 to 31.
+    await injectTutorialState(page, 31)
     await page.goto("/home")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 

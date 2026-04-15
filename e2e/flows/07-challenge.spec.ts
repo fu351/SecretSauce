@@ -14,7 +14,7 @@
  *  - POST /api/challenges/[id]/join creates an entry
  */
 
-import { test, expect } from "@playwright/test"
+import { test, expect, request } from "@playwright/test"
 
 const MOCK_CHALLENGE_ID = "challenge-xyz-001"
 
@@ -25,6 +25,7 @@ const MOCK_CHALLENGE = {
   starts_at: new Date(Date.now() - 86_400_000).toISOString(),      // started 1 day ago
   ends_at:   new Date(Date.now() + 5 * 86_400_000).toISOString(), // ends in 5 days
   participant_count: 42,
+  points: 10,
 }
 
 const MOCK_LEADERBOARD_FRIENDS = [
@@ -37,6 +38,14 @@ const MOCK_LEADERBOARD_GLOBAL = [
   { profile_id: "g1", full_name: "Global Star",  username: "globalstar",  avatar_url: null, post_id: "post-g1", is_viewer: false, rank: 1 },
   { profile_id: "g2", full_name: "World Chef",   username: "worldchef",  avatar_url: null, post_id: "post-g2", is_viewer: false, rank: 2 },
 ]
+
+const EXPECTED_TIME_REMAINING = (() => {
+  const diff = new Date(MOCK_CHALLENGE.ends_at).getTime() - Date.now()
+  if (diff <= 0) return "ended"
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  if (hours < 24) return `${hours}h left`
+  return `${Math.floor(hours / 24)}d left`
+})()
 
 // ─── Challenge card — active state ────────────────────────────────────────────
 
@@ -76,20 +85,19 @@ test.describe("Challenge card — active challenge", () => {
   })
 
   test("challenge title is visible", async ({ page }) => {
-    await expect(page.getByText("Umami Week")).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole("heading", { name: MOCK_CHALLENGE.title })).toBeVisible({ timeout: 15_000 })
   })
 
   test("challenge description is visible", async ({ page }) => {
-    await expect(page.getByText(/umami/i)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(MOCK_CHALLENGE.description, { exact: true })).toBeVisible({ timeout: 10_000 })
   })
 
   test("time remaining label is visible", async ({ page }) => {
-    // "5d left" or similar
-    await expect(page.getByText(/\d+[dh]\s+left/i)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(EXPECTED_TIME_REMAINING, { exact: true })).toBeVisible({ timeout: 10_000 })
   })
 
   test("participant count is visible", async ({ page }) => {
-    await expect(page.getByText(/42/)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText("42 joined", { exact: true })).toBeVisible({ timeout: 10_000 })
   })
 
   test("'Post Your Dish to Enter' button is shown when not yet joined", async ({ page }) => {
@@ -158,12 +166,8 @@ test.describe("Challenge card — already joined", () => {
   })
 
   test("viewer rank is shown when user has joined", async ({ page }) => {
-    // The home page renders "#3 among friends" badge when rank is known
-    // Rank is fetched separately; we accept either state here
-    await page.waitForTimeout(500)
-    const rankText = page.getByText(/#3|rank/i)
-    // Not strictly required if the mock doesn't fully wire up — just verify page loaded
-    await expect(page.locator("body")).toBeVisible()
+    // The home page renders "#3 among friends" when rank is known.
+    await expect(page.getByText(/#3 among friends/i)).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -229,7 +233,7 @@ test.describe("Leaderboard scope toggle", () => {
 
     await page.goto("/home")
     // Wait for challenge card to render
-    await expect(page.getByText("Umami Week")).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole("heading", { name: MOCK_CHALLENGE.title })).toBeVisible({ timeout: 15_000 })
   })
 
   test("Friends and Global tab buttons are visible", async ({ page }) => {
@@ -239,20 +243,20 @@ test.describe("Leaderboard scope toggle", () => {
 
   test("Friends scope shows friends leaderboard entries", async ({ page }) => {
     // Default scope is Friends — should see "Alice Chef"
-    await expect(page.getByText("Alice Chef")).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText("Alice Chef", { exact: true })).toBeVisible({ timeout: 10_000 })
   })
 
   test("clicking Global shows the global leaderboard", async ({ page }) => {
     await page.getByRole("button", { name: /^global$/i }).click()
-    await expect(page.getByText("Global Star")).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText("Global Star", { exact: true })).toBeVisible({ timeout: 5_000 })
   })
 
   test("clicking Friends after Global reverts to friends leaderboard", async ({ page }) => {
     await page.getByRole("button", { name: /^global$/i }).click()
-    await expect(page.getByText("Global Star")).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText("Global Star", { exact: true })).toBeVisible({ timeout: 5_000 })
 
     await page.getByRole("button", { name: /^friends$/i }).click()
-    await expect(page.getByText("Alice Chef")).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText("Alice Chef", { exact: true })).toBeVisible({ timeout: 5_000 })
   })
 
   test("viewer's own entry is highlighted (bg-primary/10)", async ({ page }) => {
@@ -295,7 +299,7 @@ test.describe("Leaderboard empty states", () => {
     })
 
     await page.goto("/home")
-    await expect(page.getByText("Umami Week")).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole("heading", { name: MOCK_CHALLENGE.title })).toBeVisible({ timeout: 15_000 })
   })
 
   test("shows 'No friends in this challenge yet' on empty friends scope", async ({ page }) => {
@@ -326,14 +330,16 @@ test.describe("POST /api/challenges/[id]/join", () => {
     expect(body).toHaveProperty("error")
   })
 
-  test("requires authentication", async ({ page, context }) => {
-    // A fresh browser context will not carry the test session
-    const anonPage = await context.newPage()
-    const res = await anonPage.request.post(`/api/challenges/${MOCK_CHALLENGE_ID}/join`, {
+  test("requires authentication", async () => {
+    const anonRequest = await request.newContext({
+      baseURL: "http://localhost:3000",
+      storageState: { cookies: [], origins: [] },
+    })
+    const res = await anonRequest.post(`/api/challenges/${MOCK_CHALLENGE_ID}/join`, {
       data: {},
     })
     expect([401, 403, 307]).toContain(res.status())
-    await anonPage.close()
+    await anonRequest.dispose()
   })
 })
 
