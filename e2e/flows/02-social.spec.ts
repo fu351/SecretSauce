@@ -19,6 +19,11 @@ const TEST_USERNAME = process.env.E2E_TARGET_USERNAME ?? "testchef"
 
 test.describe("Public profile follow button", () => {
   test.beforeEach(async ({ page }) => {
+    // Dismiss the tutorial overlay before the page loads so it never blocks the follow button.
+    await page.addInitScript(() => {
+      localStorage.setItem("tutorial_dismissed_v1", "1")
+    })
+
     // Intercept the profile page follow API so we don't mutate real data in CI
     await page.route("/api/social/follow", async (route) => {
       const method = route.request().method()
@@ -75,7 +80,7 @@ test.describe("Public profile follow button", () => {
 
     await followingBtn.click()
     await expect(
-      page.getByRole("button", { name: /^follow$/i })
+      page.getByRole("button", { name: /^(follow|request to follow)$/i })
     ).toBeVisible({ timeout: 5_000 })
   })
 
