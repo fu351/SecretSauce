@@ -199,6 +199,7 @@ export function RecipeActionBar({
           className={isReposted ? activeGreenClass : neutralClass}
           onClick={handleRepost}
           disabled={!isAuthenticated}
+          aria-label={isReposted ? "Undo repost" : "Repost"}
           title={isAuthenticated ? (isReposted ? "Undo repost" : "Repost to your followers") : "Sign in to repost"}
         >
           <Repeat2 className="h-4 w-4" />

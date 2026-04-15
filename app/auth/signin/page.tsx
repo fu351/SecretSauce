@@ -474,7 +474,7 @@ export default function SignInPage() {
           <Button
             type="submit"
             className="w-full bg-[#e8dcc4] text-[#0a0a0a] hover:bg-[#d4c8b0] py-6 font-light tracking-wide"
-            disabled={loading || !isLoaded}
+            disabled={loading}
           >
             {loading ? "Authenticating..." : isMfaStep ? "Verify & Sign In" : "Sign In"}
             <ArrowRight className="ml-2 h-4 w-4" />

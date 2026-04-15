@@ -180,7 +180,7 @@ test.describe("Recipe like toggle", () => {
     await likeBtn.click() // like → 8
     await expect(page.locator("button").filter({ hasText: "8" })).toBeVisible({ timeout: 3_000 })
 
-    await likeBtn.click() // unlike → 6 (mock returns likeCount - 1)
+    await page.getByTitle(/^unlike$/i).click() // unlike → 6 (mock returns likeCount - 1)
     await expect(page.locator("button").filter({ hasText: /^6$|^7$/ })).toBeVisible({ timeout: 3_000 })
   })
 })
