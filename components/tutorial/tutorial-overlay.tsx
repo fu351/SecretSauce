@@ -448,35 +448,6 @@ export function TutorialOverlay() {
 
   // ─── Layout helpers ───────────────────────────────────────────────────────────
 
-  // Avoid inline styles for the progress bar width.
-  // We bucket to 10% steps so Tailwind can statically include the classes.
-  const progressBucket = Math.max(
-    0,
-    Math.min(100, Math.round(progress / 10) * 10)
-  )
-  const progressWidthClass =
-    progressBucket === 0
-      ? "w-0"
-      : progressBucket === 10
-      ? "w-[10%]"
-      : progressBucket === 20
-      ? "w-[20%]"
-      : progressBucket === 30
-      ? "w-[30%]"
-      : progressBucket === 40
-      ? "w-[40%]"
-      : progressBucket === 50
-      ? "w-[50%]"
-      : progressBucket === 60
-      ? "w-[60%]"
-      : progressBucket === 70
-      ? "w-[70%]"
-      : progressBucket === 80
-      ? "w-[80%]"
-      : progressBucket === 90
-      ? "w-[90%]"
-      : "w-full"
-
   const overlayDockClass = isMobile
     ? "left-3 bottom-[calc(6.25rem+env(safe-area-inset-bottom))]"
     : "bottom-4 right-4 sm:bottom-8 sm:right-8"
@@ -553,7 +524,9 @@ export function TutorialOverlay() {
         {/* Progress bar */}
         <div className="h-1.5 w-full bg-gray-200/20">
           <div
-            className={`h-full bg-blue-500 transition-all duration-500 ${progressWidthClass}`}
+            data-testid="tutorial-progress-fill"
+            className="h-full bg-blue-500 transition-all duration-500"
+            style={{ width: `${progress}%` }}
           />
         </div>
 
@@ -582,6 +555,8 @@ export function TutorialOverlay() {
               variant="ghost"
               size="icon"
               className="h-8 w-8"
+              aria-label={isMinimized ? "Restore tutorial" : "Minimize tutorial"}
+              title={isMinimized ? "Restore tutorial" : "Minimize tutorial"}
               onClick={() => setIsMinimized(!isMinimized)}
             >
               {isMinimized ? (
@@ -594,6 +569,8 @@ export function TutorialOverlay() {
               variant="ghost"
               size="icon"
               className="h-8 w-8 hover:bg-red-500/20"
+              aria-label="Exit tutorial"
+              title="Exit tutorial"
               onClick={() => setShowSkipConfirmation(true)}
             >
               <X className="w-4 h-4" />

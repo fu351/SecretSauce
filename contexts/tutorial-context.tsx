@@ -245,7 +245,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   }, [currentSlotIndex, flatSequence, pathname, router])
 
   const skipTutorial = useCallback(async () => {
-    if (!user) return
     try {
       trackEvent("tutorial_skipped", {
         step_abandoned: currentSlotIndex,
@@ -259,7 +258,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error skipping tutorial:", error)
     }
-  }, [user, currentSlotIndex, trackEvent])
+  }, [currentSlotIndex, trackEvent])
 
   const resetTutorial = useCallback(() => {
     if (typeof window !== "undefined") {

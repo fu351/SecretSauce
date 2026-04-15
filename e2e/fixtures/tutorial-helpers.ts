@@ -56,12 +56,22 @@ export async function startTutorialFromSettings(page: Page) {
 
 /** Clicks Next on the tutorial overlay. */
 export async function clickNext(page: Page) {
-  await page.getByRole("button", { name: /^next$|^finish$/i }).filter({ visible: true }).first().click()
+  await page
+    .locator("[data-testid='tutorial-overlay']")
+    .getByRole("button", { name: /^next$|^finish$/i })
+    .filter({ visible: true })
+    .first()
+    .click()
 }
 
 /** Clicks Back on the tutorial overlay. */
 export async function clickBack(page: Page) {
-  await page.getByRole("button", { name: /back/i }).filter({ visible: true }).first().click()
+  await page
+    .locator("[data-testid='tutorial-overlay']")
+    .getByRole("button", { name: /back/i })
+    .filter({ visible: true })
+    .first()
+    .click()
 }
 
 /** Returns the current header label text (e.g. "OVERVIEW" or "TUTORIAL"). */
