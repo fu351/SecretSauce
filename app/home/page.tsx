@@ -108,6 +108,20 @@ export default function HomeReturningPage() {
   const fetchingRecipes = useRef(false)
   const isMounted = useRef(true)
 
+  const resetPostDishForm = () => {
+    setPostDishTitle("")
+    setPostDishCaption("")
+    setPostImage(null)
+    setPostImagePreview(null)
+  }
+
+  const openPostDishDialog = () => setPostDishOpen(true)
+
+  const closePostDishDialog = () => {
+    resetPostDishForm()
+    setPostDishOpen(false)
+  }
+
   useEffect(() => {
     isMounted.current = true
     return () => { isMounted.current = false }
@@ -252,11 +266,7 @@ export default function HomeReturningPage() {
       }
 
       toast({ title: "Posted!", description: "Your dish is live." })
-      setPostDishOpen(false)
-      setPostDishTitle("")
-      setPostDishCaption("")
-      setPostImage(null)
-      setPostImagePreview(null)
+      closePostDishDialog()
       fetchFeed()
     } catch (error: any) {
       toast({ title: "Post failed", description: error.message, variant: "destructive" })
@@ -416,7 +426,7 @@ export default function HomeReturningPage() {
                     <CheckCircle2 className="h-4 w-4" /> Dish Submitted
                   </Button>
                 ) : (
-                  <Button className="w-full" onClick={() => setPostDishOpen(true)}>
+                  <Button className="w-full" onClick={openPostDishDialog}>
                     Post Your Dish to Enter
                   </Button>
                 )}
@@ -426,15 +436,15 @@ export default function HomeReturningPage() {
         ) : null}
 
         {/* Post Your Dish dialog */}
-        <Dialog open={postDishOpen} onOpenChange={(open) => {
-          if (!open) {
-            setPostDishTitle("")
-            setPostDishCaption("")
-            setPostImage(null)
-            setPostImagePreview(null)
-          }
-          setPostDishOpen(open)
-        }}>
+        <Dialog
+          open={postDishOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              resetPostDishForm()
+            }
+            setPostDishOpen(open)
+          }}
+        >
           <DialogContent className="w-[96vw] max-w-md p-0 overflow-hidden">
             <DialogHeader className="px-4 py-3 border-b text-left">
               <DialogTitle className="text-base">Post your dish</DialogTitle>
@@ -503,7 +513,7 @@ export default function HomeReturningPage() {
                   variant="outline"
                   className="flex-1"
                   disabled={submittingPost}
-                  onClick={() => setPostDishOpen(false)}
+                  onClick={closePostDishDialog}
                 >
                   Cancel
                 </Button>
@@ -569,9 +579,9 @@ export default function HomeReturningPage() {
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground hover:text-foreground"
-                onClick={() => setPostDishOpen(true)}
+                onClick={openPostDishDialog}
               >
-                + Post
+                Post Your Dish
               </Button>
             }
           />
@@ -588,7 +598,7 @@ export default function HomeReturningPage() {
                 <p className="text-sm text-muted-foreground">
                   No posts yet. Follow people or be the first to post a dish!
                 </p>
-                <Button onClick={() => setPostDishOpen(true)}>Post Your Dish</Button>
+                <Button onClick={openPostDishDialog}>Post Your Dish</Button>
               </CardContent>
             </Card>
           ) : (

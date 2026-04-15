@@ -10,7 +10,7 @@
  *  - POST /api/posts — rejects missing imageUrl or title
  */
 
-import { test, expect } from "@playwright/test"
+import { test, expect, request } from "@playwright/test"
 import path from "node:path"
 
 // ─── Post creation dialog UI ─────────────────────────────────────────────────
@@ -214,17 +214,20 @@ test.describe("POST /api/posts API", () => {
     expect(body).toHaveProperty("error")
   })
 
-  test("returns 401 when unauthenticated", async ({ page, context }) => {
-    // Use a fresh browser context with no session
-    const anonPage = await context.newPage()
-    await anonPage.route("/api/posts", async (route) => route.continue())
+  test("returns 401 when unauthenticated", async () => {
+    const anonRequest = await request.newContext({
+      baseURL: "http://localhost:3000",
+      storageState: { cookies: [], origins: [] },
+    })
 
-    // Hit the API directly without auth
-    const res = await anonPage.request.post("/api/posts", {
+    // Hit the API directly without auth.
+    const res = await anonRequest.post("/api/posts", {
       data: { imageUrl: "https://example.com/img.jpg", title: "Test" },
     })
-    // Clerk will redirect or return 401
+
+    // Clerk may redirect if middleware is involved, but unauthenticated requests
+    // must not succeed.
     expect([401, 403, 307]).toContain(res.status())
-    await anonPage.close()
+    await anonRequest.dispose()
   })
 })
