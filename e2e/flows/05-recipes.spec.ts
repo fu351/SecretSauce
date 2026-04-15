@@ -247,9 +247,12 @@ test.describe("Recipe repost toggle", () => {
   })
 
   test("repost count increments after clicking Repost", async ({ page }) => {
-    await expect(page.locator("button").filter({ hasText: "2" })).toBeVisible({ timeout: 10_000 })
-    await page.getByTitle(/repost to your followers/i).click()
-    await expect(page.locator("button").filter({ hasText: "3" })).toBeVisible({ timeout: 3_000 })
+    // Wait for auth to load (button title changes to "Repost to your followers") and for the
+    // auth-triggered social re-fetch to settle before checking the count or clicking.
+    const repostBtn = page.getByTitle(/repost to your followers/i)
+    await expect(repostBtn.filter({ hasText: "2" })).toBeVisible({ timeout: 10_000 })
+    await repostBtn.click()
+    await expect(page.locator("button").filter({ hasText: "3" })).toBeVisible({ timeout: 5_000 })
   })
 })
 
