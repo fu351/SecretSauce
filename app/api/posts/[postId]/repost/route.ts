@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { postDB } from "@/lib/database/post-db"
+import { isAbortLikeError } from "@/lib/server/abort-error"
 
 export const runtime = "nodejs"
 
@@ -33,6 +34,10 @@ export async function POST(
     const reposted = await postDB.withServiceClient(supabase).toggleRepost(postId, profile.id)
     return NextResponse.json({ reposted })
   } catch (error) {
+    if (isAbortLikeError(error)) {
+      return new NextResponse(null, { status: 204 })
+    }
+
     console.error("[posts/repost POST] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

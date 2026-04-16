@@ -3,6 +3,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { profileIdFromClerkUserId } from "@/lib/auth/clerk-profile-id"
 import { normalizeUsername, validateUsername } from "@/lib/auth/username"
+import { isAbortLikeError } from "@/lib/server/abort-error"
 
 export const runtime = "nodejs"
 
@@ -223,6 +224,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ profile: created })
   } catch (error) {
+    if (isAbortLikeError(error)) {
+      return new NextResponse(null, { status: 204 })
+    }
+
     console.error("[ensure-profile] Unexpected error:", error)
     return NextResponse.json(
       { error: "Internal server error" },

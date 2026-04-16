@@ -161,4 +161,12 @@ describe('POST /api/auth/ensure-profile', () => {
     expect(res.status).toBe(500)
     expect(await res.json()).toMatchObject({ error: 'Failed to create profile' })
   })
+
+  it('treats aborted requests as benign disconnects', async () => {
+    mockAuth.mockResolvedValue({ userId: 'user_123' })
+    mockGetUser.mockRejectedValue(Object.assign(new Error('aborted'), { code: 'ECONNRESET' }))
+
+    const res = await POST(new Request('http://localhost/api/auth/ensure-profile', { method: 'POST' }))
+    expect(res.status).toBe(204)
+  })
 })

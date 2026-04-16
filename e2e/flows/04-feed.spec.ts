@@ -85,7 +85,7 @@ test.describe("Feed rendering", () => {
 
   test("renders like counts", async ({ page }) => {
     // Post aaa has 4 likes
-    await expect(page.getByText("4")).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId("feed-like-count-post-aaa")).toHaveText("4", { timeout: 15_000 })
   })
 })
 
@@ -123,17 +123,7 @@ test.describe("Feed like toggle", () => {
   })
 
   test("clicking the heart button on a post applies the liked colour class", async ({ page }) => {
-    // Find the first like button (icon-only button containing an SVG)
-    // The heart icon is inside a <button> with class that includes text-red-500 when active
-    const firstPostCard = page.locator(".overflow-hidden").first()
-    const likeBtn = firstPostCard.locator("button").filter({ hasText: /^\d+$|^$/ }).first()
-
-    // The button wraps the Heart SVG and the like count
-    // We locate by the Heart SVG presence
-    const heartButtons = page.locator("button").filter({ has: page.locator("svg") })
-
-    // Click the first button that contains the heart icon (has count "4")
-    const likeButton = page.locator("button").filter({ hasText: "4" }).first()
+    const likeButton = page.getByTestId("feed-like-button-post-aaa")
     await likeButton.click()
 
     // After click, the button should have the red-500 text class (liked state)
@@ -141,27 +131,23 @@ test.describe("Feed like toggle", () => {
   })
 
   test("like count updates optimistically after clicking like", async ({ page }) => {
-    // Initial count for "Truffle Pasta" is 4
-    const likeButton = page.locator("button").filter({ hasText: "4" }).first()
+    const likeButton = page.getByTestId("feed-like-button-post-aaa")
     await likeButton.click()
 
     // Optimistic update → count becomes 5
-    await expect(
-      page.locator("button").filter({ hasText: "5" }).first()
-    ).toBeVisible({ timeout: 3_000 })
+    await expect(page.getByTestId("feed-like-count-post-aaa")).toHaveText("5", { timeout: 3_000 })
   })
 
   test("clicking like twice (unlike) decrements back to original count", async ({ page }) => {
-    const likeButton = page.locator("button").filter({ hasText: "4" }).first()
+    const likeButton = page.getByTestId("feed-like-button-post-aaa")
 
     // Like
     await likeButton.click()
-    await expect(page.locator("button").filter({ hasText: "5" }).first()).toBeVisible({ timeout: 3_000 })
+    await expect(page.getByTestId("feed-like-count-post-aaa")).toHaveText("5", { timeout: 3_000 })
 
     // Unlike
-    const unlikeButton = page.locator("button").filter({ hasText: "5" }).first()
-    await unlikeButton.click()
-    await expect(page.locator("button").filter({ hasText: "4" }).first()).toBeVisible({ timeout: 3_000 })
+    await likeButton.click()
+    await expect(page.getByTestId("feed-like-count-post-aaa")).toHaveText("4", { timeout: 3_000 })
   })
 })
 
@@ -203,17 +189,15 @@ test.describe("Feed repost toggle", () => {
   })
 
   test("clicking the repost button applies the green colour class", async ({ page }) => {
-    const repostButton = page.locator("button").filter({ hasText: "2" }).first()
+    const repostButton = page.getByTestId("feed-repost-button-post-aaa")
     await repostButton.click()
     await expect(repostButton).toHaveClass(/text-green-500/, { timeout: 3_000 })
   })
 
   test("repost count increments optimistically", async ({ page }) => {
-    const repostButton = page.locator("button").filter({ hasText: "2" }).first()
+    const repostButton = page.getByTestId("feed-repost-button-post-aaa")
     await repostButton.click()
-    await expect(
-      page.locator("button").filter({ hasText: "3" }).first()
-    ).toBeVisible({ timeout: 3_000 })
+    await expect(page.getByTestId("feed-repost-count-post-aaa")).toHaveText("3", { timeout: 3_000 })
   })
 })
 

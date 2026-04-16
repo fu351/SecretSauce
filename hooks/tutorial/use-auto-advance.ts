@@ -64,4 +64,21 @@ export function useAutoAdvance({
       nextStep()
     }
   }, [isMandatoryCompleted, nextSlot, currentSlot, pathname, nextStep])
+
+  /**
+   * Effect 6d — auto-complete when the last step highlights a nav link and the
+   * user navigates to that destination. nextSlot is null at the last step so
+   * none of the earlier effects apply.
+   */
+  useEffect(() => {
+    if (!isActive || nextSlot !== null) return
+    if (!currentSubstep?.highlightSelector) return
+    const navMatch = currentSubstep.highlightSelector.match(
+      /^\[data-tutorial-nav='(.+?)'\]$/
+    )
+    if (!navMatch) return
+    if (pathname === navMatch[1]) {
+      nextStep()
+    }
+  }, [isActive, nextSlot, currentSubstep, pathname, nextStep])
 }

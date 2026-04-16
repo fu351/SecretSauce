@@ -53,6 +53,30 @@ function clearLegacySupabaseCookies() {
   document.cookie = `supabase-auth-token=${baseFlags}`
 }
 
+function isAbortLikeError(error: unknown): boolean {
+  if (error instanceof DOMException) {
+    return error.name === "AbortError"
+  }
+
+  if (!error || typeof error !== "object") return false
+
+  const candidate = error as {
+    name?: string
+    message?: string
+    code?: string | number
+    cause?: { name?: string; message?: string; code?: string | number }
+  }
+
+  return (
+    candidate.name === "AbortError" ||
+    candidate.message === "aborted" ||
+    candidate.code === "ECONNRESET" ||
+    candidate.cause?.name === "AbortError" ||
+    candidate.cause?.message === "aborted" ||
+    candidate.cause?.code === "ECONNRESET"
+  )
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
@@ -104,6 +128,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false
     let forceReloadTimeoutId: ReturnType<typeof setTimeout> | undefined
+    let ensureProfileController: AbortController | undefined
+    let fetchTimeoutId: ReturnType<typeof setTimeout> | undefined
 
     const triggerForceReloadOnce = () => {
       if (cancelled || !mounted.current) return
@@ -148,8 +174,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const controller = new AbortController()
+        ensureProfileController = controller
         const ENSURE_PROFILE_TIMEOUT_MS = 4500
-        const fetchTimeoutId = window.setTimeout(() => {
+        fetchTimeoutId = window.setTimeout(() => {
           controller.abort(new Error("ensure-profile timeout"))
         }, ENSURE_PROFILE_TIMEOUT_MS)
 
@@ -187,12 +214,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           await promise
         } finally {
-          clearTimeout(fetchTimeoutId)
+          if (fetchTimeoutId) {
+            clearTimeout(fetchTimeoutId)
+            fetchTimeoutId = undefined
+          }
           if (ensureProfileInFlightRef.current?.userId === userId) {
             ensureProfileInFlightRef.current = null
           }
+          if (ensureProfileController === controller) {
+            ensureProfileController = undefined
+          }
         }
       } catch (error) {
+        if (isAbortLikeError(error)) {
+          return
+        }
+
         console.error("[v0] Error retrieving Clerk-backed session:", error)
         if (!cancelled && mounted.current) {
           clearAuthState()
@@ -213,6 +250,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true
+      if (fetchTimeoutId) {
+        clearTimeout(fetchTimeoutId)
+      }
+      ensureProfileController?.abort()
       mounted.current = false
     }
   }, [clerkLoaded, clerkUserId])

@@ -7,12 +7,7 @@
 
 import { test, expect } from "@playwright/test"
 import { generalPages } from "../../contents/tutorial-content"
-import {
-  resetTutorialState,
-  injectTutorialState,
-  clickNext,
-  waitForOverlayGone,
-} from "../fixtures/tutorial-helpers"
+import { seedTutorialStateBeforeNavigation, clickNext, waitForOverlayGone } from "../fixtures/tutorial-helpers"
 
 function getExpectedStepCount(isMobile: boolean) {
   return generalPages.reduce((total, page) => {
@@ -29,9 +24,7 @@ function getExpectedStepCount(isMobile: boolean) {
 
 test.describe("Tutorial overlay UI", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/dashboard")
-    await resetTutorialState(page)
-    await injectTutorialState(page, 0)
+    await seedTutorialStateBeforeNavigation(page, 0)
     await page.goto("/dashboard")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
   })

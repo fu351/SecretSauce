@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { challengeDB } from "@/lib/database/challenge-db"
+import { isAbortLikeError } from "@/lib/server/abort-error"
 
 export const runtime = "nodejs"
 
@@ -46,6 +47,10 @@ export async function GET() {
       viewerProfileId,
     })
   } catch (error) {
+    if (isAbortLikeError(error)) {
+      return new NextResponse(null, { status: 204 })
+    }
+
     console.error("[challenges/active GET] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

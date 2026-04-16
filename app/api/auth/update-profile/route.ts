@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { normalizeUsername, validateUsername } from "@/lib/auth/username"
+import { isAbortLikeError } from "@/lib/server/abort-error"
 
 export const runtime = "nodejs"
 
@@ -47,6 +48,28 @@ const PROFILE_SELECT = [
   "stripe_price_id", "stripe_current_period_end",
 ].join(", ")
 
+async function readJsonObject(req: Request): Promise<
+  | { ok: true; body: Record<string, unknown> }
+  | { ok: false }
+> {
+  const raw = await req.text()
+
+  if (!raw.trim()) {
+    return { ok: true, body: {} }
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return { ok: false }
+    }
+
+    return { ok: true, body: parsed as Record<string, unknown> }
+  } catch {
+    return { ok: false }
+  }
+}
+
 export async function PATCH(req: Request) {
   try {
     const authState = await auth()
@@ -55,10 +78,11 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    const parsedBody = await readJsonObject(req)
+    if (!parsedBody.ok) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
+    const body = parsedBody.body
 
     // Build update from allowlist only — unknown/sensitive fields are silently dropped
     const safeUpdates: Record<string, unknown> = {}
@@ -106,6 +130,10 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ profile: data })
   } catch (error) {
+    if (isAbortLikeError(error)) {
+      return new NextResponse(null, { status: 204 })
+    }
+
     console.error("[update-profile] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

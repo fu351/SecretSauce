@@ -239,7 +239,7 @@ test.describe("Recipe repost toggle", () => {
   })
 
   test("clicking Repost makes the button visually active", async ({ page }) => {
-    const repostBtn = page.getByTitle(/repost to your followers/i)
+    const repostBtn = page.getByTestId(`recipe-repost-button-${MOCK_RECIPE_ID}`)
     await expect(repostBtn).toBeVisible({ timeout: 10_000 })
     await repostBtn.click()
     // Active repost button has emerald/green class
@@ -249,10 +249,11 @@ test.describe("Recipe repost toggle", () => {
   test("repost count increments after clicking Repost", async ({ page }) => {
     // Wait for auth to load (button title changes to "Repost to your followers") and for the
     // auth-triggered social re-fetch to settle before checking the count or clicking.
-    const repostBtn = page.getByTitle(/repost to your followers/i)
-    await expect(repostBtn.filter({ hasText: "2" })).toBeVisible({ timeout: 10_000 })
+    const repostBtn = page.getByTestId(`recipe-repost-button-${MOCK_RECIPE_ID}`)
+    const repostCount = page.getByTestId(`recipe-repost-count-${MOCK_RECIPE_ID}`)
+    await expect(repostCount).toHaveText("2", { timeout: 10_000 })
     await repostBtn.click()
-    await expect(page.locator("button").filter({ hasText: "3" })).toBeVisible({ timeout: 5_000 })
+    await expect(repostCount).toHaveText("3", { timeout: 5_000 })
   })
 })
 

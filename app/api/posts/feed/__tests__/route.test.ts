@@ -64,4 +64,14 @@ describe("GET /api/posts/feed", () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ posts })
   })
+
+  it("treats aborted requests as benign disconnects", async () => {
+    mockAuth.mockResolvedValue({ userId: "user_1" })
+    mockFrom.mockImplementation(() => {
+      throw Object.assign(new Error("aborted"), { code: "ECONNRESET" })
+    })
+
+    const res = await GET(new Request("http://localhost/api/posts/feed?limit=10&offset=0"))
+    expect(res.status).toBe(204)
+  })
 })

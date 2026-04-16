@@ -196,6 +196,7 @@ export function RecipeActionBar({
 
         {/* Repost */}
         <button
+          data-testid={`recipe-repost-button-${recipeId}`}
           className={isReposted ? activeGreenClass : neutralClass}
           onClick={handleRepost}
           disabled={!isAuthenticated}
@@ -203,7 +204,9 @@ export function RecipeActionBar({
           title={isAuthenticated ? (isReposted ? "Undo repost" : "Repost to your followers") : "Sign in to repost"}
         >
           <Repeat2 className="h-4 w-4" />
-          <span>{repostCount > 0 ? repostCount : "Repost"}</span>
+          <span data-testid={`recipe-repost-count-${recipeId}`}>
+            {repostCount > 0 ? repostCount : "Repost"}
+          </span>
         </button>
 
         {/* Share / copy link */}

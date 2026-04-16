@@ -608,7 +608,7 @@ export default function HomeReturningPage() {
                 const initials = authorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
 
                 return (
-                  <Card key={post.id} className="overflow-hidden">
+                  <Card key={post.id} className="overflow-hidden" data-testid={`feed-post-${post.id}`}>
                     <CardHeader className="p-4 pb-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
@@ -652,6 +652,8 @@ export default function HomeReturningPage() {
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <button
                           onClick={() => handleLike(post.id)}
+                          data-testid={`feed-like-button-${post.id}`}
+                          aria-label={`Like ${post.title}`}
                           className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-muted ${
                             post.liked_by_viewer ? "text-red-500" : ""
                           }`}
@@ -659,11 +661,13 @@ export default function HomeReturningPage() {
                           <Heart
                             className={`h-4 w-4 ${post.liked_by_viewer ? "fill-red-500 text-red-500" : ""}`}
                           />
-                          {post.like_count}
+                          <span data-testid={`feed-like-count-${post.id}`}>{post.like_count}</span>
                         </button>
 
                         <button
                           onClick={() => handleRepost(post.id)}
+                          data-testid={`feed-repost-button-${post.id}`}
+                          aria-label={`Repost ${post.title}`}
                           className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-muted ${
                             post.reposted_by_viewer ? "text-green-500" : ""
                           }`}
@@ -671,7 +675,7 @@ export default function HomeReturningPage() {
                           <Repeat2
                             className={`h-4 w-4 ${post.reposted_by_viewer ? "text-green-500" : ""}`}
                           />
-                          {post.repost_count}
+                          <span data-testid={`feed-repost-count-${post.id}`}>{post.repost_count}</span>
                         </button>
                       </div>
                     </CardContent>

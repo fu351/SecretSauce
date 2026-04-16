@@ -98,9 +98,9 @@ export default function SignInPage() {
   )
 
   useEffect(() => {
-    if (!authLoaded || !userId) return
+    if (!authLoaded || !userId || loading) return
     router.replace("/dashboard")
-  }, [authLoaded, router, userId])
+  }, [authLoaded, loading, router, userId])
 
   const completeSignIn = async (createdSessionId: string | null) => {
     if (!createdSessionId) {
