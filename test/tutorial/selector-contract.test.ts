@@ -16,6 +16,10 @@ import { generalPages } from "../../contents/tutorial-content"
 
 const ROOT = path.resolve(__dirname, "../..")
 
+function normalizePath(relPath: string): string {
+  return relPath.replace(/\\/g, "/")
+}
+
 function collectFiles(
   startDir: string,
   {
@@ -122,14 +126,14 @@ function buildSelectorIndex(): Map<string, string[]> {
 // Build a map of page route → whether an app directory exists for it
 function buildPageIndex(): Set<string> {
   const appDirs = collectFiles("app", {
-    includeFile: (relPath) => /\/page\.(tsx|ts)$/.test(relPath),
+    includeFile: (relPath) => /\/page\.(tsx|ts)$/.test(normalizePath(relPath)),
     ignoreDir: (relPath) => relPath === "node_modules" || relPath === ".next",
   })
 
   const routes = new Set<string>()
   for (const f of appDirs) {
     // Convert "app/dashboard/page.tsx" → "/dashboard"
-    const parts = f.replace(/\/page\.(tsx|ts)$/, "").replace(/^app/, "")
+    const parts = normalizePath(f).replace(/\/page\.(tsx|ts)$/, "").replace(/^app/, "")
     routes.add(parts === "" ? "/" : parts)
   }
   return routes

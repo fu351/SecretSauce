@@ -55,7 +55,9 @@ const baseConfig: CanonicalPipelineConfig = {
 
 describe("runCanonicalPipeline", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mockRunEmbeddingWorker.mockReset()
+    mockRunVectorDoubleCheckDiscovery.mockReset()
+    mockRunCanonicalConsolidation.mockReset()
     vi.spyOn(console, "log").mockImplementation(() => {})
     vi.spyOn(console, "error").mockImplementation(() => {})
 
@@ -95,7 +97,9 @@ describe("runCanonicalPipeline", () => {
   })
 
   it("skips disabled stages and leaves them null in summary", async () => {
-    vi.clearAllMocks()
+    mockRunEmbeddingWorker.mockReset()
+    mockRunVectorDoubleCheckDiscovery.mockReset()
+    mockRunCanonicalConsolidation.mockReset()
     mockRunEmbeddingWorker.mockResolvedValue({ mode: "queue-all", result: queueEmbeddingResult })
     mockRunVectorDoubleCheckDiscovery.mockResolvedValue(discoveryResult)
     mockRunCanonicalConsolidation.mockResolvedValue(consolidationResult)
@@ -116,7 +120,9 @@ describe("runCanonicalPipeline", () => {
   })
 
   it("skips queue-embedding when enableQueueEmbedding=false", async () => {
-    vi.clearAllMocks()
+    mockRunEmbeddingWorker.mockReset()
+    mockRunVectorDoubleCheckDiscovery.mockReset()
+    mockRunCanonicalConsolidation.mockReset()
     mockRunEmbeddingWorker.mockResolvedValue({ mode: "probation-embedding", result: probationResult })
     mockRunVectorDoubleCheckDiscovery.mockResolvedValue(discoveryResult)
     mockRunCanonicalConsolidation.mockResolvedValue(consolidationResult)

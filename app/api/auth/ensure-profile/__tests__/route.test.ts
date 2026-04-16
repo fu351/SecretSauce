@@ -39,7 +39,11 @@ const createSelectChain = (result: any) => ({
 
 const createUpdateChain = () => ({
   update: vi.fn().mockReturnValue({
-    eq: mockUpdate,
+    eq: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: mockUpdate,
+      }),
+    }),
   }),
 })
 

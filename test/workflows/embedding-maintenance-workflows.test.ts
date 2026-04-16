@@ -8,15 +8,14 @@ function readWorkflow(relativePath: string): string {
 }
 
 describe("workflow contracts for embedding infrastructure", () => {
-  it("keeps nightly embedding queue batched with one resolver cycle per batch", () => {
+  it("keeps the nightly canonical pipeline wired to shared batch defaults", () => {
     const workflow = readWorkflow(".github/workflows/nightly-embedding-queue.yml")
 
-    expect(workflow).toContain("name: Nightly Embedding Queue")
-    expect(workflow).toContain("EMBEDDING_QUEUE_MAX_CYCLES=\"1\" npm --prefix backend/scripts run embedding-queue-pipeline")
-    expect(workflow).toContain("embedding_source_type:")
-    expect(workflow).toContain("- ingredient")
-    expect(workflow).toContain("- recipe")
-    expect(workflow).toContain("- any")
+    expect(workflow).toContain("name: Nightly Canonical Pipeline")
+    expect(workflow).toContain('section = cfg["nightly_canonical_pipeline"]')
+    expect(workflow).toContain("queue_batch_limit")
+    expect(workflow).toContain("PIPELINE_QUEUE_BATCH_LIMIT: ${{ needs['load-config'].outputs.queue_batch_limit }}")
+    expect(workflow).toContain("npm --prefix backend/scripts run canonical-pipeline")
   })
 
   it("keeps monthly cleanup workflow dry-run safe by default", () => {
