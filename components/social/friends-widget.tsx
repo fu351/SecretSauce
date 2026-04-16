@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, X } from "lucide-react"
-import { Users } from "lucide-react"
+import { Users, UserPlus, Check } from "lucide-react"
 import type { ProfileSummary } from "@/lib/database/follow-db"
 
 type SearchedUser = {
@@ -62,6 +62,7 @@ export function FriendsWidget() {
   const [searchResults, setSearchResults] = useState<SearchedUser[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
+  const [inviteCopied, setInviteCopied] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -115,6 +116,22 @@ export function FriendsWidget() {
   const clearSearch = () => {
     setSearchQuery("")
     setSearchResults([])
+  }
+
+  const handleInvite = async () => {
+    const url = typeof window !== "undefined" ? window.location.origin : ""
+    const text = "Join me on Secret Sauce — discover and share recipes you'll actually make."
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Secret Sauce", text, url })
+        return
+      } catch {
+        // user cancelled or share failed — fall through to clipboard
+      }
+    }
+    await navigator.clipboard.writeText(`${text}\n${url}`)
+    setInviteCopied(true)
+    setTimeout(() => setInviteCopied(false), 2000)
   }
 
   return (
@@ -222,6 +239,14 @@ export function FriendsWidget() {
             <p className="text-xs text-muted-foreground text-center py-1">No people found.</p>
           )}
         </div>
+
+        <Button variant="outline" size="sm" className="w-full gap-2" onClick={handleInvite}>
+          {inviteCopied ? (
+            <><Check className="h-3.5 w-3.5" /> Link copied!</>
+          ) : (
+            <><UserPlus className="h-3.5 w-3.5" /> Invite Friends</>
+          )}
+        </Button>
       </CardContent>
     </Card>
   )
