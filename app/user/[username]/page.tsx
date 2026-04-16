@@ -58,7 +58,7 @@ export default async function UserProfilePage({ params }: Props) {
     : "?"
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e8dcc4]">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-2xl mx-auto px-4 py-12">
         {/* Avatar + name */}
         <div className="flex items-center gap-5 mb-8">
@@ -68,19 +68,19 @@ export default async function UserProfilePage({ params }: Props) {
               alt={profile.full_name ?? "Profile"}
               width={80}
               height={80}
-              className="rounded-full object-cover ring-2 ring-[#e8dcc4]/20"
+              className="rounded-full object-cover ring-2 ring-border"
             />
           ) : (
-            <div className="w-20 h-20 rounded-full bg-[#1a1a1a] ring-2 ring-[#e8dcc4]/20 flex items-center justify-center text-2xl font-semibold text-[#e8dcc4]">
+            <div className="w-20 h-20 rounded-full bg-muted ring-2 ring-border flex items-center justify-center text-2xl font-semibold text-foreground">
               {initials}
             </div>
           )}
 
           <div>
-            <h1 className="text-2xl font-bold text-[#e8dcc4]">
+            <h1 className="text-2xl font-bold text-foreground">
               {profile.full_name ?? "Anonymous Chef"}
             </h1>
-            <p className="text-sm text-[#e8dcc4]/60 mt-0.5">@{profile.username}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">@{profile.username}</p>
             <div className="flex items-center gap-2 mt-1.5">
               {profile.is_private ? (
                 <Badge variant="secondary" className="flex items-center gap-1 text-xs">
@@ -88,7 +88,7 @@ export default async function UserProfilePage({ params }: Props) {
                   Private
                 </Badge>
               ) : (
-                <Badge variant="outline" className="flex items-center gap-1 text-xs border-[#e8dcc4]/20 text-[#e8dcc4]/60">
+                <Badge variant="outline" className="flex items-center gap-1 text-xs">
                   <Globe className="h-3 w-3" />
                   Public
                 </Badge>
@@ -100,12 +100,12 @@ export default async function UserProfilePage({ params }: Props) {
         {/* Follower / following counts */}
         <div className="flex gap-10 mb-8">
           <div className="text-center">
-            <p className="text-2xl font-bold text-[#e8dcc4]">{followerCount}</p>
-            <p className="text-sm text-[#e8dcc4]/60">Followers</p>
+            <p className="text-2xl font-bold text-foreground">{followerCount}</p>
+            <p className="text-sm text-muted-foreground">Followers</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-[#e8dcc4]">{followingCount}</p>
-            <p className="text-sm text-[#e8dcc4]/60">Following</p>
+            <p className="text-2xl font-bold text-foreground">{followingCount}</p>
+            <p className="text-sm text-muted-foreground">Following</p>
           </div>
         </div>
 
@@ -120,7 +120,7 @@ export default async function UserProfilePage({ params }: Props) {
 
         {/* Recipes */}
         <div className="mt-12">
-          <h2 className="text-lg font-semibold text-[#e8dcc4] mb-4">Recipes</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Recipes</h2>
           <UserRecipeGrid username={username} />
         </div>
       </div>

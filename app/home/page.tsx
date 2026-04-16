@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
@@ -23,11 +24,13 @@ import {
   Crown,
   Heart,
   Repeat2,
+  Search,
   Share2,
   Sparkles,
   Trophy,
   Upload,
   Users,
+  X,
 } from "lucide-react"
 import { RecipeCardCompact } from "@/components/recipe/cards/recipe-card-compact"
 import { RecipeGrid } from "@/components/recipe/recipe-grid"
@@ -80,6 +83,7 @@ export default function HomeReturningPage() {
   const { user, loading } = useAuth()
   const { theme } = useTheme()
   const { toast } = useToast()
+  const router = useRouter()
   const [flavorsOfWeek, setFlavorsOfWeek] = useState<HomePageRecipe[]>([])
   const [recommendedRecipes, setRecommendedRecipes] = useState<HomePageRecipe[]>([])
   const [loadingRecipes, setLoadingRecipes] = useState(true)
@@ -105,8 +109,68 @@ export default function HomeReturningPage() {
   const [feedPosts, setFeedPosts] = useState<PostWithMeta[]>([])
   const [loadingFeed, setLoadingFeed] = useState(true)
 
+  // Search
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<{
+    recipes: { id: string; title: string; difficulty?: string; rating_avg?: number; tags?: string[] }[]
+    users: { id: string; full_name: string | null; username: string | null; avatar_url: string | null }[]
+  }>({ recipes: [], users: [] })
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const mobileInputRef = useRef<HTMLInputElement>(null)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const fetchingRecipes = useRef(false)
   const isMounted = useRef(true)
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value)
+    setSearchOpen(value.length > 0)
+
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+
+    if (!value.trim()) {
+      setSearchResults({ recipes: [], users: [] })
+      return
+    }
+
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearchLoading(true)
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(value)}`)
+        if (res.ok) {
+          const json = await res.json()
+          setSearchResults({ recipes: json.recipes ?? [], users: json.users ?? [] })
+        }
+      } catch {
+        // ignore
+      } finally {
+        setSearchLoading(false)
+      }
+    }, 300)
+  }, [])
+
+  const clearSearch = () => {
+    setSearchQuery("")
+    setSearchOpen(false)
+    setSearchResults({ recipes: [], users: [] })
+    setMobileSearchExpanded(false)
+  }
+
+  const openMobileSearch = () => {
+    setMobileSearchExpanded(true)
+    setTimeout(() => mobileInputRef.current?.focus(), 50)
+  }
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return
+    const q = searchQuery.trim()
+    if (!q || q.startsWith("@")) return
+    clearSearch()
+    router.push(`/recipes?search=${encodeURIComponent(q)}`)
+  }
 
   const resetPostDishForm = () => {
     setPostDishTitle("")
@@ -125,6 +189,19 @@ export default function HomeReturningPage() {
   useEffect(() => {
     isMounted.current = true
     return () => { isMounted.current = false }
+  }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false)
+        setMobileSearchExpanded(false)
+        setSearchQuery("")
+        setSearchResults({ recipes: [], users: [] })
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
   const fetchHomeRecipes = async () => {
@@ -371,21 +448,180 @@ export default function HomeReturningPage() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 space-y-6 md:space-y-10">
 
         {/* Top bar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
-              {(firstName?.[0] || "A").toUpperCase()}
+        {(() => {
+          const searchDropdown = searchOpen ? (
+            <div className="absolute top-11 left-0 right-0 z-50 rounded-2xl border bg-popover shadow-lg overflow-hidden">
+              {searchLoading ? (
+                <div className="p-4 text-sm text-muted-foreground text-center">Searching…</div>
+              ) : searchResults.users.length > 0 ? (
+                <div>
+                  <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
+                    People
+                  </div>
+                  {searchResults.users.map((u) => {
+                    const name = u.full_name ?? u.username ?? "Chef"
+                    const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+                    return (
+                      <Link
+                        key={u.id}
+                        href={`/user/${u.username ?? u.id}`}
+                        onClick={clearSearch}
+                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors"
+                      >
+                        {u.avatar_url ? (
+                          <Image src={u.avatar_url} alt={name} width={32} height={32} className="rounded-full object-cover" />
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground flex-shrink-0">
+                            {initials}
+                          </div>
+                        )}
+                        <div className="leading-tight min-w-0">
+                          <div className="text-sm font-medium text-foreground truncate">{name}</div>
+                          {u.username && (
+                            <div className="text-xs text-muted-foreground">@{u.username}</div>
+                          )}
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : searchResults.recipes.length > 0 ? (
+                <div>
+                  <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
+                    Recipes
+                  </div>
+                  {searchResults.recipes.map((r) => (
+                    <Link
+                      key={r.id}
+                      href={`/recipes/${r.id}`}
+                      onClick={clearSearch}
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors"
+                    >
+                      <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm text-foreground truncate">{r.title}</span>
+                    </Link>
+                  ))}
+                  <Link
+                    href={`/recipes?search=${encodeURIComponent(searchQuery.trim())}`}
+                    onClick={clearSearch}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 border-t text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    See all results for &quot;{searchQuery.trim()}&quot;
+                  </Link>
+                </div>
+              ) : searchQuery.trim() ? (
+                <div className="p-4 text-sm text-muted-foreground text-center">
+                  No results for &quot;{searchQuery}&quot;
+                </div>
+              ) : null}
             </div>
-            <div className="leading-tight">
-              <div className="text-[11px] text-muted-foreground">Good evening,</div>
-              <div className="text-sm font-medium text-foreground">{firstName}</div>
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" className={isDark ? "hover:bg-muted/60" : "hover:bg-muted/60"}>
-            <Bell className="h-5 w-5" />
-            <span className="sr-only">Notifications</span>
-          </Button>
-        </div>
+          ) : null
+
+          return (
+            <>
+              {/* Mobile top bar */}
+              <div className="flex md:hidden items-center justify-between">
+                {!mobileSearchExpanded ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
+                        {(firstName?.[0] || "A").toUpperCase()}
+                      </div>
+                      <div className="leading-tight">
+                        <div className="text-[11px] text-muted-foreground">Good evening,</div>
+                        <div className="text-sm font-medium text-foreground">{firstName}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={openMobileSearch} aria-label="Search">
+                        <Search className="h-5 w-5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="hover:bg-muted/60">
+                        <Bell className="h-5 w-5" />
+                        <span className="sr-only">Notifications</span>
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div ref={searchRef} className="flex items-center gap-2 w-full">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                      <input
+                        ref={mobileInputRef}
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        onFocus={() => searchQuery && setSearchOpen(true)}
+                        onKeyDown={handleSearchKeyDown}
+                        placeholder="Search recipes or @username…"
+                        className="w-full h-9 pl-9 pr-8 rounded-full bg-muted text-sm text-foreground placeholder:text-muted-foreground border-0 outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => { setSearchQuery(""); setSearchOpen(false); setSearchResults({ recipes: [], users: [] }) }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted-foreground/20 transition-colors"
+                          aria-label="Clear search"
+                        >
+                          <X className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                      )}
+                      {searchDropdown}
+                    </div>
+                    <button
+                      onClick={clearSearch}
+                      className="text-sm text-muted-foreground hover:text-foreground flex-shrink-0"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop top bar */}
+              <div className="hidden md:flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
+                    {(firstName?.[0] || "A").toUpperCase()}
+                  </div>
+                  <div className="leading-tight">
+                    <div className="text-[11px] text-muted-foreground">Good evening,</div>
+                    <div className="text-sm font-medium text-foreground">{firstName}</div>
+                  </div>
+                </div>
+
+                <div ref={searchRef} className="flex-1 relative">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onFocus={() => searchQuery && setSearchOpen(true)}
+                      onKeyDown={handleSearchKeyDown}
+                      placeholder="Search recipes or @username…"
+                      className="w-full h-9 pl-9 pr-8 rounded-full bg-muted text-sm text-foreground placeholder:text-muted-foreground border-0 outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={clearSearch}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted-foreground/20 transition-colors"
+                        aria-label="Clear search"
+                      >
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                  {searchDropdown}
+                </div>
+
+                <Button variant="ghost" size="icon" className="flex-shrink-0 hover:bg-muted/60">
+                  <Bell className="h-5 w-5" />
+                  <span className="sr-only">Notifications</span>
+                </Button>
+              </div>
+            </>
+          )
+        })()}
 
         {/* Weekly challenge hero */}
         {loadingChallenge ? (
