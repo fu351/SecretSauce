@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, memo } from "react"
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from "react"
 import dynamic from "next/dynamic"
 import { useAuth } from "@/contexts/auth-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
@@ -201,10 +201,7 @@ function MealPlannerPageContent() {
     let cancelled = false
 
     const loadPlannerRecipe = async () => {
-      if (!plannerRecipeId) {
-        clearPlannerRecipePrompt()
-        return
-      }
+      if (!plannerRecipeId) return
 
       try {
         const [recipe] = await mealPlannerDB.fetchRecipesByIds([plannerRecipeId])
@@ -254,7 +251,7 @@ function MealPlannerPageContent() {
     return () => {
       cancelled = true
     }
-  }, [clearPlannerRecipePrompt, dismiss, plannerRecipeId, toast])
+  }, [clearPlannerRecipePrompt, dismiss, plannerRecipeId, router, toast])
 
   const handleGenerateHeuristicPlan = useCallback(async () => {
     if (!user?.id) return
