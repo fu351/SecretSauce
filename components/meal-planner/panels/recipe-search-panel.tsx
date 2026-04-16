@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo, useEffect, useCallback, memo } from "react"
+import React, { useState, useMemo, useEffect, useCallback, memo, useRef } from "react"
 import { X, Search, Heart, SlidersHorizontal, RotateCcw, Utensils, Check } from "lucide-react"
 import { RecipeCardCompact } from "@/components/recipe/cards/recipe-card-compact"
 import { Button } from "@/components/ui/button"
@@ -28,16 +28,18 @@ import { DIETARY_TAGS, CUISINE_TYPES, DIFFICULTY_LEVELS } from "@/lib/types/reci
 
 interface DragData {
   recipe: Recipe
-  source: 'modal' | 'slot'
+  source: "modal" | "slot"
   sourceMealType?: string
   sourceDate?: string
 }
 
 interface RecipeSearchPanelProps {
   onSelect: (recipe: Recipe) => void
-  getDraggableProps: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
+  getDraggableProps: (recipe: Recipe, source: "modal" | "slot", mealType?: string, date?: string) => { draggableId: string; data: DragData }
   activeDragData?: DragData | null
   onToggleCollapse?: () => void
+  initialSearchTerm?: string
+  focusedRecipeId?: string | null
   /** Mobile only: ids of recipes selected in current session (show overlay + tick) */
   sessionSelectedIds?: Set<string>
   /** Mobile only: confirm selections and close */
@@ -56,6 +58,8 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   getDraggableProps,
   activeDragData,
   onToggleCollapse,
+  initialSearchTerm,
+  focusedRecipeId,
   sessionSelectedIds,
   onConfirmSelections,
   onCancelSelections,
@@ -72,6 +76,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   const [selectedDiet, setSelectedDiet] = useState("all")
   const [sortBy, setSortBy] = useState<SortBy>("created_at")
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+  const focusedCardRef = useRef<HTMLDivElement | null>(null)
 
   // Data state
   const [favoriteRecipes, setFavoriteRecipes] = useState<Recipe[]>([])
@@ -84,6 +89,19 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
     }, 300)
     return () => clearTimeout(handler)
   }, [searchInput])
+
+  useEffect(() => {
+    if (initialSearchTerm === undefined) return
+    setSearchInput(initialSearchTerm)
+    setSearchTerm(initialSearchTerm)
+  }, [initialSearchTerm])
+
+  useEffect(() => {
+    if (!focusedRecipeId) return
+    const el = focusedCardRef.current
+    if (!el) return
+    el.scrollIntoView({ block: "center", behavior: "smooth" })
+  }, [focusedRecipeId, loadingAllRecipes, loadingFavorites])
 
   // Removed metadata fetching - now using constants from @/lib/types/recipe/constants
 
@@ -123,6 +141,14 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
 
   const displayRecipes = showFavoritesOnly ? favoriteRecipes : allRecipes
   const loading = showFavoritesOnly ? loadingFavorites : loadingAllRecipes
+  const orderedRecipes = useMemo(() => {
+    if (!focusedRecipeId) return displayRecipes
+    return [...displayRecipes].sort((a, b) => {
+      if (a.id === focusedRecipeId) return -1
+      if (b.id === focusedRecipeId) return 1
+      return 0
+    })
+  }, [displayRecipes, focusedRecipeId])
 
   const handleClearFilters = useCallback(() => {
     setSearchInput("")
@@ -228,16 +254,32 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto bg-muted/30 pt-28 transform-gpu">
+        {focusedRecipeId && initialSearchTerm && (
+          <div className="px-4 pt-4">
+            <div className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+              Click an empty card to apply &quot;{initialSearchTerm}&quot; to the planner.
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center h-64 px-4">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
           </div>
-        ) : displayRecipes.length > 0 ? (
+        ) : orderedRecipes.length > 0 ? (
           <div className={cn("px-4 pb-4 grid grid-cols-2 gap-4 auto-rows-max", isMobileMode && selectionCount > 0 && "pb-20")}>
-            {displayRecipes.map((recipe) => {
+            {orderedRecipes.map((recipe) => {
               const isSelected = isMobileMode && sessionSelectedIds?.has(recipe.id)
               return (
-                <div key={recipe.id} onClick={() => onSelect(recipe)} className="group cursor-pointer relative" data-tutorial="planner-sidebar-recipe">
+                <div
+                  key={recipe.id}
+                  ref={focusedRecipeId === recipe.id ? focusedCardRef : undefined}
+                  onClick={() => onSelect(recipe)}
+                  className={cn(
+                    "group cursor-pointer relative rounded-lg",
+                    focusedRecipeId === recipe.id && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                  )}
+                  data-tutorial="planner-sidebar-recipe"
+                >
                   <RecipeCardCompact
                     {...recipe}
                     difficulty={recipe.difficulty as any}
@@ -312,6 +354,8 @@ const FilterSelect = memo(({ label, value, onChange, children }: { label: string
     </Select>
   </div>
 ))
+
+FilterSelect.displayName = "FilterSelect"
 
 const EmptyState = ({ onClear }: { onClear: () => void }) => (
   <div className="flex flex-col items-center justify-center h-full text-center px-10 py-20">

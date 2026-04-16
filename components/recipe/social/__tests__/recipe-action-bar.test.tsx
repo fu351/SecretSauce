@@ -19,6 +19,8 @@ describe("RecipeActionBar", () => {
   const onToggleFavorite = vi.fn()
   const onLikeToggle = vi.fn()
   const onRepostToggle = vi.fn()
+  const onAddToBasket = vi.fn()
+  const onAddToPlanner = vi.fn()
   const fetchMock = vi.fn()
   beforeEach(() => {
     vi.clearAllMocks()
@@ -44,6 +46,8 @@ describe("RecipeActionBar", () => {
         repostCount={2}
         isReposted={false}
         onRepostToggle={onRepostToggle}
+        onAddToBasket={onAddToBasket}
+        onAddToPlanner={onAddToPlanner}
         friendLikes={[]}
         isAuthenticated
         isDark={false}
@@ -78,6 +82,8 @@ describe("RecipeActionBar", () => {
         repostCount={2}
         isReposted={false}
         onRepostToggle={onRepostToggle}
+        onAddToBasket={onAddToBasket}
+        onAddToPlanner={onAddToPlanner}
         friendLikes={[]}
         isAuthenticated
         isDark
@@ -107,6 +113,8 @@ describe("RecipeActionBar", () => {
         repostCount={1}
         isReposted={false}
         onRepostToggle={onRepostToggle}
+        onAddToBasket={onAddToBasket}
+        onAddToPlanner={onAddToPlanner}
         friendLikes={[
           { id: "friend_1", full_name: "Alice Baker", avatar_url: null, username: "alice" },
           { id: "friend_2", full_name: "Ben Cook", avatar_url: null, username: "ben" },
@@ -123,5 +131,59 @@ describe("RecipeActionBar", () => {
     await waitFor(() => {
       expect(screen.getByText("Copied!")).toBeInTheDocument()
     })
+  })
+
+  it("adds the recipe to the basket", async () => {
+    const user = userEvent.setup()
+
+    render(
+      <RecipeActionBar
+        recipeId="recipe_4"
+        isFavorite={false}
+        isTogglingFavorite={false}
+        onToggleFavorite={onToggleFavorite}
+        likeCount={0}
+        isLiked={false}
+        onLikeToggle={onLikeToggle}
+        repostCount={0}
+        isReposted={false}
+        onRepostToggle={onRepostToggle}
+        onAddToBasket={onAddToBasket}
+        onAddToPlanner={onAddToPlanner}
+        friendLikes={[]}
+        isAuthenticated
+        isDark={false}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /add to basket/i }))
+    expect(onAddToBasket).toHaveBeenCalledTimes(1)
+  })
+
+  it("adds the recipe to the planner", async () => {
+    const user = userEvent.setup()
+
+    render(
+      <RecipeActionBar
+        recipeId="recipe_5"
+        isFavorite={false}
+        isTogglingFavorite={false}
+        onToggleFavorite={onToggleFavorite}
+        likeCount={0}
+        isLiked={false}
+        onLikeToggle={onLikeToggle}
+        repostCount={0}
+        isReposted={false}
+        onRepostToggle={onRepostToggle}
+        onAddToBasket={onAddToBasket}
+        onAddToPlanner={onAddToPlanner}
+        friendLikes={[]}
+        isAuthenticated
+        isDark={false}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /add to planner/i }))
+    expect(onAddToPlanner).toHaveBeenCalledTimes(1)
   })
 })

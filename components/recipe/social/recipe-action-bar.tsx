@@ -3,8 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, ThumbsUp, Repeat2, Link2, Check } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Heart, ThumbsUp, Repeat2, Link2, Check, ShoppingCart, Zap } from "lucide-react"
 import clsx from "clsx"
 
 type FriendProfile = {
@@ -28,6 +27,10 @@ interface RecipeActionBarProps {
   repostCount: number
   isReposted: boolean
   onRepostToggle: (reposted: boolean, newCount: number) => void
+  // Basket
+  onAddToBasket: () => void
+  // Planner
+  onAddToPlanner: () => void
   // Friends
   friendLikes: FriendProfile[]
   // Misc
@@ -80,6 +83,8 @@ export function RecipeActionBar({
   repostCount,
   isReposted,
   onRepostToggle,
+  onAddToBasket,
+  onAddToPlanner,
   friendLikes,
   isAuthenticated,
   isDark,
@@ -207,6 +212,30 @@ export function RecipeActionBar({
           <span data-testid={`recipe-repost-count-${recipeId}`}>
             {repostCount > 0 ? repostCount : "Repost"}
           </span>
+        </button>
+
+        {/* Basket */}
+        <button
+          data-testid={`recipe-basket-button-${recipeId}`}
+          className={neutralClass}
+          onClick={onAddToBasket}
+          title="Add to basket"
+          aria-label="Add to basket"
+        >
+          <ShoppingCart className="h-4 w-4" />
+          <span>Add to Basket</span>
+        </button>
+
+        {/* Planner */}
+        <button
+          data-testid={`recipe-planner-button-${recipeId}`}
+          className={neutralClass}
+          onClick={onAddToPlanner}
+          title="Add to planner"
+          aria-label="Add to planner"
+        >
+          <Zap className="h-4 w-4" />
+          <span>Add to Planner</span>
         </button>
 
         {/* Share / copy link */}

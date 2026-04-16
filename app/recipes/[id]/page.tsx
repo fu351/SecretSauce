@@ -307,18 +307,47 @@ export default function RecipeDetailPage() {
     }
   }
 
-  // --- UPDATED HANDLER: Using useShoppingList hook with new API ---
-  const handleAddToShoppingList = async () => {
+  const handleAddToBasket = async () => {
     if (!user || !recipe) {
       if (!user) {
-        toast({ title: "Sign in required", description: "Please sign in to manage your shopping list.", variant: "destructive" })
+        toast({
+          title: "Sign in required",
+          description: "Please sign in to add recipes to your basket.",
+          variant: "destructive",
+        })
       }
       return
     }
 
-    // Add recipe to cart - servings will be fetched from the recipe table
-    // Toast and error handling is managed inside the hook
-    await addRecipeToCart(recipe.id)
+    try {
+      await addRecipeToCart(recipe.id, recipe.servings || 1)
+      toast({
+        title: "Added to basket",
+        description: `${recipe.title} was added to your basket.`,
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to add recipe to basket"
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAddToPlanner = async () => {
+    if (!user || !recipe) {
+      if (!user) {
+        toast({
+          title: "Sign in required",
+          description: "Please sign in to add recipes to the planner.",
+          variant: "destructive",
+        })
+      }
+      return
+    }
+
+    router.push(`/meal-planner?recipeId=${encodeURIComponent(recipe.id)}`)
   }
 
   const getTotalTime = () => {
@@ -435,6 +464,8 @@ export default function RecipeDetailPage() {
               repostCount={repostCount}
               isReposted={isReposted}
               onRepostToggle={(reposted, count) => { setIsReposted(reposted); setRepostCount(count) }}
+              onAddToBasket={handleAddToBasket}
+              onAddToPlanner={handleAddToPlanner}
               friendLikes={friendLikes}
               isAuthenticated={!!user}
               isDark={isDark}
@@ -565,13 +596,13 @@ export default function RecipeDetailPage() {
                   >
                     <Button
                       size="sm"
-                      onClick={handleAddToShoppingList}
+                      onClick={handleAddToBasket}
                       disabled={!allIngredientsLinked}
                       data-tutorial="recipe-add-to-cart"
                       className={`${primaryButtonClass} w-full sm:w-auto`}
                     >
                       <ShoppingCart className="w-4 h-4 mr-2" />
-                      Add to cart
+                      Add to Basket
                     </Button>
                   </span>
                 )}
