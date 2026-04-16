@@ -28,11 +28,12 @@ function Avatar({ profile }: { profile: ProfileSummary }) {
     ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "?"
 
+  const label = profile.username ?? profile.full_name?.split(" ")[0] ?? "Chef"
+
   return (
     <Link
-      href={profile.username ? `/user/${profile.username}` : "#"}
-      title={profile.full_name ?? "Chef"}
-      className="flex-shrink-0"
+      href={`/user/${profile.username ?? profile.id}`}
+      className="flex flex-col items-center gap-1 flex-shrink-0"
     >
       {profile.avatar_url ? (
         <Image
@@ -47,6 +48,9 @@ function Avatar({ profile }: { profile: ProfileSummary }) {
           {initials}
         </div>
       )}
+      <span className="text-[10px] text-muted-foreground truncate w-10 text-center leading-none">
+        {label}
+      </span>
     </Link>
   )
 }

@@ -18,6 +18,7 @@ export type ProfileSummary = {
   full_name: string | null
   avatar_url: string | null
   is_private: boolean
+  username: string | null
 }
 
 class FollowTable extends BaseTable<
@@ -193,7 +194,7 @@ class FollowTable extends BaseTable<
       .select(`
         follower_id,
         profiles!follow_requests_follower_id_fkey (
-          id, full_name, avatar_url, is_private
+          id, full_name, avatar_url, is_private, username
         )
       `)
       .eq("following_id", profileId)
@@ -222,7 +223,7 @@ class FollowTable extends BaseTable<
       .select(`
         following_id,
         profiles!follow_requests_following_id_fkey (
-          id, full_name, avatar_url, is_private
+          id, full_name, avatar_url, is_private, username
         )
       `)
       .eq("follower_id", profileId)
@@ -251,7 +252,7 @@ class FollowTable extends BaseTable<
       .select(`
         id, follower_id, following_id, status, created_at, updated_at,
         profiles!follow_requests_follower_id_fkey (
-          id, full_name, avatar_url, is_private
+          id, full_name, avatar_url, is_private, username
         )
       `)
       .eq("following_id", profileId)

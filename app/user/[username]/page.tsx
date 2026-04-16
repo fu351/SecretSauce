@@ -19,11 +19,21 @@ export default async function UserProfilePage({ params }: Props) {
 
   const supabase = createServiceSupabaseClient()
 
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from("profiles")
     .select("id, full_name, avatar_url, is_private, username")
     .eq("username", username)
     .maybeSingle()
+
+  // Fall back to ID-based lookup (e.g. when a user has no username set)
+  if (!profile) {
+    const { data: byId } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url, is_private, username")
+      .eq("id", username)
+      .maybeSingle()
+    profile = byId
+  }
 
   if (!profile) notFound()
 
