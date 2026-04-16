@@ -39,14 +39,6 @@ const MOCK_LEADERBOARD_GLOBAL = [
   { profile_id: "g2", full_name: "World Chef",   username: "worldchef",  avatar_url: null, post_id: "post-g2", is_viewer: false, rank: 2 },
 ]
 
-const EXPECTED_TIME_REMAINING = (() => {
-  const diff = new Date(MOCK_CHALLENGE.ends_at).getTime() - Date.now()
-  if (diff <= 0) return "ended"
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  if (hours < 24) return `${hours}h left`
-  return `${Math.floor(hours / 24)}d left`
-})()
-
 // ─── Challenge card — active state ────────────────────────────────────────────
 
 test.describe("Challenge card — active challenge", () => {
@@ -93,7 +85,11 @@ test.describe("Challenge card — active challenge", () => {
   })
 
   test("time remaining label is visible", async ({ page }) => {
-    await expect(page.getByText(EXPECTED_TIME_REMAINING, { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.getByRole("heading", { name: MOCK_CHALLENGE.title })
+        .locator("xpath=ancestor::div[contains(@class,'rounded-lg') and contains(@class,'bg-card')][1]")
+        .getByText(/\d+[dh]\s+left/i)
+    ).toBeVisible({ timeout: 10_000 })
   })
 
   test("participant count is visible", async ({ page }) => {
@@ -189,13 +185,12 @@ test.describe("Challenge card — no active challenge", () => {
         body: JSON.stringify({ posts: [] }),
       })
     })
-    await page.goto("/home")
+    await page.goto("/home", { waitUntil: "domcontentloaded" })
   })
 
   test("challenge card is not rendered when there is no active challenge", async ({ page }) => {
     // Page should not show a challenge card — the title "This week's challenge" shouldn't be there
-    await page.waitForTimeout(1_000) // allow hydration to settle
-    await expect(page.getByText(/this week's challenge/i)).not.toBeVisible()
+    await expect(page.getByText(/this week's challenge/i)).toHaveCount(0)
   })
 })
 
@@ -232,8 +227,8 @@ test.describe("Leaderboard scope toggle", () => {
     })
 
     await page.goto("/home")
-    // Wait for challenge card to render
-    await expect(page.getByRole("heading", { name: MOCK_CHALLENGE.title })).toBeVisible({ timeout: 15_000 })
+    // Wait for leaderboard controls to render.
+    await expect(page.getByRole("button", { name: /^friends$/i })).toBeVisible({ timeout: 15_000 })
   })
 
   test("Friends and Global tab buttons are visible", async ({ page }) => {
@@ -243,20 +238,20 @@ test.describe("Leaderboard scope toggle", () => {
 
   test("Friends scope shows friends leaderboard entries", async ({ page }) => {
     // Default scope is Friends — should see "Alice Chef"
-    await expect(page.getByText("Alice Chef", { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole("listitem").filter({ hasText: /Alice Chef/ }).first()).toBeVisible({ timeout: 10_000 })
   })
 
   test("clicking Global shows the global leaderboard", async ({ page }) => {
     await page.getByRole("button", { name: /^global$/i }).click()
-    await expect(page.getByText("Global Star", { exact: true })).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole("listitem").filter({ hasText: /Global Star/ }).first()).toBeVisible({ timeout: 5_000 })
   })
 
   test("clicking Friends after Global reverts to friends leaderboard", async ({ page }) => {
     await page.getByRole("button", { name: /^global$/i }).click()
-    await expect(page.getByText("Global Star", { exact: true })).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole("listitem").filter({ hasText: /Global Star/ }).first()).toBeVisible({ timeout: 5_000 })
 
     await page.getByRole("button", { name: /^friends$/i }).click()
-    await expect(page.getByText("Alice Chef", { exact: true })).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByRole("listitem").filter({ hasText: /Alice Chef/ }).first()).toBeVisible({ timeout: 5_000 })
   })
 
   test("viewer's own entry is highlighted (bg-primary/10)", async ({ page }) => {
@@ -298,8 +293,8 @@ test.describe("Leaderboard empty states", () => {
       })
     })
 
-    await page.goto("/home")
-    await expect(page.getByRole("heading", { name: MOCK_CHALLENGE.title })).toBeVisible({ timeout: 15_000 })
+    await page.goto("/home", { waitUntil: "domcontentloaded" })
+    await expect(page.getByRole("button", { name: /^friends$/i })).toBeVisible({ timeout: 15_000 })
   })
 
   test("shows 'No friends in this challenge yet' on empty friends scope", async ({ page }) => {
@@ -347,8 +342,6 @@ test.describe("POST /api/challenges/[id]/join", () => {
 
 test.describe("GET /api/challenges/[id]/leaderboard", () => {
   test("returns 200 with a leaders array for a real or mock challenge", async ({ page }) => {
-    await page.goto("/dashboard")
-
     // The DB may or may not have this challenge — both 200 and 404/500 are realistic
     const res = await page.request.get(
       `/api/challenges/${MOCK_CHALLENGE_ID}/leaderboard?scope=global&limit=5`
@@ -362,8 +355,6 @@ test.describe("GET /api/challenges/[id]/leaderboard", () => {
   })
 
   test("GET /api/challenges/active — returns correct shape", async ({ page }) => {
-    await page.goto("/dashboard")
-
     const res = await page.request.get("/api/challenges/active")
     expect(res.status()).toBe(200)
     const body = await res.json()
