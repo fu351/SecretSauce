@@ -149,6 +149,7 @@ export default function RecipeDetailPage() {
     ? "bg-primary text-primary-foreground hover:bg-primary/90"
     : "bg-orange-500 hover:bg-orange-600"
   const isRecipeOwner = Boolean(user && recipe && user.id === recipe.author_id)
+  const recipeImageUrl = getRecipeImageUrl(recipe?.image_url ?? recipe?.content?.image_url)
 
   // True only when every ingredient has been matched to a standardized entry.
   // Unmatched ingredients can't be priced or added to a shopping list.
@@ -410,12 +411,12 @@ export default function RecipeDetailPage() {
           <div className="lg:w-3/5 w-full flex flex-col">
             <div
               className={clsx(
-                "relative overflow-hidden rounded-2xl shadow-xl",
-                isDark ? "border border-border" : "border border-white/40",
+                "relative aspect-[4/3] w-full overflow-hidden rounded-2xl shadow-xl",
+                isDark ? "border border-border bg-card" : "border border-white/40 bg-gray-100",
               )}
             >
               <Image
-                src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
+                src={recipeImageUrl}
                 alt={recipe.title}
                 fill
                 sizes="(min-width: 1024px) 60vw, 100vw"
