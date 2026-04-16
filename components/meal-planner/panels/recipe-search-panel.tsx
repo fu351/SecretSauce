@@ -96,13 +96,6 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
     setSearchTerm(initialSearchTerm)
   }, [initialSearchTerm])
 
-  useEffect(() => {
-    if (!focusedRecipeId) return
-    const el = focusedCardRef.current
-    if (!el) return
-    el.scrollIntoView({ block: "center", behavior: "smooth" })
-  }, [focusedRecipeId, loadingAllRecipes, loadingFavorites])
-
   // Removed metadata fetching - now using constants from @/lib/types/recipe/constants
 
   // 2. CACHE FAVORITES
@@ -149,6 +142,13 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
       return 0
     })
   }, [displayRecipes, focusedRecipeId])
+
+  useEffect(() => {
+    if (!focusedRecipeId) return
+    const el = focusedCardRef.current
+    if (!el) return
+    el.scrollIntoView({ block: "center", behavior: "smooth" })
+  }, [focusedRecipeId, loading, loadingFavorites])
 
   const handleClearFilters = useCallback(() => {
     setSearchInput("")

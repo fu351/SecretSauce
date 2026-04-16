@@ -22,6 +22,7 @@ import { WeeklyView } from "@/components/meal-planner/views/weekly-view"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
 import { RecipeDetailModal } from "@/components/recipe/detail/recipe-detail-modal"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { ToastAction } from "@/components/ui/toast"
 
 import { cn } from "@/lib/utils"
 import { mealPlannerDB } from "@/lib/database/meal-planner-db"
@@ -74,7 +75,7 @@ export default function MealPlannerPage() {
 function MealPlannerPageContent() {
   const { user } = useAuth()
   const isMobile = useIsMobile()
-  const { toast } = useToast()
+  const { toast, dismiss } = useToast()
   const shoppingList = useShoppingList()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -90,6 +91,7 @@ function MealPlannerPageContent() {
   const [heuristicPlanLoading, setHeuristicPlanLoading] = useState(false)
   const [plannerRecipeToOpen, setPlannerRecipeToOpen] = useState<Recipe | null>(null)
   const [plannerRecipeSearchTerm, setPlannerRecipeSearchTerm] = useState("")
+  const plannerPromptToastIdRef = useRef<string | null>(null)
 
   // Custom hooks
   const {
@@ -185,19 +187,22 @@ function MealPlannerPageContent() {
 
   const plannerRecipeId = searchParams.get("recipeId")
 
-  useEffect(() => {
-    if (plannerRecipeId) {
-      setShowRecipeSidebar(true)
+  const clearPlannerRecipePrompt = useCallback(() => {
+    if (plannerPromptToastIdRef.current) {
+      dismiss(plannerPromptToastIdRef.current)
+      plannerPromptToastIdRef.current = null
     }
-  }, [plannerRecipeId])
+    setPlannerRecipeToOpen(null)
+    setPlannerRecipeSearchTerm("")
+    router.replace("/meal-planner")
+  }, [dismiss, router])
 
   useEffect(() => {
     let cancelled = false
 
     const loadPlannerRecipe = async () => {
       if (!plannerRecipeId) {
-        setPlannerRecipeToOpen(null)
-        setPlannerRecipeSearchTerm("")
+        clearPlannerRecipePrompt()
         return
       }
 
@@ -215,8 +220,24 @@ function MealPlannerPageContent() {
           return
         }
 
+        if (plannerPromptToastIdRef.current) {
+          dismiss(plannerPromptToastIdRef.current)
+          plannerPromptToastIdRef.current = null
+        }
+
         setPlannerRecipeToOpen(recipe)
         setPlannerRecipeSearchTerm(recipe.title)
+        const promptToast = toast({
+          title: "Recipe ready",
+          description: `Click an empty card to apply "${recipe.title}" to the planner.`,
+          duration: Infinity,
+          action: (
+            <ToastAction altText="Cancel planner recipe prompt" onClick={clearPlannerRecipePrompt}>
+              Cancel
+            </ToastAction>
+          ),
+        })
+        plannerPromptToastIdRef.current = promptToast.id
       } catch (error) {
         if (cancelled) return
         const errorMessage = error instanceof Error ? error.message : "Failed to load recipe for planner"
@@ -233,7 +254,7 @@ function MealPlannerPageContent() {
     return () => {
       cancelled = true
     }
-  }, [plannerRecipeId, router, toast])
+  }, [clearPlannerRecipePrompt, dismiss, plannerRecipeId, toast])
 
   const handleGenerateHeuristicPlan = useCallback(async () => {
     if (!user?.id) return
@@ -356,9 +377,7 @@ function MealPlannerPageContent() {
           title: "Added to planner",
           description: `${plannerRecipeToOpen.title} was placed on ${date}.`,
         })
-        router.replace("/meal-planner")
-        setPlannerRecipeToOpen(null)
-        setPlannerRecipeSearchTerm("")
+        clearPlannerRecipePrompt()
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to add recipe to planner"
         toast({
@@ -368,7 +387,7 @@ function MealPlannerPageContent() {
         })
       }
     },
-    [addToMealPlan, meals, openRecipeSelector, plannerRecipeToOpen, router, toast]
+    [addToMealPlan, clearPlannerRecipePrompt, meals, openRecipeSelector, plannerRecipeToOpen, toast]
   )
 
   const handleRemoveFromGrid = useCallback(
