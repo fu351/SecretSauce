@@ -21,6 +21,7 @@ const TABLES = [
       { name: "meal_schedule", description: "User meal planning" },
       { name: "pantry_items", description: "User pantry inventory" },
       { name: "shopping_list_items", description: "Shopping list items" },
+      { name: "delivery_orders", description: "Delivery fee summaries by order" },
       { name: "recipe_favorites", description: "User favorite recipes" },
       { name: "recipe_reviews", description: "Recipe ratings and reviews" },
       { name: "feedback", description: "User feedback messages" },

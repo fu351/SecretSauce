@@ -269,6 +269,23 @@ class StoreListHistoryTable extends BaseTable<
   }
 
   /**
+   * Set delivery confirmation for every log entry in an order.
+   */
+  async setDeliveryConfirmationByOrderId(orderId: string, confirmed: boolean): Promise<boolean> {
+    const { error } = await this.supabase
+      .from(this.tableName)
+      .update({ is_delivery_confirmed: confirmed })
+      .eq("order_id", orderId)
+
+    if (error) {
+      this.handleError(error, `setDeliveryConfirmationByOrderId(${orderId}, ${confirmed})`)
+      return false
+    }
+
+    return true
+  }
+
+  /**
    * Delete expired entries
    */
   async deleteExpired(): Promise<number> {

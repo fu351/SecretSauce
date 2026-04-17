@@ -130,6 +130,19 @@ export default async function DevPage() {
             </p>
           </Link>
 
+          {/* Delivery Manager */}
+          <Link
+            href="/dev/deliveries"
+            className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg"
+          >
+            <h3 className="text-lg font-semibold text-gray-900">
+              🚚 Delivery Manager
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Inspect delivery orders and update confirmation status
+            </p>
+          </Link>
+
           {/* Feature Flags */}
           <Link
             href="/dev/feature-flags"
