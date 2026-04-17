@@ -226,6 +226,7 @@ export type Database = {
           longitude: number | null
           email_verified: boolean | null
           clerk_user_id: string | null
+          username: string | null
           subscription_tier: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at: string | null
           subscription_expires_at: string | null
@@ -234,6 +235,9 @@ export type Database = {
           stripe_subscription_id: string | null
           stripe_price_id: string | null
           stripe_current_period_end: string | null
+          is_private: boolean
+          follower_count: number
+          following_count: number
         }
         Insert: {
           id: string
@@ -263,6 +267,7 @@ export type Database = {
           longitude?: number | null
           email_verified?: boolean | null
           clerk_user_id?: string | null
+          username?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at?: string | null
           subscription_expires_at?: string | null
@@ -271,6 +276,9 @@ export type Database = {
           stripe_subscription_id?: string | null
           stripe_price_id?: string | null
           stripe_current_period_end?: string | null
+          is_private?: boolean
+          follower_count?: number
+          following_count?: number
         }
         Update: {
           id?: string
@@ -300,6 +308,7 @@ export type Database = {
           longitude?: number | null
           email_verified?: boolean | null
           clerk_user_id?: string | null
+          username?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"] | null
           subscription_started_at?: string | null
           subscription_expires_at?: string | null
@@ -308,6 +317,156 @@ export type Database = {
           stripe_subscription_id?: string | null
           stripe_price_id?: string | null
           stripe_current_period_end?: string | null
+          is_private?: boolean
+          follower_count?: number
+          following_count?: number
+        }
+      }
+      follow_requests: {
+        Row: {
+          id: string
+          follower_id: string
+          following_id: string
+          status: Database["public"]["Enums"]["follow_request_status"]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          follower_id: string
+          following_id: string
+          status?: Database["public"]["Enums"]["follow_request_status"]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          follower_id?: string
+          following_id?: string
+          status?: Database["public"]["Enums"]["follow_request_status"]
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      posts: {
+        Row: {
+          id: string
+          author_id: string
+          image_url: string
+          title: string
+          caption: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          author_id: string
+          image_url: string
+          title: string
+          caption?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          author_id?: string
+          image_url?: string
+          title?: string
+          caption?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      post_likes: {
+        Row: {
+          id: string
+          post_id: string
+          profile_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          profile_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          profile_id?: string
+          created_at?: string
+        }
+      }
+      post_reposts: {
+        Row: {
+          id: string
+          post_id: string
+          profile_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          profile_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          profile_id?: string
+          created_at?: string
+        }
+      }
+      challenges: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          points: number
+          starts_at: string
+          ends_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          points?: number
+          starts_at: string
+          ends_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          points?: number
+          starts_at?: string
+          ends_at?: string
+          created_at?: string
+        }
+      }
+      challenge_entries: {
+        Row: {
+          id: string
+          challenge_id: string
+          profile_id: string
+          post_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          challenge_id: string
+          profile_id: string
+          post_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          challenge_id?: string
+          profile_id?: string
+          post_id?: string | null
+          created_at?: string
         }
       }
       recipes: {
@@ -993,6 +1152,46 @@ export type Database = {
           created_at?: string | null
         }
       }
+      recipe_likes: {
+        Row: {
+          id: string
+          recipe_id: string
+          profile_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          recipe_id: string
+          profile_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          recipe_id?: string
+          profile_id?: string
+          created_at?: string
+        }
+      }
+      recipe_reposts: {
+        Row: {
+          id: string
+          recipe_id: string
+          profile_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          recipe_id: string
+          profile_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          recipe_id?: string
+          profile_id?: string
+          created_at?: string
+        }
+      }
       feedback: {
         Row: {
           id: string
@@ -1249,6 +1448,9 @@ export type Database = {
         }
       }
     }
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
       calculate_recipe_cost: {
         Args: {
@@ -1463,6 +1665,7 @@ export type Database = {
       unit_category: "weight" | "volume" | "count" | "other"
       unit_label: "oz" | "lb" | "fl oz" | "ml" | "gal" | "ct" | "each" | "bunch" | "gram" | "unit"
       subscription_tier: "free" | "premium"
+      follow_request_status: "pending" | "accepted" | "rejected"
       admin_role: "admin" | "analyst"
       experiment_status: "draft" | "scheduled" | "active" | "paused" | "completed" | "archived"
       allocation_method: "random" | "weighted" | "deterministic"

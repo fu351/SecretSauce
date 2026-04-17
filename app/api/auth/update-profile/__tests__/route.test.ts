@@ -76,6 +76,31 @@ describe('PATCH /api/auth/update-profile', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 for malformed JSON', async () => {
+    mockAuth.mockResolvedValue({ userId: 'user_123' })
+    const res = await PATCH(
+      new Request('http://localhost/api/auth/update-profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"full_name":',
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: 'Invalid request body' })
+  })
+
+  it('returns 400 for an empty body', async () => {
+    mockAuth.mockResolvedValue({ userId: 'user_123' })
+    const res = await PATCH(
+      new Request('http://localhost/api/auth/update-profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: 'No valid fields to update' })
+  })
+
   it('returns 400 when the body contains only non-allowlisted fields', async () => {
     mockAuth.mockResolvedValue({ userId: 'user_123' })
     const res = await PATCH(
@@ -210,5 +235,15 @@ describe('PATCH /api/auth/update-profile', () => {
 
     const res = await PATCH(makeRequest({ full_name: 'Test' }))
     expect(res.status).toBe(500)
+  })
+
+  it('treats aborted requests as benign disconnects', async () => {
+    mockAuth.mockResolvedValue({ userId: 'user_123' })
+    mockChain.update.mockImplementation(() => {
+      throw Object.assign(new Error('aborted'), { code: 'ECONNRESET' })
+    })
+
+    const res = await PATCH(makeRequest({ full_name: 'Test' }))
+    expect(res.status).toBe(204)
   })
 })

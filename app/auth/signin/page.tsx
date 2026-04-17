@@ -2,10 +2,11 @@
 
 import type React from "react"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useSignIn } from "@clerk/nextjs"
+import { useAuth as useAppAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -86,6 +87,7 @@ export default function SignInPage() {
   const [availableSecondFactors, setAvailableSecondFactors] = useState<SupportedSecondFactor[]>([])
 
   const { isLoaded, signIn, setActive } = useSignIn()
+  const { user, loading: authLoading } = useAppAuth()
   const { toast } = useToast()
   const router = useRouter()
 
@@ -95,6 +97,11 @@ export default function SignInPage() {
     () => availableSecondFactors.find((factor) => factor.strategy === secondFactorStrategy) ?? null,
     [availableSecondFactors, secondFactorStrategy]
   )
+
+  useEffect(() => {
+    if (authLoading || !user || loading) return
+    router.replace("/dashboard")
+  }, [authLoading, loading, router, user])
 
   const completeSignIn = async (createdSessionId: string | null) => {
     if (!createdSessionId) {

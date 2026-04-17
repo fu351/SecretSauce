@@ -20,9 +20,9 @@ vi.mock('@/lib/auth/clerk-profile-id', () => ({
   profileIdFromClerkUserId: vi.fn(() => 'deterministic-uuid-123'),
 }))
 
-const { mockFrom, mockUpdate } = vi.hoisted(() => ({
+const { mockFrom, mockSingleForUpdate } = vi.hoisted(() => ({
   mockFrom: vi.fn(),
-  mockUpdate: vi.fn(),
+  mockSingleForUpdate: vi.fn(),
 }))
 vi.mock('@/lib/database/supabase-server', () => ({
   createServiceSupabaseClient: vi.fn(() => ({ from: mockFrom })),
@@ -41,7 +41,7 @@ const createUpdateChain = () => ({
   update: vi.fn().mockReturnValue({
     eq: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({
-        single: mockUpdate,
+        single: mockSingleForUpdate,
       }),
     }),
   }),
@@ -66,6 +66,7 @@ const clerkUser = {
   lastName: 'Doe',
   fullName: 'Jane Doe',
   imageUrl: 'https://example.com/avatar.png',
+  unsafeMetadata: { username: 'janedoe' },
 }
 
 // ---------------------------------------------------------------------------
@@ -75,12 +76,12 @@ const clerkUser = {
 describe('POST /api/auth/ensure-profile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUpdate.mockResolvedValue({ data: null, error: null })
+    mockSingleForUpdate.mockResolvedValue({ data: null, error: null })
   })
 
   it('returns 401 when not authenticated', async () => {
     mockAuth.mockResolvedValue({ userId: null })
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/auth/ensure-profile', { method: 'POST' }))
     expect(res.status).toBe(401)
     expect(await res.json()).toMatchObject({ error: 'Unauthorized' })
   })
@@ -90,7 +91,7 @@ describe('POST /api/auth/ensure-profile', () => {
     mockGetUser.mockResolvedValue({ ...clerkUser, emailAddresses: [], primaryEmailAddressId: null })
     mockFrom.mockReturnValueOnce(createSelectChain({ data: null, error: null }))
 
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/auth/ensure-profile', { method: 'POST' }))
     expect(res.status).toBe(400)
     expect(await res.json()).toMatchObject({ error: 'Missing primary Clerk email' })
   })
@@ -104,7 +105,7 @@ describe('POST /api/auth/ensure-profile', () => {
       .mockReturnValueOnce(createSelectChain({ data: existingProfile, error: null })) // select by clerk_user_id
       .mockReturnValueOnce(createUpdateChain())                                        // update
 
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/auth/ensure-profile', { method: 'POST' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.profile).toMatchObject({ id: 'existing-uuid', email: 'user@example.com' })
@@ -120,7 +121,7 @@ describe('POST /api/auth/ensure-profile', () => {
       .mockReturnValueOnce(createSelectChain({ data: profileByEmail, error: null }))   // select by email → hit
       .mockReturnValueOnce(createUpdateChain())                                         // update
 
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/auth/ensure-profile', { method: 'POST' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.profile).toMatchObject({ id: 'email-uuid' })
@@ -140,7 +141,7 @@ describe('POST /api/auth/ensure-profile', () => {
       .mockReturnValueOnce(createSelectChain({ data: null, error: null }))   // email miss
       .mockReturnValueOnce(createUpsertChain({ data: createdProfile, error: null })) // create
 
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/auth/ensure-profile', { method: 'POST' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.profile.id).toBe('deterministic-uuid-123')
@@ -156,8 +157,16 @@ describe('POST /api/auth/ensure-profile', () => {
       .mockReturnValueOnce(createSelectChain({ data: null, error: null }))
       .mockReturnValueOnce(createUpsertChain({ data: null, error: { message: 'DB error' } }))
 
-    const res = await POST()
+    const res = await POST(new Request('http://localhost/api/auth/ensure-profile', { method: 'POST' }))
     expect(res.status).toBe(500)
     expect(await res.json()).toMatchObject({ error: 'Failed to create profile' })
+  })
+
+  it('treats aborted requests as benign disconnects', async () => {
+    mockAuth.mockResolvedValue({ userId: 'user_123' })
+    mockGetUser.mockRejectedValue(Object.assign(new Error('aborted'), { code: 'ECONNRESET' }))
+
+    const res = await POST(new Request('http://localhost/api/auth/ensure-profile', { method: 'POST' }))
+    expect(res.status).toBe(204)
   })
 })

@@ -202,8 +202,11 @@ function toast({ ...props }: Toast) {
     },
   })
 
-  const t = setTimeout(() => dismiss(), TOAST_AUTO_DISMISS_MS)
-  autoDismissTimeouts.set(id, t)
+  const duration = props.duration ?? TOAST_AUTO_DISMISS_MS
+  if (Number.isFinite(duration) && duration > 0) {
+    const t = setTimeout(() => dismiss(), duration)
+    autoDismissTimeouts.set(id, t)
+  }
 
   return {
     id: id,

@@ -50,7 +50,7 @@ describe('CheckEmailPage', () => {
       forward: vi.fn(),
       refresh: vi.fn(),
     } as any)
-    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams('email=user%40example.com') as any)
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams('email=user%40example.com&username=chefhandle') as any)
 
     const mod = await import('../page')
     CheckEmailPage = mod.default
@@ -102,9 +102,10 @@ describe('CheckEmailPage', () => {
     mockAttemptVerification.mockResolvedValue({ status: 'complete', createdSessionId: 'sess_1' })
     mockSetActive.mockResolvedValue({})
     server.use(
-      http.post('/api/auth/ensure-profile', () =>
-        HttpResponse.json({ profile: { id: 'p_1', email: 'user@example.com', created_at: null } })
-      )
+      http.post('/api/auth/ensure-profile', async ({ request }) => {
+        expect(await request.json()).toMatchObject({ username: 'chefhandle' })
+        return HttpResponse.json({ profile: { id: 'p_1', email: 'user@example.com', created_at: null } })
+      })
     )
     render(<CheckEmailPage />)
     await user.type(screen.getByLabelText(/verification code/i), '123456')
@@ -139,7 +140,8 @@ describe('CheckEmailPage', () => {
     mockAttemptVerification.mockResolvedValue({ status: 'complete', createdSessionId: 'sess_1' })
     mockSetActive.mockResolvedValue({})
     server.use(
-      http.post('/api/auth/ensure-profile', () => {
+      http.post('/api/auth/ensure-profile', async ({ request }) => {
+        expect(await request.json()).toMatchObject({ username: 'chefhandle' })
         ensureProfileCalled = true
         return HttpResponse.json({ profile: { id: 'p_1', email: 'user@example.com', created_at: null } })
       })

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
+import { normalizeUsername, validateUsername } from "@/lib/auth/username"
+import { isAbortLikeError } from "@/lib/server/abort-error"
 
 export const runtime = "nodejs"
 
@@ -28,6 +30,8 @@ const USER_WRITABLE_FIELDS = new Set([
   "country",
   "latitude",
   "longitude",
+  "is_private",
+  "username",
 ])
 
 const PROFILE_SELECT = [
@@ -38,10 +42,33 @@ const PROFILE_SELECT = [
   "theme_preference", "tutorial_completed", "tutorial_completed_at",
   "formatted_address", "address_line1", "address_line2", "city", "state", "country",
   "latitude", "longitude",
+  "username",
   "subscription_tier", "subscription_status", "subscription_started_at",
   "subscription_expires_at", "stripe_customer_id", "stripe_subscription_id",
   "stripe_price_id", "stripe_current_period_end",
 ].join(", ")
+
+async function readJsonObject(req: Request): Promise<
+  | { ok: true; body: Record<string, unknown> }
+  | { ok: false }
+> {
+  const raw = await req.text()
+
+  if (!raw.trim()) {
+    return { ok: true, body: {} }
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return { ok: false }
+    }
+
+    return { ok: true, body: parsed as Record<string, unknown> }
+  } catch {
+    return { ok: false }
+  }
+}
 
 export async function PATCH(req: Request) {
   try {
@@ -51,10 +78,11 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    const parsedBody = await readJsonObject(req)
+    if (!parsedBody.ok) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
+    const body = parsedBody.body
 
     // Build update from allowlist only — unknown/sensitive fields are silently dropped
     const safeUpdates: Record<string, unknown> = {}
@@ -68,6 +96,15 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
     }
 
+    if (typeof safeUpdates.username === "string") {
+      const normalizedUsername = normalizeUsername(safeUpdates.username)
+      const usernameError = validateUsername(normalizedUsername)
+      if (usernameError) {
+        return NextResponse.json({ error: usernameError }, { status: 400 })
+      }
+      safeUpdates.username = normalizedUsername
+    }
+
     const supabase = createServiceSupabaseClient()
 
     const { data, error } = await supabase
@@ -78,6 +115,12 @@ export async function PATCH(req: Request) {
       .single()
 
     if (error || !data) {
+      if (error?.code === "23505") {
+        return NextResponse.json(
+          { error: "Username is already taken", detail: error.message },
+          { status: 409 }
+        )
+      }
       console.error("[update-profile] Failed to update profile:", { clerkUserId, error })
       return NextResponse.json(
         { error: "Failed to update profile", detail: error?.message ?? "no rows returned" },
@@ -87,6 +130,10 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ profile: data })
   } catch (error) {
+    if (isAbortLikeError(error)) {
+      return new NextResponse(null, { status: 204 })
+    }
+
     console.error("[update-profile] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

@@ -2,22 +2,22 @@
 
 import { useRef, useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Image from "next/image"
 import clsx from "clsx"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Clock, Users, Heart, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils, Pencil, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Clock, Users, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensils, Pencil, ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
 import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-info"
+import { RecipeActionBar } from "@/components/recipe/social/recipe-action-bar"
 import { useToast } from "@/hooks"
 import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
 import { TagSelector } from "@/components/recipe/tags/tag-selector"
 import { useShoppingList } from "@/hooks"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
-import { recipeDB } from "@/lib/database/recipe-db"
-import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
 import type { Recipe } from "@/lib/types"
 
 type RecipeIngredientView = Recipe["ingredients"][number] & {
@@ -99,6 +99,12 @@ export default function RecipeDetailPage() {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   const [cookingMode, setCookingMode] = useState(false)
   const [cookingStep, setCookingStep] = useState(0)
+  const [likeCount, setLikeCount] = useState(0)
+  const [isLiked, setIsLiked] = useState(false)
+  const [repostCount, setRepostCount] = useState(0)
+  const [isReposted, setIsReposted] = useState(false)
+  const [friendLikes, setFriendLikes] = useState<{ id: string; full_name: string | null; avatar_url: string | null; username: string | null }[]>([])
+  const [friendProfileIds, setFriendProfileIds] = useState<string[]>([])
   const { theme } = useTheme()
   const isDark = theme === "dark"
 
@@ -109,7 +115,6 @@ export default function RecipeDetailPage() {
       ? "bg-card text-foreground border-border hover:bg-card/90"
       : "bg-white/80 text-gray-700 border-gray-200 hover:bg-white/90 backdrop-blur-sm",
   )
-  const imageActionButtonClass = isDark ? "bg-card/80 text-foreground hover:bg-card" : "bg-white/90 hover:bg-white"
   const infoPanelClass = clsx(
     "shadow-lg rounded-2xl border",
     isDark ? "bg-card border-border" : "bg-white/90 backdrop-blur-sm border-0",
@@ -144,6 +149,7 @@ export default function RecipeDetailPage() {
     ? "bg-primary text-primary-foreground hover:bg-primary/90"
     : "bg-orange-500 hover:bg-orange-600"
   const isRecipeOwner = Boolean(user && recipe && user.id === recipe.author_id)
+  const recipeImageUrl = getRecipeImageUrl(recipe?.image_url ?? recipe?.content?.image_url)
 
   // True only when every ingredient has been matched to a standardized entry.
   // Unmatched ingredients can't be priced or added to a shopping list.
@@ -153,13 +159,63 @@ export default function RecipeDetailPage() {
     recipe.ingredients.every((ing: any) => ing.standardizedIngredientId ?? ing.standardized_ingredient_id)
 
   useEffect(() => {
-    if (params.id) {
-      loadRecipe()
-      if (user) {
-        checkIfFavorite()
+    if (!params.id) return
+
+    const recipeId = params.id as string
+
+    const loadSocialData = async () => {
+      try {
+        const res = await fetch(`/api/recipes/${recipeId}/social`)
+        if (!res.ok) return
+        const json = await res.json()
+        setLikeCount(json.likeCount ?? 0)
+        setIsLiked(json.isLiked ?? false)
+        setRepostCount(json.repostCount ?? 0)
+        setIsReposted(json.isReposted ?? false)
+        setFriendLikes(json.friendLikes ?? [])
+        setFriendProfileIds(json.friendProfileIds ?? [])
+      } catch {
+        // social data is non-critical, fail silently
       }
     }
-  }, [params.id, user])
+
+    const loadRecipe = async () => {
+      try {
+        const res = await fetch(`/api/recipes/${recipeId}`)
+        if (!res.ok) {
+          throw new Error("Recipe not found")
+        }
+        const json = await res.json()
+        if (!json.recipe) {
+          throw new Error("Recipe not found")
+        }
+        setRecipe(json.recipe)
+      } catch (error) {
+        console.error("Error loading recipe:", error)
+        router.push("/recipes")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    const checkIfFavorite = async () => {
+      if (!user) return
+
+      try {
+        const favorited = await recipeFavoritesDB.isFavorite(user.id, recipeId)
+        setIsFavorite(favorited)
+      } catch (error) {
+        console.error("Error checking if favorited:", error)
+        setIsFavorite(false)
+      }
+    }
+
+    void loadRecipe()
+    void loadSocialData()
+    if (user) {
+      void checkIfFavorite()
+    }
+  }, [params.id, router, user])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -216,57 +272,6 @@ export default function RecipeDetailPage() {
     return () => window.clearTimeout(t)
   }, [showSwipeHint])
 
-  const loadRecipe = async () => {
-    if (!params.id) {
-      return
-    }
-
-    try {
-      const [recipe, ingredients] = await Promise.all([
-        recipeDB.fetchRecipeById(params.id as string),
-        recipeIngredientsDB.findByRecipeIdWithStandardized(params.id as string)
-      ])
-
-      if (!recipe) {
-        throw new Error("Recipe not found")
-      }
-
-      const mappedIngredients = ingredients.map((ing) => ({
-        id: ing.id,
-        display_name: ing.display_name,
-        name: ing.display_name,
-        quantity: ing.quantity ?? undefined,
-        units: ing.units ?? undefined,
-        unit: ing.units ?? undefined,
-        standardizedIngredientId: ing.standardized_ingredient_id ?? undefined,
-        standardized_ingredient_id: ing.standardized_ingredient_id ?? undefined,
-        standardizedName: ing.standardized_ingredient?.canonical_name ?? undefined,
-      }))
-
-      setRecipe({
-        ...recipe,
-        ingredients: mappedIngredients.length > 0 ? mappedIngredients : recipe.ingredients
-      })
-    } catch (error) {
-      console.error("Error loading recipe:", error)
-      router.push("/recipes")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const checkIfFavorite = async () => {
-    if (!user || !params.id) return
-
-    try {
-      const favorited = await recipeFavoritesDB.isFavorite(user.id, params.id as string)
-      setIsFavorite(favorited)
-    } catch (error) {
-      console.error("Error checking if favorited:", error)
-      setIsFavorite(false)
-    }
-  }
-
   const toggleFavorite = async () => {
     if (!user) {
       toast({
@@ -302,18 +307,47 @@ export default function RecipeDetailPage() {
     }
   }
 
-  // --- UPDATED HANDLER: Using useShoppingList hook with new API ---
-  const handleAddToShoppingList = async () => {
+  const handleAddToBasket = async () => {
     if (!user || !recipe) {
       if (!user) {
-        toast({ title: "Sign in required", description: "Please sign in to manage your shopping list.", variant: "destructive" })
+        toast({
+          title: "Sign in required",
+          description: "Please sign in to add recipes to your basket.",
+          variant: "destructive",
+        })
       }
       return
     }
 
-    // Add recipe to cart - servings will be fetched from the recipe table
-    // Toast and error handling is managed inside the hook
-    await addRecipeToCart(recipe.id)
+    try {
+      await addRecipeToCart(recipe.id, recipe.servings || 1)
+      toast({
+        title: "Added to basket",
+        description: `${recipe.title} was added to your basket.`,
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to add recipe to basket"
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAddToPlanner = async () => {
+    if (!user || !recipe) {
+      if (!user) {
+        toast({
+          title: "Sign in required",
+          description: "Please sign in to add recipes to the planner.",
+          variant: "destructive",
+        })
+      }
+      return
+    }
+
+    router.push(`/meal-planner?recipeId=${encodeURIComponent(recipe.id)}`)
   }
 
   const getTotalTime = () => {
@@ -362,7 +396,7 @@ export default function RecipeDetailPage() {
         >
           <CardContent className="p-6 text-center space-y-4">
             <h2 className={clsx("text-2xl font-bold", isDark ? "text-foreground" : "text-gray-900")}>Recipe Not Found</h2>
-            <p className={clsx("mb-2", descriptionTextClass)}>The recipe you're looking for doesn't exist.</p>
+            <p className={clsx("mb-2", descriptionTextClass)}>The recipe you&apos;re looking for doesn&apos;t exist.</p>
             <Button onClick={() => router.push("/recipes")} className={primaryButtonClass}>
               Browse Recipes
             </Button>
@@ -403,36 +437,39 @@ export default function RecipeDetailPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 items-center">
-          <div className="lg:w-3/5 w-full">
+          <div className="lg:w-3/5 w-full flex flex-col">
             <div
               className={clsx(
-                "relative overflow-hidden rounded-2xl shadow-xl",
-                isDark ? "border border-border" : "border border-white/40",
+                "relative aspect-[4/3] w-full overflow-hidden rounded-2xl shadow-xl",
+                isDark ? "border border-border bg-card" : "border border-white/40 bg-gray-100",
               )}
             >
-              <img
-                src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
+              <Image
+                src={recipeImageUrl}
                 alt={recipe.title}
-                className="w-full h-[360px] sm:h-[420px] md:h-[500px] object-cover"
+                fill
+                sizes="(min-width: 1024px) 60vw, 100vw"
+                className="object-cover"
               />
-              <div className="absolute top-4 right-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  data-tutorial="recipe-favorite"
-                  className={clsx("transition-colors", imageActionButtonClass)}
-                  onClick={toggleFavorite}
-                  disabled={isTogglingFavorite}
-                >
-                  <Heart
-                    className={clsx(
-                      "h-4 w-4",
-                      isFavorite ? "fill-red-500 text-red-500" : isDark ? "text-foreground" : "text-gray-700",
-                    )}
-                  />
-                </Button>
-              </div>
             </div>
+
+            <RecipeActionBar
+              recipeId={recipe.id}
+              isFavorite={isFavorite}
+              isTogglingFavorite={isTogglingFavorite}
+              onToggleFavorite={toggleFavorite}
+              likeCount={likeCount}
+              isLiked={isLiked}
+              onLikeToggle={(liked, count) => { setIsLiked(liked); setLikeCount(count) }}
+              repostCount={repostCount}
+              isReposted={isReposted}
+              onRepostToggle={(reposted, count) => { setIsReposted(reposted); setRepostCount(count) }}
+              onAddToBasket={handleAddToBasket}
+              onAddToPlanner={handleAddToPlanner}
+              friendLikes={friendLikes}
+              isAuthenticated={!!user}
+              isDark={isDark}
+            />
           </div>
 
           <div className="lg:w-2/5 w-full">
@@ -559,13 +596,13 @@ export default function RecipeDetailPage() {
                   >
                     <Button
                       size="sm"
-                      onClick={handleAddToShoppingList}
+                      onClick={handleAddToBasket}
                       disabled={!allIngredientsLinked}
                       data-tutorial="recipe-add-to-cart"
                       className={`${primaryButtonClass} w-full sm:w-auto`}
                     >
                       <ShoppingCart className="w-4 h-4 mr-2" />
-                      Add to cart
+                      Add to Basket
                     </Button>
                   </span>
                 )}
@@ -679,7 +716,7 @@ export default function RecipeDetailPage() {
           )}
 
           <div className="w-full" data-tutorial="recipe-reviews">
-            <RecipeReviews recipeId={recipe.id} />
+            <RecipeReviews recipeId={recipe.id} friendProfileIds={friendProfileIds} />
           </div>
         </div>
       </div>

@@ -25,6 +25,10 @@ import IOSWebAppPromptBanner from "@/components/shared/ios-webapp-prompt-banner"
 import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
 import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
+import { ProfileCard } from "@/components/social/profile-card"
+import { ChallengeWidget } from "@/components/social/challenge-widget"
+import { FriendsWidget } from "@/components/social/friends-widget"
+import { NotificationsWidget } from "@/components/social/notifications-widget"
 
 interface DashboardStats {
   totalRecipes: number
@@ -52,9 +56,52 @@ export default function DashboardPage() {
   const isDark = theme === "dark"
 
   useEffect(() => {
-    if (user) {
-      loadDashboardData()
+    if (!user) return
+
+    const run = async () => {
+      try {
+        setLoading(true)
+
+        // Fetch recipes by author to get count
+        const userRecipes = await recipeDB.fetchRecipesByAuthor(user.id, { limit: 1000 })
+        const recipesCount = userRecipes.length
+
+        // Fetch favorite recipe IDs to get count
+        const favoriteIds = await recipeFavoritesDB.fetchFavoriteRecipeIds(user.id)
+        const favoritesCount = favoriteIds.length
+
+        // Fetch meal schedule for current week via week index
+        const now = new Date()
+        const currentWeekIndex = getYear(now) * 100 + getWeek(now, { weekStartsOn: 1 })
+        const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(user.id, currentWeekIndex)
+        const plannedMealsCount = mealSchedule.length
+
+        // Fetch shopping list items
+        const shoppingItems = await shoppingListDB.fetchUserItems(user.id)
+        const shoppingItemsCount = shoppingItems.length
+
+        setStats({
+          totalRecipes: recipesCount,
+          favoriteRecipes: favoritesCount,
+          plannedMeals: plannedMealsCount,
+          shoppingItems: shoppingItemsCount,
+        })
+
+        // Fetch recent recipes
+        const recentRecipesData = await recipeDB.fetchRecipesByAuthor(user.id, {
+          sortBy: "created_at",
+          limit: 3,
+        })
+
+        setRecentRecipes(recentRecipesData)
+      } catch (error) {
+        console.error("Error loading dashboard data:", error)
+      } finally {
+        setLoading(false)
+      }
     }
+
+    void run()
   }, [user])
 
   // Check if user needs to see tutorial prompt
@@ -70,14 +117,14 @@ export default function DashboardPage() {
   // Check if user should see iOS web app prompt
   useEffect(() => {
     // Only check on client side
-    if (typeof window === 'undefined') return
+    if (typeof window === "undefined") return
 
     // Check if iOS/Safari and not installed
     if (!shouldShowIOSPrompt()) return
 
     // Don't show if permanently dismissed
-    const dismissed = localStorage.getItem('ios_webapp_prompt_dismissed')
-    if (dismissed === 'true') return
+    const dismissed = localStorage.getItem("ios_webapp_prompt_dismissed")
+    if (dismissed === "true") return
 
     // Tutorial takes priority - don't show iOS prompt if tutorial should show
     if (profile && profile.tutorial_completed === false) {
@@ -91,51 +138,6 @@ export default function DashboardPage() {
       setShowIOSPrompt(true)
     }
   }, [profile])
-
-  const loadDashboardData = async () => {
-    if (!user) return
-
-    try {
-      setLoading(true)
-
-      // Fetch recipes by author to get count
-      const userRecipes = await recipeDB.fetchRecipesByAuthor(user.id, { limit: 1000 })
-      const recipesCount = userRecipes.length
-
-      // Fetch favorite recipe IDs to get count
-      const favoriteIds = await recipeFavoritesDB.fetchFavoriteRecipeIds(user.id)
-      const favoritesCount = favoriteIds.length
-
-      // Fetch meal schedule for current week via week index
-      const now = new Date()
-      const currentWeekIndex = getYear(now) * 100 + getWeek(now, { weekStartsOn: 1 })
-      const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(user.id, currentWeekIndex)
-      const plannedMealsCount = mealSchedule.length
-
-      // Fetch shopping list items
-      const shoppingItems = await shoppingListDB.fetchUserItems(user.id)
-      const shoppingItemsCount = shoppingItems.length
-
-      setStats({
-        totalRecipes: recipesCount,
-        favoriteRecipes: favoritesCount,
-        plannedMeals: plannedMealsCount,
-        shoppingItems: shoppingItemsCount,
-      })
-
-      // Fetch recent recipes
-      const recentRecipesData = await recipeDB.fetchRecipesByAuthor(user.id, {
-        sortBy: "created_at",
-        limit: 3,
-      })
-
-      setRecentRecipes(recentRecipesData)
-    } catch (error) {
-      console.error("Error loading dashboard data:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleDismissTutorialPrompt = () => {
     setShowTutorialPrompt(false)
@@ -153,8 +155,8 @@ export default function DashboardPage() {
 
   const handleDismissIOSPrompt = () => {
     setShowIOSPrompt(false)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ios_webapp_prompt_dismissed', 'true')
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ios_webapp_prompt_dismissed", "true")
     }
   }
 
@@ -183,7 +185,72 @@ export default function DashboardPage() {
             <h2 className="text-xl md:text-3xl font-serif font-light mb-1 md:mb-2 text-foreground">
               Welcome back, {user?.email?.split("@")[0]}!
             </h2>
-            <p className="text-sm md:text-base text-muted-foreground">Here's what's cooking in your kitchen</p>
+            <p className="text-sm md:text-base text-muted-foreground">Here&apos;s what&apos;s cooking in your kitchen</p>
+          </div>
+
+          {profile && <ProfileCard profile={profile} />}
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">
+            <Link href="/recipes?mine=true" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <ChefHat className="h-5 w-5 md:h-8 md:w-8 text-primary" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Your Recipes</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.totalRecipes}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Recipes created</p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/recipes?favorites=true" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <Heart className="h-5 w-5 md:h-8 md:w-8 text-red-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Favorites</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.favoriteRecipes}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Saved recipes</p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/meal-planner" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <Calendar className="h-5 w-5 md:h-8 md:w-8 text-blue-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Meal Plan</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.plannedMeals}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Meals this week</p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/store" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                <CardContent className="p-3 md:p-6">
+                  <div className="flex items-center justify-between mb-2 md:mb-4">
+                    <ShoppingCart className="h-5 w-5 md:h-8 md:w-8 text-green-500" />
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Shopping List</span>
+                  </div>
+                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.shoppingItems}</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Items to buy</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+
+          <ChallengeWidget />
+
+          {/* Social widgets */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <FriendsWidget />
+            <NotificationsWidget />
           </div>
 
           {/* Prominent Tutorial Prompt - Only shows if tutorial not completed */}
@@ -263,61 +330,6 @@ export default function DashboardPage() {
               onShowInstructions={() => setShowIOSInstallModal(true)}
             />
           ) : null}
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">
-            <Link href="/recipes?mine=true" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-center justify-between mb-2 md:mb-4">
-                    <ChefHat className="h-5 w-5 md:h-8 md:w-8 text-primary" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Your Recipes</span>
-                  </div>
-                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.totalRecipes}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Recipes created</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/recipes?favorites=true" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-center justify-between mb-2 md:mb-4">
-                    <Heart className="h-5 w-5 md:h-8 md:w-8 text-red-500" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Favorites</span>
-                  </div>
-                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.favoriteRecipes}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Saved recipes</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/meal-planner" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-center justify-between mb-2 md:mb-4">
-                    <Calendar className="h-5 w-5 md:h-8 md:w-8 text-blue-500" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Meal Plan</span>
-                  </div>
-                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.plannedMeals}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Meals this week</p>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Link href="/store" className="block">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                <CardContent className="p-3 md:p-6">
-                  <div className="flex items-center justify-between mb-2 md:mb-4">
-                    <ShoppingCart className="h-5 w-5 md:h-8 md:w-8 text-green-500" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Shopping List</span>
-                  </div>
-                  <p className="text-xl md:text-3xl font-bold text-foreground">{stats.shoppingItems}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Items to buy</p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
 
           {/* Graph Tracker */}
           <div data-tutorial="dashboard-actions">

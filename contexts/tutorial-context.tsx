@@ -169,23 +169,21 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   const completeTutorial = useCallback(async () => {
     if (!user) return
-    try {
-      const completedAt = new Date().toISOString()
+    const completedAt = new Date().toISOString()
 
+    setIsActive(false)
+    setTutorialCompleted(true)
+    setTutorialCompletedAt(completedAt)
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(TUTORIAL_STATE_KEY)
+      window.localStorage.removeItem(DISMISS_KEY)
+    }
+
+    try {
       await updateProfile({
         tutorial_completed: true,
         tutorial_completed_at: completedAt,
       })
-
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(TUTORIAL_STATE_KEY)
-        window.localStorage.removeItem(DISMISS_KEY)
-      }
-
-      setIsActive(false)
-      setTutorialCompleted(true)
-      setTutorialCompletedAt(completedAt)
-
       trackEvent("tutorial_completed", {
         steps_completed: flatSequence.length,
       })
@@ -245,7 +243,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   }, [currentSlotIndex, flatSequence, pathname, router])
 
   const skipTutorial = useCallback(async () => {
-    if (!user) return
     try {
       trackEvent("tutorial_skipped", {
         step_abandoned: currentSlotIndex,
@@ -259,7 +256,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error skipping tutorial:", error)
     }
-  }, [user, currentSlotIndex, trackEvent])
+  }, [currentSlotIndex, trackEvent])
 
   const resetTutorial = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -301,9 +298,15 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     setTutorialCompletedAt(profile.tutorial_completed_at ?? null)
 
     if (profile.tutorial_completed === true) {
-      setIsActive(false)
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(TUTORIAL_STATE_KEY)
+      // Respect an in-progress session (e.g. rewatch from Settings, or a test
+      // that seeded localStorage state). Only deactivate when there is no
+      // active localStorage state — otherwise the user's explicit restart gets
+      // silently cancelled the moment the profile response arrives.
+      const hasLocalState =
+        typeof window !== "undefined" &&
+        !!window.localStorage.getItem(TUTORIAL_STATE_KEY)
+      if (!hasLocalState) {
+        setIsActive(false)
       }
     }
   }, [profile])

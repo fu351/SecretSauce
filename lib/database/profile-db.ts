@@ -41,6 +41,7 @@ const PROFILE_SAFE_COLUMNS = [
   "longitude",
   "email_verified",
   "clerk_user_id",
+  "username",
   "subscription_tier",
   "subscription_started_at",
   "subscription_expires_at",
@@ -103,6 +104,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       longitude: dbItem.longitude ?? null,
       email_verified: dbItem.email_verified ?? null,
       clerk_user_id: dbItem.clerk_user_id ?? null,
+      username: dbItem.username ?? null,
       subscription_tier: dbItem.subscription_tier ?? null,
       subscription_started_at: dbItem.subscription_started_at ?? null,
       subscription_expires_at: dbItem.subscription_expires_at ?? null,
@@ -111,6 +113,9 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       stripe_subscription_id: dbItem.stripe_subscription_id ?? null,
       stripe_price_id: dbItem.stripe_price_id ?? null,
       stripe_current_period_end: dbItem.stripe_current_period_end ?? null,
+      is_private: dbItem.is_private ?? false,
+      follower_count: dbItem.follower_count ?? 0,
+      following_count: dbItem.following_count ?? 0,
     }
   }
 

@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import { useAuth } from "@/contexts/auth-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
 import { useHasAccess } from "@/hooks/use-subscription"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   useMealPlannerRecipes,
   useMealPlannerNutrition,
@@ -24,6 +24,7 @@ import { RecipeDetailModal } from "@/components/recipe/detail/recipe-detail-moda
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 
 import { cn } from "@/lib/utils"
+import { mealPlannerDB } from "@/lib/database/meal-planner-db"
 import type { Recipe } from "@/lib/types"
 
 type PlannerMealType = "breakfast" | "lunch" | "dinner"
@@ -76,6 +77,7 @@ function MealPlannerPageContent() {
   const { toast } = useToast()
   const shoppingList = useShoppingList()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { hasAccess: hasSmartPlannerAccess, loading: smartPlannerAccessLoading } = useHasAccess("premium")
 
   // State
@@ -86,6 +88,8 @@ function MealPlannerPageContent() {
   const [weekIndex, setWeekIndex] = useState(getCurrentWeekIndex())
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
   const [heuristicPlanLoading, setHeuristicPlanLoading] = useState(false)
+  const [plannerRecipeToOpen, setPlannerRecipeToOpen] = useState<Recipe | null>(null)
+  const [plannerRecipeSearchTerm, setPlannerRecipeSearchTerm] = useState("")
 
   // Custom hooks
   const {
@@ -109,8 +113,8 @@ function MealPlannerPageContent() {
 
   // 2. MEMOIZE DATA CALCULATIONS (needed for getNextEmptySlotAfter and nutrition)
   const weekDates = useMemo(() => getDatesForWeek(weekIndex), [weekIndex])
-  const weekDateStrings = useMemo(() =>
-    weekDates.map((d) => d.toISOString().split("T")[0]),
+  const weekDateStrings = useMemo(
+    () => weekDates.map((d) => d.toISOString().split("T")[0]),
     [weekDates]
   )
 
@@ -178,6 +182,54 @@ function MealPlannerPageContent() {
       toast({ title: "Error", variant: "destructive" })
     }
   }, [user, meals, shoppingList, toast, router])
+
+  const plannerRecipeId = searchParams.get("recipeId")
+
+  const clearPlannerRecipePrompt = useCallback(() => {
+    setPlannerRecipeToOpen(null)
+    setPlannerRecipeSearchTerm("")
+    router.replace("/meal-planner")
+  }, [router])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadPlannerRecipe = async () => {
+      if (!plannerRecipeId) return
+
+      try {
+        const [recipe] = await mealPlannerDB.fetchRecipesByIds([plannerRecipeId])
+        if (cancelled) return
+
+        if (!recipe) {
+          toast({
+            title: "Recipe not found",
+            description: "Could not load that recipe for the planner.",
+            variant: "destructive",
+          })
+          router.replace("/meal-planner")
+          return
+        }
+
+        setPlannerRecipeToOpen(recipe)
+        setPlannerRecipeSearchTerm(recipe.title)
+      } catch (error) {
+        if (cancelled) return
+        const errorMessage = error instanceof Error ? error.message : "Failed to load recipe for planner"
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      }
+    }
+
+    void loadPlannerRecipe()
+
+    return () => {
+      cancelled = true
+    }
+  }, [clearPlannerRecipePrompt, plannerRecipeId, router, toast])
 
   const handleGenerateHeuristicPlan = useCallback(async () => {
     if (!user?.id) return
@@ -277,6 +329,42 @@ function MealPlannerPageContent() {
     [openRecipeSelector]
   )
 
+  const handleApplyPendingRecipeToSlot = useCallback(
+    async (mealType: string, date: string) => {
+      if (!isPlannerMealType(mealType)) return
+      if (!plannerRecipeToOpen) {
+        openRecipeSelector(mealType, date)
+        return
+      }
+
+      const occupied = meals.some((meal) => meal.date === date && meal.meal_type === mealType)
+      if (occupied) {
+        toast({
+          title: "Slot occupied",
+          description: "Pick an empty card to place this recipe.",
+        })
+        return
+      }
+
+      try {
+        await addToMealPlan(plannerRecipeToOpen, mealType, date)
+        toast({
+          title: "Added to planner",
+          description: `${plannerRecipeToOpen.title} was placed on ${date}.`,
+        })
+        clearPlannerRecipePrompt()
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to add recipe to planner"
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      }
+    },
+    [addToMealPlan, clearPlannerRecipePrompt, meals, openRecipeSelector, plannerRecipeToOpen, toast]
+  )
+
   const handleRemoveFromGrid = useCallback(
     (mealType: string, date: string) => {
       if (!isPlannerMealType(mealType)) return
@@ -347,6 +435,8 @@ function MealPlannerPageContent() {
     if (focusMode) setShowRecipeSidebar(true)
   }, [focusMode])
 
+  const showPlannerPrompt = plannerRecipeToOpen !== null
+
   return (
     <DndContext
       sensors={dnd.sensors}
@@ -371,21 +461,44 @@ function MealPlannerPageContent() {
             data-tutorial-scroll-root="page"
           >
             <div className="max-w-7xl mx-auto will-change-transform min-w-0">
+              {showPlannerPrompt && plannerRecipeToOpen && (
+                <div className="sticky top-2 z-30 mb-3">
+                  <div className="mx-auto max-w-2xl rounded-2xl border border-primary/20 bg-background/95 px-4 py-3 shadow-[0_20px_50px_-25px_rgba(15,23,42,0.45)] backdrop-blur-md">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                          Recipe ready
+                        </p>
+                        <p className="mt-1 text-sm text-foreground">
+                          Click an empty card to apply <span className="font-semibold">{plannerRecipeToOpen.title}</span> to the planner.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearPlannerRecipePrompt}
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Header - title/subtext moved to navbar */}
               <div className="flex flex-col gap-2 md:gap-4 mb-3 md:mb-6">
                 <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3" data-tutorial="planner-actions">
-                <PlannerActions
-                  onHeuristicPlan={handleGenerateHeuristicPlan}
-                  onUpgradeForSmartPlanner={handleUpgradeForSmartPlanner}
-                  onAddToCart={handleAddToShoppingList}
-                  onGoToToday={handleGoToToday}
-                  onPreviousWeek={handlePreviousWeek}
-                  onNextWeek={handleNextWeek}
-                  onClearWeek={handleClearWeek}
-                  heuristicLoading={heuristicPlanLoading}
-                  smartPlannerLocked={!hasSmartPlannerAccess}
-                  smartPlannerLoading={smartPlannerAccessLoading}
-                />
+                  <PlannerActions
+                    onHeuristicPlan={handleGenerateHeuristicPlan}
+                    onUpgradeForSmartPlanner={handleUpgradeForSmartPlanner}
+                    onAddToCart={handleAddToShoppingList}
+                    onGoToToday={handleGoToToday}
+                    onPreviousWeek={handlePreviousWeek}
+                    onNextWeek={handleNextWeek}
+                    onClearWeek={handleClearWeek}
+                    heuristicLoading={heuristicPlanLoading}
+                    smartPlannerLocked={!hasSmartPlannerAccess}
+                    smartPlannerLoading={smartPlannerAccessLoading}
+                  />
                 </div>
               </div>
 
@@ -395,7 +508,7 @@ function MealPlannerPageContent() {
                   weekIndex={weekIndex}
                   meals={meals}
                   recipesById={recipesById}
-                  onAdd={openRecipeSelectorFromGrid}
+                  onAdd={handleApplyPendingRecipeToSlot}
                   onSlotSelect={openRecipeSelectorFromGrid}
                   onRemove={handleRemoveFromGrid}
                   onRecipeClick={handleRecipeClick}
@@ -425,7 +538,7 @@ function MealPlannerPageContent() {
               showRecipeSidebar ? "w-[380px]" : "w-0"
             )}
             data-tutorial="planner-sidebar-shell"
-            style={{ contain: 'layout paint size' }}
+            style={{ contain: "layout paint size" }}
           >
             {showRecipeSidebar && (
               <div className="w-[380px] h-full overflow-hidden">
@@ -434,6 +547,8 @@ function MealPlannerPageContent() {
                   getDraggableProps={dnd.getDraggableProps}
                   activeDragData={dnd.activeDragData}
                   onToggleCollapse={() => setShowRecipeSidebar(false)}
+                  initialSearchTerm={plannerRecipeSearchTerm || undefined}
+                  focusedRecipeId={plannerRecipeToOpen?.id ?? null}
                 />
               </div>
             )}
@@ -454,6 +569,8 @@ function MealPlannerPageContent() {
               getDraggableProps={dnd.getDraggableProps}
               activeDragData={dnd.activeDragData}
               onToggleCollapse={() => setShowRecipeSidebar(false)}
+              initialSearchTerm={plannerRecipeSearchTerm || undefined}
+              focusedRecipeId={plannerRecipeToOpen?.id ?? null}
               isMobileMode={isMobile}
               sessionSelectedIds={new Set(sessionSelections.map((s) => s.recipe.id))}
               onConfirmSelections={handleConfirmSelections}

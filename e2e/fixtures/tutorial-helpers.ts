@@ -9,6 +9,42 @@ const TUTORIAL_STATE_KEY = "tutorial_state_v1"
 const DISMISS_KEY = "tutorial_dismissed_v1"
 const TUTORIAL_STATE_VERSION = 10
 
+/**
+ * Seeds tutorial state before the first page navigation so tests do not need
+ * to load a page, mutate localStorage, and immediately reload it.
+ */
+export async function seedTutorialStateBeforeNavigation(
+  page: Page,
+  currentSlotIndex = 0
+) {
+  await page.addInitScript(
+    ({ key, version, currentSlotIndex }) => {
+      localStorage.setItem(
+        key,
+        JSON.stringify({ version, currentSlotIndex })
+      )
+    },
+    {
+      key: TUTORIAL_STATE_KEY,
+      version: TUTORIAL_STATE_VERSION,
+      currentSlotIndex,
+    }
+  )
+}
+
+/**
+ * Clears tutorial state before the first page navigation.
+ */
+export async function clearTutorialStateBeforeNavigation(page: Page) {
+  await page.addInitScript(
+    ({ stateKey, dismissKey }) => {
+      localStorage.removeItem(stateKey)
+      localStorage.removeItem(dismissKey)
+    },
+    { stateKey: TUTORIAL_STATE_KEY, dismissKey: DISMISS_KEY }
+  )
+}
+
 /** Resets tutorial state in localStorage before a test. */
 export async function resetTutorialState(page: Page) {
   await page.evaluate(
@@ -56,12 +92,61 @@ export async function startTutorialFromSettings(page: Page) {
 
 /** Clicks Next on the tutorial overlay. */
 export async function clickNext(page: Page) {
-  await page.getByRole("button", { name: /^next$|^finish$/i }).filter({ visible: true }).first().click()
+  const overlay = page.locator("[data-testid='tutorial-overlay']")
+  const resumeCopy = overlay.getByText(/click to resume tutorial/i)
+
+  if (await resumeCopy.isVisible().catch(() => false)) {
+    await resumeCopy.click()
+  }
+
+  const primaryAction = overlay
+    .getByRole("button", { name: /^next$|^finish$/i })
+    .filter({ visible: true })
+    .first()
+
+  if (await primaryAction.isVisible().catch(() => false)) {
+    await primaryAction.click()
+    return
+  }
+
+  const overlayText = (await overlay.textContent().catch(() => "")) ?? ""
+  const pageMatch = overlayText.match(
+    /Click\s+([A-Za-z][A-Za-z ]+?)\s+in the navigation/i
+  )
+
+  if (pageMatch) {
+    const pageNames: Record<string, string> = {
+      Dashboard: "/dashboard",
+      Recipes: "/recipes",
+      "Meal Planner": "/meal-planner",
+      Shopping: "/store",
+      Home: "/home",
+      Settings: "/settings",
+    }
+    const targetPath = pageNames[pageMatch[1].trim()]
+    if (targetPath) {
+      await page
+        .locator(`[data-tutorial-nav="${targetPath}"]`)
+        .filter({ visible: true })
+        .first()
+        .click()
+      return
+    }
+  }
+
+  throw new Error(
+    "Could not find a Next/Finish button or a tutorial navigation target to advance the overlay."
+  )
 }
 
 /** Clicks Back on the tutorial overlay. */
 export async function clickBack(page: Page) {
-  await page.getByRole("button", { name: /back/i }).filter({ visible: true }).first().click()
+  await page
+    .locator("[data-testid='tutorial-overlay']")
+    .getByRole("button", { name: /back/i })
+    .filter({ visible: true })
+    .first()
+    .click()
 }
 
 /** Returns the current header label text (e.g. "OVERVIEW" or "TUTORIAL"). */

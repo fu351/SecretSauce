@@ -7,21 +7,15 @@
 
 import { test, expect } from "@playwright/test"
 import {
-  resetTutorialState,
-  injectTutorialState,
+  seedTutorialStateBeforeNavigation,
   clickNext,
   waitForOverlayGone,
 } from "../fixtures/tutorial-helpers"
 
 test.describe("Tutorial state persistence", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto("/dashboard")
-    await resetTutorialState(page)
-  })
-
   test("resumes at the correct slot after a hard refresh", async ({ page }) => {
     // Inject state at slot 3 (recipes page overview)
-    await injectTutorialState(page, 3)
+    await seedTutorialStateBeforeNavigation(page, 3)
     await page.goto("/recipes")
 
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
@@ -36,7 +30,7 @@ test.describe("Tutorial state persistence", () => {
   })
 
   test("advancing a step then refreshing resumes at the new slot", async ({ page }) => {
-    await injectTutorialState(page, 3)
+    await seedTutorialStateBeforeNavigation(page, 3)
     await page.goto("/recipes")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 
@@ -51,7 +45,7 @@ test.describe("Tutorial state persistence", () => {
   })
 
   test("dismiss flag prevents tutorial from resuming after refresh", async ({ page }) => {
-    await injectTutorialState(page, 3)
+    await seedTutorialStateBeforeNavigation(page, 3)
     await page.goto("/dashboard")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 
@@ -64,7 +58,23 @@ test.describe("Tutorial state persistence", () => {
   })
 
   test("completing the tutorial clears localStorage state", async ({ page }) => {
-    await injectTutorialState(page, 26)
+    await page.route("/api/auth/update-profile", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          profile: {
+            tutorial_completed: true,
+            tutorial_completed_at: new Date().toISOString(),
+          },
+        }),
+      })
+    })
+
+    // Last desktop slot is 31 (/home step 2: "go back to Dashboard").
+    // The /store page (5 slots, 25-29) was added after /meal-planner, shifting
+    // the original last slot from 26 to 31.
+    await seedTutorialStateBeforeNavigation(page, 31)
     await page.goto("/home")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 
@@ -76,19 +86,24 @@ test.describe("Tutorial state persistence", () => {
   })
 
   test("outdated state version is discarded and overlay does not appear", async ({ page }) => {
+    // Navigate first so localStorage writes land on the correct origin, then
+    // inject an outdated version and reload — no initScript so the stale state
+    // is not accidentally cleared before the context can evaluate it.
+    await page.goto("/dashboard")
     await page.evaluate(() => {
+      localStorage.removeItem("tutorial_dismissed_v1")
       localStorage.setItem(
         "tutorial_state_v1",
         JSON.stringify({ version: 1, currentSlotIndex: 0 })
       )
     })
-    await page.goto("/dashboard")
+    await page.reload()
 
     await expect(page.locator("[data-testid='tutorial-overlay']")).not.toBeVisible({ timeout: 5_000 })
   })
 
   test("state is saved after each Next click", async ({ page }) => {
-    await injectTutorialState(page, 0)
+    await seedTutorialStateBeforeNavigation(page, 0)
     await page.goto("/dashboard")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 

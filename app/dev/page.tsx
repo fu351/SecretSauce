@@ -166,6 +166,19 @@ export default async function DevPage() {
               Validate useExperiment and useFeatureFlag in-browser
             </p>
           </Link>
+
+          {/* Social Challenges */}
+          <Link
+            href="/dev/challenges"
+            className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg"
+          >
+            <h3 className="text-lg font-semibold text-gray-900">
+              🏆 Social Challenges
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Create and manage social challenges
+            </p>
+          </Link>
         </div>
 
         {/* Quick Actions */}
