@@ -188,7 +188,7 @@ function resolveRowStandardizerContext(
   return config.scraperStandardizerContext
 }
 
-function maybeRetainFormSpecificCanonical(params: {
+export function maybeRetainFormSpecificCanonical(params: {
   sourceSearchTerm: string
   modelCanonical: string
 }): { canonicalName: string; reason: string } | null {

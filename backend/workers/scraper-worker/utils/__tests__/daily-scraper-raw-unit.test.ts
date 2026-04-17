@@ -91,6 +91,17 @@ describe('resolveRawUnitWithDailyScraperPriority', () => {
     expect(resolveRawUnitWithDailyScraperPriority({ raw_unit: 'oz', unit: 'lb' })).toBe('oz')
   })
 
+  it('normalizes whitespace in raw_unit and still prefers it over other hints', () => {
+    expect(
+      resolveRawUnitWithDailyScraperPriority({
+        raw_unit: '  12   fl  oz  ',
+        unit: 'lb',
+        size: '16 oz',
+        pricePerUnit: '$1/oz',
+      })
+    ).toBe('12 fl oz')
+  })
+
   it('normalizes whitespace in rawUnit', () => {
     expect(resolveRawUnitWithDailyScraperPriority({ rawUnit: '  fl  oz  ' })).toBe('fl oz')
   })

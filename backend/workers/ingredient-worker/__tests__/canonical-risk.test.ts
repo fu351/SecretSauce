@@ -13,6 +13,7 @@ vi.mock("../../../../lib/database/standardized-ingredients-db", () => ({
 }))
 
 import {
+  assessNewCanonicalRisk,
   isInvalidCanonicalName,
   resolveBlockedNewCanonicalFallback,
   stripRetailSuffixTokensFromCanonicalName,
@@ -109,5 +110,18 @@ describe("resolveBlockedNewCanonicalFallback", () => {
     })
 
     expect(result).toBeNull()
+  })
+
+  it("blocks obvious repeated-token junk", () => {
+    expect(
+      assessNewCanonicalRisk({
+        canonicalName: "chocolate mix mix",
+        category: "snacks",
+        confidence: 0.91,
+      })
+    ).toEqual({
+      blocked: true,
+      reason: "repeated_token_sequence(tokens=3)",
+    })
   })
 })

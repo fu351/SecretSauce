@@ -19,6 +19,23 @@ describe("scraper result normalization", () => {
     })
   })
 
+  it("prefers explicit rawUnit over other unit hints", () => {
+    const normalized = normalizeScraperResult({
+      title: "Sparkling Water",
+      price: "2.49",
+      rawUnit: " 12 fl oz ",
+      unit: "16 oz",
+      size: "20 oz",
+      pricePerUnit: "$0.15/oz",
+    })
+
+    expect(normalized).toMatchObject({
+      product_name: "Sparkling Water 12 fl oz",
+      rawUnit: "12 fl oz",
+      unit: "12 fl oz",
+    })
+  })
+
   it("does not duplicate unit text already embedded in name", () => {
     const normalized = normalizeScraperResult({
       product_name: "Greek Yogurt 32 oz",
@@ -27,6 +44,21 @@ describe("scraper result normalization", () => {
     })
 
     expect(normalized.product_name).toBe("Greek Yogurt 32 oz")
+    expect(normalized.rawUnit).toBe("oz")
+  })
+
+  it("extracts unit hints from pricePerUnit when no direct unit is present", () => {
+    const normalized = normalizeScraperResult({
+      title: "Olive Oil",
+      price: "9.99",
+      pricePerUnit: "$0.31/fl oz",
+    })
+
+    expect(normalized).toMatchObject({
+      product_name: "Olive Oil fl oz",
+      rawUnit: "fl oz",
+      unit: "fl oz",
+    })
   })
 
   it("filters invalid or empty entries from arrays", () => {

@@ -232,6 +232,16 @@ function getDynamicTokenConfidenceFloor(tokenCount: number): number {
   return Math.min(dynamicFloor, NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE)
 }
 
+function hasAdjacentDuplicateToken(tokens: string[]): boolean {
+  for (let index = 1; index < tokens.length; index += 1) {
+    if (tokens[index] === tokens[index - 1]) {
+      return true
+    }
+  }
+
+  return false
+}
+
 export function assessNewCanonicalRisk(params: {
   canonicalName: string
   category: string | null | undefined
@@ -281,6 +291,13 @@ export function assessNewCanonicalRisk(params: {
     return {
       blocked: true,
       reason: `high_noise_density(tokens=${tokenCount}, noise_hits=${noiseHits})`,
+    }
+  }
+
+  if (hasAdjacentDuplicateToken(tokens)) {
+    return {
+      blocked: true,
+      reason: `repeated_token_sequence(tokens=${tokenCount})`,
     }
   }
 

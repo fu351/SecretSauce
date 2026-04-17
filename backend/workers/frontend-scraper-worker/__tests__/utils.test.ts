@@ -79,6 +79,36 @@ describe("frontend scraper utils", () => {
     })
   })
 
+  it("preserves explicit raw_unit over weaker unit hints", () => {
+    const normalized = normalizeFrontendScraperItem({
+      provider: "Target",
+      title: "Sparkling Water",
+      price: "1.99",
+      raw_unit: " 12 fl oz ",
+      unit: "16 oz",
+      size: "20 oz",
+      pricePerUnit: "$0.15/oz",
+    })
+
+    expect(normalized).toMatchObject({
+      title: "Sparkling Water",
+      rawUnit: "12 fl oz",
+    })
+  })
+
+  it("falls back to extracted unit hints when rawUnit is absent", () => {
+    const normalized = normalizeFrontendScraperItem({
+      provider: "Target",
+      title: "Olive Oil",
+      price: "9.99",
+      price_per_unit: "$0.31/fl oz",
+    })
+
+    expect(normalized).toMatchObject({
+      rawUnit: "fl oz",
+    })
+  })
+
   it("sorts store results by total ascending", () => {
     const sorted = sortStoreResultsByTotal([
       { store: "B", items: [], total: 20 },
