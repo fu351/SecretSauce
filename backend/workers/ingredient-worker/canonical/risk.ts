@@ -12,6 +12,8 @@ export const INVALID_CANONICAL_NAMES = new Set([
   "na",
   "misc",
   "miscellaneous",
+  "seed",
+  "seeds",
   "sauce",
   "sauces",
   "juice",
