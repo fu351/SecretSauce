@@ -174,6 +174,14 @@ function format99RanchStoreLocation(storeInfo, fallbackZip) {
     return storeInfo?.name || "99 Ranch Market";
 }
 
+// 99ranch API appends quantity+unit info directly to product names, e.g.
+// "Garlic 1.0000 ea/bag" or "Snow Cabbage 12.0000 oz/each".
+// Strip it so the ingredient worker sees "Garlic" not "Garlic 1 0000 ea bag".
+function stripRanchQuantitySuffix(name) {
+    if (!name) return name;
+    return name.replace(/\s+\d+(?:\.\d+)?\s+\w+\/\w+\s*$/i, '').trim();
+}
+
 async function search99Ranch(keyword, zipCode) {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
     return resultCache.runCached(cacheKey, async () => {
@@ -193,7 +201,7 @@ async function search99Ranch(keyword, zipCode) {
             const storeLocation = format99RanchStoreLocation(store, userZip);
             return products
                 .map((p) => {
-                    const productName = (p.productName || p.productNameEN || "").trim();
+                    const productName = stripRanchQuantitySuffix((p.productName || p.productNameEN || "").trim());
                     const price = Number.parseFloat(String(p.salePrice ?? p.price ?? ""));
                     const productIdRaw = p.productId ?? p.id ?? p.sku ?? p.upc ?? null;
                     const productId = productIdRaw == null ? null : String(productIdRaw);
