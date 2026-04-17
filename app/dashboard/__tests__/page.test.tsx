@@ -74,6 +74,22 @@ vi.mock("@/components/dashboard/graph-tracker", () => ({
   GraphTracker: () => <div data-testid="graph-tracker">Graph Tracker</div>,
 }))
 
+vi.mock("@/components/social/profile-card", () => ({
+  ProfileCard: () => <div data-testid="profile-card">Profile Card</div>,
+}))
+
+vi.mock("@/components/social/challenge-widget", () => ({
+  ChallengeWidget: () => <div data-testid="challenge-widget">Challenge Widget</div>,
+}))
+
+vi.mock("@/components/social/friends-widget", () => ({
+  FriendsWidget: () => <div data-testid="friends-widget">Friends Widget</div>,
+}))
+
+vi.mock("@/components/social/notifications-widget", () => ({
+  NotificationsWidget: () => <div data-testid="notifications-widget">Notifications Widget</div>,
+}))
+
 vi.mock("@/lib/utils", async () => {
   const actual = await vi.importActual<typeof import("@/lib/utils")>("@/lib/utils")
   return {
@@ -87,8 +103,14 @@ describe("DashboardPage", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    sessionStorage.clear()
-    localStorage.clear()
+    ;[sessionStorage, localStorage].forEach((storage) => {
+      const keys: string[] = []
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index)
+        if (key !== null) keys.push(key)
+      }
+      keys.forEach((key) => storage.removeItem(key))
+    })
     mockAuthState = {
       user: { id: "user_1", email: "chef@example.com" },
       profile: { tutorial_completed: false },

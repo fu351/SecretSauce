@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { http, HttpResponse } from "msw"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { mockParams, mockRouter } from "@/test/utils/navigation"
+import { server } from "@/test/mocks/server"
 
 const mockToast = vi.fn()
 const mockAddRecipeToCart = vi.fn()
@@ -70,6 +72,37 @@ vi.mock("@/lib/database/recipe-favorites-db", () => ({
 describe("RecipeDetailPage", () => {
   let RecipeDetailPage: React.ComponentType
 
+  const recipeResponse = {
+    id: "recipe_1",
+    title: "Tomato Soup",
+    author_id: "user_1",
+    prep_time: 10,
+    cook_time: 20,
+    servings: 4,
+    difficulty: "beginner",
+    rating_avg: 4.7,
+    rating_count: 12,
+    tags: ["comfort", "winter"],
+    nutrition: { calories: 320 },
+    content: {
+      description: "A cozy bowl for cold nights.",
+      image_url: "/tomato-soup.jpg",
+      instructions: [{ description: "Simmer everything." }],
+    },
+    ingredients: [
+      {
+        id: "ingredient_1",
+        display_name: "2 cups tomatoes",
+        quantity: 2,
+        units: "cups",
+        standardized_ingredient_id: "std_1",
+        standardized_ingredient: {
+          canonical_name: "Tomatoes",
+        },
+      },
+    ],
+  }
+
   beforeEach(async () => {
     vi.clearAllMocks()
     mockAuthState = {
@@ -80,26 +113,19 @@ describe("RecipeDetailPage", () => {
     mockToggleFavorite.mockResolvedValue(true)
     mockParams({ id: "recipe_1" })
     mockRouter()
-
-    mockFetchRecipeById.mockResolvedValue({
-      id: "recipe_1",
-      title: "Tomato Soup",
-      author_id: "user_1",
-      prep_time: 10,
-      cook_time: 20,
-      servings: 4,
-      difficulty: "beginner",
-      rating_avg: 4.7,
-      rating_count: 12,
-      tags: ["comfort", "winter"],
-      nutrition: { calories: 320 },
-      content: {
-        description: "A cozy bowl for cold nights.",
-        image_url: "/tomato-soup.jpg",
-        instructions: [{ description: "Simmer everything." }],
-      },
-      ingredients: [],
-    })
+    server.use(
+      http.get("/api/recipes/:recipeId", () => HttpResponse.json({ recipe: recipeResponse })),
+      http.get("/api/recipes/:recipeId/social", () =>
+        HttpResponse.json({
+          likeCount: 3,
+          isLiked: false,
+          repostCount: 1,
+          isReposted: false,
+          friendLikes: [],
+          friendProfileIds: [],
+        })
+      )
+    )
 
     mockFindByRecipeIdWithStandardized.mockResolvedValue([
       {
@@ -134,8 +160,8 @@ describe("RecipeDetailPage", () => {
     await user.click(screen.getByRole("button", { name: /edit/i }))
     expect(router.push).toHaveBeenCalledWith("/edit-recipe/recipe_1")
 
-    await user.click(screen.getByRole("button", { name: /add to cart/i }))
-    expect(mockAddRecipeToCart).toHaveBeenCalledWith("recipe_1")
+    await user.click(screen.getByTestId("recipe-basket-button-recipe_1"))
+    expect(mockAddRecipeToCart).toHaveBeenCalledWith("recipe_1", 4)
   })
 
   it("shows a sign-in prompt instead of toggling favorites for anonymous users", async () => {
@@ -165,7 +191,10 @@ describe("RecipeDetailPage", () => {
 
   it("redirects back to recipes when the recipe cannot be loaded", async () => {
     const router = mockRouter()
-    mockFetchRecipeById.mockRejectedValue(new Error("Recipe not found"))
+    server.use(
+      http.get("/api/recipes/:recipeId", () => HttpResponse.json({ error: "not found" }, { status: 404 })),
+      http.get("/api/recipes/:recipeId/social", () => HttpResponse.json({}))
+    )
     const mod = await import("../page")
     const Page = mod.default
 

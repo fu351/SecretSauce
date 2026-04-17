@@ -19,6 +19,13 @@ vi.mock("@/hooks", () => ({
   useToast: () => ({ toast: mockToast }),
 }))
 
+vi.mock("@/contexts/auth-context", () => ({
+  useAuth: vi.fn(() => ({
+    user: null,
+    loading: false,
+  })),
+}))
+
 vi.mock("@clerk/nextjs", () => ({
   useSignIn: vi.fn(() => ({
     isLoaded: true,
