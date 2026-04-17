@@ -18,7 +18,9 @@ export async function runProbationEmbedding(
       `batchLimit=${config.probationBatchLimit}, dryRun=${config.dryRun})`
   )
 
-  const maxToFetch = config.probationBatchLimit * Math.max(1, config.maxCycles || 1)
+  const maxToFetch = config.maxCycles > 0
+    ? config.probationBatchLimit * config.maxCycles
+    : undefined
   const canonicals = await canonicalConsolidationDB.fetchProbationCanonicalsWithoutEmbedding({
     model: config.embeddingModel,
     limit: maxToFetch,

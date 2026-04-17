@@ -138,27 +138,38 @@ class CanonicalConsolidationDB {
 
   async fetchProbationCanonicalsWithoutEmbedding(params: {
     model: string
-    limit: number
+    limit?: number
     minDistinctSources: number
   }): Promise<string[]> {
-    // Pull canonical names that have enough distinct sources but no embedding yet.
-    // LEFT JOIN against canonical_candidate_embeddings; keep rows where embedding
-    // is absent or was made with a different model.
-    const { data, error } = await (supabase.from as any)(
-      "canonical_creation_probation_events"
-    )
-      .select("canonical_name")
-      .limit(params.limit * 10) // over-fetch to account for already-embedded rows
-
-    if (error || !data?.length) {
-      if (error) console.error("[CanonicalConsolidationDB] fetchProbationCanonicalsWithoutEmbedding error:", error.message)
-      return []
-    }
-
-    // Group by canonical_name to count distinct source_signatures
+    // Pull all probation events and aggregate canonical_name counts locally so
+    // one-shot pipeline runs can drain the full backlog instead of just the
+    // first N canonical names.
     const sourceCounts = new Map<string, number>()
-    for (const row of data as Array<{ canonical_name: string }>) {
-      sourceCounts.set(row.canonical_name, (sourceCounts.get(row.canonical_name) ?? 0) + 1)
+    const pageSize = 2000
+    let offset = 0
+
+    while (true) {
+      const { data, error } = await (supabase.from as any)(
+        "canonical_creation_probation_events"
+      )
+        .select("canonical_name")
+        .order("canonical_name", { ascending: true })
+        .range(offset, offset + pageSize - 1)
+
+      if (error) {
+        console.error("[CanonicalConsolidationDB] fetchProbationCanonicalsWithoutEmbedding error:", error.message)
+        return []
+      }
+
+      const rows = (data ?? []) as Array<{ canonical_name: string }>
+      if (!rows.length) break
+
+      for (const row of rows) {
+        sourceCounts.set(row.canonical_name, (sourceCounts.get(row.canonical_name) ?? 0) + 1)
+      }
+
+      if (rows.length < pageSize) break
+      offset += rows.length
     }
 
     const eligible = [...sourceCounts.entries()]
@@ -185,9 +196,8 @@ class CanonicalConsolidationDB {
       }
     }
 
-    return eligible
-      .filter((name) => !alreadyEmbedded.has(name))
-      .slice(0, params.limit)
+    const pending = eligible.filter((name) => !alreadyEmbedded.has(name))
+    return typeof params.limit === "number" ? pending.slice(0, params.limit) : pending
   }
 
   async logConsolidationEvent(params: ConsolidationLogParams): Promise<void> {
