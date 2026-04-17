@@ -22,6 +22,7 @@ const NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE = 0.8
 const NEW_CANONICAL_MAX_TOKEN_COUNT = 4
 const NEW_CANONICAL_RETAIL_TITLE_TOKEN_COUNT = 5
 export const NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES = 2
+export const NEW_CANONICAL_PROBATION_STALE_DAYS = 14
 const NEW_CANONICAL_NOISE_TOKENS = new Set([
   "fresh",
   "deli",
@@ -161,6 +162,23 @@ function stripRetailSuffixTokens(tokens: string[]): string[] {
   }
 
   return tokens.slice(0, end)
+}
+
+export function isInvalidCanonicalName(canonicalName: string): boolean {
+  const normalized = normalizeCanonicalName(canonicalName)
+  return !normalized || INVALID_CANONICAL_NAMES.has(normalized)
+}
+
+export function stripRetailSuffixTokensFromCanonicalName(canonicalName: string): string | null {
+  const normalized = normalizeCanonicalName(canonicalName)
+  if (!normalized) return null
+
+  const tokens = toCanonicalTokens(normalized)
+  const stripped = stripRetailSuffixTokens(tokens)
+  if (!stripped.length || stripped.length === tokens.length) return null
+
+  const result = stripped.join(" ")
+  return isInvalidCanonicalName(result) ? null : result
 }
 
 function buildBlockedCanonicalFallbackCandidates(canonicalName: string): Array<{ canonicalName: string; source: string }> {

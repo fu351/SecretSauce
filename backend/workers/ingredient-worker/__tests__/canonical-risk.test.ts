@@ -12,7 +12,11 @@ vi.mock("../../../../lib/database/standardized-ingredients-db", () => ({
   },
 }))
 
-import { resolveBlockedNewCanonicalFallback } from "../canonical/risk"
+import {
+  isInvalidCanonicalName,
+  resolveBlockedNewCanonicalFallback,
+  stripRetailSuffixTokensFromCanonicalName,
+} from "../canonical/risk"
 
 function makeScorer(floors: Record<string, number>): CanonicalTokenIdfScorer {
   return {
@@ -26,6 +30,21 @@ describe("resolveBlockedNewCanonicalFallback", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.findByCanonicalName.mockResolvedValue(null)
+  })
+
+  it("rejects reserved invalid canonical names early", () => {
+    expect(isInvalidCanonicalName("null")).toBe(true)
+    expect(isInvalidCanonicalName("other")).toBe(true)
+    expect(isInvalidCanonicalName("vanilla almond milk")).toBe(false)
+  })
+
+  it("strips trailing retail suffix tokens before the risk check", () => {
+    expect(stripRetailSuffixTokensFromCanonicalName("organic baby lettuce mix 5 oz")).toBe(
+      "organic baby lettuce mix"
+    )
+    expect(stripRetailSuffixTokensFromCanonicalName("aiva bay leaves powder bay leaf powder 7 oz")).toBe(
+      "aiva bay leaves powder bay leaf powder"
+    )
   })
 
   it("recovers retail titles to an existing stripped canonical", async () => {

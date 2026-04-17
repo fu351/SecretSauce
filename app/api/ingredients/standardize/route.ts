@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
     const standardizedItems = aiResults.map(result => ({
       canonicalName: result.canonicalName.trim().toLowerCase(),
       category: result.category || null,
+      isFoodItem: result.isFoodItem,
     }))
 
     const standardizedIdMap = await standardizedIngredientsDB.batchGetOrCreate(standardizedItems)

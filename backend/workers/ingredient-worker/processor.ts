@@ -17,10 +17,11 @@ import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"
 import { resolveCanonicalWithDoubleCheck } from "./canonical/double-check"
 import {
-  INVALID_CANONICAL_NAMES,
-  NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES,
   assessNewCanonicalRisk,
+  NEW_CANONICAL_PROBATION_STALE_DAYS,
+  isInvalidCanonicalName,
   resolveBlockedNewCanonicalFallback,
+  stripRetailSuffixTokensFromCanonicalName,
 } from "./canonical/risk"
 import { getIngredientConfidenceCalibrator } from "./scoring/confidence-calibration"
 import { getCanonicalTokenIdfScorer } from "./canonical/token-idf"
@@ -95,6 +96,8 @@ function emptyUnitMetrics(): UnitMetrics {
     aiError: 0,
   }
 }
+
+const NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES = 1
 
 function isUnitResolutionError(errorMessage: string): boolean {
   const normalized = errorMessage.toLowerCase()
@@ -778,11 +781,19 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               )
             }
 
+            const strippedRetailCanonical = stripRetailSuffixTokensFromCanonicalName(normalizedCanonical)
+            if (strippedRetailCanonical) {
+              console.log(
+                `[QueueResolver] Stripped retail suffix "${normalizedCanonical}" -> "${strippedRetailCanonical}"`
+              )
+              normalizedCanonical = strippedRetailCanonical
+            }
+
             if (!normalizedCanonical) {
               throw new Error("AI returned an empty canonical name")
             }
 
-            if (INVALID_CANONICAL_NAMES.has(normalizedCanonical)) {
+            if (isInvalidCanonicalName(normalizedCanonical)) {
               throw new Error(`Invalid canonical name "${normalizedCanonical}" returned by ingredient resolver`)
             }
 
@@ -987,9 +998,15 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                 })
 
                 const categorySpecific = ingredientCategory && ingredientCategory !== "other"
+                const probationAgeMs = probationStats?.firstSeenAt
+                  ? Date.now() - new Date(probationStats.firstSeenAt).getTime()
+                  : 0
+                const probationIsStale =
+                  probationAgeMs >= NEW_CANONICAL_PROBATION_STALE_DAYS * 24 * 60 * 60 * 1000
                 if (
                   probationStats &&
                   probationStats.distinctSources < NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES &&
+                  !probationIsStale &&
                   !(categorySpecific && ingredientConfidence >= 0.65)
                 ) {
                   throw new Error(
@@ -1002,7 +1019,8 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
               createdNewCanonical = !existingCanonical
               const standardized =
-                existingCanonical || (await standardizedIngredientsDB.getOrCreate(canonicalForWrite, ingredientCategory))
+                existingCanonical ||
+                (await standardizedIngredientsDB.getOrCreate(canonicalForWrite, ingredientCategory, true))
               if (!standardized?.id) {
                 throw new Error("Failed to upsert standardized ingredient")
               }

@@ -44,6 +44,7 @@ describe("POST /api/ingredients/standardize", () => {
         originalName: "Milk",
         canonicalName: "milk",
         category: "dairy",
+        isFoodItem: true,
         confidence: 0.98,
       },
     ])
@@ -130,7 +131,7 @@ describe("POST /api/ingredients/standardize", () => {
       "pantry"
     )
     expect(mockBatchGetOrCreate).toHaveBeenCalledWith([
-      { canonicalName: "milk", category: "dairy" },
+      { canonicalName: "milk", category: "dairy", isFoodItem: true },
     ])
     expect(mockPantryUpdate).toHaveBeenCalledWith("pantry_1", {
       standardized_ingredient_id: "std_1",
@@ -148,6 +149,42 @@ describe("POST /api/ingredients/standardize", () => {
           standardizedIngredientId: "std_1",
           confidence: 0.98,
           originalIndex: 0,
+        },
+      ],
+    })
+  })
+
+  it("preserves non-food classifications when creating standardized ingredients", async () => {
+    mockStandardizeIngredientsWithAI.mockResolvedValue([
+      {
+        id: "0",
+        originalName: "Toothpaste",
+        canonicalName: "toothpaste",
+        category: null,
+        isFoodItem: false,
+        confidence: 0.12,
+      },
+    ])
+    mockBatchGetOrCreate.mockResolvedValue(new Map([["toothpaste", "std_nf"]]))
+
+    const response = await POST(
+      makeRequest({
+        context: "pantry",
+        pantryItemId: "pantry_1",
+        userId: "user_1",
+        ingredients: [{ name: "Toothpaste" }],
+      }) as any
+    )
+
+    expect(mockBatchGetOrCreate).toHaveBeenCalledWith([
+      { canonicalName: "toothpaste", category: null, isFoodItem: false },
+    ])
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      standardized: [
+        {
+          canonicalName: "toothpaste",
+          standardizedIngredientId: "std_nf",
         },
       ],
     })

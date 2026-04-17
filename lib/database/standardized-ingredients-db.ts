@@ -62,6 +62,10 @@ class StandardizedIngredientsTable extends BaseTable<
     return normalized.length > 0 ? normalized : null
   }
 
+  private normalizeFoodItemValue(value?: boolean | null): boolean {
+    return value !== false
+  }
+
   private isValidItemCategoryEnum(value?: string | null): value is ItemCategoryEnum {
     return typeof value === "string" && ITEM_CATEGORY_ENUM_VALUES.has(value as ItemCategoryEnum)
   }
@@ -163,25 +167,39 @@ class StandardizedIngredientsTable extends BaseTable<
    */
   async getOrCreate(
     canonicalName: string,
-    category?: string | null
+    category?: string | null,
+    isFoodItem?: boolean | null
   ): Promise<StandardizedIngredientRow | null> {
     try {
       const normalizedCanonicalName = this.normalizeCanonicalName(canonicalName)
       const normalizedCategory = this.normalizeCategoryValue(category)
+      const normalizedIsFoodItem = this.normalizeFoodItemValue(isFoodItem)
       console.log(`[StandardizedIngredientsTable] Get or create: ${normalizedCanonicalName}`)
 
       // Try to find existing
       const existing = await this.findByCanonicalName(normalizedCanonicalName)
       if (existing) {
+        const updatePayload: Record<string, unknown> = {}
+
         if (
           existing.category === "other" &&
           normalizedCategory &&
           normalizedCategory !== "other" &&
           this.isValidItemCategoryEnum(normalizedCategory)
         ) {
+          updatePayload.category = normalizedCategory
+        }
+
+        if (existing.is_food_item !== normalizedIsFoodItem) {
+          if (normalizedIsFoodItem === false) {
+            updatePayload.is_food_item = false
+          }
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
           const { data: updated, error: updateError } = await this.supabase
             .from(this.tableName)
-            .update({ category: normalizedCategory })
+            .update(updatePayload as any)
             .eq("id", existing.id)
             .select()
             .single()
@@ -193,7 +211,11 @@ class StandardizedIngredientsTable extends BaseTable<
       // Create new
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .insert({ canonical_name: normalizedCanonicalName, category: normalizedCategory, is_food_item: true })
+        .insert({
+          canonical_name: normalizedCanonicalName,
+          category: normalizedCategory,
+          is_food_item: normalizedIsFoodItem,
+        })
         .select()
         .single()
 
@@ -218,7 +240,11 @@ class StandardizedIngredientsTable extends BaseTable<
 
           const { data: retryData, error: retryError } = await this.supabase
             .from(this.tableName)
-            .insert({ canonical_name: normalizedCanonicalName, category: "other", is_food_item: true })
+            .insert({
+              canonical_name: normalizedCanonicalName,
+              category: "other",
+              is_food_item: normalizedIsFoodItem,
+            })
             .select()
             .single()
 
@@ -250,7 +276,7 @@ class StandardizedIngredientsTable extends BaseTable<
    * CRITICAL: Single upsert instead of N queries
    */
   async batchGetOrCreate(
-    items: Array<{ canonicalName: string; category: string | null }>
+    items: Array<{ canonicalName: string; category: string | null; isFoodItem?: boolean | null }>
   ): Promise<Map<string, string>> {
     try {
       console.log(`[StandardizedIngredientsTable] Batch get or create: ${items.length} items`)
@@ -265,6 +291,7 @@ class StandardizedIngredientsTable extends BaseTable<
       for (const item of items) {
         const normalized = this.normalizeCanonicalName(item.canonicalName)
         const normalizedCategory = this.normalizeCategoryValue(item.category)
+        const normalizedIsFoodItem = this.normalizeFoodItemValue(item.isFoodItem)
         const safeCategory =
           normalizedCategory === null
             ? null
@@ -275,12 +302,24 @@ class StandardizedIngredientsTable extends BaseTable<
           invalidCategoryFallbackCount += 1
         }
         if (!normalized) continue
-        if (!deduped.has(normalized)) {
+        const existing = deduped.get(normalized)
+        if (!existing) {
           deduped.set(normalized, {
             canonical_name: normalized,
             category: safeCategory,
-            is_food_item: true,
+            is_food_item: normalizedIsFoodItem,
           })
+          continue
+        }
+
+        if (existing.category === "other" && safeCategory && safeCategory !== "other") {
+          existing.category = safeCategory
+        } else if (existing.category === null && safeCategory !== null) {
+          existing.category = safeCategory
+        }
+
+        if (normalizedIsFoodItem === false) {
+          existing.is_food_item = false
         }
       }
 
