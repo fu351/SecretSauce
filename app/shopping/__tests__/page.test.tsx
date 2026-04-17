@@ -172,7 +172,13 @@ describe("ShoppingPage", () => {
         ],
       },
     ]
-    mockFetchProfileFields.mockResolvedValue({ zip_code: "94105" })
+    mockFetchProfileFields.mockResolvedValue({
+      zip_code: "94105",
+      formatted_address: "1 Ferry Building, San Francisco, CA 94105",
+      address_line1: "1 Ferry Building",
+      city: "San Francisco",
+      state: "CA",
+    })
     mockGetUserLocation.mockResolvedValue(null)
     mockReverseGeocodeToPostalCode.mockResolvedValue(null)
     mockSaveChanges.mockResolvedValue(undefined)
@@ -327,6 +333,35 @@ describe("ShoppingPage", () => {
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Checkout Failed",
+          variant: "destructive",
+        })
+      )
+    })
+  })
+
+  it("blocks checkout when the user has not saved a delivery address", async () => {
+    mockFetchProfileFields
+      .mockResolvedValueOnce({ zip_code: "94105" } as any)
+      .mockResolvedValueOnce({ zip_code: "94105" } as any)
+
+    const user = userEvent.setup()
+    const router = mockRouter()
+    const mod = await import("../page")
+    const Page = mod.default
+    render(<Page />)
+
+    await user.click(await screen.findByRole("button", { name: /compare prices/i }))
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /proceed to checkout/i })).toBeInTheDocument()
+    )
+    await user.click(screen.getByRole("button", { name: /proceed to checkout/i }))
+
+    await waitFor(() => {
+      expect(router.push).toHaveBeenCalledWith("/delivery/address?returnTo=%2Fshopping")
+      expect(mockBulkAddToDeliveryLog).not.toHaveBeenCalled()
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Add your delivery address",
           variant: "destructive",
         })
       )

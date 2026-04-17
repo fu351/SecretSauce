@@ -187,6 +187,30 @@ export default function ShoppingPage() {
       return
     }
 
+    const deliveryProfile = await profileDB.fetchProfileFields(user.id, [
+      "formatted_address",
+      "address_line1",
+      "city",
+      "state",
+      "zip_code",
+    ])
+    const hasDeliveryAddress =
+      Boolean(deliveryProfile?.formatted_address?.trim()) ||
+      (Boolean(deliveryProfile?.address_line1?.trim()) &&
+        Boolean(deliveryProfile?.city?.trim()) &&
+        Boolean(deliveryProfile?.state?.trim()) &&
+        Boolean(deliveryProfile?.zip_code?.trim()))
+
+    if (!hasDeliveryAddress) {
+      toast({
+        title: "Add your delivery address",
+        description: "Please save a full address on the delivery address page before checking out.",
+        variant: "destructive",
+      })
+      router.push(`/delivery/address?returnTo=${encodeURIComponent("/shopping")}`)
+      return
+    }
+
     if (massSearchResults.length === 0) {
       toast({ title: "Error", description: "No comparison results available", variant: "destructive" })
       return
