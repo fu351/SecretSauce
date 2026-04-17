@@ -53,6 +53,51 @@ import {
   stripMeasurementFromSearchTerm,
 } from "./unit-resolution-utils"
 
+const NON_FOOD_TITLE_TOKENS = new Set([
+  "balm",
+  "body",
+  "candle",
+  "conditioner",
+  "cosmetic",
+  "deodorant",
+  "dog",
+  "face",
+  "fragrance",
+  "lotion",
+  "lip",
+  "makeup",
+  "mask",
+  "perfume",
+  "pet",
+  "shampoo",
+  "skincare",
+  "soap",
+  "scented",
+  "toothpaste",
+  "toy",
+  "treat",
+  "treats",
+  "cat",
+  "litter",
+])
+
+const NON_FOOD_TITLE_PHRASES = [
+  ["body", "butter"],
+  ["body", "oil"],
+  ["body", "wash"],
+  ["face", "mask"],
+  ["lip", "balm"],
+  ["lip", "mask"],
+  ["lip", "oil"],
+  ["lip", "gloss"],
+  ["pet", "treats"],
+  ["dog", "treats"],
+  ["cat", "treats"],
+  ["dog", "food"],
+  ["cat", "food"],
+  ["tooth", "paste"],
+]
+
 interface ResolveBatchResult {
   resolved: number
   failed: number
@@ -88,6 +133,29 @@ interface UnitMetrics {
 }
 
 const LOG_SAMPLE_LIMIT = 3
+
+// Keywords that reliably indicate a non-food product regardless of vector similarity.
+// Used to gate the vector fast-path, which would otherwise accept e.g. "Coconut Body Butter"
+// as food because it vector-matches "butter" at high confidence.
+const NON_FOOD_KEYWORD_PATTERNS = [
+  "body butter", "body oil", "body scrub", "body lotion",
+  "lip balm", "lip mask", "lip butter",
+  "face mask", "face wash", "face scrub",
+  "hand soap", "foaming hand soap",
+  "shampoo", "conditioner",
+  "toothpaste", "mouthwash",
+  "deodorant", "sunscreen",
+  "castile soap",
+  "dog treat", "dog food", "cat treat", "cat food", "pet food",
+  "scented candle", "candle",
+  "dish soap", "laundry",
+  "paper towel", "toilet paper",
+]
+
+function likelyNonFoodByKeyword(name: string): boolean {
+  const lower = name.toLowerCase()
+  return NON_FOOD_KEYWORD_PATTERNS.some((kw) => lower.includes(kw))
+}
 
 function emptyUnitMetrics(): UnitMetrics {
   return {
@@ -136,6 +204,21 @@ function buildCanonicalProbationSourceSignature(row: IngredientMatchQueueRow, so
   }
 
   return `${row.source}:row:${row.id}`
+}
+
+function hasNonFoodTitleSignals(sourceSearchTerm: string): boolean {
+  const normalized = normalizeCanonicalName(sourceSearchTerm)
+  if (!normalized) return false
+
+  const tokens = normalized.split(" ").filter(Boolean)
+  if (!tokens.length) return false
+
+  const tokenSet = new Set(tokens)
+  if (tokens.some((token) => NON_FOOD_TITLE_TOKENS.has(token))) {
+    return true
+  }
+
+  return NON_FOOD_TITLE_PHRASES.some((phrase) => phrase.every((token) => tokenSet.has(token)))
 }
 
 function inferIngredientSemanticRejectReason(errorMessage: string): string | null {
@@ -205,6 +288,13 @@ export function maybeRetainFormSpecificCanonical(params: {
 
   const missingFormTokens = sourceFormTokens.filter((token) => !modelTokens.has(token))
   if (!missingFormTokens.length) return null
+
+  if (missingFormTokens.some((token) => token === "chicken" || token === "beef" || token === "turkey" || token === "pork" || token === "lamb" || token === "veal" || token === "salmon" || token === "tuna" || token === "shrimp" || token === "fish" || token === "ham" || token === "bacon" || token === "sausage" || token === "steak" || token === "rib" || token === "ribs" || token === "duck" || token === "tofu" || token === "tempeh")) {
+    return {
+      canonicalName: sourceCanonical,
+      reason: `protein_tail_retention(missing_forms=${missingFormTokens.join("|")})`,
+    }
+  }
 
   const sourceBaseTokens = sourceTokens.filter((token) => !PROTECTED_FORM_TOKENS.has(token))
   const sharedBaseTokens = sourceBaseTokens.filter((token) => modelTokens.has(token))
@@ -362,12 +452,22 @@ async function resolveIngredientCandidates(
     // For each AI-bound input, embed the search term and run a reranked cosine search.
     // Items whose final_score >= VECTOR_MATCH_HIGH_CONFIDENCE are injected directly into
     // aiResultByKey; the remainder proceed to the LLM as normal.
+    //
+    // Non-food guard: products containing personal-care, household, or pet keywords are
+    // skipped here and fall through to the LLM, which correctly sets isFoodItem: false.
+    // Without this guard, "Coconut Body Butter" vector-matches "butter" and gets accepted
+    // as food because the fast-path unconditionally sets isFoodItem: true.
     if (!config.dryRun && aiInputs.length > 0) {
       const embeddingModel = getEmbeddingModel()
       const vectorFastPathHits: string[] = []
+      const vectorFastPathNonFoodSkips: string[] = []
 
       for (let i = aiInputs.length - 1; i >= 0; i--) {
         const input = aiInputs[i]
+        if (likelyNonFoodByKeyword(input.name)) {
+          vectorFastPathNonFoodSkips.push(`"${input.name}"`)
+          continue
+        }
         try {
           const vectorMatch = await resolveVectorMatch(input.name, embeddingModel)
           if (vectorMatch && vectorMatch.finalScore >= VECTOR_MATCH_HIGH_CONFIDENCE) {
@@ -391,6 +491,11 @@ async function resolveIngredientCandidates(
       if (vectorFastPathHits.length > 0) {
         console.log(
           `[QueueResolver] Vector fast-path resolved ${vectorFastPathHits.length} item(s): ${vectorFastPathHits.join(", ")}`
+        )
+      }
+      if (vectorFastPathNonFoodSkips.length > 0) {
+        console.log(
+          `[QueueResolver] Vector fast-path skipped ${vectorFastPathNonFoodSkips.length} likely-non-food item(s) (→ LLM): ${vectorFastPathNonFoodSkips.join(", ")}`
         )
       }
     }
@@ -738,6 +843,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         let calibratedIngredientConfidence: number | null = null
         let confidenceTokenCount: number | null = null
         let createdNewCanonical = false
+        let titleNonFoodOverride = false
 
         try {
           if (!needsIngredient && !needsUnit) {
@@ -751,8 +857,18 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             }
 
             sourceSearchTerm = getIngredientSearchTerm(row, unitByRowId.get(row.id))
-            isFoodItem = ingredientResult.isFoodItem !== false
+            titleNonFoodOverride = hasNonFoodTitleSignals(sourceSearchTerm)
+            isFoodItem = titleNonFoodOverride ? false : ingredientResult.isFoodItem !== false
             let normalizedCanonical = normalizeCanonicalName(ingredientResult.canonicalName)
+
+            if (titleNonFoodOverride) {
+              normalizedCanonical = normalizeCanonicalName(sourceSearchTerm)
+              ingredientCategory = null
+              console.log(
+                `[QueueResolver] Non-food title override for "${normalizeCanonicalName(sourceSearchTerm)}" ` +
+                  `(model_canonical="${normalizeCanonicalName(ingredientResult.canonicalName)}")`
+              )
+            }
 
             const formRetention = maybeRetainFormSpecificCanonical({
               sourceSearchTerm,
@@ -841,8 +957,10 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               ingredientCategory = resolvedIngredientCategory
             } else {
               ingredientCategory = null
-              calibratedIngredientConfidence = rawIngredientConfidence
-              ingredientConfidence = rawIngredientConfidence
+              calibratedIngredientConfidence = titleNonFoodOverride
+                ? Math.min(rawIngredientConfidence, 0.12)
+                : rawIngredientConfidence
+              ingredientConfidence = calibratedIngredientConfidence
               canonicalForWrite = normalizedCanonical
             }
 

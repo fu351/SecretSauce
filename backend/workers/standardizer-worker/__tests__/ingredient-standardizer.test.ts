@@ -1,4 +1,24 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const axiosMock = vi.hoisted(() => ({
+  post: vi.fn(),
+}))
+
+const databaseMock = vi.hoisted(() => ({
+  getCanonicalNameSample: vi.fn(),
+}))
+
+vi.mock("axios", () => ({
+  default: {
+    post: axiosMock.post,
+  },
+}))
+
+vi.mock("../../../../lib/database/standardized-ingredients-db", () => ({
+  standardizedIngredientsDB: {
+    getCanonicalNameSample: databaseMock.getCanonicalNameSample,
+  },
+}))
 
 describe("ingredient standardizer fallback", () => {
   afterEach(() => {
@@ -29,6 +49,64 @@ describe("ingredient standardizer fallback", () => {
         isFoodItem: false,
         category: null,
         confidence: 0,
+      },
+    ])
+  })
+})
+
+describe("ingredient standardizer non-food override", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.OPENAI_API_KEY = "test-key"
+    databaseMock.getCanonicalNameSample.mockResolvedValue(["butter"])
+    axiosMock.post.mockResolvedValue({
+      data: {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify([
+                {
+                  id: "item-1",
+                  originalName: "Lip Butter Balm Duo",
+                  canonicalName: "butter",
+                  isFoodItem: true,
+                  category: "dairy",
+                  confidence: 0.91,
+                },
+              ]),
+            },
+          },
+        ],
+      },
+    })
+  })
+
+  afterEach(() => {
+    vi.resetModules()
+    delete process.env.OPENAI_API_KEY
+  })
+
+  it("forces obvious non-food titles to non-food even when the model misclassifies them", async () => {
+    const { standardizeIngredientsWithAI } = await import("../ingredient-standardizer")
+
+    const results = await standardizeIngredientsWithAI(
+      [
+        {
+          id: "item-1",
+          name: "Lip Butter Balm Duo",
+        },
+      ],
+      "scraper"
+    )
+
+    expect(results).toEqual([
+      {
+        id: "item-1",
+        originalName: "Lip Butter Balm Duo",
+        canonicalName: "lip butter balm duo",
+        isFoodItem: false,
+        category: null,
+        confidence: 0.12,
       },
     ])
   })

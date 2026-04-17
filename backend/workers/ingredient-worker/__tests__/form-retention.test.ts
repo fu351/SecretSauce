@@ -16,22 +16,33 @@ describe("maybeRetainFormSpecificCanonical", () => {
   })
 
   it.each([
-    ["orange peels", "orange", "peels"],
-    ["lemon rinds", "lemon", "rinds"],
-    ["garlic skins", "garlic", "skins"],
-    ["mint leaves", "mint", "leaves"],
-    ["celery stems", "celery", "stems"],
-    ["pea pods", "pea", "pods"],
-    ["broccoli florets", "broccoli", "florets"],
-  ])('keeps "%s" distinct from "%s"', (sourceSearchTerm, modelCanonical, missingForm) => {
-    expect(
-      maybeRetainFormSpecificCanonical({
-        sourceSearchTerm,
-        modelCanonical,
+    ["butternut squash soup", "butternut squash", "butternut squash soup", "form_retention(missing_forms=soup)"],
+    ["organic jumbo cinnamon rolls", "cinnamon", "cinnamon rolls", "form_retention(missing_forms=rolls)"],
+    [
+      "buttermilk brined half chicken",
+      "buttermilk",
+      "buttermilk brined half chicken",
+      "protein_tail_retention(missing_forms=chicken)",
+    ],
+    ["orange peels", "orange", "orange peels", "form_retention(missing_forms=peels)"],
+    ["lemon rinds", "lemon", "lemon rinds", "form_retention(missing_forms=rinds)"],
+    ["garlic skins", "garlic", "garlic skins", "form_retention(missing_forms=skins)"],
+    ["mint leaves", "mint", "mint leaves", "form_retention(missing_forms=leaves)"],
+    ["celery stems", "celery", "celery stems", "form_retention(missing_forms=stems)"],
+    ["pea pods", "pea", "pea pods", "form_retention(missing_forms=pods)"],
+    ["broccoli florets", "broccoli", "broccoli florets", "form_retention(missing_forms=florets)"],
+  ])(
+    'keeps "%s" distinct from "%s"',
+    (sourceSearchTerm, modelCanonical, expectedCanonical, expectedReason) => {
+      expect(
+        maybeRetainFormSpecificCanonical({
+          sourceSearchTerm,
+          modelCanonical,
+        })
+      ).toEqual({
+        canonicalName: expectedCanonical,
+        reason: expectedReason,
       })
-    ).toEqual({
-      canonicalName: sourceSearchTerm,
-      reason: `form_retention(missing_forms=${missingForm})`,
-    })
-  })
+    }
+  )
 })
