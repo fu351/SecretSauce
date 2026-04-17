@@ -142,6 +142,8 @@ describe("DashboardPage", () => {
     })
 
     expect(screen.getByText(/welcome back, chef/i)).toBeInTheDocument()
+    expect(screen.getByTestId("premium-upgrade-widget")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /upgrade now/i })).toHaveAttribute("href", "/checkout")
     expect(screen.getByTestId("graph-tracker")).toBeInTheDocument()
   })
 
