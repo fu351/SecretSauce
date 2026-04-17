@@ -23,16 +23,19 @@ export default defineConfig({
         'test/',
         '**/*.d.ts',
         '**/*.config.*',
+        '**/__tests__/**',
+        '**/*.{test,spec}.{js,ts,jsx,tsx}',
         '**/mockData',
         'dist/',
         '.next/',
+        'coverage/',
         'components/ui/**', // Shadcn components (tested via integration)
-        'app/**', // Pages/routes (tested via E2E)
+        'app/dev/**',
+        'app/api/batch-scraper/**',
+        'e2e/**',
       ],
       include: [
-        'hooks/**/*.ts',
-        'lib/**/*.ts',
-        'components/**/*.tsx'
+        'app/**/*.{ts,tsx}',
       ]
     },
 

@@ -4,7 +4,7 @@ import { normalizeCanonicalName } from "../../scripts/utils/canonical-matching"
 import { normalizeSpaces } from "../../../lib/utils/string"
 import { normalizeConfidence } from "../../../lib/utils/number"
 
-export const INGREDIENT_LOCAL_CACHE_VERSION = "ingredient-standardizer-v2"
+export const INGREDIENT_LOCAL_CACHE_VERSION = "ingredient-standardizer-v3"
 export const INGREDIENT_LOCAL_CACHE_MAX_AGE_DAYS = 30
 const MIN_CACHEABLE_INGREDIENT_CONFIDENCE = 0.65
 const TRAILING_NUMERIC_TOKEN_PATTERN = /\b\d+(?:\.\d+)?$/

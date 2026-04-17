@@ -99,127 +99,40 @@ jobs:
         run: |
           set -euo pipefail
 
-          batch_size="${RELINK_BATCH_SIZE:-500}"
-          max_batches="${RELINK_MAX_BATCHES:-200}"
-
-          if ! [[ "${batch_size}" =~ ^[0-9]+$ ]] || [ "${batch_size}" -le 0 ]; then
-            echo "Invalid RELINK_BATCH_SIZE=${batch_size}"
-            exit 1
-          fi
-          if ! [[ "${max_batches}" =~ ^[0-9]+$ ]] || [ "${max_batches}" -le 0 ]; then
-            echo "Invalid RELINK_MAX_BATCHES=${max_batches}"
-            exit 1
-          fi
-
           echo "=== Relinking Recipe Ingredients ==="
-          echo "Batch config: size=${batch_size}, max_batches=${max_batches}"
 
-          offset=0
-          batch=1
-          total_processed=0
-          total_changed=0
-          total_queued=0
-          allow_batch_args=true
+          # fn_relink_recipe_ingredients has no p_limit/p_offset parameters — it
+          # processes all eligible rows in a single call, so no pagination loop needed.
+          RESPONSE_FILE="$(mktemp)"
+          HTTP_STATUS=$(curl -sS -o "${RESPONSE_FILE}" -w "%{http_code}" -X POST \
+            "${SUPABASE_URL}/rest/v1/rpc/fn_relink_recipe_ingredients" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          RESULT="$(cat "${RESPONSE_FILE}")"
+          rm -f "${RESPONSE_FILE}"
 
-          while [ "${batch}" -le "${max_batches}" ]; do
-            if [ "${allow_batch_args}" = "true" ]; then
-              BODY=$(jq -cn --argjson p_limit "${batch_size}" --argjson p_offset "${offset}" \
-                '{p_limit: $p_limit, p_offset: $p_offset}')
-            else
-              BODY='{}'
-            fi
-
-            RESPONSE_FILE="$(mktemp)"
-            HTTP_STATUS=$(curl -sS -o "${RESPONSE_FILE}" -w "%{http_code}" -X POST \
-              "${SUPABASE_URL}/rest/v1/rpc/fn_relink_recipe_ingredients" \
-              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
-              -H "Content-Type: application/json" \
-              -d "${BODY}")
-            RESULT="$(cat "${RESPONSE_FILE}")"
-            rm -f "${RESPONSE_FILE}"
-
-            if [ "${HTTP_STATUS}" -lt 200 ] || [ "${HTTP_STATUS}" -ge 300 ]; then
-              if [ "${allow_batch_args}" = "true" ] && \
-                 echo "${RESULT}" | grep -Eqi "PGRST202|Could not find the function" && \
-                 echo "${RESULT}" | grep -qi "fn_relink_recipe_ingredients"; then
-                echo "Batch args unsupported for fn_relink_recipe_ingredients; falling back to single non-batched call."
-                allow_batch_args=false
-                batch=1
-                offset=0
-                total_processed=0
-                total_changed=0
-                total_queued=0
-                continue
-              fi
-
-              echo "Recipe relink RPC failed (HTTP ${HTTP_STATUS})."
-              echo "Response body:"
-              echo "${RESULT}"
-              exit 1
-            fi
-
-            BATCH_PROCESSED=$(echo "$RESULT" | jq -r '
-              def norm: if type == "string" then (try fromjson catch .) else . end;
-              (norm) as $n |
-              if ($n | type) == "array" then ($n | length)
-              elif ($n | type) == "object" then
-                if ($n | has("rows")) and (($n.rows | type) == "array") then ($n.rows | length)
-                elif ($n | has("total")) then ($n.total | tonumber? // 0)
-                elif ($n | has("count")) then ($n.count | tonumber? // 0)
-                elif ($n | has("processed_count")) then ($n.processed_count | tonumber? // 0)
-                elif ($n | has("changed_count")) then ($n.changed_count | tonumber? // 0)
-                else 0 end
-              else 0 end
-            ')
-            BATCH_CHANGED=$(echo "$RESULT" | jq -r '
-              def norm: if type == "string" then (try fromjson catch .) else . end;
-              (norm) as $n
-              | if ($n | type) == "array" then
-                  [$n[] | select((type == "object") and ((.changed // false) == true))] | length
-                elif ($n | type) == "object" then
-                  if ($n | has("changed_count")) then ($n.changed_count | tonumber? // 0)
-                  elif ($n | has("changed")) then (if ($n.changed == true or $n.changed == 1) then 1 else 0 end)
-                  elif ($n | has("rows")) and (($n.rows | type) == "array") then
-                    [$n.rows[] | select((type == "object") and ((.changed // false) == true))] | length
-                  else 0 end
-                else 0 end
-            ')
-            BATCH_QUEUED=$(echo "$RESULT" | jq -r '
-              def norm: if type == "string" then (try fromjson catch .) else . end;
-              (norm) as $n
-              | if ($n | type) == "array" then
-                  [$n[] | select((type == "object") and ((.ri_match_strategy // "") == "unmatched"))] | length
-                elif ($n | type) == "object" and ($n | has("rows")) and (($n.rows | type) == "array") then
-                  [$n.rows[] | select((type == "object") and ((.ri_match_strategy // "") == "unmatched"))] | length
-                elif ($n | type) == "object" and ($n | has("queued_count")) then
-                  ($n.queued_count | tonumber? // 0)
-                else 0 end
-            ')
-
-            total_processed=$((total_processed + BATCH_PROCESSED))
-            total_changed=$((total_changed + BATCH_CHANGED))
-            total_queued=$((total_queued + BATCH_QUEUED))
-
-            echo "Recipe batch ${batch}: processed=${BATCH_PROCESSED}, relinked=${BATCH_CHANGED}, queued=${BATCH_QUEUED}"
-
-            if [ "${allow_batch_args}" != "true" ]; then
-              break
-            fi
-
-            if [ "${BATCH_PROCESSED}" -eq 0 ] || [ "${BATCH_PROCESSED}" -lt "${batch_size}" ]; then
-              break
-            fi
-
-            offset=$((offset + batch_size))
-            batch=$((batch + 1))
-          done
-
-          if [ "${batch}" -gt "${max_batches}" ]; then
-            echo "Reached RELINK_MAX_BATCHES=${max_batches}; stopping early."
+          if [ "${HTTP_STATUS}" -lt 200 ] || [ "${HTTP_STATUS}" -ge 300 ]; then
+            echo "Recipe relink RPC failed (HTTP ${HTTP_STATUS})."
+            echo "Response body:"
+            echo "${RESULT}"
+            exit 1
           fi
 
-          echo "Total processed: ${total_processed} | Relinked: ${total_changed} | Queued for LLM: ${total_queued}"
+          TOTAL_PROCESSED=$(echo "$RESULT" | jq -r 'if type == "array" then length else 0 end')
+          TOTAL_CHANGED=$(echo "$RESULT" | jq -r '
+            if type == "array" then
+              [.[] | select((type == "object") and ((.changed // false) == true))] | length
+            else 0 end
+          ')
+          TOTAL_QUEUED=$(echo "$RESULT" | jq -r '
+            if type == "array" then
+              [.[] | select((type == "object") and ((.ri_match_strategy // "") == "unmatched"))] | length
+            else 0 end
+          ')
+
+          echo "Total processed: ${TOTAL_PROCESSED} | Relinked: ${TOTAL_CHANGED} | Queued for LLM: ${TOTAL_QUEUED}"
 
       - name: Relink Product Mappings
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_product_relink }}
@@ -247,15 +160,16 @@ jobs:
           echo "=== Relinking Product Mappings ==="
           echo "Batch config: size=${batch_size}, max_batches=${max_batches}"
 
-          offset=0
+          min_batch_size=25
           batch=1
           total_processed=0
           total_changed=0
           allow_batch_args=true
+          previous_batch_signature=""
 
           while [ "${batch}" -le "${max_batches}" ]; do
             if [ "${allow_batch_args}" = "true" ]; then
-              BODY=$(echo "${BASE_BODY}" | jq -c --argjson p_limit "${batch_size}" --argjson p_offset "${offset}" \
+              BODY=$(echo "${BASE_BODY}" | jq -c --argjson p_limit "${batch_size}" --argjson p_offset 0 \
                 '. + {p_limit: $p_limit, p_offset: $p_offset}')
             else
               BODY="${BASE_BODY}"
@@ -278,10 +192,24 @@ jobs:
                 echo "Batch args unsupported for fn_relink_product_mappings; falling back to single non-batched call."
                 allow_batch_args=false
                 batch=1
-                offset=0
                 total_processed=0
                 total_changed=0
                 continue
+              fi
+
+              if [ "${allow_batch_args}" = "true" ] && \
+                 echo "${RESULT}" | grep -qi '"code":"57014"' && \
+                 echo "${RESULT}" | grep -qi 'statement timeout'; then
+                if [ "${batch_size}" -gt "${min_batch_size}" ]; then
+                  next_batch_size=$((batch_size / 2))
+                  if [ "${next_batch_size}" -lt "${min_batch_size}" ]; then
+                    next_batch_size="${min_batch_size}"
+                  fi
+
+                  echo "Product relink head batch timed out with size=${batch_size}; retrying with size=${next_batch_size}."
+                  batch_size="${next_batch_size}"
+                  continue
+                fi
               fi
 
               echo "Product relink RPC failed (HTTP ${HTTP_STATUS})."
@@ -291,13 +219,6 @@ jobs:
               if echo "${RESULT}" | grep -qi "fn_relink_product_mappings" && \
                  echo "${RESULT}" | grep -Eqi "PGRST202|Could not find the function"; then
                 echo "Skipping product relink because fn_relink_product_mappings is not available in this environment."
-                exit 0
-              fi
-
-              if echo "${RESULT}" | grep -Eqi "\"code\"\\s*:\\s*\"42703\"" && \
-                 echo "${RESULT}" | grep -qi "ingredients_history" && \
-                 echo "${RESULT}" | grep -qi "standardized_ingredient_id"; then
-                echo "Skipping product relink due to known schema drift (ingredients_history.standardized_ingredient_id missing)."
                 exit 0
               fi
 
@@ -348,7 +269,23 @@ jobs:
               break
             fi
 
-            offset=$((offset + batch_size))
+            current_batch_signature=$(echo "$RESULT" | jq -r '
+              def norm: if type == "string" then (try fromjson catch .) else . end;
+              (norm) as $n
+              | if ($n | type) == "array" then $n
+                elif ($n | type) == "object" and ($n | has("rows")) and (($n.rows | type) == "array") then $n.rows
+                else [] end
+              | map(.id // .product_mapping_id // .row_id // empty)
+              | map(tostring)
+              | join(",")
+            ')
+
+            if [ -n "${current_batch_signature}" ] && [ "${current_batch_signature}" = "${previous_batch_signature}" ]; then
+              echo "Product relink repeated the same head batch without shrinking the candidate set; aborting to avoid looping forever."
+              exit 1
+            fi
+
+            previous_batch_signature="${current_batch_signature}"
             batch=$((batch + 1))
           done
 
@@ -365,9 +302,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/scripts/package-lock.json
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci --prefix backend/scripts
+
+      - name: Expose scripts dependencies to shared imports
+        run: ln -sfn "$GITHUB_WORKSPACE/backend/scripts/node_modules" "$GITHUB_WORKSPACE/node_modules"
 
       - name: Drift Snapshot (Before)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_drift_snapshot }}
@@ -395,7 +337,7 @@ jobs:
           NODE_ENV: production
         run: |
           # First cycle generates fresh drift telemetry from current queue content.
-          QUEUE_RESOLVER_NAME="relink-map-run-b1" QUEUE_MAX_CYCLES="1" npm run ingredient-match-queue-pipeline
+          QUEUE_RESOLVER_NAME="relink-map-run-b1" QUEUE_MAX_CYCLES="1" npm --prefix backend/scripts run ingredient-match-queue-pipeline
 
       - name: "Resolve Ingredient Match Queue (Pass 2: Drift-Informed)"
         env:
@@ -411,7 +353,7 @@ jobs:
           QUEUE_REVIEW_MODE: 'ingredient'
           QUEUE_RESOLVER_NAME: 'relink-map-run-b2'
           NODE_ENV: production
-        run: npm run ingredient-match-queue-pipeline
+        run: npm --prefix backend/scripts run ingredient-match-queue-pipeline
 
       - name: Queue Summary
         run: |

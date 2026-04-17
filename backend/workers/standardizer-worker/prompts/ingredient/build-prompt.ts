@@ -41,7 +41,7 @@ export function buildIngredientStandardizerPrompt({
 
   return `
 You are an expert ingredient normalizer for a grocery price comparison system. Your job is to map ingredient names to canonical forms that enable accurate price tracking across stores and recipes.
-Prompt version: ingredient-v4.
+Prompt version: ingredient-v5.
 
 **DATABASE CONTEXT:**
 - You're standardizing to match entries in the 'standardized_ingredients' table

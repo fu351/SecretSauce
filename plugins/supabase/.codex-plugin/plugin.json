@@ -1,0 +1,42 @@
+{
+  "name": "supabase",
+  "version": "0.1.0",
+  "description": "Connect Codex to Supabase through hosted or local MCP servers.",
+  "author": {
+    "name": "fu351",
+    "url": "https://github.com/fu351"
+  },
+  "homepage": "https://supabase.com/docs/guides/getting-started/mcp",
+  "repository": "https://github.com/fu351/SecretSauce",
+  "license": "UNLICENSED",
+  "keywords": [
+    "supabase",
+    "postgres",
+    "mcp",
+    "database",
+    "secret-sauce"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Supabase",
+    "shortDescription": "Use Supabase MCP from this workspace",
+    "longDescription": "Adds safe Supabase MCP connections for SecretSauce, including the hosted Supabase endpoint in read-only mode and the local Supabase CLI MCP server for schema and migration work.",
+    "developerName": "SecretSauce",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://supabase.com/",
+    "privacyPolicyURL": "https://supabase.com/privacy",
+    "termsOfServiceURL": "https://supabase.com/terms",
+    "defaultPrompt": [
+      "List the tables in my Supabase project",
+      "Generate TypeScript types from my schema",
+      "Check advisors before I ship a migration"
+    ],
+    "brandColor": "#3ECF8E",
+    "screenshots": []
+  }
+}

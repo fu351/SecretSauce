@@ -33,6 +33,10 @@ const CONFIGURED_CITIES = new Set(
 )
 
 const SAMPLE_SIZE = 10
+const hasServiceEnv = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
 // ---------------------------------------------------------------------------
 // Client
@@ -58,7 +62,15 @@ function buildServiceClient(): SupabaseClient<Database> {
 // Suite
 // ---------------------------------------------------------------------------
 
-describe('Region Price Coverage (real DB)', () => {
+if (!hasServiceEnv) {
+  console.warn(
+    '[region-price-coverage] Skipping real DB checks because NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing.'
+  )
+}
+
+const describeRegionPriceCoverage = hasServiceEnv ? describe : describe.skip
+
+describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
   let supabase: SupabaseClient<Database>
 
   beforeAll(() => {

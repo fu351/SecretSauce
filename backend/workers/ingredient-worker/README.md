@@ -60,7 +60,9 @@ Common optional knobs:
 - `QUEUE_CHUNK_CONCURRENCY` - concurrent chunk workers; default `1`
 - `QUEUE_LEASE_SECONDS` - processing lease duration; default `180`
 - `WORKER_INTERVAL_SECONDS` - sleep between loop cycles; default `300`
-- `QUEUE_STANDARDIZER_CONTEXT` - `recipe`, `pantry`, or `dynamic`
+- `QUEUE_STANDARDIZER_CONTEXT` - `recipe`, `pantry`, `scraper`, or `dynamic`
+- `QUEUE_RECIPE_STANDARDIZER_CONTEXT` - context for `recipe` source rows when `QUEUE_STANDARDIZER_CONTEXT=dynamic`; default `pantry`
+- `QUEUE_SCRAPER_STANDARDIZER_CONTEXT` - context for `scraper` source rows when `QUEUE_STANDARDIZER_CONTEXT=dynamic`; default `scraper`
 - `QUEUE_REVIEW_MODE` - `ingredient`, `unit`, or `any`
 - `QUEUE_SOURCE` - `scraper`, `recipe`, or `any`; default `scraper`
 - `DRY_RUN` - logs decisions without writing queue updates
@@ -82,6 +84,7 @@ Common optional knobs:
    - reuse local AI cache when possible
    - try vector fast-path for high-confidence matches
    - augment remaining LLM calls with vector hints
+   - in `dynamic` mode, route recipe-created rows through `QUEUE_RECIPE_STANDARDIZER_CONTEXT` and scraper-created rows through `QUEUE_SCRAPER_STANDARDIZER_CONTEXT`
    - standardize ingredients with AI
 6. Apply canonical safeguards before writes:
    - preserve important form/variety tokens when needed

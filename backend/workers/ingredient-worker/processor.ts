@@ -172,14 +172,17 @@ function getIngredientSearchTerm(row: IngredientMatchQueueRow, unitResult?: Unit
 
 function resolveRowStandardizerContext(
   row: IngredientMatchQueueRow,
-  configuredContext: QueueWorkerConfig["standardizerContext"]
+  config: Pick<
+    QueueWorkerConfig,
+    "standardizerContext" | "recipeStandardizerContext" | "scraperStandardizerContext"
+  >
 ): IngredientStandardizerContext {
-  if (configuredContext !== "dynamic") {
-    return configuredContext
+  if (config.standardizerContext !== "dynamic") {
+    return config.standardizerContext
   }
 
-  if (row.source === "recipe") return "recipe"
-  return "pantry"
+  if (row.source === "recipe") return config.recipeStandardizerContext
+  return config.scraperStandardizerContext
 }
 
 function maybeRetainFormSpecificCanonical(params: {
@@ -268,7 +271,7 @@ async function resolveIngredientCandidates(
   const rowsByContext = new Map<IngredientStandardizerContext, IngredientMatchQueueRow[]>()
 
   for (const row of targetRows) {
-    const rowContext = resolveRowStandardizerContext(row, config.standardizerContext)
+    const rowContext = resolveRowStandardizerContext(row, config)
     const bucket = rowsByContext.get(rowContext)
     if (bucket) {
       bucket.push(row)
@@ -722,7 +725,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       processableRows.map(async (row) => {
         const needsIngredient = row.needs_ingredient_review === true
         const needsUnit = row.needs_unit_review === true
-        const rowContext = resolveRowStandardizerContext(row, config.standardizerContext)
+        const rowContext = resolveRowStandardizerContext(row, config)
         let canonicalForWrite = getCanonicalFallback(row)
         let ingredientCategory: string | null = null
         let ingredientConfidence = normalizeConfidence(row.fuzzy_score, 0.5)

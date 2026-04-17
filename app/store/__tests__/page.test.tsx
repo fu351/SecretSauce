@@ -12,7 +12,7 @@ vi.mock('@/hooks', () => ({
   useToast: () => ({ toast: mockToast }),
 }))
 
-const mockUser = { id: 'user_1', email: 'test@example.com', created_at: null }
+let mockUser = { id: 'user_1', email: 'test@example.com', created_at: null }
 
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: vi.fn(() => ({ user: mockUser, profile: null, loading: false })),
@@ -60,6 +60,8 @@ vi.mock('@/hooks/shopping/use-store-comparison', () => ({
 
 vi.mock('@/lib/location-client', () => ({
   updateLocation: vi.fn().mockResolvedValue({ success: true }),
+  getUserLocation: vi.fn().mockResolvedValue(null),
+  reverseGeocodeToPostalCode: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('@/lib/database/standardized-ingredients-db', () => ({
@@ -142,6 +144,10 @@ vi.mock('@/components/store/mobile-quick-add-panel', () => ({
   ),
 }))
 
+vi.mock('@/components/store/store-map', () => ({
+  StoreMap: () => <div data-testid="store-map" />,
+}))
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -149,6 +155,7 @@ vi.mock('@/components/store/mobile-quick-add-panel', () => ({
 import { useShoppingList } from '@/hooks/shopping/use-shopping-list'
 import { useStoreComparison } from '@/hooks/shopping/use-store-comparison'
 import { useAuth } from '@/contexts/auth-context'
+import { profileDB } from '@/lib/database/profile-db'
 
 function mockShoppingListWith(overrides: Partial<ReturnType<typeof useShoppingList>>) {
   vi.mocked(useShoppingList).mockReturnValue({
@@ -218,6 +225,8 @@ describe('ShoppingReceiptPage', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockUser = { id: 'user_1', email: 'test@example.com', created_at: null }
+    vi.mocked(profileDB.fetchProfileFields).mockResolvedValue({ zip_code: '90210' } as any)
 
     vi.mocked(useRouter).mockReturnValue({
       push: vi.fn(),
@@ -250,10 +259,11 @@ describe('ShoppingReceiptPage', () => {
       })
     })
 
-    it('renders the Quick Add sidebar on desktop', async () => {
+    it('renders the store map in the sidebar when comparisons are available', async () => {
+      mockStoreComparisonWith({ results: sampleStoreComparisons as any, hasFetched: true })
       render(<ShoppingReceiptPage />)
       await waitFor(() => {
-        expect(screen.getByText('Quick Add')).toBeInTheDocument()
+        expect(screen.getByTestId('store-map')).toBeInTheDocument()
       })
     })
 
@@ -298,7 +308,7 @@ describe('ShoppingReceiptPage', () => {
       await waitFor(() => {
         expect(mockPerformMassSearch).toHaveBeenCalledWith({
           showCachedFirst: true,
-          skipPricingGaps: true,
+          skipPricingGaps: false,
         })
       })
     })
@@ -313,6 +323,33 @@ describe('ShoppingReceiptPage', () => {
       })
 
       expect(mockPerformMassSearch).not.toHaveBeenCalled()
+    })
+
+    it('waits for a real zip code before auto-loading prices, then retries when one becomes available', async () => {
+      mockSaveChanges.mockResolvedValue(undefined)
+      mockPerformMassSearch.mockResolvedValue(undefined)
+      mockShoppingListWith({ items: sampleItems as any })
+      vi.mocked(profileDB.fetchProfileFields).mockResolvedValueOnce({ zip_code: null } as any)
+
+      const { rerender } = render(<ShoppingReceiptPage />)
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50))
+      })
+
+      expect(mockPerformMassSearch).not.toHaveBeenCalled()
+
+      mockUser = { id: 'user_2', email: 'test2@example.com', created_at: null }
+      vi.mocked(profileDB.fetchProfileFields).mockResolvedValueOnce({ zip_code: '94110' } as any)
+
+      rerender(<ShoppingReceiptPage />)
+
+      await waitFor(() => {
+        expect(mockPerformMassSearch).toHaveBeenCalledWith({
+          showCachedFirst: true,
+          skipPricingGaps: false,
+        })
+      })
     })
   })
 

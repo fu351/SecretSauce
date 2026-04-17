@@ -73,7 +73,11 @@ export default function ShoppingReceiptPage() {
     standardizedIngredientId?: string | null
     groceryStoreId?: string | null
   } | null>(null)
-  const previousListSignaturesRef = useRef<{ identity: string; quantity: string } | null>(null)
+  const previousListSignaturesRef = useRef<{
+    identity: string
+    quantity: string
+    zipCode: string
+  } | null>(null)
 
   // Shopping list management
   const {
@@ -98,6 +102,7 @@ export default function ShoppingReceiptPage() {
   } = useStoreComparison(shoppingList, zipCode, null)
   const listIdentitySignature = useMemo(() => buildListIdentitySignature(shoppingList), [shoppingList])
   const listQuantitySignature = useMemo(() => buildListQuantitySignature(shoppingList), [shoppingList])
+  const normalizedZipCode = zipCode.trim()
 
   // Hydration handling
   useEffect(() => {
@@ -136,25 +141,27 @@ export default function ShoppingReceiptPage() {
   }, [user])
 
   // Auto-run comparison on load and when non-quantity list inputs change.
-  // Keep this cache-only; explicit refresh triggers scraper activation.
+  // First load follows the refresh path; later list edits stay cache-first.
   useEffect(() => {
     if (!mounted || !zipReady || listLoading) return
     if (shoppingList.length === 0) {
       previousListSignaturesRef.current = null
       return
     }
+    if (!normalizedZipCode) return
 
     const currentSignatures = {
       identity: listIdentitySignature,
       quantity: listQuantitySignature,
+      zipCode: normalizedZipCode,
     }
     const previousSignatures = previousListSignaturesRef.current
-    previousListSignaturesRef.current = currentSignatures
 
     if (
       previousSignatures &&
       previousSignatures.identity === currentSignatures.identity &&
-      previousSignatures.quantity === currentSignatures.quantity
+      previousSignatures.quantity === currentSignatures.quantity &&
+      previousSignatures.zipCode === currentSignatures.zipCode
     ) {
       return
     }
@@ -162,19 +169,32 @@ export default function ShoppingReceiptPage() {
     const quantityOnlyChange = Boolean(
       previousSignatures &&
       previousSignatures.identity === currentSignatures.identity &&
-      previousSignatures.quantity !== currentSignatures.quantity
+      previousSignatures.quantity !== currentSignatures.quantity &&
+      previousSignatures.zipCode === currentSignatures.zipCode
     )
 
     if (quantityOnlyChange && comparisonFetched) {
+      previousListSignaturesRef.current = currentSignatures
       return
     }
 
     let cancelled = false
+    const isInitialLoad = !previousSignatures
 
     const runAutoCompare = async () => {
+      previousListSignaturesRef.current = currentSignatures
+      if (isInitialLoad && user?.id) {
+        const locationUpdate = await updateLocation(user.id)
+        if (!locationUpdate.success && locationUpdate.error) {
+          console.warn("[store] updateLocation failed during auto-refresh:", locationUpdate.error)
+        }
+      }
       await saveChanges()
       if (cancelled) return
-      await performMassSearch({ showCachedFirst: true, skipPricingGaps: true })
+      await performMassSearch({
+        showCachedFirst: true,
+        skipPricingGaps: !isInitialLoad,
+      })
     }
 
     void runAutoCompare()
@@ -189,9 +209,11 @@ export default function ShoppingReceiptPage() {
     shoppingList.length,
     listIdentitySignature,
     listQuantitySignature,
+    normalizedZipCode,
     comparisonFetched,
     saveChanges,
     performMassSearch,
+    user?.id,
   ])
 
   const selectedStore = storeComparisons[carouselIndex]?.store ?? null

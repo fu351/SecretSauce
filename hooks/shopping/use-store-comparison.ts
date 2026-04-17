@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useEffect } from "react"
+import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { useToast } from "../ui/use-toast"
 import type { StoreComparison, GroceryItem, ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import { useAuth } from "@/contexts/auth-context"
@@ -149,7 +149,15 @@ async function hydratePricingGaps(
       console.error("[useStoreComparison] Skipping pricing gap — no zip code available", { store: gap.store })
       continue
     }
-    for (const ingredient of gap.ingredients) {
+    // Deduplicate ingredients by ID — the same standardized ingredient can appear
+    // multiple times when several shopping list items share one canonical ingredient.
+    const seenIngredientIds = new Set<string>()
+    const uniqueIngredients = gap.ingredients.filter(ing => {
+      if (seenIngredientIds.has(ing.id)) return false
+      seenIngredientIds.add(ing.id)
+      return true
+    })
+    for (const ingredient of uniqueIngredients) {
       const storeResults = await searchGroceryStores(
         ingredient.name,
         gapZip,
@@ -224,6 +232,7 @@ export function useStoreComparison(
   const [hasFetched, setHasFetched] = useState(false)
   const [activeStoreIndex, setActiveStoreIndex] = useState(0)
   const [sortMode, setSortMode] = useState<"cheapest" | "best-value" | "nearest">("cheapest")
+  const searchGenerationRef = useRef(0)
   const resolvedZipCode = normalizeZipCode(zipCode) || undefined
 
   const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[], storeMetadata: StoreMetadataMap): StoreComparison[] => {
@@ -427,6 +436,9 @@ export function useStoreComparison(
       return
     }
 
+    const generation = ++searchGenerationRef.current
+    const isStale = () => searchGenerationRef.current !== generation
+
     setLoading(true)
     setHasFetched(false)
     setActiveStoreIndex(0)
@@ -517,6 +529,7 @@ export function useStoreComparison(
         cachedPricingData = user ? await ingredientsRecentDB.getPricingForUser(user.id) : []
         logPricingData("initial", cachedPricingData)
         const initialComparisons = buildFinalComparisons(cachedPricingData, "initial")
+        if (isStale()) return
         setResults(initialComparisons)
         setActiveStoreIndex(0)
         setHasFetched(true)
@@ -549,17 +562,20 @@ export function useStoreComparison(
         logPricingData("final", pricingData)
 
         const finalComparisons = buildFinalComparisons(pricingData, "final")
+        if (isStale()) return
         setResults(finalComparisons)
         setActiveStoreIndex(0)
       }
 
-      setHasFetched(true)
+      if (!isStale()) setHasFetched(true)
     } catch (error) {
       console.error("Mass search error:", error)
-      toast({ title: "Search failed", variant: "destructive" })
-      setHasFetched(true)
+      if (!isStale()) {
+        toast({ title: "Search failed", variant: "destructive" })
+        setHasFetched(true)
+      }
     } finally {
-      setLoading(false)
+      if (!isStale()) setLoading(false)
     }
   }, [shoppingList, resolvedZipCode, toast, user, buildComparisonsFromPricing])
 

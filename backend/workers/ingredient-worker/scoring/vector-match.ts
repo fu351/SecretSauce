@@ -15,7 +15,7 @@
  */
 
 import { ingredientEmbeddingsDB, type VectorMatchRow } from "../../../../lib/database/ingredient-embeddings-db"
-import { fetchEmbeddings } from "../../../../lib/openai/embeddings"
+import { fetchEmbeddingsFromOllama } from "../../../../lib/ollama/embeddings"
 
 // ---------------------------------------------------------------------------
 // Constants (documented in docs/queue-and-standardization.md)
@@ -94,11 +94,11 @@ export function clearEmbeddingCache(): void {
 }
 
 export function getEmbeddingModel(): string {
-  return process.env.EMBEDDING_OPENAI_MODEL?.trim() || "text-embedding-3-small"
+  return process.env.EMBEDDING_OPENAI_MODEL?.trim() || "nomic-embed-text"
 }
 
 // ---------------------------------------------------------------------------
-// OpenAI embedding call
+// Embedding call — always uses Ollama
 // ---------------------------------------------------------------------------
 
 export async function embedText(text: string, model: string): Promise<number[] | null> {
@@ -106,9 +106,9 @@ export async function embedText(text: string, model: string): Promise<number[] |
   const cached = cacheGetEmbedding(cacheKey)
   if (cached) return cached
 
-  if (!process.env.OPENAI_API_KEY?.trim()) return null
+  const baseUrl = process.env.OLLAMA_BASE_URL?.trim() || "http://localhost:11434"
+  const vectors = await fetchEmbeddingsFromOllama({ model, inputTexts: [text], timeoutMs: 30000, baseUrl })
 
-  const vectors = await fetchEmbeddings({ model, inputTexts: [text], timeoutMs: 30000 })
   const embedding = vectors[0] ?? null
   if (embedding) cacheSetEmbedding(cacheKey, embedding)
   return embedding

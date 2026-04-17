@@ -33,3 +33,23 @@ describe("ingredient standardizer fallback", () => {
     ])
   })
 })
+
+describe("ingredient standardizer contexts", () => {
+  it("recognizes scraper as an explicit context", async () => {
+    const { resolveIngredientStandardizerContext } = await import("../ingredient-standardizer")
+
+    expect(resolveIngredientStandardizerContext("scraper")).toBe("scraper")
+  })
+
+  it("uses lenient prepared-food guidance for recipe context and stricter retail-title guidance for scraper context", async () => {
+    const { getIngredientStandardizerContextRules } = await import("../ingredient-standardizer")
+
+    const recipeRules = getIngredientStandardizerContextRules("recipe")
+    const scraperRules = getIngredientStandardizerContextRules("scraper")
+
+    expect(recipeRules.contextGuidance).toContain("can legitimately include prepared, branded, or packaged products")
+    expect(recipeRules.convenienceFoodsRules).toContain("Prepared ingredient products are ACCEPTABLE")
+    expect(scraperRules.contextGuidance).toContain("often come from noisy retail product titles")
+    expect(scraperRules.lowConfidenceBandLabel).toBe("Convenience food from scraper row")
+  })
+})
