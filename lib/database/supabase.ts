@@ -1338,6 +1338,47 @@ export type Database = {
           store?: Database["public"]["Enums"]["grocery_store"]
         }
       }
+      delivery_orders: {
+        Row: {
+          id: string
+          user_id: string
+          subtotal: number
+          flat_fee: number
+          basket_fee_rate: number
+          basket_fee_amount: number
+          total_delivery_fee: number
+          grand_total: number
+          subscription_tier_at_checkout: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          user_id: string
+          subtotal: number
+          flat_fee: number
+          basket_fee_rate: number
+          basket_fee_amount: number
+          total_delivery_fee: number
+          grand_total: number
+          subscription_tier_at_checkout: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          subtotal?: number
+          flat_fee?: number
+          basket_fee_rate?: number
+          basket_fee_amount?: number
+          total_delivery_fee?: number
+          grand_total?: number
+          subscription_tier_at_checkout?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
       store_list_history: {
         Row: {
           id: string

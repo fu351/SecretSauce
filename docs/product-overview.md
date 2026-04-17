@@ -79,6 +79,19 @@ The Python FastAPI service handles four import modes:
 - Premium tier (Stripe checkout) gates: paragraph recipe import, full meal planning, advanced shopping comparison
 - Feature flags and A/B experiments via PostHog + custom `use-feature-flag` / `use-experiment` hooks
 
+## Delivery Pricing
+
+Delivery fees are tier-based and calculated at checkout:
+
+| Tier | Flat delivery fee | Basket percentage |
+|---|---|---|
+| Free | $6.99 | 5% of item subtotal |
+| Premium | $4.99 | 3% of item subtotal |
+
+**Source of truth:** `lib/delivery/pricing.ts` — `calculateDeliveryFees(subtotal, tier)`.
+
+**Enforcement:** The fee breakdown is computed client-side using the authenticated user's subscription tier (from `useSubscription()`) immediately after order items are persisted. The result is stored in the `delivery_orders` table keyed by `order_id`. Both the delivery list (`/delivery`) and detail (`/delivery/[id]`) pages read and display the full breakdown (subtotal, flat fee, basket fee, grand total).
+
 ---
 
 ## Current Development State

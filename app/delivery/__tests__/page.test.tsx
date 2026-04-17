@@ -76,7 +76,16 @@ describe("DeliveryPage", () => {
         {
           orderId: "order_1",
           deliveryDate: "2030-01-02T00:00:00.000Z",
-          grandTotal: 24.5,
+          itemSubtotal: 24.5,
+          fees: {
+            subtotal: 24.5,
+            flatFee: 6.99,
+            basketFeeRate: 0.05,
+            basketFeeAmount: 1.23,
+            totalDeliveryFee: 8.22,
+            grandTotal: 32.72,
+            subscriptionTierAtCheckout: "free",
+          },
           isConfirmed: false,
           stores: [
             {

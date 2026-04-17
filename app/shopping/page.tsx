@@ -9,6 +9,9 @@ import { useToast } from "@/hooks"
 import { profileDB } from "@/lib/database/profile-db"
 import { getUserLocation, reverseGeocodeToPostalCode } from "@/lib/location-client"
 import { storeListHistoryDB } from "@/lib/database/store-list-history-db"
+import { deliveryOrdersDB } from "@/lib/database/delivery-orders-db"
+import { calculateDeliveryFees } from "@/lib/delivery/pricing"
+import { useSubscription } from "@/hooks/use-subscription"
 import type { GroceryItem } from "@/lib/types/store"
 
 import { useShoppingList } from "@/hooks"
@@ -29,6 +32,7 @@ export default function ShoppingPage() {
   const { user, loading: authLoading } = useAuth()
   const { theme } = useTheme()
   const { toast } = useToast()
+  const { subscription } = useSubscription()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -256,6 +260,19 @@ export default function ShoppingPage() {
 
       if (!orderId) {
         throw new Error("Failed to retrieve order ID")
+      }
+
+      // Calculate and persist delivery fee breakdown
+      const subtotal = bestStore.items.reduce((sum, item) => {
+        const price = typeof item.price === "number" ? item.price : 0
+        const qty = item.packagesToBuy || item.quantity || 1
+        return sum + price * qty
+      }, 0)
+      const tier = subscription?.is_active && subscription?.tier === "premium" ? "premium" : "free"
+      const feeBreakdown = calculateDeliveryFees(Math.round(subtotal * 100) / 100, tier)
+      const savedFees = await deliveryOrdersDB.upsertOrderFees(orderId, user.id, feeBreakdown)
+      if (!savedFees) {
+        throw new Error("Failed to save delivery fee breakdown")
       }
 
       // Success! Redirect to order detail page

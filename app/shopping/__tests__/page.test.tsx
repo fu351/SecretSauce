@@ -19,6 +19,7 @@ const mockGetUserLocation = vi.fn()
 const mockReverseGeocodeToPostalCode = vi.fn()
 const mockBulkAddToDeliveryLog = vi.fn()
 const mockFindDeliveryHistory = vi.fn()
+const mockUpsertOrderFees = vi.fn()
 
 let mockAuthState = {
   user: { id: "user_1" },
@@ -105,6 +106,19 @@ vi.mock("@/lib/database/store-list-history-db", () => ({
   },
 }))
 
+vi.mock("@/lib/database/delivery-orders-db", () => ({
+  deliveryOrdersDB: {
+    upsertOrderFees: mockUpsertOrderFees,
+  },
+}))
+
+vi.mock("@/hooks/use-subscription", () => ({
+  useSubscription: vi.fn(() => ({
+    subscription: { tier: "free", is_active: true },
+    loading: false,
+  })),
+}))
+
 vi.mock("@/components/store/store-list", () => ({
   ShoppingListSection: ({ shoppingList }: { shoppingList: Array<{ name: string }> }) => (
     <div>{`Shopping list size: ${shoppingList.length}`}</div>
@@ -171,6 +185,7 @@ describe("ShoppingPage", () => {
       },
     ])
     mockFindDeliveryHistory.mockResolvedValue([{ order_id: "order_1" }])
+    mockUpsertOrderFees.mockResolvedValue(true)
 
     mockRouter()
     mockSearchParams("")
@@ -226,6 +241,95 @@ describe("ShoppingPage", () => {
         }),
       ])
       expect(router.push).toHaveBeenCalledWith("/delivery/order_1")
+    })
+  })
+
+  it("persists free-tier fee breakdown after checkout", async () => {
+    const user = userEvent.setup()
+    render(<ShoppingPage />)
+
+    await user.click(await screen.findByRole("button", { name: /compare prices/i }))
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /proceed to checkout/i })).toBeInTheDocument()
+    )
+    await user.click(screen.getByRole("button", { name: /proceed to checkout/i }))
+
+    // item: 2 pkgs × $5.50 = $11.00 subtotal; free tier: flat 6.99 + 5% = 0.55 basket fee
+    await waitFor(() => {
+      expect(mockUpsertOrderFees).toHaveBeenCalledWith(
+        "order_1",
+        "user_1",
+        expect.objectContaining({
+          subtotal: 11,
+          flatFee: 6.99,
+          basketFeeRate: 0.05,
+          basketFeeAmount: 0.55,
+          totalDeliveryFee: 7.54,
+          grandTotal: 18.54,
+          subscriptionTierAtCheckout: "free",
+        })
+      )
+    })
+  })
+
+  it("uses premium fee rates for premium subscribers", async () => {
+    const { useSubscription } = await import("@/hooks/use-subscription")
+    vi.mocked(useSubscription).mockReturnValue({
+      subscription: { tier: "premium", is_active: true } as any,
+      loading: false,
+    })
+
+    const user = userEvent.setup()
+    const mod = await import("../page")
+    const Page = mod.default
+    render(<Page />)
+
+    await user.click(await screen.findByRole("button", { name: /compare prices/i }))
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /proceed to checkout/i })).toBeInTheDocument()
+    )
+    await user.click(screen.getByRole("button", { name: /proceed to checkout/i }))
+
+    // item: 2 pkgs × $5.50 = $11.00 subtotal; premium: flat 4.99 + 3% = 0.33 basket fee
+    await waitFor(() => {
+      expect(mockUpsertOrderFees).toHaveBeenCalledWith(
+        "order_1",
+        "user_1",
+        expect.objectContaining({
+          flatFee: 4.99,
+          basketFeeRate: 0.03,
+          basketFeeAmount: 0.33,
+          totalDeliveryFee: 5.32,
+          grandTotal: 16.32,
+          subscriptionTierAtCheckout: "premium",
+        })
+      )
+    })
+  })
+
+  it("shows an error if the delivery fee row cannot be saved", async () => {
+    mockUpsertOrderFees.mockResolvedValue(false)
+
+    const user = userEvent.setup()
+    const router = mockRouter()
+    const mod = await import("../page")
+    const Page = mod.default
+    render(<Page />)
+
+    await user.click(await screen.findByRole("button", { name: /compare prices/i }))
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /proceed to checkout/i })).toBeInTheDocument()
+    )
+    await user.click(screen.getByRole("button", { name: /proceed to checkout/i }))
+
+    await waitFor(() => {
+      expect(router.push).not.toHaveBeenCalled()
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Checkout Failed",
+          variant: "destructive",
+        })
+      )
     })
   })
 })

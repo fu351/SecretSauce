@@ -116,7 +116,11 @@ class StoreListHistoryTable extends BaseTable<
    * Get delivery log entries for a user
    */
   async findByUserId(userId: string, options?: { limit?: number }): Promise<StoreListHistoryRow[]> {
-    let query = this.supabase.from(this.tableName).select("*").eq("user_id", userId)
+    let query = this.supabase
+      .from(this.tableName)
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
 
     if (options?.limit) {
       query = query.limit(options.limit)

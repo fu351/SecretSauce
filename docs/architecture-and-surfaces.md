@@ -45,8 +45,10 @@ Last verified: 2026-03-26.
 - `/shopping` is the shopping-list workspace and comparison launcher.
 - `/store` is the receipt/comparison view with quick-add and replacement flows.
 - `/pantry` is the pantry tracker, including ingredient standardization calls.
-- `/delivery` lists current and past delivery orders.
-- `/delivery/[id]` shows order details.
+- `/delivery` lists current and past delivery orders, including the fee breakdown (subtotal, flat fee, basket fee, grand total) sourced from the `delivery_orders` table.
+- `/delivery/[id]` shows order details with a full fee summary card.
+
+Delivery pricing is defined in `lib/delivery/pricing.ts`. The fee breakdown is calculated at checkout time using the user's subscription tier and persisted via `lib/database/delivery-orders-db.ts` into the `delivery_orders` table. The table is keyed on `order_id` (matching `store_list_history.order_id`). See the Delivery Pricing section of `product-overview.md` for the rate table.
 
 ### Account and billing
 

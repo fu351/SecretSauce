@@ -41,6 +41,10 @@ Last verified: 2026-03-26.
 - `GET /api/user-store-metadata`
   - Returns preferred-store metadata used by shopping and pricing hooks.
 
+**Delivery order creation** (client-side, no dedicated API route):
+
+Checkout calls `storeListHistoryDB.bulkAddToDeliveryLog()` (Supabase RPC `fn_bulk_add_to_delivery_log`), retrieves the assigned `order_id`, then calls `deliveryOrdersDB.upsertOrderFees()` to persist the fee breakdown (flat fee + basket %) into the `delivery_orders` table. Delivery fee rates are defined in `lib/delivery/pricing.ts`.
+
 ### Ingredient and recipe import/parsing
 
 - `POST /api/ingredients/standardize`

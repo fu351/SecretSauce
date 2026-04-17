@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useParams, useRouter } from "next/navigation"
 
 const mockFindByOrderIdWithJoins = vi.fn()
+const mockFindById = vi.fn()
 
 vi.mock("@/contexts/auth-context", () => ({
   useAuth: vi.fn(() => ({ user: { id: "user_1" } })),
@@ -16,6 +17,12 @@ vi.mock("@/contexts/theme-context", () => ({
 vi.mock("@/lib/database/store-list-history-db", () => ({
   storeListHistoryDB: {
     findByOrderIdWithJoins: mockFindByOrderIdWithJoins,
+  },
+}))
+
+vi.mock("@/lib/database/delivery-orders-db", () => ({
+  deliveryOrdersDB: {
+    findById: mockFindById,
   },
 }))
 
@@ -36,6 +43,19 @@ describe("OrderDetailPage", () => {
     vi.clearAllMocks()
     vi.mocked(useParams).mockReturnValue(mockParams as any)
     vi.mocked(useRouter).mockReturnValue(mockRouter as any)
+    mockFindById.mockResolvedValue({
+      id: "order_1",
+      user_id: "user_1",
+      subtotal: 11,
+      flat_fee: 6.99,
+      basket_fee_rate: 0.05,
+      basket_fee_amount: 0.55,
+      total_delivery_fee: 7.54,
+      grand_total: 18.54,
+      subscription_tier_at_checkout: "free",
+      created_at: "2030-01-01T00:00:00.000Z",
+      updated_at: "2030-01-01T00:00:00.000Z",
+    })
     mockFindByOrderIdWithJoins.mockResolvedValue([
       {
         id: "row_1",
@@ -81,6 +101,7 @@ describe("OrderDetailPage", () => {
 
   it("redirects to the delivery list when the order cannot be found", async () => {
     mockFindByOrderIdWithJoins.mockResolvedValue([])
+    mockFindById.mockResolvedValue(null)
     const mod = await import("../page")
     const Page = mod.default
 
@@ -101,7 +122,12 @@ describe("OrderDetailPage", () => {
       expect(screen.getByText("Milk")).toBeInTheDocument()
       expect(screen.getByText("Eggs")).toBeInTheDocument()
       expect(screen.getByText("Order Total")).toBeInTheDocument()
-      expect(screen.getAllByText("$11.00")).toHaveLength(2)
+      // grand total from fees (appears in header and fee summary)
+      expect(screen.getAllByText("$18.54")).toHaveLength(2)
+      // fee summary section
+      expect(screen.getByText("Fee Summary")).toBeInTheDocument()
+      expect(screen.getByText("$6.99")).toBeInTheDocument()
+      expect(screen.getByText(/basket fee \(5%\)/i)).toBeInTheDocument()
     })
 
     await user.click(screen.getByRole("button", { name: /back to orders/i }))

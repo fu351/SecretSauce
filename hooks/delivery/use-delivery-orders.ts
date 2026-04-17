@@ -4,6 +4,10 @@ import {
   storeListHistoryDB,
   type StoreListHistoryWithJoins,
 } from "@/lib/database/store-list-history-db"
+import { deliveryOrdersDB } from "@/lib/database/delivery-orders-db"
+import type { Database } from "@/lib/database/supabase"
+
+type DeliveryOrderRow = Database["public"]["Tables"]["delivery_orders"]["Row"]
 
 export interface DeliveryOrder {
   id: string
@@ -21,6 +25,16 @@ export interface DeliveryOrder {
   weekIndex: number
 }
 
+export interface OrderFees {
+  subtotal: number
+  flatFee: number
+  basketFeeRate: number
+  basketFeeAmount: number
+  totalDeliveryFee: number
+  grandTotal: number
+  subscriptionTierAtCheckout: string
+}
+
 export interface GroupedDelivery {
   orderId: string | null
   deliveryDate: string
@@ -32,20 +46,22 @@ export interface GroupedDelivery {
     items: DeliveryOrder[]
     total: number
   }[]
-  grandTotal: number
+  itemSubtotal: number
+  fees: OrderFees | null
 }
 
 /**
  * Helper function to group delivery items by date and store
  */
-function groupByDateAndStore(data: StoreListHistoryWithJoins[]): GroupedDelivery[] {
+function groupByDateAndStore(
+  data: StoreListHistoryWithJoins[],
+  feesByOrderId: Record<string, DeliveryOrderRow>
+): GroupedDelivery[] {
   if (!data || data.length === 0) return []
 
-  // Group by order_id first, then by delivery_date if no order_id
   const orderGroups: Record<string, StoreListHistoryWithJoins[]> = {}
 
   data.forEach((item) => {
-    // Use order_id if available, otherwise use delivery_date as fallback
     const key = item.order_id || `date_${item.delivery_date || 'unknown'}_${item.week_index}`
     if (!orderGroups[key]) {
       orderGroups[key] = []
@@ -53,9 +69,7 @@ function groupByDateAndStore(data: StoreListHistoryWithJoins[]): GroupedDelivery
     orderGroups[key].push(item)
   })
 
-  // Transform groups into structured format
   const grouped: GroupedDelivery[] = Object.entries(orderGroups).map(([_, items]) => {
-    // Group items within this order by store
     const storeGroups: Record<string, StoreListHistoryWithJoins[]> = {}
     items.forEach((item) => {
       const storeId = item.grocery_store_id
@@ -65,7 +79,6 @@ function groupByDateAndStore(data: StoreListHistoryWithJoins[]): GroupedDelivery
       storeGroups[storeId].push(item)
     })
 
-    // Build store breakdown
     const stores = Object.entries(storeGroups).map(([storeId, storeItems]) => ({
       storeId,
       storeName: storeItems[0].grocery_stores?.name || "Unknown Store",
@@ -88,19 +101,32 @@ function groupByDateAndStore(data: StoreListHistoryWithJoins[]): GroupedDelivery
       total: storeItems.reduce((sum, item) => sum + ((item.price_at_selection || 0) * item.quantity_needed), 0),
     }))
 
-    // Calculate grand total
-    const grandTotal = stores.reduce((sum, store) => sum + store.total, 0)
+    const itemSubtotal = stores.reduce((sum, store) => sum + store.total, 0)
+    const orderId = items[0].order_id
+    const feeRow = orderId ? feesByOrderId[orderId] : undefined
+
+    const fees: OrderFees | null = feeRow
+      ? {
+          subtotal: feeRow.subtotal,
+          flatFee: feeRow.flat_fee,
+          basketFeeRate: feeRow.basket_fee_rate,
+          basketFeeAmount: feeRow.basket_fee_amount,
+          totalDeliveryFee: feeRow.total_delivery_fee,
+          grandTotal: feeRow.grand_total,
+          subscriptionTierAtCheckout: feeRow.subscription_tier_at_checkout,
+        }
+      : null
 
     return {
-      orderId: items[0].order_id,
+      orderId,
       deliveryDate: items[0].delivery_date || "TBD",
       isConfirmed: items[0].is_delivery_confirmed,
       stores,
-      grandTotal,
+      itemSubtotal,
+      fees,
     }
   })
 
-  // Sort by delivery date (most recent first)
   return grouped.sort((a, b) => {
     if (a.deliveryDate === "TBD") return 1
     if (b.deliveryDate === "TBD") return -1
@@ -130,10 +156,15 @@ export function useDeliveryOrders() {
 
     setLoading(true)
     try {
-      const data = await storeListHistoryDB.findByUserIdWithJoins(user.id)
+      const [data, feeRows] = await Promise.all([
+        storeListHistoryDB.findByUserIdWithJoins(user.id),
+        deliveryOrdersDB.findByUserId(user.id),
+      ])
 
-      // Group and separate current vs past
-      const grouped = groupByDateAndStore(data)
+      const feesByOrderId: Record<string, DeliveryOrderRow> = {}
+      feeRows.forEach((row) => { feesByOrderId[row.id] = row })
+
+      const grouped = groupByDateAndStore(data, feesByOrderId)
 
       setCurrentOrders(grouped.filter((g) => !g.isConfirmed))
       setPastOrders(grouped.filter((g) => g.isConfirmed))

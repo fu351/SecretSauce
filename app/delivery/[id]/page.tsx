@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { storeListHistoryDB } from "@/lib/database/store-list-history-db"
+import { deliveryOrdersDB } from "@/lib/database/delivery-orders-db"
 
 // UI Components
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,6 +35,16 @@ interface OrderItem {
   totalPrice: number
 }
 
+interface OrderFees {
+  subtotal: number
+  flatFee: number
+  basketFeeRate: number
+  basketFeeAmount: number
+  totalDeliveryFee: number
+  grandTotal: number
+  subscriptionTierAtCheckout: string
+}
+
 interface OrderDetail {
   orderId: string
   deliveryDate: string | null
@@ -47,7 +58,8 @@ interface OrderDetail {
     items: OrderItem[]
     subtotal: number
   }[]
-  grandTotal: number
+  itemSubtotal: number
+  fees: OrderFees | null
 }
 
 export default function OrderDetailPage() {
@@ -75,7 +87,10 @@ export default function OrderDetailPage() {
     setLoading(true)
     try {
       // Fetch all items for this order with JOINs
-      const data = await storeListHistoryDB.findByOrderIdWithJoins(orderId, user.id)
+      const [data, feeRow] = await Promise.all([
+        storeListHistoryDB.findByOrderIdWithJoins(orderId, user.id),
+        deliveryOrdersDB.findById(orderId, user.id),
+      ])
 
       if (!data || data.length === 0) {
         // Order not found or doesn't belong to user
@@ -93,6 +108,20 @@ export default function OrderDetailPage() {
         }
         storeGroups[storeId].push(item)
       })
+
+      const itemSubtotal = data.reduce((sum, item) => sum + ((item.price_at_selection || 0) * item.quantity_needed), 0)
+
+      const fees: OrderFees | null = feeRow
+        ? {
+            subtotal: feeRow.subtotal,
+            flatFee: feeRow.flat_fee,
+            basketFeeRate: feeRow.basket_fee_rate,
+            basketFeeAmount: feeRow.basket_fee_amount,
+            totalDeliveryFee: feeRow.total_delivery_fee,
+            grandTotal: feeRow.grand_total,
+            subscriptionTierAtCheckout: feeRow.subscription_tier_at_checkout,
+          }
+        : null
 
       // Build order detail structure
       const orderDetail: OrderDetail = {
@@ -116,7 +145,8 @@ export default function OrderDetailPage() {
           })),
           subtotal: items.reduce((sum, item) => sum + ((item.price_at_selection || 0) * item.quantity_needed), 0),
         })),
-        grandTotal: data.reduce((sum, item) => sum + ((item.price_at_selection || 0) * item.quantity_needed), 0),
+        itemSubtotal,
+        fees,
       }
 
       setOrder(orderDetail)
@@ -215,7 +245,7 @@ export default function OrderDetailPage() {
               <div className="text-right">
                 <p className={`text-sm ${styles.mutedTextClass}`}>Order Total</p>
                 <p className={`text-3xl font-bold ${styles.textClass}`}>
-                  ${order.grandTotal.toFixed(2)}
+                  ${(order.fees?.grandTotal ?? order.itemSubtotal).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -269,6 +299,40 @@ export default function OrderDetailPage() {
             </Card>
           ))}
         </div>
+
+        {/* Fee breakdown */}
+        {order.fees && (
+          <Card className={`${styles.cardBgClass} mt-6`}>
+            <CardHeader>
+              <CardTitle className={`${styles.textClass} text-base`}>Fee Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className={styles.mutedTextClass}>Items subtotal</span>
+                  <span className={styles.textClass}>${order.fees.subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={styles.mutedTextClass}>
+                    Delivery fee ({order.fees.subscriptionTierAtCheckout === "premium" ? "Premium" : "Free"})
+                  </span>
+                  <span className={styles.textClass}>${order.fees.flatFee.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={styles.mutedTextClass}>
+                    Basket fee ({(order.fees.basketFeeRate * 100).toFixed(0)}%)
+                  </span>
+                  <span className={styles.textClass}>${order.fees.basketFeeAmount.toFixed(2)}</span>
+                </div>
+                <Separator className="my-2 bg-gray-200 dark:bg-[#e8dcc4]/20" />
+                <div className="flex justify-between font-bold">
+                  <span className={styles.textClass}>Total</span>
+                  <span className={`text-lg ${styles.textClass}`}>${order.fees.grandTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Order Actions (Future: Track Order button) */}
         {!order.isConfirmed && (

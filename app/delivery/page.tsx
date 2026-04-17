@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
-import { useDeliveryOrders, type GroupedDelivery } from "@/hooks/delivery/use-delivery-orders"
+import { useDeliveryOrders, type GroupedDelivery, type OrderFees } from "@/hooks/delivery/use-delivery-orders"
 
 // UI Components
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -151,6 +151,45 @@ export default function DeliveryPage() {
 }
 
 /**
+ * Fee summary row for a single order
+ */
+interface OrderFeeSummaryProps {
+  fees: OrderFees
+  styles: any
+}
+
+function OrderFeeSummary({ fees, styles }: OrderFeeSummaryProps) {
+  return (
+    <Card className={`${styles.cardBgClass} mt-4`}>
+      <CardContent className="p-4">
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className={styles.mutedTextClass}>Items subtotal</span>
+            <span className={styles.textClass}>${fees.subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className={styles.mutedTextClass}>
+              Delivery fee ({fees.subscriptionTierAtCheckout === "premium" ? "Premium" : "Free"})
+            </span>
+            <span className={styles.textClass}>${fees.flatFee.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className={styles.mutedTextClass}>
+              Basket fee ({(fees.basketFeeRate * 100).toFixed(0)}%)
+            </span>
+            <span className={styles.textClass}>${fees.basketFeeAmount.toFixed(2)}</span>
+          </div>
+          <div className="border-t border-gray-200 dark:border-[#e8dcc4]/20 pt-2 flex justify-between font-bold">
+            <span className={styles.textClass}>Total</span>
+            <span className={styles.textClass}>${fees.grandTotal.toFixed(2)}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
  * Component for rendering list of orders
  */
 interface OrderListProps {
@@ -177,7 +216,9 @@ function OrderList({ orders, router, styles, isPast }: OrderListProps) {
                     day: "numeric",
                   })
                 : "Date TBD"}
-              <Badge className="ml-2">${delivery.grandTotal.toFixed(2)}</Badge>
+              <Badge className="ml-2">
+                ${(delivery.fees?.grandTotal ?? delivery.itemSubtotal).toFixed(2)}
+              </Badge>
               {delivery.isConfirmed ? (
                 <Badge className="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-100">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -247,6 +288,11 @@ function OrderList({ orders, router, styles, isPast }: OrderListProps) {
               </Card>
             ))}
           </div>
+
+          {/* Fee breakdown */}
+          {delivery.fees && (
+            <OrderFeeSummary fees={delivery.fees} styles={styles} />
+          )}
         </div>
       ))}
     </div>
