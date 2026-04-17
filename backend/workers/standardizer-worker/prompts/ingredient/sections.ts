@@ -157,6 +157,11 @@ EXAMPLES OF PROPER NORMALIZATION:
   -> category: "dairy"
   -> confidence: 0.86
 
+[OK] "Lemon Ginger Cayenne Juice Beverage 10.5 Fl Oz"
+  -> canonicalName: "lemon ginger cayenne juice"  ← NOT "lemon juice" — preserve all flavor modifiers
+  -> category: "beverages"
+  -> confidence: 0.76
+
 **Non-Food Items (ALL contexts):**
 
 [X] "Bounty paper towels"

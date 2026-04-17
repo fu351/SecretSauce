@@ -326,6 +326,23 @@ export interface IngredientStandardizationInput {
   vectorCandidates?: string[]
 }
 
+// Strips packing/carrier medium phrases like "in extra virgin olive oil", "in water", "in brine"
+// so the LLM sees "Solid Light Yellowfin Tuna 4.5 Oz" rather than latching onto "Extra Virgin Olive Oil".
+const PACKING_MEDIUM_RE =
+  /\s+in\s+(?:(?:extra\s+virgin|light|heavy|pure)\s+)?(?:olive\s+oil|vegetable\s+oil|sunflower\s+oil|canola\s+oil|oil|water|brine|syrup|juice|tomato\s+sauce|sauce|vinegar)\b/gi
+
+// Strips processing/preparation qualifiers that add no ingredient meaning and can mislead canonicalization.
+const PROCESSING_QUALIFIER_RE =
+  /\b(?:cold[\s-]pressed|cold[\s-]brew(?:ed)?|stone[\s-]ground|slow[\s-]roasted|slow[\s-]cooked|flash[\s-]frozen|air[\s-]chilled|high[\s-]pressure[\s-]processed|HPP)\b\s*/gi
+
+function preprocessInputName(name: string): string {
+  return name
+    .replace(PACKING_MEDIUM_RE, "")
+    .replace(PROCESSING_QUALIFIER_RE, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}
+
 function normalizeCanonicalOutput(value: string): string {
   return value
     .normalize("NFKD")
@@ -458,8 +475,9 @@ async function callOpenAI(prompt: string): Promise<string | null> {
 
 function buildPrompt(inputs: IngredientStandardizationInput[], canonicalNames: string[], context: IngredientStandardizerContext) {
   const contextRules = getIngredientStandardizerContextRules(context)
+  const preprocessed = inputs.map((i) => ({ ...i, name: preprocessInputName(i.name) }))
   return buildIngredientStandardizerPrompt({
-    inputs,
+    inputs: preprocessed,
     canonicalNames,
     context,
     contextRules,
