@@ -39,8 +39,8 @@ const EMPTY_ADDRESS: AddressState = {
 }
 
 function sanitizeReturnTo(value: string | null): string {
-  if (!value) return "/shopping"
-  if (!value.startsWith("/") || value.startsWith("//")) return "/shopping"
+  if (!value) return "/store"
+  if (!value.startsWith("/") || value.startsWith("//")) return "/store"
   return value
 }
 

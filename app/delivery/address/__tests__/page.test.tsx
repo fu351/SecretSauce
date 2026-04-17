@@ -62,7 +62,7 @@ describe("DeliveryAddressPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     router = mockRouter()
-    mockSearchParams("returnTo=%2Fshopping")
+    mockSearchParams("returnTo=%2Fstore")
     mockUpdateProfile.mockResolvedValue(undefined)
     mockFetchProfileById.mockResolvedValue({
       id: "user_1",
@@ -126,7 +126,7 @@ describe("DeliveryAddressPage", () => {
           title: "Address saved",
         })
       )
-      expect(router.push).toHaveBeenCalledWith("/shopping")
+      expect(router.push).toHaveBeenCalledWith("/store")
     })
   })
 })
