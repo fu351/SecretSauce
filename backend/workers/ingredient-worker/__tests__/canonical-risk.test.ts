@@ -36,6 +36,7 @@ describe("resolveBlockedNewCanonicalFallback", () => {
   it("rejects reserved invalid canonical names early", () => {
     expect(isInvalidCanonicalName("null")).toBe(true)
     expect(isInvalidCanonicalName("other")).toBe(true)
+    expect(isInvalidCanonicalName("sauce")).toBe(true)
     expect(isInvalidCanonicalName("vanilla almond milk")).toBe(false)
   })
 

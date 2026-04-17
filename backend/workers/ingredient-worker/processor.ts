@@ -834,6 +834,9 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               if (!canonicalForWrite) {
                 throw new Error("Canonical name became empty after double-check")
               }
+              if (isInvalidCanonicalName(canonicalForWrite)) {
+                throw new Error(`Invalid canonical name "${canonicalForWrite}" returned after double-check`)
+              }
 
               ingredientCategory = resolvedIngredientCategory
             } else {

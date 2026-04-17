@@ -12,6 +12,8 @@ export const INVALID_CANONICAL_NAMES = new Set([
   "na",
   "misc",
   "miscellaneous",
+  "sauce",
+  "sauces",
   // Too generic — use specific variants (turkey deli meat, roast beef deli meat, etc.)
   "deli meat",
 ])
