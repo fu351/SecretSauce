@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from "react"
+import { useState, useEffect, useCallback, useMemo, memo } from "react"
 import dynamic from "next/dynamic"
 import { useAuth } from "@/contexts/auth-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
@@ -22,7 +22,6 @@ import { WeeklyView } from "@/components/meal-planner/views/weekly-view"
 import { DragPreviewCard } from "@/components/meal-planner/cards/drag-preview-card"
 import { RecipeDetailModal } from "@/components/recipe/detail/recipe-detail-modal"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
-import { ToastAction } from "@/components/ui/toast"
 
 import { cn } from "@/lib/utils"
 import { mealPlannerDB } from "@/lib/database/meal-planner-db"
@@ -75,7 +74,7 @@ export default function MealPlannerPage() {
 function MealPlannerPageContent() {
   const { user } = useAuth()
   const isMobile = useIsMobile()
-  const { toast, dismiss } = useToast()
+  const { toast } = useToast()
   const shoppingList = useShoppingList()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -91,7 +90,6 @@ function MealPlannerPageContent() {
   const [heuristicPlanLoading, setHeuristicPlanLoading] = useState(false)
   const [plannerRecipeToOpen, setPlannerRecipeToOpen] = useState<Recipe | null>(null)
   const [plannerRecipeSearchTerm, setPlannerRecipeSearchTerm] = useState("")
-  const plannerPromptToastIdRef = useRef<string | null>(null)
 
   // Custom hooks
   const {
@@ -188,14 +186,10 @@ function MealPlannerPageContent() {
   const plannerRecipeId = searchParams.get("recipeId")
 
   const clearPlannerRecipePrompt = useCallback(() => {
-    if (plannerPromptToastIdRef.current) {
-      dismiss(plannerPromptToastIdRef.current)
-      plannerPromptToastIdRef.current = null
-    }
     setPlannerRecipeToOpen(null)
     setPlannerRecipeSearchTerm("")
     router.replace("/meal-planner")
-  }, [dismiss, router])
+  }, [router])
 
   useEffect(() => {
     let cancelled = false
@@ -217,24 +211,8 @@ function MealPlannerPageContent() {
           return
         }
 
-        if (plannerPromptToastIdRef.current) {
-          dismiss(plannerPromptToastIdRef.current)
-          plannerPromptToastIdRef.current = null
-        }
-
         setPlannerRecipeToOpen(recipe)
         setPlannerRecipeSearchTerm(recipe.title)
-        const promptToast = toast({
-          title: "Recipe ready",
-          description: `Click an empty card to apply "${recipe.title}" to the planner.`,
-          duration: Infinity,
-          action: (
-            <ToastAction altText="Cancel planner recipe prompt" onClick={clearPlannerRecipePrompt}>
-              Cancel
-            </ToastAction>
-          ),
-        })
-        plannerPromptToastIdRef.current = promptToast.id
       } catch (error) {
         if (cancelled) return
         const errorMessage = error instanceof Error ? error.message : "Failed to load recipe for planner"
@@ -251,7 +229,7 @@ function MealPlannerPageContent() {
     return () => {
       cancelled = true
     }
-  }, [clearPlannerRecipePrompt, dismiss, plannerRecipeId, router, toast])
+  }, [clearPlannerRecipePrompt, plannerRecipeId, router, toast])
 
   const handleGenerateHeuristicPlan = useCallback(async () => {
     if (!user?.id) return
@@ -457,6 +435,8 @@ function MealPlannerPageContent() {
     if (focusMode) setShowRecipeSidebar(true)
   }, [focusMode])
 
+  const showPlannerPrompt = plannerRecipeToOpen !== null
+
   return (
     <DndContext
       sensors={dnd.sensors}
@@ -481,6 +461,29 @@ function MealPlannerPageContent() {
             data-tutorial-scroll-root="page"
           >
             <div className="max-w-7xl mx-auto will-change-transform min-w-0">
+              {showPlannerPrompt && plannerRecipeToOpen && (
+                <div className="sticky top-2 z-30 mb-3">
+                  <div className="mx-auto max-w-2xl rounded-2xl border border-primary/20 bg-background/95 px-4 py-3 shadow-[0_20px_50px_-25px_rgba(15,23,42,0.45)] backdrop-blur-md">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                          Recipe ready
+                        </p>
+                        <p className="mt-1 text-sm text-foreground">
+                          Click an empty card to apply <span className="font-semibold">{plannerRecipeToOpen.title}</span> to the planner.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearPlannerRecipePrompt}
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Header - title/subtext moved to navbar */}
               <div className="flex flex-col gap-2 md:gap-4 mb-3 md:mb-6">
                 <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3" data-tutorial="planner-actions">
