@@ -197,6 +197,43 @@ HANDLING EDGE CASES:
    - "lettuce and tomato" -> TWO items: "lettuce" and "tomato"
    - Common pairings that ARE one product: "peanut butter", "cream cheese", "soy sauce"
 
+   **EXCEPTION — Do NOT split compound-named PREPARED FOODS:**
+   When the product name describes a prepared meal, bowl, tub, kit, or side dish, treat the
+   whole thing as ONE product — do not split on "&" or "and" and do not match to a single raw ingredient.
+
+   [OK] "Root Vegetables & Chickpeas Food Tub - Brown - 4oz"
+     -> canonicalName: "vegetable chickpea bowl"   ← NOT "chickpeas" or "canned chickpeas"
+     -> category: "pantry_staples"
+     -> confidence: 0.52
+
+   [OK] "Broccoli & Cheddar Soup 32 oz"
+     -> canonicalName: "broccoli cheddar soup"     ← NOT "broccoli" or "cheddar cheese"
+     -> category: "pantry_staples"
+     -> confidence: 0.76
+
+   [OK] "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
+     -> canonicalName: "red pepper cream cheese spread"  ← NOT "red bell pepper"
+     -> category: "condiments"
+     -> confidence: 0.76
+
+   [OK] "Honey Wheat Sandwich Bread 20 oz"
+     -> canonicalName: "honey wheat bread"  ← NOT "honey"
+     -> category: "pantry_staples"
+     -> confidence: 0.82
+
+   This also applies when multiple ingredients are listed WITHOUT "&" as part of a prepared food title:
+
+   [OK] "Corn Mango Red Bell Pepper Quinoa Food Tub Baby Snack 4oz"
+     -> canonicalName: "corn mango quinoa baby food"  ← NOT "red bell pepper"
+     -> category: "other"
+     -> confidence: 0.52
+
+   Signals that a name is a prepared food/product (do NOT collapse to one ingredient):
+   - Contains: bowl, tub, kit, meal, soup, stew, casserole, skillet, bake, roast, side, dish
+   - Contains: baby food, baby snack, toddler, puree, blend
+   - Contains: spread, dip, hummus, salsa, pesto, aioli, butter (flavored)
+   - Has a container size + brand + color descriptor pattern typical of retail prepared foods
+
 **3. Unknown Food Items:**
    - If you don't recognize it but it SEEMS like food: confidence 0.5-0.7
    - Clean it up (lowercase, singular, remove brands) and let human review

@@ -335,8 +335,27 @@ const PACKING_MEDIUM_RE =
 const PROCESSING_QUALIFIER_RE =
   /\b(?:cold[\s-]pressed|cold[\s-]brew(?:ed)?|stone[\s-]ground|slow[\s-]roasted|slow[\s-]cooked|flash[\s-]frozen|air[\s-]chilled|high[\s-]pressure[\s-]processed|HPP)\b\s*/gi
 
+// Matches known product-type suffixes that appear after flavor/ingredient modifiers.
+// Capture group 1 = flavor prefix, group 2 = product type.
+// e.g. "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
+//   -> group1: "Red Bell Pepper, Garlic & Parmesan"
+//   -> group2: "cream cheese spread"
+const PRODUCT_TYPE_SUFFIX_RE = /^(.+?)\s+(cream\s+cheese\s+spread|cheese\s+spread|food\s+tub|baby\s+(?:food|snack)|meal\s+kit|cream\s+cheese|cream\s+sauce|pasta\s+sauce|tomato\s+sauce|hot\s+sauce|(?:\w+\s+)?soup|(?:\w+\s+)?stew|(?:\w+\s+)?chili|(?:\w+\s+)?curry|sandwich\s+bread|wheat\s+bread|white\s+bread|sourdough\s+bread|english\s+muffin|greek\s+yogurt|ice\s+cream|granola\s+bar|protein\s+bar|energy\s+bar|spread|tub|dip|hummus|salsa|pesto|aioli|kit|bread|bagel|muffin|croissant|tortilla|wrap|pita|cracker|cereal|granola|oatmeal|yogurt|sorbet|gelato|butter)\b/i
+
+// If the name has a recognizable product-type suffix preceded by ingredient/flavor modifiers,
+// move the product type to the front so the LLM anchors on it rather than the first ingredient token.
+// "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
+//   -> "cream cheese spread Red Bell Pepper, Garlic & Parmesan 8 Oz"
+function hoistProductType(name: string): string {
+  const match = PRODUCT_TYPE_SUFFIX_RE.exec(name)
+  if (!match) return name
+  const [, flavorPrefix, productType] = match
+  const remainder = name.slice(match[0].length).trim()
+  return `${productType} ${flavorPrefix}${remainder ? " " + remainder : ""}`.replace(/\s{2,}/g, " ").trim()
+}
+
 function preprocessInputName(name: string): string {
-  return name
+  return hoistProductType(name)
     .replace(PACKING_MEDIUM_RE, "")
     .replace(PROCESSING_QUALIFIER_RE, "")
     .replace(/\s{2,}/g, " ")
