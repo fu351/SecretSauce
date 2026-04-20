@@ -80,8 +80,6 @@ Most workflows are manually dispatchable; some have schedules (for example night
 - Root `package.json` still includes script aliases for missing files:
   - `backend/scripts/cleanup-recent-standardized-ingredients.ts`
   - `backend/scripts/backfill-clerk-user-ids.ts`
-  - `backend/scripts/test-traderjoes-scraper.js`
-  - `backend/scripts/test-99ranch-scraper.js`
 - Ensure workflow script paths stay in sync with `backend/scripts/` before relying on scheduled runs.
 
 ## Maintenance checklist for future changes

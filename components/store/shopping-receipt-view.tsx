@@ -10,6 +10,7 @@ import { StoreSelector } from "./store-selector"
 import { ReceiptItem } from "./receipt-item"
 import type { ShoppingListIngredient as ShoppingListItem, StoreComparison } from "@/lib/types/store"
 import { mergeShoppingListItems, type ShoppingListDisplayItem } from "@/lib/utils/shopping-list-grouping"
+import { calcLineTotal } from "@/lib/utils/package-pricing"
 
 const StoreMap = dynamic(() => import("./store-map").then((mod) => mod.StoreMap), {
   ssr: false,
@@ -61,7 +62,7 @@ export function ShoppingReceiptView({
   const quantityByItemId = useMemo(() => {
     const map = new Map<string, number>()
     shoppingList.forEach((item) => {
-      map.set(item.id, Math.max(1, Number(item.quantity) || 1))
+      map.set(item.id, Number(item.quantity) || 0)
     })
     return map
   }, [shoppingList])
@@ -95,22 +96,13 @@ export function ShoppingReceiptView({
 
   const calculateSubtotal = useCallback((pricedItem: StoreComparison["items"][number]): number => {
     const effectiveQty = getEffectiveQuantity(pricedItem)
-    const baselineQuantity = Math.max(1, Number(pricedItem.quantity) || 1)
-    const baselinePackages = Number(pricedItem.packagesToBuy)
-    const packagePrice = Number(pricedItem.packagePrice)
-
-    if (
-      Number.isFinite(packagePrice) &&
-      packagePrice > 0 &&
-      Number.isFinite(baselinePackages) &&
-      baselinePackages > 0
-    ) {
-      const packagesPerQuantity = baselinePackages / baselineQuantity
-      const adjustedPackages = Math.max(1, Math.ceil(packagesPerQuantity * effectiveQty))
-      return packagePrice * adjustedPackages
-    }
-
-    return (Number(pricedItem.price) || 0) * effectiveQty
+    const total = calcLineTotal({
+      qty: effectiveQty,
+      packagePrice: pricedItem.packagePrice,
+      convertedQty: pricedItem.convertedQuantity,
+      conversionError: pricedItem.conversionError ?? undefined,
+    })
+    return total ?? (Number(pricedItem.price) || 0) * effectiveQty
   }, [getEffectiveQuantity])
 
   const storeComparisonsWithLocalTotals = useMemo(() => {
@@ -129,22 +121,13 @@ export function ShoppingReceiptView({
           effectiveQty = Math.max(1, Number(pricedItem.quantity) || 1)
         }
 
-        const baselineQuantity = Math.max(1, Number(pricedItem.quantity) || 1)
-        const baselinePackages = Number(pricedItem.packagesToBuy)
-        const packagePrice = Number(pricedItem.packagePrice)
-
-        if (
-          Number.isFinite(packagePrice) &&
-          packagePrice > 0 &&
-          Number.isFinite(baselinePackages) &&
-          baselinePackages > 0
-        ) {
-          const packagesPerQuantity = baselinePackages / baselineQuantity
-          const adjustedPackages = Math.max(1, Math.ceil(packagesPerQuantity * effectiveQty))
-          return sum + (packagePrice * adjustedPackages)
-        }
-
-        return sum + (Number(pricedItem.price) || 0) * effectiveQty
+        const lineTotal = calcLineTotal({
+          qty: effectiveQty,
+          packagePrice: pricedItem.packagePrice,
+          convertedQty: pricedItem.convertedQuantity,
+          conversionError: pricedItem.conversionError ?? undefined,
+        })
+        return sum + (lineTotal ?? (Number(pricedItem.price) || 0) * effectiveQty)
       }, 0)
 
       return {
@@ -201,14 +184,15 @@ export function ShoppingReceiptView({
           quantity,
           price: quantity > 0 ? totalPrice / quantity : totalPrice,
           packagesToBuy: undefined,
-          packagePrice: null,
+          // keep packagePrice and convertedQuantity from priceItem so receipt-item
+          // can display correct package counts and compute totals
           totalPrice,
         })
         return
       }
 
       const nextTotal = existing.totalPrice + totalPrice
-      const nextQuantity = existing.quantity + quantity
+      const nextQuantity = (existing.quantity ?? 0) + quantity
       existing.totalPrice = nextTotal
       existing.quantity = nextQuantity
       existing.price = nextQuantity > 0 ? nextTotal / nextQuantity : nextTotal
@@ -220,7 +204,7 @@ export function ShoppingReceiptView({
     groupedPricing.forEach((value, key) => {
       finalMap.set(key, {
         ...value,
-        price: value.quantity > 0 ? value.totalPrice / value.quantity : value.totalPrice,
+        price: (value.quantity ?? 0) > 0 ? value.totalPrice / (value.quantity ?? 1) : value.totalPrice,
       })
     })
 
@@ -268,30 +252,24 @@ export function ShoppingReceiptView({
       return
     }
 
+    // Distribute proportionally across source items based on their original ratios.
+    // We use proportional distribution (not per-source floor-at-1) so that
+    // package-based decrements to sub-integer quantities work correctly.
     const sourceQuantities = item.sourceItems.map((sourceItem) => Math.max(0, Number(sourceItem.quantity) || 0))
-    const minimumQuantity = item.sourceItemIds.length
-    const safeQuantity = Math.max(quantity, minimumQuantity)
-    const targetExtraQuantity = safeQuantity - minimumQuantity
-    const originalExtraQuantities = sourceQuantities.map((sourceQuantity) => Math.max(0, sourceQuantity - 1))
-    const totalOriginalExtraQuantity = originalExtraQuantities.reduce((sum, qty) => sum + qty, 0)
+    const totalSourceQuantity = sourceQuantities.reduce((sum, q) => sum + q, 0)
 
-    if (totalOriginalExtraQuantity <= 0) {
-      const evenlyDistributedExtra = targetExtraQuantity / item.sourceItemIds.length
-      item.sourceItemIds.forEach((sourceId) => {
-        onQuantityChange(sourceId, Number((1 + evenlyDistributedExtra).toFixed(4)))
+    if (totalSourceQuantity > 0) {
+      item.sourceItemIds.forEach((sourceId, index) => {
+        const ratio = sourceQuantities[index] / totalSourceQuantity
+        onQuantityChange(sourceId, Math.max(0.0001, Number((quantity * ratio).toFixed(4))))
       })
       return
     }
 
-    let assignedQuantity = 0
-    originalExtraQuantities.forEach((extraQuantity, index) => {
-      const isLast = index === originalExtraQuantities.length - 1
-      const nextQuantity = isLast
-        ? Math.max(1, Number((safeQuantity - assignedQuantity).toFixed(4)))
-        : Math.max(1, Number((1 + (targetExtraQuantity * extraQuantity / totalOriginalExtraQuantity)).toFixed(4)))
-
-      assignedQuantity += nextQuantity
-      onQuantityChange(item.sourceItemIds[index], nextQuantity)
+    // Equal split fallback when all source quantities are 0
+    const perSource = quantity / item.sourceItemIds.length
+    item.sourceItemIds.forEach((sourceId) => {
+      onQuantityChange(sourceId, Math.max(0.0001, Number(perSource.toFixed(4))))
     })
   }, [onQuantityChange])
 

@@ -78,7 +78,7 @@ export function useShoppingListItems(
    */
   const updateQuantity = useCallback(
     (id: string, newTotalQuantity: number) => {
-      const safeQuantity = Math.max(1, newTotalQuantity)
+      const safeQuantity = Math.max(0.0001, newTotalQuantity)
 
       setItems(prev => prev.map(item =>
         item.id === id ? { ...item, quantity: safeQuantity } : item

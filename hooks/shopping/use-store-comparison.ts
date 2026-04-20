@@ -600,8 +600,8 @@ export function useStoreComparison(
           if (itemIds.includes(shoppingItemId)) {
             itemUpdated = true
             const qty = item.quantity || 1
-            // Subtract old total for this item and add new total based on quantity
-            newTotal = store.total - (item.price * qty) + (newItem.price * qty)
+            // item.price is already the full line total; newItem.price is per-package
+            newTotal = store.total - item.price + (newItem.price * qty)
 
             return {
               ...item,
@@ -674,10 +674,10 @@ export function useStoreComparison(
       }
 
       if (sortMode === "best-value") {
-        const aQty = a.items.reduce((sum, i) => sum + (i.quantity || 0), 0) || 1
-        const bQty = b.items.reduce((sum, i) => sum + (i.quantity || 0), 0) || 1
-        const aAvg = a.total / aQty
-        const bAvg = b.total / bQty
+        const aCount = a.items.length || 1
+        const bCount = b.items.length || 1
+        const aAvg = a.total / aCount
+        const bAvg = b.total / bCount
         if (aAvg !== bAvg) return aAvg - bAvg
         return a.total - b.total
       }
