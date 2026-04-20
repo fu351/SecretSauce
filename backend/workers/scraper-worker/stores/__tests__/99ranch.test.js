@@ -231,6 +231,18 @@ describe('search99Ranch', () => {
     expect(results).toHaveLength(1)
   })
 
+  it('uses the fallback zip for the product search request after store fallback', async () => {
+    mockPost
+      .mockResolvedValueOnce(makeStoreResponse([]))
+      .mockResolvedValueOnce(makeStoreResponse())
+      .mockResolvedValueOnce(makeProductResponse([makeProduct()]))
+
+    await search99Ranch('rice', '12345')
+
+    const productCall = mockPost.mock.calls[2]
+    expect(productCall[2].headers.Cookie).toContain('zipcode=94709')
+  })
+
   it('returns [] when both user zip and fallback zip have no store', async () => {
     mockPost
       .mockResolvedValueOnce(makeStoreResponse([]))

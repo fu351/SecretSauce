@@ -187,18 +187,20 @@ async function search99Ranch(keyword, zipCode) {
     return resultCache.runCached(cacheKey, async () => {
         try {
             const userZip = (zipCode && zipCode.trim()) || DEFAULT_99_RANCH_ZIP;
+            let searchZip = userZip;
             let store = await getNearestStore(userZip);
             if (!store && userZip !== DEFAULT_99_RANCH_ZIP) {
                 log.warn(`No 99 Ranch store near ${userZip}, falling back to ${DEFAULT_99_RANCH_ZIP}`);
                 store = await getNearestStore(DEFAULT_99_RANCH_ZIP);
+                searchZip = DEFAULT_99_RANCH_ZIP;
             }
             if (!store?.id) {
                 log.warn("No nearby 99 Ranch store found for zip code:", zipCode);
                 return [];
             }
 
-            const products = await searchProducts(store, keyword, userZip);
-            const storeLocation = format99RanchStoreLocation(store, userZip);
+            const products = await searchProducts(store, keyword, searchZip);
+            const storeLocation = format99RanchStoreLocation(store, searchZip);
             return products
                 .map((p) => {
                     const productName = stripRanchQuantitySuffix((p.productName || p.productNameEN || "").trim());
