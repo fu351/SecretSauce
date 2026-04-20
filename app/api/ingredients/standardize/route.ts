@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { standardizeIngredientsWithAI } from "@/backend/workers/standardizer-worker"
+import { standardizeIngredientsDeterministically } from "@/backend/workers/standardizer-worker"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import { pantryItemsDB } from "@/lib/database/pantry-items-db"
 
@@ -80,10 +80,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "All ingredients were blank" }, { status: 400 })
     }
 
-    const aiResults = await standardizeIngredientsWithAI(normalizedInputs, context)
+    const standardizedResults = standardizeIngredientsDeterministically(normalizedInputs, context)
 
     // Batch create all standardized ingredients in one query
-    const standardizedItems = aiResults.map(result => ({
+    const standardizedItems = standardizedResults.map(result => ({
       canonicalName: result.canonicalName.trim().toLowerCase(),
       category: result.category || null,
       isFoodItem: result.isFoodItem,
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       originalIndex: number
     }> = []
 
-    for (const result of aiResults) {
+    for (const result of standardizedResults) {
       const target = normalizedInputs.find((input) => input.id === result.id) || normalizedInputs[0]
       const normalizedCanonical = result.canonicalName.trim().toLowerCase()
       const standardizedId = standardizedIdMap.get(normalizedCanonical)

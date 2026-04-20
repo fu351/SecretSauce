@@ -131,3 +131,30 @@ describe("ingredient standardizer contexts", () => {
     expect(scraperRules.lowConfidenceBandLabel).toBe("Convenience food from scraper row")
   })
 })
+
+describe("realtime deterministic standardizer", () => {
+  it('keeps "tomato seeds" distinct from "tomato"', async () => {
+    const { standardizeIngredientsDeterministically } = await import("../realtime-standardizer")
+
+    const results = standardizeIngredientsDeterministically(
+      [
+        {
+          id: "item-1",
+          name: "Tomato Seeds",
+        },
+      ],
+      "pantry"
+    )
+
+    expect(results).toEqual([
+      {
+        id: "item-1",
+        originalName: "Tomato Seeds",
+        canonicalName: "tomato seeds",
+        isFoodItem: true,
+        category: "produce",
+        confidence: 0.92,
+      },
+    ])
+  })
+})

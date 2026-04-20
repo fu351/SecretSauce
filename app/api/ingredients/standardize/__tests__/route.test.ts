@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const {
-  mockStandardizeIngredientsWithAI,
+  mockStandardizeIngredientsDeterministically,
   mockBatchGetOrCreate,
   mockPantryUpdate,
 } = vi.hoisted(() => ({
-  mockStandardizeIngredientsWithAI: vi.fn(),
+  mockStandardizeIngredientsDeterministically: vi.fn(),
   mockBatchGetOrCreate: vi.fn(),
   mockPantryUpdate: vi.fn(),
 }))
 
 vi.mock("@/backend/workers/standardizer-worker", () => ({
-  standardizeIngredientsWithAI: mockStandardizeIngredientsWithAI,
+  standardizeIngredientsDeterministically: mockStandardizeIngredientsDeterministically,
 }))
 
 vi.mock("@/lib/database/standardized-ingredients-db", () => ({
@@ -38,7 +38,7 @@ const makeRequest = (body: unknown) =>
 describe("POST /api/ingredients/standardize", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockStandardizeIngredientsWithAI.mockResolvedValue([
+    mockStandardizeIngredientsDeterministically.mockReturnValue([
       {
         id: "0",
         originalName: "Milk",
@@ -123,7 +123,7 @@ describe("POST /api/ingredients/standardize", () => {
       }) as any
     )
 
-    expect(mockStandardizeIngredientsWithAI).toHaveBeenCalledWith(
+    expect(mockStandardizeIngredientsDeterministically).toHaveBeenCalledWith(
       [
         { id: "0", name: "Milk", amount: "2", unit: "cups", originalIndex: 0 },
         { id: "keep", name: "Eggs", amount: "12", unit: "each", originalIndex: 1 },
@@ -155,7 +155,7 @@ describe("POST /api/ingredients/standardize", () => {
   })
 
   it("preserves non-food classifications when creating standardized ingredients", async () => {
-    mockStandardizeIngredientsWithAI.mockResolvedValue([
+    mockStandardizeIngredientsDeterministically.mockReturnValue([
       {
         id: "0",
         originalName: "Toothpaste",
@@ -191,7 +191,9 @@ describe("POST /api/ingredients/standardize", () => {
   })
 
   it("returns 500 when standardization throws", async () => {
-    mockStandardizeIngredientsWithAI.mockRejectedValue(new Error("AI unavailable"))
+    mockStandardizeIngredientsDeterministically.mockImplementation(() => {
+      throw new Error("standardizer unavailable")
+    })
 
     const response = await POST(
       makeRequest({

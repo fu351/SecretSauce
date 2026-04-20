@@ -338,7 +338,7 @@ class StandardizedIngredientsTable extends BaseTable<
         .from(this.tableName)
         .upsert(insertData, {
           onConflict: 'canonical_name',
-          ignoreDuplicates: false
+          ignoreDuplicates: true
         })
         .select()
 

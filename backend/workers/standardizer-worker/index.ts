@@ -30,6 +30,10 @@ export {
 } from "./ingredient-standardizer"
 
 export {
+  standardizeIngredientsDeterministically,
+} from "./realtime-standardizer"
+
+export {
   standardizeUnitsWithAI,
   normalizeUnitLabel,
   parseUnitStandardizationPayload,
