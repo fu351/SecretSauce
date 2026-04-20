@@ -15,6 +15,7 @@ import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useRecipe, useResponsiveImage } from "@/hooks"
 import { type Recipe } from "@/lib/types"
 import { useTheme } from "@/contexts/theme-context"
+import { getIngredientDisplayParts } from "@/lib/utils/recipe-ingredient-display"
 
 interface RecipeDetailModalProps {
   recipeId: string | null
@@ -188,12 +189,19 @@ export function RecipeDetailModal({
                     <section className="space-y-4">
                       <h3 className={`text-xs font-bold uppercase tracking-widest ${textClass}`}>Ingredients Preview</h3>
                       <ul className="grid grid-cols-1 gap-3">
-                        {recipe.ingredients.slice(0, 6).map((ing: any, idx: number) => (
-                          <li key={idx} className={`flex items-start gap-3 text-sm ${mutedTextClass}`}>
-                            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${theme === "dark" ? "bg-[#e8dcc4]/60" : "bg-orange-500/60"}`} />
-                            <span><span className={`font-semibold ${textClass}`}>{ing.amount} {ing.unit}</span> {ing.name}</span>
-                          </li>
-                        ))}
+                        {recipe.ingredients.slice(0, 6).map((ing: any, idx: number) => {
+                          const { prefix, name } = getIngredientDisplayParts(ing)
+                          return (
+                            <li key={idx} className={`flex items-start gap-3 text-sm ${mutedTextClass}`}>
+                              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${theme === "dark" ? "bg-[#e8dcc4]/60" : "bg-orange-500/60"}`} />
+                              <span>
+                                {prefix ? <span className={`font-semibold ${textClass}`}>{prefix}</span> : null}
+                                {prefix ? " " : ""}
+                                {name}
+                              </span>
+                            </li>
+                          )
+                        })}
                       </ul>
                     </section>
                   )}
