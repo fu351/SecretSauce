@@ -34,6 +34,12 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
   const prevOpenRef = useRef(false)
   const searchGenerationRef = useRef(0)
 
+  const buildResultKey = (store: string, title: string, price?: number | null) => {
+    const normalizedTitle = title.trim().toLowerCase()
+    const normalizedPrice = Number.isFinite(Number(price)) ? Number(price).toFixed(2) : ""
+    return `${normalizeStoreName(store)}::${normalizedTitle}::${normalizedPrice}`
+  }
+
   useEffect(() => {
     prevOpenRef.current = isOpen
   }, [isOpen])
@@ -184,28 +190,44 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
       }))
       await ingredientsHistoryDB.batchStandardizeAndMatch(payload)
 
-      // 5. Query back via get_ingredient_price_details — results include product_mapping_id
+      // 5. Query back via get_ingredient_price_details and enrich the visible results
+      // with any product mapping IDs we can recover, but keep every candidate that
+      // the RPC or scraper returned.
       if (userId && resolvedIngredientId) {
         const dbOffers = await ingredientsRecentDB.getIngredientPriceDetails(
           userId,
           resolvedIngredientId
         )
         const targetStore = normalizeStoreName(target?.store || "")
-        const dbItems: GroceryItem[] = dbOffers
-          .filter(offer => normalizeStoreName(offer.store) === targetStore && offer.productMappingId)
-          .map(offer => ({
-            id: offer.productMappingId!,
-            title: offer.productName || "Unknown",
-            brand: "",
-            price: offer.totalPrice || 0,
-            pricePerUnit: offer.unitPrice != null ? String(offer.unitPrice) : undefined,
-            image_url: offer.imageUrl || "",
-            provider: target?.store || offer.store,
-            productMappingId: offer.productMappingId || undefined,
-          }))
+        const mappingByKey = new Map<string, string>()
 
-        if (dbItems.length > 0) {
-          if (!isStale()) setResults(dbItems)
+        dbOffers
+          .filter(offer => normalizeStoreName(offer.store) === targetStore && offer.productMappingId)
+          .forEach((offer) => {
+            const primaryName = offer.productName?.trim()
+            if (!primaryName) return
+            mappingByKey.set(
+              buildResultKey(targetStore, primaryName, offer.totalPrice ?? offer.packagePrice ?? offer.unitPrice),
+              offer.productMappingId!
+            )
+            mappingByKey.set(
+              buildResultKey(targetStore, primaryName),
+              offer.productMappingId!
+            )
+          })
+
+        if (!isStale() && mappingByKey.size > 0) {
+          setResults(
+            flatResults.map((item) => {
+              const matchedMappingId =
+                mappingByKey.get(buildResultKey(normalizedTargetStore, item.title, item.price)) ||
+                mappingByKey.get(buildResultKey(normalizedTargetStore, item.title))
+
+              return matchedMappingId
+                ? { ...item, productMappingId: matchedMappingId }
+                : item
+            })
+          )
         }
       }
     } catch (e) {
@@ -246,6 +268,8 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
             <Input
                 value={term}
                 onChange={e => setTerm(e.target.value)}
+                aria-label="Search replacements"
+                placeholder="Search replacements"
                 className={styles.theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
                 onKeyDown={(e) => e.key === 'Enter' && performSearch(term)}
             />
@@ -263,9 +287,9 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                 <p className={`p-4 text-center ${styles.mutedTextClass}`}>No results found at {target?.store}</p>
             )}
             {results.map((item, i) => (
-              <div key={i} className={`flex justify-between items-center p-2 border-b ${styles.theme === "dark" ? "border-[#e8dcc4]/10" : ""}`}>
+              <div key={item.id || `${item.title}-${i}`} className={`flex justify-between items-center p-2 border-b ${styles.theme === "dark" ? "border-[#e8dcc4]/10" : ""}`}>
                   <div className="flex items-center gap-3">
-                    {item.image_url && <img src={item.image_url} className="w-8 h-8 object-contain" />}
+                    {item.image_url && <img src={item.image_url} alt={item.title} className="w-8 h-8 object-contain" />}
                     <div>
                       <div className={`font-medium ${styles.textClass}`}>{item.title}</div>
                       <div className={`text-xs ${styles.mutedTextClass}`}>{item.provider} - ${item.price.toFixed(2)}</div>
