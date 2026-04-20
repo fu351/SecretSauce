@@ -21,6 +21,7 @@ import type { StoreComparison } from "@/lib/types/store"
 import { useClosestStore } from "@/hooks" // Ensure this path is correct
 import { getUserLocation } from "@/lib/location-client"
 import Image from "next/image"
+import { mergeShoppingListItems } from "@/lib/utils/shopping-list-grouping"
 
 // Dynamically import StoreMap to prevent SSR issues with Leaflet
 const StoreMap = dynamic(() => import("@/components/store/store-map").then((mod) => mod.StoreMap), {
@@ -140,6 +141,9 @@ export function StoreComparisonSection({
 
   // Items come pre-merged from get_pricing; render directly
   const displayItems = activeStore?.items || [];
+  const displayMissingIngredients = useMemo(() => {
+    return mergeShoppingListItems(activeStore?.missingIngredients || [])
+  }, [activeStore?.missingIngredients])
 
   useEffect(() => {
     if (listContainerRef.current) {
@@ -195,8 +199,10 @@ export function StoreComparisonSection({
     );
   }
 
-  const missingCount = activeStore?.missingIngredients?.length || 0;
-  const percentFound = activeStore ? Math.round((activeStore.items.length / (activeStore.items.length + missingCount)) * 100) : 0;
+  const missingCount = displayMissingIngredients.length;
+  const percentFound = activeStore
+    ? Math.round((displayItems.length / (displayItems.length + missingCount)) * 100)
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -430,8 +436,8 @@ export function StoreComparisonSection({
                      <span className="text-xs font-bold uppercase tracking-widest text-amber-600">Missing ({missingCount})</span>
                   </div>
                   <div className="grid grid-cols-1 gap-2.5">
-                    {activeStore.missingIngredients?.map((item, i) => (
-                      <div key={`miss-${i}`} className="flex justify-between items-center bg-white/60 dark:bg-black/40 p-3 rounded-lg border border-amber-100 dark:border-amber-900/50">
+                    {displayMissingIngredients.map((item, i) => (
+                      <div key={item.id || `miss-${i}`} className="flex justify-between items-center bg-white/60 dark:bg-black/40 p-3 rounded-lg border border-amber-100 dark:border-amber-900/50">
                         <span className={`text-xs font-medium ${textClass}`}>{item.name}</span>
                       </div>
                     ))}
