@@ -9,14 +9,13 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useTutorial } from "@/contexts/tutorial-context"
-import { Palette, User, Bell, Shield, MapPin, Utensils, BookOpen, Camera, Mail, Lock, UserCircle, LogOut } from "lucide-react"
+import { Palette, Bell, Shield, MapPin, Utensils, BookOpen, Mail, Lock, LogOut } from "lucide-react"
 import { supabase } from "@/lib/database/supabase"
 import { profileDB, type Profile } from "@/lib/database/profile-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import { useToast } from "@/hooks"
 import { AuthGate } from "@/components/auth/tier-gate"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
@@ -43,10 +42,6 @@ function SettingsPageContent() {
   const [mounted, setMounted] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
 
-  // Profile state
-  const [fullName, setFullName] = useState("")
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [updatingEmail, setUpdatingEmail] = useState(false)
   const [updatingPassword, setUpdatingPassword] = useState(false)
   const [newEmail, setNewEmail] = useState("")
@@ -72,7 +67,6 @@ function SettingsPageContent() {
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
   const [showTutorialModal, setShowTutorialModal] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(theme === "dark" ? "dark" : "light")
-  const [isPrivate, setIsPrivate] = useState(false)
   const preferencesRef = useRef<ProfileUpdates | null>(null)
   const lastSavedSnapshotRef = useRef<string>("")
   const hasRecordedInitialSnapshot = useRef(false)
@@ -215,16 +209,6 @@ function SettingsPageContent() {
     }
   }
 
-  const handlePrivacyToggle = async (checked: boolean) => {
-    setIsPrivate(checked)
-    try {
-      await updateProfile({ is_private: checked })
-    } catch (error) {
-      console.error("Error saving privacy setting:", error)
-      setIsPrivate(!checked)
-    }
-  }
-
   const fetchUserPreferences = async () => {
     if (!user) return
 
@@ -245,10 +229,7 @@ function SettingsPageContent() {
       setLng(profile.longitude ?? null)
       setGroceryDistance(String(profile.grocery_distance_miles || 10))
       setDietaryPreferences(profile.dietary_preferences || [])
-      setFullName(profile.full_name || "")
-      setAvatarUrl(profile.avatar_url || null)
       setNewEmail(profile.email || "")
-      setIsPrivate(profile.is_private ?? false)
 
       // Initialize theme from database preference if available
       if (profile.theme_preference) {
@@ -289,23 +270,6 @@ function SettingsPageContent() {
   const handleRewatchTutorial = () => {
     resetTutorial()
     setShowTutorialModal(true)
-  }
-
-  const handleUpdateFullName = async () => {
-    if (!user) return
-    try {
-      await updateProfile({ full_name: fullName })
-      toast({
-        title: "Name updated",
-        description: "Your name has been updated successfully.",
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update name. Please try again.",
-        variant: "destructive",
-      })
-    }
   }
 
   const handleUpdateEmail = async () => {
@@ -384,68 +348,6 @@ function SettingsPageContent() {
       })
     } finally {
       setUpdatingPassword(false)
-    }
-  }
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!user || !e.target.files || e.target.files.length === 0) return
-
-    const file = e.target.files[0]
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload an image file.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload an image smaller than 2MB.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setUploadingAvatar(true)
-    try {
-      // Create unique filename
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`
-
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, { upsert: true })
-
-      if (uploadError) throw uploadError
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName)
-
-      // Update profile with new avatar URL
-      await updateProfile({ avatar_url: publicUrl })
-      setAvatarUrl(publicUrl)
-
-      toast({
-        title: "Avatar updated",
-        description: "Your profile picture has been updated successfully.",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Upload failed",
-        description: error.message || "Failed to upload avatar. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setUploadingAvatar(false)
     }
   }
 
@@ -892,85 +794,19 @@ function SettingsPageContent() {
             </div>
           </CardContent>
         </Card>
-        {/* Profile Settings */}
         <Card className={`mb-6 ${isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}`}>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <UserCircle className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
+              <Lock className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
               <div>
-                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Profile</CardTitle>
+                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Account & Security</CardTitle>
                 <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                  Update your personal information
+                  Manage email, password, and account access
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Avatar Upload */}
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <div className={`w-24 h-24 rounded-full overflow-hidden border-2 ${isDark ? "border-[#e8dcc4]/20" : "border-gray-300"}`}>
-                  {avatarUrl ? (
-                    <Image
-                      src={avatarUrl}
-                      alt="Profile"
-                      width={96}
-                      height={96}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className={`w-full h-full flex items-center justify-center ${isDark ? "bg-[#e8dcc4]/10" : "bg-gray-100"}`}>
-                      <User className={`w-12 h-12 ${isDark ? "text-[#e8dcc4]/40" : "text-gray-400"}`} />
-                    </div>
-                  )}
-                </div>
-                <label htmlFor="avatar-upload" className={`absolute bottom-0 right-0 p-2 rounded-full cursor-pointer ${isDark ? "bg-[#e8dcc4] text-[#0a0a0a]" : "bg-orange-500 text-white"}`}>
-                  <Camera className="w-4 h-4" />
-                  <input
-                    id="avatar-upload"
-                    type="file"
-                    aria-label="Upload avatar"
-                    title="Upload avatar"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    disabled={uploadingAvatar}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-              <div className="flex-1">
-                <Label className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                  Profile Picture
-                </Label>
-                <p className={`text-xs mt-1 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                  {uploadingAvatar ? "Uploading..." : "Click the camera icon to upload a new photo (max 2MB)"}
-                </p>
-              </div>
-            </div>
-
-            {/* Full Name */}
-            <div className="space-y-2">
-              <Label htmlFor="full-name" className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>
-                Full Name
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="full-name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter your name"
-                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : ""}
-                />
-                <Button
-                  onClick={handleUpdateFullName}
-                  variant="outline"
-                  className={isDark ? "border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10" : ""}
-                >
-                  Save
-                </Button>
-              </div>
-            </div>
-
             {/* Email */}
             <div className="space-y-2">
               <Label htmlFor="email" className={`flex items-center gap-2 ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
@@ -1104,45 +940,6 @@ function SettingsPageContent() {
                   </p>
                 </div>
                 <Switch defaultChecked />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Privacy */}
-        <Card className={isDark ? "bg-[#1a1a1a] border-[#e8dcc4]/20" : "bg-white"}>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Shield className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-gray-700"}`} />
-              <div>
-                <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Privacy & Security</CardTitle>
-                <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                  Control your privacy settings
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label
-                    htmlFor="private-account-toggle"
-                    className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}
-                  >
-                    Private Account
-                  </Label>
-                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                    {isPrivate
-                      ? "New followers require your approval."
-                      : "Anyone can follow you without approval."}
-                  </p>
-                </div>
-                <Switch
-                  id="private-account-toggle"
-                  checked={isPrivate}
-                  onCheckedChange={handlePrivacyToggle}
-                />
               </div>
             </div>
           </CardContent>
