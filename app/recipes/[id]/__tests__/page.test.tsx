@@ -6,17 +6,23 @@ import { mockParams, mockRouter } from "@/test/utils/navigation"
 
 const mockToast = vi.fn()
 const mockAddRecipeToCart = vi.fn()
-const mockFetchRecipeById = vi.fn()
-const mockFindByRecipeIdWithStandardized = vi.fn()
 const mockIsFavorite = vi.fn()
 const mockToggleFavorite = vi.fn()
+const mockFetch = vi.fn()
 
 let mockAuthState = {
   user: { id: "user_1" },
 }
 
+let mockRecipeStatus = 200
+let mockRecipePayload: Record<string, unknown> | null = null
+
 vi.mock("@/contexts/auth-context", () => ({
   useAuth: vi.fn(() => mockAuthState),
+}))
+
+vi.mock("next/image", () => ({
+  default: (props: Record<string, unknown>) => <img {...props} alt={String(props.alt ?? "")} />,
 }))
 
 vi.mock("@/contexts/theme-context", () => ({
@@ -48,18 +54,6 @@ vi.mock("@/lib/image-helper", () => ({
   getRecipeImageUrl: vi.fn((value: string | null | undefined) => value ?? "/placeholder.svg"),
 }))
 
-vi.mock("@/lib/database/recipe-db", () => ({
-  recipeDB: {
-    fetchRecipeById: mockFetchRecipeById,
-  },
-}))
-
-vi.mock("@/lib/database/recipe-ingredients-db", () => ({
-  recipeIngredientsDB: {
-    findByRecipeIdWithStandardized: mockFindByRecipeIdWithStandardized,
-  },
-}))
-
 vi.mock("@/lib/database/recipe-favorites-db", () => ({
   recipeFavoritesDB: {
     isFavorite: mockIsFavorite,
@@ -72,47 +66,81 @@ describe("RecipeDetailPage", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
     mockAuthState = {
       user: { id: "user_1" },
     }
     mockAddRecipeToCart.mockResolvedValue(undefined)
     mockIsFavorite.mockResolvedValue(false)
     mockToggleFavorite.mockResolvedValue(true)
+    mockRecipeStatus = 200
+    mockRecipePayload = {
+      recipe: {
+        id: "recipe_1",
+        title: "Tomato Soup",
+        author_id: "user_1",
+        prep_time: 10,
+        cook_time: 20,
+        servings: 4,
+        difficulty: "beginner",
+        rating_avg: 4.7,
+        rating_count: 12,
+        tags: ["comfort", "winter"],
+        nutrition: { calories: 320 },
+        content: {
+          description: "A cozy bowl for cold nights.",
+          image_url: "/tomato-soup.jpg",
+          instructions: [{ description: "Simmer everything." }],
+        },
+        ingredients: [
+          {
+            name: "Tomatoes",
+            quantity: 2,
+            unit: "cups",
+            standardizedIngredientId: "std_1",
+          },
+        ],
+      },
+    }
     mockParams({ id: "recipe_1" })
     mockRouter()
+    vi.stubGlobal("fetch", mockFetch)
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string"
+        ? input
+        : input instanceof Request
+          ? input.url
+          : input.toString()
 
-    mockFetchRecipeById.mockResolvedValue({
-      id: "recipe_1",
-      title: "Tomato Soup",
-      author_id: "user_1",
-      prep_time: 10,
-      cook_time: 20,
-      servings: 4,
-      difficulty: "beginner",
-      rating_avg: 4.7,
-      rating_count: 12,
-      tags: ["comfort", "winter"],
-      nutrition: { calories: 320 },
-      content: {
-        description: "A cozy bowl for cold nights.",
-        image_url: "/tomato-soup.jpg",
-        instructions: [{ description: "Simmer everything." }],
-      },
-      ingredients: [],
+      if (url.includes("/api/recipes/recipe_1/social")) {
+        return new Response(
+          JSON.stringify({
+            likeCount: 0,
+            isLiked: false,
+            repostCount: 0,
+            isReposted: false,
+            friendLikes: [],
+            friendProfileIds: [],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      }
+
+      if (url.includes("/api/recipes/recipe_1")) {
+        return new Response(
+          mockRecipePayload ? JSON.stringify(mockRecipePayload) : JSON.stringify({}),
+          {
+            status: mockRecipeStatus,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      }
+
+      throw new Error(`Unhandled fetch in RecipeDetailPage test: ${url}`)
     })
-
-    mockFindByRecipeIdWithStandardized.mockResolvedValue([
-      {
-        id: "ingredient_1",
-        display_name: "2 cups tomatoes",
-        quantity: 2,
-        units: "cups",
-        standardized_ingredient_id: "std_1",
-        standardized_ingredient: {
-          canonical_name: "Tomatoes",
-        },
-      },
-    ])
 
     const mod = await import("../page")
     RecipeDetailPage = mod.default
@@ -134,8 +162,8 @@ describe("RecipeDetailPage", () => {
     await user.click(screen.getByRole("button", { name: /edit/i }))
     expect(router.push).toHaveBeenCalledWith("/edit-recipe/recipe_1")
 
-    await user.click(screen.getByRole("button", { name: /add to cart/i }))
-    expect(mockAddRecipeToCart).toHaveBeenCalledWith("recipe_1")
+    await user.click(screen.getByTestId("recipe-basket-button-recipe_1"))
+    expect(mockAddRecipeToCart).toHaveBeenCalledWith("recipe_1", 4)
   })
 
   it("shows a sign-in prompt instead of toggling favorites for anonymous users", async () => {
@@ -165,7 +193,8 @@ describe("RecipeDetailPage", () => {
 
   it("redirects back to recipes when the recipe cannot be loaded", async () => {
     const router = mockRouter()
-    mockFetchRecipeById.mockRejectedValue(new Error("Recipe not found"))
+    mockRecipeStatus = 404
+    mockRecipePayload = null
     const mod = await import("../page")
     const Page = mod.default
 

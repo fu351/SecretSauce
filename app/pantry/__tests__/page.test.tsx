@@ -121,9 +121,9 @@ describe("PantryPage", () => {
     render(<Page />)
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Items expiring today")
       expect(screen.getByText(/creamy rice pudding/i)).toBeInTheDocument()
       expect(screen.getByText(/100% match/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/expires soon/i).length).toBeGreaterThan(0)
     })
 
     await user.click(screen.getByRole("button", { name: /expiring soon/i }))

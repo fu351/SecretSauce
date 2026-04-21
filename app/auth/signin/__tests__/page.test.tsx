@@ -9,6 +9,11 @@ const mockPrepareSecondFactor = vi.fn()
 const mockAttemptSecondFactor = vi.fn()
 const mockSetActive = vi.fn()
 
+let mockAuthState = {
+  user: null,
+  loading: false,
+}
+
 vi.mock("next/image", () => ({
   default: ({ alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
     <img alt={alt} {...props} />
@@ -17,6 +22,10 @@ vi.mock("next/image", () => ({
 
 vi.mock("@/hooks", () => ({
   useToast: () => ({ toast: mockToast }),
+}))
+
+vi.mock("@/contexts/auth-context", () => ({
+  useAuth: vi.fn(() => mockAuthState),
 }))
 
 vi.mock("@clerk/nextjs", () => ({
@@ -46,6 +55,10 @@ describe("SignInPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.unstubAllGlobals()
+    mockAuthState = {
+      user: null,
+      loading: false,
+    }
     vi.mocked(useRouter).mockReturnValue({
       push: vi.fn(),
       replace: vi.fn(),
