@@ -2,13 +2,9 @@
  * Analytics Event Type Definitions
  *
  * Type-safe event names and properties for analytics tracking.
- * Maps to the database ab_event_type enum.
  */
 
-import type { Database } from "@/lib/database/supabase"
-
-// Database event type from ab_testing schema
-export type ABEventType = Database["public"]["Enums"]["ab_event_type"]
+export type ABEventType = "exposure" | "click" | "conversion" | "signup" | "subscribe" | "custom"
 
 /**
  * Application-specific event names
@@ -53,6 +49,40 @@ export type AnalyticsEventName =
   | "tutorial_step_completed"
   | "tutorial_completed"
   | "tutorial_skipped"
+  | "tutorial_back_step"
+  | "tutorial_minimized"
+  | "tutorial_restored"
+  | "tutorial_element_not_found"
+  | "tutorial_step_error_skipped"
+
+  // Cooking mode
+  | "cooking_mode_started"
+  | "cooking_mode_completed"
+  | "cooking_mode_exited"
+
+  // Auth events
+  | "user_signed_up"
+  | "user_signed_in"
+
+  // Subscription events
+  | "subscription_checkout_started"
+  | "subscription_purchased"
+  | "subscription_activated"
+
+  // Recipe creation
+  | "recipe_created"
+  | "recipe_imported"
+
+  // Recipe editing
+  | "recipe_edit_clicked"
+
+  // Recipe social actions
+  | "recipe_liked"
+  | "recipe_unliked"
+  | "recipe_reposted"
+  | "recipe_unreposted"
+  | "recipe_shared"
+  | "recipe_added_to_planner"
 
   // General navigation
   | "page_view"
@@ -181,6 +211,59 @@ export interface EventProperties {
   tutorial_skipped: {
     step_abandoned: number
   }
+  tutorial_back_step: { from_step_index: number; to_step_index: number }
+  tutorial_minimized: { step_index: number }
+  tutorial_restored: { step_index: number }
+  tutorial_element_not_found: { step_index: number; selector: string | null; page: string }
+  tutorial_step_error_skipped: { step_index: number; selector: string | null }
+
+  // Cooking mode events
+  cooking_mode_started: { recipe_id: string; steps_total: number }
+  cooking_mode_completed: { recipe_id: string; steps_total: number }
+  cooking_mode_exited: { recipe_id: string; step_abandoned: number; steps_total: number }
+
+  // Auth events
+  user_signed_up: {
+    method: "email"
+    username: string
+  }
+  user_signed_in: {
+    method: "email"
+  }
+
+  // Subscription events
+  subscription_checkout_started: {
+    item_count?: number
+    total_amount?: number
+  }
+  subscription_purchased: {
+    session_id?: string
+  }
+  subscription_activated: {
+    supabase_user_id: string
+    stripe_customer_id?: string
+    subscription_id?: string
+  }
+
+  // Recipe creation events
+  recipe_created: {
+    recipe_id: string
+    method: "manual" | "import"
+  }
+  recipe_imported: {
+    source: "url" | "instagram" | "paragraph" | "image"
+  }
+
+  // Recipe editing
+  recipe_edit_clicked: { recipe_id: string }
+
+  // Recipe social action events
+  recipe_liked: { recipe_id: string }
+  recipe_unliked: { recipe_id: string }
+  recipe_reposted: { recipe_id: string }
+  recipe_unreposted: { recipe_id: string }
+  recipe_shared: { recipe_id: string; method: "copy_link" }
+  recipe_added_to_planner: { recipe_id: string }
 
   // General events
   page_view: {
@@ -237,6 +320,40 @@ export const EVENT_TYPE_MAPPING: Record<AnalyticsEventName, ABEventType> = {
   tutorial_step_completed: "custom",
   tutorial_completed: "custom",
   tutorial_skipped: "custom",
+  tutorial_back_step: "custom",
+  tutorial_minimized: "custom",
+  tutorial_restored: "custom",
+  tutorial_element_not_found: "custom",
+  tutorial_step_error_skipped: "custom",
+
+  // Cooking mode → custom
+  cooking_mode_started: "custom",
+  cooking_mode_completed: "custom",
+  cooking_mode_exited: "custom",
+
+  // Auth events → signup/custom
+  user_signed_up: "signup",
+  user_signed_in: "custom",
+
+  // Subscription events → conversion
+  subscription_checkout_started: "conversion",
+  subscription_purchased: "conversion",
+  subscription_activated: "conversion",
+
+  // Recipe creation events → custom
+  recipe_created: "custom",
+  recipe_imported: "custom",
+
+  // Recipe editing → click
+  recipe_edit_clicked: "click",
+
+  // Recipe social actions → click/custom
+  recipe_liked: "click",
+  recipe_unliked: "click",
+  recipe_reposted: "click",
+  recipe_unreposted: "click",
+  recipe_shared: "click",
+  recipe_added_to_planner: "click",
 
   // General events → custom
   page_view: "custom",

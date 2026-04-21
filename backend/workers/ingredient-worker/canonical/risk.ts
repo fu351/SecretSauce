@@ -12,6 +12,32 @@ export const INVALID_CANONICAL_NAMES = new Set([
   "na",
   "misc",
   "miscellaneous",
+  "seed",
+  "seeds",
+  "sauce",
+  "sauces",
+  "juice",
+  "juices",
+  "mix",
+  "mixes",
+  "powder",
+  "powders",
+  "syrup",
+  "syrups",
+  "stock",
+  "stocks",
+  "extract",
+  "extracts",
+  "broth",
+  "broths",
+  "seasoning",
+  "seasonings",
+  "dip",
+  "dips",
+  "flavored beverage",
+  "flavored beverages",
+  "peas and carrots",
+  "carrots and peas",
   // Too generic — use specific variants (turkey deli meat, roast beef deli meat, etc.)
   "deli meat",
 ])
@@ -22,6 +48,7 @@ const NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE = 0.8
 const NEW_CANONICAL_MAX_TOKEN_COUNT = 4
 const NEW_CANONICAL_RETAIL_TITLE_TOKEN_COUNT = 5
 export const NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES = 2
+export const NEW_CANONICAL_PROBATION_STALE_DAYS = 14
 const NEW_CANONICAL_NOISE_TOKENS = new Set([
   "fresh",
   "deli",
@@ -163,6 +190,23 @@ function stripRetailSuffixTokens(tokens: string[]): string[] {
   return tokens.slice(0, end)
 }
 
+export function isInvalidCanonicalName(canonicalName: string): boolean {
+  const normalized = normalizeCanonicalName(canonicalName)
+  return !normalized || INVALID_CANONICAL_NAMES.has(normalized)
+}
+
+export function stripRetailSuffixTokensFromCanonicalName(canonicalName: string): string | null {
+  const normalized = normalizeCanonicalName(canonicalName)
+  if (!normalized) return null
+
+  const tokens = toCanonicalTokens(normalized)
+  const stripped = stripRetailSuffixTokens(tokens)
+  if (!stripped.length || stripped.length === tokens.length) return null
+
+  const result = stripped.join(" ")
+  return isInvalidCanonicalName(result) ? null : result
+}
+
 function buildBlockedCanonicalFallbackCandidates(canonicalName: string): Array<{ canonicalName: string; source: string }> {
   const candidates: Array<{ canonicalName: string; source: string }> = []
   const seen = new Set<string>()
@@ -214,6 +258,16 @@ function getDynamicTokenConfidenceFloor(tokenCount: number): number {
   return Math.min(dynamicFloor, NEW_CANONICAL_LONG_NAME_MIN_CONFIDENCE)
 }
 
+function hasAdjacentDuplicateToken(tokens: string[]): boolean {
+  for (let index = 1; index < tokens.length; index += 1) {
+    if (tokens[index] === tokens[index - 1]) {
+      return true
+    }
+  }
+
+  return false
+}
+
 export function assessNewCanonicalRisk(params: {
   canonicalName: string
   category: string | null | undefined
@@ -263,6 +317,13 @@ export function assessNewCanonicalRisk(params: {
     return {
       blocked: true,
       reason: `high_noise_density(tokens=${tokenCount}, noise_hits=${noiseHits})`,
+    }
+  }
+
+  if (hasAdjacentDuplicateToken(tokens)) {
+    return {
+      blocked: true,
+      reason: `repeated_token_sequence(tokens=${tokenCount})`,
     }
   }
 

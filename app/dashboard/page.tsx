@@ -3,8 +3,21 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChefHat, Heart, Calendar, ShoppingCart, Plus, PlayCircle, X, Truck } from "lucide-react"
+import {
+  ChefHat,
+  Heart,
+  Calendar,
+  ShoppingCart,
+  Plus,
+  PlayCircle,
+  X,
+  Truck,
+  Crown,
+  Sparkles,
+  ArrowRight,
+} from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useExperiment } from "@/hooks/use-experiment"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
@@ -54,6 +67,18 @@ export default function DashboardPage() {
   const { theme } = useTheme()
   const { isActive, resetTutorial } = useTutorial()
   const isDark = theme === "dark"
+  const showPremiumUpsell = profile?.subscription_tier !== "premium"
+
+  const { variantKey: upsellVariant, trackConversion: trackUpsellConversion } = useExperiment(
+    "dashboard-upsell-variant",
+    { enabled: showPremiumUpsell }
+  )
+
+  const upsellCopy = upsellVariant === "savings_focus"
+    ? { headline: "Save money on every grocery run with Premium", cta: "Start saving today" }
+    : upsellVariant === "features_focus"
+    ? { headline: "Unlock smarter meal planning, delivery discounts, and nutrition insights", cta: "See what's included" }
+    : { headline: "Premium unlocks delivery savings and smarter planning", cta: "Upgrade now" }
 
   useEffect(() => {
     if (!user) return
@@ -189,6 +214,59 @@ export default function DashboardPage() {
           </div>
 
           {profile && <ProfileCard profile={profile} />}
+
+          {showPremiumUpsell && (
+            <Card
+              className="mb-4 md:mb-8 overflow-hidden border-orange-200/70 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 shadow-sm"
+              data-testid="premium-upgrade-widget"
+            >
+              <CardContent className="p-4 md:p-6">
+                <div className="rounded-2xl border border-white/70 bg-white/85 p-4 md:p-5 shadow-sm backdrop-blur-sm">
+                  <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-600">
+                        <Crown className="h-6 w-6" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-700">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Upgrade to premium
+                        </div>
+                        <h3 className="text-lg md:text-xl font-serif font-medium text-neutral-950">
+                          {upsellCopy.headline}
+                        </h3>
+
+                        <div className="flex flex-wrap gap-3 text-xs font-semibold text-neutral-900">
+                          <span className="rounded-full bg-white px-3 py-1 border border-orange-200 text-neutral-900 shadow-sm">
+                            Discounted delivery
+                          </span>
+                          <span className="rounded-full bg-white px-3 py-1 border border-orange-200 text-neutral-900 shadow-sm">
+                            Better nutrition statistics
+                          </span>
+                          <span className="rounded-full bg-white px-3 py-1 border border-orange-200 text-neutral-900 shadow-sm">
+                            Unlimited auto meal planning
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                  <div className="flex shrink-0 flex-col gap-3 md:items-end">
+                    <Button asChild className="w-full md:w-auto bg-orange-600 text-white hover:bg-orange-700" onClick={() => trackUpsellConversion()}>
+                      <Link href="/checkout">
+                        {upsellCopy.cta}
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Link href="/pricing?required=premium" className="text-sm font-medium text-orange-700 hover:text-orange-800">
+                      Compare plans
+                    </Link>
+                  </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">

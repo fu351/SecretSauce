@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useIsMobile, useToast } from "@/hooks"
 import { RecipeSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { useRecipesFiltered, useRecipesCount, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
+import { useAnalytics } from "@/hooks/use-analytics"
 import { Pagination } from "@/components/ui/pagination"
 import { RecipeHeader } from "@/components/recipe/recipe-header"
 import { RecipeFilterSidebar } from "@/components/recipe/recipe-filter-sidebar"
@@ -38,6 +39,7 @@ export default function RecipesPage() {
   const { user } = useAuth()
   const isMobile = useIsMobile()
   const { toast } = useToast()
+  const { trackEvent } = useAnalytics()
   const router = useRouter()
   const searchParams = useSearchParams()
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
@@ -192,6 +194,7 @@ export default function RecipesPage() {
         userId: user.id,
         isFavorited,
       })
+      trackEvent(isFavorited ? "recipe_removed_from_favorites" : "recipe_added_to_favorites", { recipe_id: recipeId })
 
       toast({
         title: isFavorited ? "Removed from favorites" : "Added to favorites",
@@ -208,6 +211,7 @@ export default function RecipesPage() {
   }
 
   const handleSearch = () => {
+    if (searchInput.trim()) trackEvent("recipe_searched", { query: searchInput.trim() })
     setSearchTerm(searchInput)
     setPage(1)
     updateURL({ search: searchInput }, true)
@@ -465,6 +469,7 @@ export default function RecipesPage() {
                         setPage(1)
                         updateURL({ sort: value }, true)
                         setMobileSortOpen(false)
+                        trackEvent("recipe_sort_changed", { sort_by: value })
                       }}
                     >
                       {label}
@@ -478,7 +483,7 @@ export default function RecipesPage() {
               variant={viewMode === "tile" ? "default" : "outline"}
               size="icon"
               className="rounded-full shrink-0"
-              onClick={() => setViewMode("tile")}
+              onClick={() => { setViewMode("tile"); trackEvent("view_mode_changed", { mode: "grid", page: "recipes" }) }}
               aria-label="Tile view"
               title="Tile view"
             >
@@ -488,7 +493,7 @@ export default function RecipesPage() {
               variant={viewMode === "details" ? "default" : "outline"}
               size="icon"
               className="rounded-full shrink-0"
-              onClick={() => setViewMode("details")}
+              onClick={() => { setViewMode("details"); trackEvent("view_mode_changed", { mode: "list", page: "recipes" }) }}
               aria-label="Details view"
               title="Details view"
             >
@@ -510,24 +515,28 @@ export default function RecipesPage() {
                 setSelectedDifficulty(value)
                 setPage(1)
                 updateURL({ difficulty: value }, true)
+                if (value !== "all") trackEvent("recipe_filtered", { filters: { difficulty: value, cuisine: selectedCuisine !== "all" ? selectedCuisine : undefined, dietary: selectedDiet.length > 0 ? selectedDiet : undefined } })
               }}
               selectedCuisine={selectedCuisine}
               onCuisineChange={(value) => {
                 setSelectedCuisine(value)
                 setPage(1)
                 updateURL({ cuisine: value }, true)
+                if (value !== "all") trackEvent("recipe_filtered", { filters: { difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined, cuisine: value, dietary: selectedDiet.length > 0 ? selectedDiet : undefined } })
               }}
               selectedDiet={selectedDiet}
               onDietChange={(value) => {
                 setSelectedDiet(value)
                 setPage(1)
                 updateURL({ diet: value.length > 0 ? value.join(",") : undefined }, true)
+                if (value.length > 0) trackEvent("recipe_filtered", { filters: { difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined, cuisine: selectedCuisine !== "all" ? selectedCuisine : undefined, dietary: value } })
               }}
               sortBy={sortBy}
               onSortChange={(value) => {
                 setSortBy(value as SortBy)
                 setPage(1)
                 updateURL({ sort: value }, true)
+                trackEvent("recipe_sort_changed", { sort_by: value })
               }}
               showFavoritesOnly={showFavoritesOnly}
               onFavoritesToggle={() => {

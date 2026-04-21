@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Heart, ThumbsUp, Repeat2, Link2, Check, ShoppingCart, Zap } from "lucide-react"
 import clsx from "clsx"
+import { useAnalytics } from "@/hooks/use-analytics"
 
 type FriendProfile = {
   id: string
@@ -90,10 +91,12 @@ export function RecipeActionBar({
   isDark,
 }: RecipeActionBarProps) {
   const [copied, setCopied] = useState(false)
+  const { trackEvent } = useAnalytics()
 
   const handleLike = async () => {
     if (!isAuthenticated) return
     const next = !isLiked
+    trackEvent(next ? "recipe_liked" : "recipe_unliked", { recipe_id: recipeId })
     onLikeToggle(next, next ? likeCount + 1 : likeCount - 1)
     try {
       const res = await fetch(`/api/recipes/${recipeId}/likes`, {
@@ -113,6 +116,7 @@ export function RecipeActionBar({
   const handleRepost = async () => {
     if (!isAuthenticated) return
     const next = !isReposted
+    trackEvent(next ? "recipe_reposted" : "recipe_unreposted", { recipe_id: recipeId })
     onRepostToggle(next, next ? repostCount + 1 : repostCount - 1)
     try {
       const res = await fetch(`/api/recipes/${recipeId}/reposts`, {
@@ -131,6 +135,7 @@ export function RecipeActionBar({
 
   const handleShare = async () => {
     const url = `${window.location.origin}/recipes/${recipeId}`
+    trackEvent("recipe_shared", { recipe_id: recipeId, method: "copy_link" })
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
@@ -230,7 +235,7 @@ export function RecipeActionBar({
         <button
           data-testid={`recipe-planner-button-${recipeId}`}
           className={neutralClass}
-          onClick={onAddToPlanner}
+          onClick={() => { trackEvent("recipe_added_to_planner", { recipe_id: recipeId }); onAddToPlanner() }}
           title="Add to planner"
           aria-label="Add to planner"
         >

@@ -1,12 +1,19 @@
 "use client"
 
+import { useEffect } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import posthog from "posthog-js"
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session_id")
+
+  useEffect(() => {
+    posthog.capture("subscription_purchased", { session_id: sessionId ?? undefined })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-emerald-50 to-white px-6 py-16">

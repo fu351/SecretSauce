@@ -1,88 +1,36 @@
-import Link from "next/link"
 import { requireAdmin } from "@/lib/auth/admin"
-import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
-import ABTestingLabClient from "./tester-client"
+import Link from "next/link"
 
 export const dynamic = "force-dynamic"
 
-type ExperimentOption = {
-  id: string
-  name: string
-  status: string
-}
-
-type ExperimentRpcRow = {
-  id: string
-  name: string
-  status: string
-}
-
-async function getExperimentOptions(): Promise<ExperimentOption[]> {
-  const supabase = createServiceSupabaseClient()
-
-  const { data: rpcData, error: rpcError } = await supabase.rpc(
-    "dev_get_experiments"
-  )
-
-  if (!rpcError && rpcData) {
-    return (rpcData as ExperimentRpcRow[])
-      .map((row) => ({
-        id: row.id,
-        name: row.name,
-        status: row.status,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }
-
-  if (rpcError) {
-    console.error("Error loading experiments for A/B lab via RPC:", {
-      message: rpcError.message,
-      details: rpcError.details,
-      hint: rpcError.hint,
-      code: rpcError.code,
-    })
-  }
-
-  const { data, error } = await supabase
-    .schema("ab_testing")
-    .from("experiments")
-    .select("id, name, status")
-    .order("name")
-
-  if (error) {
-    console.error("Error loading experiments for A/B lab:", {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-    })
-    return []
-  }
-
-  return (data || []) as ExperimentOption[]
-}
-
 export default async function ABTestingLabPage() {
   await requireAdmin()
-  const experiments = await getExperimentOptions()
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-6xl">
-        <Link
-          href="/dev"
-          className="mb-2 inline-block text-sm text-blue-600 hover:text-blue-700"
-        >
-          ← Back to Dev Tools
-        </Link>
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-8">
+          <Link href="/dev" className="mb-2 inline-block text-sm text-blue-600 hover:text-blue-700">
+            ← Back to Dev Tools
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900">A/B Testing Lab</h1>
+          <p className="mt-2 text-gray-600">A/B tests are now managed in PostHog.</p>
+        </div>
 
-        <h1 className="text-3xl font-bold text-gray-900">A/B Hook Test Lab</h1>
-        <p className="mt-2 text-gray-600">
-          Test `useExperiment` and `useFeatureFlag` directly against active
-          experiments.
-        </p>
-
-        <ABTestingLabClient experiments={experiments} />
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-6">
+          <h2 className="mb-2 text-lg font-semibold text-blue-900">PostHog Experiments</h2>
+          <p className="mb-4 text-sm text-blue-700">
+            Create multivariate experiments, set rollout percentages, and view results in PostHog.
+          </p>
+          <a
+            href="https://us.posthog.com/experiments"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            Open PostHog Experiments →
+          </a>
+        </div>
       </div>
     </div>
   )

@@ -34,6 +34,26 @@ vi.mock('next/navigation', () => ({
 
 // Mock window.matchMedia (for useIsMobile) — browser environments only
 if (typeof window !== 'undefined') {
+  const ensureStorageClear = (storage: Storage) => {
+    if (typeof storage.clear === 'function') return
+
+    Object.defineProperty(storage, 'clear', {
+      configurable: true,
+      writable: true,
+      value: function clear(this: Storage) {
+        const keys: string[] = []
+        for (let index = 0; index < this.length; index += 1) {
+          const key = this.key(index)
+          if (key !== null) keys.push(key)
+        }
+        keys.forEach((key) => this.removeItem(key))
+      },
+    })
+  }
+
+  ensureStorageClear(window.localStorage)
+  ensureStorageClear(window.sessionStorage)
+
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query) => ({

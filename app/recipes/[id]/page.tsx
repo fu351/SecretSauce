@@ -17,71 +17,15 @@ import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
 import { TagSelector } from "@/components/recipe/tags/tag-selector"
 import { useShoppingList } from "@/hooks"
+import { useAnalytics } from "@/hooks/use-analytics"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
+import { getIngredientDisplayParts } from "@/lib/utils/recipe-ingredient-display"
 import type { Recipe } from "@/lib/types"
 
 type RecipeIngredientView = Recipe["ingredients"][number] & {
   amount?: string | number
   units?: string
   display_name?: string
-}
-
-const INGREDIENT_LEADING_QUANTITY_RE =
-  /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)(?:\s*-\s*(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?))?\s*(.+)$/i
-
-const INGREDIENT_LEADING_UNIT_RE =
-  /^(fl\.?\s?oz|fluid\sounces?|tablespoons?|tbsp\.?|teaspoons?|tsp\.?|cups?|ounces?|oz\.?|pounds?|lbs?\.?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|litres?|l|cloves?|cans?|bunch(?:es)?|pinch(?:es)?|slices?|each|ea|ct|units?|sticks?|packages?|pkgs?|pkg)\b\.?\s*(.+)$/i
-
-function normalizeIngredientText(value: unknown): string {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : ""
-}
-
-function stringifyQuantity(value: unknown): string {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const fixed = Number.isInteger(value) ? value.toString() : value.toFixed(3)
-    return fixed.replace(/\.?0+$/, "")
-  }
-  return normalizeIngredientText(value)
-}
-
-function parseIngredientLine(line: string): { quantity: string; unit: string; name: string } {
-  const cleanLine = normalizeIngredientText(line)
-  if (!cleanLine) return { quantity: "", unit: "", name: "" }
-
-  const quantityMatch = cleanLine.match(INGREDIENT_LEADING_QUANTITY_RE)
-  if (!quantityMatch) return { quantity: "", unit: "", name: cleanLine }
-
-  const quantity = [quantityMatch[1], quantityMatch[2]].filter(Boolean).join("-")
-  const rest = normalizeIngredientText(quantityMatch[3])
-  const unitMatch = rest.match(INGREDIENT_LEADING_UNIT_RE)
-
-  if (!unitMatch) return { quantity, unit: "", name: rest }
-
-  return {
-    quantity,
-    unit: normalizeIngredientText(unitMatch[1]),
-    name: normalizeIngredientText(unitMatch[2]),
-  }
-}
-
-function getIngredientDisplayParts(ingredient: RecipeIngredientView): { prefix: string; name: string } {
-  const displayLine = normalizeIngredientText(ingredient.display_name || ingredient.name)
-  const parsed = parseIngredientLine(displayLine)
-
-  const quantity = stringifyQuantity(ingredient.quantity ?? ingredient.amount) || parsed.quantity
-  const rawUnit = normalizeIngredientText(ingredient.unit || ingredient.units) || parsed.unit
-  const shouldOmitCountUnit = Boolean(quantity) && /^(each|ea)$/i.test(rawUnit)
-  const unit = shouldOmitCountUnit ? "" : rawUnit
-
-  const hasExplicitParts = Boolean(quantity || unit)
-  const name = hasExplicitParts
-    ? normalizeIngredientText(parsed.name || displayLine)
-    : normalizeIngredientText(displayLine || parsed.name)
-
-  return {
-    prefix: [quantity, unit].filter(Boolean).join(" ").trim(),
-    name: name || "Unnamed ingredient",
-  }
 }
 
 export default function RecipeDetailPage() {
@@ -91,6 +35,7 @@ export default function RecipeDetailPage() {
   const { toast } = useToast()
 
   const { addRecipeToCart } = useShoppingList()
+  const { trackEvent } = useAnalytics()
 
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -190,6 +135,7 @@ export default function RecipeDetailPage() {
           throw new Error("Recipe not found")
         }
         setRecipe(json.recipe)
+        trackEvent("recipe_viewed", { recipe_id: recipeId, recipe_title: json.recipe.title, source: "direct" })
       } catch (error) {
         console.error("Error loading recipe:", error)
         router.push("/recipes")
@@ -288,6 +234,7 @@ export default function RecipeDetailPage() {
     try {
       const newFavoriteStatus = await recipeFavoritesDB.toggleFavorite(user.id, params.id as string)
       setIsFavorite(newFavoriteStatus)
+      trackEvent(newFavoriteStatus ? "recipe_added_to_favorites" : "recipe_removed_from_favorites", { recipe_id: params.id as string })
 
       toast({
         title: newFavoriteStatus ? "Added to favorites" : "Removed from favorites",
@@ -321,6 +268,7 @@ export default function RecipeDetailPage() {
 
     try {
       await addRecipeToCart(recipe.id, recipe.servings || 1)
+      trackEvent("recipe_added_to_shopping_list", { recipe_id: recipe.id, servings: recipe.servings || 1 })
       toast({
         title: "Added to basket",
         description: `${recipe.title} was added to your basket.`,
@@ -363,17 +311,27 @@ export default function RecipeDetailPage() {
   }
 
   const handleStartCooking = () => {
+    trackEvent("cooking_mode_started", { recipe_id: params.id as string, steps_total: instructions.length })
     setCookingStep(0)
     setCookingMode(true)
   }
 
   const handleCookingNext = () => {
-    if (cookingStep < instructions.length - 1) setCookingStep((s) => s + 1)
-    else setCookingMode(false)
+    if (cookingStep < instructions.length - 1) {
+      setCookingStep((s) => s + 1)
+    } else {
+      trackEvent("cooking_mode_completed", { recipe_id: params.id as string, steps_total: instructions.length })
+      setCookingMode(false)
+    }
   }
 
   const handleCookingBack = () => {
     if (cookingStep > 0) setCookingStep((s) => s - 1)
+  }
+
+  const handleExitCooking = () => {
+    trackEvent("cooking_mode_exited", { recipe_id: params.id as string, step_abandoned: cookingStep, steps_total: instructions.length })
+    setCookingMode(false)
   }
 
   if (loading) {
@@ -490,7 +448,7 @@ export default function RecipeDetailPage() {
                         variant="outline"
                         size="sm"
                         className="whitespace-nowrap"
-                        onClick={() => router.push(`/edit-recipe/${recipe.id}`)}
+                        onClick={() => { trackEvent("recipe_edit_clicked", { recipe_id: recipe.id }); router.push(`/edit-recipe/${recipe.id}`) }}
                       >
                         <Pencil className="w-4 h-4" />
                         Edit
@@ -668,7 +626,7 @@ export default function RecipeDetailPage() {
           {cookingMode && instructions.length > 0 && (
             <div className="fixed inset-0 z-[100] md:hidden flex flex-col bg-background">
               <div className="flex items-center justify-between p-4 border-b border-border">
-                <Button variant="ghost" size="icon" onClick={() => setCookingMode(false)} aria-label="Exit cooking mode">
+                <Button variant="ghost" size="icon" onClick={handleExitCooking} aria-label="Exit cooking mode">
                   <X className="h-5 w-5" />
                 </Button>
                 <span className="text-sm font-medium text-muted-foreground">

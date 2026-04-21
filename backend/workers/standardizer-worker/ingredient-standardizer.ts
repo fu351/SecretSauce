@@ -6,6 +6,51 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
 
+const NON_FOOD_TITLE_TOKENS = new Set([
+  "balm",
+  "body",
+  "candle",
+  "conditioner",
+  "cosmetic",
+  "deodorant",
+  "dog",
+  "face",
+  "fragrance",
+  "lotion",
+  "lip",
+  "makeup",
+  "mask",
+  "perfume",
+  "pet",
+  "shampoo",
+  "skincare",
+  "soap",
+  "scented",
+  "toothpaste",
+  "toy",
+  "treat",
+  "treats",
+  "cat",
+  "litter",
+])
+
+const NON_FOOD_TITLE_PHRASES = [
+  ["body", "butter"],
+  ["body", "oil"],
+  ["body", "wash"],
+  ["face", "mask"],
+  ["lip", "balm"],
+  ["lip", "mask"],
+  ["lip", "oil"],
+  ["lip", "gloss"],
+  ["pet", "treats"],
+  ["dog", "treats"],
+  ["cat", "treats"],
+  ["dog", "food"],
+  ["cat", "food"],
+  ["tooth", "paste"],
+]
+
 // ---------------------------------------------------------------------------
 // Context types (previously in lib/utils/ingredient-standardizer-context.ts)
 // ---------------------------------------------------------------------------
@@ -173,7 +218,65 @@ export function getIngredientStandardizerContextRules(
    3. If the remaining concept is still unclear after cleanup, use low confidence so it lands in review
    4. Confidence: 0.40-0.55 for meal kits, heavily branded sides, and noisy prepared products
 
-   **Examples:**
+   **CRITICAL - Ingredient-named prepared products (common at stores like Trader Joe's):**
+   When the lead word is a flavor/ingredient MODIFIER and the product type makes it a prepared food,
+   keep the FULL product type — do NOT collapse to just the ingredient word.
+
+   [OK] "Butternut Squash Soup 32 oz"
+     -> canonicalName: "butternut squash soup"   ← NOT "butternut squash"
+     -> category: "pantry_staples"
+     -> confidence: 0.76
+
+   [OK] "Cilantro Lime Dressing 8 oz"
+     -> canonicalName: "cilantro lime dressing"  ← NOT "cilantro"
+     -> category: "condiments"
+     -> confidence: 0.78
+
+   [OK] "Butternut Squash Ravioli 12 oz"
+     -> canonicalName: "butternut squash ravioli" ← NOT "butternut squash"
+     -> category: "pantry_staples"
+     -> confidence: 0.72
+
+   [Warning] "Cuban Style Citrus Garlic Bowl 11 Oz"
+     -> canonicalName: "garlic bowl"              ← NOT "garlic"
+     -> category: "pantry_staples"
+     -> confidence: 0.52
+
+   [Warning] "Organic Jumbo Cinnamon Rolls 17.5 Oz"
+     -> canonicalName: "cinnamon rolls"           ← NOT "cinnamon"
+     -> category: "other"
+     -> confidence: 0.72
+
+   [Warning] "Raspberry, Vanilla & Blueberry Macarons 5.53 Oz"
+     -> canonicalName: "macarons"                 ← NOT "raspberry"
+     -> category: "snacks"
+     -> confidence: 0.70
+
+   **CRITICAL - Personal-care / household items with food-sounding names:**
+   Stores like Trader Joe's sell personal-care products with flavor names (peppermint, coconut, watermelon).
+   These are NEVER food. Set isFoodItem: false, confidence: 0.0, category: null.
+
+   [X] "Lip Butter Balm Duo 1.04 Oz"
+     -> isFoodItem: false, canonicalName: "lip balm", category: null, confidence: 0.0
+     // "butter" here is cosmetic, not dairy
+
+   [X] "Coconut Body Butter 8 Oz"
+     -> isFoodItem: false, canonicalName: "body butter", category: null, confidence: 0.0
+
+   [X] "Cinnamon Roll Flavored Lip Mask 0.7 Oz"
+     -> isFoodItem: false, canonicalName: "lip mask", category: null, confidence: 0.0
+
+   [X] "Can of Corn Scented Candle 9 Oz"
+     -> isFoodItem: false, canonicalName: "candle", category: null, confidence: 0.0
+
+   [X] "Peppermint Fluoride Free Toothpaste 6 Oz"
+     -> isFoodItem: false, canonicalName: "toothpaste", category: null, confidence: 0.0
+     // "peppermint" is the flavor, not the ingredient
+
+   [X] "Lemongrass Coconut Body Oil 4.8 Fl Oz"
+     -> isFoodItem: false, canonicalName: "body oil", category: null, confidence: 0.0
+
+   **Standard examples:**
 
    [Warning] "Hamburger Helper Deluxe Beef Stroganoff Pasta Meal Kit - 5.5oz"
      -> canonicalName: "pasta"
@@ -223,6 +326,42 @@ export interface IngredientStandardizationInput {
   vectorCandidates?: string[]
 }
 
+// Strips packing/carrier medium phrases like "in extra virgin olive oil", "in water", "in brine"
+// so the LLM sees "Solid Light Yellowfin Tuna 4.5 Oz" rather than latching onto "Extra Virgin Olive Oil".
+const PACKING_MEDIUM_RE =
+  /\s+in\s+(?:(?:extra\s+virgin|light|heavy|pure)\s+)?(?:olive\s+oil|vegetable\s+oil|sunflower\s+oil|canola\s+oil|oil|water|brine|syrup|juice|tomato\s+sauce|sauce|vinegar)\b/gi
+
+// Strips processing/preparation qualifiers that add no ingredient meaning and can mislead canonicalization.
+const PROCESSING_QUALIFIER_RE =
+  /\b(?:cold[\s-]pressed|cold[\s-]brew(?:ed)?|stone[\s-]ground|slow[\s-]roasted|slow[\s-]cooked|flash[\s-]frozen|air[\s-]chilled|high[\s-]pressure[\s-]processed|HPP)\b\s*/gi
+
+// Matches known product-type suffixes that appear after flavor/ingredient modifiers.
+// Capture group 1 = flavor prefix, group 2 = product type.
+// e.g. "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
+//   -> group1: "Red Bell Pepper, Garlic & Parmesan"
+//   -> group2: "cream cheese spread"
+const PRODUCT_TYPE_SUFFIX_RE = /^(.+?)\s+(cream\s+cheese\s+spread|cheese\s+spread|food\s+tub|baby\s+(?:food|snack)|meal\s+kit|cream\s+cheese|cream\s+sauce|pasta\s+sauce|tomato\s+sauce|hot\s+sauce|(?:\w+\s+)?soup|(?:\w+\s+)?stew|(?:\w+\s+)?chili|(?:\w+\s+)?curry|sandwich\s+bread|wheat\s+bread|white\s+bread|sourdough\s+bread|english\s+muffin|greek\s+yogurt|ice\s+cream|granola\s+bar|protein\s+bar|energy\s+bar|spread|tub|dip|hummus|salsa|pesto|aioli|kit|bread|bagel|muffin|croissant|tortilla|wrap|pita|cracker|cereal|granola|oatmeal|yogurt|sorbet|gelato|butter)\b/i
+
+// If the name has a recognizable product-type suffix preceded by ingredient/flavor modifiers,
+// move the product type to the front so the LLM anchors on it rather than the first ingredient token.
+// "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
+//   -> "cream cheese spread Red Bell Pepper, Garlic & Parmesan 8 Oz"
+function hoistProductType(name: string): string {
+  const match = PRODUCT_TYPE_SUFFIX_RE.exec(name)
+  if (!match) return name
+  const [, flavorPrefix, productType] = match
+  const remainder = name.slice(match[0].length).trim()
+  return `${productType} ${flavorPrefix}${remainder ? " " + remainder : ""}`.replace(/\s{2,}/g, " ").trim()
+}
+
+function preprocessInputName(name: string): string {
+  return hoistProductType(name)
+    .replace(PACKING_MEDIUM_RE, "")
+    .replace(PROCESSING_QUALIFIER_RE, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}
+
 function normalizeCanonicalOutput(value: string): string {
   return value
     .normalize("NFKD")
@@ -238,6 +377,21 @@ function normalizeCanonicalOutput(value: string): string {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+function hasNonFoodTitleSignals(sourceName: string): boolean {
+  const normalized = normalizeCanonicalOutput(sourceName)
+  if (!normalized) return false
+
+  const tokens = normalized.split(" ").filter(Boolean)
+  if (!tokens.length) return false
+
+  const tokenSet = new Set(tokens)
+  if (tokens.some((token) => NON_FOOD_TITLE_TOKENS.has(token))) {
+    return true
+  }
+
+  return NON_FOOD_TITLE_PHRASES.some((phrase) => phrase.every((token) => tokenSet.has(token)))
 }
 
 export interface IngredientStandardizationResult {
@@ -340,8 +494,9 @@ async function callOpenAI(prompt: string): Promise<string | null> {
 
 function buildPrompt(inputs: IngredientStandardizationInput[], canonicalNames: string[], context: IngredientStandardizerContext) {
   const contextRules = getIngredientStandardizerContextRules(context)
+  const preprocessed = inputs.map((i) => ({ ...i, name: preprocessInputName(i.name) }))
   return buildIngredientStandardizerPrompt({
-    inputs,
+    inputs: preprocessed,
     canonicalNames,
     context,
     contextRules,
@@ -461,15 +616,19 @@ export async function standardizeIngredientsWithAI(
             ? entry.canonical
             : undefined
       const canonicalCandidate = normalizeCanonicalOutput(canonicalSource || "")
-      const canonicalName =
+      const normalizedInputName = normalizeCanonicalOutput(input.name)
+      const resolvedCanonicalName =
         canonicalCandidate && canonicalCandidate.length > 0
           ? canonicalCandidate
-          : normalizeCanonicalOutput(input.name) || input.name.toLowerCase()
+          : normalizedInputName || input.name.toLowerCase()
 
       const confidence = useEntry
         ? parseConfidence(entry?.confidence ?? entry?.confidenceScore, 0.5)
         : 0.2
-      const isFoodItem = useEntry
+      const inferredNonFood = hasNonFoodTitleSignals(input.name)
+      const isFoodItem = inferredNonFood
+        ? false
+        : useEntry
         ? typeof entry?.isFoodItem === "boolean"
           ? entry.isFoodItem
           : typeof entry?.is_food_item === "boolean"
@@ -486,10 +645,10 @@ export async function standardizeIngredientsWithAI(
         // which breaks downstream row mapping in queue processing.
         id: String(input.id ?? index),
         originalName,
-        canonicalName,
+        canonicalName: inferredNonFood ? normalizedInputName || resolvedCanonicalName : resolvedCanonicalName,
         isFoodItem,
         category,
-        confidence,
+        confidence: inferredNonFood ? Math.min(confidence, 0.12) : confidence,
       }
     })
   } catch (error) {

@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
   AlertCircle,
-  ShoppingCart,
   MapPin,
   ArrowLeftRight,
   Store,
@@ -21,6 +20,8 @@ import type { StoreComparison } from "@/lib/types/store"
 import { useClosestStore } from "@/hooks" // Ensure this path is correct
 import { getUserLocation } from "@/lib/location-client"
 import Image from "next/image"
+import { mergeShoppingListItems } from "@/lib/utils/shopping-list-grouping"
+import { ProductImage } from "@/components/store/product-image"
 
 // Dynamically import StoreMap to prevent SSR issues with Leaflet
 const StoreMap = dynamic(() => import("@/components/store/store-map").then((mod) => mod.StoreMap), {
@@ -140,6 +141,9 @@ export function StoreComparisonSection({
 
   // Items come pre-merged from get_pricing; render directly
   const displayItems = activeStore?.items || [];
+  const displayMissingIngredients = useMemo(() => {
+    return mergeShoppingListItems(activeStore?.missingIngredients || [])
+  }, [activeStore?.missingIngredients])
 
   useEffect(() => {
     if (listContainerRef.current) {
@@ -195,8 +199,10 @@ export function StoreComparisonSection({
     );
   }
 
-  const missingCount = activeStore?.missingIngredients?.length || 0;
-  const percentFound = activeStore ? Math.round((activeStore.items.length / (activeStore.items.length + missingCount)) * 100) : 0;
+  const missingCount = displayMissingIngredients.length;
+  const percentFound = activeStore
+    ? Math.round((displayItems.length / (displayItems.length + missingCount)) * 100)
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -349,11 +355,12 @@ export function StoreComparisonSection({
         {displayItems.map((item, i) => (
           <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
             <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === 'dark' ? 'bg-white border-white/10' : 'bg-white border-gray-100'}`}>
-              {item.image_url ? (
-                <img src={item.image_url} alt="" className="w-full h-full object-contain" />
-              ) : (
-                <ShoppingCart className="h-5 w-5 text-gray-400" />
-              )}
+              <ProductImage
+                src={item.image_url}
+                alt={item.title}
+                imgClassName="w-full h-full object-contain"
+                fallbackClassName="h-5 w-5 text-gray-400"
+              />
             </div>
             <div className="flex-1 min-w-0">
               <p className={`text-sm font-semibold truncate ${textClass}`}>{item.title}</p>
@@ -379,7 +386,7 @@ export function StoreComparisonSection({
                 : null
               const packagesText =
                 typeof item.packagesToBuy === "number" && item.packagesToBuy > 0
-                  ? `Packages: ${item.packagesToBuy}`
+                  ? `Packages: ${Math.ceil(item.packagesToBuy)}`
                   : null
               const estimateText = item.usedEstimate
                 ? "Uses estimated unit conversion"
@@ -430,8 +437,8 @@ export function StoreComparisonSection({
                      <span className="text-xs font-bold uppercase tracking-widest text-amber-600">Missing ({missingCount})</span>
                   </div>
                   <div className="grid grid-cols-1 gap-2.5">
-                    {activeStore.missingIngredients?.map((item, i) => (
-                      <div key={`miss-${i}`} className="flex justify-between items-center bg-white/60 dark:bg-black/40 p-3 rounded-lg border border-amber-100 dark:border-amber-900/50">
+                    {displayMissingIngredients.map((item, i) => (
+                      <div key={item.id || `miss-${i}`} className="flex justify-between items-center bg-white/60 dark:bg-black/40 p-3 rounded-lg border border-amber-100 dark:border-amber-900/50">
                         <span className={`text-xs font-medium ${textClass}`}>{item.name}</span>
                       </div>
                     ))}

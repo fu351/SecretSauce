@@ -174,26 +174,36 @@ function format99RanchStoreLocation(storeInfo, fallbackZip) {
     return storeInfo?.name || "99 Ranch Market";
 }
 
+// 99ranch API appends quantity+unit info directly to product names, e.g.
+// "Garlic 1.0000 ea/bag" or "Snow Cabbage 12.0000 oz/each".
+// Strip it so the ingredient worker sees "Garlic" not "Garlic 1 0000 ea bag".
+function stripRanchQuantitySuffix(name) {
+    if (!name) return name;
+    return name.replace(/\s+\d+(?:\.\d+)?\s+\w+\/\w+\s*$/i, '').trim();
+}
+
 async function search99Ranch(keyword, zipCode) {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
     return resultCache.runCached(cacheKey, async () => {
         try {
             const userZip = (zipCode && zipCode.trim()) || DEFAULT_99_RANCH_ZIP;
+            let searchZip = userZip;
             let store = await getNearestStore(userZip);
             if (!store && userZip !== DEFAULT_99_RANCH_ZIP) {
                 log.warn(`No 99 Ranch store near ${userZip}, falling back to ${DEFAULT_99_RANCH_ZIP}`);
                 store = await getNearestStore(DEFAULT_99_RANCH_ZIP);
+                searchZip = DEFAULT_99_RANCH_ZIP;
             }
             if (!store?.id) {
                 log.warn("No nearby 99 Ranch store found for zip code:", zipCode);
                 return [];
             }
 
-            const products = await searchProducts(store, keyword, userZip);
-            const storeLocation = format99RanchStoreLocation(store, userZip);
+            const products = await searchProducts(store, keyword, searchZip);
+            const storeLocation = format99RanchStoreLocation(store, searchZip);
             return products
                 .map((p) => {
-                    const productName = (p.productName || p.productNameEN || "").trim();
+                    const productName = stripRanchQuantitySuffix((p.productName || p.productNameEN || "").trim());
                     const price = Number.parseFloat(String(p.salePrice ?? p.price ?? ""));
                     const productIdRaw = p.productId ?? p.id ?? p.sku ?? p.upc ?? null;
                     const productId = productIdRaw == null ? null : String(productIdRaw);

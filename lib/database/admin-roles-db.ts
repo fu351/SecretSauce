@@ -7,7 +7,7 @@ export type AdminRole = "admin" | "analyst"
  * Uses RPC functions for authorization checks and table queries for role lookup.
  */
 class AdminRolesDB {
-  private readonly tableName = "ab_testing.admin_roles"
+  private readonly tableName = "admin_roles"
 
   async isAdmin(userId: string): Promise<boolean> {
     const { data, error } = await supabase.rpc("is_admin", {

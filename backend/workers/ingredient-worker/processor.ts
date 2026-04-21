@@ -17,10 +17,11 @@ import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"
 import { resolveCanonicalWithDoubleCheck } from "./canonical/double-check"
 import {
-  INVALID_CANONICAL_NAMES,
-  NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES,
   assessNewCanonicalRisk,
+  NEW_CANONICAL_PROBATION_STALE_DAYS,
+  isInvalidCanonicalName,
   resolveBlockedNewCanonicalFallback,
+  stripRetailSuffixTokensFromCanonicalName,
 } from "./canonical/risk"
 import { getIngredientConfidenceCalibrator } from "./scoring/confidence-calibration"
 import { getCanonicalTokenIdfScorer } from "./canonical/token-idf"
@@ -51,6 +52,51 @@ import {
   UNIT_FALLBACK_CONFIDENCE,
   stripMeasurementFromSearchTerm,
 } from "./unit-resolution-utils"
+
+const NON_FOOD_TITLE_TOKENS = new Set([
+  "balm",
+  "body",
+  "candle",
+  "conditioner",
+  "cosmetic",
+  "deodorant",
+  "dog",
+  "face",
+  "fragrance",
+  "lotion",
+  "lip",
+  "makeup",
+  "mask",
+  "perfume",
+  "pet",
+  "shampoo",
+  "skincare",
+  "soap",
+  "scented",
+  "toothpaste",
+  "toy",
+  "treat",
+  "treats",
+  "cat",
+  "litter",
+])
+
+const NON_FOOD_TITLE_PHRASES = [
+  ["body", "butter"],
+  ["body", "oil"],
+  ["body", "wash"],
+  ["face", "mask"],
+  ["lip", "balm"],
+  ["lip", "mask"],
+  ["lip", "oil"],
+  ["lip", "gloss"],
+  ["pet", "treats"],
+  ["dog", "treats"],
+  ["cat", "treats"],
+  ["dog", "food"],
+  ["cat", "food"],
+  ["tooth", "paste"],
+]
 
 interface ResolveBatchResult {
   resolved: number
@@ -88,6 +134,29 @@ interface UnitMetrics {
 
 const LOG_SAMPLE_LIMIT = 3
 
+// Keywords that reliably indicate a non-food product regardless of vector similarity.
+// Used to gate the vector fast-path, which would otherwise accept e.g. "Coconut Body Butter"
+// as food because it vector-matches "butter" at high confidence.
+const NON_FOOD_KEYWORD_PATTERNS = [
+  "body butter", "body oil", "body scrub", "body lotion",
+  "lip balm", "lip mask", "lip butter",
+  "face mask", "face wash", "face scrub",
+  "hand soap", "foaming hand soap",
+  "shampoo", "conditioner",
+  "toothpaste", "mouthwash",
+  "deodorant", "sunscreen",
+  "castile soap",
+  "dog treat", "dog food", "cat treat", "cat food", "pet food",
+  "scented candle", "candle",
+  "dish soap", "laundry",
+  "paper towel", "toilet paper",
+]
+
+function likelyNonFoodByKeyword(name: string): boolean {
+  const lower = name.toLowerCase()
+  return NON_FOOD_KEYWORD_PATTERNS.some((kw) => lower.includes(kw))
+}
+
 function emptyUnitMetrics(): UnitMetrics {
   return {
     mapMissThenFallback: 0,
@@ -95,6 +164,8 @@ function emptyUnitMetrics(): UnitMetrics {
     aiError: 0,
   }
 }
+
+const NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES = 1
 
 function isUnitResolutionError(errorMessage: string): boolean {
   const normalized = errorMessage.toLowerCase()
@@ -133,6 +204,21 @@ function buildCanonicalProbationSourceSignature(row: IngredientMatchQueueRow, so
   }
 
   return `${row.source}:row:${row.id}`
+}
+
+function hasNonFoodTitleSignals(sourceSearchTerm: string): boolean {
+  const normalized = normalizeCanonicalName(sourceSearchTerm)
+  if (!normalized) return false
+
+  const tokens = normalized.split(" ").filter(Boolean)
+  if (!tokens.length) return false
+
+  const tokenSet = new Set(tokens)
+  if (tokens.some((token) => NON_FOOD_TITLE_TOKENS.has(token))) {
+    return true
+  }
+
+  return NON_FOOD_TITLE_PHRASES.some((phrase) => phrase.every((token) => tokenSet.has(token)))
 }
 
 function inferIngredientSemanticRejectReason(errorMessage: string): string | null {
@@ -185,7 +271,7 @@ function resolveRowStandardizerContext(
   return config.scraperStandardizerContext
 }
 
-function maybeRetainFormSpecificCanonical(params: {
+export function maybeRetainFormSpecificCanonical(params: {
   sourceSearchTerm: string
   modelCanonical: string
 }): { canonicalName: string; reason: string } | null {
@@ -202,6 +288,13 @@ function maybeRetainFormSpecificCanonical(params: {
 
   const missingFormTokens = sourceFormTokens.filter((token) => !modelTokens.has(token))
   if (!missingFormTokens.length) return null
+
+  if (missingFormTokens.some((token) => token === "chicken" || token === "beef" || token === "turkey" || token === "pork" || token === "lamb" || token === "veal" || token === "salmon" || token === "tuna" || token === "shrimp" || token === "fish" || token === "ham" || token === "bacon" || token === "sausage" || token === "steak" || token === "rib" || token === "ribs" || token === "duck" || token === "tofu" || token === "tempeh")) {
+    return {
+      canonicalName: sourceCanonical,
+      reason: `protein_tail_retention(missing_forms=${missingFormTokens.join("|")})`,
+    }
+  }
 
   const sourceBaseTokens = sourceTokens.filter((token) => !PROTECTED_FORM_TOKENS.has(token))
   const sharedBaseTokens = sourceBaseTokens.filter((token) => modelTokens.has(token))
@@ -359,12 +452,22 @@ async function resolveIngredientCandidates(
     // For each AI-bound input, embed the search term and run a reranked cosine search.
     // Items whose final_score >= VECTOR_MATCH_HIGH_CONFIDENCE are injected directly into
     // aiResultByKey; the remainder proceed to the LLM as normal.
+    //
+    // Non-food guard: products containing personal-care, household, or pet keywords are
+    // skipped here and fall through to the LLM, which correctly sets isFoodItem: false.
+    // Without this guard, "Coconut Body Butter" vector-matches "butter" and gets accepted
+    // as food because the fast-path unconditionally sets isFoodItem: true.
     if (!config.dryRun && aiInputs.length > 0) {
       const embeddingModel = getEmbeddingModel()
       const vectorFastPathHits: string[] = []
+      const vectorFastPathNonFoodSkips: string[] = []
 
       for (let i = aiInputs.length - 1; i >= 0; i--) {
         const input = aiInputs[i]
+        if (likelyNonFoodByKeyword(input.name)) {
+          vectorFastPathNonFoodSkips.push(`"${input.name}"`)
+          continue
+        }
         try {
           const vectorMatch = await resolveVectorMatch(input.name, embeddingModel)
           if (vectorMatch && vectorMatch.finalScore >= VECTOR_MATCH_HIGH_CONFIDENCE) {
@@ -388,6 +491,11 @@ async function resolveIngredientCandidates(
       if (vectorFastPathHits.length > 0) {
         console.log(
           `[QueueResolver] Vector fast-path resolved ${vectorFastPathHits.length} item(s): ${vectorFastPathHits.join(", ")}`
+        )
+      }
+      if (vectorFastPathNonFoodSkips.length > 0) {
+        console.log(
+          `[QueueResolver] Vector fast-path skipped ${vectorFastPathNonFoodSkips.length} likely-non-food item(s) (→ LLM): ${vectorFastPathNonFoodSkips.join(", ")}`
         )
       }
     }
@@ -735,6 +843,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         let calibratedIngredientConfidence: number | null = null
         let confidenceTokenCount: number | null = null
         let createdNewCanonical = false
+        let titleNonFoodOverride = false
 
         try {
           if (!needsIngredient && !needsUnit) {
@@ -748,8 +857,18 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             }
 
             sourceSearchTerm = getIngredientSearchTerm(row, unitByRowId.get(row.id))
-            isFoodItem = ingredientResult.isFoodItem !== false
+            titleNonFoodOverride = hasNonFoodTitleSignals(sourceSearchTerm)
+            isFoodItem = titleNonFoodOverride ? false : ingredientResult.isFoodItem !== false
             let normalizedCanonical = normalizeCanonicalName(ingredientResult.canonicalName)
+
+            if (titleNonFoodOverride) {
+              normalizedCanonical = normalizeCanonicalName(sourceSearchTerm)
+              ingredientCategory = null
+              console.log(
+                `[QueueResolver] Non-food title override for "${normalizeCanonicalName(sourceSearchTerm)}" ` +
+                  `(model_canonical="${normalizeCanonicalName(ingredientResult.canonicalName)}")`
+              )
+            }
 
             const formRetention = maybeRetainFormSpecificCanonical({
               sourceSearchTerm,
@@ -778,11 +897,19 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               )
             }
 
+            const strippedRetailCanonical = stripRetailSuffixTokensFromCanonicalName(normalizedCanonical)
+            if (strippedRetailCanonical) {
+              console.log(
+                `[QueueResolver] Stripped retail suffix "${normalizedCanonical}" -> "${strippedRetailCanonical}"`
+              )
+              normalizedCanonical = strippedRetailCanonical
+            }
+
             if (!normalizedCanonical) {
               throw new Error("AI returned an empty canonical name")
             }
 
-            if (INVALID_CANONICAL_NAMES.has(normalizedCanonical)) {
+            if (isInvalidCanonicalName(normalizedCanonical)) {
               throw new Error(`Invalid canonical name "${normalizedCanonical}" returned by ingredient resolver`)
             }
 
@@ -823,12 +950,17 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               if (!canonicalForWrite) {
                 throw new Error("Canonical name became empty after double-check")
               }
+              if (isInvalidCanonicalName(canonicalForWrite)) {
+                throw new Error(`Invalid canonical name "${canonicalForWrite}" returned after double-check`)
+              }
 
               ingredientCategory = resolvedIngredientCategory
             } else {
               ingredientCategory = null
-              calibratedIngredientConfidence = rawIngredientConfidence
-              ingredientConfidence = rawIngredientConfidence
+              calibratedIngredientConfidence = titleNonFoodOverride
+                ? Math.min(rawIngredientConfidence, 0.12)
+                : rawIngredientConfidence
+              ingredientConfidence = calibratedIngredientConfidence
               canonicalForWrite = normalizedCanonical
             }
 
@@ -987,9 +1119,15 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                 })
 
                 const categorySpecific = ingredientCategory && ingredientCategory !== "other"
+                const probationAgeMs = probationStats?.firstSeenAt
+                  ? Date.now() - new Date(probationStats.firstSeenAt).getTime()
+                  : 0
+                const probationIsStale =
+                  probationAgeMs >= NEW_CANONICAL_PROBATION_STALE_DAYS * 24 * 60 * 60 * 1000
                 if (
                   probationStats &&
                   probationStats.distinctSources < NEW_CANONICAL_PROBATION_MIN_DISTINCT_SOURCES &&
+                  !probationIsStale &&
                   !(categorySpecific && ingredientConfidence >= 0.65)
                 ) {
                   throw new Error(
@@ -1002,7 +1140,8 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
               createdNewCanonical = !existingCanonical
               const standardized =
-                existingCanonical || (await standardizedIngredientsDB.getOrCreate(canonicalForWrite, ingredientCategory))
+                existingCanonical ||
+                (await standardizedIngredientsDB.getOrCreate(canonicalForWrite, ingredientCategory, true))
               if (!standardized?.id) {
                 throw new Error("Failed to upsert standardized ingredient")
               }

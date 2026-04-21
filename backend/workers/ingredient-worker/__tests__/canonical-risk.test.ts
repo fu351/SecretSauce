@@ -12,7 +12,12 @@ vi.mock("../../../../lib/database/standardized-ingredients-db", () => ({
   },
 }))
 
-import { resolveBlockedNewCanonicalFallback } from "../canonical/risk"
+import {
+  assessNewCanonicalRisk,
+  isInvalidCanonicalName,
+  resolveBlockedNewCanonicalFallback,
+  stripRetailSuffixTokensFromCanonicalName,
+} from "../canonical/risk"
 
 function makeScorer(floors: Record<string, number>): CanonicalTokenIdfScorer {
   return {
@@ -26,6 +31,34 @@ describe("resolveBlockedNewCanonicalFallback", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.findByCanonicalName.mockResolvedValue(null)
+  })
+
+  it("rejects reserved invalid canonical names early", () => {
+    expect(isInvalidCanonicalName("null")).toBe(true)
+    expect(isInvalidCanonicalName("other")).toBe(true)
+    expect(isInvalidCanonicalName("sauce")).toBe(true)
+    expect(isInvalidCanonicalName("juice")).toBe(true)
+    expect(isInvalidCanonicalName("mix")).toBe(true)
+    expect(isInvalidCanonicalName("powder")).toBe(true)
+    expect(isInvalidCanonicalName("syrup")).toBe(true)
+    expect(isInvalidCanonicalName("stock")).toBe(true)
+    expect(isInvalidCanonicalName("extract")).toBe(true)
+    expect(isInvalidCanonicalName("broth")).toBe(true)
+    expect(isInvalidCanonicalName("seasoning")).toBe(true)
+    expect(isInvalidCanonicalName("dip")).toBe(true)
+    expect(isInvalidCanonicalName("flavored beverage")).toBe(true)
+    expect(isInvalidCanonicalName("peas and carrots")).toBe(true)
+    expect(isInvalidCanonicalName("carrots and peas")).toBe(true)
+    expect(isInvalidCanonicalName("vanilla almond milk")).toBe(false)
+  })
+
+  it("strips trailing retail suffix tokens before the risk check", () => {
+    expect(stripRetailSuffixTokensFromCanonicalName("organic baby lettuce mix 5 oz")).toBe(
+      "organic baby lettuce mix"
+    )
+    expect(stripRetailSuffixTokensFromCanonicalName("aiva bay leaves powder bay leaf powder 7 oz")).toBe(
+      "aiva bay leaves powder bay leaf powder"
+    )
   })
 
   it("recovers retail titles to an existing stripped canonical", async () => {
@@ -90,5 +123,18 @@ describe("resolveBlockedNewCanonicalFallback", () => {
     })
 
     expect(result).toBeNull()
+  })
+
+  it("blocks obvious repeated-token junk", () => {
+    expect(
+      assessNewCanonicalRisk({
+        canonicalName: "chocolate mix mix",
+        category: "snacks",
+        confidence: 0.91,
+      })
+    ).toEqual({
+      blocked: true,
+      reason: "repeated_token_sequence(tokens=3)",
+    })
   })
 })

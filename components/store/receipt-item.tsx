@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Minus, Plus, X, ArrowLeftRight, ShoppingCart, ChevronDown, ChevronUp } from "lucide-react"
 import type { ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import type { StoreComparison } from "@/lib/types/store"
+import { hasPackagePricing, calcPackages, calcLineTotal, incrementPackageQty, decrementPackageQty } from "@/lib/utils/package-pricing"
 
 interface ReceiptItemProps {
   item: ShoppingListItem
@@ -37,25 +38,23 @@ export function ReceiptItem({
   const quantityDisplay = formatMeasure(quantity)
   const unit = item.unit || ""
   const isAvailable = pricing !== null
-  const pricingBaselineQuantity = Math.max(1, Number(pricing?.quantity) || 1)
-  const baselinePackages = pricing?.packagesToBuy && Number(pricing.packagesToBuy) > 0
-    ? Number(pricing.packagesToBuy)
+  const pkgPrice = pricing?.packagePrice != null ? Number(pricing.packagePrice) : null
+  const convertedQty = pricing?.convertedQuantity != null && !pricing.conversionError
+    ? Number(pricing.convertedQuantity)
     : null
-  const packagePrice = pricing?.packagePrice != null ? Number(pricing.packagePrice) : null
-  const packagesPerQuantity = baselinePackages !== null
-    ? baselinePackages / pricingBaselineQuantity
+  const usePackagePricing = hasPackagePricing(pkgPrice, convertedQty, pricing?.conversionError ?? undefined)
+  const adjustedPackagesToBuy = usePackagePricing && convertedQty !== null
+    ? calcPackages(quantity, convertedQty)
     : null
-  const adjustedPackagesToBuy = pricing?.packagesToBuy
-    ? Math.max(1, Math.ceil((packagesPerQuantity || 0) * quantity))
+  const lineTotalFromPkg = usePackagePricing && convertedQty !== null
+    ? calcLineTotal({ qty: quantity, packagePrice: pkgPrice, convertedQty, conversionError: pricing?.conversionError ?? undefined })
     : null
   const lineTotal = pricing
-    ? (
-      packagePrice !== null && adjustedPackagesToBuy !== null
-        ? packagePrice * adjustedPackagesToBuy
-        : (Number(pricing.price) || 0) * quantity
-    )
+    ? (lineTotalFromPkg ?? (Number(pricing.price) || 0) * quantity)
     : null
-  const packageQuantityDisplay = adjustedPackagesToBuy !== null
+  const packageQuantityDisplay = !isAvailable
+    ? "0"
+    : adjustedPackagesToBuy !== null
     ? formatMeasure(adjustedPackagesToBuy)
     : quantityDisplay
 
@@ -72,6 +71,8 @@ export function ReceiptItem({
   const cartQuantitySummary = `${quantityDisplay}${unit ? ` ${unit}` : ""}`
   const purchaseQuantitySummary = adjustedPackagesToBuy !== null
     ? `${formatMeasure(adjustedPackagesToBuy)} ${Math.abs(adjustedPackagesToBuy - 1) < 0.0001 ? "package" : "packages"}`
+    : !isAvailable
+      ? "0 packages"
     : cartQuantitySummary
 
   const textPrimaryClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
@@ -106,20 +107,16 @@ export function ReceiptItem({
   const hasExpandedDetails = detailRows.length > 0
 
   const handleIncrement = () => {
-    if (adjustedPackagesToBuy !== null && packagesPerQuantity && packagesPerQuantity > 0) {
-      const nextPackages = adjustedPackagesToBuy + 1
-      const nextQuantity = Number((nextPackages / packagesPerQuantity).toFixed(4))
-      onQuantityChange(item.id, Math.max(1, nextQuantity))
+    if (usePackagePricing && convertedQty !== null) {
+      onQuantityChange(item.id, incrementPackageQty(quantity, convertedQty))
       return
     }
     onQuantityChange(item.id, quantity + 1)
   }
 
   const handleDecrement = () => {
-    if (adjustedPackagesToBuy !== null && packagesPerQuantity && packagesPerQuantity > 0) {
-      const nextPackages = Math.max(1, adjustedPackagesToBuy - 1)
-      const nextQuantity = Number((nextPackages / packagesPerQuantity).toFixed(4))
-      onQuantityChange(item.id, Math.max(1, nextQuantity))
+    if (usePackagePricing && convertedQty !== null) {
+      onQuantityChange(item.id, decrementPackageQty(quantity, convertedQty))
       return
     }
     onQuantityChange(item.id, Math.max(1, quantity - 1))

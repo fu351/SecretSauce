@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import { searchGroceryStores } from "@/backend/orchestrators/frontend-scraper-pipeline/runner"
 import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "@/lib/database/ingredients-db"
+import { ProductImage } from "@/components/store/product-image"
 import { productMappingsDB } from "@/lib/database/product-mappings-db"
 import type { GroceryItem } from "@/lib/types/store"
 
@@ -33,6 +34,18 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
   const [results, setResults] = useState<GroceryItem[]>([])
   const prevOpenRef = useRef(false)
   const searchGenerationRef = useRef(0)
+
+  const buildResultKey = (
+    store: string,
+    title: string,
+    price?: number | null,
+    ingredientId?: string | null
+  ) => {
+    const normalizedTitle = title.trim().toLowerCase()
+    const normalizedPrice = Number.isFinite(Number(price)) ? Number(price).toFixed(2) : ""
+    const normalizedIngredientId = ingredientId?.trim().toLowerCase() || ""
+    return `${normalizeStoreName(store)}::${normalizedIngredientId}::${normalizedTitle}::${normalizedPrice}`
+  }
 
   useEffect(() => {
     prevOpenRef.current = isOpen
@@ -184,28 +197,65 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
       }))
       await ingredientsHistoryDB.batchStandardizeAndMatch(payload)
 
-      // 5. Query back via get_ingredient_price_details — results include product_mapping_id
-      if (userId && resolvedIngredientId) {
-        const dbOffers = await ingredientsRecentDB.getIngredientPriceDetails(
-          userId,
-          resolvedIngredientId
-        )
-        const targetStore = normalizeStoreName(target?.store || "")
-        const dbItems: GroceryItem[] = dbOffers
-          .filter(offer => normalizeStoreName(offer.store) === targetStore && offer.productMappingId)
-          .map(offer => ({
-            id: offer.productMappingId!,
-            title: offer.productName || "Unknown",
-            brand: "",
-            price: offer.totalPrice || 0,
-            pricePerUnit: offer.unitPrice != null ? String(offer.unitPrice) : undefined,
-            image_url: offer.imageUrl || "",
-            provider: target?.store || offer.store,
-            productMappingId: offer.productMappingId || undefined,
-          }))
+      // 5. Query back via get_ingredient_price_details and enrich the visible results
+      // with any product mapping IDs we can recover, but keep every candidate that
+      // the RPC or scraper returned.
+      const targetStore = normalizeStoreName(target?.store || "")
+      const enrichmentIngredientIds = [
+        ...new Set(
+          [
+            target?.standardizedIngredientId,
+            resolvedIngredientId,
+            ...replacementOptions.map((option) => option.ingredient_id),
+          ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        ),
+      ]
 
-        if (dbItems.length > 0) {
-          if (!isStale()) setResults(dbItems)
+      if (userId && enrichmentIngredientIds.length > 0) {
+        const dbOffersByIngredient = await Promise.all(
+          enrichmentIngredientIds.map(async (ingredientId) => ({
+            ingredientId,
+            offers: await ingredientsRecentDB.getIngredientPriceDetails(userId, ingredientId),
+          }))
+        )
+        const mappingByKey = new Map<string, string>()
+
+        dbOffersByIngredient.forEach(({ ingredientId, offers }) => {
+          offers
+            .filter(offer => normalizeStoreName(offer.store) === targetStore && offer.productMappingId)
+            .forEach((offer) => {
+              const primaryName = offer.productName?.trim()
+              if (!primaryName) return
+              const keyWithPrice = buildResultKey(
+                targetStore,
+                primaryName,
+                offer.totalPrice ?? offer.packagePrice ?? offer.unitPrice,
+                ingredientId
+              )
+              const keyWithoutPrice = buildResultKey(targetStore, primaryName, undefined, ingredientId)
+              mappingByKey.set(keyWithPrice, offer.productMappingId!)
+              mappingByKey.set(keyWithoutPrice, offer.productMappingId!)
+            })
+        })
+
+        if (!isStale() && mappingByKey.size > 0) {
+          setResults(
+            flatResults.map((item) => {
+              const itemIngredientId =
+                rpcIngredientByItemId.get(item.id) ||
+                ingredientMap.get(item.title) ||
+                resolvedIngredientId ||
+                target?.standardizedIngredientId ||
+                null
+              const matchedMappingId =
+                mappingByKey.get(buildResultKey(normalizedTargetStore, item.title, item.price, itemIngredientId)) ||
+                mappingByKey.get(buildResultKey(normalizedTargetStore, item.title, undefined, itemIngredientId))
+
+              return matchedMappingId
+                ? { ...item, productMappingId: matchedMappingId }
+                : item
+            })
+          )
         }
       }
     } catch (e) {
@@ -246,6 +296,8 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
             <Input
                 value={term}
                 onChange={e => setTerm(e.target.value)}
+                aria-label="Search replacements"
+                placeholder="Search replacements"
                 className={styles.theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
                 onKeyDown={(e) => e.key === 'Enter' && performSearch(term)}
             />
@@ -263,9 +315,9 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                 <p className={`p-4 text-center ${styles.mutedTextClass}`}>No results found at {target?.store}</p>
             )}
             {results.map((item, i) => (
-              <div key={i} className={`flex justify-between items-center p-2 border-b ${styles.theme === "dark" ? "border-[#e8dcc4]/10" : ""}`}>
+              <div key={item.id || `${item.title}-${i}`} className={`flex justify-between items-center p-2 border-b ${styles.theme === "dark" ? "border-[#e8dcc4]/10" : ""}`}>
                   <div className="flex items-center gap-3">
-                    {item.image_url && <img src={item.image_url} className="w-8 h-8 object-contain" />}
+                    <ProductImage src={item.image_url} alt={item.title} imgClassName="w-8 h-8 object-contain" fallbackClassName="w-8 h-8 text-gray-400" />
                     <div>
                       <div className={`font-medium ${styles.textClass}`}>{item.title}</div>
                       <div className={`text-xs ${styles.mutedTextClass}`}>{item.provider} - ${item.price.toFixed(2)}</div>

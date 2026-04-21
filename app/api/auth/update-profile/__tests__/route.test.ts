@@ -177,6 +177,20 @@ describe('PATCH /api/auth/update-profile', () => {
     })
   })
 
+  it('allows toggling profile privacy', async () => {
+    mockAuth.mockResolvedValue({ userId: 'user_123' })
+    mockSingle.mockResolvedValue({ data: { id: 'p_1', is_private: true }, error: null })
+
+    const res = await PATCH(makeRequest({ is_private: true }))
+
+    expect(res.status).toBe(200)
+    expect(mockChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_private: true,
+      })
+    )
+  })
+
   it('always updates against the authenticated clerk_user_id, not a client-supplied id', async () => {
     mockAuth.mockResolvedValue({ userId: 'user_real' })
     mockSingle.mockResolvedValue({ data: { id: 'p_1' }, error: null })

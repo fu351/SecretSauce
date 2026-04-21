@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { storeListHistoryDB } from "@/lib/database/store-list-history-db"
+import { getPostHogClient } from "@/lib/posthog-server"
 
 export const runtime = "nodejs"
 
@@ -149,6 +150,20 @@ export async function POST(request: NextRequest) {
           clerkUserId,
           customerId,
         })
+
+        // Track subscription activation server-side
+        if (supabaseUserId) {
+          const posthog = getPostHogClient()
+          posthog.capture({
+            distinctId: supabaseUserId,
+            event: "subscription_activated",
+            properties: {
+              supabase_user_id: supabaseUserId,
+              stripe_customer_id: customerId ?? undefined,
+              subscription_id: subscriptionId,
+            },
+          })
+        }
 
         // Add cart items to delivery log after successful payment
         // This happens AFTER payment is confirmed, ensuring items are only logged for completed checkouts

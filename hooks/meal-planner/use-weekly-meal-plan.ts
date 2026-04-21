@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
+import { useAnalytics } from "@/hooks/use-analytics"
 import type { Recipe } from "@/lib/types"
 
 type PlannerMealType = MealScheduleRow["meal_type"]
@@ -10,6 +11,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
   const [meals, setMeals] = useState<MealScheduleRow[]>([])
   const [recipesById, setRecipesById] = useState<Record<string, Recipe>>({})
   const [loading, setLoading] = useState(false)
+  const { trackEvent } = useAnalytics()
 
   const loadWeeklyMealPlan = useCallback(async () => {
     if (!userId || !weekIndex) return
@@ -52,7 +54,10 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
             date,
             mealType
           )
-          if (result) await loadWeeklyMealPlan()
+          if (result) {
+            trackEvent("meal_added_to_plan", { recipe_id: recipe.id, date, meal_type: mealType as "breakfast" | "lunch" | "dinner" })
+            await loadWeeklyMealPlan()
+          }
         } catch (error) {
           console.error("[useWeeklyMealPlan] Error adding meal:", error)
           throw error
@@ -83,7 +88,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
           mealType
         )
         if (result) {
-          // Replace synthetic row with real row from DB
+          trackEvent("meal_added_to_plan", { recipe_id: recipe.id, date, meal_type: mealType as "breakfast" | "lunch" | "dinner" })
           setMeals((prev) =>
             prev.map((m) => (m.id === tempId ? result : m))
           )
@@ -96,7 +101,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
         throw error
       }
     },
-    [userId, loadWeeklyMealPlan]
+    [userId, loadWeeklyMealPlan, trackEvent]
   )
 
   const removeFromMealPlan = useCallback(
@@ -106,7 +111,10 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
       if (options.reload) {
         try {
           const success = await mealPlannerDB.removeMealSlot(userId, date, mealType)
-          if (success) await loadWeeklyMealPlan()
+          if (success) {
+            trackEvent("meal_removed_from_plan", { meal_id: `${date}-${mealType}` })
+            await loadWeeklyMealPlan()
+          }
         } catch (error) {
           console.error("[useWeeklyMealPlan] Error removing meal:", error)
           throw error
@@ -114,7 +122,8 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
         return
       }
 
-      // Optimistic remove: clear the slot in UI immediately, then sync with DB
+      const mealToRemove = meals.find((m) => m.date === date && m.meal_type === mealType)
+      trackEvent("meal_removed_from_plan", { meal_id: mealToRemove?.id ?? `${date}-${mealType}`, recipe_id: mealToRemove?.recipe_id })
       setMeals((prev) =>
         prev.filter((m) => !(m.date === date && m.meal_type === mealType))
       )
@@ -127,7 +136,7 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
         throw error
       }
     },
-    [userId, loadWeeklyMealPlan]
+    [userId, meals, loadWeeklyMealPlan, trackEvent]
   )
 
   const clearWeek = useCallback(

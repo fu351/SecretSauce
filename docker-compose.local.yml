@@ -91,11 +91,10 @@ services:
   canonical-consolidation-worker:
     build:
       context: .
-      dockerfile: backend/docker/Dockerfile.embedding-worker
+      dockerfile: backend/docker/Dockerfile.canonical-consolidation
     depends_on:
       ollama-init:
         condition: service_completed_successfully
-    command: ["node_modules/.bin/tsx", "backend/orchestrators/canonical-consolidation-pipeline/pipeline.ts"]
     env_file:
       - .env.local
     environment:

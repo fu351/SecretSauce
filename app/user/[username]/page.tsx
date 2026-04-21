@@ -1,13 +1,11 @@
 import { notFound } from "next/navigation"
 import { auth } from "@clerk/nextjs/server"
-import Image from "next/image"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { followDB } from "@/lib/database/follow-db"
 import { normalizeUsername } from "@/lib/auth/username"
+import { ProfileIdentityControls } from "@/components/social/profile-identity-controls"
 import { ProfileFollowButton } from "@/components/social/profile-follow-button"
 import { UserRecipeGrid } from "@/components/social/user-recipe-grid"
-import { Badge } from "@/components/ui/badge"
-import { Lock, Globe } from "lucide-react"
 
 interface Props {
   params: Promise<{ username: string }>
@@ -63,49 +61,16 @@ export default async function UserProfilePage({ params }: Props) {
     }
   }
 
-  const initials = profile.full_name
-    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-    : "?"
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-2xl mx-auto px-4 py-12">
-        {/* Avatar + name */}
-        <div className="flex items-center gap-5 mb-8">
-          {profile.avatar_url ? (
-            <Image
-              src={profile.avatar_url}
-              alt={profile.full_name ?? "Profile"}
-              width={80}
-              height={80}
-              className="rounded-full object-cover ring-2 ring-border"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-muted ring-2 ring-border flex items-center justify-center text-2xl font-semibold text-foreground">
-              {initials}
-            </div>
-          )}
-
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">
-              {profile.full_name ?? "Anonymous Chef"}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">@{profile.username}</p>
-            <div className="flex items-center gap-2 mt-1.5">
-              {profile.is_private ? (
-                <Badge variant="secondary" className="flex items-center gap-1 text-xs">
-                  <Lock className="h-3 w-3" />
-                  Private
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="flex items-center gap-1 text-xs">
-                  <Globe className="h-3 w-3" />
-                  Public
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
+        <ProfileIdentityControls
+          isOwnProfile={isOwnProfile}
+          fullName={profile.full_name}
+          avatarUrl={profile.avatar_url}
+          username={profile.username}
+          isPrivate={profile.is_private}
+        />
 
         {/* Follower / following counts */}
         <div className="flex gap-10 mb-8">
