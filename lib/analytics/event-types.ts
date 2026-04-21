@@ -53,6 +53,11 @@ export type AnalyticsEventName =
   | "tutorial_step_completed"
   | "tutorial_completed"
   | "tutorial_skipped"
+  | "tutorial_back_step"
+  | "tutorial_minimized"
+  | "tutorial_restored"
+  | "tutorial_element_not_found"
+  | "tutorial_step_error_skipped"
 
   // Cooking mode
   | "cooking_mode_started"
@@ -197,6 +202,11 @@ export interface EventProperties {
   tutorial_skipped: {
     step_abandoned: number
   }
+  tutorial_back_step: { from_step_index: number; to_step_index: number }
+  tutorial_minimized: { step_index: number }
+  tutorial_restored: { step_index: number }
+  tutorial_element_not_found: { step_index: number; selector: string | null; page: string }
+  tutorial_step_error_skipped: { step_index: number; selector: string | null }
 
   // Cooking mode events
   cooking_mode_started: { recipe_id: string; steps_total: number }
@@ -269,6 +279,11 @@ export const EVENT_TYPE_MAPPING: Record<AnalyticsEventName, ABEventType> = {
   tutorial_step_completed: "custom",
   tutorial_completed: "custom",
   tutorial_skipped: "custom",
+  tutorial_back_step: "custom",
+  tutorial_minimized: "custom",
+  tutorial_restored: "custom",
+  tutorial_element_not_found: "custom",
+  tutorial_step_error_skipped: "custom",
 
   // Cooking mode → custom
   cooking_mode_started: "custom",
