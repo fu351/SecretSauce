@@ -59,13 +59,13 @@ export default async function DevPage() {
 
         {/* Dev Tools Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {/* A/B Testing — PostHog */}
+          {/* Feature Flags & Experiments — PostHog */}
           <Link
             href="/dev/feature-flags"
             className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg"
           >
             <h3 className="text-lg font-semibold text-gray-900">
-              🧪 Experiments
+              🚩 Feature Flags &amp; Experiments
             </h3>
             <p className="mt-2 text-sm text-gray-600">
               Manage A/B tests and feature flags in PostHog
@@ -95,19 +95,6 @@ export default async function DevPage() {
             </h3>
             <p className="mt-2 text-sm text-gray-600">
               Browse tables and run queries
-            </p>
-          </Link>
-
-          {/* Feature Flags */}
-          <Link
-            href="/dev/feature-flags"
-            className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg"
-          >
-            <h3 className="text-lg font-semibold text-gray-900">
-              🚩 Feature Flags
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Manage feature access by user tier
             </p>
           </Link>
 

@@ -2,13 +2,9 @@
  * Analytics Event Type Definitions
  *
  * Type-safe event names and properties for analytics tracking.
- * Maps to the database ab_event_type enum.
  */
 
-import type { Database } from "@/lib/database/supabase"
-
-// Database event type from ab_testing schema
-export type ABEventType = Database["public"]["Enums"]["ab_event_type"]
+export type ABEventType = "exposure" | "click" | "conversion" | "signup" | "subscribe" | "custom"
 
 /**
  * Application-specific event names

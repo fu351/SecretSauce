@@ -110,7 +110,7 @@ export async function getAdminRole(userId: string): Promise<AdminRole | null> {
   const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase
-    .from("ab_testing.admin_roles")
+    .from("admin_roles")
     .select("role")
     .eq("user_id", userId)
     .is("revoked_at", null)
