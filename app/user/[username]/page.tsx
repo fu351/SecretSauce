@@ -6,6 +6,7 @@ import { followDB } from "@/lib/database/follow-db"
 import { normalizeUsername } from "@/lib/auth/username"
 import { ProfileFollowButton } from "@/components/social/profile-follow-button"
 import { UserRecipeGrid } from "@/components/social/user-recipe-grid"
+import { ProfilePrivacyControls } from "@/components/social/profile-privacy-controls"
 import { Badge } from "@/components/ui/badge"
 import { Lock, Globe } from "lucide-react"
 
@@ -106,6 +107,8 @@ export default async function UserProfilePage({ params }: Props) {
             </div>
           </div>
         </div>
+
+        <ProfilePrivacyControls isOwnProfile={isOwnProfile} isPrivate={profile.is_private} />
 
         {/* Follower / following counts */}
         <div className="flex gap-10 mb-8">
