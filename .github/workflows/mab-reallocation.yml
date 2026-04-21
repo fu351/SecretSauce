@@ -1,0 +1,46 @@
+name: MAB Traffic Reallocation
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # every 6 hours
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (log only, no updates)"
+        required: false
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+
+jobs:
+  mab-reallocation:
+    name: Reallocate Experiment Traffic
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/scripts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix backend/scripts
+
+      - name: Run MAB reallocation
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+          MAB_EXPERIMENT_IDS: ${{ secrets.MAB_EXPERIMENT_IDS }}
+          MAB_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MAB_MIN_EXPOSURES: "50"
+          MAB_MIN_FLOOR_PCT: "5"
+        run: npm --prefix backend/scripts run mab-reallocation-pipeline

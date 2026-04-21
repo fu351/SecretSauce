@@ -5,7 +5,7 @@ import { Inter, Playfair_Display } from "next/font/google"
 import Script from "next/script"
 import "./globals.css"
 import { AuthProvider } from "@/contexts/auth-context"
-import { AnalyticsProvider } from "@/contexts/analytics-context"
+import { PostHogProvider } from "@/contexts/posthog-provider"
 import { ThemeProvider } from "@/contexts/theme-context"
 import { QueryProvider } from "@/contexts/query-provider"
 import { Header } from "@/components/layout/header"
@@ -55,7 +55,7 @@ export default function RootLayout({
             <ThemeProvider>
               <QueryProvider>
                 <AuthProvider>
-                  <AnalyticsProvider>
+                  <PostHogProvider>
                     <TutorialProvider>
                       <ThemeSync />
                       <TutorialOverlay />
@@ -65,7 +65,7 @@ export default function RootLayout({
                       <Toaster />
                       <SpeedInsights />
                     </TutorialProvider>
-                  </AnalyticsProvider>
+                  </PostHogProvider>
                 </AuthProvider>
               </QueryProvider>
             </ThemeProvider>

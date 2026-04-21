@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import type { TutorialSubstep, GeneralPageEntry } from "@/lib/types/ui/tutorial"
 import { findFirstVisibleElement } from "@/lib/tutorial-utils"
+import { useAnalytics } from "@/hooks/use-analytics"
 import clsx from "clsx"
 
 interface TutorialCardBodyProps {
@@ -112,6 +113,8 @@ export function TutorialCardBody({
   overlayActionRowClass,
   pathname,
 }: TutorialCardBodyProps) {
+  const { trackEvent } = useAnalytics()
+
   return (
     <div className={overlayBodyClass}>
       {isMinimized ? (
@@ -163,7 +166,10 @@ export function TutorialCardBody({
                 <Button
                   size="sm"
                   className="flex-1 bg-blue-600"
-                  onClick={nextStep}
+                  onClick={() => {
+                    trackEvent("tutorial_step_error_skipped", { step_index: currentSlotIndex, selector: expectedSelector })
+                    nextStep()
+                  }}
                 >
                   Continue Anyway
                 </Button>
@@ -196,7 +202,10 @@ export function TutorialCardBody({
                 <Button
                   size="sm"
                   className="flex-1 bg-blue-600"
-                  onClick={nextStep}
+                  onClick={() => {
+                    trackEvent("tutorial_step_error_skipped", { step_index: currentSlotIndex, selector: expectedSelector })
+                    nextStep()
+                  }}
                 >
                   Continue Anyway
                 </Button>

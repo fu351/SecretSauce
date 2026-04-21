@@ -137,18 +137,18 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
           return
         }
         const sequence = buildFlatSequence(window.innerWidth < 768)
-        setCurrentSlotIndex(
-          Number.isInteger(state.currentSlotIndex)
-            ? Math.min(state.currentSlotIndex, sequence.length - 1)
-            : 0
-        )
+        const restoredIndex = Number.isInteger(state.currentSlotIndex)
+          ? Math.min(state.currentSlotIndex, sequence.length - 1)
+          : 0
+        setCurrentSlotIndex(restoredIndex)
         setIsActive(true)
+        trackEvent("tutorial_restored", { step_index: restoredIndex })
       } catch (e) {
         console.error("Failed to restore tutorial state:", e)
         window.localStorage.removeItem(TUTORIAL_STATE_KEY)
       }
     }
-  }, [])
+  }, [trackEvent])
 
   // -------------------
   // Core Functions
@@ -221,9 +221,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const prevStep = useCallback(() => {
     if (currentSlotIndex <= 0) return
 
-    // Walk backwards to find the target index, skipping wildcard pages that we
-    // can't navigate back to (we don't store the original dynamic URL the user
-    // visited, so "/recipes/*" is unreachable from a different page).
     let prevIndex = currentSlotIndex - 1
     while (prevIndex > 0) {
       const slot = flatSequence[prevIndex]
@@ -233,14 +230,14 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
     const prevSlot = flatSequence[prevIndex]
 
-    // Only navigate if the browser isn't already on a matching page.
-    // Use pageMatches (not strict equality) so wildcard pages work correctly.
+    trackEvent("tutorial_back_step", { from_step_index: currentSlotIndex, to_step_index: prevIndex })
+
     if (!pageMatches(prevSlot.page, pathname)) {
       router.push(prevSlot.page)
     }
 
     setCurrentSlotIndex(prevIndex)
-  }, [currentSlotIndex, flatSequence, pathname, router])
+  }, [currentSlotIndex, flatSequence, pathname, router, trackEvent])
 
   const skipTutorial = useCallback(async () => {
     try {

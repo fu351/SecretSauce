@@ -1,205 +1,38 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { ABTestingClient, type ABExperimentAssignment } from "@/lib/analytics"
-import type { ABEventType } from "@/lib/analytics"
+import { useFeatureFlagPayload, usePostHog } from "posthog-js/react"
 
 export interface UseExperimentOptions {
   enabled?: boolean
-  autoTrackExposure?: boolean
-  exposureEventName?: string
-  exposureProperties?: Record<string, unknown>
 }
 
-export interface TrackExperimentEventOptions {
-  eventName?: string
-  eventValue?: number
-  properties?: Record<string, unknown>
-}
+export function useExperiment(flagKey: string, options: UseExperimentOptions = {}) {
+  const { enabled = true } = options
+  const posthog = usePostHog()
+  const payload = useFeatureFlagPayload(enabled ? flagKey : "") as Record<string, unknown> | null | undefined
 
-const DEFAULT_EXPOSURE_EVENT_NAME = "experiment_exposure"
-const DEFAULT_CLICK_EVENT_NAME = "experiment_click"
-const DEFAULT_CONVERSION_EVENT_NAME = "experiment_conversion"
+  const variantConfig: Record<string, unknown> = payload && typeof payload === "object" ? payload : {}
+  const variantName = (variantConfig.variant_name as string | undefined) ?? null
+  const isControl = (variantConfig.is_control as boolean | undefined) ?? false
+  const variantKey = (enabled ? posthog?.getFeatureFlag(flagKey) : null) as string | null | undefined ?? null
 
-interface UseExperimentState {
-  assignment: ABExperimentAssignment | null
-  loading: boolean
-  error: string | null
-}
+  const trackConversion = (properties?: Record<string, unknown>) => {
+    posthog?.capture("experiment_conversion", { flag_key: flagKey, ...properties })
+  }
 
-export function useExperiment(
-  experimentIdentifier: string,
-  options: UseExperimentOptions = {},
-) {
-  const {
-    enabled = true,
-    autoTrackExposure = true,
-    exposureEventName = DEFAULT_EXPOSURE_EVENT_NAME,
-    exposureProperties,
-  } = options
-
-  const [state, setState] = useState<UseExperimentState>({
-    assignment: null,
-    loading: enabled && !!experimentIdentifier,
-    error: null,
-  })
-
-  const mountedRef = useRef(true)
-  const exposureTrackedRef = useRef(false)
-  const activeIdentifier = experimentIdentifier.trim()
-
-  const trackCustom = useCallback(
-    async (
-      eventType: ABEventType,
-      eventName: string,
-      eventOptions: TrackExperimentEventOptions = {},
-    ) => {
-      if (!state.assignment) {
-        return false
-      }
-
-      try {
-        await ABTestingClient.trackExperimentEvent({
-          experimentId: state.assignment.experimentId,
-          variantId: state.assignment.variantId,
-          eventType,
-          eventName,
-          eventValue: eventOptions.eventValue,
-          properties: eventOptions.properties,
-        })
-        return true
-      } catch (error) {
-        console.error("[useExperiment] Failed to track event:", error)
-        if (mountedRef.current) {
-          setState((current) => ({
-            ...current,
-            error: error instanceof Error ? error.message : String(error),
-          }))
-        }
-        return false
-      }
-    },
-    [state.assignment],
-  )
-
-  const trackExposure = useCallback(
-    async (eventOptions: TrackExperimentEventOptions = {}) => {
-      const tracked = await trackCustom(
-        "exposure",
-        eventOptions.eventName || exposureEventName,
-        {
-          ...eventOptions,
-          properties: {
-            ...exposureProperties,
-            ...eventOptions.properties,
-          },
-        },
-      )
-
-      if (tracked) {
-        exposureTrackedRef.current = true
-      }
-
-      return tracked
-    },
-    [exposureEventName, exposureProperties, trackCustom],
-  )
-
-  const trackClick = useCallback(
-    (eventOptions: TrackExperimentEventOptions = {}) =>
-      trackCustom("click", eventOptions.eventName || DEFAULT_CLICK_EVENT_NAME, eventOptions),
-    [trackCustom],
-  )
-
-  const trackConversion = useCallback(
-    (eventOptions: TrackExperimentEventOptions = {}) =>
-      trackCustom(
-        "conversion",
-        eventOptions.eventName || DEFAULT_CONVERSION_EVENT_NAME,
-        eventOptions,
-      ),
-    [trackCustom],
-  )
-
-  const refresh = useCallback(async () => {
-    if (!enabled || !activeIdentifier) {
-      if (mountedRef.current) {
-        setState({
-          assignment: null,
-          loading: false,
-          error: null,
-        })
-      }
-      return
-    }
-
-    if (mountedRef.current) {
-      setState((current) => ({
-        ...current,
-        loading: true,
-        error: null,
-      }))
-    }
-
-    try {
-      const assignment =
-        await ABTestingClient.resolveExperiment(activeIdentifier)
-
-      if (mountedRef.current) {
-        setState({
-          assignment,
-          loading: false,
-          error: null,
-        })
-      }
-    } catch (error) {
-      if (mountedRef.current) {
-        setState({
-          assignment: null,
-          loading: false,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-  }, [activeIdentifier, enabled])
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
-
-  useEffect(() => {
-    exposureTrackedRef.current = false
-  }, [activeIdentifier])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  useEffect(() => {
-    if (!autoTrackExposure || !state.assignment || exposureTrackedRef.current) {
-      return
-    }
-
-    void trackExposure()
-  }, [autoTrackExposure, state.assignment, trackExposure])
+  const trackClick = (properties?: Record<string, unknown>) => {
+    posthog?.capture("experiment_click", { flag_key: flagKey, ...properties })
+  }
 
   return {
-    assignment: state.assignment,
-    config: state.assignment?.variantConfig || {},
-    experimentId: state.assignment?.experimentId,
-    experimentName: state.assignment?.experimentName,
-    variantId: state.assignment?.variantId,
-    variantName: state.assignment?.variantName,
-    isControl: state.assignment?.isControl ?? false,
-    loading: state.loading,
-    error: state.error,
-    refresh,
-    trackExposure,
-    trackClick,
+    variantConfig,
+    variantName,
+    variantKey,
+    isControl,
+    config: variantConfig,
+    loading: false,
+    error: null,
     trackConversion,
-    trackCustom,
+    trackClick,
   }
 }

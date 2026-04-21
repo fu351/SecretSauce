@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
 import { useIsMobile } from "@/hooks"
 
+import { useAnalytics } from "@/hooks/use-analytics"
 import { useScrollToTarget } from "@/hooks/tutorial/use-scroll-to-target"
 import { useHighlightEngine } from "@/hooks/tutorial/use-highlight-engine"
 import { useMandatoryCompletion } from "@/hooks/tutorial/use-mandatory-completion"
@@ -49,6 +50,7 @@ export function TutorialOverlay() {
   const router = useRouter()
   const isMobile = useIsMobile()
   const isDark = theme === "dark"
+  const { trackEvent } = useAnalytics()
 
   // ─── Local UI state ─────────────────────────────────────────────────────────
 
@@ -335,6 +337,16 @@ export function TutorialOverlay() {
     scheduleHighlightUpdateRef.current = scheduleHighlightUpdate
   }, [scheduleHighlightUpdate])
 
+  // Track when element sync times out — useful for spotting broken step selectors
+  useEffect(() => {
+    if (!hasSyncTimedOut || !isActive) return
+    trackEvent("tutorial_element_not_found", {
+      step_index: currentSlotIndex,
+      selector: expectedSelector,
+      page: pathname,
+    })
+  }, [hasSyncTimedOut])
+
   // Re-trigger highlight when mandatory completion flips isPageTransition on
   useEffect(() => {
     if (!isActive || !isPageTransition) return
@@ -557,7 +569,10 @@ export function TutorialOverlay() {
               className="h-8 w-8"
               aria-label={isMinimized ? "Restore tutorial" : "Minimize tutorial"}
               title={isMinimized ? "Restore tutorial" : "Minimize tutorial"}
-              onClick={() => setIsMinimized(!isMinimized)}
+              onClick={() => {
+                if (!isMinimized) trackEvent("tutorial_minimized", { step_index: currentSlotIndex })
+                setIsMinimized(!isMinimized)
+              }}
             >
               {isMinimized ? (
                 <ChevronUp className="w-4 h-4" />

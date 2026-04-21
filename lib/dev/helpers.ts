@@ -16,7 +16,7 @@ export async function grantAdminRole(
   const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase
-    .from("ab_testing.admin_roles")
+    .from("admin_roles")
     .insert({
       user_id: userId,
       role,
@@ -40,7 +40,7 @@ export async function revokeAdminRole(userId: string, role: "admin" | "analyst" 
   const supabase = createServiceSupabaseClient()
 
   const { error } = await supabase
-    .from("ab_testing.admin_roles")
+    .from("admin_roles")
     .update({ revoked_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("role", role)
@@ -89,61 +89,6 @@ export async function updateUserTier(
 }
 
 /**
- * Create a simple feature flag (experiment with one variant)
- */
-export async function createFeatureFlag(params: {
-  name: string
-  description?: string
-  targetTiers: ("free" | "premium")[]
-  targetAnonymous?: boolean
-  config: Record<string, any>
-  createdBy: string
-}) {
-  const supabase = createServiceSupabaseClient()
-
-  // Create experiment
-  const { data: experiment, error: expError } = await supabase
-    .from("ab_testing.experiments")
-    .insert({
-      name: params.name,
-      description: params.description,
-      status: "active",
-      allocation_method: "random",
-      traffic_percentage: 100,
-      target_user_tiers: params.targetTiers,
-      target_anonymous: params.targetAnonymous ?? false,
-      created_by: params.createdBy,
-    })
-    .select()
-    .single()
-
-  if (expError) {
-    console.error("Error creating experiment:", expError)
-    return { success: false, error: expError }
-  }
-
-  // Create single variant
-  const { data: variant, error: varError } = await supabase
-    .from("ab_testing.variants")
-    .insert({
-      experiment_id: experiment.id,
-      name: "Enabled",
-      is_control: true,
-      weight: 100,
-      config: params.config,
-    })
-    .select()
-    .single()
-
-  if (varError) {
-    console.error("Error creating variant:", varError)
-    return { success: false, error: varError }
-  }
-
-  return { success: true, experiment, variant }
-}
-
-/**
  * Get all users with a specific subscription tier
  */
 export async function getUsersByTier(tier: "free" | "premium") {
@@ -164,60 +109,19 @@ export async function getUsersByTier(tier: "free" | "premium") {
 }
 
 /**
- * Get experiment analytics summary
- */
-export async function getExperimentAnalytics(experimentId: string) {
-  const supabase = createServiceSupabaseClient()
-
-  const { data, error } = await supabase.rpc("ab_testing.get_experiment_results", {
-    p_experiment_id: experimentId,
-  })
-
-  if (error) {
-    console.error("Error fetching analytics:", error)
-    return { success: false, error, results: [] }
-  }
-
-  return { success: true, results: data || [] }
-}
-
-/**
- * Clear all user assignments for an experiment (useful for testing)
- */
-export async function clearExperimentAssignments(experimentId: string) {
-  const supabase = createServiceSupabaseClient()
-
-  const { error } = await supabase
-    .from("ab_testing.user_assignments")
-    .delete()
-    .eq("experiment_id", experimentId)
-
-  if (error) {
-    console.error("Error clearing assignments:", error)
-    return { success: false, error }
-  }
-
-  return { success: true }
-}
-
-/**
  * Get database statistics
  */
 export async function getDatabaseStats() {
   const supabase = createServiceSupabaseClient()
 
-  const [users, recipes, experiments, events] = await Promise.all([
+  const [users, recipes] = await Promise.all([
     supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("recipes").select("*", { count: "exact", head: true }),
-    supabase.from("ab_testing.experiments").select("*", { count: "exact", head: true }),
-    supabase.from("ab_testing.events").select("*", { count: "exact", head: true }),
   ])
 
   return {
     userCount: users.count || 0,
     recipeCount: recipes.count || 0,
-    experimentCount: experiments.count || 0,
-    eventCount: events.count || 0,
   }
 }
 
@@ -225,8 +129,6 @@ export async function getDatabaseStats() {
  * Seed development data (use with caution!)
  */
 export async function seedDevData() {
-  // TODO: Implement dev data seeding
-  // This could create sample users, recipes, experiments, etc.
   console.warn("seedDevData not implemented yet")
   return { success: false, error: "Not implemented" }
 }

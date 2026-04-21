@@ -17,6 +17,7 @@ import {
   ArrowRight,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useExperiment } from "@/hooks/use-experiment"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
@@ -67,6 +68,17 @@ export default function DashboardPage() {
   const { isActive, resetTutorial } = useTutorial()
   const isDark = theme === "dark"
   const showPremiumUpsell = profile?.subscription_tier !== "premium"
+
+  const { variantKey: upsellVariant, trackConversion: trackUpsellConversion } = useExperiment(
+    "dashboard-upsell-variant",
+    { enabled: showPremiumUpsell }
+  )
+
+  const upsellCopy = upsellVariant === "savings_focus"
+    ? { headline: "Save money on every grocery run with Premium", cta: "Start saving today" }
+    : upsellVariant === "features_focus"
+    ? { headline: "Unlock smarter meal planning, delivery discounts, and nutrition insights", cta: "See what's included" }
+    : { headline: "Premium unlocks delivery savings and smarter planning", cta: "Upgrade now" }
 
   useEffect(() => {
     if (!user) return
@@ -222,7 +234,7 @@ export default function DashboardPage() {
                           Upgrade to premium
                         </div>
                         <h3 className="text-lg md:text-xl font-serif font-medium text-neutral-950">
-                          Premium unlocks delivery savings and smarter planning
+                          {upsellCopy.headline}
                         </h3>
 
                         <div className="flex flex-wrap gap-3 text-xs font-semibold text-neutral-900">
@@ -240,9 +252,9 @@ export default function DashboardPage() {
                     </div>
 
                   <div className="flex shrink-0 flex-col gap-3 md:items-end">
-                    <Button asChild className="w-full md:w-auto bg-orange-600 text-white hover:bg-orange-700">
+                    <Button asChild className="w-full md:w-auto bg-orange-600 text-white hover:bg-orange-700" onClick={() => trackUpsellConversion()}>
                       <Link href="/checkout">
-                        Upgrade now
+                        {upsellCopy.cta}
                         <ArrowRight className="h-4 w-4" />
                       </Link>
                     </Button>

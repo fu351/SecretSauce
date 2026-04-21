@@ -27,13 +27,9 @@ const TABLES = [
     ],
   },
   {
-    schema: "ab_testing",
+    schema: "public",
     tables: [
       { name: "admin_roles", description: "Admin role assignments" },
-      { name: "experiments", description: "A/B test experiments" },
-      { name: "variants", description: "Experiment variants" },
-      { name: "user_assignments", description: "User variant assignments" },
-      { name: "events", description: "Event tracking for analytics" },
     ],
   },
 ]
