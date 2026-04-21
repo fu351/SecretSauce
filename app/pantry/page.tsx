@@ -42,6 +42,7 @@ import Link from "next/link"
 import { FOOD_CATEGORIES, DEFAULT_CATEGORY, normalizeCategory as normalizeCategoryUtil, getCategoryIcon } from "@/lib/constants/categories"
 import { pantryItemsDB } from "@/lib/database/pantry-items-db"
 import { recipeDB } from "@/lib/database/recipe-db"
+import { useAnalytics } from "@/hooks/use-analytics"
 
 
 
@@ -78,6 +79,7 @@ export default function PantryPage() {
 
   const { user } = useAuth()
   const { toast } = useToast()
+  const { trackEvent } = useAnalytics()
   const { theme } = useTheme()
   const isDark = theme === "dark"
   const pageTextClass = isDark ? "text-[#f1e7cf]" : "text-gray-900"
@@ -307,6 +309,7 @@ export default function PantryPage() {
 
       if (!data) throw new Error("Failed to create pantry item")
 
+      trackEvent("pantry_item_added", { ingredient_name: data.name, ingredient_id: data.id })
       setPantryItems([data, ...pantryItems])
       standardizePantryItem(data.id, data.name, data.quantity, data.unit)
       setNewItem({
@@ -343,6 +346,7 @@ export default function PantryPage() {
 
       if (!updatedItem) throw new Error("Failed to update quantity")
 
+      trackEvent("pantry_item_updated", { item_id: id, field: "quantity" })
       setPantryItems(pantryItems.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item)))
     } catch (error) {
       console.error("Error updating quantity:", error)
@@ -355,6 +359,7 @@ export default function PantryPage() {
 
       if (!success) throw new Error("Failed to delete item")
 
+      trackEvent("pantry_item_removed", { item_id: id })
       setPantryItems(pantryItems.filter((item) => item.id !== id))
       toast({
         title: "Item removed",

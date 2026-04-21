@@ -54,6 +54,22 @@ export type AnalyticsEventName =
   | "tutorial_completed"
   | "tutorial_skipped"
 
+  // Cooking mode
+  | "cooking_mode_started"
+  | "cooking_mode_completed"
+  | "cooking_mode_exited"
+
+  // Recipe editing
+  | "recipe_edit_clicked"
+
+  // Recipe social actions
+  | "recipe_liked"
+  | "recipe_unliked"
+  | "recipe_reposted"
+  | "recipe_unreposted"
+  | "recipe_shared"
+  | "recipe_added_to_planner"
+
   // General navigation
   | "page_view"
   | "view_mode_changed"
@@ -182,6 +198,22 @@ export interface EventProperties {
     step_abandoned: number
   }
 
+  // Cooking mode events
+  cooking_mode_started: { recipe_id: string; steps_total: number }
+  cooking_mode_completed: { recipe_id: string; steps_total: number }
+  cooking_mode_exited: { recipe_id: string; step_abandoned: number; steps_total: number }
+
+  // Recipe editing
+  recipe_edit_clicked: { recipe_id: string }
+
+  // Recipe social action events
+  recipe_liked: { recipe_id: string }
+  recipe_unliked: { recipe_id: string }
+  recipe_reposted: { recipe_id: string }
+  recipe_unreposted: { recipe_id: string }
+  recipe_shared: { recipe_id: string; method: "copy_link" }
+  recipe_added_to_planner: { recipe_id: string }
+
   // General events
   page_view: {
     path: string
@@ -237,6 +269,22 @@ export const EVENT_TYPE_MAPPING: Record<AnalyticsEventName, ABEventType> = {
   tutorial_step_completed: "custom",
   tutorial_completed: "custom",
   tutorial_skipped: "custom",
+
+  // Cooking mode → custom
+  cooking_mode_started: "custom",
+  cooking_mode_completed: "custom",
+  cooking_mode_exited: "custom",
+
+  // Recipe editing → click
+  recipe_edit_clicked: "click",
+
+  // Recipe social actions → click/custom
+  recipe_liked: "click",
+  recipe_unliked: "click",
+  recipe_reposted: "click",
+  recipe_unreposted: "click",
+  recipe_shared: "click",
+  recipe_added_to_planner: "click",
 
   // General events → custom
   page_view: "custom",

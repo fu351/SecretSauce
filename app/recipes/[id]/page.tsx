@@ -17,6 +17,7 @@ import { getRecipeImageUrl } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
 import { TagSelector } from "@/components/recipe/tags/tag-selector"
 import { useShoppingList } from "@/hooks"
+import { useAnalytics } from "@/hooks/use-analytics"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import { getIngredientDisplayParts } from "@/lib/utils/recipe-ingredient-display"
 import type { Recipe } from "@/lib/types"
@@ -34,6 +35,7 @@ export default function RecipeDetailPage() {
   const { toast } = useToast()
 
   const { addRecipeToCart } = useShoppingList()
+  const { trackEvent } = useAnalytics()
 
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -133,6 +135,7 @@ export default function RecipeDetailPage() {
           throw new Error("Recipe not found")
         }
         setRecipe(json.recipe)
+        trackEvent("recipe_viewed", { recipe_id: recipeId, recipe_title: json.recipe.title, source: "direct" })
       } catch (error) {
         console.error("Error loading recipe:", error)
         router.push("/recipes")
@@ -231,6 +234,7 @@ export default function RecipeDetailPage() {
     try {
       const newFavoriteStatus = await recipeFavoritesDB.toggleFavorite(user.id, params.id as string)
       setIsFavorite(newFavoriteStatus)
+      trackEvent(newFavoriteStatus ? "recipe_added_to_favorites" : "recipe_removed_from_favorites", { recipe_id: params.id as string })
 
       toast({
         title: newFavoriteStatus ? "Added to favorites" : "Removed from favorites",
@@ -264,6 +268,7 @@ export default function RecipeDetailPage() {
 
     try {
       await addRecipeToCart(recipe.id, recipe.servings || 1)
+      trackEvent("recipe_added_to_shopping_list", { recipe_id: recipe.id, servings: recipe.servings || 1 })
       toast({
         title: "Added to basket",
         description: `${recipe.title} was added to your basket.`,
@@ -306,17 +311,27 @@ export default function RecipeDetailPage() {
   }
 
   const handleStartCooking = () => {
+    trackEvent("cooking_mode_started", { recipe_id: params.id as string, steps_total: instructions.length })
     setCookingStep(0)
     setCookingMode(true)
   }
 
   const handleCookingNext = () => {
-    if (cookingStep < instructions.length - 1) setCookingStep((s) => s + 1)
-    else setCookingMode(false)
+    if (cookingStep < instructions.length - 1) {
+      setCookingStep((s) => s + 1)
+    } else {
+      trackEvent("cooking_mode_completed", { recipe_id: params.id as string, steps_total: instructions.length })
+      setCookingMode(false)
+    }
   }
 
   const handleCookingBack = () => {
     if (cookingStep > 0) setCookingStep((s) => s - 1)
+  }
+
+  const handleExitCooking = () => {
+    trackEvent("cooking_mode_exited", { recipe_id: params.id as string, step_abandoned: cookingStep, steps_total: instructions.length })
+    setCookingMode(false)
   }
 
   if (loading) {
@@ -433,7 +448,7 @@ export default function RecipeDetailPage() {
                         variant="outline"
                         size="sm"
                         className="whitespace-nowrap"
-                        onClick={() => router.push(`/edit-recipe/${recipe.id}`)}
+                        onClick={() => { trackEvent("recipe_edit_clicked", { recipe_id: recipe.id }); router.push(`/edit-recipe/${recipe.id}`) }}
                       >
                         <Pencil className="w-4 h-4" />
                         Edit
@@ -611,7 +626,7 @@ export default function RecipeDetailPage() {
           {cookingMode && instructions.length > 0 && (
             <div className="fixed inset-0 z-[100] md:hidden flex flex-col bg-background">
               <div className="flex items-center justify-between p-4 border-b border-border">
-                <Button variant="ghost" size="icon" onClick={() => setCookingMode(false)} aria-label="Exit cooking mode">
+                <Button variant="ghost" size="icon" onClick={handleExitCooking} aria-label="Exit cooking mode">
                   <X className="h-5 w-5" />
                 </Button>
                 <span className="text-sm font-medium text-muted-foreground">
