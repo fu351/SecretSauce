@@ -67,7 +67,6 @@ async function getAuthenticatedUser() {
 export async function isAdmin(userId: string): Promise<boolean> {
   const supabase = createServiceSupabaseClient()
 
-  // Use RPC function in public schema (wrapper for ab_testing.is_admin)
   const { data: rpcData, error: rpcError } = await supabase.rpc(
     "is_admin",
     {
