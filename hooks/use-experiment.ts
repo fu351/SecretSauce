@@ -14,6 +14,7 @@ export function useExperiment(flagKey: string, options: UseExperimentOptions = {
   const variantConfig: Record<string, unknown> = payload && typeof payload === "object" ? payload : {}
   const variantName = (variantConfig.variant_name as string | undefined) ?? null
   const isControl = (variantConfig.is_control as boolean | undefined) ?? false
+  const variantKey = (enabled ? posthog?.getFeatureFlag(flagKey) : null) as string | null | undefined ?? null
 
   const trackConversion = (properties?: Record<string, unknown>) => {
     posthog?.capture("experiment_conversion", { flag_key: flagKey, ...properties })
@@ -26,6 +27,7 @@ export function useExperiment(flagKey: string, options: UseExperimentOptions = {
   return {
     variantConfig,
     variantName,
+    variantKey,
     isControl,
     config: variantConfig,
     loading: false,

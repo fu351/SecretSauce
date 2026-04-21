@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks"
 import Image from "next/image"
 import { ArrowRight, X } from "lucide-react"
+import posthog from "posthog-js"
 
 type MfaStrategy = "email_code" | "phone_code" | "totp" | "backup_code"
 
@@ -115,6 +116,7 @@ export default function SignInPage() {
 
     await setActive({ session: createdSessionId })
     await fetch("/api/auth/ensure-profile", { method: "POST" })
+    posthog.capture("user_signed_in", { method: "email" })
     toast({
       title: "Welcome Back",
       description: "Access granted.",

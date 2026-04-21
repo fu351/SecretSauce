@@ -60,6 +60,19 @@ export type AnalyticsEventName =
   | "cooking_mode_completed"
   | "cooking_mode_exited"
 
+  // Auth events
+  | "user_signed_up"
+  | "user_signed_in"
+
+  // Subscription events
+  | "subscription_checkout_started"
+  | "subscription_purchased"
+  | "subscription_activated"
+
+  // Recipe creation
+  | "recipe_created"
+  | "recipe_imported"
+
   // Recipe editing
   | "recipe_edit_clicked"
 
@@ -209,6 +222,38 @@ export interface EventProperties {
   cooking_mode_completed: { recipe_id: string; steps_total: number }
   cooking_mode_exited: { recipe_id: string; step_abandoned: number; steps_total: number }
 
+  // Auth events
+  user_signed_up: {
+    method: "email"
+    username: string
+  }
+  user_signed_in: {
+    method: "email"
+  }
+
+  // Subscription events
+  subscription_checkout_started: {
+    item_count?: number
+    total_amount?: number
+  }
+  subscription_purchased: {
+    session_id?: string
+  }
+  subscription_activated: {
+    supabase_user_id: string
+    stripe_customer_id?: string
+    subscription_id?: string
+  }
+
+  // Recipe creation events
+  recipe_created: {
+    recipe_id: string
+    method: "manual" | "import"
+  }
+  recipe_imported: {
+    source: "url" | "instagram" | "paragraph" | "image"
+  }
+
   // Recipe editing
   recipe_edit_clicked: { recipe_id: string }
 
@@ -285,6 +330,19 @@ export const EVENT_TYPE_MAPPING: Record<AnalyticsEventName, ABEventType> = {
   cooking_mode_started: "custom",
   cooking_mode_completed: "custom",
   cooking_mode_exited: "custom",
+
+  // Auth events → signup/custom
+  user_signed_up: "signup",
+  user_signed_in: "custom",
+
+  // Subscription events → conversion
+  subscription_checkout_started: "conversion",
+  subscription_purchased: "conversion",
+  subscription_activated: "conversion",
+
+  // Recipe creation events → custom
+  recipe_created: "custom",
+  recipe_imported: "custom",
 
   // Recipe editing → click
   recipe_edit_clicked: "click",

@@ -6,20 +6,9 @@ export interface PostHogClientConfig {
   host: string
 }
 
-interface ExperimentResult {
-  variant: string
-  count: number // exposures
-  success_count: number // conversions
-}
-
-interface PostHogExperimentResultsResponse {
-  result?: {
-    insight?: {
-      result?: ExperimentResult[]
-    }
-  }
-  // PostHog experiment results structure varies; handle both shapes
-  results?: Record<string, { count: number; success_count: number }>
+interface HogQLResult {
+  results: unknown[][]
+  columns: string[]
 }
 
 interface PostHogFeatureFlag {
@@ -35,6 +24,12 @@ interface PostHogFeatureFlag {
     }
     [key: string]: unknown
   }
+}
+
+interface PostHogExperiment {
+  id: number
+  feature_flag_key: string
+  feature_flag: PostHogFeatureFlag
 }
 
 export class PostHogClient {
@@ -59,25 +54,63 @@ export class PostHogClient {
     return res.json() as Promise<T>
   }
 
-  async getExperimentVariantStats(experimentId: string): Promise<VariantStats[]> {
-    const data = await this.request<PostHogExperimentResultsResponse>(
-      `/experiments/${experimentId}/results/`
-    )
+  private async hogql(query: string): Promise<HogQLResult> {
+    return this.request<HogQLResult>("/query/", "POST", {
+      query: { kind: "HogQLQuery", query },
+    })
+  }
 
-    // PostHog returns results keyed by variant name
-    const raw = data.results ?? {}
-    return Object.entries(raw).map(([key, stats]) => ({
-      key,
-      exposures: stats.count ?? 0,
-      conversions: stats.success_count ?? 0,
+  async getExperimentVariantStats(experimentId: string): Promise<VariantStats[]> {
+    const experiment = await this.request<PostHogExperiment>(`/experiments/${experimentId}/`)
+    const flagKey = experiment.feature_flag_key
+
+    // Exposures: distinct persons per variant from $feature_flag_called events
+    const exposureResult = await this.hogql(`
+      SELECT
+        properties['$feature_flag_response'] AS variant,
+        count(DISTINCT person_id) AS exposures
+      FROM events
+      WHERE timestamp >= now() - INTERVAL 30 DAY
+        AND event = '$feature_flag_called'
+        AND properties['$feature_flag'] = '${flagKey}'
+        AND variant IS NOT NULL
+      GROUP BY variant
+    `)
+
+    // Conversions: distinct persons per variant from experiment_conversion events
+    const conversionResult = await this.hogql(`
+      SELECT
+        properties['$feature/${flagKey}'] AS variant,
+        count(DISTINCT person_id) AS conversions
+      FROM events
+      WHERE timestamp >= now() - INTERVAL 30 DAY
+        AND event = 'experiment_conversion'
+        AND properties['flag_key'] = '${flagKey}'
+        AND variant IS NOT NULL
+      GROUP BY variant
+    `)
+
+    const exposureMap: Record<string, number> = {}
+    for (const row of exposureResult.results) {
+      exposureMap[row[0] as string] = row[1] as number
+    }
+
+    const conversionMap: Record<string, number> = {}
+    for (const row of conversionResult.results) {
+      conversionMap[row[0] as string] = row[1] as number
+    }
+
+    // Build stats for all known variants (from flag definition)
+    const variants = experiment.feature_flag.filters.multivariate?.variants ?? []
+    return variants.map((v) => ({
+      key: v.key,
+      exposures: exposureMap[v.key] ?? 0,
+      conversions: conversionMap[v.key] ?? 0,
     }))
   }
 
   async getFeatureFlagByExperimentId(experimentId: string): Promise<PostHogFeatureFlag> {
-    // Fetch experiment to get feature_flag_id
-    const experiment = await this.request<{ feature_flag: PostHogFeatureFlag }>(
-      `/experiments/${experimentId}/`
-    )
+    const experiment = await this.request<PostHogExperiment>(`/experiments/${experimentId}/`)
     return experiment.feature_flag
   }
 

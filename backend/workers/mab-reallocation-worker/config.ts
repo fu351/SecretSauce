@@ -30,7 +30,7 @@ export function getMABReallocationConfigFromEnv(
   return {
     posthogApiKey: process.env.POSTHOG_API_KEY ?? "",
     posthogProjectId: process.env.POSTHOG_PROJECT_ID ?? "",
-    posthogHost: process.env.POSTHOG_HOST?.trim() || "https://us.i.posthog.com",
+    posthogHost: process.env.POSTHOG_HOST?.trim() || "https://us.posthog.com",
     experimentIds,
     minExposures: readPositiveInt(process.env.MAB_MIN_EXPOSURES, 50),
     minFloorPct: readBoundedFloat(process.env.MAB_MIN_FLOOR_PCT, 5, 0, 50),
