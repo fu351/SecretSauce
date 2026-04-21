@@ -52,7 +52,9 @@ export function ReceiptItem({
   const lineTotal = pricing
     ? (lineTotalFromPkg ?? (Number(pricing.price) || 0) * quantity)
     : null
-  const packageQuantityDisplay = adjustedPackagesToBuy !== null
+  const packageQuantityDisplay = !isAvailable
+    ? "0"
+    : adjustedPackagesToBuy !== null
     ? formatMeasure(adjustedPackagesToBuy)
     : quantityDisplay
 
@@ -69,6 +71,8 @@ export function ReceiptItem({
   const cartQuantitySummary = `${quantityDisplay}${unit ? ` ${unit}` : ""}`
   const purchaseQuantitySummary = adjustedPackagesToBuy !== null
     ? `${formatMeasure(adjustedPackagesToBuy)} ${Math.abs(adjustedPackagesToBuy - 1) < 0.0001 ? "package" : "packages"}`
+    : !isAvailable
+      ? "0 packages"
     : cartQuantitySummary
 
   const textPrimaryClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"

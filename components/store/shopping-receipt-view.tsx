@@ -28,7 +28,7 @@ interface ShoppingReceiptViewProps {
   onStoreChange: (storeName: string | null) => void
   onQuantityChange: (itemId: string, quantity: number) => void
   onRemoveItem: (itemId: string) => void
-  onSwapItem?: (itemId: string) => void
+  onSwapItem?: (itemId: string, itemIds?: string[]) => void
   onCheckout?: () => void
   onRefresh?: () => void
   loading?: boolean
@@ -274,19 +274,12 @@ export function ShoppingReceiptView({
   }, [onQuantityChange])
 
   const handleRemoveItem = useCallback((item: ShoppingListDisplayItem) => {
-    if (item.sourceItemIds.length <= 1) {
-      onRemoveItem(item.sourceItemIds[0] || item.id)
-      return
-    }
-
-    item.sourceItemIds.forEach((sourceId) => {
-      onRemoveItem(sourceId)
-    })
+    onRemoveItem(item.sourceItemIds[0] || item.id)
   }, [onRemoveItem])
 
   const handleSwapItem = useCallback((item: ShoppingListDisplayItem) => {
     if (!onSwapItem) return
-    onSwapItem(item.sourceItemIds[0] || item.id)
+    onSwapItem(item.sourceItemIds[0] || item.id, item.sourceItemIds)
   }, [onSwapItem])
 
   // Empty state

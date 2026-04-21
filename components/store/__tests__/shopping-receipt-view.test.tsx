@@ -10,7 +10,7 @@ vi.mock("@/components/store/store-selector", () => ({
 }))
 
 vi.mock("@/components/store/receipt-item", () => ({
-  ReceiptItem: ({ item, pricing, onQuantityChange, onRemove }: any) => (
+  ReceiptItem: ({ item, pricing, onQuantityChange, onRemove, onSwap }: any) => (
     <div data-testid="receipt-item">
       <span data-testid="item-name">{item.name}</span>
       <span data-testid="item-qty">{String(item.quantity)}</span>
@@ -30,6 +30,15 @@ vi.mock("@/components/store/receipt-item", () => ({
       >
         remove
       </button>
+      {onSwap ? (
+        <button
+          type="button"
+          data-testid={`swap-${item.id}`}
+          onClick={() => onSwap(item.id)}
+        >
+          swap
+        </button>
+      ) : null}
     </div>
   ),
 }))
@@ -224,12 +233,12 @@ describe("ShoppingReceiptView", () => {
 
     expect(onQuantityChange).toHaveBeenCalledTimes(2)
     expect(onQuantityChange.mock.calls[0][0]).toBe("item-a-1")
-    expect(onQuantityChange.mock.calls[0][1]).toBeCloseTo(3, 3)
+    expect(onQuantityChange.mock.calls[0][1]).toBeCloseTo(2.6667, 3)
     expect(onQuantityChange.mock.calls[1][0]).toBe("item-a-2")
-    expect(onQuantityChange.mock.calls[1][1]).toBeCloseTo(1, 3)
+    expect(onQuantityChange.mock.calls[1][1]).toBeCloseTo(1.3333, 3)
   })
 
-  it("removes every source item in a merged row", () => {
+  it("removes only one source item from a merged row", () => {
     const onRemoveItem = vi.fn()
 
     render(
@@ -279,8 +288,62 @@ describe("ShoppingReceiptView", () => {
 
     fireEvent.click(screen.getByTestId("remove-group:ingredient:std-apples"))
 
-    expect(onRemoveItem).toHaveBeenCalledTimes(2)
-    expect(onRemoveItem).toHaveBeenNthCalledWith(1, "item-a-1")
-    expect(onRemoveItem).toHaveBeenNthCalledWith(2, "item-a-2")
+    expect(onRemoveItem).toHaveBeenCalledTimes(1)
+    expect(onRemoveItem).toHaveBeenCalledWith("item-a-1")
+  })
+
+  it("forwards all source item ids when swapping a merged row", () => {
+    const onSwapItem = vi.fn()
+
+    render(
+      <ShoppingReceiptView
+        shoppingList={[
+          {
+            id: "item-a-1",
+            name: "Apples",
+            quantity: 2,
+            unit: "each",
+            checked: false,
+            servings: null,
+            source_type: "manual",
+            recipe_id: null,
+            recipe_ingredient_id: null,
+            ingredient_id: "std-apples",
+            category: null,
+            user_id: "user-1",
+            created_at: "",
+            updated_at: "",
+          },
+          {
+            id: "item-a-2",
+            name: "Apples",
+            quantity: 1,
+            unit: "each",
+            checked: false,
+            servings: null,
+            source_type: "manual",
+            recipe_id: null,
+            recipe_ingredient_id: null,
+            ingredient_id: "std-apples",
+            category: null,
+            user_id: "user-1",
+            created_at: "",
+            updated_at: "",
+          },
+        ]}
+        storeComparisons={[]}
+        selectedStore={null}
+        onStoreChange={vi.fn()}
+        onQuantityChange={vi.fn()}
+        onRemoveItem={vi.fn()}
+        onSwapItem={onSwapItem}
+        theme="light"
+      />
+    )
+
+    fireEvent.click(screen.getByTestId("swap-group:ingredient:std-apples"))
+
+    expect(onSwapItem).toHaveBeenCalledTimes(1)
+    expect(onSwapItem).toHaveBeenCalledWith("item-a-1", ["item-a-1", "item-a-2"])
   })
 })

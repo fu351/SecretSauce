@@ -84,7 +84,12 @@ async function fetchUserStoreMetadata(
     )
 
     if (!response.ok) {
-      console.error("[useStoreComparison] Failed to fetch store metadata")
+      let body: unknown
+      try { body = await response.json() } catch { body = null }
+      console.error("[useStoreComparison] Failed to fetch store metadata", {
+        status: response.status,
+        body,
+      })
       return new Map()
     }
 
@@ -332,7 +337,7 @@ export function useStoreComparison(
         const productUnitNormalized = canonicalizeUnit(normalizeUnitValue(productUnit))
         const packagesFromOffer = parsePositiveNumber(offer?.packages_to_buy)
         const packagesToBuy =
-          packagesFromOffer ??
+          packagesFromOffer != null ? Math.max(1, Math.ceil(packagesFromOffer)) :
           (!conversionError && requestedUnitNormalized && productUnitNormalized && requestedUnitNormalized === productUnitNormalized
             ? totalQty
             : undefined)
@@ -600,8 +605,14 @@ export function useStoreComparison(
           if (itemIds.includes(shoppingItemId)) {
             itemUpdated = true
             const qty = item.quantity || 1
-            // item.price is already the full line total; newItem.price is per-package
-            newTotal = store.total - item.price + (newItem.price * qty)
+            // item.price is already the full line total; newItem.price is per-package.
+            // If the new item has packagesToBuy + packagePrice use those for the total,
+            // otherwise fall back to per-package price × shopping-list quantity.
+            const newLineTotal =
+              newItem.packagesToBuy != null && newItem.packagePrice != null
+                ? newItem.packagesToBuy * newItem.packagePrice
+                : newItem.price * qty
+            newTotal = store.total - item.price + newLineTotal
 
             return {
               ...item,
@@ -609,7 +620,16 @@ export function useStoreComparison(
               image_url: newItem.image_url || item.image_url,
               price: newItem.price,
               productMappingId: newItem.productMappingId,
-              originalName: item.originalName
+              originalName: item.originalName,
+              // Replace all package fields so stale values from the old product don't linger
+              packagesToBuy: newItem.packagesToBuy,
+              packagePrice: newItem.packagePrice ?? null,
+              productQuantity: newItem.productQuantity ?? null,
+              convertedQuantity: newItem.convertedQuantity ?? null,
+              requestedUnit: newItem.requestedUnit ?? item.requestedUnit,
+              productUnit: newItem.productUnit ?? null,
+              conversionError: newItem.conversionError ?? null,
+              usedEstimate: newItem.usedEstimate ?? null,
             }
           }
           return item

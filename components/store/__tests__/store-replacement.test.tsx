@@ -73,7 +73,8 @@ describe("ItemReplacementModal", () => {
       ["Banana Brand B", "ing-2"],
     ]))
     mockBatchStandardizeAndMatch.mockResolvedValue(2)
-    mockGetIngredientPriceDetails.mockResolvedValue([
+    mockGetIngredientPriceDetails
+      .mockResolvedValueOnce([
       {
         store: "walmart",
         productMappingId: "pm-a",
@@ -85,6 +86,8 @@ describe("ItemReplacementModal", () => {
         imageUrl: "https://example.com/a.png",
         distance: 1.2,
       },
+    ])
+      .mockResolvedValueOnce([
       {
         store: "walmart",
         productMappingId: "pm-b",
@@ -126,6 +129,8 @@ describe("ItemReplacementModal", () => {
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Select" })).toHaveLength(2))
     expect(screen.getByText("Apple Brand A")).toBeInTheDocument()
     expect(screen.getByText("Banana Brand B")).toBeInTheDocument()
+    expect(mockGetIngredientPriceDetails).toHaveBeenCalledWith("user-1", "ing-1")
+    expect(mockGetIngredientPriceDetails).toHaveBeenCalledWith("user-1", "ing-2")
 
     await userEvent.click(screen.getAllByRole("button", { name: "Select" })[0])
 

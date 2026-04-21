@@ -271,7 +271,7 @@ export default function ShoppingReceiptPage() {
     itemsToRemove.forEach(item => removeItem(item.id))
   }, [shoppingList, removeItem])
 
-  const handleSwapRequest = useCallback(async (itemId: string) => {
+  const handleSwapRequest = useCallback(async (itemId: string, shoppingListIds?: string[]) => {
     const item = shoppingList.find((shoppingItem) => shoppingItem.id === itemId)
     if (!item) {
       toast({ title: "Error", description: "Could not find item to replace.", variant: "destructive" })
@@ -314,7 +314,7 @@ export default function ShoppingReceiptPage() {
       term: replacementSearchTerm,
       store: activeStore,
       shoppingListId: item.id,
-      shoppingListIds: [item.id],
+      shoppingListIds: shoppingListIds?.length ? shoppingListIds : [item.id],
       standardizedIngredientId,
       groceryStoreId: activeStoreData?.groceryStoreId ?? null,
     })

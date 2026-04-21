@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
   AlertCircle,
-  ShoppingCart,
   MapPin,
   ArrowLeftRight,
   Store,
@@ -22,6 +21,7 @@ import { useClosestStore } from "@/hooks" // Ensure this path is correct
 import { getUserLocation } from "@/lib/location-client"
 import Image from "next/image"
 import { mergeShoppingListItems } from "@/lib/utils/shopping-list-grouping"
+import { ProductImage } from "@/components/store/product-image"
 
 // Dynamically import StoreMap to prevent SSR issues with Leaflet
 const StoreMap = dynamic(() => import("@/components/store/store-map").then((mod) => mod.StoreMap), {
@@ -355,11 +355,12 @@ export function StoreComparisonSection({
         {displayItems.map((item, i) => (
           <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
             <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === 'dark' ? 'bg-white border-white/10' : 'bg-white border-gray-100'}`}>
-              {item.image_url ? (
-                <img src={item.image_url} alt="" className="w-full h-full object-contain" />
-              ) : (
-                <ShoppingCart className="h-5 w-5 text-gray-400" />
-              )}
+              <ProductImage
+                src={item.image_url}
+                alt={item.title}
+                imgClassName="w-full h-full object-contain"
+                fallbackClassName="h-5 w-5 text-gray-400"
+              />
             </div>
             <div className="flex-1 min-w-0">
               <p className={`text-sm font-semibold truncate ${textClass}`}>{item.title}</p>
@@ -385,7 +386,7 @@ export function StoreComparisonSection({
                 : null
               const packagesText =
                 typeof item.packagesToBuy === "number" && item.packagesToBuy > 0
-                  ? `Packages: ${item.packagesToBuy}`
+                  ? `Packages: ${Math.ceil(item.packagesToBuy)}`
                   : null
               const estimateText = item.usedEstimate
                 ? "Uses estimated unit conversion"
