@@ -379,7 +379,7 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-80deg) translateX(74px) rotate(80deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-170deg) translateX(74px) rotate(170deg)" }}
                       asChild
                     >
                       <Link href="/challenges/join" aria-label="Leaderboard" onClick={closeMobileLogoMenu}>
@@ -390,7 +390,7 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-40deg) translateX(74px) rotate(40deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-130deg) translateX(74px) rotate(130deg)" }}
                       asChild
                     >
                       <Link href="/pantry" aria-label="Pantry" onClick={closeMobileLogoMenu}>
@@ -401,7 +401,7 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(0deg) translateX(74px) rotate(0deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-90deg) translateX(74px) rotate(90deg)" }}
                       asChild
                     >
                       <Link href="/upload-recipe" aria-label="Add Recipe" onClick={closeMobileLogoMenu}>
@@ -412,7 +412,7 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(40deg) translateX(74px) rotate(-40deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-50deg) translateX(74px) rotate(50deg)" }}
                       asChild
                     >
                       <Link href="/recipes" aria-label="Recipes" onClick={closeMobileLogoMenu}>
@@ -423,7 +423,7 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(80deg) translateX(74px) rotate(-80deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-10deg) translateX(74px) rotate(10deg)" }}
                       asChild
                     >
                       <Link href="/dashboard" aria-label="Trackers" onClick={closeMobileLogoMenu}>
