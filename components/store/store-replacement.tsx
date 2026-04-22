@@ -326,21 +326,33 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                   <Button
                     size="sm"
                     onClick={async () => {
+                      const ingredientId = target?.standardizedIngredientId ?? null
+                      const groceryStoreId = target?.groceryStoreId ?? null
+
+                      const persistOverride = (mappingId: string) => {
+                        if (ingredientId && groceryStoreId) {
+                          ingredientsRecentDB.saveUserProductOverride(ingredientId, groceryStoreId, mappingId)
+                            .catch(err => console.warn("[ItemReplacementModal] Failed to save override", err))
+                        }
+                      }
+
                       if (item.productMappingId) {
-                        // DB-sourced item — mapping ID already set
+                        // DB-sourced item — mapping ID already known; persist override and select
+                        persistOverride(item.productMappingId)
                         onSelect(item)
                       } else {
                         // Persist the user-selected scraper result as a cached candidate.
                         await persistManualSelection(item)
 
-                        // Scraper-sourced fallback — look up/create mapping
+                        // Scraper-sourced fallback — look up/create mapping, then persist override
                         productMappingsDB.incrementCounts({
                           external_product_id: item.id,
                           store: target?.store ?? null,
                           raw_product_name: item.title,
-                          standardized_ingredient_id: target?.standardizedIngredientId || null,
+                          standardized_ingredient_id: ingredientId,
                           exchange_delta: 1,
                         }).then(mappingId => {
+                          if (mappingId) persistOverride(mappingId)
                           onSelect({ ...item, productMappingId: mappingId || undefined })
                         }).catch((error) => {
                           console.error("[ItemReplacementModal] Failed to increment mapping counts", error)

@@ -650,6 +650,23 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
       return []
     }
   }
+
+  async saveUserProductOverride(
+    ingredientId: string,
+    groceryStoreId: string,
+    productMappingId: string
+  ): Promise<void> {
+    try {
+      const { error } = await (this.supabase.rpc as any)("save_user_product_override", {
+        p_ingredient_id: ingredientId,
+        p_grocery_store_id: groceryStoreId,
+        p_product_mapping_id: productMappingId,
+      })
+      if (error) this.handleError(error, "saveUserProductOverride")
+    } catch (error) {
+      this.handleError(error, "saveUserProductOverride")
+    }
+  }
 }
 
 export type PricingResult = {
