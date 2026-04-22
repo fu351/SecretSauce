@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, ThumbsUp, Repeat2, Link2, Check, ShoppingCart, Zap } from "lucide-react"
+import { Heart, ThumbsUp, Repeat2, Link2, Check, ShoppingCart, Zap, FolderOpen } from "lucide-react"
 import clsx from "clsx"
 import { useAnalytics } from "@/hooks/use-analytics"
 
@@ -20,6 +20,7 @@ interface RecipeActionBarProps {
   isFavorite: boolean
   isTogglingFavorite: boolean
   onToggleFavorite: () => void
+  onManageCollections?: () => void
   // Like
   likeCount: number
   isLiked: boolean
@@ -78,6 +79,7 @@ export function RecipeActionBar({
   isFavorite,
   isTogglingFavorite,
   onToggleFavorite,
+  onManageCollections,
   likeCount,
   isLiked,
   onLikeToggle,
@@ -187,11 +189,23 @@ export function RecipeActionBar({
           className={isFavorite ? activeRedClass : neutralClass}
           onClick={onToggleFavorite}
           disabled={isTogglingFavorite}
-          title={isFavorite ? "Unsave" : "Save recipe"}
+          title={isFavorite ? "Remove from saved recipes" : "Save to your default folder"}
         >
           <Heart className={clsx("h-4 w-4", isFavorite ? "fill-current" : "")} />
           <span>{isFavorite ? "Saved" : "Save"}</span>
         </button>
+
+        {onManageCollections && (
+          <button
+            className={neutralClass}
+            onClick={onManageCollections}
+            title="Manage collections"
+            aria-label="Manage recipe collections"
+          >
+            <FolderOpen className="h-4 w-4" />
+            <span>Folders</span>
+          </button>
+        )}
 
         {/* Like */}
         <button

@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { supabase } from "@/lib/database/supabase"
 import { useToast } from "@/hooks"
 import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { recipeDB } from "@/lib/database/recipe-db"
+import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import { Recipe, RecipeTags } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import { useDraggable } from "@dnd-kit/core"
@@ -59,13 +59,13 @@ function RecipeCardComponent({
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
   const { theme } = useTheme()
+  const recipe = { id, title, content, rating_avg, difficulty, comments, tags, nutrition, ...rest } as Recipe
   const imageFallback = getDefaultImageFallback(theme)
-  const imageSrc = getRecipeImageUrl(content?.image_url || recipe.image_url, theme) || imageFallback
+  const imageSrc = getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) || imageFallback
   const isFallbackImage = isDefaultImageFallback(imageSrc)
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided
-  const recipe = { id, title, content, rating_avg, difficulty, comments, tags, nutrition, ...rest } as Recipe
   const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
   const { attributes, listeners, setNodeRef } = useDraggable({
     id: draggableProps?.draggableId || '',
@@ -87,20 +87,7 @@ function RecipeCardComponent({
     if (!user) return
 
     try {
-      const { data, error } = await supabase
-        .from("recipe_favorites")
-        .select("id")
-        .eq("recipe_id", id)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-
-      if (error && error.code !== "PGRST116") {
-        console.warn("Error checking favorites:", error)
-        return
-      }
-
-      setIsFavorited(!!(data && data.length > 0))
+      setIsFavorited(await recipeFavoritesDB.isFavorite(user.id, id))
     } catch (error) {
       console.warn("Error checking if favorited:", error)
       setIsFavorited(false)
@@ -114,7 +101,7 @@ function RecipeCardComponent({
     if (!user) {
       toast({
         title: "Sign in required",
-        description: "Please sign in to favorite recipes.",
+        description: "Please sign in to save recipes.",
         variant: "destructive",
       })
       return
@@ -123,34 +110,29 @@ function RecipeCardComponent({
     setLoading(true)
     try {
       if (isFavorited) {
-        const { error } = await supabase.from("recipe_favorites").delete().eq("recipe_id", id).eq("user_id", user.id)
-
-        if (error) throw error
+        const success = await recipeFavoritesDB.removeFavorite(user.id, id)
+        if (!success) throw new Error("Failed to remove saved recipe")
         setIsFavorited(false)
         onFavoriteChange?.(id, false)
         toast({
-          title: "Removed from favorites",
-          description: "Recipe has been removed from your favorites.",
+          title: "Removed from saved recipes",
+          description: "Recipe has been removed from your saved recipes.",
         })
       } else {
-        const { error } = await supabase.from("recipe_favorites").insert({
-          recipe_id: id,
-          user_id: user.id,
-        })
-
-        if (error) throw error
+        const saved = await recipeFavoritesDB.addFavorite(user.id, id)
+        if (!saved) throw new Error("Failed to save recipe")
         setIsFavorited(true)
         onFavoriteChange?.(id, true)
         toast({
-          title: "Added to favorites",
-          description: "Recipe has been added to your favorites.",
+          title: "Saved to your default folder",
+          description: "Recipe has been added to your saved recipes.",
         })
       }
     } catch (error) {
       console.error("Error toggling favorite:", error)
       toast({
         title: "Error",
-        description: "Failed to update favorites. Please try again.",
+        description: "Failed to update saved recipes. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -222,6 +204,8 @@ function RecipeCardComponent({
               onClick={toggleFavorite}
               disabled={loading}
               data-favorite-button
+              aria-label={isFavorited ? "Remove from saved recipes" : "Save recipe"}
+              title={isFavorited ? "Remove from saved recipes" : "Save recipe"}
             >
               <Heart className={`h-3 w-3 md:h-4 md:w-4 ${isFavorited ? "fill-current" : ""}`} />
             </Button>

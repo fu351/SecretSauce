@@ -15,6 +15,12 @@ vi.mock("next/link", () => ({
   ),
 }))
 
+const mockTrackEvent = vi.fn()
+
+vi.mock("@/hooks/use-analytics", () => ({
+  useAnalytics: () => ({ trackEvent: mockTrackEvent }),
+}))
+
 describe("RecipeActionBar", () => {
   const onToggleFavorite = vi.fn()
   const onLikeToggle = vi.fn()

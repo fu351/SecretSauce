@@ -130,7 +130,7 @@ export const RecipeGrid = memo(function RecipeGrid({
               <button
                 type="button"
                 data-favorite-button
-                aria-label={favorites.has(recipe.id) ? "Remove from favorites" : "Add to favorites"}
+                aria-label={favorites.has(recipe.id) ? "Remove from saved recipes" : "Save recipe"}
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()

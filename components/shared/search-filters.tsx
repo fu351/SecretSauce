@@ -80,12 +80,12 @@ export function SearchFilters({ availableCuisines }: SearchFiltersProps) {
 
   return (
     <div className="space-y-6 py-8">
-      {/* Favorites Filter */}
+      {/* Saved Filter */}
       <div className="flex flex-wrap justify-center gap-4">
         <button
           type="button"
-          aria-label="Favorites"
-          title="Favorites"
+          aria-label="Saved recipes"
+          title="Saved recipes"
           className="flex items-center justify-center w-12 h-12 rounded-full border-2 transition-colors bg-pink-100 border-pink-300 text-pink-600"
         >
           <Heart className="h-5 w-5" />

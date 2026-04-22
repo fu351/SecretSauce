@@ -28,6 +28,7 @@ import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
 import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
 import { ProfileCard } from "@/components/social/profile-card"
+import { RecipeCollectionSummary } from "@/components/recipe/collections/recipe-collection-summary"
 
 interface DashboardStats {
   totalRecipes: number
@@ -169,15 +170,15 @@ export default function DashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/recipes?favorites=true" className="block">
+            <Link href="/saved" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-3 md:p-6">
                   <div className="flex items-center justify-between mb-2 md:mb-4">
                     <Heart className="h-5 w-5 md:h-8 md:w-8 text-red-500" />
-                    <span className="text-[10px] md:text-xs text-muted-foreground">Favorites</span>
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Saved</span>
                   </div>
                   <p className="text-xl md:text-3xl font-bold text-foreground">{stats.favoriteRecipes}</p>
-                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Saved recipes</p>
+                  <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Recipes in your folders</p>
                 </CardContent>
               </Card>
             </Link>
@@ -207,6 +208,10 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+          </div>
+
+          <div className="mb-4 md:mb-8">
+            <RecipeCollectionSummary userId={user?.id ?? null} />
           </div>
 
           {showIOSPrompt && !localStorage.getItem("ios_webapp_prompt_dismissed") ? (

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockFetchRecipesByAuthor = vi.fn()
 const mockFetchFavoriteRecipeIds = vi.fn()
+const mockFetchUserCollectionsWithCounts = vi.fn()
 const mockFetchMealScheduleByWeekIndex = vi.fn()
 const mockFetchUserItems = vi.fn()
 
@@ -24,6 +25,9 @@ vi.mock("@/lib/database/recipe-db", () => ({
 vi.mock("@/lib/database/recipe-favorites-db", () => ({
   recipeFavoritesDB: {
     fetchFavoriteRecipeIds: mockFetchFavoriteRecipeIds,
+  },
+  recipeCollectionsDB: {
+    fetchUserCollectionsWithCounts: mockFetchUserCollectionsWithCounts,
   },
 }))
 
@@ -93,6 +97,9 @@ describe("DashboardPage", () => {
       ])
       .mockResolvedValueOnce([{ id: "recipe-3", title: "Lemon Pasta" }])
     mockFetchFavoriteRecipeIds.mockResolvedValue(["recipe-1"])
+    mockFetchUserCollectionsWithCounts.mockResolvedValue([
+      { id: "collection-1", name: "Weeknight Dinners", recipe_count: 3, is_default: false },
+    ])
     mockFetchMealScheduleByWeekIndex.mockResolvedValue([{ id: "meal-1" }, { id: "meal-2" }])
     mockFetchUserItems.mockResolvedValue([{ id: "item-1" }, { id: "item-2" }, { id: "item-3" }])
 

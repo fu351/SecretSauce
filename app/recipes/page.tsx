@@ -50,7 +50,7 @@ export default function RecipesPage() {
   const mobileFilterDialogRef = useRef<HTMLDivElement | null>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
-  // Fetch favorites
+  // Fetch saved recipes
   const { data: favorites = new Set<string>() } = useFavorites(user?.id || null)
 
   // Create filters object for database-level filtering
@@ -89,6 +89,7 @@ export default function RecipesPage() {
       searchParams.has("cuisine") ||
       searchParams.has("diet") ||
       searchParams.has("sort") ||
+      searchParams.has("saved") ||
       searchParams.has("favorites") ||
       searchParams.has("mine") ||
       searchParams.has("page")
@@ -102,7 +103,8 @@ export default function RecipesPage() {
         : []
       const currentSort = (searchParams.get("sort") || "created_at") as SortBy
       const currentPage = parseInt(searchParams.get("page") || "1", 10)
-      const currentFavorites = searchParams.get("favorites") === "true"
+      const currentFavorites =
+        searchParams.get("saved") === "true" || searchParams.get("favorites") === "true"
       const currentMine = searchParams.get("mine") === "true"
 
       setSearchTerm(urlSearch || "")
@@ -118,6 +120,7 @@ export default function RecipesPage() {
     }
 
     if (typeof window === "undefined") return
+    if (typeof window.localStorage?.getItem !== "function" || typeof window.localStorage?.removeItem !== "function") return
 
     const cacheKey = `${RECIPE_FILTER_CACHE_KEY_PREFIX}${user?.id ?? "anon"}`
     const cachedRaw = window.localStorage.getItem(cacheKey)
@@ -150,6 +153,7 @@ export default function RecipesPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (typeof window.localStorage?.setItem !== "function") return
     const cacheKey = `${RECIPE_FILTER_CACHE_KEY_PREFIX}${user?.id ?? "anon"}`
     const payload = {
       searchInput,
@@ -246,7 +250,7 @@ export default function RecipesPage() {
     if (!user) {
       toast({
         title: "Sign in required",
-        description: "Please sign in to favorite recipes",
+        description: "Please sign in to save recipes",
         variant: "destructive",
       })
       return
@@ -263,14 +267,14 @@ export default function RecipesPage() {
       trackEvent(isFavorited ? "recipe_removed_from_favorites" : "recipe_added_to_favorites", { recipe_id: recipeId })
 
       toast({
-        title: isFavorited ? "Removed from favorites" : "Added to favorites",
-        description: isFavorited ? "Recipe removed from your favorites" : "Recipe added to your favorites",
+        title: isFavorited ? "Removed from saved recipes" : "Added to saved recipes",
+        description: isFavorited ? "Recipe removed from your saved recipes" : "Recipe added to your saved recipes",
       })
     } catch (error) {
       console.error("Error toggling favorite:", error)
       toast({
         title: "Error",
-        description: "Failed to update favorite status",
+        description: "Failed to update saved recipe status",
         variant: "destructive",
       })
     }
@@ -486,7 +490,7 @@ export default function RecipesPage() {
                         const newValue = !showFavoritesOnly
                         setShowFavoritesOnly(newValue)
                         setPage(1)
-                        updateURL({ favorites: newValue ? "true" : undefined }, true)
+                        updateURL({ saved: newValue ? "true" : undefined }, true)
                       }}
                       showUserOnly={showUserOnly}
                       onUserRecipesToggle={() => {
@@ -635,7 +639,7 @@ export default function RecipesPage() {
                 const newValue = !showFavoritesOnly
                 setShowFavoritesOnly(newValue)
                 setPage(1)
-                updateURL({ favorites: newValue ? "true" : undefined }, true)
+                updateURL({ saved: newValue ? "true" : undefined }, true)
               }}
               showUserOnly={showUserOnly}
               onUserRecipesToggle={() => {
