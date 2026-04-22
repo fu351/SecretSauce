@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, ThumbsUp, Repeat2, Link2, Check, ShoppingCart, Zap, FolderOpen } from "lucide-react"
+import { Bookmark, ThumbsUp, Repeat2, Link2, Check, ShoppingCart, Zap } from "lucide-react"
 import clsx from "clsx"
 import { useAnalytics } from "@/hooks/use-analytics"
 
@@ -18,9 +18,7 @@ interface RecipeActionBarProps {
   recipeId: string
   // Save / favourite
   isFavorite: boolean
-  isTogglingFavorite: boolean
-  onToggleFavorite: () => void
-  onManageCollections?: () => void
+  onSaveClick: () => void
   // Like
   likeCount: number
   isLiked: boolean
@@ -77,9 +75,7 @@ function buildFriendLabel(friends: FriendProfile[], likeCount: number): string {
 export function RecipeActionBar({
   recipeId,
   isFavorite,
-  isTogglingFavorite,
-  onToggleFavorite,
-  onManageCollections,
+  onSaveClick,
   likeCount,
   isLiked,
   onLikeToggle,
@@ -186,26 +182,14 @@ export function RecipeActionBar({
         {/* Save */}
         <button
           data-tutorial="recipe-favorite"
+          type="button"
           className={isFavorite ? activeRedClass : neutralClass}
-          onClick={onToggleFavorite}
-          disabled={isTogglingFavorite}
-          title={isFavorite ? "Remove from saved recipes" : "Save to your default folder"}
+          onClick={onSaveClick}
+          title={isFavorite ? "Manage your saved folders" : "Save to a folder"}
         >
-          <Heart className={clsx("h-4 w-4", isFavorite ? "fill-current" : "")} />
+          <Bookmark className={clsx("h-4 w-4", isFavorite ? "fill-current" : "")} />
           <span>{isFavorite ? "Saved" : "Save"}</span>
         </button>
-
-        {onManageCollections && (
-          <button
-            className={neutralClass}
-            onClick={onManageCollections}
-            title="Manage collections"
-            aria-label="Manage recipe collections"
-          >
-            <FolderOpen className="h-4 w-4" />
-            <span>Folders</span>
-          </button>
-        )}
 
         {/* Like */}
         <button

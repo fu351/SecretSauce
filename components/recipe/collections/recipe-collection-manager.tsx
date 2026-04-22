@@ -13,6 +13,7 @@ interface RecipeCollectionManagerProps {
   onOpenChange: (open: boolean) => void
   recipeId: string
   userId: string | null
+  onRecipeSavedChange?: (isSaved: boolean) => void
 }
 
 export function RecipeCollectionManager({
@@ -20,6 +21,7 @@ export function RecipeCollectionManager({
   onOpenChange,
   recipeId,
   userId,
+  onRecipeSavedChange,
 }: RecipeCollectionManagerProps) {
   const [collections, setCollections] = useState<RecipeCollectionRow[]>([])
   const [activeCollectionIds, setActiveCollectionIds] = useState<Set<string>>(new Set())
@@ -28,6 +30,10 @@ export function RecipeCollectionManager({
   const [savingCollectionId, setSavingCollectionId] = useState<string | null>(null)
 
   const activeCount = useMemo(() => activeCollectionIds.size, [activeCollectionIds])
+
+  useEffect(() => {
+    onRecipeSavedChange?.(activeCount > 0)
+  }, [activeCount, onRecipeSavedChange])
 
   useEffect(() => {
     if (!open || !userId) return

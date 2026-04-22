@@ -43,7 +43,6 @@ export default function RecipeDetailPage() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
   const [isFloating, setIsFloating] = useState(false)
-  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   const [cookingMode, setCookingMode] = useState(false)
   const [cookingStep, setCookingStep] = useState(0)
   const [likeCount, setLikeCount] = useState(0)
@@ -223,40 +222,17 @@ export default function RecipeDetailPage() {
     return () => window.clearTimeout(t)
   }, [showSwipeHint])
 
-  const toggleFavorite = async () => {
-      if (!user) {
-        toast({
-          title: "Sign in required",
-          description: "Please sign in to save recipes.",
-          variant: "destructive",
-        })
-        return
-    }
-
-    if (!params.id) return
-
-    setIsTogglingFavorite(true)
-    try {
-      const newFavoriteStatus = await recipeFavoritesDB.toggleFavorite(user.id, params.id as string)
-      setIsFavorite(newFavoriteStatus)
-      trackEvent(newFavoriteStatus ? "recipe_added_to_favorites" : "recipe_removed_from_favorites", { recipe_id: params.id as string })
-
+  const openCollectionManager = () => {
+    if (!user) {
       toast({
-        title: newFavoriteStatus ? "Saved to your default folder" : "Removed from your default folder",
-        description: newFavoriteStatus
-          ? "Recipe has been added to your saved recipes."
-          : "Recipe has been removed from your saved recipes.",
-      })
-    } catch (error) {
-      console.error("Error toggling favorite:", error)
-      toast({
-        title: "Error",
-        description: "Failed to update saved recipes. Please try again.",
+        title: "Sign in required",
+        description: "Please sign in to save recipes.",
         variant: "destructive",
       })
-    } finally {
-      setIsTogglingFavorite(false)
+      return
     }
+
+    setShowCollectionManager(true)
   }
 
   const handleAddToBasket = async () => {
@@ -426,9 +402,7 @@ export default function RecipeDetailPage() {
             <RecipeActionBar
               recipeId={recipe.id}
               isFavorite={isFavorite}
-              isTogglingFavorite={isTogglingFavorite}
-              onToggleFavorite={toggleFavorite}
-              onManageCollections={() => setShowCollectionManager(true)}
+              onSaveClick={openCollectionManager}
               likeCount={likeCount}
               isLiked={isLiked}
               onLikeToggle={(liked, count) => { setIsLiked(liked); setLikeCount(count) }}
@@ -446,6 +420,7 @@ export default function RecipeDetailPage() {
               onOpenChange={setShowCollectionManager}
               recipeId={recipe.id}
               userId={user?.id ?? null}
+              onRecipeSavedChange={setIsFavorite}
             />
           </div>
 
