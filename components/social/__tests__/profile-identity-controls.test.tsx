@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockToast = vi.fn()
 const mockUpdateProfile = vi.fn()
@@ -40,9 +40,38 @@ vi.mock("@/lib/database/supabase", () => ({
 describe("ProfileIdentityControls", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+
+        if (url.startsWith("/api/social/counts")) {
+          return {
+            ok: true,
+            json: async () => ({ followerCount: 12, followingCount: 34 }),
+          } as Response
+        }
+
+        if (url.includes("/badges")) {
+          return {
+            ok: true,
+            json: async () => ({ badges: [], showcasedBadgeIds: [] }),
+          } as Response
+        }
+
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as Response
+      })
+    )
     mockUpdateProfile.mockResolvedValue(undefined)
     mockUpload.mockResolvedValue({ error: null })
     mockGetPublicUrl.mockReturnValue({ data: { publicUrl: "https://cdn.test/avatar.png" } })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it("updates avatar, name, and username from the profile page", async () => {
@@ -52,40 +81,43 @@ describe("ProfileIdentityControls", () => {
     render(
       <ProfileIdentityControls
         isOwnProfile={true}
+        profileId="profile_1"
         fullName="Avery Cook"
         avatarUrl={null}
         username="avery_cook"
         isPrivate={false}
+        fullNameHidden={false}
       />
     )
 
     expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /^edit$/i })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /set profile to private/i })).toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: /set profile to private/i }))
-
-    await waitFor(() => {
-      expect(mockUpdateProfile).toHaveBeenCalledWith({ is_private: true })
-    })
+    expect(screen.getByLabelText(/public profile/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: /^edit$/i }))
+    await user.click(screen.getByRole("menuitem", { name: /edit profile/i }))
 
-    await user.clear(screen.getByLabelText(/full name/i))
-    await user.type(screen.getByLabelText(/full name/i), "Avery Baker")
-    await user.click(screen.getAllByRole("button", { name: /^save$/i })[0])
-
-    await user.clear(screen.getByLabelText(/username/i))
-    await user.type(screen.getByLabelText(/username/i), "avery_baker")
-    await user.click(screen.getAllByRole("button", { name: /^save$/i })[1])
+    await user.clear(screen.getByLabelText(/^full name$/i))
+    await user.type(screen.getByLabelText(/^full name$/i), "Avery Baker")
 
     const file = new File(["avatar"], "avatar.png", { type: "image/png" })
     await user.upload(screen.getByLabelText(/upload avatar/i), file)
 
+    await user.clear(screen.getByLabelText(/username/i))
+    await user.type(screen.getByLabelText(/username/i), "avery_baker")
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }))
+
     await waitFor(() => {
-      expect(mockUpdateProfile).toHaveBeenCalledWith({ full_name: "Avery Baker" })
-      expect(mockUpdateProfile).toHaveBeenCalledWith({ username: "avery_baker" })
-      expect(mockUpdateProfile).toHaveBeenCalledWith({ avatar_url: "https://cdn.test/avatar.png" })
+      expect(mockUpdateProfile).toHaveBeenNthCalledWith(1, {
+        avatar_url: "https://cdn.test/avatar.png",
+      })
+      expect(mockUpdateProfile).toHaveBeenNthCalledWith(2, {
+        full_name: "Avery Baker",
+        username: "avery_baker",
+        is_private: false,
+        full_name_hidden: false,
+      })
     })
   })
 
@@ -95,15 +127,36 @@ describe("ProfileIdentityControls", () => {
     render(
       <ProfileIdentityControls
         isOwnProfile={false}
+        profileId="profile_1"
         fullName="Avery Cook"
         avatarUrl={null}
         username="avery_cook"
         isPrivate={false}
+        fullNameHidden={false}
       />
     )
 
     expect(screen.getByText("Avery Cook")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument()
     expect(screen.getByLabelText(/public profile/i)).toBeInTheDocument()
+  })
+
+  it("hides the full name when the profile is configured to hide it", async () => {
+    const { ProfileIdentityControls } = await import("../profile-identity-controls")
+
+    render(
+      <ProfileIdentityControls
+        isOwnProfile={false}
+        profileId="profile_1"
+        fullName="Avery Cook"
+        avatarUrl={null}
+        username="avery_cook"
+        isPrivate={false}
+        fullNameHidden={true}
+      />
+    )
+
+    expect(screen.getByRole("heading", { name: /@avery_cook/i })).toBeInTheDocument()
+    expect(screen.queryByText("Avery Cook")).not.toBeInTheDocument()
   })
 })

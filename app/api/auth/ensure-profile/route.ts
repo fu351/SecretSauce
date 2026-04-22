@@ -15,6 +15,7 @@ const PROFILE_SELECT = [
   "theme_preference", "tutorial_completed", "tutorial_completed_at",
   "formatted_address", "address_line1", "address_line2", "city", "state", "country",
   "latitude", "longitude",
+  "full_name_hidden",
   "username",
   "subscription_tier", "subscription_status", "subscription_started_at",
   "subscription_expires_at", "stripe_customer_id", "stripe_subscription_id",
