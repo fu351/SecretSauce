@@ -141,7 +141,7 @@ export default function ShoppingReceiptPage() {
   }, [user])
 
   // Auto-run comparison on load and when non-quantity list inputs change.
-  // First load follows the refresh path; later list edits stay cache-first.
+  // Always cache-only — scraping is triggered explicitly via the update button.
   useEffect(() => {
     if (!mounted || !zipReady || listLoading) return
     if (shoppingList.length === 0) {
@@ -179,21 +179,14 @@ export default function ShoppingReceiptPage() {
     }
 
     let cancelled = false
-    const isInitialLoad = !previousSignatures
 
     const runAutoCompare = async () => {
       previousListSignaturesRef.current = currentSignatures
-      if (isInitialLoad && user?.id) {
-        const locationUpdate = await updateLocation(user.id)
-        if (!locationUpdate.success && locationUpdate.error) {
-          console.warn("[store] updateLocation failed during auto-refresh:", locationUpdate.error)
-        }
-      }
       await saveChanges()
       if (cancelled) return
       await performMassSearch({
         showCachedFirst: true,
-        skipPricingGaps: !isInitialLoad,
+        skipPricingGaps: true,
       })
     }
 
@@ -213,7 +206,6 @@ export default function ShoppingReceiptPage() {
     comparisonFetched,
     saveChanges,
     performMassSearch,
-    user?.id,
   ])
 
   const selectedStore = storeComparisons[carouselIndex]?.store ?? null
