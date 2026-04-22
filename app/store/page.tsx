@@ -158,6 +158,7 @@ export default function ShoppingReceiptPage() {
     quantity: string
     zipCode: string
   } | null>(null)
+  const refreshInProgressRef = useRef(false)
 
   // Shopping list management
   const {
@@ -318,14 +319,20 @@ export default function ShoppingReceiptPage() {
   }, [scrollToStore, visibleStoreComparisons])
 
   const handleRefresh = useCallback(async () => {
-    if (user?.id) {
-      const locationUpdate = await updateLocation(user.id)
-      if (!locationUpdate.success && locationUpdate.error) {
-        console.warn("[store] updateLocation failed:", locationUpdate.error)
+    if (refreshInProgressRef.current) return
+    refreshInProgressRef.current = true
+    try {
+      if (user?.id) {
+        const locationUpdate = await updateLocation(user.id)
+        if (!locationUpdate.success && locationUpdate.error) {
+          console.warn("[store] updateLocation failed:", locationUpdate.error)
+        }
       }
+      await saveChanges()
+      await performMassSearch({ showCachedFirst: false, skipPricingGaps: false })
+    } finally {
+      refreshInProgressRef.current = false
     }
-    await saveChanges()
-    await performMassSearch({ showCachedFirst: false, skipPricingGaps: false })
   }, [user?.id, saveChanges, performMassSearch])
 
   const handleMobileAddItem = useCallback(async (name: string) => {

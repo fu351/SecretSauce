@@ -124,6 +124,12 @@ class IngredientsHistoryTable extends BaseTable<
     }
   }
 
+  /**
+   * @deprecated Prefer batchInsertPricesRpc or batchStandardizeAndMatch directly.
+   * This method normalizes a legacy payload shape and forwards to batchInsertPricesRpc.
+   * Fields not accepted by the RPC (standardizedIngredientId, productMappingId, location)
+   * are silently dropped; the DB resolves the ingredient ID from the product name.
+   */
   async batchInsertPrices(
     items: Array<{
       standardizedIngredientId: string
@@ -144,8 +150,6 @@ class IngredientsHistoryTable extends BaseTable<
     try {
       if (items.length === 0) return 0
 
-      // Live schema writes to ingredients_history are handled via RPC.
-      // Normalize legacy payloads into fn_bulk_insert_ingredient_history input.
       const rpcItems = items.map((item) => ({
         store: item.store,
         price: item.price,

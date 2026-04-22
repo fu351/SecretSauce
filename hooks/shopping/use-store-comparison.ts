@@ -203,10 +203,8 @@ async function hydratePricingGaps(
 
   console.log("[useStoreComparison] Batch insert payload", { payloadCount: payloads.length })
 
-  let count = await ingredientsHistoryDB.batchInsertPricesRpc(payloads)
-  if (count === 0) {
-    count = await ingredientsHistoryDB.batchInsertPrices(payloads)
-  }
+  // batchInsertPrices internally calls batchInsertPricesRpc — no separate fallback needed.
+  const count = await ingredientsHistoryDB.batchInsertPricesRpc(payloads)
 
   if (count === 0) {
     console.warn("[useStoreComparison] Failed to backfill pricing gaps")
@@ -545,6 +543,8 @@ export function useStoreComparison(
       // ----- Fill cache gaps -----
       if (user && !options?.skipPricingGaps) {
         const pricingGaps = await ingredientsRecentDB.getPricingGaps(user.id)
+        // A newer search may have started while we were waiting for getPricingGaps.
+        if (isStale()) return
         if (pricingGaps.length > 0) {
           console.warn("[useStoreComparison] Filling pricing gaps", { gaps: pricingGaps.length })
           console.log("[useStoreComparison] Pricing gaps payload", pricingGaps)
@@ -554,6 +554,8 @@ export function useStoreComparison(
             gaps: pricingGaps.length,
             inserted,
           })
+          // A newer search may have started while we were scraping (hydration can be slow).
+          if (isStale()) return
         }
       }
 
