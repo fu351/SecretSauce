@@ -254,6 +254,7 @@ export type Database = {
           stripe_price_id: string | null
           stripe_current_period_end: string | null
           is_private: boolean
+          full_name_hidden: boolean
           follower_count: number
           following_count: number
         }
@@ -295,6 +296,7 @@ export type Database = {
           stripe_price_id?: string | null
           stripe_current_period_end?: string | null
           is_private?: boolean
+          full_name_hidden?: boolean
           follower_count?: number
           following_count?: number
         }
@@ -336,6 +338,7 @@ export type Database = {
           stripe_price_id?: string | null
           stripe_current_period_end?: string | null
           is_private?: boolean
+          full_name_hidden?: boolean
           follower_count?: number
           following_count?: number
         }

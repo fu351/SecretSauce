@@ -50,6 +50,7 @@ const PROFILE_SAFE_COLUMNS = [
   "stripe_subscription_id",
   "stripe_price_id",
   "stripe_current_period_end",
+  "full_name_hidden",
 ].join(", ")
 
 /**
@@ -114,6 +115,7 @@ class ProfileTable extends BaseTable<"profiles", ProfileRow, ProfileInsert, Prof
       stripe_price_id: dbItem.stripe_price_id ?? null,
       stripe_current_period_end: dbItem.stripe_current_period_end ?? null,
       is_private: dbItem.is_private ?? false,
+      full_name_hidden: dbItem.full_name_hidden ?? false,
       follower_count: dbItem.follower_count ?? 0,
       following_count: dbItem.following_count ?? 0,
     }

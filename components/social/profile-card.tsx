@@ -32,6 +32,7 @@ export function ProfileCard({ profile }: Props) {
   const initials = profile.full_name
     ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "?"
+  const displayName = profile.full_name_hidden ? profile.username : profile.full_name
 
   return (
     <Card className="border-border bg-card mb-6">
@@ -55,10 +56,12 @@ export function ProfileCard({ profile }: Props) {
           {/* Name + username + counts */}
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-foreground truncate">
-              {profile.full_name ?? "Anonymous Chef"}
+              {profile.username ? `@${profile.username}` : "No username set"}
             </p>
-            {profile.username && (
-              <p className="text-sm text-muted-foreground">@{profile.username}</p>
+            {displayName && (
+              <p className="text-sm text-muted-foreground">
+                {displayName}
+              </p>
             )}
             <div className="flex gap-4 mt-2">
               <span className="text-sm text-muted-foreground">

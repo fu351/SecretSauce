@@ -164,6 +164,7 @@ describe('PATCH /api/auth/update-profile', () => {
         theme_preference: 'dark',
         zip_code: '94102',
         dietary_preferences: ['vegan'],
+        full_name_hidden: true,
       })
     )
 
@@ -174,6 +175,7 @@ describe('PATCH /api/auth/update-profile', () => {
       theme_preference: 'dark',
       zip_code: '94102',
       dietary_preferences: ['vegan'],
+      full_name_hidden: true,
     })
   })
 
