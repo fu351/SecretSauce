@@ -13,6 +13,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
+import { measureTextBlockHeight } from "@/lib/pretext"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { mealPlannerDB } from "@/lib/database/meal-planner-db"
 import { pantryItemsDB } from "@/lib/database/pantry-items-db"
@@ -526,15 +527,14 @@ export default function HomeReturningPage() {
       }
 
       try {
-        const { prepare, layout } = await import("@chenglou/pretext")
         const font = "400 14px Inter"
         const maxWidth = 240
         const lineHeight = 20
-        const maxHeight = sampleTitles.reduce((currentMax, title) => {
-          const prepared = prepare(title, font)
-          const { height } = layout(prepared, maxWidth, lineHeight)
-          return Math.max(currentMax, height)
-        }, 20)
+        let maxHeight = 20
+        for (const title of sampleTitles) {
+          const height = await measureTextBlockHeight(title, font, maxWidth, lineHeight)
+          maxHeight = Math.max(maxHeight, height)
+        }
 
         if (!cancelled) {
           setSearchTitleMinHeight(Math.min(Math.max(20, maxHeight), 40))

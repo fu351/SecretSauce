@@ -13,6 +13,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { ErrorBoundary } from "@/components/shared/error-boundary"
 import { ThemeSync } from "@/components/providers/theme-sync"
+import { PretextBootstrap } from "@/components/providers/pretext-bootstrap"
 import { TutorialProvider } from "@/contexts/tutorial-context"
 import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay"
 // Removed TutorialBlocker import
@@ -83,6 +84,7 @@ export default function RootLayout({
                   <PostHogProvider>
                     <TutorialProvider>
                       <ThemeSync />
+                      <PretextBootstrap />
                       <TutorialOverlay />
                       <FeedbackWidget position="bottom-left" />
                       <Header />
