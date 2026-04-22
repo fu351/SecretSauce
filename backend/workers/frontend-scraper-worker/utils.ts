@@ -103,7 +103,7 @@ export function normalizeFrontendScraperItem(item: any): GroceryItem {
     pricePerUnit: normalizeTextValue(item?.pricePerUnit) || undefined,
     unit: normalizeTextValue(item?.unit) || undefined,
     rawUnit: resolveRawUnitWithDailyScraperPriority(item) || undefined,
-    image_url: normalizeTextValue(item?.image_url, "/placeholder.svg"),
+    image_url: normalizeTextValue(item?.image_url, "/default-image.svg"),
     provider: storeName,
     location: normalizeTextValue(item?.location) || undefined,
     category: normalizeTextValue(item?.category) || undefined,

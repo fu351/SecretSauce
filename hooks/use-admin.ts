@@ -41,6 +41,7 @@ function useAdminStatus() {
     const ADMIN_STATUS_TIMEOUT_MS = 4500
     const timeoutId = setTimeout(() => controller.abort(new Error("admin-status timeout")), ADMIN_STATUS_TIMEOUT_MS)
     setLoading(true)
+    const cacheKey = user ? `secretSauce__adminStatus__${user.id}` : null
 
     async function checkStatus() {
       if (!user) {
@@ -50,10 +51,30 @@ function useAdminStatus() {
         return
       }
 
+      if (cacheKey) {
+        try {
+          const raw = sessionStorage.getItem(cacheKey)
+          if (raw) {
+            const cached = JSON.parse(raw) as { ts: number; isAdmin: boolean; canViewAnalytics: boolean }
+            if (Date.now() - cached.ts < 5 * 60_000) {
+              setIsAdmin(cached.isAdmin === true)
+              setCanViewAnalytics(cached.canViewAnalytics === true)
+              setLoading(false)
+              return
+            }
+          }
+        } catch {
+          // Ignore storage parse errors and fetch live status.
+        }
+      }
+
       try {
         const status = await fetchAdminStatus(controller.signal)
         setIsAdmin(status.isAdmin)
         setCanViewAnalytics(status.canViewAnalytics)
+        if (cacheKey) {
+          sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), ...status }))
+        }
       } catch (error) {
         if ((error as Error)?.name !== "AbortError") {
           console.error("[useAdminStatus] Exception checking admin status:", error)

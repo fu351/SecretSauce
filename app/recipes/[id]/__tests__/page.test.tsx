@@ -52,6 +52,9 @@ vi.mock("@/components/recipe/tags/tag-selector", () => ({
 
 vi.mock("@/lib/image-helper", () => ({
   getRecipeImageUrl: vi.fn((value: string | null | undefined) => value ?? "/placeholder.svg"),
+  getDefaultImageFallback: vi.fn((theme?: string) => (theme === "dark" ? "/logo-dark.png" : "/logo-warm.png")),
+  isDefaultImageFallback: vi.fn((src?: string) => Boolean(src?.includes("logo-"))),
+  applyFallbackImageStyles: vi.fn(),
 }))
 
 vi.mock("@/lib/database/recipe-favorites-db", () => ({

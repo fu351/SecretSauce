@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { ClerkProvider } from "@clerk/nextjs"
 import { Inter, Playfair_Display } from "next/font/google"
 import Script from "next/script"
@@ -25,11 +25,36 @@ export const metadata: Metadata = {
   title: "Secret Sauce - Save $$$ on Groceries",
   description: "Discover recipes, plan meals, and save on groceries",
   generator: "v0.dev",
-  icons: {
-    icon: "/Favicon.png",
-    shortcut: "/Favicon.png",
-    apple: "/Favicon.png",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Secret Sauce",
+  appleWebApp: {
+    capable: true,
+    title: "Secret Sauce",
+    statusBarStyle: "black-translucent",
   },
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
+  },
+  icons: {
+    icon: [
+      { url: "/icon", sizes: "192x192", type: "image/png" },
+      { url: "/icon", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/Favicon.png",
+    apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
+  },
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FAF4E5" },
+    { media: "(prefers-color-scheme: dark)", color: "#181813" },
+  ],
 }
 
 export default function RootLayout({

@@ -1,0 +1,26 @@
+WARNING! Running dev server in local mode without a project setup:
+  - Environment variables will not be pulled from Vercel
+  - Project settings are defined by local configuration
+
+To link your project, run `vercel dev` without `-L` or `--local` or `vercel link`.
+> NOTE: Requested port 3000 is already in use
+> NOTE: Requested port 3001 is already in use
+> Creating initial build
+WARNING: You should not upload the `.next` directory.
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (166kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+
+[1m[33mwarn[39m[22m - The class `duration-[1.5s]` is ambiguous and matches multiple utilities.
+[1m[33mwarn[39m[22m - If this is content and not a class, replace it with `duration-&lsqb;1.5s&rsqb;` to silence this warning.
+Error occurred prerendering page "/example-tier-demo". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Missing NEXT_PUBLIC_SUPABASE_URL environment variable.
+    at j (C:\Users\afu75\Documents\GitHub\SecretSauce\.next\server\app\example-tier-demo\page.js:2:25379)
+    at m (C:\Users\afu75\Documents\GitHub\SecretSauce\.next\server\app\example-tier-demo\page.js:2:25687)
+    at h (C:\Users\afu75\Documents\GitHub\SecretSauce\.next\server\app\example-tier-demo\page.js:2:15708)
+    at j (C:\Users\afu75\Documents\GitHub\SecretSauce\.next\server\app\example-tier-demo\page.js:2:16683)
+    at j (C:\Users\afu75\Documents\GitHub\SecretSauce\.next\server\app\example-tier-demo\page.js:2:8438)
+    at stringify (<anonymous>) {
+  digest: '1334863733'
+}
+Export encountered an error on /example-tier-demo/page: /example-tier-demo, exiting the build.
+ ⨯ Next.js build worker exited with code: 1 and signal: null
+Error: Command "pnpm run build" exited with 1

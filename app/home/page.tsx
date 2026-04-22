@@ -9,12 +9,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
+import { mealPlannerDB } from "@/lib/database/meal-planner-db"
+import { pantryItemsDB } from "@/lib/database/pantry-items-db"
 import { supabase } from "@/lib/database/supabase"
+import { getCurrentWeekIndex, getDatesForWeek } from "@/lib/date-utils"
 import Image from "next/image"
 import {
   Bell,
@@ -116,18 +119,23 @@ export default function HomeReturningPage() {
     users: { id: string; full_name: string | null; username: string | null; avatar_url: string | null }[]
   }>({ recipes: [], users: [] })
   const [searchOpen, setSearchOpen] = useState(false)
+  const [searchTitleMinHeight, setSearchTitleMinHeight] = useState<number>(20)
   const [searchLoading, setSearchLoading] = useState(false)
-  const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
-  const mobileInputRef = useRef<HTMLInputElement>(null)
+  const overlayInputRef = useRef<HTMLInputElement>(null)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [weekSummary, setWeekSummary] = useState<{
+    loading: boolean
+    dinnersLeft: number
+    expiringSoon: number
+  }>({ loading: false, dinnersLeft: 0, expiringSoon: 0 })
 
   const fetchingRecipes = useRef(false)
   const isMounted = useRef(true)
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value)
-    setSearchOpen(value.length > 0)
+    setSearchOpen(true)
 
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
 
@@ -152,22 +160,25 @@ export default function HomeReturningPage() {
     }, 300)
   }, [])
 
-  const clearSearch = () => {
+  const clearSearch = useCallback(() => {
     setSearchQuery("")
     setSearchOpen(false)
     setSearchResults({ recipes: [], users: [] })
-    setMobileSearchExpanded(false)
-  }
+  }, [])
 
   const openMobileSearch = () => {
-    setMobileSearchExpanded(true)
-    setTimeout(() => mobileInputRef.current?.focus(), 50)
+    setSearchOpen(true)
+    setTimeout(() => overlayInputRef.current?.focus(), 50)
   }
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return
     const q = searchQuery.trim()
-    if (!q || q.startsWith("@")) return
+    if (!q) return
+    if (q.startsWith("@")) {
+      if (!user) return
+      return
+    }
     clearSearch()
     router.push(`/recipes?search=${encodeURIComponent(q)}`)
   }
@@ -192,17 +203,13 @@ export default function HomeReturningPage() {
   }, [])
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setSearchOpen(false)
-        setMobileSearchExpanded(false)
-        setSearchQuery("")
-        setSearchResults({ recipes: [], users: [] })
-      }
+    if (!searchOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") clearSearch()
     }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [searchOpen, clearSearch])
 
   const fetchHomeRecipes = async () => {
     if (fetchingRecipes.current || !isMounted.current) return
@@ -273,9 +280,78 @@ export default function HomeReturningPage() {
   useEffect(() => {
     if (loading || !isMounted.current || fetchingRecipes.current) return
     void fetchHomeRecipes()
+  }, [loading])
+
+  useEffect(() => {
+    if (loading || !isMounted.current) return
+    if (!user) {
+      setLoadingFeed(false)
+      setLoadingChallenge(false)
+      setFeedPosts([])
+      setActiveChallenge(null)
+      setLeaderboard([])
+      setChallengeEntry(null)
+      setChallengeRank(null)
+      setWeekSummary({ loading: false, dinnersLeft: 0, expiringSoon: 0 })
+      return
+    }
     void fetchFeed()
     void fetchActiveChallenge()
-  }, [loading])
+  }, [loading, user])
+
+  useEffect(() => {
+    if (loading || !isMounted.current || !user?.id) return
+
+    let cancelled = false
+    setWeekSummary((s) => ({ ...s, loading: true }))
+
+    ;(async () => {
+      try {
+        const weekIndex = getCurrentWeekIndex()
+        const weekDates = getDatesForWeek(weekIndex)
+        const weekDateStrings = weekDates.map((d) => d.toISOString().split("T")[0])
+        const weekStart = weekDateStrings[0]
+        const weekEnd = weekDateStrings[weekDateStrings.length - 1]
+        const todayStr = new Date().toISOString().split("T")[0]
+        const countFrom = todayStr > weekStart ? todayStr : weekStart
+        const daysForDinnerCount = weekDateStrings.filter((d) => d >= countFrom && d <= weekEnd)
+
+        const [schedule, expiringSoon] = await Promise.all([
+          mealPlannerDB.fetchMealScheduleByDateRange(user.id, weekStart, weekEnd),
+          pantryItemsDB.findExpiringSoon(user.id, 7),
+        ])
+
+        const dinnerPlannedDates = new Set(
+          schedule
+            .filter(
+              (m) =>
+                m.meal_type === "dinner" &&
+                m.recipe_id != null &&
+                String(m.recipe_id).trim().length > 0
+            )
+            .map((m) => m.date)
+        )
+        const dinnersLeft = daysForDinnerCount.filter((d) => !dinnerPlannedDates.has(d)).length
+
+        if (!cancelled) {
+          setWeekSummary({
+            loading: false,
+            dinnersLeft,
+            expiringSoon: expiringSoon.length,
+          })
+        }
+      } catch (e) {
+        console.error("[home] week summary fetch failed:", e)
+        if (!cancelled) {
+          setWeekSummary({ loading: false, dinnersLeft: 0, expiringSoon: 0 })
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [loading, user?.id])
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -418,6 +494,72 @@ export default function HomeReturningPage() {
     if (activeChallenge) fetchLeaderboard(activeChallenge.id, scope)
   }
 
+  const isDark = theme === "dark"
+  const isLoggedIn = Boolean(user)
+  const firstName =
+    (user as any)?.firstName ||
+    (user as any)?.name?.split?.(" ")?.[0] ||
+    user?.email?.split("@")[0] ||
+    "there"
+
+  const searchPlaceholder = isLoggedIn ? "Search recipes or @username…" : "Search recipes…"
+  const suggestedRecipes = useMemo(
+    () => (flavorsOfWeek.length > 0 ? flavorsOfWeek : recommendedRecipes).slice(0, 8),
+    [flavorsOfWeek, recommendedRecipes]
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    if (!searchOpen) {
+      setSearchTitleMinHeight(20)
+      return
+    }
+
+    const measureSearchRowsWithPretext = async () => {
+      const sampleTitles = [
+        ...searchResults.recipes.slice(0, 6).map((r) => r.title),
+        ...suggestedRecipes.slice(0, 6).map((r) => r.title),
+      ]
+      if (sampleTitles.length === 0) {
+        setSearchTitleMinHeight(20)
+        return
+      }
+
+      try {
+        const { prepare, layout } = await import("@chenglou/pretext")
+        const font = "400 14px Inter"
+        const maxWidth = 240
+        const lineHeight = 20
+        const maxHeight = sampleTitles.reduce((currentMax, title) => {
+          const prepared = prepare(title, font)
+          const { height } = layout(prepared, maxWidth, lineHeight)
+          return Math.max(currentMax, height)
+        }, 20)
+
+        if (!cancelled) {
+          setSearchTitleMinHeight(Math.min(Math.max(20, maxHeight), 40))
+        }
+      } catch {
+        if (!cancelled) {
+          setSearchTitleMinHeight(20)
+        }
+      }
+    }
+
+    void measureSearchRowsWithPretext()
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchResults.recipes, suggestedRecipes])
+
+  const SectionHeader = ({ title, right }: { title: string; right?: React.ReactNode }) => (
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="text-lg md:text-xl font-serif font-light text-foreground">{title}</h2>
+      {right}
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -429,249 +571,297 @@ export default function HomeReturningPage() {
     )
   }
 
-  const isDark = theme === "dark"
-  const firstName =
-    (user as any)?.firstName ||
-    (user as any)?.name?.split?.(" ")?.[0] ||
-    user?.email?.split("@")[0] ||
-    "there"
-
-  const SectionHeader = ({ title, right }: { title: string; right?: React.ReactNode }) => (
-    <div className="flex items-center justify-between gap-3">
-      <h2 className="text-lg md:text-xl font-serif font-light text-foreground">{title}</h2>
-      {right}
-    </div>
-  )
-
   return (
     <div className="min-h-screen bg-background" data-tutorial="home-overview">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 space-y-6 md:space-y-10">
 
         {/* Top bar */}
-        {(() => {
-          const searchDropdown = searchOpen ? (
-            <div className="absolute top-11 left-0 right-0 z-50 rounded-2xl border bg-popover shadow-lg overflow-hidden">
-              {searchLoading ? (
-                <div className="p-4 text-sm text-muted-foreground text-center">Searching…</div>
-              ) : searchResults.users.length > 0 ? (
-                <div>
-                  <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
-                    People
+        <>
+          {/* Mobile top bar */}
+          <div className="flex md:hidden items-center justify-between gap-2">
+            {isLoggedIn ? (
+              <>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground shrink-0">
+                    {(firstName?.[0] || "A").toUpperCase()}
                   </div>
-                  {searchResults.users.map((u) => {
-                    const name = u.full_name ?? u.username ?? "Chef"
-                    const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-                    return (
-                      <Link
-                        key={u.id}
-                        href={`/user/${u.username ?? u.id}`}
-                        onClick={clearSearch}
-                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors"
-                      >
-                        {u.avatar_url ? (
-                          <Image src={u.avatar_url} alt={name} width={32} height={32} className="rounded-full object-cover" />
-                        ) : (
-                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground flex-shrink-0">
-                            {initials}
-                          </div>
-                        )}
-                        <div className="leading-tight min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate">{name}</div>
-                          {u.username && (
-                            <div className="text-xs text-muted-foreground">@{u.username}</div>
-                          )}
-                        </div>
-                      </Link>
-                    )
-                  })}
-                </div>
-              ) : searchResults.recipes.length > 0 ? (
-                <div>
-                  <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
-                    Recipes
+                  <div className="leading-tight min-w-0">
+                    <div className="text-[11px] text-muted-foreground">Good evening,</div>
+                    <div className="text-sm font-medium text-foreground truncate">{firstName}</div>
                   </div>
-                  {searchResults.recipes.map((r) => (
-                    <Link
-                      key={r.id}
-                      href={`/recipes/${r.id}`}
-                      onClick={clearSearch}
-                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors"
-                    >
-                      <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="text-sm text-foreground truncate">{r.title}</span>
-                    </Link>
-                  ))}
-                  <Link
-                    href={`/recipes?search=${encodeURIComponent(searchQuery.trim())}`}
-                    onClick={clearSearch}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 border-t text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  >
-                    See all results for &quot;{searchQuery.trim()}&quot;
-                  </Link>
                 </div>
-              ) : searchQuery.trim() ? (
-                <div className="p-4 text-sm text-muted-foreground text-center">
-                  No results for &quot;{searchQuery}&quot;
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" onClick={openMobileSearch} aria-label="Search recipes">
+                    <Search className="h-5 w-5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="hover:bg-muted/60">
+                    <Bell className="h-5 w-5" />
+                    <span className="sr-only">Notifications</span>
+                  </Button>
                 </div>
-              ) : null}
-            </div>
-          ) : null
+              </>
+            ) : (
+              <>
+                <div className="leading-tight min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground">Discover recipes</div>
+                  <div className="text-xs text-muted-foreground">Sign in for feed & challenges</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" className="h-8 px-3 text-xs" asChild>
+                    <Link href="/auth/signin">Sign in</Link>
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={openMobileSearch} aria-label="Search recipes">
+                    <Search className="h-5 w-5" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
 
-          return (
-            <>
-              {/* Mobile top bar */}
-              <div className="flex md:hidden items-center justify-between">
-                {!mobileSearchExpanded ? (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
-                        {(firstName?.[0] || "A").toUpperCase()}
-                      </div>
-                      <div className="leading-tight">
-                        <div className="text-[11px] text-muted-foreground">Good evening,</div>
-                        <div className="text-sm font-medium text-foreground">{firstName}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={openMobileSearch} aria-label="Search">
-                        <Search className="h-5 w-5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="hover:bg-muted/60">
-                        <Bell className="h-5 w-5" />
-                        <span className="sr-only">Notifications</span>
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div ref={searchRef} className="flex items-center gap-2 w-full">
+          {/* Desktop top bar */}
+          <div className="hidden md:flex items-center gap-3">
+            {isLoggedIn ? (
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
+                  {(firstName?.[0] || "A").toUpperCase()}
+                </div>
+                <div className="leading-tight">
+                  <div className="text-[11px] text-muted-foreground">Good evening,</div>
+                  <div className="text-sm font-medium text-foreground">{firstName}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-sm text-muted-foreground hidden lg:inline max-w-[200px]">
+                  Sign in for your feed, challenges, and friends.
+                </span>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/auth/signin">Sign in</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href="/auth/signup">Sign up</Link>
+                </Button>
+              </div>
+            )}
+
+            <div className="flex-1 relative min-w-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={() => setSearchOpen(true)}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder={searchPlaceholder}
+                  className="w-full h-9 pl-9 pr-8 rounded-full bg-muted text-sm text-foreground placeholder:text-muted-foreground border-0 outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={clearSearch}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted-foreground/20 transition-colors"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {isLoggedIn && (
+              <Button variant="ghost" size="icon" className="flex-shrink-0 hover:bg-muted/60">
+                <Bell className="h-5 w-5" />
+                <span className="sr-only">Notifications</span>
+              </Button>
+            )}
+          </div>
+
+          {searchOpen && (
+            <div className="fixed inset-0 z-[100] md:z-[90]" data-testid="home-search-overlay">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
+                onClick={clearSearch}
+                aria-label="Close search overlay"
+              />
+              <div className="absolute inset-0 bg-background flex flex-col">
+                <div className="border-b bg-background px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 md:px-6 md:pt-4">
+                  <div className="max-w-4xl mx-auto flex items-center gap-2">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <input
-                        ref={mobileInputRef}
-                        type="text"
+                      <Input
+                        ref={overlayInputRef}
                         value={searchQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
-                        onFocus={() => searchQuery && setSearchOpen(true)}
                         onKeyDown={handleSearchKeyDown}
-                        placeholder="Search recipes or @username…"
-                        className="w-full h-9 pl-9 pr-8 rounded-full bg-muted text-sm text-foreground placeholder:text-muted-foreground border-0 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder={searchPlaceholder}
+                        className="h-10 pl-9 pr-9 rounded-full"
+                        autoFocus
                       />
                       {searchQuery && (
                         <button
-                          onClick={() => { setSearchQuery(""); setSearchOpen(false); setSearchResults({ recipes: [], users: [] }) }}
+                          onClick={() => handleSearchChange("")}
                           className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted-foreground/20 transition-colors"
                           aria-label="Clear search"
                         >
-                          <X className="h-3 w-3 text-muted-foreground" />
+                          <X className="h-3.5 w-3.5 text-muted-foreground" />
                         </button>
                       )}
-                      {searchDropdown}
                     </div>
-                    <button
+                    <Button variant="ghost" size="sm" onClick={clearSearch}>Cancel</Button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-4 py-4 pb-28 md:px-6 md:pb-24">
+                  <div className="max-w-4xl mx-auto space-y-4">
+                    {searchLoading ? (
+                      <div className="p-4 text-sm text-muted-foreground text-center">Searching…</div>
+                    ) : searchQuery.trim() ? (
+                      <>
+                        {isLoggedIn && searchResults.users.length > 0 && (
+                          <div className="rounded-xl border overflow-hidden">
+                            <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
+                              People
+                            </div>
+                            {searchResults.users.map((u) => {
+                              const name = u.full_name ?? u.username ?? "Chef"
+                              const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+                              return (
+                                <Link
+                                  key={u.id}
+                                  href={`/user/${u.username ?? u.id}`}
+                                  onClick={clearSearch}
+                                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors"
+                                >
+                                  {u.avatar_url ? (
+                                    <Image src={u.avatar_url} alt={name} width={32} height={32} className="rounded-full object-cover" />
+                                  ) : (
+                                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground flex-shrink-0">
+                                      {initials}
+                                    </div>
+                                  )}
+                                  <div className="leading-tight min-w-0">
+                                    <div className="text-sm font-medium text-foreground truncate">{name}</div>
+                                    {u.username && <div className="text-xs text-muted-foreground">@{u.username}</div>}
+                                  </div>
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {searchResults.recipes.length > 0 ? (
+                          <div className="rounded-xl border overflow-hidden">
+                            <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
+                              Recipes
+                            </div>
+                            {searchResults.recipes.map((r) => (
+                              <Link
+                                key={r.id}
+                                href={`/recipes/${r.id}`}
+                                onClick={clearSearch}
+                                className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors"
+                              >
+                                <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm text-foreground truncate leading-5" style={{ minHeight: `${searchTitleMinHeight}px` }}>{r.title}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 text-sm text-muted-foreground text-center rounded-xl border">
+                            No results for &quot;{searchQuery}&quot;
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="rounded-xl border overflow-hidden">
+                        <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
+                          Suggested recipes
+                        </div>
+                        {suggestedRecipes.map((r) => (
+                          <Link
+                            key={r.id}
+                            href={`/recipes/${r.id}`}
+                            onClick={clearSearch}
+                            className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted transition-colors"
+                          >
+                            <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm text-foreground truncate leading-5" style={{ minHeight: `${searchTitleMinHeight}px` }}>{r.title}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="absolute inset-x-0 bottom-0 border-t bg-background/95 backdrop-blur px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:px-6">
+                  <div className="max-w-4xl mx-auto">
+                    <Link
+                      href={searchQuery.trim() ? `/recipes?search=${encodeURIComponent(searchQuery.trim())}` : "/recipes"}
                       onClick={clearSearch}
-                      className="text-sm text-muted-foreground hover:text-foreground flex-shrink-0"
+                      className="flex h-10 items-center justify-center rounded-full border text-sm font-medium transition-colors hover:bg-muted"
                     >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Desktop top bar */}
-              <div className="hidden md:flex items-center gap-3">
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
-                    {(firstName?.[0] || "A").toUpperCase()}
-                  </div>
-                  <div className="leading-tight">
-                    <div className="text-[11px] text-muted-foreground">Good evening,</div>
-                    <div className="text-sm font-medium text-foreground">{firstName}</div>
+                      Browse all recipes
+                    </Link>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+        </>
 
-                <div ref={searchRef} className="flex-1 relative">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => handleSearchChange(e.target.value)}
-                      onFocus={() => searchQuery && setSearchOpen(true)}
-                      onKeyDown={handleSearchKeyDown}
-                      placeholder="Search recipes or @username…"
-                      className="w-full h-9 pl-9 pr-8 rounded-full bg-muted text-sm text-foreground placeholder:text-muted-foreground border-0 outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={clearSearch}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted-foreground/20 transition-colors"
-                        aria-label="Clear search"
-                      >
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      </button>
+        {/* Weekly challenge hero (signed-in only) */}
+        {isLoggedIn && (
+          loadingChallenge ? (
+            <Card><CardContent className="p-4 md:p-6 h-32 animate-pulse bg-muted/30" /></Card>
+          ) : activeChallenge ? (
+            <Card>
+              <CardContent className="p-4 md:p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">This week&apos;s challenge</p>
+                    <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">
+                      {activeChallenge.title}
+                    </h1>
+                    {activeChallenge.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{activeChallenge.description}</p>
                     )}
-                  </div>
-                  {searchDropdown}
-                </div>
-
-                <Button variant="ghost" size="icon" className="flex-shrink-0 hover:bg-muted/60">
-                  <Bell className="h-5 w-5" />
-                  <span className="sr-only">Notifications</span>
-                </Button>
-              </div>
-            </>
-          )
-        })()}
-
-        {/* Weekly challenge hero */}
-        {loadingChallenge ? (
-          <Card><CardContent className="p-4 md:p-6 h-32 animate-pulse bg-muted/30" /></Card>
-        ) : activeChallenge ? (
-          <Card>
-            <CardContent className="p-4 md:p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">This week&apos;s challenge</p>
-                  <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">
-                    {activeChallenge.title}
-                  </h1>
-                  {activeChallenge.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">{activeChallenge.description}</p>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" /> {timeUntil(activeChallenge.ends_at)}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" /> {activeChallenge.participant_count} joined
-                    </span>
-                    {challengeRank != null && (
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
-                        <Trophy className="h-3.5 w-3.5" /> #{challengeRank} among friends
+                        <Clock className="h-3.5 w-3.5" /> {timeUntil(activeChallenge.ends_at)}
                       </span>
-                    )}
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="h-3.5 w-3.5" /> {activeChallenge.participant_count} joined
+                      </span>
+                      {challengeRank != null && (
+                        <span className="inline-flex items-center gap-1">
+                          <Trophy className="h-3.5 w-3.5" /> #{challengeRank} among friends
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  <Badge className="bg-primary/15 text-primary border border-primary/20 flex-shrink-0">
+                    +{activeChallenge.points} pts
+                  </Badge>
                 </div>
-                <Badge className="bg-primary/15 text-primary border border-primary/20 flex-shrink-0">
-                  +{activeChallenge.points} pts
-                </Badge>
-              </div>
-              <div className="mt-4">
-                {challengeEntry?.post_id ? (
-                  <Button variant="secondary" className="w-full gap-1.5" disabled>
-                    <CheckCircle2 className="h-4 w-4" /> Dish Submitted
-                  </Button>
-                ) : (
-                  <Button className="w-full" onClick={openPostDishDialog}>
-                    Post Your Dish to Enter
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
+                <div className="mt-4">
+                  {challengeEntry?.post_id ? (
+                    <Button variant="secondary" className="w-full gap-1.5" disabled>
+                      <CheckCircle2 className="h-4 w-4" /> Dish Submitted
+                    </Button>
+                  ) : (
+                    <Button className="w-full" onClick={openPostDishDialog}>
+                      Post Your Dish to Enter
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null
+        )}
 
         {/* Post Your Dish dialog */}
+        {isLoggedIn && (
         <Dialog
           open={postDishOpen}
           onOpenChange={(open) => {
@@ -764,6 +954,7 @@ export default function HomeReturningPage() {
             </div>
           </DialogContent>
         </Dialog>
+        )}
 
         {/* Flavors of the Week */}
         <div className="space-y-3">
@@ -806,7 +997,8 @@ export default function HomeReturningPage() {
           )}
         </div>
 
-        {/* Made by Your Circle — real posts feed */}
+        {/* Made by Your Circle — signed-in social feed */}
+        {isLoggedIn && (
         <div className="space-y-3">
           <SectionHeader
             title="Made by Your Circle"
@@ -921,8 +1113,10 @@ export default function HomeReturningPage() {
             </div>
           )}
         </div>
+        )}
 
-        {/* Leaders + signals */}
+        {/* Leaders + challenge + week summary (signed-in only) */}
+        {isLoggedIn && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="md:col-span-1">
             <CardHeader className="pb-3">
@@ -984,20 +1178,55 @@ export default function HomeReturningPage() {
             </CardHeader>
             <CardContent className="pt-0 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium text-foreground">2 dinners left to plan</p>
-                  <p className="text-xs text-muted-foreground mt-1">Lock in your week in under 60 seconds.</p>
-                  <Button className="mt-3 w-full" asChild>
-                    <Link href="/meal-planner">Continue Planning</Link>
-                  </Button>
-                </div>
-                <div className="rounded-xl border p-3">
-                  <p className="text-sm font-medium text-foreground">3 pantry items expiring soon</p>
-                  <p className="text-xs text-muted-foreground mt-1">Rescue them with a quick recipe.</p>
-                  <Button className="mt-3 w-full" variant="outline" asChild>
-                    <Link href="/pantry">Check Pantry</Link>
-                  </Button>
-                </div>
+                {weekSummary.loading ? (
+                  <>
+                    <div className="rounded-xl border p-3 space-y-2">
+                      <div className="h-4 w-44 rounded bg-muted animate-pulse" />
+                      <div className="h-3 w-full rounded bg-muted/70 animate-pulse" />
+                      <div className="h-9 w-full rounded-md bg-muted animate-pulse mt-3" />
+                    </div>
+                    <div className="rounded-xl border p-3 space-y-2">
+                      <div className="h-4 w-48 rounded bg-muted animate-pulse" />
+                      <div className="h-3 w-full rounded bg-muted/70 animate-pulse" />
+                      <div className="h-9 w-full rounded-md bg-muted animate-pulse mt-3" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-xl border p-3">
+                      <p className="text-sm font-medium text-foreground">
+                        {weekSummary.dinnersLeft > 0
+                          ? `${weekSummary.dinnersLeft} dinner${weekSummary.dinnersLeft === 1 ? "" : "s"} left to plan this week`
+                          : "Dinners are planned for the rest of this week"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {weekSummary.dinnersLeft > 0
+                          ? "Add them on your meal planner from today through Sunday."
+                          : "Open the planner to tweak meals or jump ahead to next week."}
+                      </p>
+                      <Button className="mt-3 w-full" asChild>
+                        <Link href="/meal-planner">
+                          {weekSummary.dinnersLeft > 0 ? "Continue planning" : "Open meal planner"}
+                        </Link>
+                      </Button>
+                    </div>
+                    <div className="rounded-xl border p-3">
+                      <p className="text-sm font-medium text-foreground">
+                        {weekSummary.expiringSoon > 0
+                          ? `${weekSummary.expiringSoon} pantry item${weekSummary.expiringSoon === 1 ? "" : "s"} expiring in the next 7 days`
+                          : "No pantry items expiring in the next week"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {weekSummary.expiringSoon > 0
+                          ? "Use them soon or update dates on your pantry."
+                          : "Track ingredients with dates to see reminders here."}
+                      </p>
+                      <Button className="mt-3 w-full" variant="outline" asChild>
+                        <Link href="/pantry">{weekSummary.expiringSoon > 0 ? "Review pantry" : "Open pantry"}</Link>
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
               {activeChallenge && (
                 <>
@@ -1015,6 +1244,7 @@ export default function HomeReturningPage() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {/* Recommended for you */}
         <div className="space-y-3">

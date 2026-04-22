@@ -103,10 +103,13 @@
     @apply bg-background text-foreground;
   }
 
-  /* Reserve room for fixed mobile bottom navbar without adding top gap */
+  /* Reserve room for fixed mobile bottom navbar + iOS safe areas */
   @media (max-width: 767px) {
     body {
-      padding-bottom: 6rem;
+      padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      overscroll-behavior-y: none;
     }
   }
 
@@ -236,6 +239,7 @@
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Smooth scroll behavior + center mobile view when viewport is wider (e.g. Cursor browser) */
@@ -243,6 +247,8 @@ html {
   scroll-behavior: smooth;
   margin-left: auto;
   margin-right: auto;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Optimize image loading */

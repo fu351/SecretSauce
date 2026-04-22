@@ -8,11 +8,18 @@ const mockToast = vi.fn()
 const mockSetTheme = vi.fn()
 const mockUpdateProfile = vi.fn()
 
-let mockAuthState = {
+let mockAuthState: {
+  user: { id: string; email: string } | null
+  profile: Record<string, unknown> | null
+  loading: boolean
+  updateProfile: typeof mockUpdateProfile
+} = {
   user: {
     id: "user_1",
     email: "cook@example.com",
   },
+  profile: null,
+  loading: false,
   updateProfile: mockUpdateProfile,
 }
 
@@ -120,6 +127,8 @@ describe("OnboardingPage", () => {
         id: "user_1",
         email: "cook@example.com",
       },
+      profile: null,
+      loading: false,
       updateProfile: mockUpdateProfile,
     }
     mockUpdateProfile.mockResolvedValue(undefined)
@@ -157,29 +166,87 @@ describe("OnboardingPage", () => {
     })
   })
 
-  it("redirects anonymous users to sign-in when they try to finish onboarding", async () => {
+  it("redirects anonymous users to sign-in immediately", async () => {
     mockAuthState = {
       user: null,
+      profile: null,
+      loading: false,
       updateProfile: mockUpdateProfile,
     }
     const router = mockRouter()
+    const mod = await import("../page")
+    const Page = mod.default
+
+    render(<Page />)
+
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith("/auth/signin")
+    })
+    expect(screen.queryByRole("heading", { name: /tell us about your kitchen/i })).not.toBeInTheDocument()
+  })
+
+  it("hydrates the form from profile once (cooking level, goal order, postal)", async () => {
+    mockAuthState = {
+      user: { id: "user_1", email: "cook@example.com" },
+      profile: {
+        primary_goal: "budgeting",
+        cooking_level: "intermediate",
+        budget_range: "low",
+        dietary_preferences: ["vegetarian"],
+        cuisine_preferences: ["italian"],
+        cooking_time_preference: "medium",
+        zip_code: "94105",
+        city: "San Francisco",
+        state: "CA",
+        country: "USA",
+        grocery_distance_miles: 15,
+        theme_preference: "dark",
+      },
+      loading: false,
+      updateProfile: mockUpdateProfile,
+    }
     const mod = await import("../page")
     const Page = mod.default
     const user = userEvent.setup()
 
     render(<Page />)
 
-    await completeRequiredOnboardingFlow(user)
-    await user.click(screen.getByRole("button", { name: /finish/i }))
-
+    await user.click(screen.getByRole("button", { name: /^next$/i }))
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Error",
-          variant: "destructive",
-        })
-      )
-      expect(router.push).toHaveBeenCalledWith("/auth/signin")
+      expect(screen.getByRole("heading", { name: /your current level/i })).toBeInTheDocument()
     })
+
+    const practitioner = screen.getByRole("button", { name: /practitioner/i })
+    expect(practitioner.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
+
+    await user.click(screen.getByRole("button", { name: /^next$/i }))
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /your investment/i })).toBeInTheDocument()
+    })
+    const essential = screen.getByRole("button", { name: /essential/i })
+    expect(essential.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
+
+    await user.click(screen.getByRole("button", { name: /^next$/i }))
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /dietary considerations/i })).toBeInTheDocument()
+    })
+    const veg = screen.getByRole("button", { name: /vegetarian/i })
+    expect(veg.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
+
+    await user.click(screen.getByRole("button", { name: /^next$/i }))
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /cuisine preferences/i })).toBeInTheDocument()
+    })
+    const italian = screen.getByRole("button", { name: /italian/i })
+    expect(italian.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
+
+    for (let i = 0; i < 2; i++) {
+      await user.click(screen.getByRole("button", { name: /^next$/i }))
+    }
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /location preferences/i })).toBeInTheDocument()
+    })
+    expect(screen.getByPlaceholderText("ZIP/Postal")).toHaveValue("94105")
+    expect(screen.getByPlaceholderText("City")).toHaveValue("San Francisco")
   })
 })

@@ -1,8 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const mockResetTutorial = vi.fn()
 const mockFetchRecipesByAuthor = vi.fn()
 const mockFetchFavoriteRecipeIds = vi.fn()
 const mockFetchMealScheduleByWeekIndex = vi.fn()
@@ -15,17 +13,6 @@ let mockAuthState = {
 
 vi.mock("@/contexts/auth-context", () => ({
   useAuth: vi.fn(() => mockAuthState),
-}))
-
-vi.mock("@/contexts/theme-context", () => ({
-  useTheme: vi.fn(() => ({ theme: "light" })),
-}))
-
-vi.mock("@/contexts/tutorial-context", () => ({
-  useTutorial: vi.fn(() => ({
-    isActive: false,
-    resetTutorial: mockResetTutorial,
-  })),
 }))
 
 vi.mock("@/lib/database/recipe-db", () => ({
@@ -56,11 +43,6 @@ vi.mock("@/components/recipe/cards/recipe-card", () => ({
   RecipeCard: ({ title }: { title: string }) => <div>{title}</div>,
 }))
 
-vi.mock("@/components/tutorial/tutorial-selection-modal", () => ({
-  TutorialSelectionModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="tutorial-selection-modal">Tutorial Modal</div> : null,
-}))
-
 vi.mock("@/components/shared/ios-webapp-prompt-banner", () => ({
   default: () => <div data-testid="ios-banner">iOS Prompt</div>,
 }))
@@ -76,18 +58,6 @@ vi.mock("@/components/dashboard/graph-tracker", () => ({
 
 vi.mock("@/components/social/profile-card", () => ({
   ProfileCard: () => <div data-testid="profile-card">Profile Card</div>,
-}))
-
-vi.mock("@/components/social/challenge-widget", () => ({
-  ChallengeWidget: () => <div data-testid="challenge-widget">Challenge Widget</div>,
-}))
-
-vi.mock("@/components/social/friends-widget", () => ({
-  FriendsWidget: () => <div data-testid="friends-widget">Friends Widget</div>,
-}))
-
-vi.mock("@/components/social/notifications-widget", () => ({
-  NotificationsWidget: () => <div data-testid="notifications-widget">Notifications Widget</div>,
 }))
 
 vi.mock("@/lib/utils", async () => {
@@ -142,19 +112,10 @@ describe("DashboardPage", () => {
     })
 
     expect(screen.getByText(/welcome back, chef/i)).toBeInTheDocument()
-    expect(screen.getByTestId("premium-upgrade-widget")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /upgrade now/i })).toHaveAttribute("href", "/checkout")
     expect(screen.getByTestId("graph-tracker")).toBeInTheDocument()
-  })
-
-  it("starts the tutorial from the prompt and opens the modal", async () => {
-    render(<DashboardPage />)
-
-    const user = userEvent.setup()
-    await user.click(await screen.findByRole("button", { name: /start tutorial/i }))
-
-    expect(mockResetTutorial).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId("tutorial-selection-modal")).toBeInTheDocument()
+    expect(screen.queryByTestId("premium-upgrade-widget")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("friends-widget")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("notifications-widget")).not.toBeInTheDocument()
   })
 
   it("renders the empty recent-recipes state when no recipes exist", async () => {

@@ -5,9 +5,10 @@ import { useState, useEffect, memo } from "react"
 import Image from "next/image"
 import { Star, Heart } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/database/supabase"
 import { useToast } from "@/hooks"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { Recipe, RecipeTags } from "@/lib/types"
 import { useDraggable } from "@dnd-kit/core"
 
@@ -52,6 +53,10 @@ function RecipeCardCompactComponent({
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
+  const { theme } = useTheme()
+  const imageFallback = getDefaultImageFallback(theme)
+  const imageSrc = getRecipeImageUrl(content?.image_url || recipe.image_url, theme) || imageFallback
+  const isFallbackImage = isDefaultImageFallback(imageSrc)
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided
@@ -163,13 +168,20 @@ function RecipeCardCompactComponent({
         {/* Image Section */}
         <div className="relative aspect-[4/3] bg-muted">
           <Image
-            src={getRecipeImageUrl(content?.image_url) || "/placeholder.svg"}
+            src={imageSrc}
             alt={title}
             fill
             sizes="(max-width: 768px) 50vw, 25vw"
-            className="object-cover"
+            className={isFallbackImage ? "object-contain p-3" : "object-cover"}
             priority={false}
             loading="lazy"
+            onError={(event) => {
+              const target = event.currentTarget as HTMLImageElement
+              if (!target.src.includes(imageFallback)) {
+                target.src = imageFallback
+                applyFallbackImageStyles(target)
+              }
+            }}
           />
 
           {/* Simple gradient overlay for text readability */}

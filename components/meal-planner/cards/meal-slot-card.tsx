@@ -5,7 +5,8 @@ import Image from "next/image"
 import { X, Plus } from "lucide-react"
 import type { Recipe } from "@/lib/types"
 import { useDroppable, useDraggable } from "@dnd-kit/core"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
+import { useTheme } from "@/contexts/theme-context"
 
 interface DragData {
   recipe: Recipe
@@ -41,7 +42,11 @@ function MealSlotCardComponent({
   activeDragData,
   activeDropTarget,
 }: MealSlotCardProps) {
+  const { theme } = useTheme()
+  const imageFallback = getDefaultImageFallback(theme)
   const recipeImageUrl = recipe?.image_url ?? recipe?.content?.image_url
+  const imageSrc = getRecipeImageUrl(recipeImageUrl, theme) || imageFallback
+  const isFallbackImage = isDefaultImageFallback(imageSrc)
   const lastTapRef = useRef(0)
   const todayStr = new Date().toISOString().split("T")[0]
   const isTodayDinner = date === todayStr && mealType === "dinner"
@@ -124,11 +129,18 @@ function MealSlotCardComponent({
             className="absolute inset-0 cursor-grab active:cursor-grabbing z-[1]"
           >
           <Image
-              src={getRecipeImageUrl(recipeImageUrl)}
+              src={imageSrc}
               alt={recipe.title}
               fill
               sizes="(max-width: 768px) 120px, 260px"
-              className="object-cover transition-transform duration-200 group-hover:scale-110 pointer-events-none"
+              className={`${isFallbackImage ? "object-contain p-2" : "object-cover"} transition-transform duration-200 group-hover:scale-110 pointer-events-none`}
+              onError={(event) => {
+                const target = event.currentTarget as HTMLImageElement
+                if (!target.src.includes(imageFallback)) {
+                  target.src = imageFallback
+                  applyFallbackImageStyles(target)
+                }
+              }}
             />
           </div>
 

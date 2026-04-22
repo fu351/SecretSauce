@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { mealPlannerDB, type MealScheduleRow } from "@/lib/database/meal-planner-db"
 import { useAnalytics } from "@/hooks/use-analytics"
 import type { Recipe } from "@/lib/types"
@@ -12,9 +12,14 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
   const [recipesById, setRecipesById] = useState<Record<string, Recipe>>({})
   const [loading, setLoading] = useState(false)
   const { trackEvent } = useAnalytics()
+  const inFlightKeyRef = useRef<string | null>(null)
 
   const loadWeeklyMealPlan = useCallback(async () => {
     if (!userId || !weekIndex) return
+
+    const key = `${userId}:${weekIndex}`
+    if (inFlightKeyRef.current === key) return
+    inFlightKeyRef.current = key
 
     setLoading(true)
     try {
@@ -23,7 +28,6 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
 
       const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(userId, weekIndex)
       setMeals(mealSchedule)
-
       const recipeIds = Array.from(new Set(mealSchedule.map((m) => m.recipe_id)))
       if (recipeIds.length > 0) {
         const recipes = await mealPlannerDB.fetchRecipesByIds(recipeIds)
@@ -38,6 +42,9 @@ export function useWeeklyMealPlan(userId: string | undefined, weekIndex: number)
     } catch (error) {
       console.error("[useWeeklyMealPlan] Error loading weekly meal plan:", error)
     } finally {
+      if (inFlightKeyRef.current === key) {
+        inFlightKeyRef.current = null
+      }
       setLoading(false)
     }
   }, [userId, weekIndex])

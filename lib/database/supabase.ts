@@ -17,6 +17,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export const createMonitoredClient = (url: string, key: string, options: any) => {
   const client = createClient(url, key, options)
+  if (!DB_DEBUG) {
+    return client
+  }
 
   // Wrap the from method to add monitoring
   const originalFrom = client.from.bind(client)
@@ -88,11 +91,13 @@ const missingEnvMessage =
 type BrowserAccessTokenProvider = () => Promise<string | null>
 
 let browserAccessTokenProvider: BrowserAccessTokenProvider | null = null
+let browserAccessTokenCache: { token: string | null; expiresAt: number } | null = null
 
 export const setBrowserAccessTokenProvider = (
   provider: BrowserAccessTokenProvider | null
 ) => {
   browserAccessTokenProvider = provider
+  browserAccessTokenCache = null
 }
 
 const getCookieValue = (name: string): string | null => {
@@ -153,9 +158,17 @@ const getLegacySupabaseAccessTokenFromCookies = (): string | null => {
 }
 
 const resolveBrowserAccessToken = async (): Promise<string | null> => {
+  if (browserAccessTokenCache && browserAccessTokenCache.expiresAt > Date.now()) {
+    return browserAccessTokenCache.token
+  }
+
   if (browserAccessTokenProvider) {
     try {
       const clerkToken = await browserAccessTokenProvider()
+      browserAccessTokenCache = {
+        token: clerkToken ?? null,
+        expiresAt: Date.now() + 25_000,
+      }
       return clerkToken ?? null
     } catch (error) {
       console.warn("[supabase] Browser access token provider failed:", error)
@@ -163,7 +176,12 @@ const resolveBrowserAccessToken = async (): Promise<string | null> => {
     }
   }
 
-  return getLegacySupabaseAccessTokenFromCookies()
+  const token = getLegacySupabaseAccessTokenFromCookies()
+  browserAccessTokenCache = {
+    token,
+    expiresAt: Date.now() + 15_000,
+  }
+  return token
 }
 
 const browserClientOptions = {

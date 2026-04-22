@@ -1,11 +1,14 @@
+"use client"
+
 import { memo, useRef, useState } from "react"
 import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Clock, Flame, Heart, Star, Users } from "lucide-react"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import type { Recipe } from "@/lib/types"
+import { useTheme } from "@/contexts/theme-context"
 
 export interface RecipeGridProps {
   recipes: Recipe[]
@@ -24,6 +27,8 @@ export const RecipeGrid = memo(function RecipeGrid({
   onFavoriteToggle,
   onRecipeClick
 }: RecipeGridProps) {
+  const { theme } = useTheme()
+  const imageFallback = getDefaultImageFallback(theme)
   const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>(null)
   const lastTapRef = useRef<{ id: string | null; ts: number }>({ id: null, ts: 0 })
   const aspectClasses = [
@@ -74,6 +79,10 @@ export const RecipeGrid = memo(function RecipeGrid({
   return (
     <div className="columns-2 md:columns-3 lg:columns-4 gap-3 md:gap-4">
       {recipes.map((recipe: Recipe, idx: number) => (
+        (() => {
+          const imageSrc = getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) || imageFallback
+          const isFallbackImage = isDefaultImageFallback(imageSrc)
+          return (
         <article
           key={recipe.id}
           id={idx === 0 ? "tutorial-recipe-card" : undefined}
@@ -96,12 +105,19 @@ export const RecipeGrid = memo(function RecipeGrid({
             }`}
           >
             <Image
-              src={getRecipeImageUrl(recipe.content?.image_url || recipe.image_url) || "/placeholder.svg"}
+              src={imageSrc}
               alt={recipe.title}
               fill
               sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover transition-transform duration-300 md:group-hover:scale-[1.03]"
+              className={`${isFallbackImage ? "object-contain p-3" : "object-cover"} transition-transform duration-300 md:group-hover:scale-[1.03]`}
               loading="lazy"
+              onError={(event) => {
+                const target = event.currentTarget as HTMLImageElement
+                if (!target.src.includes(imageFallback)) {
+                  target.src = imageFallback
+                  applyFallbackImageStyles(target)
+                }
+              }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
 
@@ -207,6 +223,8 @@ export const RecipeGrid = memo(function RecipeGrid({
             </div>
           </div>
         </article>
+          )
+        })()
       ))}
     </div>
   )

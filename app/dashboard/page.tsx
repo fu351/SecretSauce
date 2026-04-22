@@ -9,16 +9,9 @@ import {
   Calendar,
   ShoppingCart,
   Plus,
-  PlayCircle,
-  X,
   Truck,
-  Crown,
-  Sparkles,
-  ArrowRight,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { useExperiment } from "@/hooks/use-experiment"
-import { useTheme } from "@/contexts/theme-context"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import { mealPlannerDB } from "@/lib/database/meal-planner-db"
@@ -30,18 +23,11 @@ import { Recipe } from "@/lib/types"
 
 // Tutorial Components
 // TutorialOverlay is rendered globally in layout.tsx
-import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
-import { useTutorial } from "@/contexts/tutorial-context"
-
-// iOS Web App Components
 import IOSWebAppPromptBanner from "@/components/shared/ios-webapp-prompt-banner"
 import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
 import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
 import { ProfileCard } from "@/components/social/profile-card"
-import { ChallengeWidget } from "@/components/social/challenge-widget"
-import { FriendsWidget } from "@/components/social/friends-widget"
-import { NotificationsWidget } from "@/components/social/notifications-widget"
 
 interface DashboardStats {
   totalRecipes: number
@@ -59,26 +45,18 @@ export default function DashboardPage() {
   })
   const [recentRecipes, setRecentRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
-  const [showTutorialPrompt, setShowTutorialPrompt] = useState(false)
-  const [showTutorialModal, setShowTutorialModal] = useState(false)
   const [showIOSPrompt, setShowIOSPrompt] = useState(false)
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false)
   const { user, profile } = useAuth()
-  const { theme } = useTheme()
-  const { isActive, resetTutorial } = useTutorial()
-  const isDark = theme === "dark"
-  const showPremiumUpsell = profile?.subscription_tier !== "premium"
 
-  const { variantKey: upsellVariant, trackConversion: trackUpsellConversion } = useExperiment(
-    "dashboard-upsell-variant",
-    { enabled: showPremiumUpsell }
-  )
+  useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
-  const upsellCopy = upsellVariant === "savings_focus"
-    ? { headline: "Save money on every grocery run with Premium", cta: "Start saving today" }
-    : upsellVariant === "features_focus"
-    ? { headline: "Unlock smarter meal planning, delivery discounts, and nutrition insights", cta: "See what's included" }
-    : { headline: "Premium unlocks delivery savings and smarter planning", cta: "Upgrade now" }
+    setLoading(true)
+  }, [user])
 
   useEffect(() => {
     if (!user) return
@@ -87,35 +65,30 @@ export default function DashboardPage() {
       try {
         setLoading(true)
 
-        // Fetch recipes by author to get count
-        const userRecipes = await recipeDB.fetchRecipesByAuthor(user.id, { limit: 1000 })
-        const recipesCount = userRecipes.length
-
-        // Fetch favorite recipe IDs to get count
-        const favoriteIds = await recipeFavoritesDB.fetchFavoriteRecipeIds(user.id)
-        const favoritesCount = favoriteIds.length
-
-        // Fetch meal schedule for current week via week index
         const now = new Date()
         const currentWeekIndex = getYear(now) * 100 + getWeek(now, { weekStartsOn: 1 })
-        const mealSchedule = await mealPlannerDB.fetchMealScheduleByWeekIndex(user.id, currentWeekIndex)
-        const plannedMealsCount = mealSchedule.length
-
-        // Fetch shopping list items
-        const shoppingItems = await shoppingListDB.fetchUserItems(user.id)
-        const shoppingItemsCount = shoppingItems.length
+        const [
+          userRecipes,
+          favoriteIds,
+          mealSchedule,
+          shoppingItems,
+          recentRecipesData,
+        ] = await Promise.all([
+          recipeDB.fetchRecipesByAuthor(user.id, { limit: 1000 }),
+          recipeFavoritesDB.fetchFavoriteRecipeIds(user.id),
+          mealPlannerDB.fetchMealScheduleByWeekIndex(user.id, currentWeekIndex),
+          shoppingListDB.fetchUserItems(user.id),
+          recipeDB.fetchRecipesByAuthor(user.id, {
+            sortBy: "created_at",
+            limit: 3,
+          }),
+        ])
 
         setStats({
-          totalRecipes: recipesCount,
-          favoriteRecipes: favoritesCount,
-          plannedMeals: plannedMealsCount,
-          shoppingItems: shoppingItemsCount,
-        })
-
-        // Fetch recent recipes
-        const recentRecipesData = await recipeDB.fetchRecipesByAuthor(user.id, {
-          sortBy: "created_at",
-          limit: 3,
+          totalRecipes: userRecipes.length,
+          favoriteRecipes: favoriteIds.length,
+          plannedMeals: mealSchedule.length,
+          shoppingItems: shoppingItems.length,
         })
 
         setRecentRecipes(recentRecipesData)
@@ -129,16 +102,6 @@ export default function DashboardPage() {
     void run()
   }, [user])
 
-  // Check if user needs to see tutorial prompt
-  useEffect(() => {
-    if (profile && !profile.tutorial_completed && !isActive) {
-      // Show prominent tutorial prompt if they haven't completed it
-      setShowTutorialPrompt(true)
-    } else {
-      setShowTutorialPrompt(false)
-    }
-  }, [profile, isActive])
-
   // Check if user should see iOS web app prompt
   useEffect(() => {
     // Only check on client side
@@ -151,32 +114,12 @@ export default function DashboardPage() {
     const dismissed = localStorage.getItem("ios_webapp_prompt_dismissed")
     if (dismissed === "true") return
 
-    // Tutorial takes priority - don't show iOS prompt if tutorial should show
-    if (profile && profile.tutorial_completed === false) {
-      setShowIOSPrompt(false)
-      return
-    }
-
     // Random 20-30% chance
     const randomThreshold = 0.20 + (Math.random() * 0.10)
     if (Math.random() < randomThreshold) {
       setShowIOSPrompt(true)
     }
   }, [profile])
-
-  const handleDismissTutorialPrompt = () => {
-    setShowTutorialPrompt(false)
-    // Save dismissal to localStorage so it doesn't show again this session
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("tutorial_prompt_dismissed", "true")
-    }
-  }
-
-  const handleStartTutorial = () => {
-    resetTutorial()
-    setShowTutorialPrompt(false)
-    setShowTutorialModal(true)
-  }
 
   const handleDismissIOSPrompt = () => {
     setShowIOSPrompt(false)
@@ -195,10 +138,6 @@ export default function DashboardPage() {
 
   return (
     <div data-tutorial="dashboard-overview">
-      {/* Tutorial Components: Overlay is rendered globally in layout.tsx */}
-      <TutorialSelectionModal isOpen={showTutorialModal} onClose={() => setShowTutorialModal(false)} />
-
-      {/* iOS Web App Components */}
       <IOSWebAppInstallModal
         isOpen={showIOSInstallModal}
         onClose={() => setShowIOSInstallModal(false)}
@@ -214,59 +153,6 @@ export default function DashboardPage() {
           </div>
 
           {profile && <ProfileCard profile={profile} />}
-
-          {showPremiumUpsell && (
-            <Card
-              className="mb-4 md:mb-8 overflow-hidden border-orange-200/70 bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 shadow-sm"
-              data-testid="premium-upgrade-widget"
-            >
-              <CardContent className="p-4 md:p-6">
-                <div className="rounded-2xl border border-white/70 bg-white/85 p-4 md:p-5 shadow-sm backdrop-blur-sm">
-                  <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-600">
-                        <Crown className="h-6 w-6" />
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-700">
-                          <Sparkles className="h-3.5 w-3.5" />
-                          Upgrade to premium
-                        </div>
-                        <h3 className="text-lg md:text-xl font-serif font-medium text-neutral-950">
-                          {upsellCopy.headline}
-                        </h3>
-
-                        <div className="flex flex-wrap gap-3 text-xs font-semibold text-neutral-900">
-                          <span className="rounded-full bg-white px-3 py-1 border border-orange-200 text-neutral-900 shadow-sm">
-                            Discounted delivery
-                          </span>
-                          <span className="rounded-full bg-white px-3 py-1 border border-orange-200 text-neutral-900 shadow-sm">
-                            Better nutrition statistics
-                          </span>
-                          <span className="rounded-full bg-white px-3 py-1 border border-orange-200 text-neutral-900 shadow-sm">
-                            Unlimited auto meal planning
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                  <div className="flex shrink-0 flex-col gap-3 md:items-end">
-                    <Button asChild className="w-full md:w-auto bg-orange-600 text-white hover:bg-orange-700" onClick={() => trackUpsellConversion()}>
-                      <Link href="/checkout">
-                        {upsellCopy.cta}
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <Link href="/pricing?required=premium" className="text-sm font-medium text-orange-700 hover:text-orange-800">
-                      Compare plans
-                    </Link>
-                  </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">
@@ -323,86 +209,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <ChallengeWidget />
-
-          {/* Social widgets */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <FriendsWidget />
-            <NotificationsWidget />
-          </div>
-
-          {/* Prominent Tutorial Prompt - Only shows if tutorial not completed */}
-          {showTutorialPrompt && !sessionStorage.getItem("tutorial_prompt_dismissed") ? (
-            <Card className={`mb-6 relative overflow-hidden ${
-              isDark
-                ? "bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-blue-500/30"
-                : "bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200"
-            }`}>
-              <button
-                onClick={handleDismissTutorialPrompt}
-                className={`absolute top-4 right-4 p-1 rounded-full transition-colors ${
-                  isDark
-                    ? "hover:bg-white/10 text-white/60 hover:text-white"
-                    : "hover:bg-gray-200 text-gray-400 hover:text-gray-600"
-                }`}
-                aria-label="Dismiss"
-              >
-                <X className="w-4 h-4" />
-              </button>
-
-              <CardContent className="p-6 pr-12">
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-full ${
-                    isDark ? "bg-blue-500/20" : "bg-blue-100"
-                  }`}>
-                    <PlayCircle className={`w-6 h-6 ${
-                      isDark ? "text-blue-400" : "text-blue-600"
-                    }`} />
-                  </div>
-
-                  <div className="flex-1">
-                    <h3 className={`text-xl font-serif font-light mb-2 ${
-                      isDark ? "text-white" : "text-gray-900"
-                    }`}>
-                      Take a Quick Tour
-                    </h3>
-                    <p className={`text-sm mb-4 ${
-                      isDark ? "text-white/70" : "text-gray-600"
-                    }`}>
-                      Learn how to make the most of Secret Sauce with our interactive tutorial.
-                      It only takes 2-3 minutes and will show you all the key features.
-                    </p>
-
-                    <div className="flex flex-wrap gap-3">
-                      <Button
-                        onClick={handleStartTutorial}
-                        className={
-                          isDark
-                            ? "bg-blue-600 text-white hover:bg-blue-700"
-                            : "bg-blue-600 text-white hover:bg-blue-700"
-                        }
-                      >
-                        <PlayCircle className="w-4 h-4 mr-2" />
-                        Start Tutorial
-                      </Button>
-
-                      <Button
-                        onClick={handleDismissTutorialPrompt}
-                        variant="ghost"
-                        className={
-                          isDark
-                            ? "text-white/70 hover:text-white hover:bg-white/10"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                        }
-                      >
-                        Maybe Later
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : showIOSPrompt && !localStorage.getItem("ios_webapp_prompt_dismissed") ? (
+          {showIOSPrompt && !localStorage.getItem("ios_webapp_prompt_dismissed") ? (
             <IOSWebAppPromptBanner
               onDismiss={handleDismissIOSPrompt}
               onShowInstructions={() => setShowIOSInstallModal(true)}

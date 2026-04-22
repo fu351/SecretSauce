@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Clock, Star, Plus, Check, Users, ChefHat } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import { Recipe } from "@/lib/types"
 
@@ -27,6 +27,9 @@ export function MobileRecipeCard({
   theme = "light",
 }: MobileRecipeCardProps) {
   const [added, setAdded] = useState(false)
+  const imageFallback = getDefaultImageFallback(theme)
+  const imageSrc = getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) || imageFallback
+  const isFallbackImage = isDefaultImageFallback(imageSrc)
 
   const getTotalTime = (recipe: Recipe) => {
     return (recipe.prep_time || 0) + (recipe.cook_time || 0)
@@ -73,12 +76,19 @@ export function MobileRecipeCard({
         {/* Thumbnail */}
         <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden group">
           <Image
-            src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
+            src={imageSrc}
             alt={recipe.title}
             fill
             sizes="96px"
-            className="object-cover group-hover:scale-105 transition-transform duration-200"
+            className={`${isFallbackImage ? "object-contain p-2" : "object-cover"} group-hover:scale-105 transition-transform duration-200`}
             loading="lazy"
+            onError={(event) => {
+              const target = event.currentTarget as HTMLImageElement
+              if (!target.src.includes(imageFallback)) {
+                target.src = imageFallback
+                applyFallbackImageStyles(target)
+              }
+            }}
           />
         </div>
 

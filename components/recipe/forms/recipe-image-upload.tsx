@@ -115,7 +115,7 @@ export function RecipeImageUpload({
             )}
           >
             <Image
-              src={imagePreview || "/placeholder.svg"}
+              src={imagePreview || "/default-image.svg"}
               alt="Recipe preview"
               fill
               className="object-cover"

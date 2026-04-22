@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Calendar, Home, LogOut, Plus, Settings, ShoppingCart, Trophy, User, Wrench } from "lucide-react"
+import { BookOpen, Calendar, Home, LineChart, LogOut, Menu, Plus, Refrigerator, Settings, ShoppingCart, Trophy, User, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,6 +14,13 @@ import {
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useIsAdmin } from "@/hooks/use-admin"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useToast } from "@/hooks"
@@ -21,7 +28,7 @@ import Image from "next/image"
 import { useState, useEffect, useRef } from "react"
 
 export function Header() {
-  const { user, signOut } = useAuth()
+  const { user, profile, signOut } = useAuth()
   const { theme } = useTheme()
   const { isAdmin } = useIsAdmin()
   const pathname = usePathname()
@@ -109,9 +116,61 @@ export function Header() {
     }`
 
   const closeMobileLogoMenu = () => setMobileLogoMenuOpen(false)
+  const profileHref = user ? `/user/${encodeURIComponent(profile?.username ?? user.id)}` : "/auth/signin"
+  const mobileProfileIconClass = `p-2 rounded-md transition-opacity hover:opacity-80 ${
+    pathname.startsWith("/user/") ? "opacity-100" : isDark ? "text-muted-foreground" : "text-gray-700"
+  }`
 
   return (
     <>
+      {pathname.startsWith("/user/") && (
+        <div className="md:hidden fixed top-[calc(0.5rem+env(safe-area-inset-top))] right-3 z-[70]">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant={isDark ? "secondary" : "outline"}
+                size="icon"
+                aria-label="Open menu"
+                className={isDark ? "border-[#e8dcc4]/20 bg-[#181813]/95" : "bg-white/95"}
+              >
+                <Menu className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {user ? (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link href={profileHref}>Profile</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">Settings</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard">Dashboard</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/pantry">Pantry</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSignOutModalOpen(true) }}>
+                    Sign Out
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link href="/auth/signin">Sign In</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/auth/signup">Sign Up</Link>
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       <header
         ref={headerRef}
         className={`hidden md:flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b md:sticky md:top-0 z-40 ${
@@ -286,28 +345,32 @@ export function Header() {
           isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
         }`}
       >
-        <div className="relative mx-auto flex max-w-md items-center justify-between px-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`${navIconClass("/home")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
-            asChild
-          >
-            <Link href="/home" aria-label="Home" data-tutorial-nav="/home">
-              <Home className="h-5 w-5" />
-            </Link>
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`${navIconClass("/recipes")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
-            asChild
-          >
-            <Link href="/recipes" aria-label="Recipes" data-tutorial-nav="/recipes">
-              <BookOpen className="h-5 w-5" />
-            </Link>
-          </Button>
-          <div className="absolute left-1/2 -translate-x-1/2 -top-11 h-24 w-24 z-[100]">
+        <div className="relative mx-auto grid max-w-md grid-cols-[1fr_1fr_auto_1fr_1fr] items-center">
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={navIconClass("/home")}
+              asChild
+            >
+              <Link href="/home" aria-label="Home" data-tutorial-nav="/home">
+                <Home className="h-5 w-5" />
+              </Link>
+            </Button>
+          </div>
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={navIconClass("/meal-planner")}
+              asChild
+            >
+              <Link href="/meal-planner" aria-label="Meal Planner" data-tutorial-nav="/meal-planner">
+                <Calendar className="h-5 w-5" />
+              </Link>
+            </Button>
+          </div>
+          <div className="relative h-24 w-24 -mt-11 z-[100]">
             {mobileLogoMenuOpen && (
               <div className="absolute inset-0">
                 {user ? (
@@ -316,21 +379,10 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-150deg) translateX(74px) rotate(150deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-80deg) translateX(74px) rotate(80deg)" }}
                       asChild
                     >
-                      <Link href="/settings" aria-label="Settings" onClick={closeMobileLogoMenu}>
-                        <Settings className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-110deg) translateX(74px) rotate(110deg)" }}
-                      asChild
-                    >
-                      <Link href="/challenges/join" aria-label="Challenges" onClick={closeMobileLogoMenu}>
+                      <Link href="/challenges/join" aria-label="Leaderboard" onClick={closeMobileLogoMenu}>
                         <Trophy className="h-4 w-4" />
                       </Link>
                     </Button>
@@ -338,7 +390,18 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-70deg) translateX(74px) rotate(70deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-40deg) translateX(74px) rotate(40deg)" }}
+                      asChild
+                    >
+                      <Link href="/pantry" aria-label="Pantry" onClick={closeMobileLogoMenu}>
+                        <Refrigerator className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(0deg) translateX(74px) rotate(0deg)" }}
                       asChild
                     >
                       <Link href="/upload-recipe" aria-label="Add Recipe" onClick={closeMobileLogoMenu}>
@@ -349,15 +412,22 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-30deg) translateX(74px) rotate(30deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(40deg) translateX(74px) rotate(-40deg)" }}
                       asChild
                     >
-                      <Link
-                        href="/pantry"
-                        aria-label="Pantry"
-                        onClick={() => closeMobileLogoMenu()}
-                      >
-                        <Wrench className="h-4 w-4" />
+                      <Link href="/recipes" aria-label="Recipes" onClick={closeMobileLogoMenu}>
+                        <BookOpen className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      style={{ transform: "translate(-50%, -50%) rotate(80deg) translateX(74px) rotate(-80deg)" }}
+                      asChild
+                    >
+                      <Link href="/dashboard" aria-label="Trackers" onClick={closeMobileLogoMenu}>
+                        <LineChart className="h-4 w-4" />
                       </Link>
                     </Button>
                   </>
@@ -365,21 +435,12 @@ export function Header() {
                   <>
                     <Button
                       variant="secondary"
-                      size="sm"
-                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-140deg) translateX(76px) rotate(140deg)" }}
-                      asChild
-                    >
-                      <Link href="/auth/signin" onClick={closeMobileLogoMenu}>Sign In</Link>
-                    </Button>
-                    <Button
-                      variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-90deg) translateX(76px) rotate(90deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-120deg) translateX(76px) rotate(120deg)" }}
                       asChild
                     >
-                      <Link href="/challenges/join" aria-label="Challenges" onClick={closeMobileLogoMenu}>
+                      <Link href="/challenges/join" aria-label="Leaderboard" onClick={closeMobileLogoMenu}>
                         <Trophy className="h-4 w-4" />
                       </Link>
                     </Button>
@@ -387,7 +448,7 @@ export function Header() {
                       variant="secondary"
                       size="icon"
                       className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
-                      style={{ transform: "translate(-50%, -50%) rotate(-40deg) translateX(76px) rotate(40deg)" }}
+                      style={{ transform: "translate(-50%, -50%) rotate(-60deg) translateX(76px) rotate(60deg)" }}
                       asChild
                     >
                       <Link href="/settings" aria-label="Settings" onClick={closeMobileLogoMenu}>
@@ -416,49 +477,43 @@ export function Header() {
               />
             </button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`${navIconClass("/meal-planner")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
-            asChild
-          >
-            <Link href="/meal-planner" aria-label="Meal Planner" data-tutorial-nav="/meal-planner">
-              <Calendar className="h-5 w-5" />
-            </Link>
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`${navIconClass("/store")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
-            asChild
-          >
-            <Link href="/store" aria-label="Shopping" data-tutorial-nav="/store">
-              <ShoppingCart className="h-5 w-5" />
-            </Link>
-          </Button>
-          {user ? (
+          <div className="flex justify-center">
             <Button
               variant="ghost"
               size="icon"
-              className={`${navIconClass("/dashboard")} ${mobileLogoMenuOpen ? "pointer-events-none" : ""}`}
+              className={navIconClass("/store")}
               asChild
             >
-              <Link href="/dashboard" aria-label="Dashboard" data-tutorial-nav="/dashboard">
-                <User className="h-5 w-5" />
+              <Link href="/store" aria-label="Shopping" data-tutorial-nav="/store">
+                <ShoppingCart className="h-5 w-5" />
               </Link>
             </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className={`${isDark ? "text-foreground hover:bg-muted" : "hover:bg-gray-100"} ${
-                mobileLogoMenuOpen ? "pointer-events-none" : ""
-              }`}
-            >
-              <Link href="/auth/signin">Sign In</Link>
-            </Button>
-          )}
+          </div>
+          <div className="flex justify-center">
+            {user ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={mobileProfileIconClass}
+                asChild
+              >
+                <Link href={profileHref} aria-label="Profile">
+                  <User className="h-5 w-5" />
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+                className={isDark ? "text-foreground hover:bg-muted" : "hover:bg-gray-100"}
+              >
+                <Link href="/auth/signin" aria-label="Sign In">
+                  <User className="h-5 w-5" />
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
       </nav>
     </>

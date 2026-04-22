@@ -7,9 +7,10 @@ import { Star, MessageCircle, BarChart3, Heart } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
+import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/database/supabase"
 import { useToast } from "@/hooks"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { Recipe, RecipeTags } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
@@ -57,6 +58,10 @@ function RecipeCardComponent({
   const [isFavorited, setIsFavorited] = useState(!!initialIsFavorited)
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
+  const { theme } = useTheme()
+  const imageFallback = getDefaultImageFallback(theme)
+  const imageSrc = getRecipeImageUrl(content?.image_url || recipe.image_url, theme) || imageFallback
+  const isFallbackImage = isDefaultImageFallback(imageSrc)
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided
@@ -188,13 +193,20 @@ function RecipeCardComponent({
     >
       <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">
         <Image
-          src={getRecipeImageUrl(content?.image_url) || "/placeholder.svg"}
+          src={imageSrc}
           alt={title}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          className={`${isFallbackImage ? "object-contain p-4" : "object-cover"} group-hover:scale-105 transition-transform duration-300`}
           priority={false}
           loading="lazy"
+          onError={(event) => {
+            const target = event.currentTarget as HTMLImageElement
+            if (!target.src.includes(imageFallback)) {
+              target.src = imageFallback
+              applyFallbackImageStyles(target)
+            }
+          }}
         />
 
         <div className="absolute inset-0 pointer-events-none">

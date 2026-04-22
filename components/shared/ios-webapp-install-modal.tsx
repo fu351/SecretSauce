@@ -19,8 +19,8 @@ export default function IOSWebAppInstallModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <Card className={`relative w-full max-w-lg mx-4 ${
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-[max(1rem,env(safe-area-inset-top))]">
+      <Card className={`relative w-full max-w-lg mx-2 max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1.5rem)] overflow-y-auto ${
         isDark
           ? "bg-[#181813] border-[#e8dcc4]/30"
           : "bg-white border-gray-200"
@@ -136,7 +136,7 @@ export default function IOSWebAppInstallModal({
           </div>
         </CardContent>
 
-        <div className="px-6 py-4 border-t border-[#e8dcc4]/20 dark:border-[#e8dcc4]/20">
+        <div className="px-6 py-4 border-t border-[#e8dcc4]/20 dark:border-[#e8dcc4]/20 sticky bottom-0 bg-inherit">
           <Button
             onClick={onClose}
             className="w-full bg-blue-600 text-white hover:bg-blue-700"

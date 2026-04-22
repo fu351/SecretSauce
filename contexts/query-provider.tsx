@@ -13,12 +13,17 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
             staleTime: 5 * 60 * 1000,
             // Keep unused data in cache for 10 minutes
             gcTime: 10 * 60 * 1000,
-            // Retry failed requests once
-            retry: 1,
-            // Refetch on window focus only if data is stale
-            refetchOnWindowFocus: "always",
-            // Refetch on reconnect only if data is stale
-            refetchOnReconnect: "always",
+            // Avoid aggressive retries for auth/config failures.
+            retry: (failureCount, error) => {
+              const message = error instanceof Error ? error.message : String(error)
+              if (message.includes("Supabase client is not configured")) return false
+              if (message.includes("401") || message.includes("403")) return false
+              return failureCount < 1
+            },
+            // Reduce broad refetch storms when tab focus changes.
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            refetchOnMount: false,
           },
         },
       }),

@@ -297,7 +297,7 @@ function formatCacheResults(
       pricePerUnit: item.unit_price ? `$${item.unit_price}/${item.unit}` : undefined,
       unit: item.unit,
       rawUnit: item.unit || undefined,
-      image_url: item.image_url || "/placeholder.svg",
+      image_url: item.image_url || "/default-image.svg",
       product_url: (item as any).product_url,
       provider: storeName,
       location: locationHint,
@@ -318,7 +318,7 @@ function formatDirectItems(
     pricePerUnit: item.pricePerUnit || (item.unit ? `${item.price}/${item.unit}` : undefined),
     unit: item.unit || "",
     rawUnit: item.rawUnit || item.unit || "",
-    image_url: item.image_url || "/placeholder.svg",
+    image_url: item.image_url || "/default-image.svg",
     provider: mapStoreKeyToName(item.provider.toLowerCase()),
     location: options.useItemLocationFallback
       ? item.location || `${mapStoreKeyToName(item.provider.toLowerCase())} Grocery`
@@ -361,17 +361,20 @@ export async function runFrontendScraperApiProcessor(
     : createAnonSupabaseClient()
 
   let profileZip: string | null = null
-  let userId: string | null = clerkAuthState.userId || null
+  const clerkUserId = clerkAuthState.userId || null
+  let userId: string | null = null
 
   if (hasClerkSession) {
     try {
-      if (userId && !zipToUse) {
-        const profile = await profileDB.fetchProfileByClerkUserId(userId)
+      if (clerkUserId) {
+        const profile = await profileDB.fetchProfileByClerkUserId(clerkUserId)
+        userId = profile?.id ?? null // RPC expects UUID profile id, not Clerk's user_*
         profileZip = normalizeZipCode(profile?.zip_code) ?? null
-        if (profileZip) {
-          zipToUse = profileZip
-          console.log("[grocery-search] Using profile zip code as fallback", { profileZip })
-        }
+      }
+
+      if (!zipToUse && profileZip) {
+        zipToUse = profileZip
+        console.log("[grocery-search] Using profile zip code as fallback", { profileZip })
       } else if (zipToUse) {
         console.log("[grocery-search] Using explicitly provided zip code", { zipToUse })
       }

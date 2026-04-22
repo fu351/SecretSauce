@@ -14,6 +14,7 @@ import { useToast } from "@/hooks"
 import Image from "next/image"
 import { ArrowRight } from "lucide-react"
 import { normalizeUsername, validateUsername } from "@/lib/auth/username"
+import { ensureProfileWithTimeout } from "@/lib/auth/ensure-profile-client"
 import posthog from "posthog-js"
 
 export default function SignUpPage() {
@@ -28,16 +29,7 @@ export default function SignUpPage() {
   const router = useRouter()
 
   const ensureProfile = async (normalizedUsername: string) => {
-    const response = await fetch("/api/auth/ensure-profile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: normalizedUsername }),
-    })
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}))
-      throw new Error(payload.error ?? "Failed to create profile")
-    }
+    await ensureProfileWithTimeout({ username: normalizedUsername })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -107,7 +107,10 @@ describe("SignInPage", () => {
         password: "secret123",
       })
       expect(mockSetActive).toHaveBeenCalledWith({ session: "sess_1" })
-      expect(global.fetch).toHaveBeenCalledWith("/api/auth/ensure-profile", { method: "POST" })
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/ensure-profile",
+        expect.objectContaining({ method: "POST" }),
+      )
       expect(vi.mocked(useRouter)().push).toHaveBeenCalledWith("/dashboard")
     })
 

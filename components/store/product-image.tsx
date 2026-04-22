@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-const DEFAULT_IMG = "/placeholder.svg"
+const DEFAULT_IMG = "/default-image.svg"
 
 interface ProductImageProps {
   src: string | null | undefined

@@ -1,13 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight, GripVertical } from "lucide-react"
+import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight, GripVertical, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import { useTheme } from "@/contexts/theme-context"
@@ -137,6 +137,24 @@ const convertCuisineToDb = (displayValue: string): string => {
   return displayValue.toLowerCase().replace(/\s+/g, "-")
 }
 
+function buildGoalRankingFromProfile(primary: string | null | undefined): GoalId[] {
+  const base: GoalId[] = ["cooking", "budgeting", "health"]
+  if (!primary) return base
+  const g = primary as GoalId
+  if (!goals.some((x) => x.id === g)) return base
+  return [g, ...base.filter((x) => x !== g)]
+}
+
+function dbDietaryToDisplay(db: string): string | undefined {
+  const key = db.toLowerCase().replace(/\s+/g, "-")
+  return dietaryOptions.find((opt) => convertDietaryToDb(opt) === key)
+}
+
+function dbCuisineToDisplay(db: string): string | undefined {
+  const key = db.toLowerCase().replace(/\s+/g, "-")
+  return cuisineOptions.find((opt) => convertCuisineToDb(opt) === key)
+}
+
 const questionOrder = [
   {
     id: "goal",
@@ -222,10 +240,67 @@ export default function OnboardingPage() {
   const [activeIndex, setActiveIndex] = useState(0)
   const lastStepIndex = questionOrder.length - 1
   const atLastStep = activeIndex === lastStepIndex
+  const hydratedFromProfile = useRef(false)
 
   const router = useRouter()
-  const { user, updateProfile } = useAuth()
+  const { user, profile, loading: authLoading, updateProfile } = useAuth()
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user) {
+      router.replace("/auth/signin")
+    }
+  }, [authLoading, user, router])
+
+  useEffect(() => {
+    if (!profile || hydratedFromProfile.current) return
+    hydratedFromProfile.current = true
+
+    setGoalRanking(buildGoalRankingFromProfile(profile.primary_goal))
+
+    if (profile.cooking_level && cookingLevels.some((l) => l.id === profile.cooking_level)) {
+      setCookingLevel(profile.cooking_level)
+    }
+    if (profile.budget_range && budgetRanges.some((b) => b.id === profile.budget_range)) {
+      setBudgetRange(profile.budget_range)
+    }
+
+    const dietary = (profile.dietary_preferences ?? [])
+      .map(dbDietaryToDisplay)
+      .filter((x): x is string => Boolean(x))
+    setDietaryPreferences(dietary)
+
+    const cuisines = (profile.cuisine_preferences ?? [])
+      .map(dbCuisineToDisplay)
+      .filter((x): x is string => Boolean(x))
+    setCuisinePreferences(cuisines)
+
+    if (
+      profile.cooking_time_preference &&
+      cookingTimeOptions.some((o) => o.id === profile.cooking_time_preference)
+    ) {
+      setCookingTimePreference(profile.cooking_time_preference)
+    }
+
+    if (profile.formatted_address) setFormattedAddress(profile.formatted_address)
+    if (profile.address_line1) setAddressLine1(profile.address_line1)
+    if (profile.address_line2) setAddressLine2(profile.address_line2 ?? "")
+    if (profile.city) setCity(profile.city)
+    if (profile.state) setStateRegion(profile.state)
+    if (profile.country) setCountry(profile.country)
+    if (profile.zip_code) setPostalCode(profile.zip_code)
+    if (profile.latitude != null) setLat(profile.latitude)
+    if (profile.longitude != null) setLng(profile.longitude)
+    if (profile.grocery_distance_miles != null) {
+      setGroceryDistance(String(profile.grocery_distance_miles))
+    }
+
+    if (profile.theme_preference === "light" || profile.theme_preference === "dark") {
+      setSelectedTheme(profile.theme_preference)
+      setTheme(profile.theme_preference)
+    }
+  }, [profile, setTheme])
 
   // Memoize address change handler to prevent autocomplete recreation
   const handleAddressChange = useCallback((addr: any) => {
@@ -736,6 +811,19 @@ export default function OnboardingPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#181813] text-[#e8dcc4]">
+        <Loader2 className="h-10 w-10 animate-spin opacity-80" aria-hidden />
+        <p className="text-sm font-light opacity-70">Loading your profile…</p>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
   }
 
   return (

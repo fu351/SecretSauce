@@ -13,7 +13,7 @@ import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
 import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-info"
 import { RecipeActionBar } from "@/components/recipe/social/recipe-action-bar"
 import { useToast } from "@/hooks"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
 import { TagSelector } from "@/components/recipe/tags/tag-selector"
 import { useShoppingList } from "@/hooks"
@@ -94,7 +94,10 @@ export default function RecipeDetailPage() {
     ? "bg-primary text-primary-foreground hover:bg-primary/90"
     : "bg-orange-500 hover:bg-orange-600"
   const isRecipeOwner = Boolean(user && recipe && user.id === recipe.author_id)
-  const recipeImageUrl = getRecipeImageUrl(recipe?.image_url ?? recipe?.content?.image_url)
+  const themeName = isDark ? "dark" : "light"
+  const imageFallback = getDefaultImageFallback(themeName)
+  const recipeImageUrl = getRecipeImageUrl(recipe?.content?.image_url || recipe?.image_url, themeName)
+  const isFallbackImage = isDefaultImageFallback(recipeImageUrl)
 
   // True only when every ingredient has been matched to a standardized entry.
   // Unmatched ingredients can't be priced or added to a shopping list.
@@ -407,7 +410,14 @@ export default function RecipeDetailPage() {
                 alt={recipe.title}
                 fill
                 sizes="(min-width: 1024px) 60vw, 100vw"
-                className="object-cover"
+                className={isFallbackImage ? "object-contain p-4" : "object-cover"}
+                onError={(event) => {
+                  const target = event.currentTarget as HTMLImageElement
+                  if (!target.src.includes(imageFallback)) {
+                    target.src = imageFallback
+                    applyFallbackImageStyles(target)
+                  }
+                }}
               />
             </div>
 

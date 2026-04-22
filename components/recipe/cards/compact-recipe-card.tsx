@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { QuantityControl } from "@/components/shared/quantity-control"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import { Recipe } from "@/lib/types"
 import { useDraggable } from "@dnd-kit/core"
@@ -49,6 +49,9 @@ export function CompactRecipeCard({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState("")
   const [addingToCart, setAddingToCart] = useState(false)
+  const imageFallback = getDefaultImageFallback(theme)
+  const imageSrc = getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) || imageFallback
+  const isFallbackImage = isDefaultImageFallback(imageSrc)
 
   // Setup draggable if getDraggableProps is provided
   const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
@@ -124,12 +127,19 @@ export function CompactRecipeCard({
           {/* Image */}
           <div className="w-full lg:w-1/3 relative min-h-[250px] lg:min-h-[300px]">
             <Image
-              src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
+              src={imageSrc}
               alt={recipe.title}
               fill
               sizes="(max-width: 768px) 100vw, 33vw"
-              className="object-cover"
+              className={isFallbackImage ? "object-contain p-4" : "object-cover"}
               loading="lazy"
+              onError={(event) => {
+                const target = event.currentTarget as HTMLImageElement
+                if (!target.src.includes(imageFallback)) {
+                  target.src = imageFallback
+                  applyFallbackImageStyles(target)
+                }
+              }}
             />
           </div>
 

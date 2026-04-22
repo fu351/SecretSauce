@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks"
 import { ArrowRight } from "lucide-react"
 import { normalizeUsername } from "@/lib/auth/username"
+import { ensureProfileWithTimeout } from "@/lib/auth/ensure-profile-client"
 
 export default function CheckEmailPage() {
   const { isLoaded, signUp, setActive } = useSignUp()
@@ -26,16 +27,7 @@ export default function CheckEmailPage() {
   const username = normalizeUsername(searchParams.get("username") ?? "")
 
   const ensureProfile = async () => {
-    const response = await fetch("/api/auth/ensure-profile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username }),
-    })
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}))
-      throw new Error(payload.error ?? "Failed to create profile")
-    }
+    await ensureProfileWithTimeout({ username })
   }
 
   useEffect(() => {

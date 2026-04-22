@@ -21,6 +21,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const TOKEN_REFRESH_BUFFER_SECONDS = 30
+const ENSURE_PROFILE_TIMEOUT_MS = 4500
+const ENSURE_PROFILE_BREAKER_MS = 15000
+const ENSURE_PROFILE_BREAKER_FAILURES = 2
 
 function readJwtExp(token: string): number | null {
   try {
@@ -87,6 +90,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchingProfile = useRef(false)
   const hasTriggeredForceReload = useRef(false)
   const ensureProfileInFlightRef = useRef<{ userId: string; promise: Promise<void> } | null>(null)
+  const ensureProfileFailureCountRef = useRef(0)
+  const ensureProfileBreakerUntilRef = useRef(0)
 
   const clearAuthState = () => {
     if (!mounted.current) return
@@ -154,6 +159,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const bootstrap = async () => {
       try {
         if (!clerkLoaded) {
+          // Clerk still booting: don't leave the app in an indefinite loading state.
+          if (!cancelled && mounted.current) {
+            setLoading(false)
+          }
           return
         }
 
@@ -173,9 +182,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
+        // Circuit-breaker: if ensure-profile repeatedly fails, fail-open for a short window.
+        if (Date.now() < ensureProfileBreakerUntilRef.current) {
+          console.warn("[auth] ensure-profile breaker active; skipping bootstrap call")
+          return
+        }
+
         const controller = new AbortController()
         ensureProfileController = controller
-        const ENSURE_PROFILE_TIMEOUT_MS = 4500
         fetchTimeoutId = window.setTimeout(() => {
           controller.abort(new Error("ensure-profile timeout"))
         }, ENSURE_PROFILE_TIMEOUT_MS)
@@ -193,6 +207,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (!response.ok) {
             console.warn("[v0] Failed to ensure Clerk profile:", response.status)
+            // For transient backend failures, fail-open to avoid blocking the app forever.
+            if (response.status >= 500 || response.status === 429) {
+              ensureProfileFailureCountRef.current += 1
+              if (ensureProfileFailureCountRef.current >= ENSURE_PROFILE_BREAKER_FAILURES) {
+                ensureProfileBreakerUntilRef.current = Date.now() + ENSURE_PROFILE_BREAKER_MS
+                ensureProfileFailureCountRef.current = 0
+              }
+              return
+            }
             clearAuthState()
             return
           }
@@ -208,6 +231,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             buildAuthUser(linkedProfile.id, linkedProfile.email, linkedProfile.created_at ?? null),
           )
           setProfile(linkedProfile)
+          ensureProfileFailureCountRef.current = 0
+          ensureProfileBreakerUntilRef.current = 0
         })()
 
         ensureProfileInFlightRef.current = { userId, promise }
@@ -227,6 +252,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         if (isAbortLikeError(error)) {
+          ensureProfileFailureCountRef.current += 1
+          if (ensureProfileFailureCountRef.current >= ENSURE_PROFILE_BREAKER_FAILURES) {
+            ensureProfileBreakerUntilRef.current = Date.now() + ENSURE_PROFILE_BREAKER_MS
+            ensureProfileFailureCountRef.current = 0
+          }
           return
         }
 

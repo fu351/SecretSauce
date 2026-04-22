@@ -31,7 +31,7 @@ export default function SettingsPage() {
 }
 
 function SettingsPageContent() {
-  const { user, updateProfile, signOut } = useAuth()
+  const { user, profile, updateProfile, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const {
     tutorialCompletedAt,
@@ -116,10 +116,25 @@ function SettingsPageContent() {
     { id: "high", label: "Premium", description: "Uncompromising excellence" },
   ]
 
-  useEffect(() => {
-    setMounted(true)
-    fetchUserPreferences()
-  }, [user])
+  const hydratePreferences = useCallback((profileData: Partial<Profile>) => {
+    setPrimaryGoal(profileData.primary_goal || "")
+    setCookingLevel(profileData.cooking_level || "")
+    setBudgetRange(profileData.budget_range || "")
+    setCuisinePreferences(profileData.cuisine_preferences || [])
+    setCookingTimePreference(profileData.cooking_time_preference || "any")
+    setPostalCode(profileData.zip_code || "")
+    setFormattedAddress(profileData.formatted_address || "")
+    setAddressLine1(profileData.address_line1 || "")
+    setAddressLine2(profileData.address_line2 || "")
+    setCity(profileData.city || "")
+    setStateRegion(profileData.state || "")
+    setCountry(profileData.country || "")
+    setLat(profileData.latitude ?? null)
+    setLng(profileData.longitude ?? null)
+    setGroceryDistance(String(profileData.grocery_distance_miles || 10))
+    setDietaryPreferences(profileData.dietary_preferences || [])
+    setNewEmail(profileData.email || "")
+  }, [])
 
   // Sync selectedTheme when theme context changes
   useEffect(() => {
@@ -209,39 +224,40 @@ function SettingsPageContent() {
     }
   }
 
-  const fetchUserPreferences = async () => {
+  const fetchUserPreferences = useCallback(async function fetchUserPreferences() {
     if (!user) return
 
     try {
-      const profile = await profileDB.fetchProfileById(user.id)
+      const profileData = await profileDB.fetchProfileById(user.id)
 
-      if (!profile) {
+      if (!profileData) {
         throw new Error("Failed to fetch user preferences")
       }
 
-      setPrimaryGoal(profile.primary_goal || "")
-      setCookingLevel(profile.cooking_level || "")
-      setBudgetRange(profile.budget_range || "")
-      setCuisinePreferences(profile.cuisine_preferences || [])
-      setPostalCode(profile.zip_code || "")
-      setFormattedAddress(profile.formatted_address || "")
-      setLat(profile.latitude ?? null)
-      setLng(profile.longitude ?? null)
-      setGroceryDistance(String(profile.grocery_distance_miles || 10))
-      setDietaryPreferences(profile.dietary_preferences || [])
-      setNewEmail(profile.email || "")
+      hydratePreferences(profileData)
 
       // Initialize theme from database preference if available
-      if (profile.theme_preference) {
-        setSelectedTheme(profile.theme_preference === "dark" ? "dark" : "light")
-        setTheme(profile.theme_preference === "dark" ? "dark" : "light")
+      if (profileData.theme_preference) {
+        setSelectedTheme(profileData.theme_preference === "dark" ? "dark" : "light")
+        setTheme(profileData.theme_preference === "dark" ? "dark" : "light")
       }
     } catch (error) {
       console.error("Error fetching preferences:", error)
     } finally {
       shouldRecordInitialSnapshot.current = true
     }
-  }
+  }, [hydratePreferences, setTheme, user])
+
+  useEffect(() => {
+    setMounted(true)
+    if (profile) {
+      hydratePreferences(profile)
+      shouldRecordInitialSnapshot.current = true
+      hasRecordedInitialSnapshot.current = false
+      return
+    }
+    fetchUserPreferences()
+  }, [fetchUserPreferences, hydratePreferences, profile, user])
 
   const handleCuisineToggle = (cuisine: string) => {
     setCuisinePreferences((prev) => (prev.includes(cuisine) ? prev.filter((c) => c !== cuisine) : [...prev, cuisine]))

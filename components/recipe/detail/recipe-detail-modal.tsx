@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Users, Star, ChevronRight, Zap } from "lucide-react"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { useRecipe, useResponsiveImage } from "@/hooks"
 import { type Recipe } from "@/lib/types"
 import { useTheme } from "@/contexts/theme-context"
@@ -95,6 +95,9 @@ export function RecipeDetailModal({
   const buttonClass = propButtonClass || (theme === "dark" ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]" : "bg-orange-500 hover:bg-orange-600 text-white")
   const borderClass = theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"
   const iconClass = theme === "dark" ? "text-[#e8dcc4]/50" : "text-gray-400"
+  const imageFallback = getDefaultImageFallback(theme)
+  const imageSrc = recipe ? getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) : imageFallback
+  const isFallbackImage = isDefaultImageFallback(imageSrc)
 
   if (!isOpen || (!recipe && !isLoading)) return null
 
@@ -114,12 +117,19 @@ export function RecipeDetailModal({
               {/* Hero Image Section */}
               <div className="relative w-full h-40 md:w-80 md:h-auto flex-shrink-0">
                 <Image
-                  src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
+                  src={imageSrc || imageFallback}
                   alt={recipe.title}
                   fill
-                  className="object-cover"
+                  className={isFallbackImage ? "object-contain p-4" : "object-cover"}
                   priority
                   sizes="(max-width: 768px) 100vw, 320px"
+                  onError={(event) => {
+                    const target = event.currentTarget as HTMLImageElement
+                    if (!target.src.includes(imageFallback)) {
+                      target.src = imageFallback
+                      applyFallbackImageStyles(target)
+                    }
+                  }}
                 />
               </div>
 

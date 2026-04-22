@@ -99,18 +99,26 @@ export default function PantryPage() {
   }, [filteredItems])
 
   useEffect(() => {
-    if (user) {
-      fetchPantryItems()
+    if (!user) {
+      setLoading(false)
+      setPantryItems([])
+      setSuggestedRecipes([])
+      return
     }
+
+    fetchPantryItems()
   }, [user])
 
   useEffect(() => {
     filterItems()
     checkExpirations()
+  }, [pantryItems, searchTerm, selectedCategory, showExpiringSoon])
+
+  useEffect(() => {
     if (pantryItems.length > 0) {
       findSuggestedRecipes()
     }
-  }, [pantryItems, searchTerm, selectedCategory, showExpiringSoon])
+  }, [pantryItems])
 
   const fetchPantryItems = async () => {
     if (!user) return
@@ -674,7 +682,7 @@ export default function PantryPage() {
                         <CardContent className="p-6">
                           <div className="flex gap-4">
                             <img
-                              src={recipe.content.image_url || "/placeholder.svg?height=80&width=80"}
+                              src={recipe.content.image_url || "/default-image.svg"}
                               alt={recipe.title}
                               className="w-20 h-20 object-cover rounded-lg shadow-md"
                             />

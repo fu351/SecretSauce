@@ -1,3 +1,5 @@
+"use client"
+
 import { memo } from "react"
 import Link from "next/link"
 import Image from "next/image"
@@ -5,9 +7,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Heart, Clock, Users, Star, ChefHat, BarChart3 } from "lucide-react"
-import { getRecipeImageUrl } from "@/lib/image-helper"
+import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import type { Recipe } from "@/lib/types"
+import { useTheme } from "@/contexts/theme-context"
 
 export interface RecipeListViewProps {
   recipes: Recipe[]
@@ -24,6 +27,8 @@ export const RecipeListView = memo(function RecipeListView({
   favorites,
   onFavoriteToggle
 }: RecipeListViewProps) {
+  const { theme } = useTheme()
+  const imageFallback = getDefaultImageFallback(theme)
   const getTotalTime = (recipe: Recipe) => {
     return (recipe.prep_time || 0) + (recipe.cook_time || 0)
   }
@@ -44,6 +49,10 @@ export const RecipeListView = memo(function RecipeListView({
   return (
     <div className="space-y-4 md:space-y-6">
       {recipes.map((recipe: Recipe, idx: number) => (
+        (() => {
+          const imageSrc = getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) || imageFallback
+          const isFallbackImage = isDefaultImageFallback(imageSrc)
+          return (
         <div
           key={recipe.id}
           className="relative"
@@ -55,12 +64,19 @@ export const RecipeListView = memo(function RecipeListView({
                 <div className="flex flex-col md:flex-row">
                   <div className="w-full md:w-1/2 relative min-h-[200px] md:min-h-[300px]">
                     <Image
-                      src={getRecipeImageUrl(recipe.content?.image_url) || "/placeholder.svg"}
+                      src={imageSrc}
                       alt={recipe.title}
                       fill
-                      className="object-cover"
+                      className={isFallbackImage ? "object-contain p-4" : "object-cover"}
                       sizes="(max-width: 768px) 100vw, 50vw"
                       loading="lazy"
+                      onError={(event) => {
+                        const target = event.currentTarget as HTMLImageElement
+                        if (!target.src.includes(imageFallback)) {
+                          target.src = imageFallback
+                          applyFallbackImageStyles(target)
+                        }
+                      }}
                     />
                   </div>
 
@@ -167,6 +183,8 @@ export const RecipeListView = memo(function RecipeListView({
             </Button>
           </div>
         </div>
+          )
+        })()
       ))}
     </div>
   )

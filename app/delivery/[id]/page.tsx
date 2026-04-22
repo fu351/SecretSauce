@@ -64,6 +64,12 @@ export default function OrderDetailPage() {
   useEffect(() => setMounted(true), [])
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      router.replace("/auth/signin")
+      return
+    }
+
     if (user && orderId) {
       fetchOrderDetails()
     }

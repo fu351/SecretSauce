@@ -9,7 +9,7 @@ const mockGetPublicUrl = vi.fn()
 const mockFetch = vi.fn()
 
 let mockAuthState = {
-  user: { email: "friend@example.com", firstName: "Taylor" },
+  user: { id: "user_test_1", email: "friend@example.com", firstName: "Taylor" },
   loading: false,
 }
 
@@ -34,6 +34,21 @@ vi.mock("@/hooks", () => ({
 vi.mock("@/lib/database/recipe-db", () => ({
   recipeDB: {
     fetchRecipes: mockFetchRecipes,
+  },
+}))
+
+const mockFetchMealScheduleByDateRange = vi.fn()
+const mockFindExpiringSoon = vi.fn()
+
+vi.mock("@/lib/database/meal-planner-db", () => ({
+  mealPlannerDB: {
+    fetchMealScheduleByDateRange: mockFetchMealScheduleByDateRange,
+  },
+}))
+
+vi.mock("@/lib/database/pantry-items-db", () => ({
+  pantryItemsDB: {
+    findExpiringSoon: mockFindExpiringSoon,
   },
 }))
 
@@ -69,7 +84,7 @@ describe("HomeReturningPage", () => {
     vi.clearAllMocks()
     vi.unstubAllGlobals()
     mockAuthState = {
-      user: { email: "friend@example.com", firstName: "Taylor" },
+      user: { id: "user_test_1", email: "friend@example.com", firstName: "Taylor" },
       loading: false,
     }
     mockUpload.mockResolvedValue({ error: null })
@@ -149,6 +164,19 @@ describe("HomeReturningPage", () => {
         })
       }
 
+      if (url.includes("/api/search")) {
+        return new Response(
+          JSON.stringify({
+            recipes: [{ id: "recipe_1", title: "Spicy Noodles" }],
+            users: [{ id: "user_2", full_name: "Jordan Chef", username: "jordan-chef", avatar_url: null }],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      }
+
       if (url.includes("/api/challenges/challenge_1/join") && init?.method === "POST") {
         return new Response(JSON.stringify({ entry: { post_id: "post_1" } }), {
           status: 200,
@@ -158,6 +186,9 @@ describe("HomeReturningPage", () => {
 
       throw new Error(`Unhandled fetch in HomeReturningPage test: ${url}`)
     })
+
+    mockFetchMealScheduleByDateRange.mockResolvedValue([])
+    mockFindExpiringSoon.mockResolvedValue([])
 
     mockFetchRecipes
       .mockResolvedValueOnce([
@@ -263,5 +294,46 @@ describe("HomeReturningPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/no recommendations yet/i)).toBeInTheDocument()
     })
+  })
+
+  it("hides social feed and challenge when not logged in", async () => {
+    mockAuthState = { user: null as any, loading: false }
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(mockFetchRecipes).toHaveBeenCalled()
+    })
+
+    expect(screen.queryByRole("heading", { name: /made by your circle/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: /midnight pasta challenge/i })).not.toBeInTheDocument()
+    const signInLinks = screen.getAllByRole("link", { name: /^sign in$/i })
+    expect(signInLinks.length).toBeGreaterThanOrEqual(1)
+    expect(signInLinks.some((a) => a.getAttribute("href") === "/auth/signin")).toBe(true)
+
+    const feedCalls = mockFetch.mock.calls.filter(([url]) =>
+      typeof url === "string" && url.includes("/api/posts/feed")
+    )
+    expect(feedCalls.length).toBe(0)
+  })
+
+  it("opens full search overlay and preserves @username results", async () => {
+    const user = userEvent.setup()
+    render(<HomePage />)
+
+    const triggers = screen.getAllByRole("button", { name: /search recipes/i })
+    await user.click(triggers[0])
+
+    const overlay = screen.getByTestId("home-search-overlay")
+    expect(overlay).toBeInTheDocument()
+    const overlayInput = overlay.querySelector("input[placeholder='Search recipes or @username…']") as HTMLInputElement
+    expect(overlayInput).toBeInTheDocument()
+    await user.type(overlayInput, "@jordan")
+
+    await waitFor(() => {
+      expect(screen.getByText(/@jordan-chef/i)).toBeInTheDocument()
+      expect(screen.getByText(/spicy noodles/i)).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole("link", { name: /browse all recipes/i })).toBeInTheDocument()
   })
 })

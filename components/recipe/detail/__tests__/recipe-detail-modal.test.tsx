@@ -51,6 +51,9 @@ vi.mock("@/contexts/theme-context", () => ({
 
 vi.mock("@/lib/image-helper", () => ({
   getRecipeImageUrl: () => "/recipe.jpg",
+  getDefaultImageFallback: (theme?: string) => (theme === "dark" ? "/logo-dark.png" : "/logo-warm.png"),
+  isDefaultImageFallback: (src?: string) => Boolean(src?.includes("logo-")),
+  applyFallbackImageStyles: vi.fn(),
 }))
 
 import { RecipeDetailModal } from "../recipe-detail-modal"

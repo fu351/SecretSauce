@@ -89,7 +89,7 @@ export function ProfileCard({ profile }: Props) {
             <Link href="/settings">
               <Button variant="outline" size="sm" className="w-full gap-1.5">
                 <Settings className="h-3.5 w-3.5" />
-                Edit Profile
+                Settings
               </Button>
             </Link>
           </div>

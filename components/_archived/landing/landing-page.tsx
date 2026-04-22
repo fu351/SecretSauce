@@ -83,7 +83,7 @@ export function LandingPage() {
 
         {/* Scroll-down — small, thin, elegant */}
         <div
-          className={`absolute bottom-8 left-1/2 flex flex-col items-center gap-2 transition-all duration-[1.5s] delay-700 landing-scroll-breathe landing-scroll-glow ${
+          className={`absolute bottom-8 left-1/2 flex flex-col items-center gap-2 transition-all duration-1000 delay-700 landing-scroll-breathe landing-scroll-glow ${
             mounted ? "opacity-100" : "opacity-0"
           }`}
         >
