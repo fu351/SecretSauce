@@ -70,7 +70,6 @@ export function buildStoreMetadataFromRows(
 export function buildStoreMetadataFromStoreData(
   stores: Map<string, {
     id?: string
-    storeId?: string
     grocery_store_id?: string
     zip_code?: string | null
     latitude?: number | null
@@ -85,8 +84,8 @@ export function buildStoreMetadataFromStoreData(
     const longitude = toNullableNumber(store.longitude)
     const distanceMiles = toNullableNumber(store.distance_miles)
     metadata.set(key, {
-      storeId: store.storeId ?? store.id,
-      grocery_store_id: store.grocery_store_id ?? store.storeId ?? store.id,
+      storeId: store.grocery_store_id ?? store.id,
+      grocery_store_id: store.grocery_store_id ?? store.id,
       zipCode: store.zip_code ?? null,
       latitude,
       longitude,

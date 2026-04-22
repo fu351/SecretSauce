@@ -278,7 +278,7 @@ describe("ShoppingReceiptView", () => {
           },
         ]}
         storeComparisons={[]}
-        selectedStore={null}
+        selectedStore="Walmart"
         onStoreChange={vi.fn()}
         onQuantityChange={vi.fn()}
         onRemoveItem={onRemoveItem}
@@ -289,7 +289,7 @@ describe("ShoppingReceiptView", () => {
     fireEvent.click(screen.getByTestId("remove-group:ingredient:std-apples"))
 
     expect(onRemoveItem).toHaveBeenCalledTimes(1)
-    expect(onRemoveItem).toHaveBeenCalledWith("item-a-1")
+    expect(onRemoveItem).toHaveBeenCalledWith("item-a-1", "Walmart", ["item-a-1", "item-a-2"])
   })
 
   it("forwards all source item ids when swapping a merged row", () => {

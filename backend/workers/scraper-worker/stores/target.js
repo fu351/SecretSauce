@@ -7,6 +7,42 @@ const { logHttpErrorToDatabase } = require('../utils/db-error-logger');
 const { createResultCache } = require('../utils/result-cache');
 const { withExponentialBackoffRetry } = require('../utils/retry');
 
+// UUID pattern — used to detect grocery_store_id UUIDs vs numeric Target store IDs
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+let _supabase = null;
+function getSupabaseClient() {
+    if (_supabase) return _supabase;
+    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return null;
+    const { createClient } = require('@supabase/supabase-js');
+    _supabase = createClient(url, key);
+    return _supabase;
+}
+
+/**
+ * Resolve the numeric Target API store ID from a grocery_stores UUID.
+ * Returns null if the UUID has no target_store_id in its metadata.
+ */
+async function resolveTargetStoreIdFromUuid(groceryStoreId) {
+    if (!groceryStoreId || !UUID_RE.test(groceryStoreId)) return null;
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+    try {
+        const { data, error } = await supabase
+            .from('grocery_stores')
+            .select('metadata')
+            .eq('id', groceryStoreId)
+            .single();
+        if (error || !data) return null;
+        const targetStoreId = data.metadata?.target_store_id;
+        return typeof targetStoreId === 'string' && targetStoreId.trim() ? targetStoreId.trim() : null;
+    } catch {
+        return null;
+    }
+}
+
 // Environment variables for configuration
 const TARGET_TIMEOUT_MS = Number(process.env.TARGET_TIMEOUT_MS || 10000);
 const TARGET_MAX_RETRIES = Number(process.env.TARGET_MAX_RETRIES || 2);
@@ -194,21 +230,22 @@ function resolveTargetStoreId(storeMetadata) {
         return null;
     }
 
-    const explicitStoreId =
-        storeMetadata.target_store_id ??
-        storeMetadata.targetStoreId ??
-        storeMetadata.store_id ??
-        storeMetadata.storeId ??
-        storeMetadata.raw?.store_id ??
-        storeMetadata.raw?.storeId ??
-        null;
+    const candidates = [
+        storeMetadata.target_store_id,
+        storeMetadata.targetStoreId,
+        storeMetadata.store_id,
+        storeMetadata.raw?.store_id,
+        storeMetadata.raw?.storeId,
+    ];
 
-    if (explicitStoreId === null || explicitStoreId === undefined) {
-        return null;
+    for (const candidate of candidates) {
+        if (candidate === null || candidate === undefined) continue;
+        const normalized = String(candidate).trim();
+        // Reject UUIDs — those are grocery_store_id values, not Target API store IDs
+        if (normalized.length > 0 && !UUID_RE.test(normalized)) return normalized;
     }
 
-    const normalized = String(explicitStoreId).trim();
-    return normalized.length > 0 ? normalized : null;
+    return null;
 }
 
 function resolveGroceryStoreId(storeMetadata) {
@@ -261,18 +298,18 @@ async function searchTarget(keyword, storeMetadata, zipCode, sortBy = "price") {
                 if (storeId) {
                     storeIdSource = 'db_metadata';
                 }
-                if (!storeId && storeMetadata.id !== undefined && storeMetadata.id !== null) {
-                    log.warn(
-                        `[target] Ignoring generic metadata.id="${storeMetadata.id}" for "${keyword}" (${zipCode}); ` +
-                        `expected target_store_id/store_id to avoid DB-ID collisions`
-                    );
-                }
             } else if (storeMetadata) {
                 storeId = storeMetadata;
                 storeIdSource = 'explicit';
             }
 
-            // If no store data provided, fetch it first
+            // If no numeric store ID yet, look it up from the DB using the grocery_store_id UUID
+            if (!storeId && groceryStoreId) {
+                storeId = await resolveTargetStoreIdFromUuid(groceryStoreId);
+                if (storeId) storeIdSource = 'uuid_lookup';
+            }
+
+            // Final fallback: nearest store by zip
             if (!storeId) {
                 resolvedStoreInfo = await getNearestStore(zipCode);
                 storeId = resolveTargetStoreId(resolvedStoreInfo);

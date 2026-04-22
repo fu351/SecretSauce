@@ -52,11 +52,13 @@ export function ReceiptItem({
   const lineTotal = pricing
     ? (lineTotalFromPkg ?? (Number(pricing.price) || 0) * quantity)
     : null
+  // Ceil when falling back — package counts must be whole numbers even if the
+  // ingredient quantity is fractional (e.g. 1.5 cups when no converted_quantity).
   const packageQuantityDisplay = !isAvailable
     ? "0"
     : adjustedPackagesToBuy !== null
     ? formatMeasure(adjustedPackagesToBuy)
-    : quantityDisplay
+    : String(Math.max(1, Math.ceil(quantity)))
 
   const rawItemName = typeof item.name === "string" ? item.name.trim() : ""
   const displayName = rawItemName || pricing?.originalName?.trim() || pricing?.title?.trim() || "Unnamed item"

@@ -76,28 +76,21 @@ export async function POST(request: NextRequest) {
       },
     ])
 
-    let cachedViaFallback = false
     if (inserted === 0) {
-      const fallback = await ingredientsHistoryDB.insertPrice({
+      // The RPC returned 0 rows — either it errored or all items were skipped/filtered.
+      // A direct insertPrice fallback would create an ingredients_history row with no
+      // product_mapping_id, which get_pricing can't use (it joins through product_mappings).
+      // Return 500 so the caller knows the selection wasn't persisted.
+      console.error("[Cache Selection] batchStandardizeAndMatch returned 0 — selection not cached", {
+        searchTerm,
+        store,
+        productTitle: product.title,
         standardizedIngredientId: resolvedStandardizedIngredientId,
-        store: store.toLowerCase(),
-        productName: product.title,
-        productId: product.id,
-        price: product.price,
-        imageUrl: product.image_url || null,
-        location: product.location || null,
-        zipCode: zipCode || null,
-        groceryStoreId: groceryStoreId || null,
       })
-
-      if (!fallback) {
-        console.error("[Cache Selection] Failed to insert cache entry")
-        return NextResponse.json(
-          { error: "Failed to cache selection" },
-          { status: 500 }
-        )
-      }
-      cachedViaFallback = true
+      return NextResponse.json(
+        { error: "Failed to cache selection" },
+        { status: 500 }
+      )
     }
 
     console.log("[Cache Selection] Successfully cached user selection", {
@@ -106,14 +99,12 @@ export async function POST(request: NextRequest) {
       productTitle: product.title,
       standardizedIngredientId: resolvedStandardizedIngredientId,
       inserted,
-      cachedViaFallback,
     })
 
     return NextResponse.json({
       success: true,
       standardizedIngredientId: resolvedStandardizedIngredientId,
       inserted,
-      cachedViaFallback,
       message: "Selection cached successfully"
     })
   } catch (error) {

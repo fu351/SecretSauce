@@ -86,6 +86,7 @@ vi.mock('@/components/store/shopping-receipt-view', () => ({
     onCheckout,
     onRefresh,
     onStoreChange,
+    onRemoveItem,
     onSwapItem,
     loading,
     selectedStore,
@@ -95,10 +96,14 @@ vi.mock('@/components/store/shopping-receipt-view', () => ({
       <span data-testid="receipt-loading">{loading ? 'loading' : 'ready'}</span>
       <span data-testid="selected-store">{selectedStore ?? 'none'}</span>
       <span data-testid="store-count">{storeComparisons.length}</span>
+      <span data-testid="selected-store-item-count">
+        {storeComparisons.find((store: any) => store.store === selectedStore)?.items.length ?? 0}
+      </span>
       <button onClick={onCheckout} data-testid="checkout-btn">Checkout</button>
       <button onClick={onRefresh} data-testid="refresh-btn">Refresh</button>
       <button onClick={() => onStoreChange('Walmart')} data-testid="change-store-btn">Change Store</button>
       <button onClick={() => onStoreChange(null)} data-testid="clear-store-btn">Clear Store</button>
+      <button onClick={() => onRemoveItem('item_1', selectedStore, ['item_1'])} data-testid="remove-btn">Remove</button>
       <button onClick={() => onSwapItem('item_1')} data-testid="swap-btn">Swap</button>
     </div>
   ),
@@ -308,7 +313,7 @@ describe('ShoppingReceiptPage', () => {
       await waitFor(() => {
         expect(mockPerformMassSearch).toHaveBeenCalledWith({
           showCachedFirst: true,
-          skipPricingGaps: false,
+          skipPricingGaps: true,
         })
       })
     })
@@ -347,7 +352,7 @@ describe('ShoppingReceiptPage', () => {
       await waitFor(() => {
         expect(mockPerformMassSearch).toHaveBeenCalledWith({
           showCachedFirst: true,
-          skipPricingGaps: false,
+          skipPricingGaps: true,
         })
       })
     })
@@ -372,6 +377,61 @@ describe('ShoppingReceiptPage', () => {
       await waitFor(() => screen.getByTestId('change-store-btn'))
       await userEvent.click(screen.getByTestId('change-store-btn'))
       expect(mockScrollToStore).toHaveBeenCalledWith(0)
+    })
+
+    it('hides an item only from the active store when remove is clicked', async () => {
+      mockShoppingListWith({ items: sampleItems as any })
+      mockStoreComparisonWith({
+        results: [
+          {
+            store: 'Walmart',
+            groceryStoreId: 'store_1',
+            items: [{
+              shoppingItemId: 'item_1',
+              shoppingItemIds: ['item_1'],
+              productMappingId: 'prod_1',
+              title: 'Apples',
+              price: 0.99,
+              quantity: 1,
+              packagesToBuy: 2,
+              packagePrice: 0.99,
+              unit: 'each',
+            }],
+          },
+          {
+            store: 'Kroger',
+            groceryStoreId: 'store_2',
+            items: [{
+              shoppingItemId: 'item_1',
+              shoppingItemIds: ['item_1'],
+              productMappingId: 'prod_2',
+              title: 'Apples',
+              price: 1.49,
+              quantity: 1,
+              packagesToBuy: 2,
+              packagePrice: 1.49,
+              unit: 'each',
+            }],
+          },
+        ] as any,
+        activeStoreIndex: 0,
+        hasFetched: true,
+      })
+
+      render(<ShoppingReceiptPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('selected-store')).toHaveTextContent('Walmart')
+        expect(screen.getByTestId('selected-store-item-count')).toHaveTextContent('1')
+      })
+
+      await userEvent.click(screen.getByTestId('remove-btn'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('selected-store-item-count')).toHaveTextContent('0')
+      })
+
+      expect(mockRemoveItem).not.toHaveBeenCalled()
     })
   })
 
