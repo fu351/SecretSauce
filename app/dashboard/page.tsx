@@ -28,6 +28,7 @@ import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
 import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
 import { ProfileCard } from "@/components/social/profile-card"
+import { RecipeCollectionSummary } from "@/components/recipe/collections/recipe-collection-summary"
 
 interface DashboardStats {
   totalRecipes: number
@@ -169,7 +170,7 @@ export default function DashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/recipes?saved=true" className="block">
+            <Link href="/saved" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-3 md:p-6">
                   <div className="flex items-center justify-between mb-2 md:mb-4">
@@ -207,6 +208,10 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+          </div>
+
+          <div className="mb-4 md:mb-8">
+            <RecipeCollectionSummary userId={user?.id ?? null} />
           </div>
 
           {showIOSPrompt && !localStorage.getItem("ios_webapp_prompt_dismissed") ? (

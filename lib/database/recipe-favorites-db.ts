@@ -275,11 +275,16 @@ class RecipeCollectionsTable extends BaseTable<
     return Array.from(recipesById.values())
   }
 
-  async isFavorite(_userId: string, recipeId: string): Promise<boolean> {
+  async isFavorite(userId: string, recipeId: string): Promise<boolean> {
+    const collections = await this.fetchUserCollections(userId)
+    if (collections.length === 0) return false
+
+    const collectionIds = collections.map((collection) => collection.id)
     const { data, error } = await this.supabase
       .from("recipe_collection_items")
       .select("id")
       .eq("recipe_id", recipeId)
+      .in("collection_id", collectionIds)
       .limit(1)
       .maybeSingle()
 
