@@ -173,6 +173,8 @@ export const RecipeListView = memo(function RecipeListView({
               size="sm"
               data-favorite-button
               className={`bg-white/90 hover:bg-white ${favorites.has(recipe.id) ? "text-red-500" : "text-gray-600"}`}
+              aria-label={favorites.has(recipe.id) ? "Remove from saved recipes" : "Save recipe"}
+              title={favorites.has(recipe.id) ? "Remove from saved recipes" : "Save recipe"}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()

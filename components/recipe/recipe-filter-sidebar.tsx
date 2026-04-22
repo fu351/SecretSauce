@@ -209,7 +209,7 @@ export function RecipeFilterSidebar({
               >
                 <span className="flex items-center gap-2">
                   <Heart className={`h-4 w-4 ${showFavoritesOnly ? "fill-current" : ""}`} />
-                  Favorites
+                  Saved
                 </span>
                 {showFavoritesOnly ? <Check className="h-4 w-4 text-foreground" /> : <span className="h-4 w-4" />}
               </button>

@@ -12,6 +12,7 @@ import { RecipeDetailSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
 import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-info"
 import { RecipeActionBar } from "@/components/recipe/social/recipe-action-bar"
+import { RecipeCollectionManager } from "@/components/recipe/collections/recipe-collection-manager"
 import { useToast } from "@/hooks"
 import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
@@ -40,6 +41,7 @@ export default function RecipeDetailPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
+  const [showCollectionManager, setShowCollectionManager] = useState(false)
   const [isFloating, setIsFloating] = useState(false)
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
   const [cookingMode, setCookingMode] = useState(false)
@@ -222,13 +224,13 @@ export default function RecipeDetailPage() {
   }, [showSwipeHint])
 
   const toggleFavorite = async () => {
-    if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to favorite recipes.",
-        variant: "destructive",
-      })
-      return
+      if (!user) {
+        toast({
+          title: "Sign in required",
+          description: "Please sign in to save recipes.",
+          variant: "destructive",
+        })
+        return
     }
 
     if (!params.id) return
@@ -240,16 +242,16 @@ export default function RecipeDetailPage() {
       trackEvent(newFavoriteStatus ? "recipe_added_to_favorites" : "recipe_removed_from_favorites", { recipe_id: params.id as string })
 
       toast({
-        title: newFavoriteStatus ? "Added to favorites" : "Removed from favorites",
+        title: newFavoriteStatus ? "Saved to your default folder" : "Removed from your default folder",
         description: newFavoriteStatus
-          ? "Recipe has been added to your favorites."
-          : "Recipe has been removed from your favorites.",
+          ? "Recipe has been added to your saved recipes."
+          : "Recipe has been removed from your saved recipes.",
       })
     } catch (error) {
       console.error("Error toggling favorite:", error)
       toast({
         title: "Error",
-        description: "Failed to update favorites. Please try again.",
+        description: "Failed to update saved recipes. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -426,6 +428,7 @@ export default function RecipeDetailPage() {
               isFavorite={isFavorite}
               isTogglingFavorite={isTogglingFavorite}
               onToggleFavorite={toggleFavorite}
+              onManageCollections={() => setShowCollectionManager(true)}
               likeCount={likeCount}
               isLiked={isLiked}
               onLikeToggle={(liked, count) => { setIsLiked(liked); setLikeCount(count) }}
@@ -437,6 +440,12 @@ export default function RecipeDetailPage() {
               friendLikes={friendLikes}
               isAuthenticated={!!user}
               isDark={isDark}
+            />
+            <RecipeCollectionManager
+              open={showCollectionManager}
+              onOpenChange={setShowCollectionManager}
+              recipeId={recipe.id}
+              userId={user?.id ?? null}
             />
           </div>
 

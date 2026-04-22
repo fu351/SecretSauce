@@ -6,9 +6,9 @@ import Image from "next/image"
 import { Star, Heart } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTheme } from "@/contexts/theme-context"
-import { supabase } from "@/lib/database/supabase"
 import { useToast } from "@/hooks"
 import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
+import { recipeFavoritesDB } from "@/lib/database/recipe-favorites-db"
 import { Recipe, RecipeTags } from "@/lib/types"
 import { useDraggable } from "@dnd-kit/core"
 
@@ -54,13 +54,13 @@ function RecipeCardCompactComponent({
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
   const { theme } = useTheme()
+  const recipe = { id, title, content, rating_avg, difficulty, comments, tags, nutrition, ...rest } as Recipe
   const imageFallback = getDefaultImageFallback(theme)
-  const imageSrc = getRecipeImageUrl(content?.image_url || recipe.image_url, theme) || imageFallback
+  const imageSrc = getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) || imageFallback
   const isFallbackImage = isDefaultImageFallback(imageSrc)
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided
-  const recipe = { id, title, content, rating_avg, difficulty, comments, tags, nutrition, ...rest } as Recipe
   const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
   const { attributes, listeners, setNodeRef } = useDraggable({
     id: draggableProps?.draggableId || '',
@@ -82,20 +82,7 @@ function RecipeCardCompactComponent({
     if (!user) return
 
     try {
-      const { data, error } = await supabase
-        .from("recipe_favorites")
-        .select("id")
-        .eq("recipe_id", id)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-
-      if (error && error.code !== "PGRST116") {
-        console.warn("Error checking favorites:", error)
-        return
-      }
-
-      setIsFavorited(!!(data && data.length > 0))
+      setIsFavorited(await recipeFavoritesDB.isFavorite(user.id, id))
     } catch (error) {
       console.warn("Error checking if favorited:", error)
       setIsFavorited(false)
@@ -109,7 +96,7 @@ function RecipeCardCompactComponent({
     if (!user) {
       toast({
         title: "Sign in required",
-        description: "Please sign in to favorite recipes.",
+        description: "Please sign in to save recipes.",
         variant: "destructive",
       })
       return
@@ -118,18 +105,13 @@ function RecipeCardCompactComponent({
     setLoading(true)
     try {
       if (isFavorited) {
-        const { error } = await supabase.from("recipe_favorites").delete().eq("recipe_id", id).eq("user_id", user.id)
-
-        if (error) throw error
+        const success = await recipeFavoritesDB.removeFavorite(user.id, id)
+        if (!success) throw new Error("Failed to remove saved recipe")
         setIsFavorited(false)
         onFavoriteChange?.(id, false)
       } else {
-        const { error } = await supabase.from("recipe_favorites").insert({
-          recipe_id: id,
-          user_id: user.id,
-        })
-
-        if (error) throw error
+        const saved = await recipeFavoritesDB.addFavorite(user.id, id)
+        if (!saved) throw new Error("Failed to save recipe")
         setIsFavorited(true)
         onFavoriteChange?.(id, true)
       }
@@ -137,7 +119,7 @@ function RecipeCardCompactComponent({
       console.error("Error toggling favorite:", error)
       toast({
         title: "Error",
-        description: "Failed to update favorites.",
+        description: "Failed to update saved recipes.",
         variant: "destructive",
       })
     } finally {
@@ -192,8 +174,8 @@ function RecipeCardCompactComponent({
             <button
               onClick={toggleFavorite}
               disabled={loading}
-              aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
-              title={isFavorited ? "Remove from favorites" : "Add to favorites"}
+              aria-label={isFavorited ? "Remove from saved recipes" : "Save recipe"}
+              title={isFavorited ? "Remove from saved recipes" : "Save recipe"}
               className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background transition-colors z-[5]"
               data-favorite-button
             >

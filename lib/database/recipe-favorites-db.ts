@@ -4,43 +4,227 @@ import type { Database } from "@/lib/database/supabase"
 import type { Recipe } from "@/lib/types"
 import { parseInstructionsFromDB } from "@/lib/types"
 
-export type RecipeFavoriteRow = Database["public"]["Tables"]["recipe_favorites"]["Row"]
-export type RecipeFavoriteInsert = Database["public"]["Tables"]["recipe_favorites"]["Insert"]
-export type RecipeFavoriteUpdate = Database["public"]["Tables"]["recipe_favorites"]["Update"]
+export type RecipeCollectionRow = Database["public"]["Tables"]["recipe_collections"]["Row"]
+export type RecipeCollectionInsert = Database["public"]["Tables"]["recipe_collections"]["Insert"]
+export type RecipeCollectionUpdate = Database["public"]["Tables"]["recipe_collections"]["Update"]
+
+export type RecipeCollectionItemRow = Database["public"]["Tables"]["recipe_collection_items"]["Row"]
+export type RecipeCollectionItemInsert = Database["public"]["Tables"]["recipe_collection_items"]["Insert"]
+export type RecipeCollectionItemUpdate = Database["public"]["Tables"]["recipe_collection_items"]["Update"]
+
+export interface RecipeCollectionWithCount extends RecipeCollectionRow {
+  recipe_count: number
+}
+
+const DEFAULT_COLLECTION_NAME = "Saved Recipes"
+
+type RecipeCollectionRecipeJoin = {
+  recipe_id: string
+  recipes: any
+}
+
+function mapRecipeFromJoin(recipe: any): Recipe {
+  const description = recipe.description ?? recipe.content?.description ?? ""
+  const imageUrl = recipe.image_url ?? recipe.content?.image_url
+  const instructions = parseInstructionsFromDB(recipe.instructions_list ?? recipe.content?.instructions)
+
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    description,
+    image_url: imageUrl,
+    prep_time: recipe.prep_time || 0,
+    cook_time: recipe.cook_time || 0,
+    servings: recipe.servings,
+    difficulty: recipe.difficulty,
+    cuisine_name: recipe.cuisine || undefined,
+    ingredients: recipe.ingredients || [],
+    instructions,
+    nutrition: recipe.nutrition || {},
+    author_id: recipe.author_id || "",
+    rating_avg: recipe.rating_avg || 0,
+    rating_count: recipe.rating_count || 0,
+    tags: {
+      dietary: recipe.tags || [],
+      protein: recipe.protein || undefined,
+      meal_type: recipe.meal_type || undefined,
+      cuisine_guess: undefined,
+    },
+    created_at: recipe.created_at,
+    updated_at: recipe.updated_at,
+  }
+}
 
 /**
- * Database operations for recipe favorites
- * Singleton class extending BaseTable with specialized favorites operations
+ * Database operations for recipe collections.
+ * The legacy recipeFavoritesDB name is preserved as a compatibility alias.
  */
-class RecipeFavoritesTable extends BaseTable<
-  "recipe_favorites",
-  RecipeFavoriteRow,
-  RecipeFavoriteInsert,
-  RecipeFavoriteUpdate
+class RecipeCollectionsTable extends BaseTable<
+  "recipe_collections",
+  RecipeCollectionRow,
+  RecipeCollectionInsert,
+  RecipeCollectionUpdate
 > {
-  private static instance: RecipeFavoritesTable | null = null
-  readonly tableName = "recipe_favorites" as const
+  private static instance: RecipeCollectionsTable | null = null
+  readonly tableName = "recipe_collections" as const
 
   private constructor() {
     super()
   }
 
-  static getInstance(): RecipeFavoritesTable {
-    if (!RecipeFavoritesTable.instance) {
-      RecipeFavoritesTable.instance = new RecipeFavoritesTable()
+  static getInstance(): RecipeCollectionsTable {
+    if (!RecipeCollectionsTable.instance) {
+      RecipeCollectionsTable.instance = new RecipeCollectionsTable()
     }
-    return RecipeFavoritesTable.instance
+    return RecipeCollectionsTable.instance
   }
 
-  /**
-   * Fetch user's favorite recipes with full recipe data using relationship join
-   */
-  async fetchFavoriteRecipes(userId: string): Promise<Recipe[]> {
-    console.log("[Recipe Favorites DB] Fetching favorite recipes for user:", userId)
+  async ensureDefaultCollection(userId: string): Promise<RecipeCollectionRow | null> {
+    const existing = await this.fetchDefaultCollection(userId)
+    if (existing) return existing
 
-    // Single batch query using relationship join - more efficient than two separate queries
+    const nextSortOrder = await this.getNextSortOrder(userId)
     const { data, error } = await this.supabase
       .from(this.tableName)
+      .insert({
+        user_id: userId,
+        name: DEFAULT_COLLECTION_NAME,
+        is_default: true,
+        sort_order: nextSortOrder,
+      })
+      .select()
+      .maybeSingle()
+
+    if (error) {
+      this.handleError(error, "ensureDefaultCollection")
+      return null
+    }
+
+    return data ?? null
+  }
+
+  async fetchDefaultCollection(userId: string): Promise<RecipeCollectionRow | null> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_default", true)
+      .maybeSingle()
+
+    if (error) {
+      this.handleError(error, "fetchDefaultCollection")
+      return null
+    }
+
+    return data ?? null
+  }
+
+  async fetchUserCollections(userId: string): Promise<RecipeCollectionRow[]> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select("*")
+      .eq("user_id", userId)
+      .order("is_default", { ascending: false })
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      this.handleError(error, "fetchUserCollections")
+      return []
+    }
+
+    return data || []
+  }
+
+  async fetchUserCollectionsWithCounts(userId: string): Promise<RecipeCollectionWithCount[]> {
+    const collections = await this.fetchUserCollections(userId)
+    if (collections.length === 0) return []
+
+    const collectionIds = collections.map((collection) => collection.id)
+    const { data, error } = await this.supabase
+      .from("recipe_collection_items")
+      .select("collection_id")
+      .in("collection_id", collectionIds)
+
+    if (error) {
+      this.handleError(error, "fetchUserCollectionsWithCounts")
+      return collections.map((collection) => ({ ...collection, recipe_count: 0 }))
+    }
+
+    const counts = new Map<string, number>()
+    for (const row of data || []) {
+      counts.set(row.collection_id, (counts.get(row.collection_id) || 0) + 1)
+    }
+
+    return collections.map((collection) => ({
+      ...collection,
+      recipe_count: counts.get(collection.id) || 0,
+    }))
+  }
+
+  async fetchCollectionsForRecipe(userId: string, recipeId: string): Promise<RecipeCollectionRow[]> {
+    const collections = await this.fetchUserCollections(userId)
+    if (collections.length === 0) return []
+
+    const collectionIds = collections.map((collection) => collection.id)
+    const { data, error } = await this.supabase
+      .from("recipe_collection_items")
+      .select("collection_id, recipe_id")
+      .eq("recipe_id", recipeId)
+      .in("collection_id", collectionIds)
+
+    if (error) {
+      this.handleError(error, "fetchCollectionsForRecipe")
+      return []
+    }
+
+    const savedCollectionIds = new Set((data || []).map((row) => row.collection_id))
+    return collections.filter((collection) => savedCollectionIds.has(collection.id))
+  }
+
+  async fetchCollectionRecipeIds(collectionId: string): Promise<string[]> {
+    const { data, error } = await this.supabase
+      .from("recipe_collection_items")
+      .select("recipe_id")
+      .eq("collection_id", collectionId)
+
+    if (error) {
+      this.handleError(error, "fetchCollectionRecipeIds")
+      return []
+    }
+
+    return (data || []).map((item) => item.recipe_id)
+  }
+
+  async fetchFavoriteRecipeIds(userId: string): Promise<string[]> {
+    console.log("[Recipe Collections DB] Fetching saved recipe IDs for user:", userId)
+
+    const collections = await this.fetchUserCollections(userId)
+    if (collections.length === 0) return []
+
+    const collectionIds = collections.map((collection) => collection.id)
+    const { data, error } = await this.supabase
+      .from("recipe_collection_items")
+      .select("recipe_id, collection_id")
+      .in("collection_id", collectionIds)
+
+    if (error) {
+      this.handleError(error, "fetchFavoriteRecipeIds")
+      return []
+    }
+
+    return Array.from(new Set((data || []).map((item) => item.recipe_id)))
+  }
+
+  async fetchFavoriteRecipes(userId: string): Promise<Recipe[]> {
+    console.log("[Recipe Collections DB] Fetching saved recipes for user:", userId)
+
+    const collections = await this.fetchUserCollections(userId)
+    if (collections.length === 0) return []
+
+    const collectionIds = collections.map((collection) => collection.id)
+    const { data, error } = await this.supabase
+      .from("recipe_collection_items")
       .select(`
         recipe_id,
         recipes (
@@ -65,12 +249,11 @@ class RecipeFavoritesTable extends BaseTable<
           updated_at
         )
       `)
-      .eq("user_id", userId)
+      .in("collection_id", collectionIds)
 
     if (error) {
-      // Table might not exist in test environment or foreign key relationship not configured
       if (error.code === "PGRST116" || error.code === "PGRST200" || error.message?.includes("relation")) {
-        console.log("[Recipe Favorites DB] Favorites table not available or relationship not configured:", error.message)
+        console.log("[Recipe Collections DB] Collection tables not available or relationship not configured:", error.message)
         return []
       }
       this.handleError(error, "fetchFavoriteRecipes")
@@ -81,75 +264,23 @@ class RecipeFavoritesTable extends BaseTable<
       return []
     }
 
-    // Extract and map recipes from the joined result
-    const recipes = data
-      .map((item: any) => item.recipes)
-      .filter(Boolean)
-      .map((recipe: any) => {
-        const description = recipe.description ?? recipe.content?.description ?? ""
-        const imageUrl = recipe.image_url ?? recipe.content?.image_url
-        const instructions = parseInstructionsFromDB(
-          recipe.instructions_list ?? recipe.content?.instructions
-        )
-
-        return {
-          id: recipe.id,
-          title: recipe.title,
-          description,
-          image_url: imageUrl,
-          prep_time: recipe.prep_time || 0,
-          cook_time: recipe.cook_time || 0,
-          servings: recipe.servings,
-          difficulty: recipe.difficulty,
-          cuisine_name: recipe.cuisine || undefined,
-          ingredients: recipe.ingredients || [],
-          instructions,
-          nutrition: recipe.nutrition || {},
-          author_id: recipe.author_id || "",
-          rating_avg: recipe.rating_avg || 0,
-          rating_count: recipe.rating_count || 0,
-          tags: {
-            dietary: recipe.tags || [],
-            protein: recipe.protein || undefined,
-            meal_type: recipe.meal_type || undefined,
-            cuisine_guess: undefined,
-          },
-          created_at: recipe.created_at,
-          updated_at: recipe.updated_at,
-        }
-      })
-
-    return recipes
-  }
-
-  /**
-   * Fetch just the favorite recipe IDs for a user (lightweight query)
-   */
-  async fetchFavoriteRecipeIds(userId: string): Promise<string[]> {
-    console.log("[Recipe Favorites DB] Fetching favorite recipe IDs for user:", userId)
-
-    const { data, error } = await this.supabase
-      .from(this.tableName)
-      .select("recipe_id")
-      .eq("user_id", userId)
-
-    if (error) {
-      this.handleError(error, "fetchFavoriteRecipeIds")
-      return []
+    const recipesById = new Map<string, Recipe>()
+    for (const item of data as RecipeCollectionRecipeJoin[]) {
+      if (!item.recipes) continue
+      if (!recipesById.has(item.recipes.id)) {
+        recipesById.set(item.recipes.id, mapRecipeFromJoin(item.recipes))
+      }
     }
 
-    return (data || []).map((item) => item.recipe_id)
+    return Array.from(recipesById.values())
   }
 
-  /**
-   * Check if a recipe is favorited by a user
-   */
-  async isFavorite(userId: string, recipeId: string): Promise<boolean> {
+  async isFavorite(_userId: string, recipeId: string): Promise<boolean> {
     const { data, error } = await this.supabase
-      .from(this.tableName)
+      .from("recipe_collection_items")
       .select("id")
-      .eq("user_id", userId)
       .eq("recipe_id", recipeId)
+      .limit(1)
       .maybeSingle()
 
     if (error) {
@@ -160,22 +291,44 @@ class RecipeFavoritesTable extends BaseTable<
     return !!data
   }
 
-  /**
-   * Add a recipe to favorites
-   */
-  async addFavorite(userId: string, recipeId: string): Promise<RecipeFavoriteRow | null> {
-    console.log("[Recipe Favorites DB] Adding favorite:", { userId, recipeId })
+  async isRecipeInCollection(collectionId: string, recipeId: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from("recipe_collection_items")
+      .select("id")
+      .eq("collection_id", collectionId)
+      .eq("recipe_id", recipeId)
+      .maybeSingle()
 
-    // Use upsert to avoid duplicate key errors - it will insert or do nothing if exists
-    const { data, error } = await (this.supabase
-      .from(this.tableName) as any)
+    if (error) {
+      this.handleError(error, "isRecipeInCollection")
+      return false
+    }
+
+    return !!data
+  }
+
+  async addFavorite(userId: string, recipeId: string): Promise<RecipeCollectionItemRow | null> {
+    console.log("[Recipe Collections DB] Adding recipe to default collection:", { userId, recipeId })
+
+    const collection = await this.ensureDefaultCollection(userId)
+    if (!collection) return null
+
+    return this.addRecipeToCollection(collection.id, recipeId)
+  }
+
+  async addRecipeToCollection(
+    collectionId: string,
+    recipeId: string
+  ): Promise<RecipeCollectionItemRow | null> {
+    const { data, error } = await this.supabase
+      .from("recipe_collection_items")
       .upsert(
         {
-          user_id: userId,
+          collection_id: collectionId,
           recipe_id: recipeId,
         },
         {
-          onConflict: "recipe_id,user_id",
+          onConflict: "collection_id,recipe_id",
           ignoreDuplicates: true,
         }
       )
@@ -183,24 +336,23 @@ class RecipeFavoritesTable extends BaseTable<
       .maybeSingle()
 
     if (error) {
-      this.handleError(error, "addFavorite")
+      this.handleError(error, "addRecipeToCollection")
       return null
     }
 
-    console.log("[Recipe Favorites DB] Favorite added successfully")
-    return data
+    return data ?? null
   }
 
-  /**
-   * Remove a recipe from favorites
-   */
   async removeFavorite(userId: string, recipeId: string): Promise<boolean> {
-    console.log("[Recipe Favorites DB] Removing favorite:", { userId, recipeId })
+    console.log("[Recipe Collections DB] Removing recipe from default collection:", { userId, recipeId })
+
+    const collection = await this.ensureDefaultCollection(userId)
+    if (!collection) return false
 
     const { error } = await this.supabase
-      .from(this.tableName)
+      .from("recipe_collection_items")
       .delete()
-      .eq("user_id", userId)
+      .eq("collection_id", collection.id)
       .eq("recipe_id", recipeId)
 
     if (error) {
@@ -208,45 +360,148 @@ class RecipeFavoritesTable extends BaseTable<
       return false
     }
 
-    console.log("[Recipe Favorites DB] Favorite removed successfully")
     return true
   }
 
-  /**
-   * Toggle favorite status for a recipe
-   */
-  async toggleFavorite(userId: string, recipeId: string): Promise<boolean> {
-    const isCurrentlyFavorite = await this.isFavorite(userId, recipeId)
+  async removeRecipeFromCollection(collectionId: string, recipeId: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from("recipe_collection_items")
+      .delete()
+      .eq("collection_id", collectionId)
+      .eq("recipe_id", recipeId)
 
-    if (isCurrentlyFavorite) {
-      await this.removeFavorite(userId, recipeId)
+    if (error) {
+      this.handleError(error, "removeRecipeFromCollection")
       return false
-    } else {
-      await this.addFavorite(userId, recipeId)
-      return true
     }
+
+    return true
   }
 
-  /**
-   * Remove all favorites for a user
-   */
-  async clearAllFavorites(userId: string): Promise<boolean> {
-    console.log("[Recipe Favorites DB] Clearing all favorites for user:", userId)
+  async toggleFavorite(userId: string, recipeId: string): Promise<boolean> {
+    const collection = await this.ensureDefaultCollection(userId)
+    if (!collection) return false
+
+    const isCurrentlyFavorite = await this.isRecipeInCollection(collection.id, recipeId)
+
+    if (isCurrentlyFavorite) {
+      await this.removeRecipeFromCollection(collection.id, recipeId)
+      return false
+    }
+
+    await this.addRecipeToCollection(collection.id, recipeId)
+    return true
+  }
+
+  async createCollection(userId: string, name: string): Promise<RecipeCollectionRow | null> {
+    const trimmedName = name.trim()
+    if (!trimmedName) return null
+
+    const existing = await this.fetchUserCollections(userId)
+    const nextSortOrder = existing.reduce((max, collection) => Math.max(max, collection.sort_order || 0), -1) + 1
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .insert({
+        user_id: userId,
+        name: trimmedName,
+        is_default: false,
+        sort_order: nextSortOrder,
+      })
+      .select()
+      .maybeSingle()
+
+    if (error) {
+      this.handleError(error, "createCollection")
+      return null
+    }
+
+    return data ?? null
+  }
+
+  async renameCollection(collectionId: string, name: string): Promise<RecipeCollectionRow | null> {
+    const trimmedName = name.trim()
+    if (!trimmedName) return null
+
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .update({ name: trimmedName })
+      .eq("id", collectionId)
+      .select()
+      .maybeSingle()
+
+    if (error) {
+      this.handleError(error, "renameCollection")
+      return null
+    }
+
+    return data ?? null
+  }
+
+  async deleteCollection(collectionId: string): Promise<boolean> {
+    const collection = await this.supabase
+      .from(this.tableName)
+      .select("id, is_default")
+      .eq("id", collectionId)
+      .maybeSingle()
+
+    if (collection.error) {
+      this.handleError(collection.error, "deleteCollection")
+      return false
+    }
+
+    if (collection.data?.is_default) {
+      return false
+    }
 
     const { error } = await this.supabase
       .from(this.tableName)
       .delete()
-      .eq("user_id", userId)
+      .eq("id", collectionId)
+
+    if (error) {
+      this.handleError(error, "deleteCollection")
+      return false
+    }
+
+    return true
+  }
+
+  async clearAllFavorites(userId: string): Promise<boolean> {
+    console.log("[Recipe Collections DB] Clearing all saved recipes for user:", userId)
+
+    const collections = await this.fetchUserCollections(userId)
+    if (collections.length === 0) return true
+
+    const collectionIds = collections.map((collection) => collection.id)
+    const { error } = await this.supabase
+      .from("recipe_collection_items")
+      .delete()
+      .in("collection_id", collectionIds)
 
     if (error) {
       this.handleError(error, "clearAllFavorites")
       return false
     }
 
-    console.log("[Recipe Favorites DB] All favorites cleared successfully")
     return true
+  }
+
+  private async getNextSortOrder(userId: string): Promise<number> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select("sort_order")
+      .eq("user_id", userId)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error || !data) {
+      return 0
+    }
+
+    return (data.sort_order || 0) + 1
   }
 }
 
-// Export singleton instance
-export const recipeFavoritesDB = RecipeFavoritesTable.getInstance()
+export const recipeCollectionsDB = RecipeCollectionsTable.getInstance()
+export const recipeFavoritesDB = recipeCollectionsDB
