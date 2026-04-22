@@ -183,8 +183,6 @@ export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
     <>
       <RecipeGrid
         recipes={recipes}
-        favorites={favorites}
-        onFavoriteToggle={handleFavoriteToggle}
         onRecipeClick={handleRecipeClick}
         pinnedIds={isOwnProfile ? pinnedIds : undefined}
         onPinToggle={isOwnProfile ? handlePinToggle : undefined}

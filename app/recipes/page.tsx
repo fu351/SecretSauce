@@ -686,8 +686,6 @@ export default function RecipesPage() {
             ) : viewMode === "tile" ? (
               <RecipeGrid
                 recipes={displayRecipes}
-                favorites={favorites}
-                onFavoriteToggle={toggleFavorite}
                 onRecipeClick={(id) => router.push(`/recipes/${id}`)}
               />
             ) : (

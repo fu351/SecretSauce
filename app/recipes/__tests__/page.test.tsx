@@ -96,11 +96,9 @@ vi.mock("@/components/recipe/recipe-results-header", () => ({
 vi.mock("@/components/recipe/recipe-grid", () => ({
   RecipeGrid: ({
     recipes,
-    onFavoriteToggle,
     onRecipeClick,
   }: {
     recipes: Array<{ id: string; title: string }>
-    onFavoriteToggle: (id: string, e?: React.MouseEvent) => void
     onRecipeClick: (id: string) => void
   }) => (
     <div>
@@ -108,9 +106,6 @@ vi.mock("@/components/recipe/recipe-grid", () => ({
         <div key={recipe.id}>
           <button type="button" onClick={() => onRecipeClick(recipe.id)}>
             {`Open ${recipe.title}`}
-          </button>
-          <button type="button" onClick={(event) => onFavoriteToggle(recipe.id, event)}>
-            {`Favorite ${recipe.title}`}
           </button>
         </div>
       ))}
@@ -186,19 +181,12 @@ describe("RecipesPage", () => {
     })
   })
 
-  it("shows a sign-in toast when an anonymous user favorites a recipe", async () => {
+  it("does not show a save button in tile view", async () => {
     mockAuthState = { user: null }
 
     render(<RecipesPage />)
 
-    fireEvent.click(screen.getByRole("button", { name: /favorite tomato soup/i }))
-
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Sign in required",
-        variant: "destructive",
-      })
-    )
-    expect(mockMutateAsync).not.toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: /favorite tomato soup/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /save tomato soup/i })).not.toBeInTheDocument()
   })
 })
