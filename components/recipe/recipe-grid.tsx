@@ -4,7 +4,7 @@ import { memo, useRef, useState } from "react"
 import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Clock, Flame, Heart, Star, Users } from "lucide-react"
+import { Clock, Flame, Heart, Pin, PinOff, Star, Users } from "lucide-react"
 import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import type { Recipe } from "@/lib/types"
@@ -15,6 +15,9 @@ export interface RecipeGridProps {
   favorites: Set<string>
   onFavoriteToggle: (recipeId: string, e?: React.MouseEvent) => Promise<void>
   onRecipeClick: (recipeId: string) => void
+  /** When provided, shows a pin/unpin button on cards (own profile only) */
+  pinnedIds?: string[]
+  onPinToggle?: (recipeId: string, e?: React.MouseEvent) => Promise<void>
 }
 
 /**
@@ -25,7 +28,9 @@ export const RecipeGrid = memo(function RecipeGrid({
   recipes,
   favorites,
   onFavoriteToggle,
-  onRecipeClick
+  onRecipeClick,
+  pinnedIds,
+  onPinToggle,
 }: RecipeGridProps) {
   const { theme } = useTheme()
   const imageFallback = getDefaultImageFallback(theme)
@@ -121,24 +126,47 @@ export const RecipeGrid = memo(function RecipeGrid({
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
 
-            <button
-              type="button"
-              data-favorite-button
-              aria-label={favorites.has(recipe.id) ? "Remove from favorites" : "Add to favorites"}
-              onClick={(e) => {
-                // Ensure tapping the favorite never triggers tile expansion.
-                e.preventDefault()
-                e.stopPropagation()
-                void onFavoriteToggle(recipe.id, e)
-              }}
-              className={`absolute right-2 top-2 z-10 pointer-events-auto rounded-full p-2 backdrop-blur-sm transition ${
-                favorites.has(recipe.id)
-                  ? "bg-black/45 text-red-400"
-                  : "bg-black/35 text-white/90 hover:text-white"
-              }`}
-            >
-              <Heart className={`h-4 w-4 ${favorites.has(recipe.id) ? "fill-current" : ""}`} />
-            </button>
+            <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
+              <button
+                type="button"
+                data-favorite-button
+                aria-label={favorites.has(recipe.id) ? "Remove from favorites" : "Add to favorites"}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  void onFavoriteToggle(recipe.id, e)
+                }}
+                className={`pointer-events-auto rounded-full p-2 backdrop-blur-sm transition ${
+                  favorites.has(recipe.id)
+                    ? "bg-black/45 text-red-400"
+                    : "bg-black/35 text-white/90 hover:text-white"
+                }`}
+              >
+                <Heart className={`h-4 w-4 ${favorites.has(recipe.id) ? "fill-current" : ""}`} />
+              </button>
+
+              {onPinToggle && pinnedIds && (
+                <button
+                  type="button"
+                  data-favorite-button
+                  aria-label={pinnedIds.includes(recipe.id) ? "Unpin recipe" : "Pin recipe"}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    void onPinToggle(recipe.id, e)
+                  }}
+                  className={`pointer-events-auto rounded-full p-2 backdrop-blur-sm transition ${
+                    pinnedIds.includes(recipe.id)
+                      ? "bg-black/45 text-amber-400"
+                      : "bg-black/35 text-white/90 hover:text-white"
+                  }`}
+                >
+                  {pinnedIds.includes(recipe.id)
+                    ? <PinOff className="h-4 w-4" />
+                    : <Pin className="h-4 w-4" />}
+                </button>
+              )}
+            </div>
 
             <div className="absolute inset-x-0 bottom-0 p-2.5">
               <p className="line-clamp-2 text-sm font-medium leading-tight text-white drop-shadow">

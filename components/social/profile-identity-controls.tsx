@@ -2,13 +2,21 @@
 
 import { useEffect, useState, type ChangeEvent } from "react"
 import Image from "next/image"
-import { Camera, Check, Globe, Lock, Settings2, X } from "lucide-react"
+import { BadgeShowcase } from "@/components/social/badge-showcase"
+import { ProfileFollowButton } from "@/components/social/profile-follow-button"
+import { Camera, Check, ChevronDown, Globe, Lock, Settings, X } from "lucide-react"
 
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -17,20 +25,26 @@ import { normalizeUsername, validateUsername } from "@/lib/auth/username"
 
 interface ProfileIdentityControlsProps {
   isOwnProfile: boolean
+  profileId: string
   fullName: string | null
   avatarUrl: string | null
   username: string | null
   isPrivate: boolean
   fullNameHidden: boolean
+  showFollowButton?: boolean
+  initialFollowStatus?: "none" | "pending" | "accepted"
 }
 
 export function ProfileIdentityControls({
   isOwnProfile,
+  profileId,
   fullName,
   avatarUrl,
   username,
   isPrivate,
   fullNameHidden,
+  showFollowButton = false,
+  initialFollowStatus = "none",
 }: ProfileIdentityControlsProps) {
   const { user, updateProfile } = useAuth()
   const { toast } = useToast()
@@ -44,6 +58,9 @@ export function ProfileIdentityControls({
   const [draftHandle, setDraftHandle] = useState(username ?? "")
   const [draftIsPrivate, setDraftIsPrivate] = useState(isPrivate)
   const [draftFullNameHidden, setDraftFullNameHidden] = useState(fullNameHidden)
+  const [followerCount, setFollowerCount] = useState<number | null>(null)
+  const [followingCount, setFollowingCount] = useState<number | null>(null)
+  const [isBadgeEditing, setIsBadgeEditing] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -62,6 +79,36 @@ export function ProfileIdentityControls({
       setDraftFullNameHidden(fullNameHidden)
     }
   }, [avatarUrl, fullName, fullNameHidden, isEditing, isPrivate, username])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadCounts = async () => {
+      try {
+        const res = await fetch(`/api/social/counts?profileId=${encodeURIComponent(profileId)}`)
+        const data = await res.json()
+
+        if (!isMounted) return
+
+        if (!res.ok) {
+          throw new Error(data?.error ?? "Failed to load profile counts")
+        }
+
+        setFollowerCount(data.followerCount ?? 0)
+        setFollowingCount(data.followingCount ?? 0)
+      } catch {
+        if (!isMounted) return
+        setFollowerCount(0)
+        setFollowingCount(0)
+      }
+    }
+
+    void loadCounts()
+
+    return () => {
+      isMounted = false
+    }
+  }, [profileId])
 
   if (isOwnProfile && !user) {
     return null
@@ -82,6 +129,7 @@ export function ProfileIdentityControls({
     draftFullNameHidden !== currentFullNameHidden
 
   const startEditing = () => {
+    setIsBadgeEditing(false)
     setDraftDisplayName(displayName)
     setDraftHandle(handle)
     setDraftIsPrivate(currentIsPrivate)
@@ -95,6 +143,11 @@ export function ProfileIdentityControls({
     setDraftIsPrivate(currentIsPrivate)
     setDraftFullNameHidden(currentFullNameHidden)
     setIsEditing(false)
+  }
+
+  const startBadgeEditing = () => {
+    setIsEditing(false)
+    setIsBadgeEditing(true)
   }
 
   const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -207,17 +260,17 @@ export function ProfileIdentityControls({
   )
 
   return (
-    <Card className="mb-8 overflow-hidden border-border/60 bg-card/90 shadow-sm backdrop-blur">
-      <CardContent className="p-4 sm:p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+    <Card className="overflow-hidden border-border/60 bg-card/90 shadow-sm backdrop-blur">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
           <div className="relative shrink-0">
-            <div className="h-[4.5rem] w-[4.5rem] overflow-hidden rounded-full bg-muted sm:h-20 sm:w-20">
+            <div className="h-16 w-16 overflow-hidden rounded-full bg-muted sm:h-[4.5rem] sm:w-[4.5rem]">
               {currentAvatarUrl ? (
                 <Image
                   src={currentAvatarUrl}
                   alt={displayName || "Profile"}
-                  width={80}
-                  height={80}
+                  width={72}
+                  height={72}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -244,19 +297,19 @@ export function ProfileIdentityControls({
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 {!isEditing ? (
-                  <>
-                    <h1 className="truncate text-2xl font-semibold text-foreground">
+                  <div className="space-y-1">
+                    <h1 className="truncate text-xl font-semibold text-foreground">
                       {handle ? `@${handle}` : "No username set"}
                     </h1>
                     {!currentFullNameHidden ? (
-                      <p className="mt-0.5 text-sm text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {displayName || "Anonymous Chef"}
                       </p>
                     ) : null}
-                  </>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -341,21 +394,73 @@ export function ProfileIdentityControls({
                 ) : (
                   <>
                     {privacyBadge}
-                    {isOwnProfile && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={startEditing}
-                        className="gap-2"
-                      >
-                        <Settings2 className="h-4 w-4" />
-                        Edit
-                      </Button>
+                    {isOwnProfile && !isEditing && !isBadgeEditing && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button type="button" variant="outline" size="sm" className="gap-2">
+                            <Settings className="h-4 w-4" />
+                            Edit
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={startEditing}>
+                            Edit profile
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={startBadgeEditing}>
+                            Manage badges
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </>
                 )}
               </div>
+
+              {!isEditing ? (
+                <div className="flex w-full max-w-[18rem] items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/80 px-3 py-3 shadow-sm backdrop-blur sm:ml-auto sm:w-auto sm:min-w-[16rem]">
+                  <div className="min-w-0">
+                    <p className="text-2xl font-semibold leading-none text-foreground">
+                      {followerCount ?? "—"}
+                    </p>
+                    <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Followers
+                    </p>
+                  </div>
+                  <div className="h-10 w-px bg-border" />
+                  <div className="min-w-0">
+                    <p className="text-2xl font-semibold leading-none text-foreground">
+                      {followingCount ?? "—"}
+                    </p>
+                    <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Following
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-4 space-y-3 border-t border-border/60 pt-3">
+              <div className="min-w-0">
+                {username && (
+                  <BadgeShowcase
+                    username={username}
+                    isOwnProfile={isOwnProfile}
+                    isEditing={isBadgeEditing}
+                    onEditingChange={setIsBadgeEditing}
+                  />
+                )}
+              </div>
+
+              {showFollowButton && !isOwnProfile ? (
+                <div className="flex justify-end">
+                  <ProfileFollowButton
+                    targetProfileId={profileId}
+                    initialStatus={initialFollowStatus}
+                    isPrivate={isPrivate}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

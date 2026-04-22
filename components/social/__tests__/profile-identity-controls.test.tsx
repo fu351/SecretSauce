@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockToast = vi.fn()
 const mockUpdateProfile = vi.fn()
@@ -40,9 +40,38 @@ vi.mock("@/lib/database/supabase", () => ({
 describe("ProfileIdentityControls", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+
+        if (url.startsWith("/api/social/counts")) {
+          return {
+            ok: true,
+            json: async () => ({ followerCount: 12, followingCount: 34 }),
+          } as Response
+        }
+
+        if (url.includes("/badges")) {
+          return {
+            ok: true,
+            json: async () => ({ badges: [], showcasedBadgeIds: [] }),
+          } as Response
+        }
+
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as Response
+      })
+    )
     mockUpdateProfile.mockResolvedValue(undefined)
     mockUpload.mockResolvedValue({ error: null })
     mockGetPublicUrl.mockReturnValue({ data: { publicUrl: "https://cdn.test/avatar.png" } })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it("updates avatar, name, and username from the profile page", async () => {
@@ -52,6 +81,7 @@ describe("ProfileIdentityControls", () => {
     render(
       <ProfileIdentityControls
         isOwnProfile={true}
+        profileId="profile_1"
         fullName="Avery Cook"
         avatarUrl={null}
         username="avery_cook"
@@ -65,6 +95,7 @@ describe("ProfileIdentityControls", () => {
     expect(screen.getByLabelText(/public profile/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: /^edit$/i }))
+    await user.click(screen.getByRole("menuitem", { name: /edit profile/i }))
 
     await user.clear(screen.getByLabelText(/^full name$/i))
     await user.type(screen.getByLabelText(/^full name$/i), "Avery Baker")
@@ -96,6 +127,7 @@ describe("ProfileIdentityControls", () => {
     render(
       <ProfileIdentityControls
         isOwnProfile={false}
+        profileId="profile_1"
         fullName="Avery Cook"
         avatarUrl={null}
         username="avery_cook"
@@ -115,6 +147,7 @@ describe("ProfileIdentityControls", () => {
     render(
       <ProfileIdentityControls
         isOwnProfile={false}
+        profileId="profile_1"
         fullName="Avery Cook"
         avatarUrl={null}
         username="avery_cook"
