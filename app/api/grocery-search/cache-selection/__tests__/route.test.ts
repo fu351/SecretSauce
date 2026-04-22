@@ -4,6 +4,7 @@ const { mockResolveStandardizedIngredientId, mockBatchStandardizeAndMatch, mockI
   vi.hoisted(() => ({
     mockResolveStandardizedIngredientId: vi.fn(),
     mockBatchStandardizeAndMatch: vi.fn(),
+    // Kept in mock object so the module import resolves, but must never be called.
     mockInsertPrice: vi.fn(),
   }))
 
@@ -29,47 +30,61 @@ describe("POST /api/grocery-search/cache-selection", () => {
     vi.clearAllMocks()
     mockResolveStandardizedIngredientId.mockResolvedValue("std_1")
     mockBatchStandardizeAndMatch.mockResolvedValue(1)
-    mockInsertPrice.mockResolvedValue(true)
   })
 
-  it("returns 400 when required fields are missing", async () => {
-    const response = await POST(makeRequest({ store: "walmart" }) as any)
+  // ── Validation ──────────────────────────────────────────────────────────────
 
+  it("returns 400 when store/product/identifier are missing", async () => {
+    const response = await POST(makeRequest({ store: "walmart" }) as any)
     expect(response.status).toBe(400)
     expect(await response.json()).toEqual({
       error: "store, product, and either searchTerm or standardizedIngredientId are required",
     })
   })
 
-  it("returns 400 when the selected product is invalid", async () => {
+  it("returns 400 when product.title is empty", async () => {
     const response = await POST(
       makeRequest({
         searchTerm: "milk",
         store: "walmart",
-        product: { id: "prod_1", title: "", price: 0 },
+        product: { id: "p1", title: "", price: 3.99 },
       }) as any
     )
-
     expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
-      error: "product.id, product.title, and positive product.price are required",
-    })
   })
 
-  it("resolves a standardized ingredient id from the search term when one is not provided", async () => {
+  it("returns 400 when product.price is zero or missing", async () => {
+    const response = await POST(
+      makeRequest({
+        searchTerm: "milk",
+        store: "walmart",
+        product: { id: "p1", title: "Milk", price: 0 },
+      }) as any
+    )
+    expect(response.status).toBe(400)
+  })
+
+  it("returns 400 when product.id is missing", async () => {
+    const response = await POST(
+      makeRequest({
+        searchTerm: "milk",
+        store: "walmart",
+        product: { title: "Milk", price: 3.99 },
+      }) as any
+    )
+    expect(response.status).toBe(400)
+  })
+
+  // ── Ingredient resolution ────────────────────────────────────────────────────
+
+  it("resolves ingredient id from searchTerm when standardizedIngredientId is absent", async () => {
     const response = await POST(
       makeRequest({
         searchTerm: "whole milk",
         store: "Walmart",
         zipCode: "94110",
         groceryStoreId: "store_1",
-        product: {
-          id: "prod_1",
-          title: "Organic Whole Milk",
-          price: 4.99,
-          unit: "gallon",
-          rawUnit: "gallon",
-        },
+        product: { id: "prod_1", title: "Organic Whole Milk", price: 4.99, unit: "gallon", rawUnit: "gallon" },
       }) as any
     )
 
@@ -88,82 +103,111 @@ describe("POST /api/grocery-search/cache-selection", () => {
       }),
     ])
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      success: true,
-      inserted: 1,
-      cachedViaFallback: false,
-      standardizedIngredientId: "std_1",
-    })
+    const body = await response.json()
+    expect(body).toMatchObject({ success: true, inserted: 1, standardizedIngredientId: "std_1" })
+    // cachedViaFallback was removed — orphaned insertPrice rows are invisible to get_pricing
+    expect(body).not.toHaveProperty("cachedViaFallback")
   })
 
-  it("falls back to direct cache insertion when the RPC insert path returns zero rows", async () => {
+  it("uses provided standardizedIngredientId directly without calling resolveStandardizedIngredientId", async () => {
+    const response = await POST(
+      makeRequest({
+        standardizedIngredientId: "std_direct",
+        store: "kroger",
+        product: { id: "prod_2", title: "Butter", price: 3.50 },
+      }) as any
+    )
+
+    expect(mockResolveStandardizedIngredientId).not.toHaveBeenCalled()
+    expect(mockBatchStandardizeAndMatch).toHaveBeenCalledWith([
+      expect.objectContaining({ standardizedIngredientId: "std_direct" }),
+    ])
+    expect(response.status).toBe(200)
+  })
+
+  it("returns 500 when standardized ingredient id cannot be resolved from searchTerm", async () => {
+    mockResolveStandardizedIngredientId.mockResolvedValue(null)
+
+    const response = await POST(
+      makeRequest({
+        searchTerm: "unknown_xyzzy",
+        store: "walmart",
+        product: { id: "p9", title: "Mystery", price: 5 },
+      }) as any
+    )
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: "Could not resolve standardized ingredient" })
+  })
+
+  // ── Persistence failure path ─────────────────────────────────────────────────
+
+  it("returns 500 — and does NOT call insertPrice — when batchStandardizeAndMatch returns 0", async () => {
+    // batchStandardizeAndMatch returning 0 means the RPC errored or skipped all items.
+    // Previously a direct insertPrice fallback was used, but those rows have no
+    // product_mapping_id and are invisible to get_pricing (which joins through
+    // product_mappings). The fallback was removed to avoid creating orphaned rows.
     mockBatchStandardizeAndMatch.mockResolvedValue(0)
 
     const response = await POST(
       makeRequest({
         standardizedIngredientId: "std_42",
         store: "Target",
-        product: {
-          id: "prod_42",
-          title: "Sea Salt",
-          price: 2.5,
-          image_url: "https://cdn.example.com/salt.png",
-          location: "Aisle 4",
-        },
-      }) as any
-    )
-
-    expect(mockInsertPrice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        standardizedIngredientId: "std_42",
-        store: "target",
-        productName: "Sea Salt",
-        productId: "prod_42",
-        price: 2.5,
-        imageUrl: "https://cdn.example.com/salt.png",
-        location: "Aisle 4",
-      })
-    )
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      success: true,
-      inserted: 0,
-      cachedViaFallback: true,
-    })
-  })
-
-  it("returns 500 when a standardized ingredient id cannot be resolved", async () => {
-    mockResolveStandardizedIngredientId.mockResolvedValue(null)
-
-    const response = await POST(
-      makeRequest({
-        searchTerm: "mystery ingredient",
-        store: "walmart",
-        product: { id: "prod_9", title: "Mystery", price: 5 },
+        product: { id: "prod_42", title: "Sea Salt", price: 2.50 },
       }) as any
     )
 
     expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: "Could not resolve standardized ingredient",
-    })
+    expect(await response.json()).toEqual({ error: "Failed to cache selection" })
+    expect(mockInsertPrice).not.toHaveBeenCalled()
   })
 
-  it("returns 500 when the fallback insert fails", async () => {
-    mockBatchStandardizeAndMatch.mockResolvedValue(0)
-    mockInsertPrice.mockResolvedValue(false)
+  // ── Payload normalisation ────────────────────────────────────────────────────
 
-    const response = await POST(
+  it("normalises store name to lowercase in the batchStandardizeAndMatch payload", async () => {
+    await POST(
+      makeRequest({
+        standardizedIngredientId: "std_1",
+        store: "Whole Foods",
+        product: { id: "p1", title: "Apples", price: 1.99 },
+      }) as any
+    )
+
+    expect(mockBatchStandardizeAndMatch).toHaveBeenCalledWith([
+      expect.objectContaining({ store: "whole foods" }),
+    ])
+  })
+
+  it("passes null for optional fields when they are absent from the request", async () => {
+    await POST(
       makeRequest({
         standardizedIngredientId: "std_1",
         store: "aldi",
-        product: { id: "prod_1", title: "Spinach", price: 2.99 },
+        product: { id: "p1", title: "Eggs", price: 2.99 },
       }) as any
     )
 
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: "Failed to cache selection",
-    })
+    expect(mockBatchStandardizeAndMatch).toHaveBeenCalledWith([
+      expect.objectContaining({
+        rawUnit: null,
+        unit: null,
+        zipCode: null,
+        groceryStoreId: null,
+      }),
+    ])
+  })
+
+  it("prefers rawUnit over unit when both are provided", async () => {
+    await POST(
+      makeRequest({
+        standardizedIngredientId: "std_1",
+        store: "aldi",
+        product: { id: "p1", title: "Butter", price: 4.49, rawUnit: "16 oz", unit: "oz" },
+      }) as any
+    )
+
+    expect(mockBatchStandardizeAndMatch).toHaveBeenCalledWith([
+      expect.objectContaining({ rawUnit: "16 oz", unit: "oz" }),
+    ])
   })
 })
