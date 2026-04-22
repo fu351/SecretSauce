@@ -92,8 +92,8 @@ async function hydrateMissingStoresFromZip(
           id: store.id,
           name: store.name,
           address: store.address,
-          city: null, // Not in current schema, would need to parse from address
-          state: null,
+          city: store.city ?? null,
+          state: store.state ?? null,
           zip_code: store.zip_code,
           store_enum: store.store_enum,
           grocery_store_id: store.id,
@@ -139,11 +139,11 @@ async function fetchUserPreferredStoresUncached(
             id: row.store_id,
             name: row.store_name,
             address: row.address,
-            city: null, // RPC doesn't return city separately
-            state: null, // RPC doesn't return state separately
+            city: null,
+            state: null,
             zip_code: row.zip_code,
             store_enum: row.store_brand,
-            grocery_store_id: row.grocery_store_id ?? row.store_id,
+            grocery_store_id: (row as any).grocery_store_id ?? row.store_id,
             storeId: row.store_id,
             latitude: latitude ?? undefined,
             longitude: longitude ?? undefined,

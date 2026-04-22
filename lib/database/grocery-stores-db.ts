@@ -51,10 +51,14 @@ class GroceryStoresTable extends BaseTable<
       store_enum: dbItem.store_enum,
       name: dbItem.name,
       address: dbItem.address,
+      city: dbItem.city ?? null,
+      state: dbItem.state ?? null,
       zip_code: dbItem.zip_code,
       geom: dbItem.geom,
       is_active: dbItem.is_active,
       created_at: dbItem.created_at,
+      failure_count: dbItem.failure_count ?? null,
+      metadata: dbItem.metadata ?? null,
     }
   }
 

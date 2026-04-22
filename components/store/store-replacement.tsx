@@ -107,53 +107,64 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     try {
       const normalizedTargetStore = normalizeStoreName(target?.store || "")
 
-      // 1. Preferred source: RPC replacement options for this user/store.
-      const replacementOptions =
+      // 1. Fetch RPC options and live scrape results in parallel.
+      // The scraper is always the primary display source; the RPC only provides ingredient IDs.
+      const [replacementOptions, scrapeStoreResults] = await Promise.all([
         userId && target?.store
-          ? await ingredientsRecentDB.getReplacement(userId, target.store, searchTerm)
-          : []
-
-      const rpcIngredientByItemId = new Map<string, string>()
-      const rpcResults: GroceryItem[] = replacementOptions.flatMap((option, optionIdx) => {
-        const offers = Array.isArray(option.offers) ? option.offers : []
-        return offers.map((offer, offerIdx) => {
-          const stableKey = `${target?.store || ""}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
-          const stableId = `replacement-${stableKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `${optionIdx}-${offerIdx}`}`
-          rpcIngredientByItemId.set(stableId, option.ingredient_id)
-          return {
-            id: stableId,
-            title: offer.product_name || option.canonical_name || searchTerm,
-            brand: "",
-            price: Number(offer.price) || 0,
-            pricePerUnit:
-              offer.unit_price != null
-                ? `$${Number(offer.unit_price).toFixed(2)}${offer.unit ? `/${offer.unit}` : ""}`
-                : undefined,
-            unit: offer.unit || undefined,
-            image_url: offer.image_url || "",
-            provider: target?.store || "",
-            category: option.category || undefined,
-          } satisfies GroceryItem
-        })
-      })
-
-      // 2. Fallback source: live scrape if RPC has no candidates.
-      const fallbackResults = rpcResults.length > 0
-        ? rpcResults
-        : (await searchGroceryStores(
+          ? ingredientsRecentDB.getReplacement(userId, target.store, searchTerm)
+          : Promise.resolve([]),
+        searchGroceryStores(
           searchTerm,
           zipCode,
           target?.store,
           true,
           target?.standardizedIngredientId || null
-        ))
-          .filter((storeResult) => normalizeStoreName(storeResult.store) === normalizedTargetStore)
-          .flatMap((storeResult) =>
-            (storeResult.items || []).map((item) => ({
-              ...item,
-              provider: target?.store || item.provider || "",
-            }))
-          )
+        ),
+      ])
+
+      const rpcIngredientByItemId = new Map<string, string>()
+      replacementOptions.forEach((option, optionIdx) => {
+        const offers = Array.isArray(option.offers) ? option.offers : []
+        offers.forEach((offer, offerIdx) => {
+          const stableKey = `${target?.store || ""}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
+          const stableId = `replacement-${stableKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `${optionIdx}-${offerIdx}`}`
+          rpcIngredientByItemId.set(stableId, option.ingredient_id)
+        })
+      })
+
+      // 2. Use live scrape results; fall back to RPC-only results if scraper returned nothing.
+      const scrapeResults = scrapeStoreResults
+        .filter((storeResult) => normalizeStoreName(storeResult.store) === normalizedTargetStore)
+        .flatMap((storeResult) =>
+          (storeResult.items || []).map((item) => ({
+            ...item,
+            provider: target?.store || item.provider || "",
+          }))
+        )
+
+      const fallbackResults = scrapeResults.length > 0
+        ? scrapeResults
+        : replacementOptions.flatMap((option, optionIdx) => {
+            const offers = Array.isArray(option.offers) ? option.offers : []
+            return offers.map((offer, offerIdx) => {
+              const stableKey = `${target?.store || ""}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
+              const stableId = `replacement-${stableKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `${optionIdx}-${offerIdx}`}`
+              return {
+                id: stableId,
+                title: offer.product_name || option.canonical_name || searchTerm,
+                brand: "",
+                price: Number(offer.price) || 0,
+                pricePerUnit:
+                  offer.unit_price != null
+                    ? `$${Number(offer.unit_price).toFixed(2)}${offer.unit ? `/${offer.unit}` : ""}`
+                    : undefined,
+                unit: offer.unit || undefined,
+                image_url: offer.image_url || "",
+                provider: target?.store || "",
+                category: option.category || undefined,
+              } satisfies GroceryItem
+            })
+          })
 
       const flatResults = fallbackResults.filter((item) => {
         const itemProvider = normalizeStoreName(item.provider || target?.store || "")
@@ -190,8 +201,8 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         price: item.price,
         productName: item.title,
         productId: item.id,
-        rawUnit: item.rawUnit ?? item.unit ?? null,
-        unit: item.unit ?? item.rawUnit ?? null,
+        rawUnit: (item as any).rawUnit ?? item.unit ?? null,
+        unit: item.unit ?? (item as any).rawUnit ?? null,
         zipCode: zipCode || null,
         groceryStoreId: target?.groceryStoreId ?? null,
       }))
