@@ -31,7 +31,8 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Secret Sauce",
-    statusBarStyle: "black-translucent",
+    // Prefer non-translucent iOS status bar so content doesn't sit under the Dynamic Island.
+    statusBarStyle: "black",
   },
   formatDetection: {
     telephone: false,

@@ -106,6 +106,8 @@
   /* Reserve room for fixed mobile bottom navbar + iOS safe areas */
   @media (max-width: 767px) {
     body {
+      /* Keep content clear of iOS Dynamic Island/status bar area in Safari and standalone mode. */
+      padding-top: calc(env(safe-area-inset-top) + 0.5rem);
       padding-bottom: calc(6rem + env(safe-area-inset-bottom));
       padding-left: env(safe-area-inset-left);
       padding-right: env(safe-area-inset-right);
