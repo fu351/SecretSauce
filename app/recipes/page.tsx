@@ -7,7 +7,15 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useIsMobile, useToast } from "@/hooks"
 import { RecipeSkeleton } from "@/components/recipe/cards/recipe-skeleton"
-import { useRecipesFiltered, useRecipesCount, useFavorites, useToggleFavorite, type SortBy } from "@/hooks"
+import {
+  useRecipesFiltered,
+  useRecipesCount,
+  useLikedRecipeIds,
+  useRecipeCollections,
+  useCollectionRecipeIds,
+  useToggleFavorite,
+  type SortBy,
+} from "@/hooks"
 import { useAnalytics } from "@/hooks/use-analytics"
 import { Pagination } from "@/components/ui/pagination"
 import { RecipeHeader } from "@/components/recipe/recipe-header"
@@ -33,8 +41,9 @@ export default function RecipesPage() {
   const [viewMode, setViewMode] = useState<"tile" | "details">("tile")
   const [searchInput, setSearchInput] = useState("")
   const [page, setPage] = useState(1)
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+  const [showLikedOnly, setShowLikedOnly] = useState(false)
   const [showUserOnly, setShowUserOnly] = useState(false)
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [mobileSortOpen, setMobileSortOpen] = useState(false)
 
@@ -51,7 +60,18 @@ export default function RecipesPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   // Fetch saved recipes
-  const { data: favorites = new Set<string>() } = useFavorites(user?.id || null)
+  const { data: likedRecipeIds = [] } = useLikedRecipeIds(user?.id || null)
+  const { data: collections = [] } = useRecipeCollections(user?.id || null)
+  const {
+    data: selectedCollectionRecipeIds = [],
+    isFetching: isSelectedCollectionRecipeIdsFetching,
+  } = useCollectionRecipeIds(selectedCollectionId)
+
+  const activeRecipeIds = selectedCollectionId
+    ? (isSelectedCollectionRecipeIdsFetching ? [] : selectedCollectionRecipeIds)
+    : showLikedOnly && user
+      ? likedRecipeIds
+      : undefined
 
   // Create filters object for database-level filtering
   const pageSize = 24
@@ -60,11 +80,11 @@ export default function RecipesPage() {
     cuisine: selectedCuisine !== "all" ? selectedCuisine : undefined,
     diet: selectedDiet.length > 0 ? selectedDiet : undefined,
     search: searchTerm || undefined,
-    favoriteIds: showFavoritesOnly && user ? Array.from(favorites) : undefined,
+    favoriteIds: activeRecipeIds,
     authorId: showUserOnly && user ? user.id : undefined,
     page,
     pageSize,
-  }), [selectedDifficulty, selectedCuisine, selectedDiet, searchTerm, showFavoritesOnly, favorites, showUserOnly, user, page])
+  }), [selectedDifficulty, selectedCuisine, selectedDiet, searchTerm, activeRecipeIds, showUserOnly, user, page])
 
   // Use React Query hooks for data fetching with caching
   const { data: recipes = [], isLoading: loading, isFetching: recipesFetching } = useRecipesFiltered(sortBy, filters)
@@ -73,7 +93,7 @@ export default function RecipesPage() {
     cuisine: selectedCuisine !== "all" ? selectedCuisine : undefined,
     diet: selectedDiet.length > 0 ? selectedDiet : undefined,
     search: searchTerm || undefined,
-    favoriteIds: showFavoritesOnly && user ? Array.from(favorites) : undefined,
+    favoriteIds: activeRecipeIds,
     authorId: showUserOnly && user ? user.id : undefined,
   })
   const toggleFavoriteMutation = useToggleFavorite()
@@ -92,6 +112,7 @@ export default function RecipesPage() {
       searchParams.has("saved") ||
       searchParams.has("favorites") ||
       searchParams.has("mine") ||
+      searchParams.has("collection") ||
       searchParams.has("page")
 
     if (hasUrlFilters) {
@@ -103,9 +124,10 @@ export default function RecipesPage() {
         : []
       const currentSort = (searchParams.get("sort") || "created_at") as SortBy
       const currentPage = parseInt(searchParams.get("page") || "1", 10)
-      const currentFavorites =
+      const currentLiked =
         searchParams.get("saved") === "true" || searchParams.get("favorites") === "true"
       const currentMine = searchParams.get("mine") === "true"
+      const currentCollection = searchParams.get("collection")
 
       setSearchTerm(urlSearch || "")
       setSearchInput(urlSearch || "")
@@ -114,8 +136,9 @@ export default function RecipesPage() {
       setSelectedDiet(currentDiet)
       setSortBy(currentSort)
       setPage(currentPage)
-      setShowFavoritesOnly(currentFavorites)
+      setShowLikedOnly(currentLiked)
       setShowUserOnly(currentMine)
+      setSelectedCollectionId(currentCollection || null)
       return
     }
 
@@ -134,8 +157,9 @@ export default function RecipesPage() {
         selectedCuisine?: string
         selectedDiet?: string[]
         sortBy?: SortBy
-        showFavoritesOnly?: boolean
+        showLikedOnly?: boolean
         showUserOnly?: boolean
+        selectedCollectionId?: string | null
       }
       setSearchInput(cached.searchInput ?? "")
       setSearchTerm(cached.searchTerm ?? "")
@@ -143,8 +167,9 @@ export default function RecipesPage() {
       setSelectedCuisine(cached.selectedCuisine ?? "all")
       setSelectedDiet(Array.isArray(cached.selectedDiet) ? cached.selectedDiet : [])
       setSortBy(cached.sortBy ?? "created_at")
-      setShowFavoritesOnly(Boolean(cached.showFavoritesOnly))
+      setShowLikedOnly(Boolean(cached.showLikedOnly))
       setShowUserOnly(Boolean(cached.showUserOnly))
+      setSelectedCollectionId(cached.selectedCollectionId ?? null)
       setPage(1)
     } catch {
       window.localStorage.removeItem(cacheKey)
@@ -162,11 +187,12 @@ export default function RecipesPage() {
       selectedCuisine,
       selectedDiet,
       sortBy,
-      showFavoritesOnly,
+      showLikedOnly,
       showUserOnly,
+      selectedCollectionId,
     }
     window.localStorage.setItem(cacheKey, JSON.stringify(payload))
-  }, [user?.id, searchInput, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet, sortBy, showFavoritesOnly, showUserOnly])
+  }, [user?.id, searchInput, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet, sortBy, showLikedOnly, showUserOnly, selectedCollectionId])
 
   useEffect(() => {
     if (!recipesFetching) {
@@ -280,6 +306,48 @@ export default function RecipesPage() {
     }
   }
 
+  const handleLikedToggle = () => {
+    const newValue = !showLikedOnly
+    setShowLikedOnly(newValue)
+    setShowUserOnly(false)
+    setSelectedCollectionId(null)
+    setPage(1)
+    updateURL({ saved: newValue ? "true" : undefined, mine: undefined, collection: undefined }, true)
+  }
+
+  const handleUserRecipesToggle = () => {
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to view your recipes",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const newValue = !showUserOnly
+    setShowUserOnly(newValue)
+    setShowLikedOnly(false)
+    setSelectedCollectionId(null)
+    setPage(1)
+    updateURL({ mine: newValue ? "true" : undefined, saved: undefined, collection: undefined }, true)
+  }
+
+  const handleCollectionChange = (collectionId: string | null) => {
+    setSelectedCollectionId(collectionId)
+    setShowLikedOnly(false)
+    setShowUserOnly(false)
+    setPage(1)
+    updateURL(
+      {
+        collection: collectionId || undefined,
+        saved: undefined,
+        mine: undefined,
+      },
+      true,
+    )
+  }
+
   const handleSearch = () => {
     if (searchInput.trim()) trackEvent("recipe_searched", { query: searchInput.trim() })
     setSearchTerm(searchInput)
@@ -293,8 +361,9 @@ export default function RecipesPage() {
     setSelectedDifficulty("all")
     setSelectedCuisine("all")
     setSelectedDiet([])
-    setShowFavoritesOnly(false)
+    setShowLikedOnly(false)
     setShowUserOnly(false)
+    setSelectedCollectionId(null)
     setPage(1)
     router.replace("/recipes")
   }
@@ -303,19 +372,21 @@ export default function RecipesPage() {
     selectedDifficulty !== "all" ||
     selectedCuisine !== "all" ||
     selectedDiet.length > 0 ||
-    showFavoritesOnly ||
-    showUserOnly
+    showLikedOnly ||
+    showUserOnly ||
+    selectedCollectionId !== null
 
   const activeFilterCount = [
     selectedDifficulty !== "all",
     selectedCuisine !== "all",
     selectedDiet.length > 0,
-    showFavoritesOnly,
+    showLikedOnly,
     showUserOnly,
+    selectedCollectionId !== null,
   ].filter(Boolean).length
 
   const filterSectionCounts = {
-    personal: (showFavoritesOnly ? 1 : 0) + (showUserOnly ? 1 : 0),
+    personal: (showLikedOnly ? 1 : 0) + (showUserOnly ? 1 : 0) + (selectedCollectionId ? 1 : 0),
     difficulty: selectedDifficulty !== "all" ? 1 : 0,
     cuisine: selectedCuisine !== "all" ? 1 : 0,
     dietary: selectedDiet.length,
@@ -485,28 +556,13 @@ export default function RecipesPage() {
                         setPage(1)
                         updateURL({ sort: value }, true)
                       }}
-                      showFavoritesOnly={showFavoritesOnly}
-                      onFavoritesToggle={() => {
-                        const newValue = !showFavoritesOnly
-                        setShowFavoritesOnly(newValue)
-                        setPage(1)
-                        updateURL({ saved: newValue ? "true" : undefined }, true)
-                      }}
+      showFavoritesOnly={showLikedOnly}
+      onFavoritesToggle={handleLikedToggle}
                       showUserOnly={showUserOnly}
-                      onUserRecipesToggle={() => {
-                        if (!user) {
-                          toast({
-                            title: "Sign in required",
-                            description: "Please sign in to view your recipes",
-                            variant: "destructive",
-                          })
-                          return
-                        }
-                        const newValue = !showUserOnly
-                        setShowUserOnly(newValue)
-                        setPage(1)
-                        updateURL({ mine: newValue ? "true" : undefined }, true)
-                      }}
+                      onUserRecipesToggle={handleUserRecipesToggle}
+                      selectedCollectionId={selectedCollectionId}
+                      onCollectionChange={handleCollectionChange}
+                      collections={collections}
                       onClearFilters={handleClearFilters}
                       showSearchControls={false}
                       showSortControls={false}
@@ -634,28 +690,13 @@ export default function RecipesPage() {
                 updateURL({ sort: value }, true)
                 trackEvent("recipe_sort_changed", { sort_by: value })
               }}
-              showFavoritesOnly={showFavoritesOnly}
-              onFavoritesToggle={() => {
-                const newValue = !showFavoritesOnly
-                setShowFavoritesOnly(newValue)
-                setPage(1)
-                updateURL({ saved: newValue ? "true" : undefined }, true)
-              }}
+              showFavoritesOnly={showLikedOnly}
+              onFavoritesToggle={handleLikedToggle}
               showUserOnly={showUserOnly}
-              onUserRecipesToggle={() => {
-                if (!user) {
-                  toast({
-                    title: "Sign in required",
-                    description: "Please sign in to view your recipes",
-                    variant: "destructive",
-                  })
-                  return
-                }
-                const newValue = !showUserOnly
-                setShowUserOnly(newValue)
-                setPage(1)
-                updateURL({ mine: newValue ? "true" : undefined }, true)
-              }}
+              onUserRecipesToggle={handleUserRecipesToggle}
+              selectedCollectionId={selectedCollectionId}
+              onCollectionChange={handleCollectionChange}
+              collections={collections}
               onClearFilters={handleClearFilters}
               idPrefix="recipe-desktop-filter"
             />

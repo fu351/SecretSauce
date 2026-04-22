@@ -1,10 +1,11 @@
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Grid, List, Check, Heart, User, ChevronDown } from "lucide-react"
+import { Search, Grid, List, Check, ThumbsUp, User, ChevronDown, FolderOpen } from "lucide-react"
 import { CUISINE_TYPES, DIETARY_TAGS } from "@/lib/types/recipe/constants"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import type { SortBy } from "@/hooks"
+import type { RecipeCollectionWithCount } from "@/lib/database/recipe-favorites-db"
 
 interface ChecklistItemProps {
   label: string
@@ -45,6 +46,9 @@ interface RecipeFilterSidebarProps {
   onFavoritesToggle: () => void
   showUserOnly: boolean
   onUserRecipesToggle: () => void
+  selectedCollectionId: string | null
+  onCollectionChange: (collectionId: string | null) => void
+  collections?: RecipeCollectionWithCount[]
   onClearFilters: () => void
   showSearchControls?: boolean
   showSortControls?: boolean
@@ -90,6 +94,9 @@ export function RecipeFilterSidebar({
   onFavoritesToggle,
   showUserOnly,
   onUserRecipesToggle,
+  selectedCollectionId,
+  onCollectionChange,
+  collections = [],
   onClearFilters,
   showSearchControls = true,
   showSortControls = true,
@@ -100,6 +107,7 @@ export function RecipeFilterSidebar({
   const [collapsedSections, setCollapsedSections] = useState({
     sort: false,
     personal: false,
+    collections: false,
     difficulty: false,
     cuisine: false,
     dietary: false,
@@ -208,8 +216,8 @@ export function RecipeFilterSidebar({
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  <Heart className={`h-4 w-4 ${showFavoritesOnly ? "fill-current" : ""}`} />
-                  Saved
+                  <ThumbsUp className={`h-4 w-4 ${showFavoritesOnly ? "fill-current" : ""}`} />
+                  Liked
                 </span>
                 {showFavoritesOnly ? <Check className="h-4 w-4 text-foreground" /> : <span className="h-4 w-4" />}
               </button>
@@ -227,6 +235,38 @@ export function RecipeFilterSidebar({
                 </span>
                 {showUserOnly ? <Check className="h-4 w-4 text-foreground" /> : <span className="h-4 w-4" />}
               </button>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted/40"
+                  onClick={() => toggleSection("collections")}
+                >
+                  <span className="flex items-center gap-2">
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Collections
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${collapsedSections.collections ? "-rotate-90" : ""}`} />
+                </button>
+
+                {!collapsedSections.collections && (
+                  <div className="mt-2 space-y-1 pl-1">
+                    {collections.map((collection) => (
+                      <ChecklistItem
+                        key={collection.id}
+                        label={collection.name}
+                        selected={selectedCollectionId === collection.id}
+                        onClick={() => onCollectionChange(collection.id)}
+                      />
+                    ))}
+                    {collections.length === 0 && (
+                      <p className="px-2 py-1 text-xs text-muted-foreground">
+                        Create a folder on a recipe page to filter by it here.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>}
           </div>
 

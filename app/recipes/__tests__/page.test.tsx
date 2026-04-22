@@ -15,7 +15,7 @@ let mockRecipes = [
   { id: "recipe_2", title: "Roast Chicken" },
 ]
 
-let mockFavorites = new Set<string>(["recipe_2"])
+let mockLikedRecipeIds = ["recipe_2"]
 
 vi.mock("@/contexts/auth-context", () => ({
   useAuth: vi.fn(() => mockAuthState),
@@ -33,8 +33,15 @@ vi.mock("@/hooks", () => ({
     data: 48,
     isFetching: false,
   })),
-  useFavorites: vi.fn(() => ({
-    data: mockFavorites,
+  useLikedRecipeIds: vi.fn(() => ({
+    data: mockLikedRecipeIds,
+  })),
+  useRecipeCollections: vi.fn(() => ({
+    data: [],
+  })),
+  useCollectionRecipeIds: vi.fn(() => ({
+    data: [],
+    isFetching: false,
   })),
   useToggleFavorite: vi.fn(() => ({
     mutateAsync: mockMutateAsync,
@@ -137,7 +144,7 @@ describe("RecipesPage", () => {
       { id: "recipe_1", title: "Tomato Soup" },
       { id: "recipe_2", title: "Roast Chicken" },
     ]
-    mockFavorites = new Set(["recipe_2"])
+    mockLikedRecipeIds = ["recipe_2"]
     mockMutateAsync.mockResolvedValue(undefined)
 
     mockRouter()
