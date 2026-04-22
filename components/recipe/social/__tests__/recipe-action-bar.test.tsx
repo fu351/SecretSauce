@@ -22,7 +22,7 @@ vi.mock("@/hooks/use-analytics", () => ({
 }))
 
 describe("RecipeActionBar", () => {
-  const onToggleFavorite = vi.fn()
+  const onSaveClick = vi.fn()
   const onLikeToggle = vi.fn()
   const onRepostToggle = vi.fn()
   const onAddToBasket = vi.fn()
@@ -44,8 +44,7 @@ describe("RecipeActionBar", () => {
       <RecipeActionBar
         recipeId="recipe_1"
         isFavorite={false}
-        isTogglingFavorite={false}
-        onToggleFavorite={onToggleFavorite}
+        onSaveClick={onSaveClick}
         likeCount={3}
         isLiked={false}
         onLikeToggle={onLikeToggle}
@@ -80,8 +79,7 @@ describe("RecipeActionBar", () => {
       <RecipeActionBar
         recipeId="recipe_2"
         isFavorite={false}
-        isTogglingFavorite={false}
-        onToggleFavorite={onToggleFavorite}
+        onSaveClick={onSaveClick}
         likeCount={0}
         isLiked={false}
         onLikeToggle={onLikeToggle}
@@ -111,8 +109,7 @@ describe("RecipeActionBar", () => {
       <RecipeActionBar
         recipeId="recipe_3"
         isFavorite={true}
-        isTogglingFavorite={false}
-        onToggleFavorite={onToggleFavorite}
+        onSaveClick={onSaveClick}
         likeCount={3}
         isLiked={true}
         onLikeToggle={onLikeToggle}
@@ -146,8 +143,7 @@ describe("RecipeActionBar", () => {
       <RecipeActionBar
         recipeId="recipe_4"
         isFavorite={false}
-        isTogglingFavorite={false}
-        onToggleFavorite={onToggleFavorite}
+        onSaveClick={onSaveClick}
         likeCount={0}
         isLiked={false}
         onLikeToggle={onLikeToggle}
@@ -173,8 +169,7 @@ describe("RecipeActionBar", () => {
       <RecipeActionBar
         recipeId="recipe_5"
         isFavorite={false}
-        isTogglingFavorite={false}
-        onToggleFavorite={onToggleFavorite}
+        onSaveClick={onSaveClick}
         likeCount={0}
         isLiked={false}
         onLikeToggle={onLikeToggle}

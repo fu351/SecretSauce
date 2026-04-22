@@ -378,8 +378,6 @@ export default function SavedRecipesPage() {
                   ) : recipes.length > 0 ? (
                     <RecipeGrid
                       recipes={recipes}
-                      favorites={new Set(selectedRecipeIds)}
-                      onFavoriteToggle={handleToggleRecipe}
                       onRecipeClick={(recipeId) => router.push(`/recipes/${recipeId}`)}
                     />
                   ) : (

@@ -4,7 +4,7 @@ import { memo, useRef, useState } from "react"
 import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Clock, Flame, Heart, Pin, PinOff, Star, Users } from "lucide-react"
+import { Clock, Flame, Pin, PinOff, Star, Users } from "lucide-react"
 import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import type { Recipe } from "@/lib/types"
@@ -12,8 +12,6 @@ import { useTheme } from "@/contexts/theme-context"
 
 export interface RecipeGridProps {
   recipes: Recipe[]
-  favorites: Set<string>
-  onFavoriteToggle: (recipeId: string, e?: React.MouseEvent) => Promise<void>
   onRecipeClick: (recipeId: string) => void
   /** When provided, shows a pin/unpin button on cards (own profile only) */
   pinnedIds?: string[]
@@ -26,8 +24,6 @@ export interface RecipeGridProps {
  */
 export const RecipeGrid = memo(function RecipeGrid({
   recipes,
-  favorites,
-  onFavoriteToggle,
   onRecipeClick,
   pinnedIds,
   onPinToggle,
@@ -58,7 +54,7 @@ export const RecipeGrid = memo(function RecipeGrid({
 
   const handleTileClick = (recipe: Recipe, e: React.MouseEvent) => {
     const target = e.target as HTMLElement
-    if (target.closest("[data-favorite-button]") || target.closest("[data-open-button]")) {
+    if (target.closest("[data-open-button]")) {
       return
     }
 
@@ -127,28 +123,10 @@ export const RecipeGrid = memo(function RecipeGrid({
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
 
             <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
-              <button
-                type="button"
-                data-favorite-button
-                aria-label={favorites.has(recipe.id) ? "Remove from saved recipes" : "Save recipe"}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  void onFavoriteToggle(recipe.id, e)
-                }}
-                className={`pointer-events-auto rounded-full p-2 backdrop-blur-sm transition ${
-                  favorites.has(recipe.id)
-                    ? "bg-black/45 text-red-400"
-                    : "bg-black/35 text-white/90 hover:text-white"
-                }`}
-              >
-                <Heart className={`h-4 w-4 ${favorites.has(recipe.id) ? "fill-current" : ""}`} />
-              </button>
-
               {onPinToggle && pinnedIds && (
                 <button
                   type="button"
-                  data-favorite-button
+                  data-pin-button
                   aria-label={pinnedIds.includes(recipe.id) ? "Unpin recipe" : "Pin recipe"}
                   onClick={(e) => {
                     e.preventDefault()

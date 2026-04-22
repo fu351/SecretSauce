@@ -3,6 +3,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { recipeIngredientsDB } from "@/lib/database/recipe-ingredients-db"
+import type { RecipeCollectionWithCount } from "@/lib/database/recipe-favorites-db"
+import { supabase } from "@/lib/database/supabase"
 
 export type SortBy = "created_at" | "rating_avg" | "prep_time" | "title"
 
@@ -203,6 +205,70 @@ export function useFavorites(userId: string | null) {
 }
 
 /**
+ * Fetch recipes the current user has liked.
+ */
+export function useLikedRecipeIds(userId: string | null) {
+  return useQuery({
+    queryKey: ["liked-recipes", userId],
+    queryFn: async () => {
+      if (!userId) return [] as string[]
+
+      const { data, error } = await supabase
+        .from("recipe_likes")
+        .select("recipe_id")
+        .eq("profile_id", userId)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("[useLikedRecipeIds] Failed to fetch liked recipes:", error)
+        return []
+      }
+
+      return (data || []).map((row) => row.recipe_id)
+    },
+    enabled: !!userId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Fetch a user's recipe collections, including counts.
+ */
+export function useRecipeCollections(userId: string | null) {
+  return useQuery({
+    queryKey: ["recipe-collections", userId],
+    queryFn: async () => {
+      if (!userId) return [] as RecipeCollectionWithCount[]
+
+      const { recipeCollectionsDB } = await import("@/lib/database/recipe-favorites-db")
+      return recipeCollectionsDB.fetchUserCollectionsWithCounts(userId)
+    },
+    enabled: !!userId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Fetch the recipe IDs saved in a given collection.
+ */
+export function useCollectionRecipeIds(collectionId: string | null) {
+  return useQuery({
+    queryKey: ["recipe-collection-recipes", collectionId],
+    queryFn: async () => {
+      if (!collectionId) return [] as string[]
+
+      const { recipeCollectionsDB } = await import("@/lib/database/recipe-favorites-db")
+      return recipeCollectionsDB.fetchCollectionRecipeIds(collectionId)
+    },
+    enabled: !!collectionId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+/**
  * Toggle favorite status for a recipe
  */
 export function useToggleFavorite() {
@@ -256,4 +322,3 @@ export function useToggleFavorite() {
     },
   })
 }
-

@@ -19,6 +19,9 @@ export {
   useUserRecipes,
   useRecipe,
   useFavorites,
+  useLikedRecipeIds,
+  useRecipeCollections,
+  useCollectionRecipeIds,
   useToggleFavorite,
   type SortBy
 } from "./recipe/use-recipe"

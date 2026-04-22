@@ -7,7 +7,8 @@ import { mockParams, mockRouter } from "@/test/utils/navigation"
 const mockToast = vi.fn()
 const mockAddRecipeToCart = vi.fn()
 const mockIsFavorite = vi.fn()
-const mockToggleFavorite = vi.fn()
+const mockFetchUserCollectionsWithCounts = vi.fn()
+const mockFetchCollectionsForRecipe = vi.fn()
 const mockFetch = vi.fn()
 
 let mockAuthState = {
@@ -58,9 +59,14 @@ vi.mock("@/lib/image-helper", () => ({
 }))
 
 vi.mock("@/lib/database/recipe-favorites-db", () => ({
+  recipeCollectionsDB: {
+    fetchUserCollectionsWithCounts: mockFetchUserCollectionsWithCounts,
+    fetchCollectionsForRecipe: mockFetchCollectionsForRecipe,
+  },
   recipeFavoritesDB: {
     isFavorite: mockIsFavorite,
-    toggleFavorite: mockToggleFavorite,
+    fetchUserCollectionsWithCounts: mockFetchUserCollectionsWithCounts,
+    fetchCollectionsForRecipe: mockFetchCollectionsForRecipe,
   },
 }))
 
@@ -75,7 +81,8 @@ describe("RecipeDetailPage", () => {
     }
     mockAddRecipeToCart.mockResolvedValue(undefined)
     mockIsFavorite.mockResolvedValue(false)
-    mockToggleFavorite.mockResolvedValue(true)
+    mockFetchUserCollectionsWithCounts.mockResolvedValue([])
+    mockFetchCollectionsForRecipe.mockResolvedValue([])
     mockRecipeStatus = 200
     mockRecipePayload = {
       recipe: {
@@ -191,7 +198,27 @@ describe("RecipeDetailPage", () => {
         variant: "destructive",
       })
     )
-    expect(mockToggleFavorite).not.toHaveBeenCalled()
+    expect(screen.queryByText(/save to collections/i)).not.toBeInTheDocument()
+  })
+
+  it("opens the collection picker when the save button is clicked", async () => {
+    const user = userEvent.setup()
+    const mod = await import("../page")
+    const Page = mod.default
+
+    const { container } = render(<Page />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /tomato soup/i })).toBeInTheDocument()
+    })
+
+    const saveButton = container.querySelector('[data-tutorial="recipe-favorite"]')
+    expect(saveButton).not.toBeNull()
+    await user.click(saveButton as HTMLElement)
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /save to collections/i })).toBeInTheDocument()
+    })
   })
 
   it("redirects back to recipes when the recipe cannot be loaded", async () => {

@@ -1262,8 +1262,6 @@ export default function HomeReturningPage() {
           ) : recommendedRecipes.length > 0 ? (
             <RecipeGrid
               recipes={recommendedRecipes}
-              favorites={new Set<string>()}
-              onFavoriteToggle={async () => {}}
               onRecipeClick={(id) => { window.location.href = `/recipes/${id}` }}
             />
           ) : (
