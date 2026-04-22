@@ -13,7 +13,8 @@ import { ShoppingReceiptView } from "@/components/store/shopping-receipt-view"
 import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { MobileQuickAddPanel } from "@/components/store/mobile-quick-add-panel"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
-import type { GroceryItem } from "@/lib/types/store"
+import type { GroceryItem, StoreComparison } from "@/lib/types/store"
+import { calcLineTotal } from "@/lib/utils/package-pricing"
 
 const StoreMap = dynamic(
   () => import("@/components/store/store-map").then((mod) => mod.StoreMap),
@@ -56,6 +57,84 @@ function buildListQuantitySignature(items: Array<{ id: string; quantity?: number
     .join("|")
 }
 
+function buildQuantityMap(items: Array<{ id: string; quantity?: number | null }>): Map<string, number> {
+  return new Map(
+    items.map((item) => [
+      item.id,
+      Math.max(1, Number(item.quantity) || 1),
+    ])
+  )
+}
+
+function getEffectiveStoreItemQuantity(
+  item: StoreComparison["items"][number],
+  quantityByItemId: Map<string, number>
+): number {
+  const itemIds = item.shoppingItemIds?.filter(Boolean) || [item.shoppingItemId]
+  let effectiveQty = 0
+
+  itemIds.forEach((id) => {
+    effectiveQty += quantityByItemId.get(id) ?? 0
+  })
+
+  if (effectiveQty <= 0) {
+    effectiveQty = Math.max(1, Number(item.quantity) || 1)
+  }
+
+  return effectiveQty
+}
+
+function getStoreItemLineTotal(
+  item: StoreComparison["items"][number],
+  quantityByItemId: Map<string, number>
+): number {
+  const effectiveQty = getEffectiveStoreItemQuantity(item, quantityByItemId)
+  const lineTotal = calcLineTotal({
+    qty: effectiveQty,
+    packagePrice: item.packagePrice,
+    convertedQty: item.convertedQuantity,
+    conversionError: item.conversionError ?? undefined,
+  })
+
+  return lineTotal ?? (Number(item.price) || 0) * effectiveQty
+}
+
+function filterStoreComparisonsByHiddenItems(
+  storeComparisons: StoreComparison[],
+  hiddenStoreItemIds: Record<string, string[]>,
+  quantityByItemId: Map<string, number>
+): StoreComparison[] {
+  if (storeComparisons.length === 0) return storeComparisons
+
+  const filteredComparisons = storeComparisons.map((store) => {
+    const hiddenIds = new Set(hiddenStoreItemIds[store.store] ?? [])
+    if (hiddenIds.size === 0) return store
+
+    const items = store.items.filter((item) => {
+      const itemIds = item.shoppingItemIds?.filter(Boolean) || [item.shoppingItemId]
+      return !itemIds.some((id) => hiddenIds.has(id))
+    })
+
+    const missingIngredients = store.missingIngredients?.filter((item) => !hiddenIds.has(item.id)) ?? []
+    const total = items.reduce((sum, item) => sum + getStoreItemLineTotal(item, quantityByItemId), 0)
+
+    return {
+      ...store,
+      items,
+      total,
+      missingIngredients,
+      missingCount: missingIngredients.length,
+      missingItems: missingIngredients.length > 0,
+    }
+  })
+
+  const maxTotal = Math.max(...filteredComparisons.map((store) => store.total), 0)
+  return filteredComparisons.map((store) => ({
+    ...store,
+    savings: maxTotal - store.total,
+  }))
+}
+
 export default function ShoppingReceiptPage() {
   const router = useRouter()
   const { user } = useAuth()
@@ -73,6 +152,7 @@ export default function ShoppingReceiptPage() {
     standardizedIngredientId?: string | null
     groceryStoreId?: string | null
   } | null>(null)
+  const [hiddenStoreItemIds, setHiddenStoreItemIds] = useState<Record<string, string[]>>({})
   const previousListSignaturesRef = useRef<{
     identity: string
     quantity: string
@@ -102,6 +182,11 @@ export default function ShoppingReceiptPage() {
   } = useStoreComparison(shoppingList, zipCode, null)
   const listIdentitySignature = useMemo(() => buildListIdentitySignature(shoppingList), [shoppingList])
   const listQuantitySignature = useMemo(() => buildListQuantitySignature(shoppingList), [shoppingList])
+  const quantityByItemId = useMemo(() => buildQuantityMap(shoppingList), [shoppingList])
+  const visibleStoreComparisons = useMemo(
+    () => filterStoreComparisonsByHiddenItems(storeComparisons, hiddenStoreItemIds, quantityByItemId),
+    [storeComparisons, hiddenStoreItemIds, quantityByItemId]
+  )
   const normalizedZipCode = zipCode.trim()
 
   // Hydration handling
@@ -208,29 +293,29 @@ export default function ShoppingReceiptPage() {
     performMassSearch,
   ])
 
-  const selectedStore = storeComparisons[carouselIndex]?.store ?? null
+  const selectedStore = visibleStoreComparisons[carouselIndex]?.store ?? null
 
   const sidebarSelectedStoreIndex = useMemo(() => {
     if (!selectedStore) return 0
-    const index = storeComparisons.findIndex((s) => s.store === selectedStore)
+    const index = visibleStoreComparisons.findIndex((s) => s.store === selectedStore)
     return index >= 0 ? index : 0
-  }, [storeComparisons, selectedStore])
+  }, [selectedStore, visibleStoreComparisons])
 
   const handleSidebarMapStoreSelect = useCallback((storeIndex: number) => {
-    const store = storeComparisons[storeIndex]
+    const store = visibleStoreComparisons[storeIndex]
     if (store) scrollToStore(storeIndex)
-  }, [storeComparisons, scrollToStore])
+  }, [scrollToStore, visibleStoreComparisons])
 
   const handleStoreChange = useCallback((storeName: string | null) => {
     if (!storeName) {
       scrollToStore(0)
       return
     }
-    const nextIndex = storeComparisons.findIndex((store) => store.store === storeName)
+    const nextIndex = visibleStoreComparisons.findIndex((store) => store.store === storeName)
     if (nextIndex >= 0) {
       scrollToStore(nextIndex)
     }
-  }, [scrollToStore, storeComparisons])
+  }, [scrollToStore, visibleStoreComparisons])
 
   const handleRefresh = useCallback(async () => {
     if (user?.id) {
@@ -240,7 +325,7 @@ export default function ShoppingReceiptPage() {
       }
     }
     await saveChanges()
-    await performMassSearch({ showCachedFirst: true, skipPricingGaps: false })
+    await performMassSearch({ showCachedFirst: false, skipPricingGaps: false })
   }, [user?.id, saveChanges, performMassSearch])
 
   const handleMobileAddItem = useCallback(async (name: string) => {
@@ -263,6 +348,26 @@ export default function ShoppingReceiptPage() {
     itemsToRemove.forEach(item => removeItem(item.id))
   }, [shoppingList, removeItem])
 
+  const handleStoreItemRemove = useCallback((
+    itemId: string,
+    storeName?: string | null,
+    itemIds?: string[]
+  ) => {
+    if (!storeName) return
+
+    const idsToHide = itemIds?.length ? itemIds : [itemId]
+    setHiddenStoreItemIds((prev) => {
+      const existing = new Set(prev[storeName] ?? [])
+      idsToHide.forEach((id) => {
+        if (id) existing.add(id)
+      })
+      return {
+        ...prev,
+        [storeName]: Array.from(existing),
+      }
+    })
+  }, [])
+
   const handleSwapRequest = useCallback(async (itemId: string, shoppingListIds?: string[]) => {
     const item = shoppingList.find((shoppingItem) => shoppingItem.id === itemId)
     if (!item) {
@@ -270,13 +375,13 @@ export default function ShoppingReceiptPage() {
       return
     }
 
-    const activeStore = selectedStore || storeComparisons[0]?.store
+    const activeStore = selectedStore || visibleStoreComparisons[0]?.store
     if (!activeStore) {
       toast({ title: "Error", description: "Select a store before replacing items.", variant: "destructive" })
       return
     }
 
-    const activeStoreData = storeComparisons.find((store) => store.store === activeStore)
+    const activeStoreData = visibleStoreComparisons.find((store) => store.store === activeStore)
     const standardizedIngredientId = item.ingredient_id || item.standardizedIngredientId || null
     let replacementSearchTerm = item.name
     const localStandardizedName =
@@ -311,7 +416,7 @@ export default function ShoppingReceiptPage() {
       groceryStoreId: activeStoreData?.groceryStoreId ?? null,
     })
     setReloadModalOpen(true)
-  }, [selectedStore, shoppingList, storeComparisons, toast])
+  }, [selectedStore, shoppingList, toast, visibleStoreComparisons])
 
   const handleSwapConfirmation = useCallback((newItem: GroceryItem) => {
     const primaryId = reloadTarget?.shoppingListIds?.[0] || reloadTarget?.shoppingListId
@@ -335,12 +440,12 @@ export default function ShoppingReceiptPage() {
 
   // Handle checkout
   const handleCheckout = () => {
-    if (!selectedStore && storeComparisons.length > 0) scrollToStore(0)
+    if (!selectedStore && visibleStoreComparisons.length > 0) scrollToStore(0)
 
     // Calculate total price and item count from selected store
     const activeStoreData = selectedStore
-      ? storeComparisons.find((store) => store.store === selectedStore)
-      : storeComparisons[0]
+      ? visibleStoreComparisons.find((store) => store.store === selectedStore)
+      : visibleStoreComparisons[0]
 
     let totalAmount = 0
     let itemCount = 0
@@ -466,12 +571,12 @@ export default function ShoppingReceiptPage() {
             />
 
             {/* Map: desktop sidebar only */}
-            {storeComparisons.length > 0 && (
+            {visibleStoreComparisons.length > 0 && (
               <div className={`hidden lg:block rounded-lg overflow-hidden border ${
                 isDark ? "border-white/10 bg-[#1f1e1a]" : "border-gray-200 bg-white"
               }`} data-tutorial="store-map">
                 <StoreMap
-                  comparisons={storeComparisons}
+                  comparisons={visibleStoreComparisons}
                   onStoreSelected={handleSidebarMapStoreSelect}
                   userPostalCode={zipCode}
                   selectedStoreIndex={sidebarSelectedStoreIndex}
@@ -486,11 +591,11 @@ export default function ShoppingReceiptPage() {
           <div className="order-2 lg:order-1 flex-1 min-h-0 flex flex-col">
             <ShoppingReceiptView
               shoppingList={shoppingList}
-              storeComparisons={storeComparisons}
+              storeComparisons={visibleStoreComparisons}
               selectedStore={selectedStore}
               onStoreChange={handleStoreChange}
               onQuantityChange={updateQuantity}
-              onRemoveItem={removeItem}
+              onRemoveItem={handleStoreItemRemove}
               onSwapItem={handleSwapRequest}
               onCheckout={handleCheckout}
               onRefresh={handleRefresh}
