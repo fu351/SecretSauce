@@ -177,14 +177,14 @@ export default function JoinChallengePage() {
       </div>
 
       <Dialog open={postDishOpen} onOpenChange={setPostDishOpen}>
-        <DialogContent className="w-[96vw] max-w-md p-0 overflow-hidden">
-          <DialogHeader className="px-4 py-3 border-b text-left">
+        <DialogContent className="w-[96vw] max-w-md max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] p-0 overflow-hidden">
+          <DialogHeader className="px-4 py-3 pt-[calc(env(safe-area-inset-top)+0.5rem)] border-b text-left">
             <DialogTitle className="text-base">Post your dish</DialogTitle>
             <p className="text-xs text-muted-foreground">
               Use the home page to upload a photo and submit — it connects to challenges and your feed.
             </p>
           </DialogHeader>
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 overflow-y-auto overscroll-contain">
             <div className="space-y-2">
               <Label>Photo</Label>
               <div className="relative w-full aspect-[4/3] rounded-xl border bg-muted overflow-hidden">
@@ -233,7 +233,7 @@ export default function JoinChallengePage() {
             )}
           </div>
 
-          <div className="border-t bg-background/95 px-4 py-3">
+          <div className="border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <div className="flex gap-2">
               <Button
                 variant="outline"

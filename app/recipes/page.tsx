@@ -18,8 +18,10 @@ import { RecipeListView } from "@/components/recipe/recipe-list-view"
 import { RecipeEmptyState } from "@/components/recipe/recipe-empty-state"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowDownUp, LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react"
+import { ArrowDownUp, LayoutGrid, List, Loader2, Search, SlidersHorizontal } from "lucide-react"
 import { Input } from "@/components/ui/input"
+
+const RECIPE_FILTER_CACHE_KEY_PREFIX = "recipes-filters:v1:"
 
 export default function RecipesPage() {
   // UI state
@@ -45,6 +47,8 @@ export default function RecipesPage() {
   const urlUpdateTimer = useRef<NodeJS.Timeout | null>(null)
   const mobileLoadMoreRef = useRef<HTMLDivElement | null>(null)
   const loadingMoreRef = useRef(false)
+  const mobileFilterDialogRef = useRef<HTMLDivElement | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   // Fetch favorites
   const { data: favorites = new Set<string>() } = useFavorites(user?.id || null)
@@ -78,27 +82,87 @@ export default function RecipesPage() {
   const [displayRecipes, setDisplayRecipes] = useState(recipes)
 
   useEffect(() => {
-    const urlSearch = searchParams.get("search") || ""
-    const currentDifficulty = searchParams.get("difficulty") || "all"
-    const currentCuisine = searchParams.get("cuisine") || "all"
-    const dietParam = searchParams.get("diet")
-    const currentDiet = dietParam && dietParam !== "all"
-      ? dietParam.split(",").filter(Boolean)
-      : []
-    const currentSort = (searchParams.get("sort") || "created_at") as SortBy
-    const currentPage = parseInt(searchParams.get("page") || "1", 10)
-    const currentFavorites = searchParams.get("favorites") === "true"
-    const currentMine = searchParams.get("mine") === "true"
+    const urlSearch = searchParams.get("search")
+    const hasUrlFilters =
+      searchParams.has("search") ||
+      searchParams.has("difficulty") ||
+      searchParams.has("cuisine") ||
+      searchParams.has("diet") ||
+      searchParams.has("sort") ||
+      searchParams.has("favorites") ||
+      searchParams.has("mine") ||
+      searchParams.has("page")
 
-    setSearchTerm(urlSearch)
-    setSelectedDifficulty(currentDifficulty)
-    setSelectedCuisine(currentCuisine)
-    setSelectedDiet(currentDiet)
-    setSortBy(currentSort)
-    setPage(currentPage)
-    setShowFavoritesOnly(currentFavorites)
-    setShowUserOnly(currentMine)
-  }, [searchParams])
+    if (hasUrlFilters) {
+      const currentDifficulty = searchParams.get("difficulty") || "all"
+      const currentCuisine = searchParams.get("cuisine") || "all"
+      const dietParam = searchParams.get("diet")
+      const currentDiet = dietParam && dietParam !== "all"
+        ? dietParam.split(",").filter(Boolean)
+        : []
+      const currentSort = (searchParams.get("sort") || "created_at") as SortBy
+      const currentPage = parseInt(searchParams.get("page") || "1", 10)
+      const currentFavorites = searchParams.get("favorites") === "true"
+      const currentMine = searchParams.get("mine") === "true"
+
+      setSearchTerm(urlSearch || "")
+      setSearchInput(urlSearch || "")
+      setSelectedDifficulty(currentDifficulty)
+      setSelectedCuisine(currentCuisine)
+      setSelectedDiet(currentDiet)
+      setSortBy(currentSort)
+      setPage(currentPage)
+      setShowFavoritesOnly(currentFavorites)
+      setShowUserOnly(currentMine)
+      return
+    }
+
+    if (typeof window === "undefined") return
+
+    const cacheKey = `${RECIPE_FILTER_CACHE_KEY_PREFIX}${user?.id ?? "anon"}`
+    const cachedRaw = window.localStorage.getItem(cacheKey)
+    if (!cachedRaw) return
+
+    try {
+      const cached = JSON.parse(cachedRaw) as {
+        searchInput?: string
+        searchTerm?: string
+        selectedDifficulty?: string
+        selectedCuisine?: string
+        selectedDiet?: string[]
+        sortBy?: SortBy
+        showFavoritesOnly?: boolean
+        showUserOnly?: boolean
+      }
+      setSearchInput(cached.searchInput ?? "")
+      setSearchTerm(cached.searchTerm ?? "")
+      setSelectedDifficulty(cached.selectedDifficulty ?? "all")
+      setSelectedCuisine(cached.selectedCuisine ?? "all")
+      setSelectedDiet(Array.isArray(cached.selectedDiet) ? cached.selectedDiet : [])
+      setSortBy(cached.sortBy ?? "created_at")
+      setShowFavoritesOnly(Boolean(cached.showFavoritesOnly))
+      setShowUserOnly(Boolean(cached.showUserOnly))
+      setPage(1)
+    } catch {
+      window.localStorage.removeItem(cacheKey)
+    }
+  }, [searchParams, user?.id])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const cacheKey = `${RECIPE_FILTER_CACHE_KEY_PREFIX}${user?.id ?? "anon"}`
+    const payload = {
+      searchInput,
+      searchTerm,
+      selectedDifficulty,
+      selectedCuisine,
+      selectedDiet,
+      sortBy,
+      showFavoritesOnly,
+      showUserOnly,
+    }
+    window.localStorage.setItem(cacheKey, JSON.stringify(payload))
+  }, [user?.id, searchInput, searchTerm, selectedDifficulty, selectedCuisine, selectedDiet, sortBy, showFavoritesOnly, showUserOnly])
 
   useEffect(() => {
     if (!recipesFetching) {
@@ -115,6 +179,7 @@ export default function RecipesPage() {
         return recipes
       })
       loadingMoreRef.current = false
+      setIsLoadingMore(false)
     }
   }, [recipes, recipesFetching, isMobile, page])
 
@@ -159,6 +224,7 @@ export default function RecipesPage() {
         if (loadingMoreRef.current || recipesFetching || page >= totalPages) return
 
         loadingMoreRef.current = true
+        setIsLoadingMore(true)
         setPage((prev) => {
           const next = prev + 1
           if (next > totalPages) return prev
@@ -251,11 +317,34 @@ export default function RecipesPage() {
     dietary: selectedDiet.length,
   }
 
-  const scrollToFilterSection = (id: string) => {
-    const el = document.getElementById(id)
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" })
+  const scrollToFilterSection = (section: "personal" | "difficulty" | "cuisine" | "dietary") => {
+    const id = `recipe-mobile-filter-${section}`
+    const root = mobileFilterDialogRef.current
+    const target = root?.querySelector<HTMLElement>(`#${id}`) ?? document.getElementById(id)
+    if (!target) return
+
+    const findScrollableParent = (node: HTMLElement | null): HTMLElement | null => {
+      let current = node?.parentElement ?? null
+      while (current && current !== root) {
+        const style = window.getComputedStyle(current)
+        const overflowY = style.overflowY
+        const canScroll =
+          (overflowY === "auto" || overflowY === "scroll") &&
+          current.scrollHeight > current.clientHeight
+        if (canScroll) return current
+        current = current.parentElement
+      }
+      return null
     }
+
+    const scrollContainer = findScrollableParent(target)
+    if (!scrollContainer) return
+
+    const containerRect = scrollContainer.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+    const targetTop = scrollContainer.scrollTop + (targetRect.top - containerRect.top) - 8
+
+    scrollContainer.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" })
   }
 
   const sortLabelMap: Record<SortBy, string> = {
@@ -337,31 +426,31 @@ export default function RecipesPage() {
                   Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="left-0 top-0 h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0 overflow-hidden">
-                <div className="flex h-full flex-col" data-tutorial="recipe-mobile-filter-dialog">
-                  <DialogHeader className="border-b px-4 py-3 text-left">
+              <DialogContent className="inset-0 h-[100dvh] max-h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0 overflow-hidden">
+                <div ref={mobileFilterDialogRef} className="flex h-full min-h-0 flex-col" data-tutorial="recipe-mobile-filter-dialog">
+                  <DialogHeader className="border-b px-4 py-3 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-left">
                     <DialogTitle className="text-base">Filter Recipes</DialogTitle>
                     <p className="text-xs text-muted-foreground">Refine your results</p>
                   </DialogHeader>
 
                   <div className="border-b bg-background px-3 py-2">
                     <div className="flex gap-2 overflow-x-auto">
-                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("recipe-filter-personal")}>
+                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("personal")}>
                         Personal{filterSectionCounts.personal > 0 ? ` (${filterSectionCounts.personal})` : ""}
                       </Button>
-                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("recipe-filter-difficulty")}>
+                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("difficulty")}>
                         Difficulty{filterSectionCounts.difficulty > 0 ? ` (${filterSectionCounts.difficulty})` : ""}
                       </Button>
-                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("recipe-filter-cuisine")}>
+                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("cuisine")}>
                         Cuisine{filterSectionCounts.cuisine > 0 ? ` (${filterSectionCounts.cuisine})` : ""}
                       </Button>
-                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("recipe-filter-dietary")}>
+                      <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap" onClick={() => scrollToFilterSection("dietary")}>
                         Dietary{filterSectionCounts.dietary > 0 ? ` (${filterSectionCounts.dietary})` : ""}
                       </Button>
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto px-3 py-3">
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-0 py-0 pb-24">
                     <RecipeFilterSidebar
                       searchInput={searchInput}
                       onSearchInputChange={setSearchInput}
@@ -417,10 +506,13 @@ export default function RecipesPage() {
                       onClearFilters={handleClearFilters}
                       showSearchControls={false}
                       showSortControls={false}
+                      idPrefix="recipe-mobile-filter"
+                      flatContainer
+                      showInlineClearButton={false}
                     />
                   </div>
 
-                  <div className="sticky bottom-0 border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                  <div className="sticky bottom-0 border-t bg-background/95 px-4 pt-3 pb-[env(safe-area-inset-bottom)]">
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -449,7 +541,7 @@ export default function RecipesPage() {
                   Sort: {sortLabelMap[sortBy]}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-sm">
+              <DialogContent className="sm:max-w-sm max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Sort Recipes</DialogTitle>
                 </DialogHeader>
@@ -561,6 +653,7 @@ export default function RecipesPage() {
                 updateURL({ mine: newValue ? "true" : undefined }, true)
               }}
               onClearFilters={handleClearFilters}
+              idPrefix="recipe-desktop-filter"
             />
           </div>
 
@@ -604,13 +697,20 @@ export default function RecipesPage() {
             {isMobile ? (
               totalPages > 1 && displayRecipes.length > 0 && (
                 <div className="mt-6">
-                  <p className="text-center text-xs text-muted-foreground">
-                    {page < totalPages
-                      ? recipesFetching
-                        ? "Loading more recipes..."
-                        : "Scroll down for more"
-                      : "You've reached the end"}
-                  </p>
+                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                    {page < totalPages ? (
+                      isLoadingMore || recipesFetching ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Loading more recipes...</span>
+                        </>
+                      ) : (
+                        <span>Scroll down for more</span>
+                      )
+                    ) : (
+                      <span>You've reached the end</span>
+                    )}
+                  </div>
                   <div ref={mobileLoadMoreRef} className="h-8" />
                 </div>
               )

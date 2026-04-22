@@ -3,12 +3,18 @@
 import { useMemo, useState, useEffect, useCallback } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Plus, Search, ChefHat, X } from "lucide-react"
+import { Plus, Search, X } from "lucide-react"
 import { RecipeSearchModal } from "@/components/recipe/detail/recipe-recommendation-modal"
 import { RecipeDetailModal } from "@/components/recipe/detail/recipe-detail-modal"
 import { recipeDB } from "@/lib/database/recipe-db"
 import type { ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import type { Recipe } from "@/lib/types"
+import {
+  applyFallbackImageStyles,
+  getDefaultImageFallback,
+  getRecipeImageUrl,
+  isDefaultImageFallback,
+} from "@/lib/image-helper"
 
 interface MobileQuickAddPanelProps {
   shoppingList: ShoppingListItem[]
@@ -131,7 +137,8 @@ export function MobileQuickAddPanel({
                 {recipesInCart.map((recipe) => {
                   const details = recipeDetailsById[recipe.id]
                   const recipeTitle = details?.title || recipe.title
-                  const imageUrl = details?.imageUrl
+                  const imageUrl = getRecipeImageUrl(details?.imageUrl, theme)
+                  const usesFallback = isDefaultImageFallback(imageUrl)
 
                   return (
                     <div
@@ -165,23 +172,21 @@ export function MobileQuickAddPanel({
                       )}
 
                       <div className={`h-16 ${
-                        imageUrl
-                          ? ""
-                          : theme === "dark" ? "bg-[#2a2924]" : "bg-gray-100"
+                        usesFallback
+                          ? theme === "dark" ? "bg-[#2a2924]" : "bg-gray-100"
+                          : ""
                       }`}>
-                        {imageUrl ? (
-                          <img
-                            src={imageUrl}
-                            alt={recipeTitle}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center">
-                            <ChefHat className={`h-4 w-4 ${mutedTextClass}`} />
-                          </div>
-                        )}
+                        <img
+                          src={imageUrl}
+                          alt={recipeTitle}
+                          className={`h-full w-full ${usesFallback ? "object-contain p-2" : "object-cover"}`}
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            e.currentTarget.src = getDefaultImageFallback(theme)
+                            applyFallbackImageStyles(e.currentTarget)
+                          }}
+                        />
                       </div>
                       <div className="p-2">
                         <p className={`text-[10px] font-medium leading-tight line-clamp-2 ${textClass}`}>{recipeTitle}</p>

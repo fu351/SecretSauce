@@ -384,7 +384,7 @@ export function RecipeSearchModal({
   // If using as modal (isOpen prop provided), render as dialog
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`${cardBgClass} border-0 w-[calc(100vw-2rem)] max-w-2xl h-[85vh] sm:max-h-[80vh] flex flex-col p-4 sm:p-6`}>
+      <DialogContent className={`${cardBgClass} border-0 w-[calc(100vw-1rem)] max-w-2xl h-[min(90dvh,calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex flex-col p-4 sm:p-6`}>
         {content}
       </DialogContent>
     </Dialog>

@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Calendar, Home, LineChart, LogOut, Menu, Plus, Refrigerator, Settings, ShoppingCart, Trophy, User, Wrench } from "lucide-react"
+import { BookOpen, Calendar, Home, LogOut, Menu, MessageCircle, Plus, Refrigerator, Settings, ShoppingCart, Trophy, User, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -18,7 +18,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
@@ -37,7 +36,9 @@ export function Header() {
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
   const [mobileLogoMenuOpen, setMobileLogoMenuOpen] = useState(false)
+  const [hideMobileNavForOverlay, setHideMobileNavForOverlay] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
+  const mobileFabRef = useRef<HTMLDivElement>(null)
 
   // Prevent hydration mismatch by only rendering after mount
   useEffect(() => {
@@ -54,6 +55,49 @@ export function Header() {
     el.addEventListener("wheel", block, { passive: false })
     return () => el.removeEventListener("wheel", block)
   }, [mounted])
+
+  useEffect(() => {
+    if (!mobileLogoMenuOpen) return
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+      if (mobileFabRef.current?.contains(target)) return
+      setMobileLogoMenuOpen(false)
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("touchstart", handlePointerDown, { passive: true })
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("touchstart", handlePointerDown)
+    }
+  }, [mobileLogoMenuOpen])
+
+  useEffect(() => {
+    const hasBlockingOverlay = () => {
+      if (typeof document === "undefined") return false
+      return Boolean(
+        document.querySelector(
+          "[data-radix-dialog-content][data-state='open'], [role='dialog'][data-state='open']"
+        )
+      )
+    }
+
+    const syncOverlayState = () => setHideMobileNavForOverlay(hasBlockingOverlay())
+    syncOverlayState()
+
+    const observer = new MutationObserver(syncOverlayState)
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["data-state", "role"],
+    })
+
+    return () => observer.disconnect()
+  }, [])
 
   // Use theme directly from context - it handles defaults properly
   const isDark = theme === "dark"
@@ -117,60 +161,9 @@ export function Header() {
 
   const closeMobileLogoMenu = () => setMobileLogoMenuOpen(false)
   const profileHref = user ? `/user/${encodeURIComponent(profile?.username ?? user.id)}` : "/auth/signin"
-  const mobileProfileIconClass = `p-2 rounded-md transition-opacity hover:opacity-80 ${
-    pathname.startsWith("/user/") ? "opacity-100" : isDark ? "text-muted-foreground" : "text-gray-700"
-  }`
 
   return (
     <>
-      {pathname.startsWith("/user/") && (
-        <div className="md:hidden fixed top-[calc(0.5rem+env(safe-area-inset-top))] right-3 z-[70]">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant={isDark ? "secondary" : "outline"}
-                size="icon"
-                aria-label="Open menu"
-                className={isDark ? "border-[#e8dcc4]/20 bg-[#181813]/95" : "bg-white/95"}
-              >
-                <Menu className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              {user ? (
-                <>
-                  <DropdownMenuItem asChild>
-                    <Link href={profileHref}>Profile</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings">Settings</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard">Dashboard</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/pantry">Pantry</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSignOutModalOpen(true) }}>
-                    Sign Out
-                  </DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuItem asChild>
-                    <Link href="/auth/signin">Sign In</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/auth/signup">Sign Up</Link>
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
       <header
         ref={headerRef}
         className={`hidden md:flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b md:sticky md:top-0 z-40 ${
@@ -342,8 +335,8 @@ export function Header() {
       {/* Mobile bottom navbar */}
       <nav
         className={`md:hidden fixed bottom-0 left-0 right-0 z-[60] border-t px-2 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] overflow-visible ${
-          isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
-        }`}
+          hideMobileNavForOverlay ? "hidden" : "block"
+        } ${isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"}`}
       >
         <div className="relative mx-auto grid max-w-md grid-cols-[1fr_1fr_auto_1fr_1fr] items-center">
           <div className="flex justify-center">
@@ -370,7 +363,7 @@ export function Header() {
               </Link>
             </Button>
           </div>
-          <div className="relative h-24 w-24 -mt-11 z-[100]">
+          <div ref={mobileFabRef} className="relative h-24 w-24 -mt-11 z-[100]">
             {mobileLogoMenuOpen && (
               <div className="absolute inset-0">
                 {user ? (
@@ -422,13 +415,16 @@ export function Header() {
                     <Button
                       variant="secondary"
                       size="icon"
-                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full shadow-md"
+                      className="pointer-events-auto absolute left-1/2 top-1/2 z-[110] h-10 w-10 rounded-full bg-blue-500 text-white shadow-md hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
                       style={{ transform: "translate(-50%, -50%) rotate(-10deg) translateX(74px) rotate(10deg)" }}
-                      asChild
+                      aria-label="Send Feedback"
+                      title="Send us feedback"
+                      onClick={() => {
+                        closeMobileLogoMenu()
+                        window.dispatchEvent(new CustomEvent("open-feedback-widget"))
+                      }}
                     >
-                      <Link href="/dashboard" aria-label="Trackers" onClick={closeMobileLogoMenu}>
-                        <LineChart className="h-4 w-4" />
-                      </Link>
+                      <MessageCircle className="h-4 w-4" />
                     </Button>
                   </>
                 ) : (
@@ -490,29 +486,55 @@ export function Header() {
             </Button>
           </div>
           <div className="flex justify-center">
-            {user ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={mobileProfileIconClass}
-                asChild
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Open menu"
+                  className={`rounded-full border transition-all ${
+                    isDark
+                      ? "border-[#e8dcc4]/20 bg-[#181813]/90 text-[#e8dcc4] hover:bg-[#25241f]"
+                      : "border-gray-200 bg-white/90 text-gray-800 shadow-sm hover:bg-white"
+                  }`}
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                side="top"
+                sideOffset={12}
+                collisionPadding={{ left: 12, right: 12, bottom: 12 }}
+                className={`w-fit min-w-0 rounded-xl border p-1 shadow-xl backdrop-blur ${
+                  isDark ? "border-[#e8dcc4]/20 bg-[#181813]/95 text-[#e8dcc4]" : "border-gray-200 bg-white/95 text-gray-900"
+                }`}
               >
-                <Link href={profileHref} aria-label="Profile">
-                  <User className="h-5 w-5" />
-                </Link>
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                className={isDark ? "text-foreground hover:bg-muted" : "hover:bg-gray-100"}
-              >
-                <Link href="/auth/signin" aria-label="Sign In">
-                  <User className="h-5 w-5" />
-                </Link>
-              </Button>
-            )}
+                {user ? (
+                  <>
+                    <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
+                      <Link href={profileHref}>Profile</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
+                      <Link href="/dashboard">Dashboard</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
+                      <Link href="/settings">Settings</Link>
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
+                      <Link href="/auth/signin">Sign In</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
+                      <Link href="/auth/signup">Sign Up</Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </nav>

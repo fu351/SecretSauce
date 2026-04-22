@@ -57,7 +57,7 @@ const SheetContent = React.forwardRef<
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             // Mobile: full-width overlay with slide animation
-            "md:hidden inset-y-0 right-0 h-full w-full max-w-full",
+            "md:hidden inset-y-0 right-0 h-full w-full max-w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
             "data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full",
             // Desktop: 600px fixed sidebar from right with rounded left edge
             // Important: Use relative positioning on desktop so it doesn't overlap content
@@ -68,7 +68,7 @@ const SheetContent = React.forwardRef<
           {...props}
         >
           {children}
-          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground">
+          <DialogPrimitive.Close className="absolute right-4 top-[calc(env(safe-area-inset-top)+0.75rem)] md:top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>

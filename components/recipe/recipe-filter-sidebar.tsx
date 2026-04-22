@@ -1,6 +1,7 @@
+import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Grid, List, Check, Heart, User } from "lucide-react"
+import { Search, Grid, List, Check, Heart, User, ChevronDown } from "lucide-react"
 import { CUISINE_TYPES, DIETARY_TAGS } from "@/lib/types/recipe/constants"
 import { formatDietaryTag } from "@/lib/tag-formatter"
 import type { SortBy } from "@/hooks"
@@ -47,6 +48,9 @@ interface RecipeFilterSidebarProps {
   onClearFilters: () => void
   showSearchControls?: boolean
   showSortControls?: boolean
+  idPrefix?: string
+  flatContainer?: boolean
+  showInlineClearButton?: boolean
 }
 
 const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
@@ -57,7 +61,6 @@ const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
 ]
 
 const DIFFICULTY_OPTIONS = [
-  { value: "all", label: "All Levels" },
   { value: "beginner", label: "Beginner" },
   { value: "intermediate", label: "Intermediate" },
   { value: "advanced", label: "Advanced" },
@@ -90,7 +93,18 @@ export function RecipeFilterSidebar({
   onClearFilters,
   showSearchControls = true,
   showSortControls = true,
+  idPrefix = "recipe-filter",
+  flatContainer = false,
+  showInlineClearButton = true,
 }: RecipeFilterSidebarProps) {
+  const [collapsedSections, setCollapsedSections] = useState({
+    sort: false,
+    personal: false,
+    difficulty: false,
+    cuisine: false,
+    dietary: false,
+  })
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       onSearch()
@@ -104,10 +118,21 @@ export function RecipeFilterSidebar({
     onDietChange(next)
   }
 
+  const toggleSection = (section: keyof typeof collapsedSections) => {
+    setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  const sectionHeaderClass =
+    "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted/40"
+
   return (
     <div className="lg:sticky lg:top-6" data-tutorial="recipe-filter">
       <div
-        className="max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-card shadow-sm"
+        className={
+          flatContainer
+            ? "overscroll-contain"
+            : "max-h-[calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain rounded-2xl border bg-card shadow-sm"
+        }
         data-tutorial="recipe-filter-scroll"
       >
         {showSearchControls && (
@@ -148,11 +173,14 @@ export function RecipeFilterSidebar({
           </div>
         )}
 
-        <div className="space-y-5 p-4">
+        <div className={flatContainer ? "space-y-5 px-4 pt-4 pb-8" : "space-y-5 p-4"}>
           {showSortControls && (
-            <div id="recipe-filter-sort" className="space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sort By</h4>
-              <div className="space-y-1">
+            <div id={`${idPrefix}-sort`} className="space-y-3">
+              <button type="button" className={sectionHeaderClass} onClick={() => toggleSection("sort")}>
+                <span>Sort By</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${collapsedSections.sort ? "-rotate-90" : ""}`} />
+              </button>
+              {!collapsedSections.sort && <div className="space-y-1">
                 {SORT_OPTIONS.map((option) => (
                   <ChecklistItem
                     key={option.value}
@@ -161,13 +189,16 @@ export function RecipeFilterSidebar({
                     onClick={() => onSortChange(option.value)}
                   />
                 ))}
-              </div>
+              </div>}
             </div>
           )}
 
-          <div id="recipe-filter-personal" className="border-t pt-4 space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Personal</h4>
-            <div className="space-y-1">
+          <div id={`${idPrefix}-personal`} className="border-t pt-4 space-y-3">
+            <button type="button" className={sectionHeaderClass} onClick={() => toggleSection("personal")}>
+              <span>Personal</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${collapsedSections.personal ? "-rotate-90" : ""}`} />
+            </button>
+            {!collapsedSections.personal && <div className="space-y-1">
               <button
                 type="button"
                 onClick={onFavoritesToggle}
@@ -196,62 +227,63 @@ export function RecipeFilterSidebar({
                 </span>
                 {showUserOnly ? <Check className="h-4 w-4 text-foreground" /> : <span className="h-4 w-4" />}
               </button>
-            </div>
+            </div>}
           </div>
 
           <div
-            id="recipe-filter-difficulty"
+            id={`${idPrefix}-difficulty`}
             className="border-t pt-4 space-y-3"
             data-tutorial="recipe-filter-difficulty"
           >
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Difficulty</h4>
-            <div className="space-y-1">
+            <button type="button" className={sectionHeaderClass} onClick={() => toggleSection("difficulty")}>
+              <span>Difficulty</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${collapsedSections.difficulty ? "-rotate-90" : ""}`} />
+            </button>
+            {!collapsedSections.difficulty && <div className="space-y-1">
               {DIFFICULTY_OPTIONS.map((option) => (
                 <ChecklistItem
                   key={option.value}
                   label={option.label}
                   selected={selectedDifficulty === option.value}
-                  onClick={() => onDifficultyChange(option.value)}
+                  onClick={() =>
+                    onDifficultyChange(selectedDifficulty === option.value ? "all" : option.value)
+                  }
                 />
               ))}
-            </div>
+            </div>}
           </div>
 
           <div
-            id="recipe-filter-cuisine"
+            id={`${idPrefix}-cuisine`}
             className="border-t pt-4 space-y-3"
             data-tutorial="recipe-filter-cuisine"
           >
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cuisine</h4>
-            <div className="space-y-1 max-h-40 overflow-auto pr-1">
-              <ChecklistItem
-                label="All Cuisines"
-                selected={selectedCuisine === "all"}
-                onClick={() => onCuisineChange("all")}
-              />
+            <button type="button" className={sectionHeaderClass} onClick={() => toggleSection("cuisine")}>
+              <span>Cuisine</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${collapsedSections.cuisine ? "-rotate-90" : ""}`} />
+            </button>
+            {!collapsedSections.cuisine && <div className="space-y-1 pr-1">
               {CUISINE_TYPES.map((cuisine) => (
                 <ChecklistItem
                   key={cuisine}
                   label={formatCuisineName(cuisine)}
                   selected={selectedCuisine === cuisine}
-                  onClick={() => onCuisineChange(cuisine)}
+                  onClick={() => onCuisineChange(selectedCuisine === cuisine ? "all" : cuisine)}
                 />
               ))}
-            </div>
+            </div>}
           </div>
 
           <div
-            id="recipe-filter-dietary"
+            id={`${idPrefix}-dietary`}
             className="border-t pt-4 space-y-3"
             data-tutorial="recipe-filter-dietary"
           >
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dietary</h4>
-            <div className="space-y-1 max-h-40 overflow-auto pr-1">
-              <ChecklistItem
-                label="Any Diet"
-                selected={selectedDiet.length === 0}
-                onClick={() => onDietChange([])}
-              />
+            <button type="button" className={sectionHeaderClass} onClick={() => toggleSection("dietary")}>
+              <span>Dietary</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${collapsedSections.dietary ? "-rotate-90" : ""}`} />
+            </button>
+            {!collapsedSections.dietary && <div className="space-y-1 pr-1">
               {DIETARY_TAGS.map((diet) => (
                 <ChecklistItem
                   key={diet}
@@ -260,14 +292,17 @@ export function RecipeFilterSidebar({
                   onClick={() => toggleDiet(diet)}
                 />
               ))}
-            </div>
+            </div>}
           </div>
 
-          <div className="border-t pt-4">
-            <Button variant="outline" size="sm" onClick={onClearFilters} className="w-full">
-              Clear Filters
-            </Button>
-          </div>
+          {showInlineClearButton && (
+            <div className="border-t pt-4">
+              <Button variant="outline" size="sm" onClick={onClearFilters} className="w-full">
+                Clear Filters
+              </Button>
+            </div>
+          )}
+          {flatContainer && <div aria-hidden className="h-8" />}
         </div>
       </div>
     </div>

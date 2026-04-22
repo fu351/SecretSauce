@@ -103,8 +103,8 @@ export function RecipeDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`max-w-4xl max-h-[90vh] p-0 overflow-hidden border-none ${cardBgClass}`}>
-        <div className="flex flex-col md:flex-row max-h-[90vh]">
+      <DialogContent className={`max-w-4xl max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] p-0 overflow-hidden border-none ${cardBgClass}`}>
+        <div className="flex flex-col md:flex-row h-[min(90dvh,calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))]">
           {isLoading || !recipe ? (
             <>
               <DialogTitle className="sr-only">Recipe details</DialogTitle>
@@ -135,7 +135,7 @@ export function RecipeDetailModal({
 
               {/* Content Area */}
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 -webkit-overflow-scrolling-touch">
+                <div className="flex-1 overflow-y-auto overscroll-contain p-6 md:p-8 space-y-8 [-webkit-overflow-scrolling:touch]">
                   {/* Title & Description */}
                   <header className="space-y-3">
                     <DialogTitle className={`text-2xl md:text-3xl font-serif font-light ${textClass}`}>
@@ -218,7 +218,7 @@ export function RecipeDetailModal({
                 </div>
 
                 {/* Footer Actions */}
-                <footer className={`p-6 border-t ${borderClass} ${theme === "dark" ? "bg-[#1f1e1a]/50" : "bg-orange-50/50"} flex items-center justify-between mt-auto`}>
+                <footer className={`p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] border-t ${borderClass} ${theme === "dark" ? "bg-[#1f1e1a]/50" : "bg-orange-50/50"} flex items-center justify-between mt-auto`}>
                   <Link
                     href={`/recipes/${recipe.id}`}
                     className={`group text-sm font-bold ${theme === "dark" ? "text-[#e8dcc4]" : "text-orange-600"} flex items-center gap-1 hover:underline`}

@@ -60,24 +60,23 @@ describe("Header mobile nav", () => {
     const homeLink = screen.getByLabelText("Home")
     expect(homeLink).not.toHaveAttribute("aria-disabled", "true")
 
-    const profileLink = screen.getByLabelText("Profile")
-    expect(profileLink).not.toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("button", { name: /open menu/i })).toBeInTheDocument()
 
   })
 
-  it("uses icon-only sign-in in signed-out mobile nav", async () => {
+  it("shows auth options in hamburger menu when signed out", async () => {
     useAuthMock.mockReturnValue({
       user: null,
       profile: null,
       signOut: vi.fn(),
     })
     const { Header } = await import("../header")
+    const user = userEvent.setup()
     render(<Header />)
 
-    const signInLinks = screen.getAllByRole("link", { name: /sign in/i })
-    expect(signInLinks.length).toBeGreaterThan(0)
-    const mobileSignInLink = signInLinks.find((link) => link.querySelector("svg"))
-    expect(mobileSignInLink).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: /open menu/i }))
+    expect(screen.getByRole("menuitem", { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: /sign up/i })).toBeInTheDocument()
   })
 
   it("shows updated logged-in FAB actions and omits FAB sign-in action", async () => {
@@ -91,26 +90,20 @@ describe("Header mobile nav", () => {
     expect(screen.getByLabelText("Pantry")).toBeInTheDocument()
     expect(screen.getByLabelText("Add Recipe")).toBeInTheDocument()
     expect(screen.getByLabelText("Recipes")).toBeInTheDocument()
-    expect(screen.getByLabelText("Trackers")).toBeInTheDocument()
+    expect(screen.getByLabelText("Send Feedback")).toBeInTheDocument()
     expect(screen.queryByText("Sign In")).not.toBeInTheDocument()
   })
 
-  it("shows the top-right menu only on profile pages", async () => {
+  it("shows sleek bottom-nav menu with profile options", async () => {
     const { Header } = await import("../header")
     const user = userEvent.setup()
-
-    pathnameMock.mockReturnValue("/home")
-    const { rerender } = render(<Header />)
-    expect(screen.queryByRole("button", { name: /open menu/i })).not.toBeInTheDocument()
-
-    pathnameMock.mockReturnValue("/user/chef-taylor")
-    rerender(<Header />)
+    render(<Header />)
 
     await user.click(screen.getByRole("button", { name: /open menu/i }))
     expect(screen.getByRole("menuitem", { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole("menuitem", { name: /settings/i })).toBeInTheDocument()
     expect(screen.getByRole("menuitem", { name: /dashboard/i })).toBeInTheDocument()
-    expect(screen.getByRole("menuitem", { name: /pantry/i })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /pantry/i })).not.toBeInTheDocument()
   })
 })
 

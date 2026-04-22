@@ -40,6 +40,8 @@ export function useShoppingListRecipes(
   queueSave: () => void
 ) {
   const { toast } = useToast()
+  const isMobileViewport = () =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches
 
   /**
    * Add a recipe and all its ingredients to the shopping list
@@ -92,7 +94,9 @@ export function useShoppingListRecipes(
         await loadShoppingList()
 
         queueSave()
-        toast({ title: "Recipe Added", description: `Added ${recipe.title} to list.` })
+        if (!isMobileViewport()) {
+          toast({ title: "Recipe Added", description: `Added ${recipe.title} to list.` })
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to add recipe"
         toast({ title: "Error", description: errorMessage, variant: "destructive" })

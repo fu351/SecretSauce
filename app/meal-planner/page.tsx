@@ -562,7 +562,7 @@ function MealPlannerPageContent() {
             setShowRecipeSidebar(false)
           }
         }}>
-          <SheetContent side="right" className="w-full p-0 flex flex-col" displayClass="flex fixed">
+          <SheetContent side="right" className="w-full h-full p-0 flex flex-col overflow-hidden" displayClass="flex fixed">
             <SheetTitle className="sr-only">Select recipe for meal slot</SheetTitle>
             <RecipeSearchPanel
               onSelect={handleRecipeSelection}

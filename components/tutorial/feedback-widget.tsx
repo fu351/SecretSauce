@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { MessageCircle, X, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,6 +25,12 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
 
   const isDark = theme === "dark"
   const positionClass = position === "bottom-left" ? "bottom-6 left-6" : "bottom-6 right-6"
+
+  useEffect(() => {
+    const openFeedback = () => setIsOpen(true)
+    window.addEventListener("open-feedback-widget", openFeedback)
+    return () => window.removeEventListener("open-feedback-widget", openFeedback)
+  }, [])
 
   const handleSubmit = async () => {
     if (!message.trim()) {
@@ -82,7 +88,7 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
       <button
         onClick={() => setIsOpen(true)}
         className={clsx(
-          "fixed z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 cursor-pointer",
+          "fixed z-40 hidden md:flex w-14 h-14 rounded-full shadow-lg items-center justify-center transition-all hover:scale-110 cursor-pointer",
           positionClass,
           "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
         )}

@@ -162,7 +162,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-card" data-tutorial="planner-sidebar">
       <div className="absolute inset-x-0 top-0 z-20 border-b border-border bg-card/95 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] md:pt-4 pb-2">
           <div className="flex items-center gap-3">
             <h3 className="font-bold text-base tracking-tight">Recipes</h3>
             <div className="flex bg-muted p-1 rounded-lg">
@@ -203,7 +203,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-4 space-y-5 shadow-2xl bg-card" align="end">
+            <PopoverContent className="w-[min(18rem,calc(100vw-1.5rem))] max-h-[min(70dvh,32rem)] p-4 space-y-5 shadow-2xl bg-card" align="end">
               <div className="flex items-center justify-between">
                 <p className="font-bold text-sm">Refine Search</p>
                 <Button variant="ghost" size="sm" onClick={handleClearFilters} className="h-7 px-2 text-[10px] text-muted-foreground">
@@ -253,7 +253,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-muted/30 pt-28 transform-gpu">
+      <div className="flex-1 overflow-y-auto overscroll-contain bg-muted/30 pt-28 transform-gpu">
         {focusedRecipeId && initialSearchTerm && (
           <div className="px-4 pt-4">
             <div className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
@@ -303,7 +303,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
       </div>
 
       {isMobileMode && selectionCount > 0 && (onConfirmSelections || onCancelSelections) && (
-        <div className="md:hidden sticky bottom-0 left-0 right-0 flex items-center gap-2 p-4 bg-card border-t border-border">
+        <div className="md:hidden sticky bottom-0 left-0 right-0 flex items-center gap-2 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-card border-t border-border">
           {onCancelSelections && (
             <Button
               variant="outline"
