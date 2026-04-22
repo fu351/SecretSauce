@@ -4,9 +4,9 @@ import type { Database } from "./supabase"
 /**
  * Type aliases for store_list_history table
  */
-type StoreListHistoryRow = Database["public"]["Tables"]["store_list_history"]["Row"]
-type StoreListHistoryInsert = Database["public"]["Tables"]["store_list_history"]["Insert"]
-type StoreListHistoryUpdate = Database["public"]["Tables"]["store_list_history"]["Update"]
+type StoreListHistoryRow = Database["public"]["Tables"]["purchases"]["Row"]
+type StoreListHistoryInsert = Database["public"]["Tables"]["purchases"]["Insert"]
+type StoreListHistoryUpdate = Database["public"]["Tables"]["purchases"]["Update"]
 export type StoreListHistoryWithJoins = StoreListHistoryRow & {
   grocery_stores: { id: string; name: string; address: string | null }
   standardized_ingredients: { canonical_name: string }
@@ -28,13 +28,13 @@ const WITH_JOINS_SELECT = `
  * - This table = Delivery log tracking what users have selected for delivery
  */
 class StoreListHistoryTable extends BaseTable<
-  "store_list_history",
+  "purchases",
   StoreListHistoryRow,
   StoreListHistoryInsert,
   StoreListHistoryUpdate
 > {
   private static instance: StoreListHistoryTable | null = null
-  readonly tableName = "store_list_history" as const
+  readonly tableName = "purchases" as const
 
   private constructor() {
     super()
