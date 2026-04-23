@@ -64,6 +64,10 @@ vi.mock("@/components/social/profile-card", () => ({
   ProfileCard: () => <div data-testid="profile-card">Profile Card</div>,
 }))
 
+vi.mock("@/components/social/notifications-widget", () => ({
+  NotificationsWidget: () => <div data-testid="notifications-widget">Notifications Widget</div>,
+}))
+
 vi.mock("@/lib/utils", async () => {
   const actual = await vi.importActual<typeof import("@/lib/utils")>("@/lib/utils")
   return {
@@ -120,9 +124,9 @@ describe("DashboardPage", () => {
 
     expect(screen.getByText(/welcome back, chef/i)).toBeInTheDocument()
     expect(screen.getByTestId("graph-tracker")).toBeInTheDocument()
+    expect(screen.getByTestId("notifications-widget")).toBeInTheDocument()
     expect(screen.queryByTestId("premium-upgrade-widget")).not.toBeInTheDocument()
     expect(screen.queryByTestId("friends-widget")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("notifications-widget")).not.toBeInTheDocument()
   })
 
   it("renders the empty recent-recipes state when no recipes exist", async () => {

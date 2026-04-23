@@ -28,6 +28,7 @@ import IOSWebAppInstallModal from "@/components/shared/ios-webapp-install-modal"
 import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
 import { ProfileCard } from "@/components/social/profile-card"
+import { NotificationsWidget } from "@/components/social/notifications-widget"
 import { RecipeCollectionSummary } from "@/components/recipe/collections/recipe-collection-summary"
 
 interface DashboardStats {
@@ -154,6 +155,10 @@ export default function DashboardPage() {
           </div>
 
           {profile && <ProfileCard profile={profile} />}
+
+          <div className="mb-4 md:mb-8" data-tutorial="dashboard-notifications">
+            <NotificationsWidget />
+          </div>
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">

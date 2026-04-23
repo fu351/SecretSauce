@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { postDB } from "@/lib/database/post-db"
+import { createNotification } from "@/lib/notifications/notification-service"
 import { isAbortLikeError } from "@/lib/server/abort-error"
 
 export const runtime = "nodejs"
@@ -31,7 +32,28 @@ export async function POST(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 })
     }
 
+    const { data: post } = await supabase
+      .from("posts")
+      .select("id, author_id, title")
+      .eq("id", postId)
+      .maybeSingle()
+
     const liked = await postDB.withServiceClient(supabase).toggleLike(postId, profile.id)
+    if (liked && post?.author_id && post.author_id !== profile.id) {
+      await createNotification(supabase, {
+        recipientId: post.author_id,
+        actorId: profile.id,
+        type: "post_like",
+        entityType: "post",
+        entityId: post.id,
+        title: "New post like",
+        body: `${clerkUserId} liked your post.`,
+        payload: {
+          post_id: post.id,
+          post_title: post.title,
+        },
+      })
+    }
     return NextResponse.json({ liked })
   } catch (error) {
     if (isAbortLikeError(error)) {

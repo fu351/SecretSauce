@@ -1045,6 +1045,101 @@ export type Database = {
           },
         ]
       }
+      notification_email_digests: {
+        Row: {
+          created_at: string
+          digest_end_at: string
+          digest_start_at: string
+          id: string
+          notification_count: number
+          recipient_id: string
+          sent_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          digest_end_at: string
+          digest_start_at: string
+          id?: string
+          notification_count?: number
+          recipient_id: string
+          sent_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          digest_end_at?: string
+          digest_start_at?: string
+          id?: string
+          notification_count?: number
+          recipient_id?: string
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_email_digests_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          body: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          payload: Json
+          read_at: string | null
+          recipient_id: string
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Insert: {
+          actor_id?: string | null
+          body?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          payload?: Json
+          read_at?: string | null
+          recipient_id: string
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Update: {
+          actor_id?: string | null
+          body?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          payload?: Json
+          read_at?: string | null
+          recipient_id?: string
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grocery_stores: {
         Row: {
           address: string | null
@@ -1470,6 +1565,47 @@ export type Database = {
           },
         ]
       }
+      meal_planner_weekly_reminders: {
+        Row: {
+          created_at: string
+          id: string
+          planned_day_count: number
+          planned_meal_count: number
+          recipient_id: string
+          reminder_week_end: string
+          reminder_week_start: string
+          sent_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          planned_day_count?: number
+          planned_meal_count?: number
+          recipient_id: string
+          reminder_week_end: string
+          reminder_week_start: string
+          sent_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          planned_day_count?: number
+          planned_meal_count?: number
+          recipient_id?: string
+          reminder_week_end?: string
+          reminder_week_start?: string
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_planner_weekly_reminders_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pantry_items: {
         Row: {
           category: string | null
@@ -1864,6 +2000,9 @@ export type Database = {
           id: string
           is_private: boolean
           latitude: number | null
+          meal_planner_weekly_reminder_enabled: boolean
+          notification_email_digest_enabled: boolean
+          notification_push_enabled: boolean
           longitude: number | null
           pinned_recipe_ids: string[]
           primary_goal: string | null
@@ -1909,6 +2048,9 @@ export type Database = {
           id: string
           is_private?: boolean
           latitude?: number | null
+          meal_planner_weekly_reminder_enabled?: boolean
+          notification_email_digest_enabled?: boolean
+          notification_push_enabled?: boolean
           longitude?: number | null
           pinned_recipe_ids?: string[]
           primary_goal?: string | null
@@ -1954,6 +2096,9 @@ export type Database = {
           id?: string
           is_private?: boolean
           latitude?: number | null
+          meal_planner_weekly_reminder_enabled?: boolean
+          notification_email_digest_enabled?: boolean
+          notification_push_enabled?: boolean
           longitude?: number | null
           pinned_recipe_ids?: string[]
           primary_goal?: string | null
@@ -5329,6 +5474,11 @@ export type Database = {
         | "completed"
         | "archived"
       follow_request_status: "pending" | "accepted" | "rejected"
+      notification_type:
+        | "follow_request"
+        | "new_follower"
+        | "post_like"
+        | "post_repost"
       grocery_store:
         | "aldi"
         | "kroger"
@@ -5596,6 +5746,12 @@ export const Constants = {
         "archived",
       ],
       follow_request_status: ["pending", "accepted", "rejected"],
+      notification_type: [
+        "follow_request",
+        "new_follower",
+        "post_like",
+        "post_repost",
+      ],
       grocery_store: [
         "aldi",
         "kroger",

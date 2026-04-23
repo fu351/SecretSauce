@@ -15,10 +15,10 @@ type ProfileSnippet = {
 }
 
 type Notification =
-  | { type: "follow_request"; requestId: string; from: ProfileSnippet; created_at: string }
-  | { type: "new_follower";   from: ProfileSnippet; created_at: string }
-  | { type: "post_like";      from: ProfileSnippet; post: { id: string; title: string }; created_at: string }
-  | { type: "post_repost";    from: ProfileSnippet; post: { id: string; title: string }; created_at: string }
+  | { id: string; type: "follow_request"; requestId: string; from: ProfileSnippet; created_at: string; read_at: string | null }
+  | { id: string; type: "new_follower";   from: ProfileSnippet; created_at: string; read_at: string | null }
+  | { id: string; type: "post_like";      from: ProfileSnippet; post: { id: string; title: string }; created_at: string; read_at: string | null }
+  | { id: string; type: "post_repost";    from: ProfileSnippet; post: { id: string; title: string }; created_at: string; read_at: string | null }
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -60,11 +60,17 @@ export function NotificationsWidget() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading]             = useState(true)
   const [responding, setResponding]       = useState<string | null>(null)
+  const [unreadCount, setUnreadCount]     = useState(0)
 
   useEffect(() => {
     fetch("/api/social/notifications")
       .then((r) => r.json())
-      .then((json) => { if (!json.error) setNotifications(json.notifications ?? []) })
+      .then((json) => {
+        if (!json.error) {
+          setNotifications(json.notifications ?? [])
+          setUnreadCount(Number(json.unreadCount ?? 0))
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -86,19 +92,34 @@ export function NotificationsWidget() {
               }
 
               return {
+                id: n.id ?? requestId,
                 type: "new_follower" as const,
                 from: n.from,
                 created_at: new Date().toISOString(),
+                read_at: n.read_at ?? null,
               }
             })
           }
 
           return prev.filter((n) => !(n.type === "follow_request" && n.requestId === requestId))
         })
+        void fetch("/api/social/notifications?countOnly=true")
+          .then((r) => r.json())
+          .then((json) => setUnreadCount(Number(json.unreadCount ?? 0)))
+          .catch(() => {})
       }
     } finally {
       setResponding(null)
     }
+  }
+
+  const markAllRead = async () => {
+    const res = await fetch("/api/social/notifications", { method: "PATCH" })
+    if (!res.ok) return
+
+    const timestamp = new Date().toISOString()
+    setNotifications((prev) => prev.map((n) => ({ ...n, read_at: timestamp })))
+    setUnreadCount(0)
   }
 
   const displayName = (p: ProfileSnippet) => p.full_name ?? p.username ?? "Someone"
@@ -110,8 +131,22 @@ export function NotificationsWidget() {
     <Card className="h-full">
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-medium flex items-center justify-between">
-          Notifications
-          <Bell className="h-4 w-4 text-muted-foreground" />
+          <span className="flex items-center gap-2">
+            Notifications
+            {unreadCount > 0 && (
+              <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                {unreadCount}
+              </span>
+            )}
+          </span>
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={markAllRead}>
+                Mark all read
+              </Button>
+            )}
+            <Bell className="h-4 w-4 text-muted-foreground" />
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
@@ -129,7 +164,7 @@ export function NotificationsWidget() {
         ) : (
           <ul className="space-y-3">
             {notifications.map((n, i) => (
-              <li key={i} className="flex items-start gap-3">
+              <li key={n.id ?? i} className={`flex items-start gap-3 rounded-lg p-2 ${n.read_at ? "opacity-70" : ""}`}>
                 <Link href={profileHref(n.from)} className="flex-shrink-0 relative">
                   <ProfileAvatar profile={n.from} />
                   <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-background p-px">

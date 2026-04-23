@@ -174,6 +174,7 @@ export const mockUserPreferences = {
   theme: 'dark' as const,
   units: 'metric' as const,
   dietary_restrictions: ['vegetarian', 'gluten-free'],
+  meal_planner_weekly_reminder_enabled: true,
   notifications_enabled: true,
   email_recipes: true,
   private_recipes: false,

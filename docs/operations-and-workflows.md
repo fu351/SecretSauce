@@ -68,6 +68,8 @@ Current workflows include:
 - `nightly-workflow.yml` (orchestrates the queue and scraper workflows)
 - `nightly-ingredient-queue.yml` / `test-ingredient-queue.yml` (run `ingredient-match-queue-pipeline`)
 - `nightly-embedding-queue.yml` / `test-embedding-queue.yml` (run `embedding-queue-pipeline`)
+- `weekly-notification-digest.yml` (runs `notification-digest-pipeline`)
+- `weekly-meal-planner-reminder.yml` (runs `meal-planner-reminder-pipeline`)
 - `regenerate-mappings.yml` (runs `ingredient-match-queue-pipeline` for relink passes)
 - `store_maintenance.yml`
 - plus backup/reset/init/main utility workflows.

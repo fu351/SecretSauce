@@ -7,12 +7,14 @@ const {
   mockWithServiceClient,
   mockSendFollowRequest,
   mockCancelFollow,
+  mockCreateNotification,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockFrom: vi.fn(),
   mockWithServiceClient: vi.fn(),
   mockSendFollowRequest: vi.fn(),
   mockCancelFollow: vi.fn(),
+  mockCreateNotification: vi.fn(),
 }))
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -27,6 +29,10 @@ vi.mock("@/lib/database/follow-db", () => ({
   followDB: {
     withServiceClient: mockWithServiceClient,
   },
+}))
+
+vi.mock("@/lib/notifications/notification-service", () => ({
+  createNotification: mockCreateNotification,
 }))
 
 function createProfileLookup(result: any) {
@@ -84,6 +90,7 @@ describe("social follow routes", () => {
     mockAuth.mockResolvedValue({ userId: "user_1" })
     mockFrom.mockReturnValueOnce(createProfileLookup({ data: { id: "profile_1" } }))
     mockSendFollowRequest.mockResolvedValue(request)
+    mockCreateNotification.mockResolvedValue({ id: "n_1" })
 
     const res = await POST(
       new Request("http://localhost/api/social/follow", {
@@ -94,6 +101,10 @@ describe("social follow routes", () => {
 
     expect(mockWithServiceClient).toHaveBeenCalled()
     expect(mockSendFollowRequest).toHaveBeenCalledWith("profile_1", "profile_2")
+    expect(mockCreateNotification).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      recipientId: "profile_2",
+      actorId: "profile_1",
+    }))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ request })
   })

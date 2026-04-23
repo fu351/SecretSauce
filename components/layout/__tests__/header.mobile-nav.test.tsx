@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const pushMock = vi.fn()
 const pathnameMock = vi.fn(() => "/home")
+const fetchMock = vi.fn(async () => ({
+  json: async () => ({ unreadCount: 0 }),
+}))
+
+global.fetch = fetchMock as unknown as typeof fetch
 
 vi.mock("next/image", () => ({
   default: (props: Record<string, unknown>) => <img {...props} alt={String(props.alt ?? "")} />,
@@ -38,6 +43,10 @@ vi.mock("@/hooks", () => ({
 describe("Header mobile nav", () => {
   beforeEach(() => {
     pushMock.mockReset()
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue({
+      json: async () => ({ unreadCount: 0 }),
+    } as Response)
     pathnameMock.mockReturnValue("/home")
     useAuthMock.mockReturnValue({
       user: { id: "u_1", email: "cook@example.com" },
@@ -106,4 +115,3 @@ describe("Header mobile nav", () => {
     expect(screen.queryByRole("menuitem", { name: /pantry/i })).not.toBeInTheDocument()
   })
 })
-

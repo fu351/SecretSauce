@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Calendar, Home, LogOut, Menu, MessageCircle, Plus, Refrigerator, Settings, ShoppingCart, Trophy, User, Wrench } from "lucide-react"
+import { Bell, BookOpen, Calendar, Home, LogOut, Menu, MessageCircle, Plus, Refrigerator, Settings, ShoppingCart, Trophy, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -37,6 +37,7 @@ export function Header() {
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
   const [mobileLogoMenuOpen, setMobileLogoMenuOpen] = useState(false)
   const [hideMobileNavForOverlay, setHideMobileNavForOverlay] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const headerRef = useRef<HTMLElement>(null)
   const mobileFabRef = useRef<HTMLDivElement>(null)
 
@@ -98,6 +99,21 @@ export function Header() {
 
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0)
+      return
+    }
+
+    const controller = new AbortController()
+    fetch("/api/social/notifications?countOnly=true", { signal: controller.signal })
+      .then((r) => r.json())
+      .then((json) => setUnreadCount(Number(json.unreadCount ?? 0)))
+      .catch(() => {})
+
+    return () => controller.abort()
+  }, [user])
 
   // Use theme directly from context - it handles defaults properly
   const isDark = theme === "dark"
@@ -250,7 +266,14 @@ export function Header() {
                 className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
               >
                 <Link href="/dashboard" data-tutorial-nav="/dashboard">
-                  <User className="h-5 w-5" />
+                  <span className="relative">
+                    <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-2 -top-2 min-w-4 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold leading-none text-primary-foreground">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </span>
                   <span className="sr-only">Dashboard</span>
                 </Link>
               </Button>

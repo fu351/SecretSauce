@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { followDB } from "@/lib/database/follow-db"
+import { createNotification } from "@/lib/notifications/notification-service"
 
 export const runtime = "nodejs"
 
@@ -42,6 +43,23 @@ export async function PATCH(req: Request) {
         { error: "Request not found or not authorized" },
         { status: 404 }
       )
+    }
+
+    if (action === "accept") {
+      await createNotification(supabase, {
+        recipientId: request.follower_id,
+        actorId: profile.id,
+        type: "new_follower",
+        entityType: "follow_request",
+        entityId: request.id,
+        title: "Follow accepted",
+        body: "Your follow request was accepted.",
+        payload: {
+          requestId: request.id,
+          followerId: request.follower_id,
+          followingId: request.following_id,
+        },
+      })
     }
 
     return NextResponse.json({ request })

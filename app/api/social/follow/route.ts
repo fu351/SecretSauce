@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { followDB } from "@/lib/database/follow-db"
+import { createNotification } from "@/lib/notifications/notification-service"
 
 export const runtime = "nodejs"
 
@@ -41,6 +42,23 @@ export async function POST(req: Request) {
     if (!request) {
       return NextResponse.json({ error: "Failed to send follow request" }, { status: 500 })
     }
+
+    await createNotification(supabase, {
+      recipientId: followingId,
+      actorId: profileId,
+      type: request.status === "accepted" ? "new_follower" : "follow_request",
+      entityType: "follow_request",
+      entityId: request.id,
+      title: request.status === "accepted" ? "New follower" : "Follow request",
+      body: request.status === "accepted"
+        ? "A new follower was added."
+        : "You have a new follow request.",
+      payload: {
+        requestId: request.id,
+        followerId: profileId,
+        followingId,
+      },
+    })
 
     return NextResponse.json({ request })
   } catch (error) {

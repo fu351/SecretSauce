@@ -12,6 +12,7 @@ const PROFILE_SELECT = [
   "created_at", "updated_at", "email_verified",
   "cooking_level", "budget_range", "dietary_preferences", "primary_goal",
   "cuisine_preferences", "cooking_time_preference", "zip_code", "grocery_distance_miles",
+  "meal_planner_weekly_reminder_enabled", "notification_email_digest_enabled", "notification_push_enabled",
   "theme_preference", "tutorial_completed", "tutorial_completed_at",
   "formatted_address", "address_line1", "address_line2", "city", "state", "country",
   "latitude", "longitude",

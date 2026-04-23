@@ -67,6 +67,9 @@ function SettingsPageContent() {
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>([])
   const [showTutorialModal, setShowTutorialModal] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState<"light" | "dark">(theme === "dark" ? "dark" : "light")
+  const [mealPlannerReminderEnabled, setMealPlannerReminderEnabled] = useState(true)
+  const [emailDigestEnabled, setEmailDigestEnabled] = useState(true)
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false)
   const preferencesRef = useRef<ProfileUpdates | null>(null)
   const lastSavedSnapshotRef = useRef<string>("")
   const hasRecordedInitialSnapshot = useRef(false)
@@ -133,6 +136,9 @@ function SettingsPageContent() {
     setLng(profileData.longitude ?? null)
     setGroceryDistance(String(profileData.grocery_distance_miles || 10))
     setDietaryPreferences(profileData.dietary_preferences || [])
+    setMealPlannerReminderEnabled(profileData.meal_planner_weekly_reminder_enabled ?? true)
+    setEmailDigestEnabled(profileData.notification_email_digest_enabled ?? true)
+    setPushNotificationsEnabled(profileData.notification_push_enabled ?? false)
     setNewEmail(profileData.email || "")
   }, [])
 
@@ -161,6 +167,9 @@ function SettingsPageContent() {
       grocery_distance_miles: Number.parseInt(groceryDistance) || 10,
       dietary_preferences: dietaryPreferences,
       theme_preference: selectedTheme,
+      meal_planner_weekly_reminder_enabled: mealPlannerReminderEnabled,
+      notification_email_digest_enabled: emailDigestEnabled,
+      notification_push_enabled: pushNotificationsEnabled,
     }
 
     preferencesRef.current = payload
@@ -195,6 +204,9 @@ function SettingsPageContent() {
     groceryDistance,
     dietaryPreferences,
     selectedTheme,
+    mealPlannerReminderEnabled,
+    emailDigestEnabled,
+    pushNotificationsEnabled,
   ])
 
   const handleThemeChange = async (newTheme: "light" | "dark") => {
@@ -928,7 +940,7 @@ function SettingsPageContent() {
               <div>
                 <CardTitle className={isDark ? "text-[#e8dcc4]" : "text-gray-900"}>Notifications</CardTitle>
                 <CardDescription className={isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}>
-                  Manage your notification preferences
+                  Manage your meal planning reminder, weekly email digest, and push settings
                 </CardDescription>
               </div>
             </div>
@@ -938,24 +950,35 @@ function SettingsPageContent() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                    Recipe Updates
+                    Weekly meal planning reminder
                   </Label>
                   <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                    Get notified about new recipes
+                    Get a weekly reminder to plan meals for the upcoming week.
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch checked={mealPlannerReminderEnabled} onCheckedChange={setMealPlannerReminderEnabled} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <Label className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
-                    Meal Reminders
+                    Weekly email digest
                   </Label>
                   <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                    Reminders for planned meals
+                    Receive one weekly summary for follows, likes, and reposts.
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch checked={emailDigestEnabled} onCheckedChange={setEmailDigestEnabled} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
+                    Push notifications
+                  </Label>
+                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
+                    Future channel support for real-time alerts on mobile and desktop.
+                  </p>
+                </div>
+                <Switch checked={pushNotificationsEnabled} onCheckedChange={setPushNotificationsEnabled} />
               </div>
             </div>
           </CardContent>

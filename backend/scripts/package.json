@@ -6,6 +6,8 @@
   "scripts": {
     "ingredient-match-queue-pipeline": "tsx ../orchestrators/ingredient-match-queue-pipeline/pipeline.ts",
     "embedding-queue-pipeline": "tsx ../orchestrators/embedding-queue-pipeline/pipeline.ts",
+    "notification-digest-pipeline": "tsx ../orchestrators/notification-digest/pipeline.ts",
+    "meal-planner-reminder-pipeline": "tsx ../orchestrators/meal-planner-reminder/pipeline.ts",
     "visualize-ingredient-embeddings-pca": "python analysis/visualize-ingredient-embeddings-pca.py",
     "weighted-cluster-projection": "python analysis/weighted-cluster-projection.py",
     "consolidation-candidate-scatter": "python analysis/consolidation-candidate-scatter.py",
