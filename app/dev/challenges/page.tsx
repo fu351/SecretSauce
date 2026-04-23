@@ -5,18 +5,18 @@ import ChallengesManager from "./challenges-manager"
 
 export const dynamic = "force-dynamic"
 
-async function getChallenges() {
+async function getData() {
   const supabase = createServiceSupabaseClient()
-  const { data } = await supabase
-    .from("challenges")
-    .select("*")
-    .order("starts_at", { ascending: false })
-  return data ?? []
+  const [{ data: challenges }, { data: templates }] = await Promise.all([
+    supabase.from("challenges").select("*").order("starts_at", { ascending: false }),
+    supabase.from("community_challenge_templates").select("*").order("title", { ascending: true }),
+  ])
+  return { challenges: challenges ?? [], templates: templates ?? [] }
 }
 
 export default async function DevChallengesPage() {
   await requireAdmin()
-  const challenges = await getChallenges()
+  const { challenges, templates } = await getData()
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -29,10 +29,12 @@ export default async function DevChallengesPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">🏆 Social Challenges</h1>
           <p className="mt-2 text-gray-600">
-            Create and manage challenges shown to users. Only one challenge is "active" at a time (now() falls within starts_at → ends_at).
+            Manage challenges. <strong>Star challenges</strong> are staff-curated with staff-selected winners.{" "}
+            <strong>Community challenges</strong> run from a reusable template pool with community-voted winners.
+            Both types can be active in parallel.
           </p>
         </div>
-        <ChallengesManager initialChallenges={challenges} />
+        <ChallengesManager initialChallenges={challenges} initialTemplates={templates} />
       </div>
     </div>
   )

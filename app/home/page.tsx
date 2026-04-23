@@ -31,9 +31,11 @@ import {
   Search,
   Share2,
   Sparkles,
+  Star,
   Trophy,
   Upload,
   Users,
+  Vote,
   X,
 } from "lucide-react"
 import { RecipeCardCompact } from "@/components/recipe/cards/recipe-card-compact"
@@ -41,7 +43,7 @@ import { RecipeGrid } from "@/components/recipe/recipe-grid"
 import { Recipe } from "@/lib/types"
 import { useToast } from "@/hooks"
 import type { PostWithMeta } from "@/lib/database/post-db"
-import type { Challenge, ChallengeEntry, LeaderboardEntry } from "@/lib/database/challenge-db"
+import type { Challenge, ChallengeEntry, ChallengeVote, LeaderboardEntry } from "@/lib/database/challenge-db"
 
 type HomePageRecipe = Recipe
 
@@ -96,6 +98,8 @@ export default function HomeReturningPage() {
   const [activeChallenge, setActiveChallenge] = useState<(Challenge & { participant_count: number }) | null>(null)
   const [challengeEntry, setChallengeEntry] = useState<ChallengeEntry | null>(null)
   const [challengeRank, setChallengeRank] = useState<number | null>(null)
+  const [communityChallenges, setCommunityChallenges] = useState<(Challenge & { participant_count: number })[]>([])
+  const [communityEntries, setCommunityEntries] = useState<Record<string, { entry: ChallengeEntry | null; vote: ChallengeVote | null }>>({})
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [leaderboardScope, setLeaderboardScope] = useState<"friends" | "global">("friends")
   const [loadingChallenge, setLoadingChallenge] = useState(true)
@@ -240,11 +244,15 @@ export default function HomeReturningPage() {
       if (!res.ok) return
       const json = await res.json()
       if (!isMounted.current) return
-      setActiveChallenge(json.challenge ?? null)
-      setChallengeEntry(json.entry ?? null)
-      setChallengeRank(json.rank ?? null)
-      if (json.challenge) {
-        fetchLeaderboard(json.challenge.id, leaderboardScope)
+      const star = json.starChallenge ?? null
+      setActiveChallenge(star)
+      setChallengeEntry(json.starEntry ?? null)
+      setChallengeRank(json.starRank ?? null)
+      setCommunityChallenges(json.communityChallenges ?? [])
+      setCommunityEntries(json.communityEntries ?? {})
+      const leaderboardChallenge = star ?? (json.communityChallenges ?? [])[0] ?? null
+      if (leaderboardChallenge) {
+        fetchLeaderboard(leaderboardChallenge.id, leaderboardScope)
       }
     } catch (error) {
       console.error("Error fetching active challenge:", error)
@@ -405,18 +413,27 @@ export default function HomeReturningPage() {
         throw new Error(postJson.error ?? "Failed to post")
       }
 
-      // Link post to active challenge if one exists
-      if (activeChallenge) {
-        const newPostId = postJson.post?.id
-        if (newPostId) {
-          await fetch(`/api/challenges/${activeChallenge.id}/join`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ postId: newPostId }),
-          }).then((r) => r.json()).then((j) => {
-            if (j.entry) setChallengeEntry(j.entry)
-          }).catch(() => {})
-        }
+      // Link post to all active challenges
+      const newPostId = postJson.post?.id
+      if (newPostId) {
+        const challengesToJoin = [
+          ...(activeChallenge ? [{ id: activeChallenge.id, type: "star" as const }] : []),
+          ...communityChallenges.map((c) => ({ id: c.id, type: "community" as const })),
+        ]
+        await Promise.all(
+          challengesToJoin.map((c) =>
+            fetch(`/api/challenges/${c.id}/join`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ postId: newPostId }),
+            })
+              .then((r) => r.json())
+              .then((j) => {
+                if (j.entry && c.type === "star") setChallengeEntry(j.entry)
+              })
+              .catch(() => {})
+          )
+        )
       }
 
       toast({ title: "Posted!", description: "Your dish is live." })
@@ -810,53 +827,114 @@ export default function HomeReturningPage() {
           )}
         </>
 
-        {/* Weekly challenge hero (signed-in only) */}
+        {/* Challenge hero (signed-in only) */}
         {isLoggedIn && (
           loadingChallenge ? (
             <Card><CardContent className="p-4 md:p-6 h-32 animate-pulse bg-muted/30" /></Card>
-          ) : activeChallenge ? (
-            <Card>
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">This week&apos;s challenge</p>
-                    <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">
-                      {activeChallenge.title}
-                    </h1>
-                    {activeChallenge.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">{activeChallenge.description}</p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" /> {timeUntil(activeChallenge.ends_at)}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5" /> {activeChallenge.participant_count} joined
-                      </span>
-                      {challengeRank != null && (
-                        <span className="inline-flex items-center gap-1">
-                          <Trophy className="h-3.5 w-3.5" /> #{challengeRank} among friends
-                        </span>
+          ) : (activeChallenge || communityChallenges.length > 0) ? (
+            <div className="space-y-3">
+              {/* Star challenge — prominent */}
+              {activeChallenge && (
+                <Card className="border-amber-300/60 bg-gradient-to-r from-amber-50/80 to-amber-100/40 dark:from-amber-950/30 dark:to-amber-900/10">
+                  <CardContent className="p-4 md:p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+                          <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">Staff Pick Challenge</p>
+                        </div>
+                        <h1 className="text-xl md:text-2xl font-serif font-light text-foreground">
+                          {activeChallenge.title}
+                        </h1>
+                        {activeChallenge.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">{activeChallenge.description}</p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" /> {timeUntil(activeChallenge.ends_at)}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Users className="h-3.5 w-3.5" /> {activeChallenge.participant_count} joined
+                          </span>
+                          {challengeRank != null && (
+                            <span className="inline-flex items-center gap-1">
+                              <Trophy className="h-3.5 w-3.5" /> #{challengeRank} among friends
+                            </span>
+                          )}
+                          <span className="text-amber-600 dark:text-amber-500">Winners chosen by staff</span>
+                        </div>
+                      </div>
+                      <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-400/30 flex-shrink-0">
+                        +{activeChallenge.points} pts
+                      </Badge>
+                    </div>
+                    <div className="mt-4">
+                      {challengeEntry?.post_id ? (
+                        <Button variant="secondary" className="w-full gap-1.5" disabled>
+                          <CheckCircle2 className="h-4 w-4" /> Dish Submitted
+                        </Button>
+                      ) : (
+                        <Button className="w-full bg-amber-500 hover:bg-amber-600 text-white" onClick={openPostDishDialog}>
+                          Post Your Dish to Enter
+                        </Button>
                       )}
                     </div>
-                  </div>
-                  <Badge className="bg-primary/15 text-primary border border-primary/20 flex-shrink-0">
-                    +{activeChallenge.points} pts
-                  </Badge>
-                </div>
-                <div className="mt-4">
-                  {challengeEntry?.post_id ? (
-                    <Button variant="secondary" className="w-full gap-1.5" disabled>
-                      <CheckCircle2 className="h-4 w-4" /> Dish Submitted
-                    </Button>
-                  ) : (
-                    <Button className="w-full" onClick={openPostDishDialog}>
-                      Post Your Dish to Enter
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Community challenges */}
+              {communityChallenges.map((c) => {
+                const communityEntry = communityEntries[c.id]?.entry ?? null
+                const communityVote  = communityEntries[c.id]?.vote ?? null
+                const hasSubmitted   = !!communityEntry?.post_id
+                return (
+                  <Card key={c.id} className="border-primary/20 bg-primary/5">
+                    <CardContent className="p-4 md:p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <Vote className="h-3.5 w-3.5 text-primary/70" />
+                            <p className="text-xs text-muted-foreground">Community Challenge</p>
+                          </div>
+                          <h2 className="text-base md:text-lg font-medium text-foreground">{c.title}</h2>
+                          {c.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5" /> {timeUntil(c.ends_at)}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Users className="h-3.5 w-3.5" /> {c.participant_count} joined
+                            </span>
+                            {communityVote && (
+                              <span className="inline-flex items-center gap-1 text-primary">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Voted
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Badge className="bg-primary/15 text-primary border border-primary/20 flex-shrink-0">
+                          +{c.points} pts
+                        </Badge>
+                      </div>
+                      <div className="mt-3">
+                        {hasSubmitted ? (
+                          <Button variant="secondary" className="w-full gap-1.5" disabled>
+                            <CheckCircle2 className="h-4 w-4" /> Dish Submitted
+                          </Button>
+                        ) : (
+                          <Button className="w-full" variant="outline" onClick={openPostDishDialog}>
+                            Post Your Dish to Enter
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
           ) : null
         )}
 

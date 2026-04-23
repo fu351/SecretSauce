@@ -707,8 +707,94 @@ export type Database = {
           },
         ]
       }
+      challenge_votes: {
+        Row: {
+          challenge_id: string
+          created_at: string
+          entry_profile_id: string
+          id: string
+          voter_profile_id: string
+        }
+        Insert: {
+          challenge_id: string
+          created_at?: string
+          entry_profile_id: string
+          id?: string
+          voter_profile_id: string
+        }
+        Update: {
+          challenge_id?: string
+          created_at?: string
+          entry_profile_id?: string
+          id?: string
+          voter_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_votes_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_votes_voter_profile_id_fkey"
+            columns: ["voter_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_votes_entry_profile_id_fkey"
+            columns: ["entry_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenge_winners: {
+        Row: {
+          challenge_id: string
+          created_at: string
+          id: string
+          profile_id: string
+          rank: number
+        }
+        Insert: {
+          challenge_id: string
+          created_at?: string
+          id?: string
+          profile_id: string
+          rank?: number
+        }
+        Update: {
+          challenge_id?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+          rank?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_winners_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_winners_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       challenges: {
         Row: {
+          challenge_type: string
           created_at: string
           description: string | null
           ends_at: string
@@ -716,8 +802,10 @@ export type Database = {
           points: number
           starts_at: string
           title: string
+          winner_count: number
         }
         Insert: {
+          challenge_type?: string
           created_at?: string
           description?: string | null
           ends_at: string
@@ -725,14 +813,41 @@ export type Database = {
           points?: number
           starts_at: string
           title: string
+          winner_count?: number
         }
         Update: {
+          challenge_type?: string
           created_at?: string
           description?: string | null
           ends_at?: string
           id?: string
           points?: number
           starts_at?: string
+          title?: string
+          winner_count?: number
+        }
+        Relationships: []
+      }
+      community_challenge_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          points: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          points?: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          points?: number
           title?: string
         }
         Relationships: []
