@@ -30,31 +30,30 @@ export async function GET(
     }
 
     // Compute criteria in parallel
-    const [recipeCountResult, challengeResult, challengeWinResult] = await Promise.all([
+    const [recipeCountResult, participantResult, winnerResult] = await Promise.all([
       supabase
         .from("recipes")
         .select("id", { count: "exact", head: true })
         .eq("author_id", profile.id)
         .is("deleted_at", null),
-      supabase
-        .from("challenge_entries")
-        .select("id", { count: "exact", head: true })
-        .eq("profile_id", profile.id),
+      // Participant: has at least one challenge entry with a submitted post
       supabase
         .from("challenge_entries")
         .select("id", { count: "exact", head: true })
         .eq("profile_id", profile.id)
-        .gt("total_points", 0),
+        .not("post_id", "is", null),
+      // Winner: appears in the challenge_winners table (staff-selected star winners)
+      supabase
+        .from("challenge_winners")
+        .select("id", { count: "exact", head: true })
+        .eq("profile_id", profile.id),
     ])
 
-    const recipeCount = recipeCountResult.count ?? 0
-    const challengeCount = challengeResult.count ?? 0
-    const followerCount = profile.follower_count ?? 0
-    const isPremium = profile.subscription_tier === "premium"
-    const isEarlyAdopter =
-      profile.created_at != null && profile.created_at < EARLY_ADOPTER_CUTOFF
+    const recipeCount    = recipeCountResult.count ?? 0
+    const followerCount  = profile.follower_count ?? 0
+    const isPremium      = profile.subscription_tier === "premium"
+    const isEarlyAdopter = profile.created_at != null && profile.created_at < EARLY_ADOPTER_CUTOFF
 
-    // Determine which badges should be awarded now
     const eligibleBadgeIds: BadgeId[] = []
     if (recipeCount >= 1)   eligibleBadgeIds.push("first_recipe")
     if (recipeCount >= 5)   eligibleBadgeIds.push("recipe_creator_5")
@@ -63,8 +62,8 @@ export async function GET(
     if (followerCount >= 5)   eligibleBadgeIds.push("social_starter")
     if (followerCount >= 25)  eligibleBadgeIds.push("popular_chef")
     if (followerCount >= 100) eligibleBadgeIds.push("fan_favorite")
-    if (challengeCount >= 1)  eligibleBadgeIds.push("challenge_participant")
-    if ((challengeWinResult.count ?? 0) >= 1) eligibleBadgeIds.push("challenge_winner")
+    if ((participantResult.count ?? 0) >= 1) eligibleBadgeIds.push("challenge_participant")
+    if ((winnerResult.count ?? 0) >= 1)      eligibleBadgeIds.push("challenge_winner")
     if (isPremium)      eligibleBadgeIds.push("premium_member")
     if (isEarlyAdopter) eligibleBadgeIds.push("early_adopter")
 

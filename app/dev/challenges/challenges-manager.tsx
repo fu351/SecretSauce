@@ -59,7 +59,6 @@ export default function ChallengesManager({
   const weekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
-  const [points, setPoints] = useState(100)
   const [challengeType, setChallengeType] = useState<ChallengeType>("community")
   const [winnerCount, setWinnerCount] = useState(3)
   const [startsAt, setStartsAt] = useState(toLocalDatetimeValue(now.toISOString()))
@@ -79,7 +78,6 @@ export default function ChallengesManager({
   function applyTemplate(t: Template) {
     setTitle(t.title)
     setDescription(t.description ?? "")
-    setPoints(t.points)
     setChallengeType("community")
   }
 
@@ -93,7 +91,6 @@ export default function ChallengesManager({
         body: JSON.stringify({
           title,
           description: description || null,
-          points,
           starts_at: new Date(startsAt).toISOString(),
           ends_at: new Date(endsAt).toISOString(),
           challenge_type: challengeType,
@@ -105,7 +102,6 @@ export default function ChallengesManager({
       setChallenges((prev) => [json.challenge, ...prev])
       setTitle("")
       setDescription("")
-      setPoints(100)
       flash("Challenge created!")
       router.refresh()
     } catch (err: unknown) {
@@ -271,17 +267,7 @@ export default function ChallengesManager({
             />
           </div>
 
-          <div className={`grid grid-cols-1 gap-4 ${challengeType === "star" ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Points</label>
-              <input
-                type="number"
-                min={1}
-                value={points}
-                onChange={(e) => setPoints(Number(e.target.value))}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
+          <div className={`grid grid-cols-1 gap-4 ${challengeType === "star" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             {challengeType === "star" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">

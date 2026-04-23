@@ -68,14 +68,10 @@ export default function JoinChallengePage() {
             <p className="text-xs text-muted-foreground">Weekly Challenge</p>
             <h1 className="text-2xl md:text-3xl font-serif font-light text-foreground">{title}</h1>
           </div>
-          {challenge ? (
-            <Badge className="bg-primary/15 text-primary border border-primary/20">+{challenge.points} pts</Badge>
-          ) : (
-            !loading && (
-              <Badge variant="secondary" className="text-muted-foreground">
-                No active challenge
-              </Badge>
-            )
+          {!challenge && !loading && (
+            <Badge variant="secondary" className="text-muted-foreground">
+              No active challenge
+            </Badge>
           )}
         </div>
 
@@ -131,13 +127,11 @@ export default function JoinChallengePage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <Trophy className="h-4 w-4 text-primary" />
-                    Points
+                    Badges
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0 text-sm text-muted-foreground">
-                  {challenge
-                    ? `This challenge awards +${challenge.points} points toward your weekly standing.`
-                    : "Points are shown when a challenge is active."}
+                  Submit a dish to earn the <strong>🏅 Challenger</strong> badge. Winners earn the <strong>🏆 Challenge Winner</strong> badge.
                 </CardContent>
               </Card>
               <Card>

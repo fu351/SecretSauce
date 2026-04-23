@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth/admin"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { challengeDB } from "@/lib/database/challenge-db"
+import { awardBadges } from "@/lib/badges/award-badge"
 
 export const runtime = "nodejs"
 
@@ -17,7 +18,6 @@ export async function GET(
 
   const winners = await db.getWinners(challengeId)
 
-  // Enrich with profile info
   const profileIds = winners.map((w) => w.profile_id)
   const { data: profiles } = await supabase
     .from("profiles")
@@ -68,6 +68,13 @@ export async function PUT(
 
   if (!ok) {
     return NextResponse.json({ error: "Failed to set winners" }, { status: 500 })
+  }
+
+  // Award the Challenge Winner badge to each selected winner
+  if (profileIds.length > 0) {
+    await Promise.all(
+      profileIds.map((profileId) => awardBadges(supabase, profileId, ["challenge_winner"]))
+    )
   }
 
   return NextResponse.json({ success: true })

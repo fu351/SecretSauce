@@ -861,12 +861,9 @@ export default function HomeReturningPage() {
                               <Trophy className="h-3.5 w-3.5" /> #{challengeRank} among friends
                             </span>
                           )}
-                          <span className="text-amber-600 dark:text-amber-500">Winners chosen by staff</span>
+                          <span className="text-amber-700 dark:text-amber-400">🏅 Challenger · 🏆 Winner badge</span>
                         </div>
                       </div>
-                      <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-400/30 flex-shrink-0">
-                        +{activeChallenge.points} pts
-                      </Badge>
                     </div>
                     <div className="mt-4">
                       {challengeEntry?.post_id ? (
@@ -908,16 +905,12 @@ export default function HomeReturningPage() {
                             <span className="inline-flex items-center gap-1">
                               <Users className="h-3.5 w-3.5" /> {c.participant_count} joined
                             </span>
-                            {communityVote && (
-                              <span className="inline-flex items-center gap-1 text-primary">
-                                <CheckCircle2 className="h-3.5 w-3.5" /> Voted
-                              </span>
-                            )}
+                            {communityVote
+                              ? <span className="text-primary">🗳️ Voted</span>
+                              : <span>🏅 Challenger badge</span>
+                            }
                           </div>
                         </div>
-                        <Badge className="bg-primary/15 text-primary border border-primary/20 flex-shrink-0">
-                          +{c.points} pts
-                        </Badge>
                       </div>
                       <div className="mt-3">
                         {hasSubmitted ? (

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { challengeDB } from "@/lib/database/challenge-db"
+import { awardBadges } from "@/lib/badges/award-badge"
 
 export const runtime = "nodejs"
 
@@ -52,6 +53,11 @@ export async function POST(
 
     if (!entry) {
       return NextResponse.json({ error: "Failed to join challenge" }, { status: 500 })
+    }
+
+    // Award the Challenger badge immediately when a post is submitted
+    if (postId) {
+      await awardBadges(supabase, viewerProfile.id, ["challenge_participant"])
     }
 
     return NextResponse.json({ entry })
