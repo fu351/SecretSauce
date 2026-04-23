@@ -119,6 +119,7 @@ jobs:
       - name: Run canonical pipeline
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_KEY }}
           NODE_ENV: production
         run: npm --prefix backend/scripts run canonical-pipeline
