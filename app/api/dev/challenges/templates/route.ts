@@ -9,14 +9,14 @@ export async function GET() {
   const supabase = createServiceSupabaseClient()
 
   const { data, error } = await supabase
-    .from("challenges")
+    .from("community_challenge_templates")
     .select("*")
-    .order("starts_at", { ascending: false })
+    .order("title", { ascending: true })
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ challenges: data })
+  return NextResponse.json({ templates: data })
 }
 
 export async function POST(req: NextRequest) {
@@ -24,40 +24,22 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceSupabaseClient()
 
   const body = await req.json()
-  const {
-    title,
-    description,
-    points,
-    starts_at,
-    ends_at,
-    challenge_type,
-    winner_count,
-  } = body
+  const { title, description, points } = body
 
-  if (!title || !starts_at || !ends_at) {
-    return NextResponse.json({ error: "title, starts_at, and ends_at are required" }, { status: 400 })
+  if (!title) {
+    return NextResponse.json({ error: "title is required" }, { status: 400 })
   }
 
-  const type = challenge_type === "star" ? "star" : "community"
-
   const { data, error } = await supabase
-    .from("challenges")
-    .insert({
-      title,
-      description: description || null,
-      points: points ?? 100,
-      starts_at,
-      ends_at,
-      challenge_type: type,
-      winner_count: type === "star" ? (winner_count ?? 3) : 0,
-    })
+    .from("community_challenge_templates")
+    .insert({ title, description: description || null, points: points ?? 100 })
     .select()
     .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ challenge: data }, { status: 201 })
+  return NextResponse.json({ template: data }, { status: 201 })
 }
 
 export async function DELETE(req: NextRequest) {
@@ -69,7 +51,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
 
-  const { error } = await supabase.from("challenges").delete().eq("id", id)
+  const { error } = await supabase
+    .from("community_challenge_templates")
+    .delete()
+    .eq("id", id)
+
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

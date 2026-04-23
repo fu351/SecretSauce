@@ -2,13 +2,19 @@ import { SupabaseClient } from "@supabase/supabase-js"
 import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/database/supabase"
 
-type ChallengeRow       = Database["public"]["Tables"]["challenges"]["Row"]
-type ChallengeEntryRow  = Database["public"]["Tables"]["challenge_entries"]["Row"]
+type ChallengeRow         = Database["public"]["Tables"]["challenges"]["Row"]
+type ChallengeEntryRow    = Database["public"]["Tables"]["challenge_entries"]["Row"]
 type ChallengeEntryInsert = Database["public"]["Tables"]["challenge_entries"]["Insert"]
 type ChallengeEntryUpdate = Database["public"]["Tables"]["challenge_entries"]["Update"]
+type ChallengeVoteRow     = Database["public"]["Tables"]["challenge_votes"]["Row"]
+type ChallengeWinnerRow   = Database["public"]["Tables"]["challenge_winners"]["Row"]
+type TemplateRow          = Database["public"]["Tables"]["community_challenge_templates"]["Row"]
 
-export type Challenge      = ChallengeRow
-export type ChallengeEntry = ChallengeEntryRow
+export type Challenge              = ChallengeRow
+export type ChallengeEntry         = ChallengeEntryRow
+export type ChallengeVote          = ChallengeVoteRow
+export type ChallengeWinner        = ChallengeWinnerRow
+export type ChallengeTemplate      = TemplateRow
 
 export type LeaderboardEntry = {
   profile_id:   string
@@ -17,8 +23,14 @@ export type LeaderboardEntry = {
   username:     string | null
   post_id:      string | null
   like_count:   number
+  vote_count:   number
   total_points: number
   is_viewer:    boolean
+}
+
+export type ActiveChallenges = {
+  star:      (Challenge & { participant_count: number }) | null
+  community: (Challenge & { participant_count: number })[]
 }
 
 class ChallengeTable extends BaseTable<
@@ -54,7 +66,39 @@ class ChallengeTable extends BaseTable<
   // CHALLENGES
   // -----------------------------------------------------------------------
 
-  /** Return the currently active challenge (now() is between starts_at and ends_at). */
+  /** Return all currently active challenges split by type. */
+  async getActiveChallenges(): Promise<ActiveChallenges> {
+    const now = new Date().toISOString()
+    const { data, error } = await this.db
+      .from("challenges")
+      .select("*")
+      .lte("starts_at", now)
+      .gte("ends_at", now)
+      .order("starts_at", { ascending: false })
+
+    if (error) {
+      this.handleError(error, "getActiveChallenges")
+      return { star: null, community: [] }
+    }
+
+    const rows = data ?? []
+    const starRow   = rows.find((c) => c.challenge_type === "star") ?? null
+    const community = rows.filter((c) => c.challenge_type === "community")
+
+    const withCounts = async (challenge: Challenge) => ({
+      ...challenge,
+      participant_count: await this.getParticipantCount(challenge.id),
+    })
+
+    const [star, ...communityWithCounts] = await Promise.all([
+      starRow ? withCounts(starRow) : Promise.resolve(null),
+      ...community.map(withCounts),
+    ])
+
+    return { star, community: communityWithCounts }
+  }
+
+  /** @deprecated Use getActiveChallenges() */
   async getActiveChallenge(): Promise<Challenge | null> {
     const now = new Date().toISOString()
     const { data, error } = await this.db
@@ -133,7 +177,6 @@ class ChallengeTable extends BaseTable<
       .maybeSingle()
 
     if (existing) {
-      // Only update post_id if a new one is being provided
       if (postId != null && existing.post_id !== postId) {
         const { data, error } = await this.db
           .from("challenge_entries")
@@ -148,7 +191,6 @@ class ChallengeTable extends BaseTable<
         }
         return data
       }
-      // Nothing changed — return existing (re-fetch full row)
       return this.getEntry(challengeId, profileId)
     }
 
@@ -163,6 +205,155 @@ class ChallengeTable extends BaseTable<
       return null
     }
     return data
+  }
+
+  // -----------------------------------------------------------------------
+  // VOTES (community challenges)
+  // -----------------------------------------------------------------------
+
+  /** Get the viewer's current vote for a challenge, if any. */
+  async getViewerVote(
+    challengeId: string,
+    voterProfileId: string
+  ): Promise<ChallengeVote | null> {
+    const { data, error } = await this.db
+      .from("challenge_votes")
+      .select("*")
+      .eq("challenge_id", challengeId)
+      .eq("voter_profile_id", voterProfileId)
+      .maybeSingle()
+
+    if (error) {
+      this.handleError(error, `getViewerVote(${challengeId}, ${voterProfileId})`)
+      return null
+    }
+    return data
+  }
+
+  /**
+   * Cast or change a vote for an entry in a community challenge.
+   * Upserts: updates vote target if voter has already voted.
+   * Returns null if voter tries to vote for their own entry.
+   */
+  async castVote(
+    challengeId: string,
+    voterProfileId: string,
+    entryProfileId: string
+  ): Promise<ChallengeVote | null> {
+    if (voterProfileId === entryProfileId) return null
+
+    const existing = await this.getViewerVote(challengeId, voterProfileId)
+
+    if (existing) {
+      if (existing.entry_profile_id === entryProfileId) return existing
+      const { data, error } = await this.db
+        .from("challenge_votes")
+        .update({ entry_profile_id: entryProfileId })
+        .eq("id", existing.id)
+        .select()
+        .single()
+
+      if (error) {
+        this.handleError(error, `castVote update(${challengeId})`)
+        return null
+      }
+      return data
+    }
+
+    const { data, error } = await this.db
+      .from("challenge_votes")
+      .insert({ challenge_id: challengeId, voter_profile_id: voterProfileId, entry_profile_id: entryProfileId })
+      .select()
+      .single()
+
+    if (error) {
+      this.handleError(error, `castVote insert(${challengeId})`)
+      return null
+    }
+    return data
+  }
+
+  /** Remove the viewer's vote from a challenge. */
+  async removeVote(challengeId: string, voterProfileId: string): Promise<boolean> {
+    const { error } = await this.db
+      .from("challenge_votes")
+      .delete()
+      .eq("challenge_id", challengeId)
+      .eq("voter_profile_id", voterProfileId)
+
+    if (error) {
+      this.handleError(error, `removeVote(${challengeId})`)
+      return false
+    }
+    return true
+  }
+
+  // -----------------------------------------------------------------------
+  // WINNERS (star challenges — service-client only)
+  // -----------------------------------------------------------------------
+
+  /** Get winners for a challenge. */
+  async getWinners(challengeId: string): Promise<ChallengeWinner[]> {
+    const { data, error } = await this.db
+      .from("challenge_winners")
+      .select("*")
+      .eq("challenge_id", challengeId)
+      .order("rank", { ascending: true })
+
+    if (error) {
+      this.handleError(error, `getWinners(${challengeId})`)
+      return []
+    }
+    return data ?? []
+  }
+
+  /**
+   * Replace the winner list for a star challenge.
+   * profileIds is ordered — index 0 = rank 1.
+   * Requires service client.
+   */
+  async setWinners(challengeId: string, profileIds: string[]): Promise<boolean> {
+    const { error: delErr } = await this.db
+      .from("challenge_winners")
+      .delete()
+      .eq("challenge_id", challengeId)
+
+    if (delErr) {
+      this.handleError(delErr, `setWinners delete(${challengeId})`)
+      return false
+    }
+
+    if (profileIds.length === 0) return true
+
+    const rows = profileIds.map((profileId, i) => ({
+      challenge_id: challengeId,
+      profile_id:   profileId,
+      rank:         i + 1,
+    }))
+
+    const { error } = await this.db.from("challenge_winners").insert(rows)
+    if (error) {
+      this.handleError(error, `setWinners insert(${challengeId})`)
+      return false
+    }
+    return true
+  }
+
+  // -----------------------------------------------------------------------
+  // TEMPLATES
+  // -----------------------------------------------------------------------
+
+  async getCommunityTemplates(): Promise<ChallengeTemplate[]> {
+    const { data, error } = await this.db
+      .from("community_challenge_templates")
+      .select("*")
+      .order("title", { ascending: true })
+
+    if (error) {
+      this.handleError(error, "getCommunityTemplates")
+      return []
+    }
+    return data ?? []
   }
 
   // -----------------------------------------------------------------------
@@ -198,6 +389,7 @@ class ChallengeTable extends BaseTable<
       username:     r.username,
       post_id:      r.post_id,
       like_count:   Number(r.like_count),
+      vote_count:   Number(r.vote_count),
       total_points: Number(r.total_points),
       is_viewer:    r.is_viewer,
     }))
