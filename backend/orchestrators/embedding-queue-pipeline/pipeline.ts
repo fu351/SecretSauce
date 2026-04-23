@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import "dotenv/config"
+import "../../scripts/load-env"
 import * as configModule from "../../workers/embedding-worker/config"
 import * as processorModule from "../../workers/embedding-worker/processor"
 import { requireSupabaseEnv } from "../../workers/env-utils"

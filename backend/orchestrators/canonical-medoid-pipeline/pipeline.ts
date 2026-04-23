@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import "dotenv/config"
+import "../../scripts/load-env"
 import type { CanonicalMedoidRunSummary } from "../../workers/canonical-medoid-worker/processor"
 import type { CanonicalMedoidWorkerConfig } from "../../workers/canonical-medoid-worker/config"
 import { getCanonicalMedoidWorkerConfigFromEnv } from "../../workers/canonical-medoid-worker/config"

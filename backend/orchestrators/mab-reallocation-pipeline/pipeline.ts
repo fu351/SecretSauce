@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import "dotenv/config"
+import "../../scripts/load-env"
 import { getMABReallocationConfigFromEnv, requirePosthogEnv } from "../../workers/mab-reallocation-worker/config"
 import { runMABReallocationWorker } from "../../workers/mab-reallocation-worker/processor"
 import type { MABRunSummary } from "../../workers/mab-reallocation-worker/processor"

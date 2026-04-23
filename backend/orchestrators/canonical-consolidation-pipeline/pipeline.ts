@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import "dotenv/config"
+import "../../scripts/load-env"
 import * as configModule from "../../workers/canonical-consolidation-worker/config"
 import * as processorModule from "../../workers/canonical-consolidation-worker/processor"
 import { requireSupabaseEnv } from "../../workers/env-utils"

@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import "dotenv/config"
+import "../../scripts/load-env"
 import { runEmbeddingWorker, type ProbationEmbeddingRunSummary, type EmbeddingQueueRunSummary } from "../../workers/embedding-worker/processor"
 import { runVectorDoubleCheckDiscovery, type VectorDoubleCheckRunSummary } from "../../workers/vector-double-check-worker/processor"
 import { runCanonicalConsolidation, type CanonicalConsolidationRunSummary } from "../../workers/canonical-consolidation-worker/processor"

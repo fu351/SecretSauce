@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import "dotenv/config"
+import "../../scripts/load-env"
 import { getEmbeddingWorkerConfigFromEnv, type EmbeddingWorkerConfig } from "../../workers/embedding-worker/config"
 import { runEmbeddingWorker, type EmbeddingQueueRunSummary } from "../../workers/embedding-worker/processor"
 import { getVectorDoubleCheckWorkerConfigFromEnv, type VectorDoubleCheckWorkerConfig } from "../../workers/vector-double-check-worker/config"

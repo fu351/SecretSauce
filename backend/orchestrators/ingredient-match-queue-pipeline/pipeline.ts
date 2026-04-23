@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import "dotenv/config"
+import "../../scripts/load-env"
 import { getQueueWorkerConfigFromEnv, type QueueWorkerConfig } from "../../workers/config"
 import { runIngredientQueueResolver, type QueueRunSummary } from "../../workers/ingredient-worker/processor"
 import { requireSupabaseEnv } from "../../workers/env-utils"
