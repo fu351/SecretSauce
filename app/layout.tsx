@@ -69,7 +69,7 @@ export default function RootLayout({
 
   return (
     <ClerkProvider>
-      <html lang="en" className="dark" suppressHydrationWarning>
+      <html lang="en" suppressHydrationWarning>
         <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
           {/* Google Maps API - in body so layout chunk load isn't blocked */}
           {googleMapsKey && (

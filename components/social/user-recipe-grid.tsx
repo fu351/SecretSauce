@@ -14,12 +14,17 @@ import type { Recipe } from "@/lib/types"
 interface Props {
   username: string
   isOwnProfile?: boolean
+  canViewContent?: boolean
 }
 
 const PAGE_SIZE = 24
 const MAX_PINNED = 6
 
-export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
+export function UserRecipeGrid({
+  username,
+  isOwnProfile = false,
+  canViewContent = true,
+}: Props) {
   const [recipes, setRecipes]         = useState<Recipe[]>([])
   const [loading, setLoading]         = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -41,7 +46,7 @@ export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
       `/api/users/${encodeURIComponent(username)}/recipes?offset=${offset}&limit=${PAGE_SIZE}`
     )
     if (!res.ok) throw new Error("Failed to load recipes")
-    return res.json() as Promise<{ recipes: Recipe[]; hasMore: boolean }>
+    return res.json() as Promise<{ items?: Recipe[]; recipes?: Recipe[]; hasMore: boolean }>
   }, [username])
 
   // Initial load + fetch current pin state
@@ -50,6 +55,14 @@ export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
     setLoading(true)
     setRecipes([])
     offsetRef.current = 0
+
+    if (!canViewContent) {
+      setHasMore(false)
+      setLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
 
     const loadAll = async () => {
       const [pageResult, pinnedResult] = await Promise.all([
@@ -61,8 +74,9 @@ export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
           : Promise.resolve({ pinnedIds: [] }),
       ])
       if (cancelled) return
-      setRecipes(pageResult.recipes)
-      offsetRef.current = pageResult.recipes.length
+      const pageRecipes = pageResult.items ?? pageResult.recipes ?? []
+      setRecipes(pageRecipes)
+      offsetRef.current = pageRecipes.length
       setHasMore(pageResult.hasMore)
       if (isOwnProfile) setPinnedIds(pinnedResult.pinnedIds ?? [])
     }
@@ -70,11 +84,12 @@ export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
     loadAll().catch(console.error).finally(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
-  }, [fetchPage, username, isOwnProfile])
+  }, [canViewContent, fetchPage, username, isOwnProfile])
 
   // Infinite scroll sentinel
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect()
+    if (!canViewContent) return
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
@@ -82,7 +97,8 @@ export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
         setLoadingMore(true)
         const currentOffset = offsetRef.current
         fetchPage(currentOffset)
-          .then(({ recipes: page, hasMore: more }) => {
+          .then(({ items, recipes: legacyRecipes, hasMore: more }) => {
+            const page = items ?? legacyRecipes ?? []
             setRecipes((prev) => [...prev, ...page])
             offsetRef.current = currentOffset + page.length
             setHasMore(more)
@@ -95,7 +111,7 @@ export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
 
     if (sentinelRef.current) observerRef.current.observe(sentinelRef.current)
     return () => observerRef.current?.disconnect()
-  }, [fetchPage, loadingMore, hasMore])
+  }, [canViewContent, fetchPage, loadingMore, hasMore])
 
   const handleFavoriteToggle = useCallback(
     async (recipeId: string, e?: React.MouseEvent) => {
@@ -173,6 +189,10 @@ export function UserRecipeGrid({ username, isOwnProfile = false }: Props) {
         ))}
       </div>
     )
+  }
+
+  if (!canViewContent) {
+    return <p className="text-sm text-muted-foreground">This profile is private.</p>
   }
 
   if (!loading && recipes.length === 0) {

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockToast = vi.fn()
 const mockFetchRecipes = vi.fn()
@@ -10,6 +10,12 @@ const mockFetch = vi.fn()
 
 let mockAuthState = {
   user: { id: "user_test_1", email: "friend@example.com", firstName: "Taylor" },
+  profile: {
+    id: "user_test_1",
+    full_name: "Taylor Homecook",
+    username: "taylor-homecook",
+    avatar_url: null,
+  },
   loading: false,
 }
 
@@ -80,11 +86,22 @@ vi.mock("@/components/recipe/recipe-grid", () => ({
 describe("HomeReturningPage", () => {
   let HomePage: React.ComponentType
 
-  beforeEach(async () => {
+  beforeAll(async () => {
+    const mod = await import("../page")
+    HomePage = mod.default
+  })
+
+  beforeEach(() => {
     vi.clearAllMocks()
     vi.unstubAllGlobals()
     mockAuthState = {
       user: { id: "user_test_1", email: "friend@example.com", firstName: "Taylor" },
+      profile: {
+        id: "user_test_1",
+        full_name: "Taylor Homecook",
+        username: "taylor-homecook",
+        avatar_url: null,
+      },
       loading: false,
     }
     mockUpload.mockResolvedValue({ error: null })
@@ -92,6 +109,12 @@ describe("HomeReturningPage", () => {
       data: { publicUrl: "https://cdn.test/post-image.png" },
     })
     vi.stubGlobal("fetch", mockFetch)
+    class MockIntersectionObserver {
+      observe = vi.fn()
+      disconnect = vi.fn()
+      unobserve = vi.fn()
+    }
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver as any)
     Object.defineProperty(globalThis.URL, "createObjectURL", {
       configurable: true,
       writable: true,
@@ -110,7 +133,25 @@ describe("HomeReturningPage", () => {
           : input.toString()
 
       if (url.includes("/api/posts/feed")) {
-        return new Response(JSON.stringify({ posts: [] }), {
+        return new Response(JSON.stringify({ posts: [{
+          id: "post_1",
+          author_id: "author_1",
+          image_url: "https://cdn.test/story.png",
+          title: "Late Night Pasta",
+          caption: "Fast and cozy",
+          created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          like_count: 4,
+          repost_count: 1,
+          liked_by_viewer: false,
+          reposted_by_viewer: false,
+          author: {
+            id: "author_1",
+            full_name: "Jordan Chef",
+            avatar_url: null,
+            username: "jordan-chef",
+          },
+        }] }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         })
@@ -119,7 +160,7 @@ describe("HomeReturningPage", () => {
       if (url.includes("/api/challenges/active")) {
         return new Response(
           JSON.stringify({
-            challenge: {
+            starChallenge: {
               id: "challenge_1",
               title: "Midnight Pasta Challenge",
               description: "Share your favorite late-night bowl.",
@@ -127,8 +168,10 @@ describe("HomeReturningPage", () => {
               points: 20,
               participant_count: 12,
             },
-            entry: null,
-            rank: 3,
+            starEntry: null,
+            starRank: 3,
+            communityChallenges: [],
+            communityEntries: {},
           }),
           {
             status: 200,
@@ -162,6 +205,40 @@ describe("HomeReturningPage", () => {
           status: 200,
           headers: { "Content-Type": "application/json" },
         })
+      }
+
+      if (url.includes("/api/home/recommended")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "new-1",
+                title: "Fresh Gnocchi",
+                content: "",
+                difficulty: "intermediate",
+                rating_avg: 4.2,
+                rating_count: 4,
+                tags: [],
+                nutrition: null,
+              },
+              {
+                id: "new-2",
+                title: "Roasted Peppers",
+                content: "",
+                difficulty: "beginner",
+                rating_avg: 4.5,
+                rating_count: 6,
+                tags: [],
+                nutrition: null,
+              },
+            ],
+            hasMore: true,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
       }
 
       if (url.includes("/api/search")) {
@@ -203,45 +280,23 @@ describe("HomeReturningPage", () => {
           nutrition: null,
         },
       ])
-      .mockResolvedValueOnce([
-        {
-          id: "new-1",
-          title: "Fresh Gnocchi",
-          content: "",
-          difficulty: "intermediate",
-          rating_avg: 4.2,
-          rating_count: 4,
-          tags: [],
-          nutrition: null,
-        },
-        {
-          id: "new-2",
-          title: "Roasted Peppers",
-          content: "",
-          difficulty: "beginner",
-          rating_avg: 4.5,
-          rating_count: 6,
-          tags: [],
-          nutrition: null,
-        },
-      ])
 
-    const mod = await import("../page")
-    HomePage = mod.default
   })
 
   it("loads both recipe feeds and renders featured content", async () => {
     render(<HomePage />)
 
     await waitFor(() => {
-      expect(mockFetchRecipes).toHaveBeenNthCalledWith(1, { sortBy: "rating_avg", limit: 10 })
-      expect(mockFetchRecipes).toHaveBeenNthCalledWith(2, { sortBy: "created_at", limit: 24 })
+      expect(mockFetchRecipes).toHaveBeenCalledWith({ sortBy: "rating_avg", limit: 10 })
       expect(screen.getAllByText("Top Rated Chili").length).toBeGreaterThan(0)
       expect(screen.getAllByText("Fresh Gnocchi").length).toBeGreaterThan(0)
       expect(screen.getAllByText("Roasted Peppers").length).toBeGreaterThan(0)
     })
 
-    expect(screen.getAllByText(/good evening/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole("button", { name: /create/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole("heading", { name: /stories/i })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /create a story/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /open story from jordan chef/i })).toBeInTheDocument()
     expect(
       screen.getByRole("heading", { name: /midnight pasta challenge/i })
     ).toBeInTheDocument()
@@ -253,12 +308,10 @@ describe("HomeReturningPage", () => {
     render(<HomePage />)
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /post your dish to enter/i })
-      ).toBeInTheDocument()
+      expect(screen.getAllByRole("button", { name: /post your dish to enter/i }).length).toBeGreaterThan(0)
     })
 
-    await user.click(screen.getByRole("button", { name: /post your dish to enter/i }))
+    await user.click(screen.getAllByRole("button", { name: /post your dish to enter/i })[0])
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /post your dish/i })).toBeInTheDocument()
@@ -287,7 +340,25 @@ describe("HomeReturningPage", () => {
 
   it("renders the empty recommendations state when no recent recipes are returned", async () => {
     mockFetchRecipes.mockReset()
-    mockFetchRecipes.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+    mockFetchRecipes.mockResolvedValueOnce([])
+    mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string"
+        ? input
+        : input instanceof Request
+          ? input.url
+          : input.toString()
+
+      if (url.includes("/api/posts/feed")) {
+        return new Response(JSON.stringify({ posts: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
+      }
+      if (url.includes("/api/challenges/active")) {
+        return new Response(JSON.stringify({ starChallenge: null, communityChallenges: [], communityEntries: {} }), { status: 200, headers: { "Content-Type": "application/json" } })
+      }
+      if (url.includes("/api/home/recommended")) {
+        return new Response(JSON.stringify({ items: [], hasMore: false }), { status: 200, headers: { "Content-Type": "application/json" } })
+      }
+      throw new Error(`Unhandled fetch in HomeReturningPage test: ${url}`)
+    })
 
     render(<HomePage />)
 
@@ -297,14 +368,14 @@ describe("HomeReturningPage", () => {
   })
 
   it("hides social feed and challenge when not logged in", async () => {
-    mockAuthState = { user: null as any, loading: false }
+    mockAuthState = { user: null as any, profile: null as any, loading: false }
     render(<HomePage />)
 
     await waitFor(() => {
       expect(mockFetchRecipes).toHaveBeenCalled()
     })
 
-    expect(screen.queryByRole("heading", { name: /made by your circle/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /create a story/i })).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: /midnight pasta challenge/i })).not.toBeInTheDocument()
     const signInLinks = screen.getAllByRole("link", { name: /^sign in$/i })
     expect(signInLinks.length).toBeGreaterThanOrEqual(1)
@@ -330,10 +401,24 @@ describe("HomeReturningPage", () => {
     await user.type(overlayInput, "@jordan")
 
     await waitFor(() => {
-      expect(screen.getByText(/@jordan-chef/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/@jordan-chef/i).length).toBeGreaterThan(0)
       expect(screen.getByText(/spicy noodles/i)).toBeInTheDocument()
     })
 
     expect(screen.getByRole("link", { name: /browse all recipes/i })).toBeInTheDocument()
+  })
+
+  it("opens the story viewer modal from the rail", async () => {
+    const user = userEvent.setup()
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /open story from jordan chef/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /open story from jordan chef/i }))
+
+    expect(screen.getByText("Late Night Pasta")).toBeInTheDocument()
+    expect(screen.getByText("Fast and cozy")).toBeInTheDocument()
   })
 })

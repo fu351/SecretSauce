@@ -111,6 +111,14 @@ describe("RecipeDetailPage", () => {
           },
         ],
       },
+      author: {
+        id: "chef_2",
+        username: "chef-tomato",
+        full_name: "Chef Tomato",
+        avatar_url: null,
+        is_private: false,
+        followStatus: "none",
+      },
     }
     mockParams({ id: "recipe_1" })
     mockRouter()
@@ -165,6 +173,7 @@ describe("RecipeDetailPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /tomato soup/i })).toBeInTheDocument()
       expect(screen.getByText(/a cozy bowl for cold nights/i)).toBeInTheDocument()
+      expect(screen.getByText(/chef tomato/i)).toBeInTheDocument()
       expect(screen.getByText(/pricing for recipe_1/i)).toBeInTheDocument()
       expect(screen.getByText(/reviews for recipe_1/i)).toBeInTheDocument()
     })
@@ -172,7 +181,7 @@ describe("RecipeDetailPage", () => {
     await user.click(screen.getByRole("button", { name: /edit/i }))
     expect(router.push).toHaveBeenCalledWith("/edit-recipe/recipe_1")
 
-    await user.click(screen.getByTestId("recipe-basket-button-recipe_1"))
+    await user.click(screen.getAllByTestId("recipe-basket-button-recipe_1")[0])
     expect(mockAddRecipeToCart).toHaveBeenCalledWith("recipe_1", 4)
   })
 
@@ -199,6 +208,19 @@ describe("RecipeDetailPage", () => {
       })
     )
     expect(screen.queryByText(/save to collections/i)).not.toBeInTheDocument()
+  })
+
+  it("renders the author module with a follow button for non-owners", async () => {
+    mockAuthState = { user: { id: "viewer_2" } }
+    const mod = await import("../page")
+    const Page = mod.default
+
+    render(<Page />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/chef tomato/i)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /follow/i })).toBeInTheDocument()
+    })
   })
 
   it("opens the collection picker when the save button is clicked", async () => {

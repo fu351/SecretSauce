@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
-import { normalizeUsername } from "@/lib/auth/username"
+import { resolveProfileAccess } from "@/lib/social/profile-access"
 
 export const runtime = "nodejs"
 
@@ -10,21 +10,18 @@ export async function GET(
 ) {
   try {
     const { username: rawUsername } = await params
-    const username = normalizeUsername(decodeURIComponent(rawUsername))
+    const access = await resolveProfileAccess(rawUsername)
 
-    const supabase = createServiceSupabaseClient()
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id, pinned_recipe_ids")
-      .eq("username", username)
-      .maybeSingle()
-
-    if (!profile) {
+    if (!access) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const pinnedIds: string[] = profile.pinned_recipe_ids ?? []
+    if (!access.canViewContent) {
+      return NextResponse.json({ error: "Profile is private" }, { status: 403 })
+    }
+
+    const supabase = createServiceSupabaseClient()
+    const pinnedIds: string[] = access.profile.pinned_recipe_ids ?? []
     if (pinnedIds.length === 0) {
       return NextResponse.json({ recipes: [] })
     }

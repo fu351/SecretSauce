@@ -201,14 +201,6 @@ function SettingsPageContent() {
     setSelectedTheme(newTheme)
     setTheme(newTheme)
 
-    if (typeof document !== "undefined") {
-      if (newTheme === "dark") {
-        document.documentElement.classList.add("dark")
-      } else {
-        document.documentElement.classList.remove("dark")
-      }
-    }
-
     if (user) {
       try {
         await updateProfile({ theme_preference: newTheme })

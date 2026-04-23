@@ -13,7 +13,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       attribute="class"
       defaultTheme="dark"
       enableSystem={false}
-      disableTransitionOnChange={false}
+      disableTransitionOnChange={true}
       storageKey="secret-sauce-theme"
     >
       {children}
@@ -29,8 +29,10 @@ export function useTheme() {
     return document.documentElement.classList.contains("dark") ? "dark" : "light"
   }, [])
 
-  // Use the currently applied theme when available; fall back to provider default or DOM class.
-  const effective = (resolvedTheme ?? theme ?? getDocumentTheme()) as string | undefined
+  // Trust the DOM class before falling back to the provider's unresolved value.
+  // next-themes applies the html class very early, and using that first avoids
+  // a brief false "light" render while the provider finishes hydrating.
+  const effective = (resolvedTheme ?? getDocumentTheme() ?? theme) as string | undefined
   const normalizedTheme: Theme = effective === "dark" ? "dark" : "light"
 
   const setTheme = useCallback(

@@ -319,9 +319,6 @@ export default function OnboardingPage() {
     // Force dark theme for onboarding experience on initial mount only.
     // User can change to warm mode in the theme selection question.
     setTheme("dark")
-    if (typeof document !== "undefined") {
-      document.documentElement.classList.add("dark")
-    }
   }, [setTheme])
 
   // Keep global theme in sync with selectedTheme when navigating between steps

@@ -13,6 +13,7 @@ export type PostWithMeta = Post & {
     id: string
     full_name: string | null
     avatar_url: string | null
+    username?: string | null
   }
   like_count: number
   repost_count: number
@@ -160,7 +161,7 @@ class PostTable extends BaseTable<"posts", PostRow, PostInsert, PostUpdate> {
       .from("posts")
       .select(`
         id, author_id, image_url, title, caption, created_at, updated_at,
-        profiles!posts_author_id_fkey ( id, full_name, avatar_url ),
+        profiles!posts_author_id_fkey ( id, full_name, avatar_url, username ),
         post_likes ( id, profile_id ),
         post_reposts ( id, profile_id )
       `)
@@ -190,6 +191,7 @@ class PostTable extends BaseTable<"posts", PostRow, PostInsert, PostUpdate> {
         id:         row.profiles?.id ?? row.author_id,
         full_name:  row.profiles?.full_name ?? null,
         avatar_url: row.profiles?.avatar_url ?? null,
+        username:   row.profiles?.username ?? null,
       },
       like_count:          (row.post_likes ?? []).length,
       repost_count:        (row.post_reposts ?? []).length,
@@ -215,7 +217,7 @@ class PostTable extends BaseTable<"posts", PostRow, PostInsert, PostUpdate> {
       .from("posts")
       .select(`
         id, author_id, image_url, title, caption, created_at, updated_at,
-        profiles!posts_author_id_fkey ( id, full_name, avatar_url ),
+        profiles!posts_author_id_fkey ( id, full_name, avatar_url, username ),
         post_likes ( id, profile_id ),
         post_reposts ( id, profile_id )
       `)
@@ -240,6 +242,7 @@ class PostTable extends BaseTable<"posts", PostRow, PostInsert, PostUpdate> {
         id:         row.profiles?.id ?? row.author_id,
         full_name:  row.profiles?.full_name ?? null,
         avatar_url: row.profiles?.avatar_url ?? null,
+        username:   row.profiles?.username ?? null,
       },
       like_count:          (row.post_likes ?? []).length,
       repost_count:        (row.post_reposts ?? []).length,

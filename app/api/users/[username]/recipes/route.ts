@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+import type { ProfilePagedResult } from "@/lib/social/profile-content"
+import type { Recipe } from "@/lib/types"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
-import { normalizeUsername } from "@/lib/auth/username"
+import { resolveProfileAccess } from "@/lib/social/profile-access"
 
 export const runtime = "nodejs"
 
@@ -12,23 +14,22 @@ export async function GET(
 ) {
   try {
     const { username: rawUsername } = await params
-    const username = normalizeUsername(decodeURIComponent(rawUsername))
 
     const { searchParams } = new URL(req.url)
     const offset = Math.max(0, Number(searchParams.get("offset") ?? 0))
     const limit  = Math.min(PAGE_SIZE, Math.max(1, Number(searchParams.get("limit") ?? PAGE_SIZE)))
 
-    const supabase = createServiceSupabaseClient()
+    const access = await resolveProfileAccess(rawUsername)
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("username", username)
-      .maybeSingle()
-
-    if (!profile) {
+    if (!access) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
+
+    if (!access.canViewContent) {
+      return NextResponse.json({ error: "Profile is private" }, { status: 403 })
+    }
+
+    const supabase = createServiceSupabaseClient()
 
     const { data, error } = await supabase
       .from("recipes")
@@ -37,7 +38,7 @@ export async function GET(
         "difficulty, rating_avg, rating_count, tags, nutrition, author_id, " +
         "created_at, updated_at, protein, meal_type, cuisine"
       )
-      .eq("author_id", profile.id)
+      .eq("author_id", access.profile.id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1)
@@ -48,7 +49,7 @@ export async function GET(
     }
 
     // Shape into the Recipe interface expected by RecipeGrid
-    const recipes = (data ?? []).map((r: any) => ({
+    const recipes: Recipe[] = (data ?? []).map((r: any) => ({
       id:           r.id,
       title:        r.title,
       image_url:    r.image_url ?? null,
@@ -74,10 +75,13 @@ export async function GET(
       },
     }))
 
-    return NextResponse.json({
+    const payload: ProfilePagedResult<Recipe> & { recipes: Recipe[] } = {
+      items: recipes,
       recipes,
       hasMore: recipes.length === limit,
-    })
+    }
+
+    return NextResponse.json(payload)
   } catch (error) {
     console.error("[users/recipes GET] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Bookmark, ThumbsUp, Repeat2, Link2, Check, ShoppingCart, Zap } from "lucide-react"
+import { Bookmark, ThumbsUp, Repeat2, Share2, Check, ShoppingCart, CalendarDays } from "lucide-react"
 import clsx from "clsx"
 import { useAnalytics } from "@/hooks/use-analytics"
 
@@ -176,9 +176,94 @@ export function RecipeActionBar({
 
   const friendLabel = buildFriendLabel(friendLikes, likeCount)
 
+  const mobileTileBase = isDark
+    ? "flex h-16 flex-col items-center justify-center gap-1 rounded-2xl border border-border bg-secondary/70 text-[11px] font-medium text-foreground transition-colors hover:bg-secondary"
+    : "flex h-16 flex-col items-center justify-center gap-1 rounded-2xl border border-gray-200 bg-white/80 text-[11px] font-medium text-gray-700 transition-colors hover:bg-white"
+
+  const mobileTileActive = {
+    save: isFavorite
+      ? (isDark ? "border-red-500/40 bg-red-500/15 text-red-300" : "border-red-200 bg-red-50 text-red-500")
+      : mobileTileBase,
+    like: isLiked
+      ? (isDark ? "border-blue-500/40 bg-blue-500/15 text-blue-300" : "border-blue-200 bg-blue-50 text-blue-600")
+      : mobileTileBase,
+    repost: isReposted
+      ? (isDark ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-600")
+      : mobileTileBase,
+    share: copied
+      ? (isDark ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-emerald-200 bg-emerald-50 text-emerald-600")
+      : mobileTileBase,
+  }
+
   return (
     <div className="space-y-2 pt-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:hidden">
+        <button
+          data-tutorial="recipe-favorite"
+          type="button"
+          className={mobileTileActive.save}
+          onClick={onSaveClick}
+          title={isFavorite ? "Manage your saved folders" : "Save to a folder"}
+        >
+          <Bookmark className={clsx("h-4 w-4", isFavorite ? "fill-current" : "")} />
+          <span>{isFavorite ? "Saved" : "Save"}</span>
+        </button>
+
+        <button
+          className={mobileTileActive.like}
+          onClick={handleLike}
+          disabled={!isAuthenticated}
+          title={isAuthenticated ? (isLiked ? "Unlike" : "Like") : "Sign in to like"}
+        >
+          <ThumbsUp className={clsx("h-4 w-4", isLiked ? "fill-current" : "")} />
+          <span>{likeCount > 0 ? `${likeCount} Likes` : "Like"}</span>
+        </button>
+
+        <button
+          data-testid={`recipe-repost-button-${recipeId}`}
+          className={mobileTileActive.repost}
+          onClick={handleRepost}
+          disabled={!isAuthenticated}
+          aria-label={isReposted ? "Undo repost" : "Repost"}
+          title={isAuthenticated ? (isReposted ? "Undo repost" : "Repost to your followers") : "Sign in to repost"}
+        >
+          <Repeat2 className="h-4 w-4" />
+          <span data-testid={`recipe-repost-count-${recipeId}`}>{repostCount > 0 ? `${repostCount} Reposts` : "Repost"}</span>
+        </button>
+
+        <button
+          data-testid={`recipe-basket-button-${recipeId}`}
+          className={mobileTileBase}
+          onClick={onAddToBasket}
+          title="Add to basket"
+          aria-label="Add to basket"
+        >
+          <ShoppingCart className="h-4 w-4" />
+          <span>Basket</span>
+        </button>
+
+        <button
+          data-testid={`recipe-planner-button-${recipeId}`}
+          className={mobileTileBase}
+          onClick={() => { trackEvent("recipe_added_to_planner", { recipe_id: recipeId }); onAddToPlanner() }}
+          title="Add to planner"
+          aria-label="Add to planner"
+        >
+          <CalendarDays className="h-4 w-4" />
+          <span>Planner</span>
+        </button>
+
+        <button
+          className={mobileTileActive.share}
+          onClick={handleShare}
+          title="Copy link"
+        >
+          {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+          <span>{copied ? "Copied" : "Share"}</span>
+        </button>
+      </div>
+
+      <div className="hidden flex-wrap gap-2 sm:flex">
         {/* Save */}
         <button
           data-tutorial="recipe-favorite"
@@ -237,7 +322,7 @@ export function RecipeActionBar({
           title="Add to planner"
           aria-label="Add to planner"
         >
-          <Zap className="h-4 w-4" />
+          <CalendarDays className="h-4 w-4" />
           <span>Add to Planner</span>
         </button>
 
@@ -254,7 +339,7 @@ export function RecipeActionBar({
             </>
           ) : (
             <>
-              <Link2 className="h-4 w-4" />
+              <Share2 className="h-4 w-4" />
               <span>Share</span>
             </>
           )}

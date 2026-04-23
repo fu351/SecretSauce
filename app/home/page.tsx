@@ -12,7 +12,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { useTheme } from "@/contexts/theme-context"
 import { measureTextBlockHeight } from "@/lib/pretext"
 import { recipeDB } from "@/lib/database/recipe-db"
 import { mealPlannerDB } from "@/lib/database/meal-planner-db"
@@ -23,13 +22,12 @@ import Image from "next/image"
 import {
   Bell,
   CheckCircle2,
+  ChefHat,
   ChevronRight,
   Clock,
   Crown,
-  Heart,
-  Repeat2,
+  Plus,
   Search,
-  Share2,
   Sparkles,
   Star,
   Trophy,
@@ -44,17 +42,16 @@ import { Recipe } from "@/lib/types"
 import { useToast } from "@/hooks"
 import type { PostWithMeta } from "@/lib/database/post-db"
 import type { Challenge, ChallengeEntry, ChallengeVote, LeaderboardEntry } from "@/lib/database/challenge-db"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type HomePageRecipe = Recipe
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
-}
+const HOME_FETCH_TTL_MS = 24 * 60 * 60 * 1000
+type ComposerMode = "story" | "post"
 
 function timeUntil(dateStr: string): string {
   const diff = new Date(dateStr).getTime() - Date.now()
@@ -86,13 +83,14 @@ function getRecommendationSkeletonAspect(index: number): string {
 }
 
 export default function HomeReturningPage() {
-  const { user, loading } = useAuth()
-  const { theme } = useTheme()
+  const { user, profile, loading } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
   const [flavorsOfWeek, setFlavorsOfWeek] = useState<HomePageRecipe[]>([])
   const [recommendedRecipes, setRecommendedRecipes] = useState<HomePageRecipe[]>([])
   const [loadingRecipes, setLoadingRecipes] = useState(true)
+  const [loadingRecommendedMore, setLoadingRecommendedMore] = useState(false)
+  const [hasMoreRecommended, setHasMoreRecommended] = useState(true)
 
   // Challenge state
   const [activeChallenge, setActiveChallenge] = useState<(Challenge & { participant_count: number }) | null>(null)
@@ -106,6 +104,7 @@ export default function HomeReturningPage() {
 
   // Post creation
   const [postDishOpen, setPostDishOpen] = useState(false)
+  const [composerMode, setComposerMode] = useState<ComposerMode>("post")
   const [postDishTitle, setPostDishTitle] = useState("")
   const [postDishCaption, setPostDishCaption] = useState("")
   const [postImage, setPostImage] = useState<File | null>(null)
@@ -116,6 +115,8 @@ export default function HomeReturningPage() {
   // Feed
   const [feedPosts, setFeedPosts] = useState<PostWithMeta[]>([])
   const [loadingFeed, setLoadingFeed] = useState(true)
+  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null)
+  const [storyTouchStart, setStoryTouchStart] = useState<{ x: number; y: number } | null>(null)
 
   // Search
   const [searchQuery, setSearchQuery] = useState("")
@@ -136,7 +137,18 @@ export default function HomeReturningPage() {
   }>({ loading: false, dinnersLeft: 0, expiringSoon: 0 })
 
   const fetchingRecipes = useRef(false)
+  const recipesFetchedAtRef = useRef<number | null>(null)
+  const socialFetchedForUserRef = useRef<{ userId: string; fetchedAt: number } | null>(null)
+  const recommendedOffsetRef = useRef(0)
+  const recommendedSentinelRef = useRef<HTMLDivElement | null>(null)
+  const recommendedObserverRef = useRef<IntersectionObserver | null>(null)
   const isMounted = useRef(true)
+
+  const fetchRecommendedPage = useCallback(async (offset: number, limit: number) => {
+    const res = await fetch(`/api/home/recommended?offset=${offset}&limit=${limit}`)
+    if (!res.ok) throw new Error("Failed to load recommendations")
+    return res.json() as Promise<{ items: HomePageRecipe[]; hasMore: boolean }>
+  }, [])
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value)
@@ -195,11 +207,15 @@ export default function HomeReturningPage() {
     setPostImagePreview(null)
   }
 
-  const openPostDishDialog = () => setPostDishOpen(true)
+  const openPostDishDialog = (mode: ComposerMode = "post") => {
+    setComposerMode(mode)
+    setPostDishOpen(true)
+  }
 
   const closePostDishDialog = () => {
     resetPostDishForm()
     setPostDishOpen(false)
+    setComposerMode("post")
   }
 
   useEffect(() => {
@@ -221,13 +237,15 @@ export default function HomeReturningPage() {
     fetchingRecipes.current = true
     setLoadingRecipes(true)
     try {
-      const [topRated, newest] = await Promise.all([
+      const [topRated, recommendedPage] = await Promise.all([
         recipeDB.fetchRecipes({ sortBy: "rating_avg", limit: 10 }),
-        recipeDB.fetchRecipes({ sortBy: "created_at", limit: 24 }),
+        fetchRecommendedPage(0, 24),
       ])
       if (isMounted.current) {
         setFlavorsOfWeek(topRated?.slice(0, 8) ?? [])
-        setRecommendedRecipes(newest ?? [])
+        setRecommendedRecipes(recommendedPage.items ?? [])
+        recommendedOffsetRef.current = recommendedPage.items?.length ?? 0
+        setHasMoreRecommended(recommendedPage.hasMore)
       }
     } catch (error) {
       console.error("Error fetching recipes:", error)
@@ -288,12 +306,56 @@ export default function HomeReturningPage() {
 
   useEffect(() => {
     if (loading || !isMounted.current || fetchingRecipes.current) return
+    const now = Date.now()
+    const isFresh =
+      recipesFetchedAtRef.current != null &&
+      now - recipesFetchedAtRef.current < HOME_FETCH_TTL_MS
+    if (isFresh) return
     void fetchHomeRecipes()
-  }, [loading])
+      .then(() => {
+        recipesFetchedAtRef.current = Date.now()
+      })
+      .catch(() => {
+        // fetchHomeRecipes already handles logging/loading state.
+      })
+  }, [fetchRecommendedPage, loading])
+
+  useEffect(() => {
+    if (recommendedObserverRef.current) recommendedObserverRef.current.disconnect()
+    if (loadingRecipes) return
+
+    recommendedObserverRef.current = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting || loadingRecommendedMore || !hasMoreRecommended) return
+        setLoadingRecommendedMore(true)
+        const currentOffset = recommendedOffsetRef.current
+        fetchRecommendedPage(currentOffset, 24)
+          .then(({ items, hasMore }) => {
+            setRecommendedRecipes((prev) => [...prev, ...items])
+            recommendedOffsetRef.current = currentOffset + items.length
+            setHasMoreRecommended(hasMore)
+          })
+          .catch((error) => {
+            console.error("Error loading more recommendations:", error)
+          })
+          .finally(() => setLoadingRecommendedMore(false))
+      },
+      { rootMargin: "400px" }
+    )
+
+    if (recommendedSentinelRef.current) {
+      recommendedObserverRef.current.observe(recommendedSentinelRef.current)
+    }
+
+    return () => recommendedObserverRef.current?.disconnect()
+  }, [fetchRecommendedPage, hasMoreRecommended, loadingRecommendedMore, loadingRecipes])
 
   useEffect(() => {
     if (loading || !isMounted.current) return
-    if (!user) {
+    const userId = user?.id ?? null
+
+    if (!userId) {
+      socialFetchedForUserRef.current = null
       setLoadingFeed(false)
       setLoadingChallenge(false)
       setFeedPosts([])
@@ -304,9 +366,19 @@ export default function HomeReturningPage() {
       setWeekSummary({ loading: false, dinnersLeft: 0, expiringSoon: 0 })
       return
     }
-    void fetchFeed()
-    void fetchActiveChallenge()
-  }, [loading, user])
+
+    const now = Date.now()
+    const cachedSocial = socialFetchedForUserRef.current
+    const socialFresh =
+      cachedSocial?.userId === userId &&
+      now - cachedSocial.fetchedAt < HOME_FETCH_TTL_MS
+    if (socialFresh) return
+
+    socialFetchedForUserRef.current = { userId, fetchedAt: now }
+    void Promise.all([fetchFeed(), fetchActiveChallenge()]).catch(() => {
+      // Individual fetchers handle their own errors.
+    })
+  }, [loading, user?.id])
 
   useEffect(() => {
     if (loading || !isMounted.current || !user?.id) return
@@ -436,7 +508,13 @@ export default function HomeReturningPage() {
         )
       }
 
-      toast({ title: "Posted!", description: "Your dish is live." })
+      toast({
+        title: composerMode === "story" ? "Story posted!" : "Posted!",
+        description:
+          composerMode === "story"
+            ? "Your latest dish post is now your story for the next 24 hours."
+            : "Your dish is live.",
+      })
       closePostDishDialog()
       fetchFeed()
     } catch (error: any) {
@@ -446,85 +524,110 @@ export default function HomeReturningPage() {
     }
   }
 
-  const handleLike = async (postId: string) => {
-    // Optimistic update
-    setFeedPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? {
-            ...p,
-            liked_by_viewer: !p.liked_by_viewer,
-            like_count: p.liked_by_viewer ? p.like_count - 1 : p.like_count + 1,
-          }
-          : p
-      )
-    )
-    try {
-      await fetch(`/api/posts/${postId}/like`, { method: "POST" })
-    } catch {
-      // revert on failure
-      setFeedPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? {
-              ...p,
-              liked_by_viewer: !p.liked_by_viewer,
-              like_count: p.liked_by_viewer ? p.like_count - 1 : p.like_count + 1,
-            }
-            : p
-        )
-      )
-    }
-  }
-
-  const handleRepost = async (postId: string) => {
-    // Optimistic update
-    setFeedPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? {
-            ...p,
-            reposted_by_viewer: !p.reposted_by_viewer,
-            repost_count: p.reposted_by_viewer ? p.repost_count - 1 : p.repost_count + 1,
-          }
-          : p
-      )
-    )
-    try {
-      await fetch(`/api/posts/${postId}/repost`, { method: "POST" })
-    } catch {
-      setFeedPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? {
-              ...p,
-              reposted_by_viewer: !p.reposted_by_viewer,
-              repost_count: p.reposted_by_viewer ? p.repost_count - 1 : p.repost_count + 1,
-            }
-            : p
-        )
-      )
-    }
-  }
-
   const handleLeaderboardScope = (scope: "friends" | "global") => {
     setLeaderboardScope(scope)
     if (activeChallenge) fetchLeaderboard(activeChallenge.id, scope)
   }
 
-  const isDark = theme === "dark"
   const isLoggedIn = Boolean(user)
-  const firstName =
-    (user as any)?.firstName ||
-    (user as any)?.name?.split?.(" ")?.[0] ||
-    user?.email?.split("@")[0] ||
-    "there"
 
   const searchPlaceholder = isLoggedIn ? "Search recipes or @username…" : "Search recipes…"
   const suggestedRecipes = useMemo(
     () => (flavorsOfWeek.length > 0 ? flavorsOfWeek : recommendedRecipes).slice(0, 8),
     [flavorsOfWeek, recommendedRecipes]
   )
+  const storyPosts = useMemo(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    const latestByAuthor = new Map<string, PostWithMeta>()
+
+    for (const post of feedPosts) {
+      const createdAt = new Date(post.created_at).getTime()
+      if (Number.isNaN(createdAt) || createdAt < cutoff) continue
+
+      const existing = latestByAuthor.get(post.author_id)
+      if (!existing || new Date(existing.created_at).getTime() < createdAt) {
+        latestByAuthor.set(post.author_id, post)
+      }
+    }
+
+    return Array.from(latestByAuthor.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+  }, [feedPosts])
+  const ownStory = useMemo(() => {
+    if (!user?.id) return null
+    return storyPosts.find((story) => story.author_id === user.id) ?? null
+  }, [storyPosts, user?.id])
+  const otherStoryPosts = useMemo(() => {
+    if (!user?.id) return storyPosts
+    return storyPosts.filter((story) => story.author_id !== user.id)
+  }, [storyPosts, user?.id])
+  const activeStory = activeStoryIndex != null ? storyPosts[activeStoryIndex] ?? null : null
+  const currentProfileName = profile?.full_name || profile?.username || "You"
+  const currentProfileInitials = currentProfileName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+
+  const openStoryById = useCallback((storyId: string | null) => {
+    if (!storyId) return
+    const index = storyPosts.findIndex((story) => story.id === storyId)
+    if (index >= 0) setActiveStoryIndex(index)
+  }, [storyPosts])
+  const openOwnStory = useCallback(() => {
+    if (ownStory) {
+      openStoryById(ownStory.id)
+      return
+    }
+    openPostDishDialog("story")
+  }, [openStoryById, ownStory])
+  const goToPreviousStory = useCallback(() => {
+    if (storyPosts.length === 0) return
+    setActiveStoryIndex((prev) => {
+      if (prev == null) return 0
+      return (prev - 1 + storyPosts.length) % storyPosts.length
+    })
+  }, [storyPosts.length])
+  const goToNextStory = useCallback(() => {
+    if (storyPosts.length === 0) return
+    setActiveStoryIndex((prev) => {
+      if (prev == null) return 0
+      return (prev + 1) % storyPosts.length
+    })
+  }, [storyPosts.length])
+
+  const handleStoryTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0]
+    if (!touch) return
+    setStoryTouchStart({ x: touch.clientX, y: touch.clientY })
+  }
+
+  const handleStoryTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!storyTouchStart) return
+    const touch = e.changedTouches[0]
+    if (!touch) return
+
+    const deltaX = touch.clientX - storyTouchStart.x
+    const deltaY = touch.clientY - storyTouchStart.y
+
+    if (Math.abs(deltaY) > 90 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      setActiveStoryIndex(null)
+      setStoryTouchStart(null)
+      return
+    }
+
+    if (Math.abs(deltaX) > 70 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (deltaX < 0) {
+        goToNextStory()
+      } else {
+        goToPreviousStory()
+      }
+    }
+
+    setStoryTouchStart(null)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -598,15 +701,32 @@ export default function HomeReturningPage() {
           <div className="flex md:hidden items-center justify-between gap-2">
             {isLoggedIn ? (
               <>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground shrink-0">
-                    {(firstName?.[0] || "A").toUpperCase()}
-                  </div>
-                  <div className="leading-tight min-w-0">
-                    <div className="text-[11px] text-muted-foreground">Good evening,</div>
-                    <div className="text-sm font-medium text-foreground truncate">{firstName}</div>
-                  </div>
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-10 w-10 rounded-2xl border-border/70 bg-background/90 text-foreground shadow-none"
+                      aria-label="Create"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-44">
+                    <DropdownMenuItem onClick={() => openPostDishDialog("story")}>
+                      <ChefHat className="h-4 w-4" />
+                      Add story
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openPostDishDialog("post")}>
+                      <Plus className="h-4 w-4" />
+                      Add post
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/upload-recipe")}>
+                      <Star className="h-4 w-4" />
+                      Add recipe
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button variant="ghost" size="icon" onClick={openMobileSearch} aria-label="Search recipes">
                     <Search className="h-5 w-5" />
@@ -638,15 +758,32 @@ export default function HomeReturningPage() {
           {/* Desktop top bar */}
           <div className="hidden md:flex items-center gap-3">
             {isLoggedIn ? (
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
-                  {(firstName?.[0] || "A").toUpperCase()}
-                </div>
-                <div className="leading-tight">
-                  <div className="text-[11px] text-muted-foreground">Good evening,</div>
-                  <div className="text-sm font-medium text-foreground">{firstName}</div>
-                </div>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-11 w-11 rounded-2xl border-border/70 bg-background/90 text-foreground shadow-none"
+                    aria-label="Create"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  <DropdownMenuItem onClick={() => openPostDishDialog("story")}>
+                    <ChefHat className="h-4 w-4" />
+                    Add story
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => openPostDishDialog("post")}>
+                    <Plus className="h-4 w-4" />
+                    Add post
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/upload-recipe")}>
+                    <Star className="h-4 w-4" />
+                    Add recipe
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-sm text-muted-foreground hidden lg:inline max-w-[200px]">
@@ -827,6 +964,124 @@ export default function HomeReturningPage() {
           )}
         </>
 
+        {isLoggedIn && (
+          <div className="space-y-3">
+            {loadingFeed ? (
+              <div className="flex gap-3 pb-1">
+                <div className="h-[5.75rem] w-[4.9rem] shrink-0 rounded-3xl bg-muted animate-pulse" />
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <div className="flex gap-3">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <div key={index} className="h-[5.75rem] w-[4.9rem] shrink-0 rounded-3xl bg-muted animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3 pb-1">
+                <div className="shrink-0">
+                  <div className="flex w-[4.9rem] flex-col items-center gap-2">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={openOwnStory}
+                        className="rounded-[1.75rem] border border-border/70 bg-background p-1.5 shadow-sm transition-colors hover:bg-muted"
+                        aria-label={ownStory ? "Open your story" : "Create a story"}
+                      >
+                        <div className="relative h-16 w-16 overflow-hidden rounded-full bg-muted">
+                          {profile?.avatar_url ? (
+                            <Image
+                              src={profile.avatar_url}
+                              alt={currentProfileName}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-foreground">
+                              {currentProfileInitials}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openPostDishDialog("story")}
+                        className="absolute -bottom-1 left-1/2 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm"
+                        aria-label="Add story"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="w-full px-1 text-center">
+                      <p className="truncate text-xs font-medium text-foreground">You</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="min-w-0 flex-1 overflow-x-auto pb-1 scrollbar-hide">
+                  {otherStoryPosts.length > 0 ? (
+                    <div className="flex gap-3">
+                      {otherStoryPosts.map((story) => {
+                        const storyIndex = storyPosts.findIndex((item) => item.id === story.id)
+                        const authorName = story.author.full_name ?? "Chef"
+                        const initials = authorName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)
+
+                        return (
+                          <button
+                            key={story.id}
+                            type="button"
+                            onClick={() => setActiveStoryIndex(storyIndex)}
+                            className="group flex w-[4.9rem] shrink-0 flex-col items-center gap-2"
+                            aria-label={`Open story from ${authorName}`}
+                          >
+                            <div className="relative">
+                              <div className="rounded-full bg-gradient-to-br from-orange-400 via-amber-500 to-primary p-[2px] shadow-sm">
+                                <div className="rounded-full bg-background p-[3px]">
+                                  <div className="relative h-16 w-16 overflow-hidden rounded-full bg-muted">
+                                    {story.author.avatar_url ? (
+                                      <Image
+                                        src={story.author.avatar_url}
+                                        alt={authorName}
+                                        fill
+                                        className="object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-foreground">
+                                        {initials}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="absolute -bottom-1 left-1/2 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-sm">
+                                <ChefHat className="h-3.5 w-3.5" />
+                              </div>
+                            </div>
+                            <div className="w-full px-1 text-center">
+                              <p className="truncate text-xs font-medium text-foreground">{authorName}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <Card>
+                      <CardContent className="p-4 text-sm text-muted-foreground">
+                        No active stories from your circle yet.
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Challenge hero (signed-in only) */}
         {isLoggedIn && (
           loadingChallenge ? (
@@ -938,14 +1193,21 @@ export default function HomeReturningPage() {
           onOpenChange={(open) => {
             if (!open) {
               resetPostDishForm()
+              setComposerMode("post")
             }
             setPostDishOpen(open)
           }}
         >
           <DialogContent className="w-[96vw] max-w-md max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] p-0 overflow-hidden">
             <DialogHeader className="px-4 py-3 pt-[calc(env(safe-area-inset-top)+0.5rem)] border-b text-left">
-              <DialogTitle className="text-base">Post your dish</DialogTitle>
-              <p className="text-xs text-muted-foreground">Share what you cooked.</p>
+              <DialogTitle className="text-base">
+                {composerMode === "story" ? "Add a story" : "Post your dish"}
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground">
+                {composerMode === "story"
+                  ? "Your newest dish post becomes your story for the next 24 hours."
+                  : "Share what you cooked."}
+              </p>
             </DialogHeader>
             <div className="p-4 space-y-4 overflow-y-auto overscroll-contain">
               <div className="space-y-2">
@@ -1019,13 +1281,118 @@ export default function HomeReturningPage() {
                   disabled={submittingPost || !postImage || !postDishTitle.trim()}
                   onClick={handlePostSubmit}
                 >
-                  {submittingPost ? "Posting…" : "Post"}
+                  {submittingPost ? "Posting…" : composerMode === "story" ? "Share story" : "Post"}
                 </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
         )}
+
+        <Dialog
+          open={activeStory != null}
+          onOpenChange={(open) => {
+            if (!open) setActiveStoryIndex(null)
+          }}
+        >
+          <DialogContent className="inset-0 left-0 top-0 h-[100dvh] max-h-none w-screen max-w-none translate-x-0 translate-y-0 overflow-hidden border-0 bg-black p-0 sm:inset-1/2 sm:h-auto sm:max-h-[calc(100dvh-1.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[calc(100vw-1.25rem)] sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg [&>button]:hidden">
+            {activeStory ? (
+              <div
+                className="relative h-[100dvh] w-full bg-muted sm:h-auto sm:aspect-[9/16]"
+                onTouchStart={handleStoryTouchStart}
+                onTouchEnd={handleStoryTouchEnd}
+              >
+                <Image
+                  src={activeStory.image_url}
+                  alt={activeStory.title}
+                  fill
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/30" />
+
+                <div className="absolute inset-x-0 top-0 z-10 space-y-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white">
+                  <div className="flex gap-1">
+                    {storyPosts.map((story, index) => (
+                      <div
+                        key={story.id}
+                        className={`h-1 flex-1 rounded-full ${
+                          index === activeStoryIndex ? "bg-white" : "bg-white/30"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {activeStory.author.avatar_url ? (
+                        <Image
+                          src={activeStory.author.avatar_url}
+                          alt={activeStory.author.full_name ?? "Chef"}
+                          width={40}
+                          height={40}
+                          className="h-10 w-10 rounded-full object-cover ring-2 ring-white/70"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-sm font-semibold backdrop-blur">
+                          {(activeStory.author.full_name ?? "Chef")
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .toUpperCase()
+                            .slice(0, 2)}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {activeStory.author.full_name ?? "Chef"}
+                        </p>
+                        <p className="text-xs text-white/80">
+                          {Math.max(
+                            1,
+                            Math.floor(
+                              (Date.now() - new Date(activeStory.created_at).getTime()) / 3600000
+                            )
+                          )}
+                          h ago
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-white hover:bg-white/10 hover:text-white"
+                      onClick={() => setActiveStoryIndex(null)}
+                      aria-label="Close story viewer"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="absolute inset-y-0 left-0 z-[1] w-1/2"
+                  onClick={goToPreviousStory}
+                  aria-label="Previous story"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 z-[1] w-1/2"
+                  onClick={goToNextStory}
+                  aria-label="Next story"
+                />
+
+                <div className="absolute inset-x-0 bottom-0 z-10 space-y-2 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] text-white">
+                  <div className="rounded-3xl bg-black/25 p-4 backdrop-blur-sm">
+                    <h3 className="text-lg font-semibold">{activeStory.title}</h3>
+                    {activeStory.caption ? (
+                      <p className="mt-2 text-sm text-white/90">{activeStory.caption}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
 
         {/* Flavors of the Week */}
         <div className="space-y-3">
@@ -1067,124 +1434,6 @@ export default function HomeReturningPage() {
             </div>
           )}
         </div>
-
-        {/* Made by Your Circle — signed-in social feed */}
-        {isLoggedIn && (
-        <div className="space-y-3">
-          <SectionHeader
-            title="Made by Your Circle"
-            right={
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={openPostDishDialog}
-              >
-                Post Your Dish
-              </Button>
-            }
-          />
-
-          {loadingFeed ? (
-            <div className="space-y-4">
-              {[...Array(2)].map((_, i) => (
-                <div key={i} className="rounded-2xl bg-muted animate-pulse h-[420px]" />
-              ))}
-            </div>
-          ) : feedPosts.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  No posts yet. Follow people or be the first to post a dish!
-                </p>
-                <Button onClick={openPostDishDialog}>Post Your Dish</Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {feedPosts.map((post) => {
-                const authorName = post.author.full_name ?? "Chef"
-                const initials = authorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-
-                return (
-                  <Card key={post.id} className="overflow-hidden" data-testid={`feed-post-${post.id}`}>
-                    <CardHeader className="p-4 pb-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          {post.author.avatar_url ? (
-                            <Image
-                              src={post.author.avatar_url}
-                              alt={authorName}
-                              width={36}
-                              height={36}
-                              className="rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-foreground">
-                              {initials}
-                            </div>
-                          )}
-                          <div className="leading-tight">
-                            <span className="text-sm font-medium text-foreground">{authorName}</span>
-                            <div className="text-xs text-muted-foreground">{timeAgo(post.created_at)}</div>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="icon">
-                          <Share2 className="h-4 w-4" />
-                          <span className="sr-only">Share</span>
-                        </Button>
-                      </div>
-                    </CardHeader>
-
-                    <div className="relative w-full aspect-[16/10] bg-muted">
-                      <Image src={post.image_url} alt={post.title} fill className="object-cover" />
-                    </div>
-
-                    <CardContent className="p-4 space-y-3">
-                      <div className="space-y-1">
-                        <h3 className="text-base font-semibold text-foreground">{post.title}</h3>
-                        {post.caption && (
-                          <p className="text-sm text-muted-foreground">&quot;{post.caption}&quot;</p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <button
-                          onClick={() => handleLike(post.id)}
-                          data-testid={`feed-like-button-${post.id}`}
-                          aria-label={`Like ${post.title}`}
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-muted ${
-                            post.liked_by_viewer ? "text-red-500" : ""
-                          }`}
-                        >
-                          <Heart
-                            className={`h-4 w-4 ${post.liked_by_viewer ? "fill-red-500 text-red-500" : ""}`}
-                          />
-                          <span data-testid={`feed-like-count-${post.id}`}>{post.like_count}</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleRepost(post.id)}
-                          data-testid={`feed-repost-button-${post.id}`}
-                          aria-label={`Repost ${post.title}`}
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-muted ${
-                            post.reposted_by_viewer ? "text-green-500" : ""
-                          }`}
-                        >
-                          <Repeat2
-                            className={`h-4 w-4 ${post.reposted_by_viewer ? "text-green-500" : ""}`}
-                          />
-                          <span data-testid={`feed-repost-count-${post.id}`}>{post.repost_count}</span>
-                        </button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          )}
-        </div>
-        )}
 
         {/* Leaders + challenge + week summary (signed-in only) */}
         {isLoggedIn && (
@@ -1267,33 +1516,33 @@ export default function HomeReturningPage() {
                     <div className="rounded-xl border p-3">
                       <p className="text-sm font-medium text-foreground">
                         {weekSummary.dinnersLeft > 0
-                          ? `${weekSummary.dinnersLeft} dinner${weekSummary.dinnersLeft === 1 ? "" : "s"} left to plan this week`
-                          : "Dinners are planned for the rest of this week"}
+                          ? `${weekSummary.dinnersLeft} dinner${weekSummary.dinnersLeft === 1 ? "" : "s"} left this week`
+                          : "Dinners covered this week"}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="hidden sm:block text-xs text-muted-foreground mt-1">
                         {weekSummary.dinnersLeft > 0
                           ? "Add them on your meal planner from today through Sunday."
                           : "Open the planner to tweak meals or jump ahead to next week."}
                       </p>
-                      <Button className="mt-3 w-full" asChild>
+                      <Button className="mt-2 sm:mt-3 w-full" asChild>
                         <Link href="/meal-planner">
-                          {weekSummary.dinnersLeft > 0 ? "Continue planning" : "Open meal planner"}
+                          {weekSummary.dinnersLeft > 0 ? "Plan dinners" : "Meal planner"}
                         </Link>
                       </Button>
                     </div>
                     <div className="rounded-xl border p-3">
                       <p className="text-sm font-medium text-foreground">
                         {weekSummary.expiringSoon > 0
-                          ? `${weekSummary.expiringSoon} pantry item${weekSummary.expiringSoon === 1 ? "" : "s"} expiring in the next 7 days`
-                          : "No pantry items expiring in the next week"}
+                          ? `${weekSummary.expiringSoon} item${weekSummary.expiringSoon === 1 ? "" : "s"} expiring soon`
+                          : "No pantry items expiring soon"}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="hidden sm:block text-xs text-muted-foreground mt-1">
                         {weekSummary.expiringSoon > 0
                           ? "Use them soon or update dates on your pantry."
                           : "Track ingredients with dates to see reminders here."}
                       </p>
-                      <Button className="mt-3 w-full" variant="outline" asChild>
-                        <Link href="/pantry">{weekSummary.expiringSoon > 0 ? "Review pantry" : "Open pantry"}</Link>
+                      <Button className="mt-2 sm:mt-3 w-full" variant="outline" asChild>
+                        <Link href="/pantry">{weekSummary.expiringSoon > 0 ? "Use pantry" : "Open pantry"}</Link>
                       </Button>
                     </div>
                   </>
@@ -1331,10 +1580,24 @@ export default function HomeReturningPage() {
               ))}
             </div>
           ) : recommendedRecipes.length > 0 ? (
-            <RecipeGrid
-              recipes={recommendedRecipes}
-              onRecipeClick={(id) => { window.location.href = `/recipes/${id}` }}
-            />
+            <>
+              <RecipeGrid
+                recipes={recommendedRecipes}
+                onRecipeClick={(id) => { window.location.href = `/recipes/${id}` }}
+              />
+              <div ref={recommendedSentinelRef} className="h-1" />
+              {loadingRecommendedMore ? (
+                <div className="mt-4 columns-2 md:columns-3 lg:columns-4 gap-3 md:gap-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="mb-3 md:mb-4 break-inside-avoid">
+                      <div
+                        className={`w-full rounded-2xl bg-muted animate-pulse ${getRecommendationSkeletonAspect(i)}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </>
           ) : (
             <Card>
               <CardContent className="p-8 text-center text-sm text-muted-foreground">

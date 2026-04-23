@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
+import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
+import { followDB } from "@/lib/database/follow-db"
 import { parseInstructionsFromDB } from "@/lib/types"
 
 export const runtime = "nodejs"
@@ -11,6 +13,8 @@ export async function GET(
   try {
     const { id: recipeId } = await params
     const supabase = createServiceSupabaseClient()
+    const authState = await auth()
+    const clerkUserId = authState.userId ?? null
 
     const { data, error } = await supabase
       .from("recipes")
@@ -76,7 +80,52 @@ export async function GET(
       updated_at: (data as any).updated_at,
     }
 
-    return NextResponse.json({ recipe })
+    const authorId = (data as any).author_id ?? null
+    let author: {
+      id: string
+      username: string | null
+      full_name: string | null
+      avatar_url: string | null
+      is_private: boolean
+      followStatus: "none" | "pending" | "accepted"
+    } | null = null
+
+    if (authorId) {
+      const { data: authorProfile } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, avatar_url, is_private")
+        .eq("id", authorId)
+        .maybeSingle()
+
+      let viewerProfileId: string | null = null
+      if (clerkUserId) {
+        const { data: viewerProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("clerk_user_id", clerkUserId)
+          .maybeSingle()
+        viewerProfileId = viewerProfile?.id ?? null
+      }
+
+      let followStatus: "none" | "pending" | "accepted" = "none"
+      if (viewerProfileId && viewerProfileId !== authorId) {
+        const relationship = await followDB.withServiceClient(supabase).getFollowStatus(viewerProfileId, authorId)
+        followStatus = relationship.status
+      }
+
+      if (authorProfile) {
+        author = {
+          id: authorProfile.id,
+          username: authorProfile.username,
+          full_name: authorProfile.full_name,
+          avatar_url: authorProfile.avatar_url,
+          is_private: authorProfile.is_private,
+          followStatus,
+        }
+      }
+    }
+
+    return NextResponse.json({ recipe, author })
   } catch (error) {
     console.error("[recipes/[id] GET]", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

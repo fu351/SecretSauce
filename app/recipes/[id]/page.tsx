@@ -13,6 +13,7 @@ import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
 import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-info"
 import { RecipeActionBar } from "@/components/recipe/social/recipe-action-bar"
 import { RecipeCollectionManager } from "@/components/recipe/collections/recipe-collection-manager"
+import { ProfileFollowButton } from "@/components/social/profile-follow-button"
 import { useToast } from "@/hooks"
 import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
 import { useTheme } from "@/contexts/theme-context"
@@ -42,6 +43,14 @@ export default function RecipeDetailPage() {
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
+  const [recipeAuthor, setRecipeAuthor] = useState<{
+    id: string
+    username: string | null
+    full_name: string | null
+    avatar_url: string | null
+    is_private: boolean
+    followStatus: "none" | "pending" | "accepted"
+  } | null>(null)
   const [isFloating, setIsFloating] = useState(false)
   const [cookingMode, setCookingMode] = useState(false)
   const [cookingStep, setCookingStep] = useState(0)
@@ -95,6 +104,13 @@ export default function RecipeDetailPage() {
     ? "bg-primary text-primary-foreground hover:bg-primary/90"
     : "bg-orange-500 hover:bg-orange-600"
   const isRecipeOwner = Boolean(user && recipe && user.id === recipe.author_id)
+  const authorDisplayName = recipeAuthor?.full_name ?? recipeAuthor?.username ?? "Chef"
+  const authorInitials = authorDisplayName
+    .split(" ")
+    .map((name) => name[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
   const themeName = isDark ? "dark" : "light"
   const imageFallback = getDefaultImageFallback(themeName)
   const recipeImageUrl = getRecipeImageUrl(recipe?.content?.image_url || recipe?.image_url, themeName)
@@ -139,6 +155,7 @@ export default function RecipeDetailPage() {
           throw new Error("Recipe not found")
         }
         setRecipe(json.recipe)
+        setRecipeAuthor(json.author ?? null)
         trackEvent("recipe_viewed", { recipe_id: recipeId, recipe_title: json.recipe.title, source: "direct" })
       } catch (error) {
         console.error("Error loading recipe:", error)
@@ -427,6 +444,48 @@ export default function RecipeDetailPage() {
           <div className="lg:w-2/5 w-full">
             <Card className={infoPanelClass}>
               <CardContent className="p-5 sm:p-7 lg:p-8 space-y-6 sm:space-y-8">
+                {recipeAuthor ? (
+                  <div
+                    className={clsx(
+                      "flex items-center justify-between gap-3 rounded-2xl border p-3",
+                      isDark ? "border-border bg-secondary/50" : "border-gray-200 bg-white/70"
+                    )}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      {recipeAuthor.avatar_url ? (
+                        <Image
+                          src={recipeAuthor.avatar_url}
+                          alt={authorDisplayName}
+                          width={44}
+                          height={44}
+                          className="h-11 w-11 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-sm font-semibold text-foreground">
+                          {authorInitials}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className={clsx("truncate text-sm font-semibold", isDark ? "text-foreground" : "text-gray-900")}>
+                          {authorDisplayName}
+                        </p>
+                        {recipeAuthor.username ? (
+                          <p className={clsx("truncate text-xs", descriptionTextClass)}>
+                            @{recipeAuthor.username}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    {!isRecipeOwner ? (
+                      <ProfileFollowButton
+                        targetProfileId={recipeAuthor.id}
+                        initialStatus={recipeAuthor.followStatus}
+                        isPrivate={recipeAuthor.is_private}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div data-tutorial="recipe-detail-header">
                   <div className="flex items-start justify-between gap-4">
                     <h1

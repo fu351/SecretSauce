@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Award, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { BADGE_DEFINITIONS, MAX_SHOWCASED_BADGES, type BadgeId } from "@/lib/badges/badge-definitions"
+import { MAX_SHOWCASED_BADGES, type BadgeId } from "@/lib/badges/badge-definitions"
 import { useToast } from "@/hooks"
 import { cn } from "@/lib/utils"
 
@@ -58,12 +58,12 @@ export function BadgeShowcase({
   }, [username])
 
   const showcased = showcasedIds
-    .map((id) => allBadges.find((b) => b.id === id))
+    .map((id) => allBadges.find((badge) => badge.id === id))
     .filter(Boolean) as EarnedBadge[]
 
   const toggleDraft = useCallback((id: string) => {
     setDraftIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id)
+      if (prev.includes(id)) return prev.filter((value) => value !== id)
       if (prev.length >= MAX_SHOWCASED_BADGES) {
         toast({ title: `Max ${MAX_SHOWCASED_BADGES} badges in showcase`, variant: "destructive" })
         return prev
@@ -98,20 +98,16 @@ export function BadgeShowcase({
     return (
       <div className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground">
         <Award className="h-3.5 w-3.5" />
-        <span>No badges earned yet — start cooking!</span>
+        <span>No badges earned yet - start cooking!</span>
       </div>
     )
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          <Award className="h-3.5 w-3.5" />
-          <span>Badges</span>
-        </div>
-        {isEditing && (
-          <div className="flex items-center gap-1">
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
               size="sm"
@@ -124,14 +120,9 @@ export function BadgeShowcase({
             </Button>
             <Button size="sm" onClick={handleSave} disabled={saving} className="h-6 gap-1 px-2 text-xs">
               <Check className="h-3 w-3" />
-              {saving ? "Saving…" : "Save"}
+              {saving ? "Saving..." : "Save"}
             </Button>
           </div>
-        )}
-      </div>
-
-      {isEditing ? (
-        <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground">
             Select up to {MAX_SHOWCASED_BADGES} badges to feature on your profile
           </p>
@@ -174,12 +165,11 @@ export function BadgeShowcase({
                     <span className="font-medium text-foreground">{badge.name}</span>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
+                <TooltipContent side="top" sideOffset={8} collisionPadding={12} className="text-xs">
                   {badge.description}
                 </TooltipContent>
               </Tooltip>
             ))}
-            {/* Show a count of remaining earned but unshowcased badges */}
             {allBadges.length > showcased.length && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -187,10 +177,10 @@ export function BadgeShowcase({
                     +{allBadges.length - showcased.length} more
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
+                <TooltipContent side="top" sideOffset={8} collisionPadding={12} className="text-xs">
                   {allBadges
-                    .filter((b) => !showcasedIds.includes(b.id))
-                    .map((b) => b.name)
+                    .filter((badge) => !showcasedIds.includes(badge.id))
+                    .map((badge) => badge.name)
                     .join(", ")}
                 </TooltipContent>
               </Tooltip>
@@ -199,7 +189,7 @@ export function BadgeShowcase({
         </TooltipProvider>
       ) : isOwnProfile ? (
         <p className="text-xs text-muted-foreground">
-          You have {allBadges.length} badge{allBadges.length !== 1 ? "s" : ""} — click Edit to showcase them
+          You have {allBadges.length} badge{allBadges.length !== 1 ? "s" : ""} - click Edit to showcase them
         </p>
       ) : null}
     </div>

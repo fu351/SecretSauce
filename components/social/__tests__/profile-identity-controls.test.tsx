@@ -90,12 +90,11 @@ describe("ProfileIdentityControls", () => {
       />
     )
 
-    expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /^edit$/i })).toBeInTheDocument()
-    expect(screen.getByLabelText(/public profile/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^full name$/i)).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /edit profile/i })).toBeInTheDocument()
+    expect(screen.queryByText(/^private$/i)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: /^edit$/i }))
-    await user.click(screen.getByRole("menuitem", { name: /edit profile/i }))
+    await user.click(screen.getByRole("button", { name: /edit profile/i }))
 
     await user.clear(screen.getByLabelText(/^full name$/i))
     await user.type(screen.getByLabelText(/^full name$/i), "Avery Baker")
@@ -121,7 +120,7 @@ describe("ProfileIdentityControls", () => {
     })
   })
 
-  it("does not render for non-owners", async () => {
+  it("does not render owner edit actions for non-owners", async () => {
     const { ProfileIdentityControls } = await import("../profile-identity-controls")
 
     render(
@@ -136,9 +135,14 @@ describe("ProfileIdentityControls", () => {
       />
     )
 
-    expect(screen.getByText("Avery Cook")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/public profile/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText("Avery Cook")).toBeInTheDocument()
+      expect(screen.getByText((_, node) => node?.textContent === "12 Followers")).toBeInTheDocument()
+      expect(screen.getByText((_, node) => node?.textContent === "34 Following")).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/^badges$/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /edit profile/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /manage badges/i })).not.toBeInTheDocument()
   })
 
   it("hides the full name when the profile is configured to hide it", async () => {
@@ -158,5 +162,59 @@ describe("ProfileIdentityControls", () => {
 
     expect(screen.getByRole("heading", { name: /@avery_cook/i })).toBeInTheDocument()
     expect(screen.queryByText("Avery Cook")).not.toBeInTheDocument()
+  })
+
+  it("maps the public profile switch back to is_private", async () => {
+    const user = userEvent.setup()
+    const { ProfileIdentityControls } = await import("../profile-identity-controls")
+
+    render(
+      <ProfileIdentityControls
+        isOwnProfile={true}
+        profileId="profile_1"
+        fullName="Avery Cook"
+        avatarUrl={null}
+        username="avery_cook"
+        isPrivate={true}
+        fullNameHidden={false}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /edit profile/i }))
+    await user.click(screen.getByRole("switch", { name: /public profile/i }))
+    await user.click(screen.getByRole("button", { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          is_private: false,
+        })
+      )
+    })
+  })
+
+  it("restores draft values on cancel", async () => {
+    const user = userEvent.setup()
+    const { ProfileIdentityControls } = await import("../profile-identity-controls")
+
+    render(
+      <ProfileIdentityControls
+        isOwnProfile={true}
+        profileId="profile_1"
+        fullName="Avery Cook"
+        avatarUrl={null}
+        username="avery_cook"
+        isPrivate={false}
+        fullNameHidden={false}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /edit profile/i }))
+    await user.clear(screen.getByLabelText(/^full name$/i))
+    await user.type(screen.getByLabelText(/^full name$/i), "Changed Name")
+    await user.click(screen.getByRole("button", { name: /cancel/i }))
+    await user.click(screen.getByRole("button", { name: /edit profile/i }))
+
+    expect(screen.getByLabelText(/^full name$/i)).toHaveValue("Avery Cook")
   })
 })
