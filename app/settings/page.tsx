@@ -947,6 +947,28 @@ function SettingsPageContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border/70 p-4">
+                <div>
+                  <p className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>
+                    Pause all notifications
+                  </p>
+                  <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
+                    Turn off meal reminders, weekly email digests, and future push alerts.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-fit"
+                  onClick={() => {
+                    setMealPlannerReminderEnabled(false)
+                    setEmailDigestEnabled(false)
+                    setPushNotificationsEnabled(false)
+                  }}
+                >
+                  Stop notifications
+                </Button>
+              </div>
               <div className="flex items-center justify-between">
                 <div>
                   <Label className={`text-sm font-medium ${isDark ? "text-[#e8dcc4]" : "text-gray-900"}`}>

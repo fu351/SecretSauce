@@ -129,6 +129,25 @@ describe("SettingsPage", () => {
     })
   })
 
+  it("stops all notifications from the settings card", async () => {
+    const user = userEvent.setup()
+
+    render(<SettingsPage />)
+
+    await screen.findByRole("heading", { name: /settings/i })
+    await user.click(screen.getByRole("button", { name: /stop notifications/i }))
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          meal_planner_weekly_reminder_enabled: false,
+          notification_email_digest_enabled: false,
+          notification_push_enabled: false,
+        })
+      )
+    })
+  })
+
   it("blocks mismatched passwords and surfaces the validation error", async () => {
     const user = userEvent.setup()
 
