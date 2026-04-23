@@ -19,7 +19,7 @@ import { AuthGate } from "@/components/auth/tier-gate"
 import { useRouter } from "next/navigation"
 import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
-import { disablePushNotifications, enablePushNotifications, isWebPushSupported } from "@/lib/notifications/push-client"
+import { disablePushNotifications, enablePushNotifications, isPushConfigured, isWebPushSupported } from "@/lib/notifications/push-client"
 import { isPWAInstalled } from "@/lib/utils"
 
 type ProfileUpdates = Partial<Profile>
@@ -291,6 +291,8 @@ function SettingsPageContent() {
     hasPendingChangesRef.current = false
   }, [])
 
+  const pushReady = isPushConfigured() && isWebPushSupported()
+
   const handleStopNotifications = useCallback(async () => {
     try {
       if (isWebPushSupported()) {
@@ -320,6 +322,15 @@ function SettingsPageContent() {
 
   const handlePushNotificationsChange = useCallback(async (enabled: boolean) => {
     if (enabled) {
+      if (!pushReady) {
+        toast({
+          title: "Push notifications aren't ready yet",
+          description: "Set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY, then reload the app.",
+          variant: "destructive",
+        })
+        return
+      }
+
       if (!isPWAInstalled()) {
         toast({
           title: "Install the app first",
@@ -362,7 +373,7 @@ function SettingsPageContent() {
         variant: "destructive",
       })
     }
-  }, [mergeProfileSnapshot, toast, updateProfile])
+  }, [mergeProfileSnapshot, pushReady, toast, updateProfile])
 
   const savePreferences = useCallback(async () => {
     if (!user || !preferencesRef.current) return
@@ -1083,8 +1094,17 @@ function SettingsPageContent() {
                     Available after installing Secret Sauce as a web app.
                   </p>
                 </div>
-                <Switch checked={pushNotificationsEnabled} onCheckedChange={(checked) => void handlePushNotificationsChange(Boolean(checked))} />
+                <Switch
+                  checked={pushNotificationsEnabled}
+                  disabled={!pushReady}
+                  onCheckedChange={(checked) => void handlePushNotificationsChange(Boolean(checked))}
+                />
               </div>
+              {!pushReady && (
+                <p className={`text-xs ${isDark ? "text-[#e8dcc4]/50" : "text-gray-500"}`}>
+                  Configure VAPID keys before enabling push notifications.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

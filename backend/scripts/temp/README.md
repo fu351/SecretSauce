@@ -9,3 +9,4 @@ for backfills, diagnostics, or test-data seeding rather than primary runtime ent
 - `backfill-target-store-ids.js`
 - `target-store-diagnostics.js`
 - `seed-mock-recipes.ts`
+- `generate-vapid-keys.ts`

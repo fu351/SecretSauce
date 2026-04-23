@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { disablePushNotifications, enablePushNotifications, isWebPushSupported } from "@/lib/notifications/push-client"
+import { disablePushNotifications, enablePushNotifications, isPushConfigured, isWebPushSupported } from "@/lib/notifications/push-client"
 import { isPWAInstalled } from "@/lib/utils"
 
 export function PushNotificationBootstrap() {
@@ -11,6 +11,13 @@ export function PushNotificationBootstrap() {
 
   useEffect(() => {
     if (!profile || !isWebPushSupported() || !isPWAInstalled()) return
+
+    if (!isPushConfigured()) {
+      if (profile.notification_push_enabled) {
+        console.warn("[push] push notifications are enabled in profile but VAPID is not configured")
+      }
+      return
+    }
 
     const enabled = Boolean(profile.notification_push_enabled)
     const syncKey = `${profile.id}:${enabled ? "enabled" : "disabled"}`

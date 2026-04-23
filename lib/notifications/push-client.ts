@@ -16,6 +16,10 @@ export function isWebPushSupported(): boolean {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window
 }
 
+export function isPushConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
+}
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/")
@@ -74,6 +78,10 @@ export async function enablePushNotifications(): Promise<PushSubscriptionJSON> {
 
   if (!isPWAInstalled()) {
     throw new Error("Install the app as a web app before enabling push notifications")
+  }
+
+  if (!isPushConfigured()) {
+    throw new Error("Push notifications are not configured for this environment")
   }
 
   if (Notification.permission === "denied") {

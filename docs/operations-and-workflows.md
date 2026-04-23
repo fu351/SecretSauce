@@ -11,6 +11,7 @@ Last verified: 2026-03-26.
 - `npm run test:run`
 - `npm run test:api`
 - `npm run e2e`
+- `npm run generate-vapid-keys`
 
 ### Queue operations
 
@@ -33,6 +34,7 @@ Root `package.json` exposes the common queue helpers:
 - `embedding-queue-pipeline-runner`
 - `vector-double-check-pipeline-runner`
 - `backfill-embedding-queue`
+- `generate-vapid-keys`
 
 `backend/scripts/package.json` is the shared workflow package. From the repo root, run it with `npm --prefix scripts run ...`:
 
@@ -75,6 +77,13 @@ Current workflows include:
 - plus backup/reset/init/main utility workflows.
 
 Weekly notification jobs require `RESEND_API_KEY`, `NOTIFICATIONS_FROM_EMAIL`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY` to be set.
+
+To generate VAPID keys once per environment:
+
+1. Run `npm run generate-vapid-keys`.
+2. Copy the printed values into your environment manager.
+3. Keep `VAPID_PRIVATE_KEY` server-side only.
+4. Recreate browser subscriptions after rotating keys.
 
 Most workflows are manually dispatchable; some have schedules (for example nightly and weekly mapping tasks).
 
