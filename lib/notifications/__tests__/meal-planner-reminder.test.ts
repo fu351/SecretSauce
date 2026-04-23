@@ -2,9 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { sendWeeklyMealPlannerReminders } from "../meal-planner-reminder"
 
 function createProfilesChain(rows: any[]) {
+  const result = { data: rows, error: null }
+  const eqResult: any = {
+    maybeSingle: vi.fn(() => Promise.resolve(rows[0] ? { data: rows[0], error: null } : { data: null, error: null })),
+    then: (onFulfilled: any, onRejected: any) =>
+      Promise.resolve(result).then(onFulfilled, onRejected),
+  }
   const chain: any = {
     select: vi.fn(() => chain),
-    eq: vi.fn(() => Promise.resolve({ data: rows, error: null })),
+    eq: vi.fn(() => eqResult),
   }
   return chain
 }

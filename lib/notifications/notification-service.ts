@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database/supabase"
+import { sendPushNotificationToRecipient } from "@/lib/notifications/push-service"
 
 type Json = Database["public"]["Tables"]["notifications"]["Row"]["payload"]
 
@@ -156,6 +157,27 @@ function escapeHtml(input: string): string {
     .replaceAll("'", "&#39;")
 }
 
+function buildPushPayloadFromNotification(row: NotificationRow): { title: string; body: string; url: string; tag: string } {
+  const payload = (row.payload ?? {}) as Record<string, any>
+  const urlBase = process.env.NEXT_PUBLIC_APP_URL ?? ""
+
+  if (row.type === "follow_request" || row.type === "new_follower") {
+    return {
+      title: row.title,
+      body: row.body ?? row.title,
+      url: `${urlBase}/dashboard#notifications`,
+      tag: row.type,
+    }
+  }
+
+  return {
+    title: row.title,
+    body: row.body ?? row.title,
+    url: `${urlBase}/dashboard#notifications`,
+    tag: row.type,
+  }
+}
+
 function mapNotificationRow(row: NotificationRow & { profiles?: unknown }): NotificationFeedItem | null {
   const from = mapProfileSnippet((row as any).profiles)
   if (!from) return null
@@ -233,6 +255,8 @@ export async function createNotification(
     console.error("[notifications] failed to create notification:", error)
     return null
   }
+
+  void sendPushNotificationToRecipient(db, input.recipientId, buildPushPayloadFromNotification(data))
 
   return data
 }

@@ -19,6 +19,8 @@ import { AuthGate } from "@/components/auth/tier-gate"
 import { useRouter } from "next/navigation"
 import { DIETARY_TAGS } from "@/lib/types"
 import { formatDietaryTag } from "@/lib/tag-formatter"
+import { disablePushNotifications, enablePushNotifications, isWebPushSupported } from "@/lib/notifications/push-client"
+import { isPWAInstalled } from "@/lib/utils"
 
 type ProfileUpdates = Partial<Profile>
 
@@ -278,6 +280,89 @@ function SettingsPageContent() {
   const handleDietaryToggle = (diet: string) => {
     setDietaryPreferences((prev) => (prev.includes(diet) ? prev.filter((d) => d !== diet) : [...prev, diet]))
   }
+
+  const mergeProfileSnapshot = useCallback((patch: ProfileUpdates) => {
+    const currentSnapshot = lastSavedSnapshotRef.current
+      ? (JSON.parse(lastSavedSnapshotRef.current) as ProfileUpdates)
+      : {}
+    const nextSnapshot = { ...currentSnapshot, ...patch }
+    lastSavedSnapshotRef.current = JSON.stringify(nextSnapshot)
+    preferencesRef.current = { ...(preferencesRef.current ?? {}), ...patch }
+    hasPendingChangesRef.current = false
+  }, [])
+
+  const handleStopNotifications = useCallback(async () => {
+    try {
+      if (isWebPushSupported()) {
+        await disablePushNotifications()
+      }
+
+      const notificationPatch: ProfileUpdates = {
+        meal_planner_weekly_reminder_enabled: false,
+        notification_email_digest_enabled: false,
+        notification_push_enabled: false,
+      }
+
+      setMealPlannerReminderEnabled(false)
+      setEmailDigestEnabled(false)
+      setPushNotificationsEnabled(false)
+      await updateProfile(notificationPatch)
+      mergeProfileSnapshot(notificationPatch)
+    } catch (error) {
+      console.error("Error disabling notifications:", error)
+      toast({
+        title: "Unable to stop notifications",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }, [mergeProfileSnapshot, toast, updateProfile])
+
+  const handlePushNotificationsChange = useCallback(async (enabled: boolean) => {
+    if (enabled) {
+      if (!isPWAInstalled()) {
+        toast({
+          title: "Install the app first",
+          description: "Push notifications are available after installing Secret Sauce as a web app.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      try {
+        await enablePushNotifications()
+        setPushNotificationsEnabled(true)
+        await updateProfile({ notification_push_enabled: true })
+        mergeProfileSnapshot({ notification_push_enabled: true })
+        return
+      } catch (error) {
+        console.error("Error enabling push notifications:", error)
+        setPushNotificationsEnabled(false)
+        toast({
+          title: "Unable to enable push notifications",
+          description: error instanceof Error ? error.message : "Please try again.",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
+    try {
+      if (isWebPushSupported()) {
+        await disablePushNotifications()
+      }
+      setPushNotificationsEnabled(false)
+      await updateProfile({ notification_push_enabled: false })
+      mergeProfileSnapshot({ notification_push_enabled: false })
+    } catch (error) {
+      console.error("Error disabling push notifications:", error)
+      toast({
+        title: "Unable to disable push notifications",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }, [mergeProfileSnapshot, toast, updateProfile])
 
   const savePreferences = useCallback(async () => {
     if (!user || !preferencesRef.current) return
@@ -961,9 +1046,7 @@ function SettingsPageContent() {
                   variant="outline"
                   className="w-fit"
                   onClick={() => {
-                    setMealPlannerReminderEnabled(false)
-                    setEmailDigestEnabled(false)
-                    setPushNotificationsEnabled(false)
+                    void handleStopNotifications()
                   }}
                 >
                   Stop notifications
@@ -997,10 +1080,10 @@ function SettingsPageContent() {
                     Push notifications
                   </Label>
                   <p className={`text-sm ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
-                    Future channel support for real-time alerts on mobile and desktop.
+                    Available after installing Secret Sauce as a web app.
                   </p>
                 </div>
-                <Switch checked={pushNotificationsEnabled} onCheckedChange={setPushNotificationsEnabled} />
+                <Switch checked={pushNotificationsEnabled} onCheckedChange={(checked) => void handlePushNotificationsChange(Boolean(checked))} />
               </div>
             </div>
           </CardContent>

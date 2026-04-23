@@ -16,6 +16,7 @@ import { ThemeSync } from "@/components/providers/theme-sync"
 import { PretextBootstrap } from "@/components/providers/pretext-bootstrap"
 import { TutorialProvider } from "@/contexts/tutorial-context"
 import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay"
+import { PushNotificationBootstrap } from "@/components/providers/push-notification-bootstrap"
 // Removed TutorialBlocker import
 import { FeedbackWidget } from "@/components/tutorial/feedback-widget"
 
@@ -87,6 +88,7 @@ export default function RootLayout({
                       <ThemeSync />
                       <PretextBootstrap />
                       <TutorialOverlay />
+                      <PushNotificationBootstrap />
                       <FeedbackWidget position="bottom-left" />
                       <Header />
                       {children}

@@ -1,6 +1,7 @@
 import { endOfWeek, format, startOfWeek } from "date-fns"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database/supabase"
+import { sendPushNotificationToRecipient } from "@/lib/notifications/push-service"
 
 type MealScheduleRow = Database["public"]["Tables"]["meal_schedule"]["Row"]
 
@@ -238,6 +239,17 @@ export async function sendWeeklyMealPlannerReminders(
     }
 
     const displayName = recipient.full_name ?? recipient.email
+    const intro = summary.plannedMealCount > 0
+      ? `You have ${summary.plannedMealCount} meals planned across ${summary.plannedDayCount} day${summary.plannedDayCount === 1 ? "" : "s"} this week.`
+      : "Your meal plan is still empty for this week."
+
+    void sendPushNotificationToRecipient(db, recipient.id, {
+      title: "Plan your meals for this week",
+      body: intro,
+      url: plannerUrl,
+      tag: "meal_planner_weekly_reminder",
+    })
+
     const { subject, text, html } = buildMealPlannerReminderEmail({
       recipientName: displayName,
       summary,

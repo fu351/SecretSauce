@@ -74,6 +74,8 @@ Current workflows include:
 - `store_maintenance.yml`
 - plus backup/reset/init/main utility workflows.
 
+Weekly notification jobs require `RESEND_API_KEY`, `NOTIFICATIONS_FROM_EMAIL`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY` to be set.
+
 Most workflows are manually dispatchable; some have schedules (for example nightly and weekly mapping tasks).
 
 ## Known operational drift to resolve
