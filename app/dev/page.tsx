@@ -1,7 +1,6 @@
 import { requireAdmin } from "@/lib/auth/admin"
 import Link from "next/link"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
-import SeedMockRecipesButton from "./seed-mock-recipes-button"
 // Experiments are managed in PostHog — see /dev/feature-flags
 
 export const dynamic = "force-dynamic"
@@ -25,7 +24,6 @@ export default async function DevPage() {
   await requireAdmin()
 
   const stats = await getDevStats()
-  const seedAuthorId = process.env.NEXT_PUBLIC_DEV_SEED_AUTHOR_UUID ?? null
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -134,25 +132,6 @@ export default async function DevPage() {
               Create and manage social challenges
             </p>
           </Link>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mt-8 rounded-lg bg-white p-6 shadow">
-          <h2 className="mb-4 text-xl font-semibold text-gray-900">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <button className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
-              Clear Cache
-            </button>
-            <SeedMockRecipesButton defaultAuthorId={seedAuthorId} />
-            <button className="rounded bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700">
-              Run Migrations
-            </button>
-            <button className="rounded bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700">
-              Export Logs
-            </button>
-          </div>
         </div>
       </div>
     </div>
