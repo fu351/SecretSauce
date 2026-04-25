@@ -52,6 +52,11 @@ import {
   UNIT_FALLBACK_CONFIDENCE,
   stripMeasurementFromSearchTerm,
 } from "./unit-resolution-utils"
+import {
+  IngredientResolutionTelemetry,
+  summarizeIngredientResolutionEvents,
+  type IngredientResolutionEvent,
+} from "../../../lib/observability/ingredient-resolution"
 
 const NON_FOOD_TITLE_TOKENS = new Set([
   "balm",
@@ -102,6 +107,7 @@ interface ResolveBatchResult {
   resolved: number
   failed: number
   unitMetrics: UnitMetrics
+  telemetryEvents: IngredientResolutionEvent[]
   results?: Array<{
     rowId: string
     originalName: string
@@ -133,6 +139,13 @@ interface UnitMetrics {
 }
 
 const LOG_SAMPLE_LIMIT = 3
+
+function createRunId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
 
 // Keywords that reliably indicate a non-food product regardless of vector similarity.
 // Used to gate the vector fast-path, which would otherwise accept e.g. "Coconut Body Butter"
@@ -355,7 +368,8 @@ function maybeRetainVarietyCanonical(params: {
 async function resolveIngredientCandidates(
   rows: IngredientMatchQueueRow[],
   config: QueueWorkerConfig,
-  unitByRowId?: Map<string, UnitStandardizationResult>
+  unitByRowId?: Map<string, UnitStandardizationResult>,
+  telemetry?: IngredientResolutionTelemetry
 ): Promise<Map<string, IngredientStandardizationResult>> {
   const targetRows = rows.filter((row) => row.needs_ingredient_review)
   if (!targetRows.length) return new Map()
@@ -389,6 +403,7 @@ async function resolveIngredientCandidates(
       }
 
       rowToInputKey.set(row.id, dedupeKey)
+      telemetry?.recordInput(row.id, dedupeKey, searchTerm, context)
 
       if (
         !config.dryRun &&
@@ -436,8 +451,10 @@ async function resolveIngredientCandidates(
 
       if (cachedResult) {
         aiResultByKey.set(input.id, cachedResult)
+        telemetry?.recordCache(input.id, true, cachedResult.canonicalName)
         cacheHitCount += 1
       } else {
+        telemetry?.recordCache(input.id, false)
         aiInputs.push({ id: input.id, name: input.name })
       }
     }
@@ -466,6 +483,7 @@ async function resolveIngredientCandidates(
         const input = aiInputs[i]
         if (likelyNonFoodByKeyword(input.name)) {
           vectorFastPathNonFoodSkips.push(`"${input.name}"`)
+          telemetry?.recordLikelyNonFoodVectorSkip(input.id)
           continue
         }
         try {
@@ -479,6 +497,7 @@ async function resolveIngredientCandidates(
               category: vectorMatch.matchedCategory ?? null,
               confidence: vectorMatch.finalScore,
             })
+            telemetry?.recordVectorFastPath(input.id, vectorMatch)
             aiInputs.splice(i, 1)
             vectorFastPathHits.push(`"${input.name}" → "${vectorMatch.matchedName}" (${vectorMatch.finalScore.toFixed(3)})`)
           }
@@ -512,11 +531,13 @@ async function resolveIngredientCandidates(
       for (const input of aiInputs) {
         try {
           const candidates = await resolveVectorCandidates(input.name, embeddingModel)
+          telemetry?.recordVectorHints(input.id, candidates, embeddingModel)
           if (candidates.length > 0) {
             vectorHintsByKey.set(input.id, candidates.map((c) => c.matchedName))
             hintCount++
           }
         } catch {
+          telemetry?.recordVectorHints(input.id, [], embeddingModel)
           // Silently skip — LLM will proceed without hints for this input
         }
       }
@@ -532,14 +553,21 @@ async function resolveIngredientCandidates(
             return hints ? { ...input, vectorCandidates: hints } : input
           })
         : aiInputs
+      const llmStartedAt = Date.now()
       const standardizerResult = await runStandardizerProcessor({
         mode: "ingredient",
         inputs: aiInputsWithHints,
         context,
       })
+      telemetry?.recordLLMBatch(
+        aiInputs.map((input) => input.id),
+        context,
+        Date.now() - llmStartedAt
+      )
       const aiResults = standardizerResult.results
       for (const result of aiResults) {
         aiResultByKey.set(result.id, result)
+        telemetry?.recordLLMResult(result.id, result)
       }
 
       const cacheWrites: Array<{ key: string; value: IngredientLocalCachePayload }> = []
@@ -743,15 +771,25 @@ async function rerunUnitCandidatesWithIngredientContext(
   return merged
 }
 
-async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorkerConfig): Promise<ResolveBatchResult> {
+async function resolveBatch(
+  rows: IngredientMatchQueueRow[],
+  config: QueueWorkerConfig,
+  runId: string
+): Promise<ResolveBatchResult> {
   const detailedResults: ResolveBatchResult["results"] = config.dryRun ? [] : undefined
   const unitMetrics = emptyUnitMetrics()
+  const telemetry = new IngredientResolutionTelemetry({
+    rows,
+    runId,
+    resolver: config.resolverName,
+  })
   const missingCategoryFallbackCanonicals = new Set<string>()
   const validRows = rows.filter((row) => {
     const searchTerm = getSearchTerm(row)
     if (!searchTerm) {
       const reason = "Row missing a canonicalizable ingredient name"
       console.warn(`[QueueResolver] Row ${row.id} ${reason}.`)
+      telemetry.recordFailed(row.id, reason)
       if (!config.dryRun) {
         ingredientMatchQueueDB.markFailed(row.id, config.resolverName, reason).catch(console.error)
       }
@@ -761,11 +799,12 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
   })
 
   if (!validRows.length) {
-    return { resolved: 0, failed: rows.length, unitMetrics, results: detailedResults }
+    return { resolved: 0, failed: rows.length, unitMetrics, telemetryEvents: telemetry.completeEvents(), results: detailedResults }
   }
 
   let processableRows: IngredientMatchQueueRow[] = validRows
   let shortCircuitResolvedCount = 0
+  const nonFoodShortCircuitRowIds = new Set<string>()
 
   try {
     const learnedVarietySensitivity = await getLearnedVarietySensitivity()
@@ -780,7 +819,6 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       ? await ingredientMatchQueueDB.fetchKnownNonFoodProductMappingIds(mappingIdsToCheck)
       : new Set<string>()
 
-    const nonFoodShortCircuitRowIds = new Set<string>()
     const shortCircuitWritePromises: Promise<unknown>[] = []
     for (const row of validRows) {
       if (
@@ -789,13 +827,15 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         knownNonFoodMappingIds.has(row.product_mapping_id)
       ) {
         nonFoodShortCircuitRowIds.add(row.id)
+        const shortCircuitCanonical =
+          normalizeCanonicalName(row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "") ||
+          "unknown"
+        telemetry.recordNonFoodShortCircuit(row.id, shortCircuitCanonical)
         if (!config.dryRun) {
           shortCircuitWritePromises.push(
             ingredientMatchQueueDB.markResolved({
               rowId: row.id,
-              canonicalName:
-                normalizeCanonicalName(row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "") ||
-                "unknown",
+              canonicalName: shortCircuitCanonical,
               resolvedIngredientId: null,
               confidence: 0,
               resolver: config.resolverName,
@@ -821,7 +861,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       : validRows
 
     const firstPassUnitByRowId = await resolveUnitCandidates(processableRows, undefined, config)
-    const ingredientByRowId = await resolveIngredientCandidates(processableRows, config, firstPassUnitByRowId)
+    const ingredientByRowId = await resolveIngredientCandidates(processableRows, config, firstPassUnitByRowId, telemetry)
     const unitByRowId = await rerunUnitCandidatesWithIngredientContext(
       processableRows,
       firstPassUnitByRowId,
@@ -844,6 +884,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
         let confidenceTokenCount: number | null = null
         let createdNewCanonical = false
         let titleNonFoodOverride = false
+        let resolvedIngredientIdForTelemetry: string | null = null
 
         try {
           if (!needsIngredient && !needsUnit) {
@@ -864,6 +905,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
             if (titleNonFoodOverride) {
               normalizedCanonical = normalizeCanonicalName(sourceSearchTerm)
               ingredientCategory = null
+              telemetry.recordTitleNonFoodOverride(row.id, normalizedCanonical)
               console.log(
                 `[QueueResolver] Non-food title override for "${normalizeCanonicalName(sourceSearchTerm)}" ` +
                   `(model_canonical="${normalizeCanonicalName(ingredientResult.canonicalName)}")`
@@ -875,7 +917,9 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               modelCanonical: normalizedCanonical,
             })
             if (formRetention) {
+              const originalCanonical = normalizedCanonical
               normalizedCanonical = formRetention.canonicalName
+              telemetry.recordFormRetention(row.id, originalCanonical, normalizedCanonical, formRetention.reason)
               console.log(
                 `[QueueResolver] Form retention kept "${normalizeCanonicalName(sourceSearchTerm)}" ` +
                   `over model canonical "${normalizeCanonicalName(ingredientResult.canonicalName)}" ` +
@@ -889,7 +933,9 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               learnedSensitivity: learnedVarietySensitivity,
             })
             if (varietyRetention) {
+              const originalCanonical = normalizedCanonical
               normalizedCanonical = varietyRetention.canonicalName
+              telemetry.recordVarietyRetention(row.id, originalCanonical, normalizedCanonical, varietyRetention.reason)
               console.log(
                 `[QueueResolver] Variety retention kept "${normalizeCanonicalName(sourceSearchTerm)}" ` +
                   `over model canonical "${normalizeCanonicalName(ingredientResult.canonicalName)}" ` +
@@ -899,6 +945,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
             const strippedRetailCanonical = stripRetailSuffixTokensFromCanonicalName(normalizedCanonical)
             if (strippedRetailCanonical) {
+              telemetry.recordRetailStrip(row.id, normalizedCanonical, strippedRetailCanonical)
               console.log(
                 `[QueueResolver] Stripped retail suffix "${normalizedCanonical}" -> "${strippedRetailCanonical}"`
               )
@@ -931,6 +978,12 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               const confidenceCalibration = confidenceCalibrator.calibrate(rawIngredientConfidence)
               calibratedIngredientConfidence = confidenceCalibration.calibrated
               ingredientConfidence = calibratedIngredientConfidence
+              telemetry.recordCalibration(
+                row.id,
+                rawIngredientConfidence,
+                calibratedIngredientConfidence,
+                confidenceCalibrator.totalSamples
+              )
 
               if (Math.abs(confidenceCalibration.calibrated - rawIngredientConfidence) >= 0.08) {
                 console.log(
@@ -947,6 +1000,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                 ingredientConfidence,
                 config
               )
+              telemetry.recordDoubleCheck(row.id, normalizedCanonical, canonicalForWrite)
               if (!canonicalForWrite) {
                 throw new Error("Canonical name became empty after double-check")
               }
@@ -962,6 +1016,12 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                 : rawIngredientConfidence
               ingredientConfidence = calibratedIngredientConfidence
               canonicalForWrite = normalizedCanonical
+              telemetry.recordCalibration(
+                row.id,
+                rawIngredientConfidence,
+                calibratedIngredientConfidence,
+                confidenceCalibrator.totalSamples
+              )
             }
 
             confidenceTokenCount = normalizeCanonicalName(canonicalForWrite).split(" ").filter(Boolean).length
@@ -1042,6 +1102,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                   const embeddingModel = getEmbeddingModel()
                   const semanticMatch = await resolveVectorMatch(canonicalForWrite, embeddingModel, ingredientCategory)
                   if (semanticMatch && semanticMatch.finalScore >= SEMANTIC_DEDUP_THRESHOLD) {
+                    const originalCanonical = canonicalForWrite
                     const remappedCanonical = semanticMatch.matchedName
                     existingCanonical = await standardizedIngredientsDB.findByCanonicalName(remappedCanonical)
                     if (existingCanonical) {
@@ -1051,6 +1112,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
                       )
                       canonicalForWrite = remappedCanonical
                       ingredientCategory = semanticMatch.matchedCategory ?? ingredientCategory
+                      telemetry.recordSemanticDedup(row.id, originalCanonical, remappedCanonical, semanticMatch)
                     }
                   }
                 } catch (vectorError) {
@@ -1145,6 +1207,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               if (!standardized?.id) {
                 throw new Error("Failed to upsert standardized ingredient")
               }
+              resolvedIngredientIdForTelemetry = standardized.id
 
               if (needsUnit && shouldWriteUnit && unitResult?.status === "success") {
                 const success = await ingredientMatchQueueDB.markResolved({
@@ -1284,6 +1347,13 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
               })
           }
 
+          telemetry.recordResolved(row.id, {
+            canonicalName: canonicalForWrite,
+            canonicalId: resolvedIngredientIdForTelemetry,
+            isFoodItem,
+            confidence: ingredientConfidence,
+          })
+
           return {
             rowId: row.id,
             originalName: row.cleaned_name || row.raw_product_name || "",
@@ -1371,6 +1441,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
       const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason)
       const isProbationHold = isCanonicalProbationHoldError(errorMessage)
+      telemetry.recordFailed(row.id, errorMessage, isProbationHold)
       const existingFailure = failedByReason.get(errorMessage)
       if (!existingFailure) {
         failedByReason.set(errorMessage, {
@@ -1424,21 +1495,39 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       )
     }
 
-    return { resolved, failed: failed + (rows.length - validRows.length), unitMetrics, results: detailedResults }
+    return {
+      resolved,
+      failed: failed + (rows.length - validRows.length),
+      unitMetrics,
+      telemetryEvents: telemetry.completeEvents(),
+      results: detailedResults,
+    }
   } catch (error) {
     console.error("[QueueResolver] Batch processing failed:", error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    for (const row of processableRows) {
+      if (!nonFoodShortCircuitRowIds.has(row.id)) {
+        telemetry.recordFailed(row.id, errorMessage)
+      }
+    }
     if (!config.dryRun) {
       await Promise.allSettled(
         processableRows.map((row) =>
           ingredientMatchQueueDB.markFailed(
             row.id,
             config.resolverName,
-            error instanceof Error ? error.message : String(error)
+            errorMessage
           )
         )
       )
     }
-    return { resolved: shortCircuitResolvedCount, failed: rows.length - shortCircuitResolvedCount, unitMetrics, results: detailedResults }
+    return {
+      resolved: shortCircuitResolvedCount,
+      failed: rows.length - shortCircuitResolvedCount,
+      unitMetrics,
+      telemetryEvents: telemetry.completeEvents(),
+      results: detailedResults,
+    }
   }
 }
 
@@ -1472,6 +1561,17 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
   let totalFailed = 0
   const totalUnitMetrics = emptyUnitMetrics()
   const dryRunResults: ResolveBatchResult["results"] = config.dryRun ? [] : undefined
+  const runId = createRunId()
+  const runStartedAt = Date.now()
+  const runStartedAtIso = new Date(runStartedAt).toISOString()
+  const allTelemetryEvents: IngredientResolutionEvent[] = []
+  const queueDepthAtStart = config.dryRun ? null : await ingredientMatchQueueDB.fetchQueueDepth()
+
+  if (!config.dryRun) {
+    ingredientMatchQueueDB.snapshotQueueHealth().catch((error) => {
+      console.warn("[QueueResolver] Failed to snapshot queue health at run start:", error)
+    })
+  }
 
   while (true) {
     if (config.maxCycles > 0 && cycle >= config.maxCycles) {
@@ -1525,7 +1625,7 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
       console.log(
         `[QueueResolver] ${modePrefix}Processing chunk ${index + 1}/${chunks.length} (${chunk.length} items)`
       )
-      const result = await resolveBatch(chunk, config)
+      const result = await resolveBatch(chunk, config, runId)
       console.log(
         `[QueueResolver] ${modePrefix}Chunk ${index + 1} complete ` +
           `(resolved=${result.resolved}, failed=${result.failed})`
@@ -1543,6 +1643,7 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
       cycleUnitMetrics.mapMissThenFallback += result.unitMetrics.mapMissThenFallback
       cycleUnitMetrics.aiSuccess += result.unitMetrics.aiSuccess
       cycleUnitMetrics.aiError += result.unitMetrics.aiError
+      allTelemetryEvents.push(...result.telemetryEvents)
       if (config.dryRun && result.results && dryRunResults) {
         dryRunResults.push(...result.results)
       }
@@ -1581,6 +1682,39 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
         `(unit_map_miss_then_fallback=${totalUnitMetrics.mapMissThenFallback}, ` +
         `unit_ai_success=${totalUnitMetrics.aiSuccess}, unit_ai_error=${totalUnitMetrics.aiError})`
     )
+  }
+
+  if (allTelemetryEvents.length > 0) {
+    for (const event of allTelemetryEvents) {
+      process.stdout.write(JSON.stringify({ _type: "ingredient_resolution_event", ...event }) + "\n")
+    }
+
+    if (!config.dryRun) {
+      const wroteLogs = await ingredientMatchQueueDB.insertIngredientResolutionLogs(allTelemetryEvents)
+      if (!wroteLogs) {
+        console.warn("[QueueResolver] Failed to persist ingredient resolution observability logs")
+      }
+    }
+  }
+
+  if (!config.dryRun) {
+    const queueDepthAtEnd = await ingredientMatchQueueDB.fetchQueueDepth()
+    ingredientMatchQueueDB.snapshotQueueHealth().catch((error) => {
+      console.warn("[QueueResolver] Failed to snapshot queue health at run end:", error)
+    })
+
+    if (cycle > 0) {
+      const obsSummary = summarizeIngredientResolutionEvents(allTelemetryEvents)
+      await ingredientMatchQueueDB.insertIngredientWorkerRunLog({
+        runId,
+        resolver: config.resolverName,
+        ...obsSummary,
+        queueDepthAtStart,
+        queueDepthAtEnd,
+        runDurationMs: Date.now() - runStartedAt,
+        startedAt: runStartedAtIso,
+      })
+    }
   }
 
   return {

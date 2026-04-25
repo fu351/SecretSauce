@@ -1,5 +1,6 @@
 import { BaseTable } from "./base-db"
 import type { Database } from "./supabase"
+import type { IngredientResolutionEvent } from "../observability/ingredient-resolution"
 
 export type IngredientMatchQueueStatus = "pending" | "processing" | "resolved" | "failed" | "probation"
 export type IngredientMatchQueueReviewMode = "ingredient" | "unit" | "any"
@@ -48,6 +49,35 @@ export interface IngredientConfidenceCalibrationBinRow {
   sample_count: number
   accepted_count: number
   acceptance_rate: number
+}
+
+export interface IngredientWorkerRunLogInsert {
+  runId: string
+  resolver: string
+  itemsClaimed: number
+  itemsResolved: number
+  itemsFailed: number
+  itemsProbation: number
+  resolvedNonFoodSkip: number
+  resolvedFromCache: number
+  resolvedVectorAuto: number
+  resolvedLlm: number
+  resolvedLlmDoubleCheckOverrode: number
+  resolvedLlmFormOverrode: number
+  resolvedLlmVarietyOverrode: number
+  resolvedNonFoodPostProcessing: number
+  llmCallsTotal: number
+  llmHintPoolHits: number
+  llmHintPoolMisses: number
+  doubleCheckRemaps: number
+  formRetentionOverrides: number
+  varietyRetentionOverrides: number
+  semanticDedupRemaps: number
+  queueDepthAtStart?: number | null
+  queueDepthAtEnd?: number | null
+  runDurationMs: number
+  startedAt: string
+  completedAt?: string
 }
 
 class IngredientMatchQueueTable extends BaseTable<
@@ -688,6 +718,134 @@ class IngredientMatchQueueTable extends BaseTable<
     return new Set(
       (data || []).map((row) => row.product_mapping_id).filter(Boolean) as string[]
     )
+  }
+
+  async insertIngredientResolutionLogs(events: IngredientResolutionEvent[]): Promise<boolean> {
+    if (!events.length) return true
+
+    const rows = events.map((event) => ({
+      event_id: event.event_id,
+      queue_row_id: event.queue_row_id,
+      product_mapping_id: event.product_mapping_id,
+      recipe_ingredient_id: event.recipe_ingredient_id,
+      worker_run_id: event.run_id,
+      resolver: event.resolver,
+      raw_name: event.raw_name,
+      cleaned_name: event.cleaned_name,
+      source_search_term: event.source_search_term,
+      input_key: event.input_key,
+      context: event.context,
+      source: event.source,
+      winning_phase: event.winning_phase,
+      phases_reached: event.phases_reached,
+      decision: event.decision,
+      final_canonical_id: event.final_canonical_id,
+      final_canonical_name: event.final_canonical_name,
+      is_food_item: event.is_food_item,
+      raw_confidence: event.raw_confidence,
+      calibrated_confidence: event.calibrated_confidence,
+      calibrator_samples: event.calibrator_samples,
+      cache_checked: event.cache_checked,
+      cache_hit: event.cache_hit,
+      vector_top_score: event.vector_top_score,
+      vector_top_canonical: event.vector_top_canonical,
+      vector_candidate_count: event.vector_candidate_count,
+      vector_embedding_model: event.vector_embedding_model,
+      llm_called: event.llm_called,
+      llm_context: event.llm_context,
+      llm_latency_ms: event.llm_latency_ms,
+      llm_output_canonical: event.llm_output_canonical,
+      llm_output_confidence: event.llm_output_confidence,
+      llm_canonical_was_in_hint_pool: event.llm_canonical_was_in_hint_pool,
+      llm_canonical_was_in_vector_pool: event.llm_canonical_was_in_vector_pool,
+      double_check_changed: event.double_check_changed,
+      double_check_original: event.double_check_original,
+      double_check_remapped: event.double_check_remapped,
+      form_retention_overrode: event.form_retention_overrode,
+      form_retention_reason: event.form_retention_reason,
+      variety_retention_overrode: event.variety_retention_overrode,
+      variety_retention_reason: event.variety_retention_reason,
+      retail_tokens_stripped: event.retail_tokens_stripped,
+      retail_strip_before: event.retail_strip_before,
+      retail_strip_after: event.retail_strip_after,
+      semantic_dedup_changed: event.semantic_dedup_changed,
+      semantic_dedup_original: event.semantic_dedup_original,
+      semantic_dedup_remapped: event.semantic_dedup_remapped,
+      failure_reason: event.failure_reason,
+      candidates: event.candidates,
+      total_latency_ms: event.total_latency_ms,
+      created_at: event.created_at,
+    }))
+
+    const { error } = await (this.supabase.from as any)("ingredient_resolution_log").insert(rows)
+    if (error) {
+      this.handleError(error, "insertIngredientResolutionLogs")
+      return false
+    }
+
+    return true
+  }
+
+  async insertIngredientWorkerRunLog(params: IngredientWorkerRunLogInsert): Promise<boolean> {
+    const { error } = await (this.supabase.from as any)("ingredient_worker_run_log").insert({
+      run_id: params.runId,
+      resolver: params.resolver,
+      items_claimed: params.itemsClaimed,
+      items_resolved: params.itemsResolved,
+      items_failed: params.itemsFailed,
+      items_probation: params.itemsProbation,
+      resolved_non_food_skip: params.resolvedNonFoodSkip,
+      resolved_from_cache: params.resolvedFromCache,
+      resolved_vector_auto: params.resolvedVectorAuto,
+      resolved_llm: params.resolvedLlm,
+      resolved_llm_double_check_overrode: params.resolvedLlmDoubleCheckOverrode,
+      resolved_llm_form_overrode: params.resolvedLlmFormOverrode,
+      resolved_llm_variety_overrode: params.resolvedLlmVarietyOverrode,
+      resolved_non_food_post_processing: params.resolvedNonFoodPostProcessing,
+      llm_calls_total: params.llmCallsTotal,
+      llm_hint_pool_hits: params.llmHintPoolHits,
+      llm_hint_pool_misses: params.llmHintPoolMisses,
+      double_check_remaps: params.doubleCheckRemaps,
+      form_retention_overrides: params.formRetentionOverrides,
+      variety_retention_overrides: params.varietyRetentionOverrides,
+      semantic_dedup_remaps: params.semanticDedupRemaps,
+      queue_depth_at_start: params.queueDepthAtStart ?? null,
+      queue_depth_at_end: params.queueDepthAtEnd ?? null,
+      run_duration_ms: params.runDurationMs,
+      started_at: params.startedAt,
+      completed_at: params.completedAt ?? new Date().toISOString(),
+    })
+
+    if (error) {
+      this.handleError(error, "insertIngredientWorkerRunLog")
+      return false
+    }
+
+    return true
+  }
+
+  async snapshotQueueHealth(): Promise<boolean> {
+    const { error } = await (this.supabase.rpc as any)("snapshot_ingredient_queue_health")
+    if (error) {
+      this.handleError(error, "snapshotQueueHealth")
+      return false
+    }
+
+    return true
+  }
+
+  async fetchQueueDepth(): Promise<number | null> {
+    const { count, error } = await this.supabase
+      .from(this.tableName)
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+
+    if (error) {
+      this.handleError(error, "fetchQueueDepth")
+      return null
+    }
+
+    return count ?? 0
   }
 
   async requeueExpired(limit = 1000, errorMessage?: string): Promise<number> {
