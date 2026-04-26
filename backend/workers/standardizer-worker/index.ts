@@ -1,3 +1,7 @@
+export { getActiveProvider, getShadowProvider } from "./provider-router"
+
+export { type StandardizerProvider, type StandardizerOptions } from "./provider"
+
 export {
   runStandardizerProcessor,
   type IngredientStandardizationProcessorJob,
@@ -21,6 +25,7 @@ export {
 
 export {
   standardizeIngredientsWithAI,
+  parseIngredientStandardizationPayload,
   resolveIngredientStandardizerContext,
   getIngredientStandardizerContextRules,
   type IngredientStandardizationInput,
@@ -33,6 +38,7 @@ export {
   standardizeUnitsWithAI,
   normalizeUnitLabel,
   parseUnitStandardizationPayload,
+  normalizeUnitStandardizerInputs,
   SUPPORTED_UNIT_LABELS,
   type UnitStandardizationInput,
   type UnitStandardizationResult,

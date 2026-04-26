@@ -288,6 +288,19 @@ function parseParsedPayload(
   })
 }
 
+export function normalizeUnitStandardizerInputs(
+  inputs: UnitStandardizationInput[]
+): UnitStandardizerPromptInput[] {
+  return inputs.map((input) => ({
+    id: input.id,
+    rawProductName: mergeRawProductNameWithUnit(input),
+    cleanedName: input.cleanedName ?? input.rawProductName,
+    rawUnit: input.rawUnit ?? "",
+    source: input.source,
+    knownIngredientCanonicalName: input.knownIngredientCanonicalName ?? undefined,
+  }))
+}
+
 export function parseUnitStandardizationPayload(
   inputs: UnitStandardizationInput[],
   parsed: unknown

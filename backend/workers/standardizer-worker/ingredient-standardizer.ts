@@ -477,6 +477,105 @@ function fallbackResults(inputs: IngredientStandardizationInput[]): IngredientSt
   }))
 }
 
+export function parseIngredientStandardizationPayload(
+  inputs: IngredientStandardizationInput[],
+  parsed: unknown
+): IngredientStandardizationResult[] {
+  const resultEntries: any[] = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray((parsed as any)?.results)
+      ? (parsed as any).results
+      : []
+
+  if (resultEntries.length === 0) {
+    return fallbackResults(inputs)
+  }
+
+  const entriesById = new Map<string, any>()
+  resultEntries.forEach((entry) => {
+    if (!entry) return
+    const entryId =
+      typeof entry.id === "string"
+        ? entry.id
+        : typeof entry.rowId === "string"
+          ? entry.rowId
+          : undefined
+    if (entryId) {
+      entriesById.set(entryId, entry)
+    }
+  })
+
+  const parseConfidence = (value: unknown, fallback: number): number => {
+    const numeric =
+      typeof value === "number"
+        ? value
+        : typeof value === "string"
+          ? parseFloat(value)
+          : NaN
+    return Number.isFinite(numeric) && numeric >= 0 && numeric <= 1 ? numeric : fallback
+  }
+
+  return inputs.map((input, index) => {
+    const entry = entriesById.get(input.id) ?? resultEntries[index]
+    const status = typeof entry?.status === "string" ? entry.status.toLowerCase() : "success"
+    const useEntry = Boolean(entry && status === "success")
+    const modelId =
+      typeof entry?.id === "string"
+        ? entry.id
+        : typeof entry?.rowId === "string"
+          ? entry.rowId
+          : null
+
+    if (modelId && modelId !== input.id) {
+      console.warn(
+        `[IngredientStandardizer] Model id mismatch for "${input.name}": expected "${input.id}", got "${modelId}". Using expected id.`
+      )
+    }
+
+    const canonicalSource =
+      useEntry && typeof entry?.canonicalName === "string"
+        ? entry.canonicalName
+        : useEntry && typeof entry?.canonical === "string"
+          ? entry.canonical
+          : undefined
+    const canonicalCandidate = normalizeCanonicalOutput(canonicalSource || "")
+    const normalizedInputName = normalizeCanonicalOutput(input.name)
+    const resolvedCanonicalName =
+      canonicalCandidate && canonicalCandidate.length > 0
+        ? canonicalCandidate
+        : normalizedInputName || input.name.toLowerCase()
+
+    const confidence = useEntry
+      ? parseConfidence(entry?.confidence ?? entry?.confidenceScore, 0.5)
+      : 0.2
+    const inferredNonFood = hasNonFoodTitleSignals(input.name)
+    const isFoodItem = inferredNonFood
+      ? false
+      : useEntry
+      ? typeof entry?.isFoodItem === "boolean"
+        ? entry.isFoodItem
+        : typeof entry?.is_food_item === "boolean"
+          ? entry.is_food_item
+          : true
+      : true
+    const category =
+      isFoodItem && useEntry && typeof entry?.category === "string" ? entry.category : null
+    const originalName =
+      typeof entry?.originalName === "string" ? entry.originalName : input.name
+
+    return {
+      // Keep the original input id stable. Some model outputs emit rewritten ids,
+      // which breaks downstream row mapping in queue processing.
+      id: String(input.id ?? index),
+      originalName,
+      canonicalName: inferredNonFood ? normalizedInputName || resolvedCanonicalName : resolvedCanonicalName,
+      isFoodItem,
+      category,
+      confidence: inferredNonFood ? Math.min(confidence, 0.12) : confidence,
+    }
+  })
+}
+
 export async function standardizeIngredientsWithAI(
   inputs: IngredientStandardizationInput[],
   context: IngredientStandardizerContext
@@ -520,100 +619,7 @@ export async function standardizeIngredientsWithAI(
       return fallbackResults(inputs)
     }
 
-    const resultEntries: any[] = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.results)
-        ? parsed.results
-        : []
-
-    if (resultEntries.length === 0) {
-      console.warn("[IngredientStandardizer] OpenAI payload contained no results")
-      return fallbackResults(inputs)
-    }
-
-    const entriesById = new Map<string, any>()
-    resultEntries.forEach((entry) => {
-      if (!entry) return
-      const entryId =
-        typeof entry.id === "string"
-          ? entry.id
-          : typeof entry.rowId === "string"
-            ? entry.rowId
-            : undefined
-      if (entryId) {
-        entriesById.set(entryId, entry)
-      }
-    })
-
-    const parseConfidence = (value: unknown, fallback: number): number => {
-      const numeric =
-        typeof value === "number"
-          ? value
-          : typeof value === "string"
-            ? parseFloat(value)
-            : NaN
-      return Number.isFinite(numeric) && numeric >= 0 && numeric <= 1 ? numeric : fallback
-    }
-
-    return inputs.map((input, index) => {
-      const entry = entriesById.get(input.id) ?? resultEntries[index]
-      const status = typeof entry?.status === "string" ? entry.status.toLowerCase() : "success"
-      const useEntry = Boolean(entry && status === "success")
-      const modelId =
-        typeof entry?.id === "string"
-          ? entry.id
-          : typeof entry?.rowId === "string"
-            ? entry.rowId
-            : null
-
-      if (modelId && modelId !== input.id) {
-        console.warn(
-          `[IngredientStandardizer] Model id mismatch for "${input.name}": expected "${input.id}", got "${modelId}". Using expected id.`
-        )
-      }
-
-      const canonicalSource =
-        useEntry && typeof entry?.canonicalName === "string"
-          ? entry.canonicalName
-          : useEntry && typeof entry?.canonical === "string"
-            ? entry.canonical
-            : undefined
-      const canonicalCandidate = normalizeCanonicalOutput(canonicalSource || "")
-      const normalizedInputName = normalizeCanonicalOutput(input.name)
-      const resolvedCanonicalName =
-        canonicalCandidate && canonicalCandidate.length > 0
-          ? canonicalCandidate
-          : normalizedInputName || input.name.toLowerCase()
-
-      const confidence = useEntry
-        ? parseConfidence(entry?.confidence ?? entry?.confidenceScore, 0.5)
-        : 0.2
-      const inferredNonFood = hasNonFoodTitleSignals(input.name)
-      const isFoodItem = inferredNonFood
-        ? false
-        : useEntry
-        ? typeof entry?.isFoodItem === "boolean"
-          ? entry.isFoodItem
-          : typeof entry?.is_food_item === "boolean"
-            ? entry.is_food_item
-            : true
-        : true
-      const category =
-        isFoodItem && useEntry && typeof entry?.category === "string" ? entry.category : null
-      const originalName =
-        typeof entry?.originalName === "string" ? entry.originalName : input.name
-
-      return {
-        // Keep the original input id stable. Some model outputs emit rewritten ids,
-        // which breaks downstream row mapping in queue processing.
-        id: String(input.id ?? index),
-        originalName,
-        canonicalName: inferredNonFood ? normalizedInputName || resolvedCanonicalName : resolvedCanonicalName,
-        isFoodItem,
-        category,
-        confidence: inferredNonFood ? Math.min(confidence, 0.12) : confidence,
-      }
-    })
+    return parseIngredientStandardizationPayload(inputs, parsed)
   } catch (error) {
     console.error("[IngredientStandardizer] OpenAI failed:", error)
     console.error(`[IngredientStandardizer] Error type: ${error instanceof Error ? error.constructor.name : typeof error}`)
