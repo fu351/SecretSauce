@@ -87,7 +87,7 @@ Common optional knobs:
    - normalize and dedupe search terms
    - reuse local AI cache when possible
    - try vector fast-path for high-confidence matches
-   - augment remaining LLM calls with vector hints
+   - augment remaining LLM calls with unified candidate hints from vector, fuzzy IDF, and MinHash generators
    - in `dynamic` mode, route recipe-created rows through `QUEUE_RECIPE_STANDARDIZER_CONTEXT` and scraper-created rows through `QUEUE_SCRAPER_STANDARDIZER_CONTEXT`
    - standardize ingredients with AI
 6. Apply canonical safeguards before writes:

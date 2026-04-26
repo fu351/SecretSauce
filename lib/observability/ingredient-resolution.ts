@@ -1,4 +1,5 @@
 import type { IngredientStandardizationResult } from "../../backend/workers/standardizer-worker"
+import type { Candidate } from "../../backend/workers/ingredient-worker/candidates/types"
 import type { VectorMatchCandidate } from "../../backend/workers/ingredient-worker/scoring/vector-match"
 import type { IngredientMatchQueueRow } from "../database/ingredient-match-queue-db"
 
@@ -34,7 +35,7 @@ export type IngredientResolutionDecision =
 export interface IngredientResolutionCandidateEntry {
   canonical_id?: string | null
   canonical_name: string
-  source: "vector_fast_path" | "vector_hint" | "semantic_dedup"
+  source: "vector_fast_path" | "vector_hint" | "fuzzy_log_idf" | "minhash_jaccard" | "semantic_dedup"
   rank?: number | null
   selected?: boolean
   scores?: Record<string, number | null>
@@ -142,6 +143,44 @@ function vectorCandidateToEntry(
     features: {
       category: candidate.matchedCategory,
       embedding_model: candidate.embeddingModel,
+    },
+  }
+}
+
+function unifiedCandidateToEntry(
+  candidate: Candidate,
+  rank: number
+): IngredientResolutionCandidateEntry {
+  const source = candidate.sources.includes("vector_hnsw")
+    ? "vector_hint"
+    : candidate.sources.includes("fuzzy_log_idf")
+      ? "fuzzy_log_idf"
+      : candidate.sources.includes("minhash_jaccard")
+        ? "minhash_jaccard"
+        : "vector_hint"
+
+  return {
+    canonical_id: candidate.canonicalId,
+    canonical_name: candidate.canonicalName,
+    source,
+    rank,
+    selected: false,
+    scores: {
+      vector: candidate.scores.vector ?? null,
+      fuzzy_log_idf: candidate.scores.fuzzyLogIdf ?? null,
+      minhash: candidate.scores.minhash ?? null,
+      alias_graph: candidate.scores.aliasGraph ?? null,
+      historical_accept_rate: candidate.scores.historicalAcceptRate ?? null,
+      merged: candidate.mergedScore ?? null,
+    },
+    features: {
+      sources: candidate.sources.join(","),
+      category: candidate.category ?? null,
+      head_noun_match: candidate.features.headNounMatch,
+      category_match: candidate.features.categoryMatch,
+      form_match: candidate.features.formMatch,
+      context_match: candidate.features.contextMatch,
+      word_ratio: candidate.features.wordRatio,
     },
   }
 }
@@ -290,6 +329,36 @@ export class IngredientResolutionTelemetry {
         event.vector_top_score = candidates[0].finalScore
         event.vector_top_canonical = candidates[0].matchedName
       }
+      this.addPhase(event, candidates.length > 0 ? "vector_hint_llm" : "llm_no_hints")
+    })
+  }
+
+  recordUnifiedCandidateHints(inputKey: string, candidates: Candidate[], embeddingModel: string): void {
+    const trace = this.inputByKey.get(inputKey)
+    const entries = candidates.map((candidate, index) => unifiedCandidateToEntry(candidate, index))
+    const vectorCandidates = candidates
+      .filter((candidate) => candidate.sources.includes("vector_hnsw"))
+      .sort((a, b) => (b.scores.vector ?? 0) - (a.scores.vector ?? 0))
+    if (trace) {
+      trace.candidates.push(...entries)
+      for (const candidate of candidates) {
+        trace.hintCanonicals.add(normalizeForCompare(candidate.canonicalName))
+        if (candidate.sources.includes("vector_hnsw")) {
+          trace.vectorCanonicals.add(normalizeForCompare(candidate.canonicalName))
+        }
+      }
+    }
+    this.forInputRows(inputKey, (event) => {
+      event.vector_candidate_count = vectorCandidates.length
+      event.vector_embedding_model = embeddingModel
+      event.candidates.push(...entries)
+
+      const topVector = vectorCandidates[0]
+      if (topVector) {
+        event.vector_top_score = topVector.scores.vector ?? null
+        event.vector_top_canonical = topVector.canonicalName
+      }
+
       this.addPhase(event, candidates.length > 0 ? "vector_hint_llm" : "llm_no_hints")
     })
   }

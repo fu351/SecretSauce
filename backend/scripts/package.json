@@ -17,6 +17,7 @@
     "ingredient-match-queue-pipeline-runner": "tsx ../orchestrators/ingredient-match-queue-pipeline/runner.ts",
     "canonical-medoid-pipeline-runner": "tsx ../orchestrators/canonical-medoid-pipeline/runner.ts",
     "regenerate-mappings": "node regenerate-mappings.js",
+    "update-minhash-signatures": "tsx --env-file=../../.env.local update-minhash-signatures.ts",
     "standardizer-baseline": "tsx --env-file=../../.env.local reports/ingredient-standardizer-baseline.ts",
     "standardizer-baseline:json": "tsx --env-file=../../.env.local reports/ingredient-standardizer-baseline.ts --json"
   },

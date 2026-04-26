@@ -40,12 +40,12 @@ import { localQueueAICache } from "./cache/local-ai-cache"
 import { getLearnedVarietySensitivity, type LearnedVarietySensitivity } from "./scoring/sensitive-token-learning"
 import {
   resolveVectorMatch,
-  resolveVectorCandidates,
   getEmbeddingModel,
   VECTOR_MATCH_HIGH_CONFIDENCE,
   SEMANTIC_DEDUP_THRESHOLD,
   PROTECTED_FORM_TOKENS,
 } from "./scoring/vector-match"
+import { resolveUnifiedIngredientCandidates } from "./candidates/resolve"
 import {
   shouldUsePackagedUnitFallback,
   shouldUsePackagedUnitFallbackAfterFailure,
@@ -525,37 +525,41 @@ async function resolveIngredientCandidates(
       }
     }
 
-    // LLM context augmentation (Phase 3b): for remaining AI-bound inputs, gather
-    // mid-confidence vector candidates and attach them as suggestedCandidates in
-    // the prompt.  The model converges toward existing vocabulary rather than
-    // inventing synonyms.  Embeddings are cached, so items checked during
-    // fast-path above incur no extra API call here.  Silently degrades on failure.
-    const vectorHintsByKey = new Map<string, string[]>()
+    // Unified candidate augmentation (Phase 3): for remaining AI-bound inputs,
+    // gather vector, fuzzy IDF, and MinHash candidates and attach the union as
+    // suggestedCandidates in the prompt. Silently degrades on generator failure.
+    const candidateHintsByKey = new Map<string, string[]>()
     if (!config.dryRun && aiInputs.length > 0) {
       const embeddingModel = getEmbeddingModel()
       let hintCount = 0
       for (const input of aiInputs) {
         try {
-          const candidates = await resolveVectorCandidates(input.name, embeddingModel)
-          telemetry?.recordVectorHints(input.id, candidates, embeddingModel)
-          if (candidates.length > 0) {
-            vectorHintsByKey.set(input.id, candidates.map((c) => c.matchedName))
+          const candidatePool = await resolveUnifiedIngredientCandidates({
+            cleanedName: input.name,
+            context,
+            topK: 15,
+            hintLimit: 20,
+          })
+          telemetry?.recordUnifiedCandidateHints(input.id, candidatePool.candidates, embeddingModel)
+          if (candidatePool.hintNames.length > 0) {
+            candidateHintsByKey.set(input.id, candidatePool.hintNames)
             hintCount++
           }
-        } catch {
-          telemetry?.recordVectorHints(input.id, [], embeddingModel)
+        } catch (error) {
+          console.warn("[QueueResolver] unified candidates unavailable:", (error as Error).message)
+          telemetry?.recordUnifiedCandidateHints(input.id, [], embeddingModel)
           // Silently skip — LLM will proceed without hints for this input
         }
       }
       if (hintCount > 0) {
-        console.log(`[QueueResolver] Vector context augmentation: ${hintCount}/${aiInputs.length} input(s) have mid-confidence hints`)
+        console.log(`[QueueResolver] Unified candidate augmentation: ${hintCount}/${aiInputs.length} input(s) have hints`)
       }
     }
 
     if (aiInputs.length > 0) {
-      const aiInputsWithHints = vectorHintsByKey.size > 0
+      const aiInputsWithHints = candidateHintsByKey.size > 0
         ? aiInputs.map((input) => {
-            const hints = vectorHintsByKey.get(input.id)
+            const hints = candidateHintsByKey.get(input.id)
             return hints ? { ...input, vectorCandidates: hints } : input
           })
         : aiInputs
