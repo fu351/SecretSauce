@@ -10,7 +10,7 @@ import {
   summarizeUnitStandardization,
   type StandardizerRunSummary,
 } from "./utils"
-import { getActiveProvider, getShadowProvider } from "./provider-router"
+import { getActiveProvider } from "./provider-router"
 
 export interface IngredientStandardizationProcessorJob {
   mode: "ingredient"
@@ -55,16 +55,11 @@ export async function runStandardizerProcessor(
   job: StandardizerProcessorJob
 ): Promise<StandardizerProcessorResult> {
   const provider = getActiveProvider()
-  const shadow = getShadowProvider()
 
   if (job.mode === "ingredient") {
     const context = resolveIngredientStandardizerContext(job.context)
     const opts = { context }
     const results = await provider.standardizeIngredients(job.inputs, opts)
-
-    if (shadow) {
-      shadow.standardizeIngredients(job.inputs, opts).catch(() => {})
-    }
 
     return {
       mode: "ingredient",
@@ -75,10 +70,6 @@ export async function runStandardizerProcessor(
   }
 
   const results = await provider.standardizeUnits(job.inputs)
-
-  if (shadow) {
-    shadow.standardizeUnits(job.inputs).catch(() => {})
-  }
 
   return {
     mode: "unit",

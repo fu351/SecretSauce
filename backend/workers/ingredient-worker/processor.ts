@@ -6,11 +6,13 @@ import {
 import { standardizedIngredientsDB } from "../../../lib/database/standardized-ingredients-db"
 import {
   runStandardizerProcessor,
+  getShadowProvider,
   type IngredientStandardizerContext,
   type IngredientStandardizationResult,
   type UnitStandardizationInput,
   type UnitStandardizationResult,
 } from "../standardizer-worker"
+import { writeShadowComparison } from "./shadow-writer"
 import { normalizeConfidence } from "../../../lib/utils/number"
 import { normalizeCanonicalName, singularizeCanonicalName } from "../../scripts/utils/canonical-matching"
 import type { QueueWorkerConfig } from "../config"
@@ -390,6 +392,7 @@ async function resolveIngredientCandidates(
   for (const [context, contextRows] of rowsByContext.entries()) {
     const uniqueInputByKey = new Map<string, { id: string; name: string; cacheKey: string }>()
     const rowToInputKey = new Map<string, string>()
+    const queueRowIdByInputKey = new Map<string, string>()
     const cleanedNameUpdatePromises: Array<Promise<unknown>> = []
 
     for (const row of contextRows) {
@@ -403,6 +406,9 @@ async function resolveIngredientCandidates(
       }
 
       rowToInputKey.set(row.id, dedupeKey)
+      if (!queueRowIdByInputKey.has(dedupeKey)) {
+        queueRowIdByInputKey.set(dedupeKey, row.id)
+      }
       telemetry?.recordInput(row.id, dedupeKey, searchTerm, context)
 
       if (
@@ -559,15 +565,75 @@ async function resolveIngredientCandidates(
         inputs: aiInputsWithHints,
         context,
       })
+      const primaryLatencyMs = Date.now() - llmStartedAt
       telemetry?.recordLLMBatch(
         aiInputs.map((input) => input.id),
         context,
-        Date.now() - llmStartedAt
+        primaryLatencyMs
       )
       const aiResults = standardizerResult.results
       for (const result of aiResults) {
         aiResultByKey.set(result.id, result)
         telemetry?.recordLLMResult(result.id, result)
+      }
+
+      const shadowProvider = getShadowProvider()
+      if (shadowProvider && aiInputs.length > 0) {
+        const shadowStartedAt = Date.now()
+        shadowProvider
+          .standardizeIngredients(aiInputsWithHints, { context })
+          .then((shadowResults) => {
+            const shadowById = new Map(shadowResults.map((r) => [r.id, r]))
+            const comparisonWrites: Array<Promise<void>> = []
+            for (const primaryResult of aiResults) {
+              const input = inputById.get(primaryResult.id)
+              const shadowResult = shadowById.get(primaryResult.id)
+              if (!input) continue
+              comparisonWrites.push(writeShadowComparison({
+                inputKey: primaryResult.id,
+                sourceName: input.name,
+                primaryProvider: process.env.STANDARDIZER_PROVIDER ?? "openai",
+                shadowProvider: shadowProvider.name,
+                primaryCanonical: primaryResult.canonicalName,
+                shadowCanonical: shadowResult?.canonicalName,
+                primaryConfidence: primaryResult.confidence,
+                shadowConfidence: shadowResult?.confidence,
+                shadowStartedAt,
+                primaryLatencyMs,
+                canonicalAgreement: primaryResult.canonicalName === shadowResult?.canonicalName,
+                categoryAgreement: primaryResult.category === shadowResult?.category,
+                shadowError: shadowResult ? null : "missing_shadow_result",
+                queueRowId: queueRowIdByInputKey.get(primaryResult.id) ?? null,
+              }))
+            }
+            void Promise.allSettled(comparisonWrites)
+          })
+          .catch((err) => {
+            const errorMessage = err instanceof Error ? err.message : String(err)
+            process.stderr.write(`[shadow] ${errorMessage}\n`)
+            const comparisonWrites: Array<Promise<void>> = []
+            for (const primaryResult of aiResults) {
+              const input = inputById.get(primaryResult.id)
+              if (!input) continue
+              comparisonWrites.push(writeShadowComparison({
+                inputKey: primaryResult.id,
+                sourceName: input.name,
+                primaryProvider: process.env.STANDARDIZER_PROVIDER ?? "openai",
+                shadowProvider: shadowProvider.name,
+                primaryCanonical: primaryResult.canonicalName,
+                shadowCanonical: undefined,
+                primaryConfidence: primaryResult.confidence,
+                shadowConfidence: undefined,
+                shadowStartedAt,
+                primaryLatencyMs,
+                canonicalAgreement: false,
+                categoryAgreement: false,
+                shadowError: errorMessage,
+                queueRowId: queueRowIdByInputKey.get(primaryResult.id) ?? null,
+              }))
+            }
+            void Promise.allSettled(comparisonWrites)
+          })
       }
 
       const cacheWrites: Array<{ key: string; value: IngredientLocalCachePayload }> = []

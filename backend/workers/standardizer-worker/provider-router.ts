@@ -20,6 +20,14 @@ export function getActiveProvider(): StandardizerProvider {
 export function getShadowProvider(): StandardizerProvider | null {
   const name = process.env.STANDARDIZER_SHADOW_PROVIDER
   if (!name) return null
-  if (name === "ollama") return new OllamaProvider()
-  return null
+  if (name === (process.env.STANDARDIZER_PROVIDER ?? "openai")) return null
+
+  switch (name) {
+    case "openai":
+      return new OpenAIProvider()
+    case "ollama":
+      return new OllamaProvider()
+    default:
+      throw new Error(`Unknown STANDARDIZER_SHADOW_PROVIDER: ${name}`)
+  }
 }

@@ -52,6 +52,10 @@ Required for normal runs:
 Common optional knobs:
 
 - `OPENAI_MODEL` - chat model used by ingredient/unit standardizers; defaults to `gpt-4o-mini`
+- `STANDARDIZER_PROVIDER` - primary standardizer provider; defaults to `openai`
+- `STANDARDIZER_SHADOW_PROVIDER` - optional provider to run after primary ingredient LLM batches; currently `ollama`
+- `LOCAL_LLM_BASE_URL` - OpenAI-compatible local model endpoint used by the Ollama shadow provider
+- `LOCAL_LLM_MODEL` - local model name used by the Ollama provider; defaults to `qwen2.5:7b`
 - `EMBEDDING_OPENAI_MODEL` - embedding model used by vector matching; defaults to `text-embedding-3-small`
 - `QUEUE_MAX_CYCLES` - stop after N cycles when running one-shot or bounded loops; default `0` means unlimited loop mode
 - `QUEUE_RESOLVER_NAME` - resolver label written to queue rows; default `ingredient-match-queue-pipeline`
@@ -93,6 +97,11 @@ Common optional knobs:
    - block risky new canonicals and use fallback recovery when possible
    - enforce probation for newly created canonicals
 7. Persist queue status updates and telemetry.
+
+When `STANDARDIZER_SHADOW_PROVIDER=ollama`, ingredient LLM batches are also sent to
+the local provider after the primary provider returns. Shadow results are never
+used for queue writes; they are logged to `ingredient_shadow_comparisons` for
+agreement, latency, canonical-existence, and error-rate measurement.
 
 ## Outputs
 
