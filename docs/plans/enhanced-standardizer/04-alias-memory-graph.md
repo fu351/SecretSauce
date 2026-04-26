@@ -1,4 +1,6 @@
 ﻿## Phase 4 â€” Alias Memory Graph
+**Executor: Claude. Database access required.**
+
 **Risk: Medium. Additive new table. No existing code changed beyond write-back.**
 
 ### Goal

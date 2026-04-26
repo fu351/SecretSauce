@@ -1,4 +1,6 @@
 ﻿## Phase 4A â€” Recipe Upload Human Labels
+**Executor: Claude. Database access required.**
+
 **Risk: Low to medium. Additive label stream; must preserve provenance.**
 
 ### Goal

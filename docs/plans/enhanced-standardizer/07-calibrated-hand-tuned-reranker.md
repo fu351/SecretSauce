@@ -1,4 +1,6 @@
 ﻿## Phase 7 â€” Calibrated Hand-Tuned Reranker
+**Executor: Claude. Database access required.**
+
 **Risk: Medium-High. Replaces implicit ordering with explicit scoring. Thresholds must be empirically validated.**
 
 ### Goal
@@ -126,6 +128,8 @@ bucketed as (
 )
 select * from bucketed order by 1;
 ```
+
+> **Calibration proxy limitations:** `double_check_changed OR form_retention_overrode OR variety_retention_overrode` is an imperfect signal in both directions. LLM errors not caught by these post-processors count as correct, inflating precision at high scores. Conversely, retention overrides that were themselves right (the LLM chose a valid canonical but the form rule correctly changed it) count as wrong, deflating precision. Thresholds should therefore start conservative and be spot-checked: after each calibration run, manually review a random sample of 20+ items from the top score bucket to catch systematic blind spots before loosening a threshold.
 
 The calibration commits safe thresholds to `lib/standardizer/reranker/thresholds.ts`:
 

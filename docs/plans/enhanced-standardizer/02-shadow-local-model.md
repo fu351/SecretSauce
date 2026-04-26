@@ -1,4 +1,6 @@
 ﻿## Phase 2 â€” Shadow Local Model
+**Executor: Claude. Database access required.**
+
 **Risk: Zero to production. Shadow results never written to DB.**
 
 ### Goal

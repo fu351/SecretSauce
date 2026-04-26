@@ -1,4 +1,6 @@
 ﻿## Phase 10 â€” Move LLM to Offline Queue
+**Executor: Claude. Database access required.**
+
 **Prerequisite: Phase 8 LLM-free rate â‰¥ 85%, stable for 14+ days.**
 
 ### Hot Path Becomes

@@ -1,4 +1,6 @@
 ﻿## Phase 3 â€” Unified Candidate Layer
+**Executor: Claude. Database access required.**
+
 **Risk: Medium. Replaces `resolveIngredientCandidates()` internals. Existing output contract preserved.**
 
 ### Goal

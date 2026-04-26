@@ -1,4 +1,6 @@
 ﻿## Phase 0 â€” Baseline Report
+**Executor: Claude. Database access required.**
+
 **Risk: Low. Reporting only. No resolver behavior changes.**
 
 ### Goal

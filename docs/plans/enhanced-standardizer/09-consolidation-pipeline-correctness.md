@@ -1,7 +1,15 @@
 ﻿## Phase 9 â€” Consolidation Pipeline Correctness
+**Executor: Claude. Database access required.**
+
 **Risk: Medium. Data integrity. Run on staging with dry-run first.**
 
 This phase runs in parallel with Phases 1â€“2 and is independent of the hot path. It fixes the bugs in `fn_consolidate_canonical` before the alias graph (Phase 4) becomes authoritative â€” because once alias edges exist, a broken consolidation will corrupt them.
+
+### Pre-Run Safety Check
+
+Before running the consolidation worker against production (even in dry-run), the worker should query `canonical_double_check_daily_stats` and the queue health snapshots to establish whether any merges are actively in flight or recently changed outcomes. If the stats show unusual remap rates or elevated double-check overrides, hold until the cause is understood.
+
+When running the first live consolidation cycle, use a **high converging threshold** (e.g. cosine similarity >= 0.97 rather than the long-term target) to restrict merges to near-certain duplicates only. This limits blast radius while the three fixes (embedding merge, stats rewrite, shared executor) are validated against real data. The threshold can be relaxed incrementally once no regressions appear in the stats tables over a 48-hour window.
 
 ### Fix 1: Shared Merge Executor
 

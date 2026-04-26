@@ -1,4 +1,6 @@
 ﻿## Phase 8 â€” Staged LLM Reduction Gates
+**Executor: Claude. Database access required.**
+
 **Risk: High if rushed. Safe if thresholds are from calibration data only.**
 
 ### Goal
@@ -45,16 +47,16 @@ async function resolveItem(row: QueueRow, obs: ResolutionObserver): Promise<void
   const top = ranked[0]
 
   // â”€â”€ Gate 5: Reranker auto-resolve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Subsumes the old vector fast-path (score >= 0.93). Vector confidence
+  // flows through the 0.30 vector weight, so any candidate that would have
+  // passed the raw threshold will score highly here and is caught first.
+  // The separate gate is removed to avoid two auto-resolve paths with
+  // diverging calibration lineages.
   if (top?.mergedScore >= RERANKER_THRESHOLDS.autoResolve) {
     return resolveAs('resolved_reranker_auto', obs, row, top)
   }
 
-  // â”€â”€ Gate 6: Vector fast-path (original, kept as-is) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  if (top?.scores.vector >= 0.93 && top?.sources.includes('vector_hnsw')) {
-    return resolveAs('resolved_vector_auto', obs, row, top)
-  }
-
-  // â”€â”€ Gate 7: Deterministic builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Gate 6: Deterministic builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const built = await buildCanonicalName(row.cleaned_name, row.source, rules)
   if (built.matchedExistingCanonical && built.confidence >= BUILDER_THRESHOLDS.autoResolve) {
     return resolveAs('resolved_deterministic', obs, row, {
@@ -63,7 +65,7 @@ async function resolveItem(row: QueueRow, obs: ResolutionObserver): Promise<void
     })
   }
 
-  // â”€â”€ Gate 8: LLM fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Gate 7: LLM fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Inject: top reranked hints + deterministic builder suggestion
   const enrichedHints = built.matchedExistingCanonical
     ? [built.canonicalName, ...hintNames.filter(h => h !== built.canonicalName)]

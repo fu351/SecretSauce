@@ -1,4 +1,6 @@
 ﻿## Phase 5 â€” Learned Token Links
+**Executor: Claude. Database access required.**
+
 **Risk: Low. Read path only for hot path. Writes are async.**
 
 ### Goal

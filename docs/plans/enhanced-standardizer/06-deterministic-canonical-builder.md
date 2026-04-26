@@ -1,4 +1,6 @@
 ﻿## Phase 6 â€” Deterministic Canonical Builder
+**Executor: Claude. Database access required.**
+
 **Risk: Medium. Runs before LLM. Wrong rules cause false auto-resolves.**
 
 ### Goal

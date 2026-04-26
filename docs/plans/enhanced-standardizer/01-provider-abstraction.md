@@ -1,4 +1,6 @@
 ## Phase 1 - Provider Abstraction
+**Executor: Codex. No database access required.**
+
 **Risk: Low. No matching logic changes. Pure structure.**
 
 ### Goal
