@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useToast } from "@/hooks"
+import { useToast } from "@/hooks/ui/use-toast"
 import Image from "next/image"
 import { useState, useEffect, useRef } from "react"
 
@@ -166,14 +166,14 @@ export function Header() {
     <>
       <header
         ref={headerRef}
-        className={`hidden md:flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b md:sticky md:top-0 z-40 ${
+        className={`hidden lg:flex items-center justify-between px-6 py-4 border-b sticky top-0 z-40 ${
           isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"
         }`}
       >
         {/* Left: logo+title on desktop */}
-        <div className="flex min-w-0 flex-1 items-center justify-start gap-2 md:flex-initial md:flex-none md:gap-4 lg:gap-6">
+        <div className="flex min-w-0 flex-none items-center justify-start gap-4 xl:gap-6">
         {/* Desktop: logo + title */}
-        <Link href="/home" className="hidden md:block flex-shrink-0" data-tutorial-nav="/home">
+        <Link href="/home" className="block flex-shrink-0" data-tutorial-nav="/home">
           <Image
             src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
             alt="Secret Sauce"
@@ -183,7 +183,7 @@ export function Header() {
           />
         </Link>
         {pageInfo && (
-          <div className="hidden md:flex flex-col w-[380px] min-w-[380px] shrink-0">
+          <div className="flex w-[260px] min-w-0 shrink flex-col xl:w-[380px]">
             <span className={`text-lg font-serif font-light ${pathname === "/" ? "" : isDark ? "text-foreground" : "text-gray-900"}`}>
               {pageInfo.title}
             </span>
@@ -194,7 +194,7 @@ export function Header() {
         )}
         </div>
 
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden items-center gap-4 xl:flex xl:gap-6">
         <Link
           href="/recipes"
           data-tutorial-nav="/recipes"
@@ -238,7 +238,7 @@ export function Header() {
         </Button>
         </nav>
 
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:flex-initial md:gap-3 md:min-w-[200px]">
+        <div className="flex min-w-0 flex-none items-center justify-end gap-2 xl:gap-3">
           {user ? (
             <>
             {/* Account action buttons */}
@@ -332,9 +332,9 @@ export function Header() {
         </div>
       </header>
 
-      {/* Mobile bottom navbar */}
+      {/* Mobile/tablet bottom navbar */}
       <nav
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-[60] border-t px-2 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] overflow-visible ${
+        className={`lg:hidden fixed bottom-0 left-0 right-0 z-[60] border-t px-2 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] overflow-visible ${
           hideMobileNavForOverlay ? "hidden" : "block"
         } ${isDark ? "bg-background/95 backdrop-blur border-border" : "bg-background/95 backdrop-blur border-border"}`}
       >

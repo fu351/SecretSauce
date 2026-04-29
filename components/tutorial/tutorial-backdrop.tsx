@@ -71,7 +71,7 @@ export function TutorialBackdrop({
         )
       )}
 
-      {/* Click blocker — sits over the highlighted element */}
+      {/* Click blocker - sits over the highlighted element */}
       {showVisibleHighlight && blockClick && (
         <div
           className="fixed z-[10040] pointer-events-auto"

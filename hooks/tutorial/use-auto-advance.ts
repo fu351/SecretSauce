@@ -27,7 +27,7 @@ export function useAutoAdvance({
   nextStep,
 }: UseAutoAdvanceOptions) {
   /**
-   * Effect 6 — auto-advance when the user navigates to the next page via the
+   * Effect 6 - auto-advance when the user navigates to the next page via the
    * highlighted nav link.
    */
   useEffect(() => {
@@ -38,7 +38,7 @@ export function useAutoAdvance({
   }, [isPageTransition, nextSlot, pathname, nextStep])
 
   /**
-   * Effect 6b — auto-advance after an in-page mandatory action (same-page,
+   * Effect 6b - auto-advance after an in-page mandatory action (same-page,
    * non-wildcard). Page-transition and wildcard cases handled by 6 and 6c.
    */
   useEffect(() => {
@@ -50,7 +50,7 @@ export function useAutoAdvance({
   }, [isMandatoryCompleted, isPageTransition, nextSlot, currentSlot, currentSubstep, nextStep])
 
   /**
-   * Effect 6c — auto-advance when a mandatory click navigates to a wildcard
+   * Effect 6c - auto-advance when a mandatory click navigates to a wildcard
    * next page. Only fires while still on the source page.
    */
   useEffect(() => {
@@ -66,7 +66,7 @@ export function useAutoAdvance({
   }, [isMandatoryCompleted, nextSlot, currentSlot, pathname, nextStep])
 
   /**
-   * Effect 6d — auto-complete when the last step highlights a nav link and the
+   * Effect 6d - auto-complete when the last step highlights a nav link and the
    * user navigates to that destination. nextSlot is null at the last step so
    * none of the earlier effects apply.
    */

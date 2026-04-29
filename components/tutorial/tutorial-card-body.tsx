@@ -118,7 +118,7 @@ export function TutorialCardBody({
   return (
     <div className={overlayBodyClass}>
       {isMinimized ? (
-        // Minimized state — shown inside the minimized card click-to-resume area
+        // Minimized state - shown inside the minimized card click-to-resume area
         null
       ) : isPageLoading ? (
         <div className="flex flex-col items-center justify-center py-8">
@@ -136,7 +136,7 @@ export function TutorialCardBody({
         // Scanning state
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
-          <p className="text-sm font-medium opacity-70">Scanning for element…</p>
+          <p className="text-sm font-medium opacity-70">Scanning for element...</p>
           <p className="text-[10px] opacity-40 mt-1">
             Attempt {syncRetries + 1} of {MAX_RETRIES}
           </p>
@@ -151,7 +151,7 @@ export function TutorialCardBody({
               <p className="text-xs opacity-60 mb-1">Not on the right page?</p>
               <p className="text-[10px] opacity-40 mb-6">
                 Expected:{" "}
-                <span className="font-mono">{currentStep?.page}</span> ·
+                <span className="font-mono">{currentStep?.page}</span> -
                 Current: <span className="font-mono">{pathname}</span>
               </p>
               <div className={overlayDualActionClass}>
@@ -185,7 +185,7 @@ export function TutorialCardBody({
                 {expectedSelector ? (
                   <>
                     {" "}
-                    · Selector:{" "}
+                    - Selector:{" "}
                     <span className="font-mono">{expectedSelector}</span>
                   </>
                 ) : null}

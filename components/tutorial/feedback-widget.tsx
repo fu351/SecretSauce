@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useTheme } from "@/contexts/theme-context"
 import { useAuth } from "@/contexts/auth-context"
-import { useToast } from "@/hooks"
+import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
 import { supabase } from "@/lib/database/supabase"
 

@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useState, useRef } from "react"
-import { useAuth as useClerkAuth, useClerk } from "@clerk/nextjs"
+import { createContext, useCallback, useContext, useEffect, useState, useRef } from "react"
+import { useClerk, useSession } from "@clerk/nextjs"
 import { setBrowserAccessTokenProvider } from "@/lib/database/supabase"
 
 type AuthUser = {
@@ -10,6 +10,11 @@ type AuthUser = {
   email: string
   created_at: string | null
 }
+
+type EnsureProfileOutcome =
+  | { type: "profile"; profile: any }
+  | { type: "invalid-session" }
+  | { type: "transient-error" }
 
 interface AuthContextType {
   user: AuthUser | null
@@ -84,12 +89,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
-  const { isLoaded: clerkLoaded, userId: clerkUserId, getToken } = useClerkAuth()
+  const { isLoaded: clerkLoaded, session } = useSession()
   const clerk = useClerk()
+  const clerkUserId = session?.user?.id ?? null
+  const getToken = useCallback(async (options?: { skipCache?: boolean }) => {
+    if (!session) return null
+    return session.getToken(options)
+  }, [session])
   const mounted = useRef(true)
   const fetchingProfile = useRef(false)
-  const hasTriggeredForceReload = useRef(false)
-  const ensureProfileInFlightRef = useRef<{ userId: string; promise: Promise<void> } | null>(null)
+  const ensureProfileInFlightRef = useRef<{ userId: string; promise: Promise<EnsureProfileOutcome> } | null>(null)
   const ensureProfileFailureCountRef = useRef(0)
   const ensureProfileBreakerUntilRef = useRef(0)
 
@@ -105,6 +114,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email,
     created_at: createdAt,
   })
+
+  const recordTransientEnsureProfileFailure = () => {
+    ensureProfileFailureCountRef.current += 1
+    if (ensureProfileFailureCountRef.current >= ENSURE_PROFILE_BREAKER_FAILURES) {
+      ensureProfileBreakerUntilRef.current = Date.now() + ENSURE_PROFILE_BREAKER_MS
+      ensureProfileFailureCountRef.current = 0
+    }
+  }
+
+  const applyEnsureProfileOutcome = (outcome: EnsureProfileOutcome) => {
+    if (!mounted.current) return
+
+    if (outcome.type === "profile") {
+      const linkedProfile = outcome.profile
+      setUser(
+        buildAuthUser(linkedProfile.id, linkedProfile.email, linkedProfile.created_at ?? null),
+      )
+      setProfile(linkedProfile)
+      ensureProfileFailureCountRef.current = 0
+      ensureProfileBreakerUntilRef.current = 0
+      return
+    }
+
+    if (outcome.type === "transient-error") {
+      recordTransientEnsureProfileFailure()
+      return
+    }
+
+    clearAuthState()
+  }
 
   useEffect(() => {
     setBrowserAccessTokenProvider(async () => {
@@ -132,29 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true)
 
     let cancelled = false
-    let forceReloadTimeoutId: ReturnType<typeof setTimeout> | undefined
     let ensureProfileController: AbortController | undefined
     let fetchTimeoutId: ReturnType<typeof setTimeout> | undefined
-
-    const triggerForceReloadOnce = () => {
-      if (cancelled || !mounted.current) return
-      if (hasTriggeredForceReload.current) return
-      hasTriggeredForceReload.current = true
-
-      // Prevent infinite reload loops if the underlying issue persists.
-      const COOLDOWN_MS = 60_000
-      const cooldownKey = "secretSauce__forceReloadAuthCooldown"
-      try {
-        const now = Date.now()
-        const last = Number(sessionStorage.getItem(cooldownKey) ?? "0")
-        if (!Number.isNaN(last) && now - last < COOLDOWN_MS) return
-        sessionStorage.setItem(cooldownKey, String(now))
-      } catch {
-        // If sessionStorage isn't available, still attempt reload once.
-      }
-
-      window.location.reload()
-    }
 
     const bootstrap = async () => {
       try {
@@ -166,10 +184,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
-        // Safety net: the landing page shows a centered logo while `loading` is true.
-        // If auth bootstrap hangs (e.g. ensure-profile fetch), the user sees that logo forever.
-        forceReloadTimeoutId = window.setTimeout(triggerForceReloadOnce, 5000)
-
         if (!clerkUserId) {
           clearAuthState()
           return
@@ -178,7 +192,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Avoid duplicate ensure-profile requests (common in React StrictMode during dev).
         const userId = clerkUserId
         if (ensureProfileInFlightRef.current?.userId === userId) {
-          await ensureProfileInFlightRef.current.promise
+          const outcome = await ensureProfileInFlightRef.current.promise
+          if (!cancelled && mounted.current) {
+            applyEnsureProfileOutcome(outcome)
+          }
           return
         }
 
@@ -194,7 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           controller.abort(new Error("ensure-profile timeout"))
         }, ENSURE_PROFILE_TIMEOUT_MS)
 
-        const promise = (async () => {
+        const promise = (async (): Promise<EnsureProfileOutcome> => {
           const response = await fetch("/api/auth/ensure-profile", {
             method: "POST",
             credentials: "include",
@@ -203,41 +220,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             },
             signal: controller.signal,
           })
-          if (cancelled || !mounted.current) return
 
           if (!response.ok) {
             console.warn("[v0] Failed to ensure Clerk profile:", response.status)
             // For transient backend failures, fail-open to avoid blocking the app forever.
             if (response.status >= 500 || response.status === 429) {
-              ensureProfileFailureCountRef.current += 1
-              if (ensureProfileFailureCountRef.current >= ENSURE_PROFILE_BREAKER_FAILURES) {
-                ensureProfileBreakerUntilRef.current = Date.now() + ENSURE_PROFILE_BREAKER_MS
-                ensureProfileFailureCountRef.current = 0
-              }
-              return
+              return { type: "transient-error" }
             }
-            clearAuthState()
-            return
+            return { type: "invalid-session" }
           }
 
-          const payload = await response.json()
+          const payload = await response.json().catch(() => ({}))
           const linkedProfile = payload?.profile
           if (!linkedProfile?.id || !linkedProfile?.email) {
-            clearAuthState()
-            return
+            return { type: "invalid-session" }
           }
 
-          setUser(
-            buildAuthUser(linkedProfile.id, linkedProfile.email, linkedProfile.created_at ?? null),
-          )
-          setProfile(linkedProfile)
-          ensureProfileFailureCountRef.current = 0
-          ensureProfileBreakerUntilRef.current = 0
+          return { type: "profile", profile: linkedProfile }
         })()
 
         ensureProfileInFlightRef.current = { userId, promise }
         try {
-          await promise
+          const outcome = await promise
+          if (!cancelled && mounted.current) {
+            applyEnsureProfileOutcome(outcome)
+          }
         } finally {
           if (fetchTimeoutId) {
             clearTimeout(fetchTimeoutId)
@@ -252,10 +259,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         if (isAbortLikeError(error)) {
-          ensureProfileFailureCountRef.current += 1
-          if (ensureProfileFailureCountRef.current >= ENSURE_PROFILE_BREAKER_FAILURES) {
-            ensureProfileBreakerUntilRef.current = Date.now() + ENSURE_PROFILE_BREAKER_MS
-            ensureProfileFailureCountRef.current = 0
+          if (!cancelled && mounted.current) {
+            recordTransientEnsureProfileFailure()
           }
           return
         }
@@ -265,9 +270,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           clearAuthState()
         }
       } finally {
-        if (forceReloadTimeoutId) {
-          clearTimeout(forceReloadTimeoutId)
-        }
         if (!cancelled && mounted.current && clerkLoaded) {
           setLoading(false)
         }
@@ -280,10 +282,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true
-      if (fetchTimeoutId) {
-        clearTimeout(fetchTimeoutId)
-      }
-      ensureProfileController?.abort()
+      // Keep the shared ensure-profile request alive across StrictMode effect restarts.
+      // The request still has its own timeout, and the next active effect can apply the result.
       mounted.current = false
     }
   }, [clerkLoaded, clerkUserId])

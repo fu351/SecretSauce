@@ -3,7 +3,7 @@
  *
  * Module-level flag that pauses the tutorial overlay's highlight engine.
  * Import suppressTutorialHighlight / releaseTutorialHighlightSuppression
- * from any component or hook — no React context required.
+ * from any component or hook - no React context required.
  *
  * When suppression is released (either manually or via the optional duration),
  * the overlay fires an immediate highlight update so the position is correct.

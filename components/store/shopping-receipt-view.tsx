@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, AlertCircle, RefreshCw, ShoppingBag, Map as MapIcon, List } from "lucide-react"
+import { Loader2, AlertCircle, RefreshCw, ShoppingBag, Map as MapIcon, List, PackageCheck } from "lucide-react"
 import { StoreSelector } from "./store-selector"
 import { ReceiptItem } from "./receipt-item"
 import type { ShoppingListIngredient as ShoppingListItem, StoreComparison } from "@/lib/types/store"
@@ -289,7 +289,7 @@ export function ShoppingReceiptView({
   // Empty state
   if (shoppingList.length === 0 && !loading) {
     return (
-      <Card className={`${theme === 'dark' ? 'bg-[#1f1e1a]' : 'bg-white'} ${className}`}>
+      <Card className={`${theme === 'dark' ? 'bg-[#1f1e1a]' : 'bg-white'} w-full max-w-full overflow-hidden ${className}`}>
         <CardContent className="flex flex-col items-center justify-center py-16">
           <ShoppingBag className="h-16 w-16 text-gray-300 mb-4" />
           <p className="text-lg font-semibold text-gray-900 dark:text-[#e8dcc4] mb-2">
@@ -304,19 +304,52 @@ export function ShoppingReceiptView({
   }
 
   return (
-    <div className={`flex flex-col h-full ${className}`} data-tutorial="store-overview">
+    <div className={`flex min-w-0 max-w-full flex-col overflow-hidden rounded-xl border ${
+      theme === 'dark' ? 'border-white/10 bg-[#1f1e1a]' : 'border-gray-200 bg-white'
+    } ${className}`} data-tutorial="store-overview">
       {/* Store Selector - Sticky Header */}
       <div className={`sticky top-0 z-10 ${
-        theme === 'dark' ? 'bg-[#181813]' : 'bg-gray-50'
+        theme === 'dark' ? 'bg-[#1f1e1a]' : 'bg-white'
       } border-b ${
         theme === 'dark' ? 'border-white/5' : 'border-gray-200'
-      } p-4`}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className={`text-lg font-bold ${
-            theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'
-          }`}>
-            Shopping Receipt
-          </h2>
+      } px-3 py-3 sm:px-4 lg:px-5 lg:py-4`}>
+        <div className="mb-3 flex min-w-0 flex-col gap-3 lg:mb-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Shopping
+            </p>
+            <h1 className={`truncate text-xl font-semibold tracking-tight lg:text-2xl ${
+              theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'
+            }`}>
+              Price comparison
+            </h1>
+          </div>
+          <div className="grid grid-cols-3 gap-2 lg:min-w-[300px]">
+            <div className={`rounded-lg border px-3 py-2 ${
+              theme === 'dark' ? 'border-white/10 bg-white/[0.03]' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Priced</p>
+              <p className={`mt-0.5 text-sm font-semibold ${theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'}`}>
+                {foundCount}/{totalItems}
+              </p>
+            </div>
+            <div className={`rounded-lg border px-3 py-2 ${
+              theme === 'dark' ? 'border-white/10 bg-white/[0.03]' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Missing</p>
+              <p className={`mt-0.5 text-sm font-semibold ${missingCount > 0 ? 'text-amber-600 dark:text-amber-400' : theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'}`}>
+                {missingCount}
+              </p>
+            </div>
+            <div className={`rounded-lg border px-3 py-2 ${
+              theme === 'dark' ? 'border-white/10 bg-white/[0.03]' : 'border-gray-200 bg-gray-50'
+            }`}>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total</p>
+              <p className={`mt-0.5 truncate font-mono text-sm font-semibold ${theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'}`}>
+                ${subtotal.toFixed(2)}
+              </p>
+            </div>
+          </div>
           {(loading || isStale) && onRefresh && (
             <Button
               size="sm"
@@ -338,7 +371,7 @@ export function ShoppingReceiptView({
 
         {storeComparisonsWithLocalTotals.length > 0 ? (
           <>
-            <div className="flex items-start md:items-stretch gap-2">
+            <div className="flex min-w-0 items-start gap-2 md:items-stretch">
               <StoreSelector
                 stores={storeComparisonsWithLocalTotals}
                 selectedStore={selectedStore}
@@ -395,7 +428,7 @@ export function ShoppingReceiptView({
       )}
 
       {/* Receipt Items */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <Card className={`${
           theme === 'dark' ? 'bg-[#1f1e1a] shadow-none' : 'bg-white shadow-sm'
         } border-0 rounded-none`}>
@@ -408,6 +441,14 @@ export function ShoppingReceiptView({
               </div>
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-white/5" data-tutorial="store-items">
+                <div className={`hidden grid-cols-[minmax(0,1fr)_7.5rem_6.5rem_7rem] gap-4 border-b px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground lg:grid ${
+                  theme === 'dark' ? 'border-white/5 bg-white/[0.02]' : 'border-gray-100 bg-gray-50/70'
+                }`}>
+                  <span>Item</span>
+                  <span>Packages</span>
+                  <span>Status</span>
+                  <span className="text-right">Line total</span>
+                </div>
                 {orderedShoppingList.map((item) => (
                   <ReceiptItem
                     key={item.id}
@@ -447,17 +488,20 @@ export function ShoppingReceiptView({
         theme === 'dark' ? 'bg-[#1f1e1a]' : 'bg-white'
       } border-t ${
         theme === 'dark' ? 'border-white/5' : 'border-gray-200'
-      } p-4 shadow-lg`}>
+      } px-3 py-3 shadow-lg sm:px-4 lg:px-5`}>
         {/* Stats */}
-        <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
-              <span>{foundCount} of {totalItems} items priced</span>
+        <div className="mb-3 flex min-w-0 items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span className="inline-flex min-w-0 items-center gap-1 truncate">
+            <PackageCheck className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">{foundCount} of {totalItems} items priced</span>
+          </span>
           {lastFetchTime && (
-            <span>Updated {new Date(lastFetchTime).toLocaleTimeString()}</span>
+            <span className="flex-shrink-0">Updated {new Date(lastFetchTime).toLocaleTimeString()}</span>
           )}
         </div>
 
         {/* Total */}
-        <div className="flex items-center justify-between mb-4" data-tutorial="store-total">
+        <div className="mb-4 flex min-w-0 items-center justify-between gap-4" data-tutorial="store-total">
           <span className={`text-base font-bold ${
             theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'
           }`}>

@@ -558,14 +558,14 @@ export default function ShoppingReceiptPage() {
   }
 
   return (
-    <div className={`min-h-screen ${styles.bgClass}`}>
+    <div className={`min-h-screen overflow-x-hidden ${styles.bgClass}`}>
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-4 py-4">
-        <div className="flex flex-col lg:flex-row h-[calc(100vh-5rem)] gap-3">
+      <div className="mx-auto w-full max-w-[1440px] px-3 py-3 sm:px-4 lg:px-6 lg:py-6 xl:px-8">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_392px]">
 
           {/* Panel: recipes in cart + add item + map (desktop sidebar) */}
-          {/* Mobile: order-1 (top) | Desktop: order-2 (right sidebar, fixed width) */}
-          <div className="order-1 lg:order-2 lg:w-80 flex flex-col gap-3 lg:overflow-y-auto lg:flex-shrink-0">
+          {/* Mobile: order-1 (top) | Desktop: order-2 (right sidebar) */}
+          <aside className="order-1 flex min-w-0 flex-col gap-3 lg:sticky lg:top-20 lg:order-2 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
             <MobileQuickAddPanel
               shoppingList={shoppingList}
               onAddItem={handleMobileAddItem}
@@ -591,11 +591,11 @@ export default function ShoppingReceiptPage() {
                 />
               </div>
             )}
-          </div>
+          </aside>
 
           {/* Receipt view */}
           {/* Mobile: order-2 (bottom, fills rest) | Desktop: order-1 (left, flex-1) */}
-          <div className="order-2 lg:order-1 flex-1 min-h-0 flex flex-col">
+          <main className="order-2 flex min-w-0 flex-col lg:order-1">
             <ShoppingReceiptView
               shoppingList={shoppingList}
               storeComparisons={visibleStoreComparisons}
@@ -611,9 +611,9 @@ export default function ShoppingReceiptPage() {
               error={null}
               userPostalCode={zipCode}
               theme={styles.theme}
-              className="flex-1"
+              className="min-h-[calc(100svh-11rem)] lg:min-h-[calc(100vh-7rem)]"
             />
-          </div>
+          </main>
 
         </div>
       </div>

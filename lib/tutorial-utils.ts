@@ -3,7 +3,7 @@
  * Consumed by both the overlay component and the tutorial hooks.
  */
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// Constants
 
 export const WINDOW_SCROLL_OVERSHOOT = 80
 export const WINDOW_SCROLL_PADDING = 24
@@ -26,13 +26,13 @@ export const DASHBOARD_AUTO_SCROLL_SELECTORS = new Set([
   "[data-tutorial='dashboard-recents']",
 ])
 
-// ─── Type guards ──────────────────────────────────────────────────────────────
+// Type guards
 
 export function isHTMLElement(value: Element | null): value is HTMLElement {
   return value instanceof HTMLElement
 }
 
-// ─── DOM helpers ──────────────────────────────────────────────────────────────
+// DOM helpers
 
 export function findFirstVisibleElement(selector: string): HTMLElement | null {
   const candidates = Array.from(
@@ -146,7 +146,7 @@ export function describeElement(
   }
 }
 
-// ─── Scroll container resolution ─────────────────────────────────────────────
+// Scroll container resolution
 
 export function resolveScrollContainer(
   targetElement: HTMLElement,
@@ -188,7 +188,7 @@ export function resolveScrollContainer(
   return selectScrollableContainer(fallbackContainer, "fallback")
 }
 
-// ─── Smooth scroll ────────────────────────────────────────────────────────────
+// Smooth scroll
 
 const activeScrollAnimations = new WeakMap<object, () => void>()
 

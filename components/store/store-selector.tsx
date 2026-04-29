@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useRef, useState, useEffect, useCallback } from "react"
+import React, { useMemo } from "react"
 import Image from "next/image"
 import {
   Select,
@@ -9,7 +9,7 @@ import {
   SelectTrigger
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { DollarSign, CheckCircle2, MapPin, ChevronRight } from "lucide-react"
+import { DollarSign, CheckCircle2, MapPin } from "lucide-react"
 import type { StoreComparison } from "@/lib/types/store"
 import { useIsMobile } from "@/hooks/ui/use-mobile"
 
@@ -67,9 +67,6 @@ export function StoreSelector({
   theme = "light"
 }: StoreSelectorProps) {
   const isMobile = useIsMobile()
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const [hasOverflow, setHasOverflow] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(false)
 
   // Calculate store rankings
   const cheapestIndex = useMemo(() => {
@@ -122,41 +119,6 @@ export function StoreSelector({
     if (!selectedStore) return stores[0] // Default to first store
     return stores.find(s => s.store === selectedStore) || stores[0]
   }, [stores, selectedStore])
-
-  const updateOverflowState = useCallback(() => {
-    const node = scrollContainerRef.current
-    if (!node) return
-
-    const maxScrollLeft = node.scrollWidth - node.clientWidth
-    const hasHorizontalOverflow = maxScrollLeft > 8
-    const canMoveRight = hasHorizontalOverflow && node.scrollLeft < maxScrollLeft - 8
-
-    setHasOverflow(hasHorizontalOverflow)
-    setCanScrollRight(canMoveRight)
-  }, [])
-
-  useEffect(() => {
-    const node = scrollContainerRef.current
-    if (!node) return
-
-    const update = () => updateOverflowState()
-    update()
-
-    node.addEventListener("scroll", update, { passive: true })
-    window.addEventListener("resize", update)
-
-    let observer: ResizeObserver | null = null
-    if (typeof ResizeObserver !== "undefined") {
-      observer = new ResizeObserver(update)
-      observer.observe(node)
-    }
-
-    return () => {
-      node.removeEventListener("scroll", update)
-      window.removeEventListener("resize", update)
-      observer?.disconnect()
-    }
-  }, [stores.length, updateOverflowState])
 
   if (!stores || stores.length === 0) {
     return null
@@ -264,14 +226,11 @@ export function StoreSelector({
     )
   }
 
-  // Desktop view: Horizontal carousel
+  // Desktop view: dense comparison grid
   return (
-    <div className={`w-full ${className}`} data-tutorial="store-selector">
-      <div className="relative">
-        <div
-          ref={scrollContainerRef}
-          className="flex items-center gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x"
-        >
+    <div className={`w-full min-w-0 max-w-full ${className}`} data-tutorial="store-selector">
+      <div className="min-w-0">
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
           {stores.map((store, idx) => {
             const isSelected = selectedStore ? store.store === selectedStore : idx === 0
             const isCheapest = idx === cheapestIndex
@@ -284,95 +243,84 @@ export function StoreSelector({
                 key={store.store}
                 type="button"
                 onClick={() => onStoreChange(store.store)}
-                className="flex-shrink-0 relative flex flex-col items-center gap-3 transition-all snap-start outline-none"
+                className={`relative min-w-0 rounded-xl border p-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                  isSelected
+                    ? theme === "dark"
+                      ? "border-[#e8dcc4]/45 bg-[#e8dcc4]/10"
+                      : "border-green-500 bg-green-50"
+                    : theme === "dark"
+                      ? "border-[#e8dcc4]/10 bg-white/[0.03] hover:bg-white/[0.06]"
+                      : "border-gray-200 bg-white hover:bg-gray-50"
+                }`}
               >
-                <div className="relative m-1">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 overflow-hidden bg-white
-                    ${isSelected
-                      ? "border-green-500 shadow-lg scale-110"
-                      : theme === 'dark' ? "border-[#e8dcc4]/10" : "border-gray-200 shadow-sm"}
-                  `}>
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
                     {storeLogo ? (
-                      <div className="relative w-full h-full p-2">
-                        <Image
-                          src={storeLogo}
-                          alt={store.store}
-                          fill
-                          className="object-contain p-1"
-                          sizes="64px"
-                        />
-                      </div>
+                      <Image
+                        src={storeLogo}
+                        alt={store.store}
+                        fill
+                        className="object-contain p-1.5"
+                        sizes="40px"
+                      />
                     ) : (
-                      <span className="text-base font-bold text-gray-900">
+                      <span className="flex h-full w-full items-center justify-center text-sm font-bold text-gray-900">
                         {store.store.substring(0, 2).toUpperCase()}
                       </span>
                     )}
                   </div>
 
-                  {/* Visual Indicators */}
-                  {isCheapest && (
-                    <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-1 border-2 border-white dark:border-[#121212] z-20 shadow-sm" title="Cheapest">
-                      <DollarSign className="h-2.5 w-2.5 text-white" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className={`truncate text-sm font-semibold ${
+                        isSelected
+                          ? theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
+                          : theme === "dark" ? "text-[#e8dcc4]/85" : "text-gray-800"
+                      }`}>
+                        {titleCaseStore(store.store)}
+                      </p>
+                      {isSelected && (
+                        <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500" aria-hidden />
+                      )}
                     </div>
-                  )}
-                  {isBest && (
-                    <div className="absolute -top-1 -right-1 bg-green-600 rounded-full p-1 border-2 border-white dark:border-[#121212] z-20 shadow-sm" title="Best Value">
-                      <CheckCircle2 className="h-2.5 w-2.5 text-white" />
+                    <div className="mt-1 flex min-w-0 flex-wrap gap-1">
+                      {isCheapest && (
+                        <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[10px] bg-amber-500 text-white">
+                          <DollarSign className="h-2.5 w-2.5" />
+                          Low
+                        </Badge>
+                      )}
+                      {isBest && (
+                        <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[10px] bg-green-600 text-white">
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          Value
+                        </Badge>
+                      )}
+                      {isClosest && (
+                        <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[10px] bg-blue-500 text-white">
+                          <MapPin className="h-2.5 w-2.5" />
+                          Close
+                        </Badge>
+                      )}
                     </div>
-                  )}
-                  {isClosest && (
-                    <div className="absolute -top-1 -left-1 bg-blue-500 rounded-full p-1 border-2 border-white dark:border-[#121212] z-20 shadow-sm" title="Closest">
-                      <MapPin className="h-2.5 w-2.5 text-white" />
-                    </div>
-                  )}
+                  </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-1.5">
-                  <span className={`text-[11px] font-bold truncate w-24 text-center ${
-                    isSelected
-                      ? theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'
-                      : 'text-muted-foreground'
-                  }`}>
-                    {titleCaseStore(store.store)}
-                  </span>
-                  <div className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
-                    isSelected
-                      ? "bg-green-500 text-white shadow-md"
-                      : theme === 'dark'
-                        ? "bg-[#1f1e1a] text-[#e8dcc4] border border-[#e8dcc4]/20"
-                        : "bg-white text-gray-900 border border-gray-200 shadow-sm"
-                  }`}>
-                    <span className="text-[10px] opacity-70">$</span>
-                    <span className="text-sm">{store.total.toFixed(2)}</span>
+                <div className="mt-3 flex items-end justify-between gap-3">
+                  <div className="min-w-0 text-xs text-muted-foreground">
+                    <p>{store.items.length} priced items</p>
+                    {store.distanceMiles && <p>{store.distanceMiles.toFixed(1)} mi away</p>}
                   </div>
-
-                  {/* Distance indicator */}
-                  {store.distanceMiles && (
-                    <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1 mt-0.5">
-                      {store.distanceMiles.toFixed(1)} mi
-                    </span>
-                  )}
+                  <p className={`font-mono text-lg font-bold ${
+                    theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
+                  }`}>
+                    ${store.total.toFixed(2)}
+                  </p>
                 </div>
               </button>
             )
           })}
         </div>
-
-        {hasOverflow && canScrollRight && (
-          <div
-            className={`pointer-events-none absolute right-0 top-0 bottom-4 w-12 flex items-center justify-end pr-1 bg-gradient-to-l ${
-              theme === "dark"
-                ? "from-[#181813] via-[#181813]/95 to-transparent"
-                : "from-gray-50 via-gray-50/95 to-transparent"
-            }`}
-            aria-hidden="true"
-          >
-            <div className={theme === "dark" ? "text-[#e8dcc4]/65" : "text-gray-500/80"}>
-              <ChevronRight className="h-3.5 w-3.5 inline-block opacity-55" />
-              <ChevronRight className="h-3.5 w-3.5 inline-block -ml-1.5 opacity-95" />
-            </div>
-          </div>
-        )}
       </div>
 
       <p className={`mt-1 text-[11px] ${

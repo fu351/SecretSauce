@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { X, Minus, ChevronUp, Lightbulb, Loader2, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/ui/use-toast"
 import clsx from "clsx"
-import { useIsMobile } from "@/hooks"
+import { useIsMobile } from "@/hooks/ui/use-mobile"
 
 import { useAnalytics } from "@/hooks/use-analytics"
 import { useScrollToTarget } from "@/hooks/tutorial/use-scroll-to-target"
@@ -52,7 +52,7 @@ export function TutorialOverlay() {
   const isDark = theme === "dark"
   const { trackEvent } = useAnalytics()
 
-  // ─── Local UI state ─────────────────────────────────────────────────────────
+  // Local UI state
 
   const [isMinimized, setIsMinimized] = useState(false)
   const [showSkipConfirmation, setShowSkipConfirmation] = useState(false)
@@ -62,7 +62,7 @@ export function TutorialOverlay() {
   const overlayRef = useRef<HTMLDivElement>(null)
   const lastPathnameRef = useRef(pathname)
 
-  // ─── Derived sequence values ─────────────────────────────────────────────────
+  // Derived sequence values
 
   const totalSteps = flatSequence.length
   const completedSteps = currentSlotIndex + 1
@@ -104,7 +104,7 @@ export function TutorialOverlay() {
       currentSlot.page === "/recipes/*" ||
       shouldAutoScrollDashboardNextWithinPage)
 
-  // ─── Effect 0a: mark body for CSS compensation ───────────────────────────────
+  // Effect 0a: mark body for CSS compensation
 
   useEffect(() => {
     if (isActive) {
@@ -115,7 +115,7 @@ export function TutorialOverlay() {
     return () => document.body.removeAttribute("data-tutorial-active")
   }, [isActive])
 
-  // ─── Effect 0: header height ─────────────────────────────────────────────────
+  // Effect 0: header height
 
   useEffect(() => {
     const detectHeaderHeight = () => {
@@ -127,7 +127,7 @@ export function TutorialOverlay() {
     return () => window.removeEventListener("resize", detectHeaderHeight)
   }, [])
 
-  // ─── Effect 2: page-loading detector ─────────────────────────────────────────
+  // Effect 2: page-loading detector
 
   useEffect(() => {
     if (!isActive) return
@@ -165,7 +165,7 @@ export function TutorialOverlay() {
     }
   }, [isActive])
 
-  // ─── Effect 2b: reset UI state on tutorial activation ────────────────────────
+  // Effect 2b: reset UI state on tutorial activation
 
   useEffect(() => {
     if (!isActive) return
@@ -177,15 +177,15 @@ export function TutorialOverlay() {
     setIsPageLoading(false)
   }, [isActive, currentStep?.page, pathname])
 
-  // ─── Effect 2c: reset on slot change ─────────────────────────────────────────
+  // Effect 2c: reset on slot change
 
   useEffect(() => {
     if (!isActive) return
-    // Don't reset isChangingPage here — it's managed by the page nav effect.
+    // Don't reset isChangingPage here; it's managed by the page nav effect.
     setIsPageLoading(false)
   }, [isActive, currentSlotIndex])
 
-  // ─── Effect: scroll to top on page nav ───────────────────────────────────────
+  // Effect: scroll to top on page nav
 
   useEffect(() => {
     const previousPathname = lastPathnameRef.current
@@ -222,7 +222,7 @@ export function TutorialOverlay() {
     }
   }, [isActive, currentStep, pathname])
 
-  // ─── Effect 3: page navigation state ─────────────────────────────────────────
+  // Effect 3: page navigation state
 
   useEffect(() => {
     if (!isActive || !currentStep) return
@@ -233,7 +233,7 @@ export function TutorialOverlay() {
     }
   }, [isActive, currentStep?.page, pathname])
 
-  // ─── Navigation action ────────────────────────────────────────────────────────
+  // Navigation action
 
   const handleGoToExpectedPage = useCallback(() => {
     if (!currentStep?.page || currentStep.page.endsWith("*")) return
@@ -247,7 +247,7 @@ export function TutorialOverlay() {
     }, 350)
   }, [currentStep?.page, router])
 
-  // ─── Mandatory completion (must run before transitionNavSelector is computed) ──
+  // Mandatory completion (must run before transitionNavSelector is computed)
 
   const { isMandatoryCompleted } = useMandatoryCompletion({
     isActive,
@@ -261,7 +261,7 @@ export function TutorialOverlay() {
     nextStep,
   })
 
-  // ─── Page transition state (now uses real isMandatoryCompleted) ───────────────
+  // Page transition state (now uses real isMandatoryCompleted)
 
   const isPageTransition =
     isActive &&
@@ -288,7 +288,7 @@ export function TutorialOverlay() {
     transitionNavSelector ??
     substepExpectedSelector
 
-  // ─── Scroll hook ──────────────────────────────────────────────────────────────
+  // Scroll hook
 
   // scheduleHighlightUpdate is provided by the highlight engine below;
   // we create a ref so the scroll hook can reference it without a circular dep.
@@ -307,7 +307,7 @@ export function TutorialOverlay() {
     ),
   })
 
-  // ─── Highlight engine ─────────────────────────────────────────────────────────
+  // Highlight engine
 
   const {
     targetElement,
@@ -337,7 +337,7 @@ export function TutorialOverlay() {
     scheduleHighlightUpdateRef.current = scheduleHighlightUpdate
   }, [scheduleHighlightUpdate])
 
-  // Track when element sync times out — useful for spotting broken step selectors
+  // Track when element sync times out; useful for spotting broken step selectors
   useEffect(() => {
     if (!hasSyncTimedOut || !isActive) return
     trackEvent("tutorial_element_not_found", {
@@ -353,7 +353,7 @@ export function TutorialOverlay() {
     retriggerHighlight()
   }, [isActive, isPageTransition, retriggerHighlight])
 
-  // ─── Auto-advance ─────────────────────────────────────────────────────────────
+  // Auto-advance
 
   useAutoAdvance({
     isActive,
@@ -366,7 +366,7 @@ export function TutorialOverlay() {
     nextStep,
   })
 
-  // ─── Drag ─────────────────────────────────────────────────────────────────────
+  // Drag
 
   const { overlayPosition, isDraggingOverlay, handleDragStart } =
     useOverlayDrag({
@@ -382,7 +382,7 @@ export function TutorialOverlay() {
       ],
     })
 
-  // ─── Scroll wheel prevention on overlay ──────────────────────────────────────
+  // Scroll wheel prevention on overlay
 
   useEffect(() => {
     if (!isActive) return
@@ -405,7 +405,7 @@ export function TutorialOverlay() {
     }
   }, [isActive, currentSlotIndex, isMinimized])
 
-  // ─── Visibility calculations ──────────────────────────────────────────────────
+  // Visibility calculations
 
   const windowHeight =
     typeof window !== "undefined" ? window.innerHeight : 800
@@ -458,7 +458,7 @@ export function TutorialOverlay() {
     ? isTargetAboveContainer
     : isTargetAbove
 
-  // ─── Layout helpers ───────────────────────────────────────────────────────────
+  // Layout helpers
 
   const overlayDockClass = isMobile
     ? "left-3 bottom-[calc(6.25rem+env(safe-area-inset-bottom))]"
@@ -489,11 +489,11 @@ export function TutorialOverlay() {
     ? "flex flex-col gap-3 w-full"
     : "flex gap-3 w-full"
 
-  // ─── Render guard ─────────────────────────────────────────────────────────────
+  // Render guard
 
   if (!isActive || !currentSlot) return null
 
-  // ─── Markup ───────────────────────────────────────────────────────────────────
+  // Markup
 
   const overlayMarkup = (
     <>
@@ -554,7 +554,7 @@ export function TutorialOverlay() {
             </div>
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
               {isMinimized
-                ? `Paused · ${completedSteps}/${totalSteps}`
+                ? `Paused - ${completedSteps}/${totalSteps}`
                 : isPageLoading
                 ? "Loading content..."
                 : isChangingPage
@@ -680,7 +680,7 @@ export function TutorialOverlay() {
                   toast({
                     title: "Tutorial ended",
                     description:
-                      "You can restart it anytime from Settings → Learning & Tutorials.",
+                      "You can restart it anytime from Settings > Learning & Tutorials.",
                   })
                 }}
               >

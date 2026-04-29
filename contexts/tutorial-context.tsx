@@ -4,7 +4,7 @@ import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "./auth-context"
-import { useIsMobile } from "@/hooks"
+import { useIsMobile } from "@/hooks/ui/use-mobile"
 import { useAnalytics } from "@/hooks/use-analytics"
 import { setTutorialToastSuppression } from "@/hooks/ui/use-toast"
 
@@ -297,7 +297,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (profile.tutorial_completed === true) {
       // Respect an in-progress session (e.g. rewatch from Settings, or a test
       // that seeded localStorage state). Only deactivate when there is no
-      // active localStorage state — otherwise the user's explicit restart gets
+      // active localStorage state; otherwise the user's explicit restart gets
       // silently cancelled the moment the profile response arrives.
       const hasLocalState =
         typeof window !== "undefined" &&

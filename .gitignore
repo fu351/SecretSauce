@@ -94,3 +94,7 @@ vercel.local.json
 
 # Local dev logs
 .codex-next-dev*.log
+.codex-*-dev*.log
+
+# Local verification screenshots
+store-*.png

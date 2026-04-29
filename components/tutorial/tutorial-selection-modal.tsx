@@ -19,7 +19,7 @@ export function TutorialSelectionModal({
   isOpen,
   onClose,
   title = "Start Tutorial",
-  description = "We’ll guide you through the main parts of Secret Sauce so you can get oriented quickly.",
+  description = "We'll guide you through the main parts of Secret Sauce so you can get oriented quickly.",
   confirmLabel = "Start Tutorial",
 }: TutorialSelectionModalProps) {
   const { startTutorial } = useTutorial()

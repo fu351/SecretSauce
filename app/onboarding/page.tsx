@@ -7,95 +7,34 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight, GripVertical, Loader2 } from "lucide-react"
+import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight, Loader2, Sparkles, Zap } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { useToast } from "@/hooks"
+import { useToast } from "@/hooks/ui/use-toast"
 import { useTheme } from "@/contexts/theme-context"
 import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
 import { DIETARY_TAGS, CUISINE_TYPES, type DifficultyLevel } from "@/lib/types"
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-
 const goals = [
   {
     id: "cooking" as const,
-    title: "Cook better meals",
-    description: "Get recipes and cooking tips that fit your skill level",
+    title: "Plan meals",
+    description: "Build weekly plans and find recipes faster",
     icon: ChefHat,
   },
   {
     id: "budgeting" as const,
-    title: "Save on Groceries",
-    description: "Plan meals around a weekly grocery budget",
+    title: "Save money",
+    description: "Compare grocery costs and stay near budget",
     icon: DollarSign,
   },
   {
     id: "health" as const,
-    title: "Eat healthier",
-    description: "Plan meals around your health goals",
+    title: "Eat intentionally",
+    description: "Filter by dietary needs, time, and nutrition goals",
     icon: Users,
   },
 ]
 
 type GoalId = "cooking" | "budgeting" | "health"
-
-function SortableGoalItem({
-  goal,
-  rank,
-  isDark,
-}: {
-  goal: typeof goals[number]
-  rank: number
-  isDark: boolean
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: goal.id })
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-  const Icon = goal.icon
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`w-full rounded-lg border p-4 sm:p-5 flex items-start sm:items-center gap-3 sm:gap-4 select-none ${
-        isDark ? "border-[#e8dcc4]/20 bg-[#181813]" : "border-orange-400 bg-[#FFF8F0]"
-      }`}
-    >
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 touch-none">
-        <GripVertical className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]/30" : "text-orange-400"}`} />
-      </div>
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-        isDark ? "bg-[#e8dcc4]/10 text-[#e8dcc4]" : "bg-orange-100 text-orange-700"
-      }`}>
-        {rank}
-      </div>
-      <div className={`p-2 rounded-lg border ${isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-600 bg-orange-100"}`}>
-        <Icon className={`h-5 w-5 ${isDark ? "text-[#e8dcc4]" : "text-orange-700"}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <h3 className={`font-light text-sm sm:text-base ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{goal.title}</h3>
-        <p className={`text-xs font-light leading-snug ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{goal.description}</p>
-      </div>
-    </div>
-  )
-}
 
 const cookingLevels = [
   { id: "beginner" as DifficultyLevel, label: "Beginner", description: "I want simple recipes and clear steps" },
@@ -115,10 +54,10 @@ const dietaryOptions = DIETARY_TAGS.map(tag => {
 }).filter(tag => tag !== "Other") // Remove 'other' option
 
 const cookingTimeOptions = [
-  { id: "quick", label: "Under 30 minutes", description: "Fast meals", icon: "⚡" },
-  { id: "medium", label: "30-60 minutes", description: "Standard meals", icon: "🕐" },
-  { id: "long", label: "Over 60 minutes", description: "Longer recipes", icon: "🍳" },
-  { id: "any", label: "No preference", description: "Any length is fine", icon: "✨" },
+  { id: "quick", label: "Under 30 minutes", description: "Fast meals", icon: Zap },
+  { id: "medium", label: "30-60 minutes", description: "Standard meals", icon: Clock },
+  { id: "long", label: "Over 60 minutes", description: "Longer recipes", icon: ChefHat },
+  { id: "any", label: "No preference", description: "Any length is fine", icon: Sparkles },
 ]
 
 const cuisineOptions = CUISINE_TYPES.map(type => {
@@ -158,57 +97,57 @@ function dbCuisineToDisplay(db: string): string | undefined {
 const questionOrder = [
   {
     id: "goal",
-    title: "What do you want help with?",
-    description: "Drag the options so your top priority is first.",
+    title: "What should Secret Sauce optimize for?",
+    description: "This sets your default recommendations.",
     required: true,
     autoAdvance: true,
   },
   {
     id: "cookingLevel",
-    title: "How comfortable are you with cooking?",
-    description: "Choose the level that best matches how you cook today.",
+    title: "How much recipe guidance do you want?",
+    description: "Used to tune recipe difficulty and instructions.",
     required: true,
     autoAdvance: true,
   },
   {
     id: "budget",
-    title: "Weekly Grocery Budget",
-    description: "What do you usually want to spend on groceries each week?",
+    title: "What weekly grocery budget should we plan around?",
+    description: "Used by meal planning, shopping, and dashboard tracking.",
     required: true,
     autoAdvance: true,
   },
   {
     id: "dietary",
-    title: "Dietary restrictions",
-    description: "Select any that apply (optional)",
+    title: "Any dietary filters?",
+    description: "Optional filters for recipes and meal plans.",
     required: false,
     autoAdvance: false,
   },
   {
     id: "cuisine",
-    title: "Favorite cuisines",
-    description: "Pick as many cuisines as you enjoy (optional)",
+    title: "What cuisines should we favor?",
+    description: "Optional signals for recommendations.",
     required: false,
     autoAdvance: false,
   },
   {
     id: "cookingTime",
-    title: "How much time do you usually have?",
-    description: "Choose the recipe length you prefer.",
+    title: "How much cooking time should we assume?",
+    description: "Used to rank recipes and weekly plans.",
     required: true,
     autoAdvance: true,
   },
   {
     id: "location",
-    title: "Where do you shop?",
-    description: "Help us find the best grocery stores near you",
+    title: "Where should we search for groceries?",
+    description: "Needed for store matching and price-aware shopping.",
     required: true,
     autoAdvance: false,
   },
   {
     id: "theme",
-    title: "Choose Your Theme",
-    description: "Pick a look you can always change later",
+    title: "Choose your app theme",
+    description: "You can change it later in settings.",
     required: true,
     autoAdvance: false,
   },
@@ -331,22 +270,6 @@ export default function OnboardingPage() {
     setTheme(selectedTheme)
   }, [selectedTheme, setTheme])
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
-  const handleGoalDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (over && active.id !== over.id) {
-      setGoalRanking(prev => {
-        const oldIndex = prev.indexOf(active.id as GoalId)
-        const newIndex = prev.indexOf(over.id as GoalId)
-        return arrayMove(prev, oldIndex, newIndex)
-      })
-    }
-  }
-
   const handleDietaryToggle = (option: string) => {
     setDietaryPreferences((prev) =>
       prev.includes(option) ? prev.filter((item) => item !== option) : [...prev, option],
@@ -402,6 +325,13 @@ export default function OnboardingPage() {
     }
   }
 
+  const handleGoalSelect = (value: GoalId) => {
+    setGoalRanking([value, ...goals.map((goal) => goal.id).filter((id) => id !== value)])
+    setTimeout(() => {
+      setActiveIndex((prev) => Math.min(prev + 1, lastStepIndex))
+    }, 80)
+  }
+
   const goToStep = (index: number) => {
     const clamped = Math.max(0, Math.min(index, lastStepIndex))
     setActiveIndex(clamped)
@@ -421,50 +351,58 @@ export default function OnboardingPage() {
     switch (questionId) {
       case "goal":
         return (
-          <Card className={`p-5 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-5 sm:mb-6">
+          <Card className={`p-4 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
+            <div className="mb-3 sm:mb-6">
               <h2 className={`text-xl sm:text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
-              <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>Drag to rank your goals — most important first</p>
+              <p className={`text-sm font-light sm:text-base ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleGoalDragEnd}
-            >
-              <SortableContext items={goalRanking} strategy={verticalListSortingStrategy}>
-                <div className="space-y-3">
-                  {goalRanking.map((goalId, index) => {
-                    const goal = goals.find(g => g.id === goalId)!
-                    return (
-                      <SortableGoalItem
-                        key={goalId}
-                        goal={goal}
-                        rank={index + 1}
-                        isDark={isDark}
-                      />
-                    )
-                  })}
-                </div>
-              </SortableContext>
-            </DndContext>
-            <p className={`text-xs mt-4 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>
-              Rank 1 gets the full deep-dive. Ranks 2 and 3 get progressively shorter tours.
-            </p>
+            <div className="space-y-2 sm:space-y-3">
+              {goals.map((goal) => {
+                const Icon = goal.icon
+                const selected = goalRanking[0] === goal.id
+                return (
+                  <button
+                    key={goal.id}
+                    type="button"
+                    onClick={() => handleGoalSelect(goal.id)}
+                    className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-all sm:p-5 ${
+                      selected
+                        ? isDark
+                          ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
+                          : "border-orange-600 bg-orange-100"
+                        : isDark
+                          ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
+                          : "border-orange-400 hover:border-orange-600 hover:bg-orange-100"
+                    }`}
+                  >
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+                      isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-600 bg-orange-100"
+                    }`}>
+                      <Icon className={`h-4 w-4 ${isDark ? "text-[#e8dcc4]" : "text-orange-700"}`} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className={`block text-sm font-medium sm:text-base ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{goal.title}</span>
+                      <span className={`block text-xs leading-snug ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{goal.description}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           </Card>
         )
       case "cookingLevel":
         return (
-          <Card className={`p-5 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-6 sm:mb-8">
+          <Card className={`p-4 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
+            <div className="mb-3 sm:mb-8">
               <h2 className={`text-xl sm:text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               {cookingLevels.map((level) => (
                 <button
                   key={level.id}
                   onClick={() => handleSingleSelect(setCookingLevel, level.id, "cookingLevel")}
-                  className={`w-full rounded-lg border p-4 sm:p-6 text-left transition-all ${
+                  className={`w-full rounded-lg border p-3 sm:p-6 text-left transition-all ${
                     cookingLevel === level.id
                       ? isDark
                         ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
@@ -483,17 +421,17 @@ export default function OnboardingPage() {
         )
       case "budget":
         return (
-          <Card className={`p-5 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-6 sm:mb-8">
+          <Card className={`p-4 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
+            <div className="mb-3 sm:mb-8">
               <h2 className={`text-xl sm:text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               {budgetRanges.map((budget) => (
                 <button
                   key={budget.id}
                   onClick={() => handleSingleSelect(setBudgetRange, budget.id, "budget")}
-                  className={`w-full rounded-lg border p-4 sm:p-6 text-left transition-all ${
+                  className={`w-full rounded-lg border p-3 sm:p-6 text-left transition-all ${
                     budgetRange === budget.id
                       ? isDark
                         ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
@@ -512,17 +450,17 @@ export default function OnboardingPage() {
         )
       case "dietary":
         return (
-          <Card className={`p-5 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-6 sm:mb-8">
+          <Card className={`p-4 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
+            <div className="mb-3 sm:mb-8">
               <h2 className={`text-xl sm:text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {dietaryOptions.map((option) => (
                 <button
                   key={option}
                   onClick={() => handleDietaryToggle(option)}
-                  className={`rounded-lg border p-3 sm:p-4 text-center transition-all font-light ${
+                  className={`rounded-lg border p-2 text-center text-xs transition-all font-light sm:p-4 sm:text-sm ${
                     dietaryPreferences.includes(option)
                       ? isDark
                         ? "border-[#e8dcc4] bg-[#e8dcc4]/10 text-[#e8dcc4]"
@@ -540,17 +478,17 @@ export default function OnboardingPage() {
         )
       case "cuisine":
         return (
-          <Card className={`p-5 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-6 sm:mb-8">
+          <Card className={`p-4 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
+            <div className="mb-3 sm:mb-8">
               <h2 className={`text-xl sm:text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3">
               {cuisineOptions.map((option) => (
                 <button
                   key={option}
                   onClick={() => handleCuisineToggle(option)}
-                  className={`rounded-lg border p-3 sm:p-4 text-center transition-all font-light ${
+                  className={`rounded-lg border p-2 text-center text-xs transition-all font-light sm:p-4 sm:text-sm ${
                     cuisinePreferences.includes(option)
                       ? isDark
                         ? "border-[#e8dcc4] bg-[#e8dcc4]/10 text-[#e8dcc4]"
@@ -568,50 +506,57 @@ export default function OnboardingPage() {
         )
       case "cookingTime":
         return (
-          <Card className={`p-5 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-6 sm:mb-8">
+          <Card className={`p-4 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
+            <div className="mb-3 sm:mb-8">
               <h2 className={`text-xl sm:text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
             </div>
             <div className="space-y-3">
-              {cookingTimeOptions.map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => handleSingleSelect(setCookingTimePreference, option.id, "cookingTime")}
-                  className={`w-full rounded-lg border p-4 text-left transition-all ${
-                    cookingTimePreference === option.id
-                      ? isDark
-                        ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
-                        : "border-orange-600 bg-orange-100"
-                      : isDark
-                        ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
-                        : "border-orange-400 hover:border-orange-600 hover:bg-orange-100"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl sm:text-2xl">{option.icon}</span>
-                    <div>
-                      <h3 className={`font-light text-base sm:text-lg ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{option.label}</h3>
-                      <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{option.description}</p>
+              {cookingTimeOptions.map((option) => {
+                const TimeIcon = option.icon
+                return (
+                  <button
+                    key={option.id}
+                    onClick={() => handleSingleSelect(setCookingTimePreference, option.id, "cookingTime")}
+                    className={`w-full rounded-lg border p-3 text-left transition-all sm:p-4 ${
+                      cookingTimePreference === option.id
+                        ? isDark
+                          ? "border-[#e8dcc4] bg-[#e8dcc4]/5"
+                          : "border-orange-600 bg-orange-100"
+                        : isDark
+                          ? "border-[#e8dcc4]/20 hover:border-[#e8dcc4]/40 hover:bg-[#e8dcc4]/5"
+                          : "border-orange-400 hover:border-orange-600 hover:bg-orange-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+                        isDark ? "border-[#e8dcc4]/20 bg-[#e8dcc4]/5" : "border-orange-600 bg-orange-100"
+                      }`}>
+                        <TimeIcon className={`h-4 w-4 ${isDark ? "text-[#e8dcc4]" : "text-orange-700"}`} />
+                      </span>
+                      <div>
+                        <h3 className={`font-light text-base sm:text-lg ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{option.label}</h3>
+                        <p className={`text-sm font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{option.description}</p>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                )
+              })}
             </div>
           </Card>
         )
       case "location":
         return (
-          <Card className={`p-5 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-6 sm:mb-8">
+          <Card className={`p-4 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
+            <div className="mb-3 sm:mb-8">
               <h2 className={`text-xl sm:text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
               <p className={`text-xs mt-2 ${isDark ? "text-[#e8dcc4]/40" : "text-amber-800"}`}>At minimum, enter a city or postal code to continue.</p>
             </div>
-            <div className="space-y-6">
-              <div className="space-y-3">
+            <div className="space-y-3 sm:space-y-6">
+              <div className="space-y-2 sm:space-y-3">
                 <Label htmlFor="address" className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>
-                  Home Address
+                  Address search
                 </Label>
                 <div className="relative">
                   <MapPin className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-orange-700"}`} />
@@ -631,17 +576,9 @@ export default function OnboardingPage() {
                     placeholder="Search your address"
                   />
                 </div>
-                <Input
-                  id="address-line2"
-                  type="text"
-                  placeholder="Apartment, suite, etc. (optional)"
-                  value={addressLine2}
-                  onChange={(e) => setAddressLine2(e.target.value)}
-                  className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/40" : "bg-white border-orange-400 text-amber-950 placeholder:text-amber-700"}
-                />
-                <p className={`text-xs ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>Use the search to auto-complete your address for better store accuracy.</p>
+                <p className={`hidden text-xs sm:block ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>Use the search to auto-complete your address for better store accuracy.</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 <div>
                   <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>City</Label>
                   <Input
@@ -652,29 +589,11 @@ export default function OnboardingPage() {
                   />
                 </div>
                 <div>
-                  <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>State/Region</Label>
-                  <Input
-                    value={stateRegion}
-                    onChange={(e) => setStateRegion(e.target.value)}
-                    placeholder="State"
-                    className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-orange-400 text-amber-950"}
-                  />
-                </div>
-                <div>
                   <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>Postal Code</Label>
                   <Input
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
                     placeholder="ZIP/Postal"
-                    className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-orange-400 text-amber-950"}
-                  />
-                </div>
-                <div>
-                  <Label className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>Country</Label>
-                  <Input
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    placeholder="Country"
                     className={isDark ? "bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white border-orange-400 text-amber-950"}
                   />
                 </div>
@@ -703,16 +622,16 @@ export default function OnboardingPage() {
         )
       case "theme":
         return (
-          <Card className={`p-5 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
-            <div className="mb-6 sm:mb-8">
+          <Card className={`p-4 sm:p-8 ${isDark ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-[#FFF8F0] border-orange-600"}`}>
+            <div className="mb-3 sm:mb-8">
               <h2 className={`text-xl sm:text-2xl font-serif font-light mb-3 ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>{meta.title}</h2>
               <p className={`font-light ${isDark ? "text-[#e8dcc4]/60" : "text-amber-900"}`}>{meta.description}</p>
               <p className={`text-sm mt-3 ${isDark ? "text-[#e8dcc4]/50" : "text-amber-800"}`}>Click a theme to preview it.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <button
                 onClick={() => handleThemeChoice("dark")}
-                className={`p-4 rounded-lg border-2 text-left transition-all duration-300 ${
+                className={`rounded-lg border-2 p-3 text-left transition-all duration-300 sm:p-4 ${
                   selectedTheme === "dark"
                     ? "border-[#e8dcc4] bg-[#0a0a0a] shadow-lg shadow-[#e8dcc4]/10 scale-105"
                     : "border-[#e8dcc4]/30 bg-[#0a0a0a]/60 hover:border-[#e8dcc4]/50 hover:scale-102"
@@ -730,7 +649,7 @@ export default function OnboardingPage() {
               </button>
               <button
                 onClick={() => handleThemeChoice("light")}
-                className={`p-4 rounded-lg border-2 text-left transition-all duration-300 ${
+                className={`rounded-lg border-2 p-3 text-left transition-all duration-300 sm:p-4 ${
                   selectedTheme === "light"
                     ? "border-orange-500 bg-gradient-to-br from-[#FAF4E5] to-orange-100 shadow-lg shadow-orange-500/20 scale-105"
                     : "border-orange-300 bg-gradient-to-br from-[#FAF4E5] to-orange-100 opacity-75 hover:opacity-95 hover:scale-102"
@@ -819,7 +738,7 @@ export default function OnboardingPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#181813] text-[#e8dcc4]">
         <Loader2 className="h-10 w-10 animate-spin opacity-80" aria-hidden />
-        <p className="text-sm font-light opacity-70">Loading your profile…</p>
+        <p className="text-sm font-light opacity-70">Loading your profile...</p>
       </div>
     )
   }
@@ -829,28 +748,28 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className={`min-h-[100svh] px-4 pb-6 pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 sm:py-10 ${
+    <div className={`h-[100svh] overflow-hidden px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] sm:h-auto sm:min-h-[100svh] sm:overflow-visible sm:px-6 sm:py-10 ${
       isDark ? "bg-[#181813] text-[#e8dcc4]" : "bg-[#FAF4E5] text-gray-900"
     }`}>
-      <div className="mx-auto max-w-2xl">
-        <div className="space-y-5 sm:space-y-8">
-          <header className="text-center">
-            <div className="mb-4 sm:mb-6 flex justify-center">
+      <div className="mx-auto flex h-full max-w-2xl flex-col sm:h-auto">
+        <div className="flex min-h-0 flex-1 flex-col space-y-3 sm:block sm:space-y-8">
+          <header className="shrink-0 text-center">
+            <div className="mb-4 hidden justify-center sm:mb-6 sm:flex">
               <Image src={isDark ? "/logo-dark.png" : "/logo-warm.png"} alt="Secret Sauce" width={64} height={64} className="opacity-90 sm:h-20 sm:w-20" />
             </div>
-            <p className={`uppercase tracking-[0.2em] text-[11px] mb-2 sm:mb-3 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>Onboarding</p>
-            <h1 className="text-3xl sm:text-4xl font-serif font-light mb-3 tracking-tight">Set up your preferences.</h1>
-            <p className={`mx-auto max-w-md text-sm sm:text-lg font-light mb-4 sm:mb-6 leading-relaxed ${isDark ? "text-[#e8dcc4]/60" : "text-gray-700"}`}>
+            <p className={`uppercase tracking-[0.2em] text-[10px] mb-1 sm:mb-3 sm:text-[11px] ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>Onboarding</p>
+            <h1 className="text-2xl sm:text-4xl font-serif font-light mb-1 sm:mb-3 tracking-tight">Set up your preferences.</h1>
+            <p className={`mx-auto max-w-md text-xs sm:text-lg font-light mb-2 sm:mb-6 leading-relaxed ${isDark ? "text-[#e8dcc4]/60" : "text-gray-700"}`}>
               We&apos;ll use your answers for recipes, grocery suggestions, and meal planning.
             </p>
-            <div className={`rounded-lg px-4 py-3 ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
+            <div className={`hidden rounded-lg px-4 py-3 sm:block ${isDark ? "bg-[#e8dcc4]/5 border border-[#e8dcc4]/20" : "bg-orange-50 border border-orange-200"}`}>
               <p className={`text-sm ${isDark ? "text-[#e8dcc4]/70" : "text-orange-900/70"}`}>
                 You can change these settings later.
               </p>
             </div>
           </header>
 
-          <div className="relative">
+          <div className="relative min-h-0 flex-1 sm:block">
             <div
               key={currentQuestion.id}
               className="transition-all duration-200 ease-in-out transform"
@@ -859,7 +778,7 @@ export default function OnboardingPage() {
             </div>
           </div>
 
-          <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t bg-inherit px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:static sm:mx-0 sm:border-0 sm:px-0 sm:py-0">
+          <div className="z-20 -mx-4 mt-auto shrink-0 border-t bg-inherit px-4 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:static sm:mx-0 sm:mt-4 sm:border-0 sm:px-0 sm:py-0">
             <div className="mb-3 flex items-center justify-center sm:mb-4">
               <div className="flex max-w-full items-center gap-1 overflow-x-auto px-1 py-1 scrollbar-hide">
                 {questionOrder.map((step, idx) => {
@@ -894,39 +813,39 @@ export default function OnboardingPage() {
             </div>
 
             <div className="grid grid-cols-[auto_1fr] gap-3 sm:flex sm:items-center sm:justify-between">
-            <Button
-              variant="outline"
-              onClick={() => goToStep(activeIndex - 1)}
-              disabled={activeIndex === 0}
-              className="h-11 min-w-11 px-3 sm:min-w-[100px]"
-            >
-              <ArrowLeft className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Back</span>
-            </Button>
+              <Button
+                variant="outline"
+                onClick={() => goToStep(activeIndex - 1)}
+                disabled={activeIndex === 0}
+                className="h-11 min-w-11 px-3 sm:min-w-[100px]"
+              >
+                <ArrowLeft className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Back</span>
+              </Button>
 
-            <Button
-              onClick={() => {
-                if (atLastStep) {
-                  handleComplete()
-                } else {
-                  goToStep(activeIndex + 1)
+              <Button
+                onClick={() => {
+                  if (atLastStep) {
+                    handleComplete()
+                  } else {
+                    goToStep(activeIndex + 1)
+                  }
+                }}
+                disabled={
+                  loading || (currentQuestion?.required && !canProceedCurrent()) || (atLastStep && !allRequiredAnswered)
                 }
-              }}
-              disabled={
-                loading || (currentQuestion?.required && !canProceedCurrent()) || (atLastStep && !allRequiredAnswered)
-              }
-              className={`h-11 w-full py-3 font-medium disabled:opacity-50 disabled:cursor-not-allowed sm:min-w-[120px] sm:w-auto ${
-                isDark
-                  ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
-                  : "bg-orange-500 text-white hover:bg-orange-600"
-              }`}
-            >
-              {atLastStep ? "Finish" : "Next"}
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
+                className={`h-11 w-full py-3 font-medium disabled:opacity-50 disabled:cursor-not-allowed sm:min-w-[120px] sm:w-auto ${
+                  isDark
+                    ? "bg-[#e8dcc4] text-[#181813] hover:bg-[#d4c8b0]"
+                    : "bg-orange-500 text-white hover:bg-orange-600"
+                }`}
+              >
+                {atLastStep ? "Finish" : "Next"}
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
             </div>
           </div>
-          <p className={`text-xs text-center mt-3 ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
+          <p className={`hidden text-xs text-center mt-3 sm:block ${isDark ? "text-[#e8dcc4]/60" : "text-gray-600"}`}>
             You can change these settings anytime.
           </p>
         </div>

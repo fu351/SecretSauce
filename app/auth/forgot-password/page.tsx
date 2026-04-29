@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks"
+import { useToast } from "@/hooks/ui/use-toast"
 import { ArrowLeft, Mail } from "lucide-react"
 
 function getClerkErrorMessage(error: unknown): string {

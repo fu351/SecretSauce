@@ -348,7 +348,7 @@ export function useHighlightEngine({
 
     const observer = new MutationObserver((mutations) => {
       const isInternal = mutations.every((m) =>
-        // overlayRef is owned by the overlay — skip mutations originating inside it.
+        // overlayRef is owned by the overlay; skip mutations originating inside it.
         // We don't have a ref here, so we check for the data attribute instead.
         (m.target as HTMLElement).closest?.("[data-tutorial-overlay]") !== null
       )

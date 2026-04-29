@@ -123,7 +123,9 @@ export function MobileQuickAddPanel({
   }, [onAddRecipe])
 
   return (
-    <div className="space-y-3">
+    <div className={`min-w-0 max-w-full space-y-3 rounded-xl border p-3 ${
+      theme === "dark" ? "border-[#e8dcc4]/10" : "border-gray-200"
+    } ${cardBgClass}`}>
       <div className="space-y-1.5">
         <div>
           <p className={`text-xs font-semibold ${textClass}`}>Recipes In Cart</p>

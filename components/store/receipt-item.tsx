@@ -125,9 +125,9 @@ export function ReceiptItem({
   }
 
   return (
-    <div className={`p-3 md:p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${className}`}>
-      <div className="flex items-start gap-3">
-        <div className="h-10 w-10 md:h-12 md:w-12 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center flex-shrink-0 overflow-hidden">
+    <div className={`max-w-full overflow-hidden p-3 transition-colors hover:bg-gray-50 dark:hover:bg-white/5 md:p-4 ${className}`}>
+      <div className="flex min-w-0 items-start gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_7.5rem_6.5rem_7rem] lg:items-center lg:gap-4">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100 dark:bg-white/5 md:h-12 md:w-12 lg:hidden">
           {imageSource ? (
             <img
               src={imageSource}
@@ -141,9 +141,23 @@ export function ReceiptItem({
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 lg:contents">
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 lg:flex lg:items-center lg:gap-3">
+              <div className="hidden h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100 dark:bg-white/5 lg:flex lg:items-center lg:justify-center">
+                {imageSource ? (
+                  <img
+                    src={imageSource}
+                    alt={displayName}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <ShoppingCart className="h-6 w-6 text-gray-400" />
+                )}
+              </div>
+              <div className="min-w-0">
               <p className={`font-semibold text-sm md:text-base leading-tight break-words pr-1 ${textPrimaryClass}`}>
                 {displayName}
               </p>
@@ -157,9 +171,10 @@ export function ReceiptItem({
                   Not available at this store
                 </p>
               )}
+              </div>
             </div>
 
-            <div className="flex items-start gap-1 flex-shrink-0">
+            <div className="flex items-start gap-1 flex-shrink-0 lg:hidden">
               <div className="text-right min-w-[4.5rem]">
                 {isAvailable && lineTotal !== null ? (
                   <span className={`font-mono font-bold text-sm md:text-base ${textPrimaryClass}`}>
@@ -197,9 +212,9 @@ export function ReceiptItem({
             </div>
           </div>
 
-          <div className="mt-2 flex items-end justify-between gap-3">
+          <div className="mt-2 flex min-w-0 flex-wrap items-end justify-between gap-3 lg:mt-0 lg:contents">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground lg:hidden">
                 Packages
               </p>
               <div className={`inline-flex items-center gap-1 px-1.5 py-1 rounded border ${stepperBgClass}`}>
@@ -233,7 +248,7 @@ export function ReceiptItem({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex min-w-0 flex-shrink-0 flex-wrap items-center gap-1.5">
               {isAvailable ? (
                 <Badge
                   variant="secondary"
@@ -268,6 +283,16 @@ export function ReceiptItem({
                   <ArrowLeftRight className="h-3 w-3" />
                   <span className="hidden sm:inline ml-1">Replace</span>
                 </Button>
+              )}
+            </div>
+
+            <div className="hidden text-right lg:block">
+              {isAvailable && lineTotal !== null ? (
+                <span className={`font-mono text-base font-bold ${textPrimaryClass}`}>
+                  ${lineTotal.toFixed(2)}
+                </span>
+              ) : (
+                <span className="font-mono text-sm text-muted-foreground">--</span>
               )}
             </div>
           </div>
