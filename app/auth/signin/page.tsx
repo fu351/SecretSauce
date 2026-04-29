@@ -16,6 +16,7 @@ import Image from "next/image"
 import { ArrowRight, X } from "lucide-react"
 import posthog from "posthog-js"
 import { ensureProfileWithTimeout } from "@/lib/auth/ensure-profile-client"
+import { isProfileOnboardingComplete } from "@/lib/auth/onboarding"
 
 type MfaStrategy = "email_code" | "phone_code" | "totp" | "backup_code"
 
@@ -89,7 +90,7 @@ export default function SignInPage() {
   const [availableSecondFactors, setAvailableSecondFactors] = useState<SupportedSecondFactor[]>([])
 
   const { isLoaded, signIn, setActive } = useSignIn()
-  const { user, loading: authLoading } = useAppAuth()
+  const { user, profile, loading: authLoading } = useAppAuth()
   const { toast } = useToast()
   const router = useRouter()
 
@@ -102,8 +103,8 @@ export default function SignInPage() {
 
   useEffect(() => {
     if (authLoading || !user || loading) return
-    router.replace("/dashboard")
-  }, [authLoading, loading, router, user])
+    router.replace(isProfileOnboardingComplete(profile) ? "/dashboard" : "/onboarding")
+  }, [authLoading, loading, profile, router, user])
 
   const completeSignIn = async (createdSessionId: string | null) => {
     if (!createdSessionId) {
@@ -116,13 +117,13 @@ export default function SignInPage() {
     }
 
     await setActive({ session: createdSessionId })
-    await ensureProfileWithTimeout()
+    const payload = await ensureProfileWithTimeout()
     posthog.capture("user_signed_in", { method: "email" })
     toast({
       title: "Welcome Back",
       description: "Access granted.",
     })
-    router.push("/dashboard")
+    router.push(isProfileOnboardingComplete(payload?.profile) ? "/dashboard" : "/onboarding")
   }
 
   const startSecondFactor = async (factor: SupportedSecondFactor) => {

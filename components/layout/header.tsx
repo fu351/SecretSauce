@@ -107,8 +107,8 @@ export function Header() {
     return null
   }
 
-  // Hide header on landing page (for everyone), and on auth/onboarding for non-logged-in users
-  if (pathname === "/" || (!user && (pathname.startsWith("/auth") || pathname === "/onboarding"))) {
+  // Hide app navigation on landing, auth pages, and the focused onboarding flow.
+  if (pathname === "/" || pathname === "/onboarding" || (!user && pathname.startsWith("/auth"))) {
     return null
   }
 

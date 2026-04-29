@@ -113,6 +113,11 @@
       padding-right: env(safe-area-inset-right);
       overscroll-behavior-y: none;
     }
+
+    body.onboarding-route {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
   }
 
   /* Enhanced focus states for better accessibility */

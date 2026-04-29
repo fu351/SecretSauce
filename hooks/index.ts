@@ -10,6 +10,7 @@ export { useToast, toast } from "./ui/use-toast"
 export { useResponsiveImage } from "./ui/use-responsive-image"
 export { useExperiment, type UseExperimentOptions } from "./use-experiment"
 export { useFeatureFlag, type UseFeatureFlagOptions } from "./use-feature-flag"
+export { useFeaturePreferences } from "./use-feature-preferences"
 
 // Recipe Hooks
 export {

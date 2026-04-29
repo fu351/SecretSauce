@@ -87,6 +87,11 @@ export type AnalyticsEventName =
   // General navigation
   | "page_view"
   | "view_mode_changed"
+  | "feature_preferences_updated"
+  | "product_event_recorded"
+  | "media_asset_registered"
+  | "verification_task_created"
+  | "verification_task_confirmed"
 
 /**
  * Type-safe properties for each event
@@ -275,6 +280,26 @@ export interface EventProperties {
     mode: "grid" | "list"
     page: string
   }
+  feature_preferences_updated: {
+    changed_fields: string[]
+  }
+  product_event_recorded: {
+    event_type: string
+    duplicate: boolean
+  }
+  media_asset_registered: {
+    purpose: "receipt" | "meal_verification" | "pantry_scan" | "social_post_derivative"
+    retention_days?: number
+  }
+  verification_task_created: {
+    feature_area: "budget" | "streaks" | "social" | "pantry" | "recipe" | "shopping"
+    source_type: "manual" | "receipt" | "meal_photo" | "pantry_photo" | "recipe_try" | "system"
+    status: "pending" | "auto_accepted" | "needs_confirmation"
+  }
+  verification_task_confirmed: {
+    feature_area: "budget" | "streaks" | "social" | "pantry" | "recipe" | "shopping"
+    decision: "confirm" | "reject"
+  }
 }
 
 /**
@@ -358,6 +383,11 @@ export const EVENT_TYPE_MAPPING: Record<AnalyticsEventName, ABEventType> = {
   // General events → custom
   page_view: "custom",
   view_mode_changed: "custom",
+  feature_preferences_updated: "custom",
+  product_event_recorded: "custom",
+  media_asset_registered: "custom",
+  verification_task_created: "custom",
+  verification_task_confirmed: "custom",
 }
 
 /**

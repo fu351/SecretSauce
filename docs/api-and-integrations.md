@@ -1,6 +1,6 @@
 # API and Integrations
 
-Last verified: 2026-03-26.
+Last verified: 2026-04-28.
 
 ## Route Index (`app/api/*`)
 
@@ -61,6 +61,27 @@ Last verified: 2026-03-26.
 - `POST /api/maps`
   - Proxies Google Maps geocode/place/routing actions for the frontend.
 
+### Shared product foundation
+
+- `GET /api/foundation/preferences`
+  - Returns authenticated-user feature, privacy, AI confirmation, nudge, and retention defaults.
+- `PATCH /api/foundation/preferences`
+  - Applies allowlisted preference updates to the authenticated profile only.
+- `GET /api/foundation/product-events`
+  - Returns the authenticated user's private product event history.
+- `POST /api/foundation/product-events`
+  - Records a typed, idempotent product event against the authenticated profile.
+- `GET /api/foundation/media`
+  - Lists private media metadata for the authenticated profile.
+- `POST /api/foundation/media`
+  - Registers private media metadata with owner-scoped storage paths and retention metadata.
+- `GET /api/foundation/verification-tasks`
+  - Lists private verification tasks without exposing AI metadata to social surfaces.
+- `POST /api/foundation/verification-tasks`
+  - Creates an AI/manual verification task; low confidence becomes `needs_confirmation`.
+- `POST /api/foundation/verification-tasks/[id]/confirm`
+  - Applies explicit user confirmation or rejection to a verification task owned by the authenticated profile.
+
 ## Frontend Callers
 
 - `contexts/auth-context.tsx`, `app/auth/signin/page.tsx`, `app/auth/signup/page.tsx`, and `app/auth/check-email/page.tsx` call `/api/auth/ensure-profile`.
@@ -100,6 +121,7 @@ Last verified: 2026-03-26.
 
 - `contexts/analytics-context.tsx` and `hooks/use-analytics.ts` provide route tracking and event dispatch.
 - `hooks/use-experiment.ts` and `hooks/use-feature-flag.ts` wrap the A/B testing client.
+- `hooks/use-feature-preferences.ts` wraps the shared foundation preferences API with React Query.
 
 ## Minimal Environment Checklist
 

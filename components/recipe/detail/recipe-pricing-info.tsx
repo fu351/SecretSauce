@@ -80,7 +80,7 @@ export function RecipePricingInfo({
         setError(null)
         // Fetch pricing for all supported stores in parallel
         const pricePromises = STORES_TO_CHECK.map(store => 
-          recipeDB.calculateCostEstimate(recipeId, store, resolvedZipCode, servings)
+          recipeDB.calculateCostEstimate(recipeId, store, resolvedZipCode, servings, user?.id ?? null)
         )
         
         const results = await Promise.all(pricePromises)

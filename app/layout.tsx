@@ -9,10 +9,12 @@ import { PostHogProvider } from "@/contexts/posthog-provider"
 import { ThemeProvider } from "@/contexts/theme-context"
 import { QueryProvider } from "@/contexts/query-provider"
 import { Header } from "@/components/layout/header"
+import { AppFooter } from "@/components/layout/app-footer"
 import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { ErrorBoundary } from "@/components/shared/error-boundary"
 import { ThemeSync } from "@/components/providers/theme-sync"
+import { OnboardingRedirect } from "@/components/providers/onboarding-redirect"
 import { PretextBootstrap } from "@/components/providers/pretext-bootstrap"
 import { TutorialProvider } from "@/contexts/tutorial-context"
 import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay"
@@ -85,11 +87,13 @@ export default function RootLayout({
                   <PostHogProvider>
                     <TutorialProvider>
                       <ThemeSync />
+                      <OnboardingRedirect />
                       <PretextBootstrap />
                       <TutorialOverlay />
                       <FeedbackWidget position="bottom-left" />
                       <Header />
                       {children}
+                      <AppFooter />
                       <Toaster />
                       <SpeedInsights />
                     </TutorialProvider>

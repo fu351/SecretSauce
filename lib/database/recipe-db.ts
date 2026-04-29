@@ -731,14 +731,11 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     recipeId: string, 
     store: string,
     zip_code: string,
-    servings: number
+    servings: number,
+    userId?: string | null
   ): Promise<{ totalCost: number; costPerServing: number; ingredients: Record<string, number> } | null> {
 
     console.log(`[Recipe DB] Calculating cost estimate for recipe ${recipeId} at store ${store} for ${servings} servings in zip ${zip_code}`)
-
-    const {
-      data: { user },
-    } = await this.supabase.auth.getUser()
 
     // Note: Parameter names must match the SQL function exactly.
     const { data, error } = await this.supabase.rpc("calculate_recipe_cost", {
@@ -746,7 +743,7 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       p_store_id: store as Database["public"]["Enums"]["grocery_store"],
       p_zip_code: zip_code,
       p_servings: servings,
-      p_user_id: user?.id ?? null,
+      p_user_id: userId ?? null,
     })
 
     if (error) {
@@ -762,7 +759,8 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     recipeIds: string[],
     store: string,
     zip_code: string,
-    servingsMap: Record<string, number>
+    servingsMap: Record<string, number>,
+    userId?: string | null
   ): Promise<any> {
     // 1. Transform your servingsMap into the JSON structure the SQL function expects
     const recipeConfigs = recipeIds.map(id => ({
@@ -771,13 +769,9 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     }));
 
     // 2. Make ONE call to the batch function
-    const {
-      data: { user },
-    } = await this.supabase.auth.getUser()
-
     const { data, error } = await this.supabase.rpc("calculate_weekly_basket", {
       p_recipe_configs: recipeConfigs,
-      p_user_id: user?.id ?? null,
+      p_user_id: userId ?? null,
       p_store_id: store as Database["public"]["Enums"]["grocery_store"],
       p_zip_code: zip_code,
     })

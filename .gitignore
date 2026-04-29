@@ -43,6 +43,8 @@ AGENTS.md
 !supabase/migrations/20260411000000_add_challenges_system.sql
 !supabase/migrations/20260411001000_add_recipe_likes.sql
 !supabase/migrations/20260411002000_add_recipe_reposts.sql
+!supabase/migrations/20260428090000_add_shared_product_foundation.sql
+!supabase/migrations/20260428110000_harden_existing_database_warnings.sql
 
 CLAUDE.md
 
@@ -84,3 +86,11 @@ supabase/.temp/
 # Local-only Vercel dev override
 vercel.local.json
 .env.local
+
+# Test files
+*.test.ts
+*.test.tsx
+**/__tests__/
+
+# Local dev logs
+.codex-next-dev*.log

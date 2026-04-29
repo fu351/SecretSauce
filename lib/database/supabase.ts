@@ -186,13 +186,6 @@ const resolveBrowserAccessToken = async (): Promise<string | null> => {
 
 const browserClientOptions = {
   accessToken: resolveBrowserAccessToken,
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: typeof window !== "undefined" ? window.localStorage : undefined,
-    flowType: "pkce",
-  },
   global: {
     fetch: fetch.bind(globalThis),
   },

@@ -1,6 +1,6 @@
 # Architecture and Surfaces
 
-Last verified: 2026-03-26.
+Last verified: 2026-04-28.
 
 ## Stack snapshot
 
@@ -11,6 +11,7 @@ Last verified: 2026-03-26.
 - Analytics and experiments: `contexts/analytics-context.tsx`, `hooks/use-analytics.ts`, `hooks/use-experiment.ts`, and `hooks/use-feature-flag.ts`.
 - Tutorials and onboarding: `contexts/tutorial-context.tsx` and `components/tutorial/*`.
 - Location and store support: `lib/location-client.ts`, `lib/store/*`, and shopping/store hooks.
+- Shared product foundation: `lib/foundation/*`, `/api/foundation/*`, `hooks/use-feature-preferences.ts`, and the additive Supabase migration `20260428090000_add_shared_product_foundation.sql`.
 
 ## Frontend ownership map
 
@@ -75,6 +76,16 @@ Last verified: 2026-03-26.
 - `lib/store/store-metadata.ts` and `lib/store/user-preferred-stores.ts` shape store metadata for comparison and pricing flows.
 - `lib/auth/subscription.ts` and `hooks/use-subscription.ts` gate premium-only UI.
 - `lib/auth/admin.ts` and `hooks/use-admin.ts` gate admin and analytics surfaces.
+- `lib/foundation/*` owns shared feature flags, user feature preferences, private media semantics, product event idempotency helpers, social projection privacy checks, and AI verification status routing.
+
+## Shared Product Foundation
+
+- `user_feature_preferences` stores cross-feature controls separately from identity, billing, and onboarding profile fields.
+- `product_events` is append-only history for private product actions; state tables remain separate from the event log.
+- `media_assets` tracks private raw receipts, meal verification photos, pantry scans, and social-approved derivatives without reusing the public `post-images` bucket.
+- `verification_tasks` and `confirmation_items` provide the common AI confidence and manual confirmation path. Low-confidence AI output routes to confirmation rather than rejecting user progress.
+- `social_activity_projections` is the future public/followers-readable layer. It is intentionally separate from private budget, pantry, media, and verification tables.
+- `recipe_tries` is the shared durable record for cooked/attempted recipes so streaks, pantry auto-deduct, and social aggregates can converge on one source later.
 
 ## Route Notes
 

@@ -3,22 +3,39 @@
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useSignIn } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks"
-import { supabase } from "@/lib/database/supabase"
 import { ArrowLeft, Mail } from "lucide-react"
+
+function getClerkErrorMessage(error: unknown): string {
+  return (
+    (error as { errors?: Array<{ longMessage?: string; message?: string }> })?.errors?.[0]
+      ?.longMessage ??
+    (error as { errors?: Array<{ longMessage?: string; message?: string }> })?.errors?.[0]
+      ?.message ??
+    (error as { message?: string })?.message ??
+    "An unexpected error occurred."
+  )
+}
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
+  const [code, setCode] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [passwordReset, setPasswordReset] = useState(false)
+  const { isLoaded, signIn, setActive } = useSignIn()
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isLoaded || !signIn) return
 
     if (!email) {
       toast({
@@ -32,21 +49,78 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      await signIn.create({
+        strategy: "reset_password_email_code",
+        identifier: email,
       })
-
-      if (error) throw error
 
       setEmailSent(true)
       toast({
         title: "Check your email",
-        description: "We've sent you a password reset link.",
+        description: "We've sent you a password reset code.",
       })
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to send reset email. Please try again.",
+        description: getClerkErrorMessage(error) || "Failed to send reset email. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!isLoaded || !signIn) return
+
+    if (password.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure both passwords match.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const result = await signIn.attemptFirstFactor({
+        strategy: "reset_password_email_code",
+        code,
+        password,
+      })
+
+      if (result.status === "complete") {
+        if (result.createdSessionId) {
+          await setActive({ session: result.createdSessionId })
+        }
+        setPasswordReset(true)
+        toast({
+          title: "Password updated",
+          description: "Your password has been reset successfully.",
+        })
+        return
+      }
+
+      toast({
+        title: "Reset incomplete",
+        description: "Please check the code and try again.",
+        variant: "destructive",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: getClerkErrorMessage(error) || "Failed to reset password. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -74,11 +148,28 @@ export default function ForgotPasswordPage() {
           </div>
           <h1 className="text-3xl font-serif font-light mb-2 tracking-tight">Reset Password</h1>
           <p className="text-[#e8dcc4]/60 font-light">
-            {emailSent ? "Check your inbox" : "Enter your email to receive a reset link"}
+            {passwordReset
+              ? "Your password has been updated"
+              : emailSent
+                ? "Enter the code from your inbox"
+                : "Enter your email to receive a reset code"}
           </p>
         </div>
 
-        {!emailSent ? (
+        {passwordReset ? (
+          <div className="space-y-6">
+            <div className="p-4 rounded-lg bg-[#e8dcc4]/5 border border-[#e8dcc4]/20">
+              <p className="text-sm text-[#e8dcc4]/80 text-center">
+                Your password has been reset. You can continue to your account.
+              </p>
+            </div>
+            <Link href="/dashboard">
+              <Button className="w-full bg-[#e8dcc4] text-[#0a0a0a] hover:bg-[#d4c8b0] py-6 font-light tracking-wide">
+                Continue
+              </Button>
+            </Link>
+          </div>
+        ) : !emailSent ? (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <Label htmlFor="email" className="text-[#e8dcc4]/80 font-light flex items-center gap-2">
@@ -100,30 +191,81 @@ export default function ForgotPasswordPage() {
               className="w-full bg-[#e8dcc4] text-[#0a0a0a] hover:bg-[#d4c8b0] py-6 font-light tracking-wide"
               disabled={loading}
             >
-              {loading ? "Sending..." : "Send Reset Link"}
+              {loading ? "Sending..." : "Send Reset Code"}
             </Button>
           </form>
         ) : (
-          <div className="space-y-6">
+          <form onSubmit={handleResetPassword} className="space-y-6">
             <div className="p-4 rounded-lg bg-[#e8dcc4]/5 border border-[#e8dcc4]/20">
               <p className="text-sm text-[#e8dcc4]/80 text-center">
-                We've sent a password reset link to <strong>{email}</strong>
+                We've sent a password reset code to <strong>{email}</strong>
               </p>
               <p className="text-xs text-[#e8dcc4]/60 text-center mt-2">
-                Click the link in the email to reset your password. The link expires in 1 hour.
+                Enter the code below and choose a new password.
               </p>
             </div>
+            <div>
+              <Label htmlFor="code" className="text-[#e8dcc4]/80 font-light">
+                Reset Code
+              </Label>
+              <Input
+                id="code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                className="mt-2 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/30 focus:border-[#e8dcc4]/40"
+              />
+            </div>
+            <div>
+              <Label htmlFor="new-password" className="text-[#e8dcc4]/80 font-light">
+                New Password
+              </Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={6}
+                required
+                className="mt-2 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/30 focus:border-[#e8dcc4]/40"
+              />
+            </div>
+            <div>
+              <Label htmlFor="confirm-password" className="text-[#e8dcc4]/80 font-light">
+                Confirm Password
+              </Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                minLength={6}
+                required
+                className="mt-2 bg-[#0a0a0a] border-[#e8dcc4]/20 text-[#e8dcc4] placeholder:text-[#e8dcc4]/30 focus:border-[#e8dcc4]/40"
+              />
+            </div>
+            <Button
+              type="submit"
+              className="w-full bg-[#e8dcc4] text-[#0a0a0a] hover:bg-[#d4c8b0] py-6 font-light tracking-wide"
+              disabled={loading}
+            >
+              {loading ? "Updating..." : "Reset Password"}
+            </Button>
             <Button
               onClick={() => {
                 setEmailSent(false)
                 setEmail("")
+                setCode("")
+                setPassword("")
+                setConfirmPassword("")
               }}
+              type="button"
               variant="outline"
               className="w-full border-[#e8dcc4]/30 text-[#e8dcc4] hover:bg-[#e8dcc4]/10"
             >
-              Send Another Link
+              Send Another Code
             </Button>
-          </div>
+          </form>
         )}
 
         <div className="mt-8 text-center">
