@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedProfile } from "@/lib/foundation/server"
 import {
-  getRetentionExpiresAt,
-  isMediaPurpose,
-  PRIVATE_PRODUCT_MEDIA_BUCKET,
-} from "@/lib/foundation/media"
-import { normalizeUserFeaturePreferences } from "@/lib/foundation/preferences"
+  createMediaAsset,
+} from "@/lib/foundation/media-service"
 
 export const runtime = "nodejs"
 
@@ -61,49 +58,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
-    if (!isMediaPurpose(body.purpose)) {
-      return NextResponse.json({ error: "Unsupported media purpose" }, { status: 400 })
+    const result = await createMediaAsset(profile.supabase as any, profile.profileId, {
+      purpose: body.purpose as any,
+      storagePath: typeof body.storagePath === "string" ? body.storagePath.trim() : "",
+      mimeType: typeof body.mimeType === "string" ? body.mimeType : null,
+      byteSize: typeof body.byteSize === "number" ? body.byteSize : null,
+      derivedMetadata:
+        body.derivedMetadata && typeof body.derivedMetadata === "object" && !Array.isArray(body.derivedMetadata)
+          ? (body.derivedMetadata as Record<string, unknown>)
+          : {},
+      sourceProductEventId: typeof body.sourceProductEventId === "string" ? body.sourceProductEventId : null,
+    })
+
+    if ("validationError" in result) {
+      return NextResponse.json({ error: result.validationError }, { status: 400 })
     }
-
-    const storagePath = typeof body.storagePath === "string" ? body.storagePath.trim() : ""
-    if (!storagePath.startsWith(`${profile.profileId}/`)) {
-      return NextResponse.json({ error: "storagePath must be scoped to the authenticated profile" }, { status: 400 })
-    }
-
-    const { data: preferenceRow } = await (profile.supabase as any)
-      .from("user_feature_preferences")
-      .select("*")
-      .eq("profile_id", profile.profileId)
-      .maybeSingle()
-
-    const preferences = normalizeUserFeaturePreferences(preferenceRow)
-    const createdAt = new Date()
-
-    const { data, error } = await (profile.supabase as any)
-      .from("media_assets")
-      .insert({
-        owner_profile_id: profile.profileId,
-        purpose: body.purpose,
-        bucket: PRIVATE_PRODUCT_MEDIA_BUCKET,
-        storage_path: storagePath,
-        mime_type: typeof body.mimeType === "string" ? body.mimeType : null,
-        byte_size: typeof body.byteSize === "number" ? Math.max(0, Math.round(body.byteSize)) : null,
-        retention_expires_at: getRetentionExpiresAt(createdAt, preferences, body.purpose),
-        derived_metadata:
-          body.derivedMetadata && typeof body.derivedMetadata === "object" && !Array.isArray(body.derivedMetadata)
-            ? body.derivedMetadata
-            : {},
-        source_product_event_id: typeof body.sourceProductEventId === "string" ? body.sourceProductEventId : null,
-      })
-      .select("*")
-      .single()
-
-    if (error) {
-      console.error("[foundation/media POST] DB error:", error)
+    if ("error" in result && result.error) {
+      console.error("[foundation/media POST] DB error:", result.error)
       return NextResponse.json({ error: "Failed to register media asset" }, { status: 500 })
     }
 
-    return NextResponse.json({ mediaAsset: data })
+    return NextResponse.json({ mediaAsset: result.mediaAsset })
   } catch (error) {
     console.error("[foundation/media POST] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

@@ -9,8 +9,16 @@ export { useIsMobile } from "./ui/use-mobile"
 export { useToast, toast } from "./ui/use-toast"
 export { useResponsiveImage } from "./ui/use-responsive-image"
 export { useExperiment, type UseExperimentOptions } from "./use-experiment"
-export { useFeatureFlag, type UseFeatureFlagOptions } from "./use-feature-flag"
+export { useFeatureFlag, useFoundationFeatureFlag, type UseFeatureFlagOptions } from "./use-feature-flag"
 export { useFeaturePreferences } from "./use-feature-preferences"
+export {
+  useBudgetDashboard,
+  useCreateBudgetGoal,
+  useSwitchBudgetGoal,
+  useLogBudgetSpend,
+  useAllocateWeeklySurplus,
+  useDismissBudgetNudge,
+} from "./use-budget-dashboard"
 
 // Recipe Hooks
 export {

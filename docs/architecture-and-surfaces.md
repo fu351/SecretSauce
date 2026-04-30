@@ -48,6 +48,7 @@ Last verified: 2026-04-28.
 - `/pantry` is the pantry tracker, including ingredient standardization calls.
 - `/delivery` lists current and past delivery orders.
 - `/delivery/[id]` shows order details.
+- `/budget` is the authenticated budget tracking core surface (goal setup, spend logging, weekly wrap, and in-app nudges).
 
 ### Account and billing
 
@@ -77,6 +78,7 @@ Last verified: 2026-04-28.
 - `lib/auth/subscription.ts` and `hooks/use-subscription.ts` gate premium-only UI.
 - `lib/auth/admin.ts` and `hooks/use-admin.ts` gate admin and analytics surfaces.
 - `lib/foundation/*` owns shared feature flags, user feature preferences, private media semantics, product event idempotency helpers, social projection privacy checks, and AI verification status routing.
+- `lib/budget/*` owns budget domain calculations, guard checks, and state-transition services built on top of foundation primitives.
 
 ## Shared Product Foundation
 

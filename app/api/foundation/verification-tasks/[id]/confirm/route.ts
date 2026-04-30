@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedProfile } from "@/lib/foundation/server"
-import { resolveUserConfirmationStatus } from "@/lib/foundation/verification"
+import { applyUserVerificationDecision } from "@/lib/foundation/verification-service"
 
 export const runtime = "nodejs"
 
@@ -30,11 +30,6 @@ export async function POST(
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
-    const status = resolveUserConfirmationStatus(body.decision)
-    if (!status) {
-      return NextResponse.json({ error: "decision must be confirm or reject" }, { status: 400 })
-    }
-
     const { id } = await params
     const { data: existing, error: lookupError } = await (profile.supabase as any)
       .from("verification_tasks")
@@ -52,33 +47,23 @@ export async function POST(
       return NextResponse.json({ error: "Verification task not found" }, { status: 404 })
     }
 
-    const decisionPayload =
-      body.confirmedOutput && typeof body.confirmedOutput === "object" && !Array.isArray(body.confirmedOutput)
-        ? body.confirmedOutput
-        : {}
+    const result = await applyUserVerificationDecision(
+      profile.supabase as any,
+      profile.profileId,
+      id,
+      body.decision,
+      body.confirmedOutput,
+    )
 
-    const { data, error } = await (profile.supabase as any)
-      .from("verification_tasks")
-      .update({
-        status,
-        reviewed_at: new Date().toISOString(),
-        reviewer_profile_id: profile.profileId,
-        user_decision: {
-          decision: body.decision,
-          output: decisionPayload,
-        },
-      })
-      .eq("id", id)
-      .eq("owner_profile_id", profile.profileId)
-      .select("*")
-      .single()
-
-    if (error) {
-      console.error("[foundation/verification confirm] Update error:", error)
+    if ("validationError" in result) {
+      return NextResponse.json({ error: result.validationError }, { status: 400 })
+    }
+    if ("error" in result && result.error) {
+      console.error("[foundation/verification confirm] Update error:", result.error)
       return NextResponse.json({ error: "Failed to update verification task" }, { status: 500 })
     }
 
-    return NextResponse.json({ verificationTask: data })
+    return NextResponse.json({ verificationTask: result.verificationTask })
   } catch (error) {
     console.error("[foundation/verification confirm] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

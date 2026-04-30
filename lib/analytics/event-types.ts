@@ -92,6 +92,10 @@ export type AnalyticsEventName =
   | "media_asset_registered"
   | "verification_task_created"
   | "verification_task_confirmed"
+  | "budget_goal_created"
+  | "budget_goal_switched"
+  | "budget_spend_logged"
+  | "budget_surplus_allocated"
 
 /**
  * Type-safe properties for each event
@@ -300,6 +304,23 @@ export interface EventProperties {
     feature_area: "budget" | "streaks" | "social" | "pantry" | "recipe" | "shopping"
     decision: "confirm" | "reject"
   }
+  budget_goal_created: {
+    category: "travel" | "concert" | "gaming" | "dining" | "generic"
+    target_cents: number
+  }
+  budget_goal_switched: {
+    goal_id: string
+    previous_goal_id?: string
+  }
+  budget_spend_logged: {
+    source_type: "manual" | "receipt"
+    amount_cents: number
+    duplicate?: boolean
+  }
+  budget_surplus_allocated: {
+    week_start_date: string
+    duplicate?: boolean
+  }
 }
 
 /**
@@ -388,6 +409,10 @@ export const EVENT_TYPE_MAPPING: Record<AnalyticsEventName, ABEventType> = {
   media_asset_registered: "custom",
   verification_task_created: "custom",
   verification_task_confirmed: "custom",
+  budget_goal_created: "custom",
+  budget_goal_switched: "custom",
+  budget_spend_logged: "custom",
+  budget_surplus_allocated: "custom",
 }
 
 /**

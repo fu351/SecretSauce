@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedProfile } from "@/lib/foundation/server"
-import {
-  isDuplicateDatabaseError,
-  isJsonObject,
-  isProductEventType,
-} from "@/lib/foundation/product-events"
+import { isProductEventType } from "@/lib/foundation/product-events"
+import { appendProductEvent } from "@/lib/foundation/product-events-service"
 
 export const runtime = "nodejs"
 
@@ -64,56 +61,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unsupported product event type" }, { status: 400 })
     }
 
-    const idempotencyKey =
-      typeof body.idempotencyKey === "string" && body.idempotencyKey.trim().length > 0
-        ? body.idempotencyKey.trim()
-        : null
+    const result = await appendProductEvent(profile.supabase as any, profile.profileId, {
+      eventType: body.eventType,
+      source: typeof body.source === "string" ? body.source : undefined,
+      idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : "",
+      entityType: typeof body.entityType === "string" ? body.entityType : null,
+      entityId: typeof body.entityId === "string" ? body.entityId : null,
+      metadata: body.metadata as Record<string, unknown>,
+    })
 
-    if (!idempotencyKey) {
-      return NextResponse.json({ error: "idempotencyKey is required" }, { status: 400 })
+    if ("validationError" in result) {
+      return NextResponse.json({ error: result.validationError }, { status: 400 })
     }
-
-    const metadata = isJsonObject(body.metadata) ? body.metadata : {}
-
-    const insertPayload = {
-      actor_profile_id: profile.profileId,
-      event_type: body.eventType,
-      source: typeof body.source === "string" && body.source.trim() ? body.source.trim() : "server",
-      idempotency_key: idempotencyKey,
-      entity_type: typeof body.entityType === "string" ? body.entityType : null,
-      entity_id: typeof body.entityId === "string" ? body.entityId : null,
-      metadata,
-    }
-
-    const { data, error } = await (profile.supabase as any)
-      .from("product_events")
-      .insert(insertPayload)
-      .select("*")
-      .single()
-
-    if (isDuplicateDatabaseError(error)) {
-      const { data: existing, error: lookupError } = await (profile.supabase as any)
-        .from("product_events")
-        .select("*")
-        .eq("actor_profile_id", profile.profileId)
-        .eq("event_type", body.eventType)
-        .eq("idempotency_key", idempotencyKey)
-        .maybeSingle()
-
-      if (lookupError || !existing) {
-        console.error("[foundation/product-events POST] Duplicate lookup failed:", lookupError)
-        return NextResponse.json({ error: "Failed to resolve duplicate event" }, { status: 500 })
-      }
-
-      return NextResponse.json({ event: existing, duplicate: true })
-    }
-
-    if (error) {
-      console.error("[foundation/product-events POST] DB error:", error)
+    if ("error" in result && result.error) {
+      console.error("[foundation/product-events POST] DB error:", result.error)
       return NextResponse.json({ error: "Failed to record product event" }, { status: 500 })
     }
 
-    return NextResponse.json({ event: data, duplicate: false })
+    return NextResponse.json({ event: result.event, duplicate: result.duplicate ?? false })
   } catch (error) {
     console.error("[foundation/product-events POST] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

@@ -31,7 +31,7 @@ vi.mock("@/hooks/use-admin", () => ({
   useIsAdmin: vi.fn(() => ({ isAdmin: false })),
 }))
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/ui/use-toast", () => ({
   useToast: vi.fn(() => ({ toast: vi.fn() })),
 }))
 
@@ -94,6 +94,15 @@ describe("Header mobile nav", () => {
     expect(screen.queryByText("Sign In")).not.toBeInTheDocument()
   })
 
+  it("hides app navigation during onboarding", async () => {
+    pathnameMock.mockReturnValue("/onboarding")
+    const { Header } = await import("../header")
+    render(<Header />)
+
+    expect(screen.queryByLabelText("Home")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /toggle quick menu/i })).not.toBeInTheDocument()
+  })
+
   it("shows sleek bottom-nav menu with profile options", async () => {
     const { Header } = await import("../header")
     const user = userEvent.setup()
@@ -106,4 +115,3 @@ describe("Header mobile nav", () => {
     expect(screen.queryByRole("menuitem", { name: /pantry/i })).not.toBeInTheDocument()
   })
 })
-

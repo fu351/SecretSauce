@@ -37,7 +37,7 @@ vi.mock("@/contexts/theme-context", () => ({
   })),
 }))
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/ui/use-toast", () => ({
   useToast: () => ({ toast: mockToast }),
 }))
 
@@ -82,38 +82,38 @@ async function completeRequiredOnboardingFlow(user: ReturnType<typeof userEvent.
   await user.click(screen.getByRole("button", { name: /^next$/i }))
 
   await waitFor(() => {
-    expect(screen.getByRole("heading", { name: /your current level/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /how much recipe guidance/i })).toBeInTheDocument()
   })
-  await user.click(screen.getByRole("button", { name: /apprentice/i }))
+  await user.click(screen.getByRole("button", { name: /beginner/i }))
 
   await waitFor(() => {
-    expect(screen.getByRole("heading", { name: /your investment/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /weekly grocery budget/i })).toBeInTheDocument()
   })
-  await user.click(screen.getByRole("button", { name: /balanced/i }))
+  await user.click(screen.getByRole("button", { name: /about \$200\/week/i }))
 
   await waitFor(() => {
-    expect(screen.getByRole("heading", { name: /dietary considerations/i })).toBeInTheDocument()
-  })
-  await user.click(screen.getByRole("button", { name: /^next$/i }))
-
-  await waitFor(() => {
-    expect(screen.getByRole("heading", { name: /cuisine preferences/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /any dietary filters/i })).toBeInTheDocument()
   })
   await user.click(screen.getByRole("button", { name: /^next$/i }))
 
   await waitFor(() => {
-    expect(screen.getByRole("heading", { name: /preferred cooking time/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /what cuisines should we favor/i })).toBeInTheDocument()
   })
-  await user.click(screen.getByRole("button", { name: /quick meals/i }))
+  await user.click(screen.getByRole("button", { name: /^next$/i }))
 
   await waitFor(() => {
-    expect(screen.getByRole("heading", { name: /location preferences/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /how much cooking time should we assume/i })).toBeInTheDocument()
+  })
+  await user.click(screen.getByRole("button", { name: /under 30 minutes/i }))
+
+  await waitFor(() => {
+    expect(screen.getByRole("heading", { name: /where should we search for groceries/i })).toBeInTheDocument()
   })
   await user.click(screen.getByRole("button", { name: /use san francisco address/i }))
   await user.click(screen.getByRole("button", { name: /^next$/i }))
 
   await waitFor(() => {
-    expect(screen.getByRole("heading", { name: /choose your theme/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /choose your app theme/i })).toBeInTheDocument()
   })
 }
 
@@ -144,8 +144,10 @@ describe("OnboardingPage", () => {
 
     render(<OnboardingPage />)
 
+    expect(document.body).toHaveClass("onboarding-route")
+
     await completeRequiredOnboardingFlow(user)
-    await user.click(screen.getByRole("button", { name: /warm mode/i }))
+    await user.click(screen.getByRole("button", { name: /light mode/i }))
     await user.click(screen.getByRole("button", { name: /finish/i }))
 
     await waitFor(() => {
@@ -182,7 +184,7 @@ describe("OnboardingPage", () => {
     await waitFor(() => {
       expect(router.replace).toHaveBeenCalledWith("/auth/signin")
     })
-    expect(screen.queryByRole("heading", { name: /tell us about your kitchen/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: /set up your preferences/i })).not.toBeInTheDocument()
   })
 
   it("hydrates the form from profile once (cooking level, goal order, postal)", async () => {
@@ -213,29 +215,32 @@ describe("OnboardingPage", () => {
 
     await user.click(screen.getByRole("button", { name: /^next$/i }))
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /your current level/i })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: /how much recipe guidance/i })).toBeInTheDocument()
     })
 
-    const practitioner = screen.getByRole("button", { name: /practitioner/i })
-    expect(practitioner.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
+    const intermediate = screen.getByRole("button", { name: /intermediate/i })
+    expect(intermediate.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
 
     await user.click(screen.getByRole("button", { name: /^next$/i }))
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /your investment/i })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: /weekly grocery budget/i })).toBeInTheDocument()
     })
-    const essential = screen.getByRole("button", { name: /essential/i })
-    expect(essential.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
+    expect(screen.queryByRole("heading", { name: /your investment/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /essential/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /premium/i })).not.toBeInTheDocument()
+    const lowBudget = screen.getByRole("button", { name: /about \$120\/week/i })
+    expect(lowBudget.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
 
     await user.click(screen.getByRole("button", { name: /^next$/i }))
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /dietary considerations/i })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: /any dietary filters/i })).toBeInTheDocument()
     })
     const veg = screen.getByRole("button", { name: /vegetarian/i })
     expect(veg.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
 
     await user.click(screen.getByRole("button", { name: /^next$/i }))
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /cuisine preferences/i })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: /what cuisines should we favor/i })).toBeInTheDocument()
     })
     const italian = screen.getByRole("button", { name: /italian/i })
     expect(italian.className).toMatch(/border-\[#e8dcc4\]|border-orange-600/)
@@ -244,7 +249,7 @@ describe("OnboardingPage", () => {
       await user.click(screen.getByRole("button", { name: /^next$/i }))
     }
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /location preferences/i })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: /where should we search for groceries/i })).toBeInTheDocument()
     })
     expect(screen.getByPlaceholderText("ZIP/Postal")).toHaveValue("94105")
     expect(screen.getByPlaceholderText("City")).toHaveValue("San Francisco")

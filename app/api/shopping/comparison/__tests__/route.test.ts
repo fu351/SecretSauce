@@ -1,25 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockFrom, finalQuery, builder } = vi.hoisted(() => {
-  const finalQuery = {
-    data: [] as any[],
-    error: null as any,
-    eq: vi.fn(),
-  }
+const { mockGetAuthenticatedProfile, mockRpc } = vi.hoisted(() => ({
+  mockGetAuthenticatedProfile: vi.fn(),
+  mockRpc: vi.fn(),
+}))
 
-  const builder = {
-    select: vi.fn().mockReturnThis(),
-    in: vi.fn().mockReturnThis(),
-    order: vi.fn(() => finalQuery),
-  }
-
-  const mockFrom = vi.fn(() => builder)
-
-  return { mockFrom, finalQuery, builder }
-})
-
-vi.mock("@/lib/database/base-db", () => ({
-  from: mockFrom,
+vi.mock("@/lib/foundation/server", () => ({
+  getAuthenticatedProfile: mockGetAuthenticatedProfile,
 }))
 
 import { POST } from "../route"
@@ -34,12 +21,13 @@ const makeRequest = (body: unknown) =>
 describe("POST /api/shopping/comparison", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    builder.select.mockReturnThis()
-    builder.in.mockReturnThis()
-    builder.order.mockReturnValue(finalQuery)
-    finalQuery.data = []
-    finalQuery.error = null
-    finalQuery.eq.mockResolvedValue(finalQuery)
+    mockGetAuthenticatedProfile.mockResolvedValue({
+      ok: true,
+      profileId: "profile_1",
+      clerkUserId: "clerk_1",
+      supabase: { rpc: mockRpc },
+    })
+    mockRpc.mockResolvedValue({ data: [], error: null })
   })
 
   it("returns an empty result when no valid items are provided", async () => {
@@ -47,40 +35,79 @@ describe("POST /api/shopping/comparison", () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ results: [] })
-    expect(mockFrom).not.toHaveBeenCalled()
+    expect(mockGetAuthenticatedProfile).not.toHaveBeenCalled()
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 
-  it("groups cached prices by store and computes totals and savings", async () => {
-    finalQuery.data = [
-      {
-        shopping_list_item_id: "item_1",
-        store: "walmart",
-        store_name: "Walmart Supercenter",
-        product_name: "Organic Milk",
-        price: 2.5,
-        unit_price: 1.25,
-        image_url: "https://cdn.example.com/milk.png",
-      },
-      {
-        shopping_list_item_id: "item_1",
-        store: "target",
-        store_name: "Target",
-        product_name: "Whole Milk",
-        price: 3.5,
-        unit_price: 1.75,
-        image_url: "",
-      },
-    ]
+  it("requires an authenticated profile for live pricing", async () => {
+    mockGetAuthenticatedProfile.mockResolvedValue({
+      ok: false,
+      status: 401,
+      error: "Unauthorized",
+    })
 
     const response = await POST(
       makeRequest({
-        items: [{ id: "item_1", name: "Milk", quantity: 2, unit: "gallon", category: "dairy" }],
-      }) as any
+        items: [{ id: "item_1", name: "Milk", quantity: 1 }],
+      }) as any,
+    )
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: "Unauthorized" })
+  })
+
+  it("groups live get_pricing offers by store and computes totals and savings", async () => {
+    mockRpc.mockResolvedValue({
+      error: null,
+      data: [
+        {
+          pricing_summary: [
+            {
+              standardized_ingredient_id: "ingredient_1",
+              item_ids: ["item_1"],
+              requested_unit: "gallon",
+              total_amount: 2,
+              offers: [
+                {
+                  store: "walmart",
+                  store_name: "Walmart Supercenter",
+                  product_name: "Organic Milk",
+                  total_price: 5,
+                  unit_price: 2.5,
+                  image_url: "https://cdn.example.com/milk.png",
+                },
+                {
+                  store: "target",
+                  store_name: "Target",
+                  product_name: "Whole Milk",
+                  total_price: 7,
+                  unit_price: 3.5,
+                  image_url: "",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+
+    const response = await POST(
+      makeRequest({
+        items: [
+          {
+            id: "item_1",
+            name: "Milk",
+            quantity: 2,
+            unit: "gallon",
+            category: "dairy",
+            ingredient_id: "ingredient_1",
+          },
+        ],
+      }) as any,
     )
     const payload = await response.json()
 
-    expect(mockFrom).toHaveBeenCalledWith("shopping_item_price_cache")
-    expect(builder.in).toHaveBeenCalledWith("shopping_list_item_id", ["item_1"])
+    expect(mockRpc).toHaveBeenCalledWith("get_pricing", { p_user_id: "profile_1" })
     expect(payload.results).toHaveLength(2)
     expect(payload.results[0]).toMatchObject({
       store: "Walmart",
@@ -95,42 +122,18 @@ describe("POST /api/shopping/comparison", () => {
     })
   })
 
-  it("filters the query by zip code when one is provided", async () => {
-    finalQuery.data = [
-      {
-        shopping_list_item_id: "item_1",
-        store: "aldi",
-        store_name: "Aldi",
-        product_name: "Milk",
-        price: 2,
-        unit_price: null,
-        image_url: "",
-      },
-    ]
-
-    const response = await POST(
-      makeRequest({
-        zipCode: "94110",
-        items: [{ id: "item_1", name: "Milk", quantity: 1 }],
-      }) as any
-    )
-
-    expect(finalQuery.eq).toHaveBeenCalledWith("zip_code", "94110")
-    expect(response.status).toBe(200)
-  })
-
-  it("returns 500 when the cache query fails", async () => {
-    finalQuery.error = { message: "db unavailable" }
+  it("returns 500 when live pricing fails", async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: "db unavailable" } })
 
     const response = await POST(
       makeRequest({
         items: [{ id: "item_1", name: "Milk", quantity: 1 }],
-      }) as any
+      }) as any,
     )
 
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({
-      error: "Unable to load cached prices",
+      error: "Unable to load live prices",
     })
   })
 })

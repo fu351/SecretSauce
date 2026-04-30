@@ -1,6 +1,11 @@
 "use client"
 
 import { useFeatureFlagEnabled, useFeatureFlagPayload } from "posthog-js/react"
+import {
+  type FoundationFeatureFlag,
+  getFoundationFeatureFlagKey,
+  getServerFeatureFallback,
+} from "@/lib/foundation/feature-flags"
 
 export interface UseFeatureFlagOptions {
   enabled?: boolean
@@ -26,4 +31,14 @@ export function useFeatureFlag(flagKey: string, options: UseFeatureFlagOptions =
     error: null,
     getConfigValue,
   }
+}
+
+export function useFoundationFeatureFlag(
+  flag: FoundationFeatureFlag,
+  options: Omit<UseFeatureFlagOptions, "fallback"> = {},
+) {
+  return useFeatureFlag(getFoundationFeatureFlagKey(flag), {
+    ...options,
+    fallback: getServerFeatureFallback(flag),
+  })
 }

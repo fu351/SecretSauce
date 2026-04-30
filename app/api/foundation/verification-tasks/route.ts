@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedProfile } from "@/lib/foundation/server"
-import { isDuplicateDatabaseError } from "@/lib/foundation/product-events"
 import {
   isVerificationFeatureArea,
   isVerificationSourceType,
-  resolveVerificationStatus,
 } from "@/lib/foundation/verification"
+import { createVerificationTaskWithRouting } from "@/lib/foundation/verification-service"
 
 export const runtime = "nodejs"
 
@@ -18,10 +17,6 @@ async function readJsonObject(req: Request): Promise<Record<string, unknown> | n
   } catch {
     return null
   }
-}
-
-function readJsonPayload(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 }
 
 export async function GET(req: Request) {
@@ -73,57 +68,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unsupported verification source type" }, { status: 400 })
     }
 
-    const confidence =
-      typeof body.confidence === "number" && Number.isFinite(body.confidence)
-        ? Math.max(0, Math.min(1, body.confidence))
-        : null
-    const alwaysAsk = body.confirmationMode === "always_ask"
-    const status = resolveVerificationStatus(confidence, { alwaysAsk })
-    const idempotencyKey =
-      typeof body.idempotencyKey === "string" && body.idempotencyKey.trim().length > 0
-        ? body.idempotencyKey.trim()
-        : null
+    const result = await createVerificationTaskWithRouting(profile.supabase as any, profile.profileId, {
+      featureArea: body.featureArea as string,
+      sourceType: body.sourceType as string,
+      confidence: typeof body.confidence === "number" ? body.confidence : null,
+      confirmationMode: typeof body.confirmationMode === "string" ? body.confirmationMode : undefined,
+      mediaAssetId: typeof body.mediaAssetId === "string" ? body.mediaAssetId : null,
+      sourceProductEventId: typeof body.sourceProductEventId === "string" ? body.sourceProductEventId : null,
+      proposedOutput:
+        body.proposedOutput && typeof body.proposedOutput === "object" && !Array.isArray(body.proposedOutput)
+          ? (body.proposedOutput as Record<string, unknown>)
+          : {},
+      aiMetadata:
+        body.aiMetadata && typeof body.aiMetadata === "object" && !Array.isArray(body.aiMetadata)
+          ? (body.aiMetadata as Record<string, unknown>)
+          : {},
+      idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : null,
+      confirmationItems: Array.isArray(body.confirmationItems) ? (body.confirmationItems as any[]) : [],
+    })
 
-    const insertPayload = {
-      owner_profile_id: profile.profileId,
-      feature_area: body.featureArea,
-      source_type: body.sourceType,
-      status,
-      confidence,
-      media_asset_id: typeof body.mediaAssetId === "string" ? body.mediaAssetId : null,
-      source_product_event_id: typeof body.sourceProductEventId === "string" ? body.sourceProductEventId : null,
-      proposed_output: readJsonPayload(body.proposedOutput),
-      ai_metadata: readJsonPayload(body.aiMetadata),
-      idempotency_key: idempotencyKey,
+    if ("validationError" in result) {
+      return NextResponse.json({ error: result.validationError }, { status: 400 })
     }
-
-    const { data, error } = await (profile.supabase as any)
-      .from("verification_tasks")
-      .insert(insertPayload)
-      .select("*")
-      .single()
-
-    if (isDuplicateDatabaseError(error) && idempotencyKey) {
-      const { data: existing } = await (profile.supabase as any)
-        .from("verification_tasks")
-        .select("*")
-        .eq("owner_profile_id", profile.profileId)
-        .eq("feature_area", body.featureArea)
-        .eq("source_type", body.sourceType)
-        .eq("idempotency_key", idempotencyKey)
-        .maybeSingle()
-
-      if (existing) {
-        return NextResponse.json({ verificationTask: existing, duplicate: true })
-      }
-    }
-
-    if (error) {
-      console.error("[foundation/verification-tasks POST] DB error:", error)
+    if ("error" in result && result.error) {
+      console.error("[foundation/verification-tasks POST] DB error:", result.error)
       return NextResponse.json({ error: "Failed to create verification task" }, { status: 500 })
     }
 
-    return NextResponse.json({ verificationTask: data, duplicate: false })
+    return NextResponse.json({ verificationTask: result.verificationTask, duplicate: result.duplicate ?? false })
   } catch (error) {
     console.error("[foundation/verification-tasks POST] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

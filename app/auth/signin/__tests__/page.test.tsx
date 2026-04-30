@@ -9,8 +9,19 @@ const mockPrepareSecondFactor = vi.fn()
 const mockAttemptSecondFactor = vi.fn()
 const mockSetActive = vi.fn()
 
+const completeProfile = {
+  id: "profile_1",
+  primary_goal: "cooking",
+  cooking_level: "beginner",
+  budget_range: "medium",
+  cooking_time_preference: "quick",
+  zip_code: "94105",
+  theme_preference: "dark",
+}
+
 let mockAuthState = {
   user: null,
+  profile: null as Record<string, unknown> | null,
   loading: false,
 }
 
@@ -20,7 +31,7 @@ vi.mock("next/image", () => ({
   ),
 }))
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/ui/use-toast", () => ({
   useToast: () => ({ toast: mockToast }),
 }))
 
@@ -57,6 +68,7 @@ describe("SignInPage", () => {
     vi.unstubAllGlobals()
     mockAuthState = {
       user: null,
+      profile: null,
       loading: false,
     }
     vi.mocked(useRouter).mockReturnValue({
@@ -70,7 +82,7 @@ describe("SignInPage", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ profile: { id: "profile_1" } }), {
+        new Response(JSON.stringify({ profile: completeProfile }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         })
@@ -117,6 +129,28 @@ describe("SignInPage", () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Welcome Back" })
     )
+  })
+
+  it("routes an incomplete profile back to onboarding after sign-in", async () => {
+    const user = userEvent.setup()
+    mockCreate.mockResolvedValue({ status: "complete", createdSessionId: "sess_1" })
+    mockSetActive.mockResolvedValue(undefined)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ profile: { id: "profile_1" } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    )
+
+    render(<SignInPage />)
+    await fillAndSubmitPasswordStep(user)
+
+    await waitFor(() => {
+      expect(vi.mocked(useRouter)().push).toHaveBeenCalledWith("/onboarding")
+    })
   })
 
   it("enters the MFA flow, prepares an email code, and shows the verification step", async () => {

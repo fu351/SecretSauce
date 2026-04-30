@@ -10,9 +10,11 @@ const mockSignOut = vi.fn()
 const mockSetTheme = vi.fn()
 const mockResetTutorial = vi.fn()
 const mockFetchProfileById = vi.fn()
-const mockUpdateUser = vi.fn()
+const mockUpdatePassword = vi.fn()
+const mockCreateEmailAddress = vi.fn()
 const mockUploadAvatar = vi.fn()
 const mockGetPublicUrl = vi.fn()
+const mockUpdateFeaturePreferences = vi.fn()
 
 vi.mock("next/image", () => ({
   default: (props: Record<string, unknown>) => <img {...props} alt={String(props.alt ?? "")} />,
@@ -32,6 +34,16 @@ vi.mock("@/contexts/auth-context", () => ({
     updateProfile: mockUpdateProfile,
     signOut: mockSignOut,
   })),
+}))
+
+vi.mock("@clerk/nextjs", () => ({
+  useUser: () => ({
+    isLoaded: true,
+    user: {
+      updatePassword: mockUpdatePassword,
+      createEmailAddress: mockCreateEmailAddress,
+    },
+  }),
 }))
 
 vi.mock("@/contexts/theme-context", () => ({
@@ -60,9 +72,6 @@ vi.mock("@/lib/database/profile-db", () => ({
 
 vi.mock("@/lib/database/supabase", () => ({
   supabase: {
-    auth: {
-      updateUser: mockUpdateUser,
-    },
     storage: {
       from: vi.fn(() => ({
         upload: mockUploadAvatar,
@@ -70,6 +79,34 @@ vi.mock("@/lib/database/supabase", () => ({
       })),
     },
   },
+}))
+
+vi.mock("@/hooks/use-feature-preferences", () => ({
+  useFeaturePreferences: () => ({
+    preferences: {
+      budgetTrackingEnabled: true,
+      streaksEnabled: true,
+      socialEnabled: false,
+      pantryEnabled: true,
+      socialVisibilityDefault: "private",
+      autoDraftSocialEnabled: false,
+      showReactionCounts: true,
+      rawMediaRetentionDays: 7,
+      confirmationMode: "ask_when_uncertain",
+      pantryAutoDeductEnabled: false,
+      nudgesEnabled: true,
+      hapticsEnabled: true,
+      audioEnabled: false,
+      respectReducedMotion: true,
+      quietHoursStart: null,
+      quietHoursEnd: null,
+    },
+    updatePreferences: mockUpdateFeaturePreferences,
+    updatePreferencesAsync: vi.fn(),
+    updating: false,
+    loading: false,
+    error: null,
+  }),
 }))
 
 vi.mock("@/components/tutorial/tutorial-selection-modal", () => ({
@@ -87,9 +124,15 @@ describe("SettingsPage", () => {
     vi.clearAllMocks()
     mockUpdateProfile.mockResolvedValue(undefined)
     mockSignOut.mockResolvedValue(undefined)
-    mockUpdateUser.mockResolvedValue({ error: null })
+    mockUpdatePassword.mockResolvedValue(undefined)
+    mockCreateEmailAddress.mockResolvedValue({
+      id: "email_new",
+      prepareVerification: vi.fn().mockResolvedValue(undefined),
+      attemptVerification: vi.fn().mockResolvedValue({ id: "email_new" }),
+    })
     mockUploadAvatar.mockResolvedValue({ error: null })
     mockGetPublicUrl.mockReturnValue({ data: { publicUrl: "https://cdn.test/avatar.png" } })
+    mockUpdateFeaturePreferences.mockReset()
     mockFetchProfileById.mockResolvedValue({
       id: "user_1",
       email: "avery@example.com",
@@ -129,6 +172,32 @@ describe("SettingsPage", () => {
     })
   })
 
+  it("uses direct settings labels instead of marketing copy", async () => {
+    render(<SettingsPage />)
+
+    expect(await screen.findByText("App features")).toBeInTheDocument()
+    expect(await screen.findByText("Food preferences")).toBeInTheDocument()
+    expect(screen.getByText("Cook better meals")).toBeInTheDocument()
+    expect(screen.getByText("Save money")).toBeInTheDocument()
+    expect(screen.getByText("Cooking level")).toBeInTheDocument()
+    expect(screen.getByText("Grocery budget")).toBeInTheDocument()
+    expect(screen.queryByText("Master the Craft")).not.toBeInTheDocument()
+    expect(screen.queryByText("Elevate Your Journey")).not.toBeInTheDocument()
+    expect(screen.queryByText("Feature Controls")).not.toBeInTheDocument()
+    expect(screen.queryByText("Recommendation inputs")).not.toBeInTheDocument()
+  })
+
+  it("updates shared feature foundation controls", async () => {
+    const user = userEvent.setup()
+
+    render(<SettingsPage />)
+
+    const socialSwitch = await screen.findByRole("switch", { name: /social/i })
+    await user.click(socialSwitch)
+
+    expect(mockUpdateFeaturePreferences).toHaveBeenCalledWith({ socialEnabled: true })
+  })
+
   it("blocks mismatched passwords and surfaces the validation error", async () => {
     const user = userEvent.setup()
 
@@ -146,7 +215,7 @@ describe("SettingsPage", () => {
         variant: "destructive",
       })
     )
-    expect(mockUpdateUser).not.toHaveBeenCalled()
+    expect(mockUpdatePassword).not.toHaveBeenCalled()
   })
 
   it("signs the user out and routes them home after confirmation", async () => {
@@ -163,5 +232,25 @@ describe("SettingsPage", () => {
       expect(router.push).toHaveBeenCalledWith("/home")
       expect(router.refresh).toHaveBeenCalled()
     })
+  })
+
+  it("renders help, legal, and about links with feedback access", async () => {
+    const user = userEvent.setup()
+    const feedbackHandler = vi.fn()
+    window.addEventListener("open-feedback-widget", feedbackHandler)
+
+    render(<SettingsPage />)
+
+    expect(await screen.findByText("Help and legal")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /about/i })).toHaveAttribute("href", "/about")
+    expect(screen.getByRole("link", { name: /help/i })).toHaveAttribute("href", "/help")
+    expect(screen.getByRole("link", { name: /contact/i })).toHaveAttribute("href", "/contact")
+    expect(screen.getByRole("link", { name: /terms/i })).toHaveAttribute("href", "/terms")
+    expect(screen.getByRole("link", { name: /privacy/i })).toHaveAttribute("href", "/privacy")
+    expect(screen.getByRole("link", { name: /accessibility/i })).toHaveAttribute("href", "/accessibility")
+
+    await user.click(screen.getByRole("button", { name: /send feedback/i }))
+    expect(feedbackHandler).toHaveBeenCalledTimes(1)
+    window.removeEventListener("open-feedback-widget", feedbackHandler)
   })
 })
