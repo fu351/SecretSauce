@@ -75,6 +75,9 @@ describe("POST /api/shopping/comparison", () => {
                   total_price: 5,
                   unit_price: 2.5,
                   image_url: "https://cdn.example.com/milk.png",
+                  price_source: "open_prices",
+                  price_store_id: "source_store_1",
+                  used_price_backup: true,
                 },
                 {
                   store: "target",
@@ -114,6 +117,11 @@ describe("POST /api/shopping/comparison", () => {
       total: 5,
       missingItems: false,
       savings: 2,
+    })
+    expect(payload.results[0].items[0]).toMatchObject({
+      priceSource: "open_prices",
+      priceStoreId: "source_store_1",
+      usedPriceBackup: true,
     })
     expect(payload.results[1]).toMatchObject({
       store: "Target",

@@ -31,6 +31,8 @@ export type ReplacementOffer = {
   unit: string | null
   image_url: string | null
   is_standard_unit: boolean
+  price_source?: string | null
+  used_price_backup?: boolean | null
 }
 
 export type ReplacementOption = {
@@ -519,6 +521,8 @@ class IngredientsRecentTable extends BaseTable<"ingredients_recent", Ingredients
             unit: offer?.unit ? String(offer.unit) : null,
             image_url: offer?.image_url ? String(offer.image_url) : null,
             is_standard_unit: Boolean(offer?.is_standard_unit),
+            price_source: offer?.price_source ? String(offer.price_source) : null,
+            used_price_backup: offer?.used_price_backup == null ? null : Boolean(offer.used_price_backup),
           }))
 
           return {
@@ -681,6 +685,9 @@ export type PricingResult = {
     packages_to_buy?: number | null
     conversion_error?: boolean | null
     used_estimate?: boolean | null
+    price_source?: string | null
+    price_store_id?: string | null
+    used_price_backup?: boolean | null
   }[]
 }
 

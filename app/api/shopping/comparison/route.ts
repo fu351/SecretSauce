@@ -148,6 +148,9 @@ function buildComparisons(
         packagePrice,
         conversionError: offer.conversion_error ?? null,
         usedEstimate: offer.used_estimate ?? null,
+        priceSource: offer.price_source ?? null,
+        priceStoreId: offer.price_store_id ?? null,
+        usedPriceBackup: offer.used_price_backup ?? null,
       }
 
       comparison.items.push(item)

@@ -30,6 +30,9 @@ export interface GroceryItem {
   packagePrice?: number | null
   conversionError?: boolean | null
   usedEstimate?: boolean | null
+  priceSource?: string | null
+  priceStoreId?: string | null
+  usedPriceBackup?: boolean | null
 }
 
 /**

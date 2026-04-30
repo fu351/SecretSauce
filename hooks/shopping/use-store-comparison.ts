@@ -369,6 +369,9 @@ export function useStoreComparison(
           packagePrice,
           conversionError,
           usedEstimate,
+          priceSource: offer?.price_source ?? null,
+          priceStoreId: offer?.price_store_id ?? null,
+          usedPriceBackup: offer?.used_price_backup ?? null,
         })
 
         comp.total += totalPrice
