@@ -124,6 +124,16 @@ export async function getSpendLogsForWeek(supabase: SupabaseLike, profileId: str
   return { data: data ?? [], error }
 }
 
+export async function getRecentSpendLogs(supabase: SupabaseLike, profileId: string, limit = 10) {
+  const { data, error } = await (supabase as any)
+    .from("budget_spend_logs")
+    .select("id, week_start_date, occurred_at, amount_cents, source_type, note")
+    .eq("profile_id", profileId)
+    .order("occurred_at", { ascending: false })
+    .limit(limit)
+  return { data: data ?? [], error }
+}
+
 export async function upsertWeeklySummary(
   supabase: SupabaseLike,
   row: Omit<BudgetWeeklySummary, "id" | "allocationIdempotencyKey" | "allocatedAt"> & {
@@ -182,6 +192,28 @@ export async function insertContribution(
     .single()
 }
 
+export async function getRecentContributions(supabase: SupabaseLike, profileId: string, limit = 12) {
+  const { data, error } = await (supabase as any)
+    .from("budget_contributions")
+    .select("id, amount_cents, contributed_at, goal_id, weekly_summary_id")
+    .eq("profile_id", profileId)
+    .order("contributed_at", { ascending: false })
+    .limit(limit)
+  return { data: data ?? [], error }
+}
+
+export async function getLatestCompletedGoal(supabase: SupabaseLike, profileId: string) {
+  const { data, error } = await (supabase as any)
+    .from("budget_goals")
+    .select("*")
+    .eq("profile_id", profileId)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return { data, error }
+}
+
 export async function updateGoalBalance(supabase: SupabaseLike, profileId: string, goalId: string, nextBalanceCents: number) {
   return (supabase as any)
     .from("budget_goals")
@@ -194,4 +226,59 @@ export async function updateGoalBalance(supabase: SupabaseLike, profileId: strin
     .eq("profile_id", profileId)
     .select("*")
     .single()
+}
+
+export async function setGoalCompleted(supabase: SupabaseLike, profileId: string, goalId: string) {
+  return (supabase as any)
+    .from("budget_goals")
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", goalId)
+    .eq("profile_id", profileId)
+    .select("*")
+    .single()
+}
+
+export async function getOwnedMediaAsset(supabase: SupabaseLike, profileId: string, mediaAssetId: string) {
+  return (supabase as any)
+    .from("media_assets")
+    .select("id")
+    .eq("id", mediaAssetId)
+    .eq("owner_profile_id", profileId)
+    .maybeSingle()
+}
+
+export async function getOwnedVerificationTask(supabase: SupabaseLike, profileId: string, verificationTaskId: string) {
+  return (supabase as any)
+    .from("verification_tasks")
+    .select("id")
+    .eq("id", verificationTaskId)
+    .eq("owner_profile_id", profileId)
+    .maybeSingle()
+}
+
+export async function switchBudgetGoalTransactional(
+  supabase: SupabaseLike,
+  input: { profileId: string; name: string; category: BudgetGoalCategory; targetCents: number },
+) {
+  return (supabase as any).rpc("budget_switch_goal_transactional", {
+    p_profile_id: input.profileId,
+    p_name: input.name,
+    p_category: input.category,
+    p_target_cents: input.targetCents,
+  })
+}
+
+export async function allocateWeeklySurplusTransactional(
+  supabase: SupabaseLike,
+  input: { profileId: string; weekStartDate: string; idempotencyKey: string },
+) {
+  return (supabase as any).rpc("budget_allocate_surplus_transactional", {
+    p_profile_id: input.profileId,
+    p_week_start_date: input.weekStartDate,
+    p_idempotency_key: input.idempotencyKey,
+  })
 }

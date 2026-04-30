@@ -1,8 +1,12 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatUsdFromCents } from "@/lib/budget/calculations"
 
 export function BudgetDashboardCard({ goal }: { goal: any }) {
+  const balanceCents = goal?.currentBalanceCents ?? goal?.current_balance_cents ?? 0
+  const targetCents = goal?.targetCents ?? goal?.target_cents ?? 0
+  const progressPercent = goal?.progressPercent ?? 0
   return (
     <Card>
       <CardHeader>
@@ -12,9 +16,9 @@ export function BudgetDashboardCard({ goal }: { goal: any }) {
         <p className="text-sm text-muted-foreground">{goal?.category ?? "generic"}</p>
         <p className="text-xl font-semibold">{goal?.name ?? "No active goal"}</p>
         <p>
-          {goal?.currentBalanceCents ?? 0} / {goal?.targetCents ?? 0} cents
+          {formatUsdFromCents(balanceCents)} / {formatUsdFromCents(targetCents)}
         </p>
-        <p className="text-sm text-muted-foreground">Progress: {goal?.progressPercent ?? 0}%</p>
+        <p className="text-sm text-muted-foreground">Progress: {progressPercent}%</p>
       </CardContent>
     </Card>
   )

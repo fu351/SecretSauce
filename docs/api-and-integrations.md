@@ -1,6 +1,6 @@
 # API and Integrations
 
-Last verified: 2026-04-28.
+Last verified: 2026-04-30.
 
 ## Route Index (`app/api/*`)
 
@@ -82,6 +82,25 @@ Last verified: 2026-04-28.
 - `POST /api/foundation/verification-tasks/[id]/confirm`
   - Applies explicit user confirmation or rejection to a verification task owned by the authenticated profile.
 
+### Budget tracking (Savings)
+
+- `GET /api/budget/dashboard`
+  - Returns a server-derived dashboard shape (settings, active/completed goal state, current-week summary, pending allocatable week, source breakdown, recent spend/contributions, nudge state, and feature-enabled state).
+- `POST /api/budget/goals`
+  - Creates initial budget settings + first goal for the authenticated profile.
+- `POST /api/budget/goals/switch`
+  - Switches the active goal while carrying the current jar balance and archiving the previous goal.
+- `POST /api/budget/settings`
+  - Upserts weekly budget settings for the authenticated profile.
+- `POST /api/budget/spend`
+  - Logs manual or receipt spend and supports idempotent retries; validates linked media/verification ownership.
+- `POST /api/budget/weeks/compute`
+  - Computes missing weekly summaries for stale/past weeks.
+- `POST /api/budget/weeks/[weekStart]/allocate`
+  - Explicit, idempotent surplus allocation for a cycle-aligned week; rejects malformed dates.
+- `POST /api/budget/nudges/dismiss`
+  - Snoozes supportive stagnation nudges.
+
 ## Frontend Callers
 
 - `contexts/auth-context.tsx`, `app/auth/signin/page.tsx`, `app/auth/signup/page.tsx`, and `app/auth/check-email/page.tsx` call `/api/auth/ensure-profile`.
@@ -93,6 +112,7 @@ Last verified: 2026-04-28.
 - `lib/location-client.ts` calls `/api/maps` and `/api/location`.
 - `app/pantry/page.tsx` calls `/api/ingredients/standardize`.
 - `components/recipe/import/recipe-import-url.tsx`, `components/recipe/import/recipe-import-instagram.tsx`, `components/recipe/import/recipe-import-image.tsx`, and `components/recipe/import/recipe-import-paragraph.tsx` call the recipe-import routes.
+- `hooks/use-budget-dashboard.ts` calls all `/api/budget/*` routes and keeps client logic display-focused.
 
 ## Integration Contracts
 
@@ -105,6 +125,8 @@ Last verified: 2026-04-28.
 
 - Browser/session access and service-role access are split across `lib/database/supabase.ts` and `lib/database/supabase-server.ts`.
 - Frontend hooks and helpers read through `lib/database/*` wrappers rather than querying tables directly.
+- Budget writes are profile-scoped and authenticated server-side; client-supplied profile/user identifiers are ignored.
+- Budget state is private and does not flow into `social_activity_projections`.
 
 ### Stripe
 

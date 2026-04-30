@@ -35,6 +35,7 @@ import {
   Users,
   Vote,
   X,
+  PiggyBank,
 } from "lucide-react"
 import { RecipeCardCompact } from "@/components/recipe/cards/recipe-card-compact"
 import { RecipeGrid } from "@/components/recipe/recipe-grid"
@@ -48,6 +49,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useFoundationFeatureFlag } from "@/hooks/use-feature-flag"
+import { useFeaturePreferences } from "@/hooks/use-feature-preferences"
 
 type HomePageRecipe = Recipe
 const HOME_FETCH_TTL_MS = 24 * 60 * 60 * 1000
@@ -86,6 +89,9 @@ export default function HomeReturningPage() {
   const { user, profile, loading } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
+  const budgetFlag = useFoundationFeatureFlag("budget_tracking")
+  const featurePreferences = useFeaturePreferences(Boolean(user))
+  const savingsEnabled = Boolean(user) && budgetFlag.isEnabled && featurePreferences.preferences.budgetTrackingEnabled
   const [flavorsOfWeek, setFlavorsOfWeek] = useState<HomePageRecipe[]>([])
   const [recommendedRecipes, setRecommendedRecipes] = useState<HomePageRecipe[]>([])
   const [loadingRecipes, setLoadingRecipes] = useState(true)
@@ -1497,7 +1503,7 @@ export default function HomeReturningPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className={`grid grid-cols-1 ${savingsEnabled ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
                 {weekSummary.loading ? (
                   <>
                     <div className="rounded-xl border p-3 space-y-2">
@@ -1545,6 +1551,20 @@ export default function HomeReturningPage() {
                         <Link href="/pantry">{weekSummary.expiringSoon > 0 ? "Use pantry" : "Open pantry"}</Link>
                       </Button>
                     </div>
+                    {savingsEnabled ? (
+                      <div className="rounded-xl border p-3">
+                        <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <PiggyBank className="h-4 w-4 text-amber-500" />
+                          Track weekly savings
+                        </p>
+                        <p className="hidden sm:block text-xs text-muted-foreground mt-1">
+                          Compare spend vs goal and adjust quickly.
+                        </p>
+                        <Button className="mt-2 sm:mt-3 w-full" variant="outline" asChild>
+                          <Link href="/budget">Open savings</Link>
+                        </Button>
+                      </div>
+                    ) : null}
                   </>
                 )}
               </div>

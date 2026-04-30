@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   logBudgetSpendEntry: vi.fn(),
   buildBudgetDashboard: vi.fn(),
   computePendingWeeklySummaries: vi.fn(),
+  allocateWeeklySurplus: vi.fn(),
   createSocialActivityProjection: vi.fn(),
 }))
 
@@ -21,11 +22,13 @@ vi.mock("@/lib/budget/service", async () => {
     logBudgetSpendEntry: mocks.logBudgetSpendEntry,
     buildBudgetDashboard: mocks.buildBudgetDashboard,
     computePendingWeeklySummaries: mocks.computePendingWeeklySummaries,
+    allocateWeeklySurplus: mocks.allocateWeeklySurplus,
   }
 })
 
 import { POST as spendPost } from "@/app/api/budget/spend/route"
 import { GET as dashboardGet } from "@/app/api/budget/dashboard/route"
+import { POST as allocatePost } from "@/app/api/budget/weeks/[weekStart]/allocate/route"
 
 describe("budget routes", () => {
   beforeEach(() => {
@@ -89,5 +92,26 @@ describe("budget routes", () => {
 
     const response = await dashboardGet()
     expect(response.status).toBe(200)
+  })
+
+  it("returns disabled dashboard shape instead of failing", async () => {
+    mocks.getAuthenticatedProfile.mockResolvedValue({ ok: true, profileId: "profile_1", supabase: {} })
+    mocks.assertBudgetEnabled.mockResolvedValue(false)
+
+    const response = await dashboardGet()
+    const payload = await response.json()
+    expect(response.status).toBe(200)
+    expect(payload.dashboard.featureState.budgetTrackingEnabled).toBe(false)
+  })
+
+  it("rejects malformed weekStart allocation route params", async () => {
+    mocks.getAuthenticatedProfile.mockResolvedValue({ ok: true, profileId: "profile_1", supabase: {} })
+    mocks.assertBudgetEnabled.mockResolvedValue(true)
+
+    const response = await allocatePost(
+      new Request("http://localhost/api/budget/weeks/invalid/allocate", { method: "POST" }),
+      { params: Promise.resolve({ weekStart: "invalid" }) } as any,
+    )
+    expect(response.status).toBe(400)
   })
 })

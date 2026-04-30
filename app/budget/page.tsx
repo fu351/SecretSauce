@@ -10,6 +10,7 @@ import { BudgetWeeklyWrapCard } from "@/components/budget/budget-weekly-wrap-car
 import { useBudgetDashboard } from "@/hooks/use-budget-dashboard"
 import { useFoundationFeatureFlag } from "@/hooks/use-feature-flag"
 import { useFeaturePreferences } from "@/hooks/use-feature-preferences"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function BudgetPage() {
   const budgetFlag = useFoundationFeatureFlag("budget_tracking")
@@ -42,15 +43,37 @@ export default function BudgetPage() {
   }
 
   const payload = dashboard.data?.dashboard
+  if (payload?.featureState?.budgetTrackingEnabled === false) {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <h1 className="text-2xl font-semibold">Savings is currently hidden</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Turn Savings back on in settings any time.</p>
+      </div>
+    )
+  }
   const activeGoal = payload?.activeGoal
+  const completedGoal = payload?.completedGoal
   const currentWeekSummary = payload?.currentWeek?.summary
   const currentWeekStartDate = payload?.currentWeek?.weekStartDate
 
   return (
     <div className="mx-auto grid max-w-4xl gap-4 p-6">
-      <h1 className="text-3xl font-semibold">Budget Tracking</h1>
+      <h1 className="text-3xl font-semibold">Savings</h1>
       {!activeGoal ? (
-        <BudgetSetupCard />
+        <>
+          {completedGoal ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Completed goal</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-medium">{completedGoal.name}</p>
+                <p className="text-sm text-muted-foreground">Nice work. Start a new goal whenever you are ready.</p>
+              </CardContent>
+            </Card>
+          ) : null}
+          <BudgetSetupCard />
+        </>
       ) : (
         <>
           <BudgetDashboardCard goal={activeGoal} />

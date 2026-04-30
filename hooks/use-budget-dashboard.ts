@@ -6,14 +6,11 @@ const BUDGET_DASHBOARD_QUERY_KEY = ["budget", "dashboard"] as const
 
 async function fetchBudgetDashboard() {
   const response = await fetch("/api/budget/dashboard", { credentials: "include" })
-  if (response.status === 403) {
-    return { dashboard: null, disabled: true as const }
-  }
   if (!response.ok) {
     throw new Error("Failed to load budget dashboard")
   }
   const payload = await response.json()
-  return { dashboard: payload.dashboard, disabled: false as const }
+  return { dashboard: payload.dashboard }
 }
 
 async function postJson(url: string, body?: Record<string, unknown>) {

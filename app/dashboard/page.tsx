@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   Plus,
   Truck,
+  PiggyBank,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { recipeDB } from "@/lib/database/recipe-db"
@@ -29,6 +30,8 @@ import { shouldShowIOSPrompt } from "@/lib/utils"
 import { GraphTracker } from "@/components/dashboard/graph-tracker"
 import { ProfileCard } from "@/components/social/profile-card"
 import { RecipeCollectionSummary } from "@/components/recipe/collections/recipe-collection-summary"
+import { useFoundationFeatureFlag } from "@/hooks/use-feature-flag"
+import { useFeaturePreferences } from "@/hooks/use-feature-preferences"
 
 interface DashboardStats {
   totalRecipes: number
@@ -49,6 +52,9 @@ export default function DashboardPage() {
   const [showIOSPrompt, setShowIOSPrompt] = useState(false)
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false)
   const { user, profile } = useAuth()
+  const budgetFlag = useFoundationFeatureFlag("budget_tracking")
+  const featurePreferences = useFeaturePreferences(Boolean(user))
+  const savingsEnabled = Boolean(user) && budgetFlag.isEnabled && featurePreferences.preferences.budgetTrackingEnabled
 
   useEffect(() => {
     if (!user) {
@@ -156,7 +162,7 @@ export default function DashboardPage() {
           {profile && <ProfileCard profile={profile} />}
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6 mb-4 md:mb-8" data-tutorial="dashboard-stats">
+          <div className={`grid grid-cols-2 md:grid-cols-2 ${savingsEnabled ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-2 md:gap-6 mb-4 md:mb-8`} data-tutorial="dashboard-stats">
             <Link href="/recipes?mine=true" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-3 md:p-6">
@@ -208,6 +214,20 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+            {savingsEnabled ? (
+              <Link href="/budget" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
+                  <CardContent className="p-3 md:p-6">
+                    <div className="flex items-center justify-between mb-2 md:mb-4">
+                      <PiggyBank className="h-5 w-5 md:h-8 md:w-8 text-amber-500" />
+                      <span className="text-[10px] md:text-xs text-muted-foreground">Savings</span>
+                    </div>
+                    <p className="text-xl md:text-3xl font-bold text-foreground">Open</p>
+                    <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Budget this week</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ) : null}
           </div>
 
           <div className="mb-4 md:mb-8">

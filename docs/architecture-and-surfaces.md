@@ -1,6 +1,6 @@
 # Architecture and Surfaces
 
-Last verified: 2026-04-28.
+Last verified: 2026-04-30.
 
 ## Stack snapshot
 
@@ -48,7 +48,7 @@ Last verified: 2026-04-28.
 - `/pantry` is the pantry tracker, including ingredient standardization calls.
 - `/delivery` lists current and past delivery orders.
 - `/delivery/[id]` shows order details.
-- `/budget` is the authenticated budget tracking core surface (goal setup, spend logging, weekly wrap, and in-app nudges).
+- `/budget` is the authenticated Savings surface (goal setup, spend logging, source breakdown, weekly wrap allocation, goal switching, and supportive nudges).
 
 ### Account and billing
 
@@ -72,13 +72,14 @@ Last verified: 2026-04-28.
 - `contexts/tutorial-context.tsx` owns tutorial state, persistence, and route progression.
 - `contexts/theme-context.tsx` wraps `next-themes` and keeps the app in sync with the DOM class.
 - `hooks/index.ts` is the main import surface for UI, recipe, shopping, meal-planner, delivery, admin, subscription, experiment, and feature-flag hooks.
-- `components/layout/header.tsx` currently links to `/recipes`, `/meal-planner`, `/store`, `/upload-recipe`, `/dashboard`, and `/settings`.
+- `components/layout/header.tsx` links to `/recipes`, `/meal-planner`, `/store`, `/upload-recipe`, `/dashboard`, and `/settings`; it conditionally exposes `/budget` as `Savings` when both the feature flag and preference are enabled.
 - `lib/location-client.ts` owns browser geolocation and map geocode requests.
 - `lib/store/store-metadata.ts` and `lib/store/user-preferred-stores.ts` shape store metadata for comparison and pricing flows.
 - `lib/auth/subscription.ts` and `hooks/use-subscription.ts` gate premium-only UI.
 - `lib/auth/admin.ts` and `hooks/use-admin.ts` gate admin and analytics surfaces.
 - `lib/foundation/*` owns shared feature flags, user feature preferences, private media semantics, product event idempotency helpers, social projection privacy checks, and AI verification status routing.
 - `lib/budget/*` owns budget domain calculations, guard checks, and state-transition services built on top of foundation primitives.
+- Budget state lives in private tables (`budget_settings`, `budget_goals`, `budget_spend_logs`, `budget_weekly_summaries`, `budget_contributions`, `budget_nudge_state`) and never projects into `social_activity_projections`.
 
 ## Shared Product Foundation
 
@@ -87,6 +88,7 @@ Last verified: 2026-04-28.
 - `media_assets` tracks private raw receipts, meal verification photos, pantry scans, and social-approved derivatives without reusing the public `post-images` bucket.
 - `verification_tasks` and `confirmation_items` provide the common AI confidence and manual confirmation path. Low-confidence AI output routes to confirmation rather than rejecting user progress.
 - `social_activity_projections` is the future public/followers-readable layer. It is intentionally separate from private budget, pantry, media, and verification tables.
+- Budget product events include goal creation/switching/completion, spend logging, weekly summary creation, no-surplus weeks, surplus allocation, and nudge lifecycle events.
 - `recipe_tries` is the shared durable record for cooked/attempted recipes so streaks, pantry auto-deduct, and social aggregates can converge on one source later.
 
 ## Route Notes

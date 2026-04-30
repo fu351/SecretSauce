@@ -35,6 +35,16 @@ vi.mock("@/hooks/ui/use-toast", () => ({
   useToast: vi.fn(() => ({ toast: vi.fn() })),
 }))
 
+vi.mock("@/hooks/use-feature-flag", () => ({
+  useFoundationFeatureFlag: vi.fn(() => ({ isEnabled: false })),
+}))
+
+vi.mock("@/hooks/use-feature-preferences", () => ({
+  useFeaturePreferences: vi.fn(() => ({
+    preferences: { budgetTrackingEnabled: false },
+  })),
+}))
+
 describe("Header mobile nav", () => {
   beforeEach(() => {
     pushMock.mockReset()

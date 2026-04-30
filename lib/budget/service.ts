@@ -5,22 +5,28 @@ import {
   computeGoalProgressPercent,
   computeRawSurplus,
   getWeekRange,
+  isCanonicalWeekStart,
   isCapApplied,
   isGoalCompleted,
   isNudgeEligible,
   listPendingWeekRanges,
+  parseIsoDateOrNull,
 } from "@/lib/budget/calculations"
 import { isBudgetTrackingEnabledForProfile } from "@/lib/budget/guards"
 import {
-  archiveGoal,
+  allocateWeeklySurplusTransactional,
   createBudgetGoal,
   getActiveBudgetGoal,
   getBudgetSettings,
+  getLatestCompletedGoal,
+  getOwnedMediaAsset,
+  getOwnedVerificationTask,
+  getRecentContributions,
+  getRecentSpendLogs,
   getSpendLogsForWeek,
-  getWeeklySummary,
-  insertContribution,
   logBudgetSpend,
-  updateGoalBalance,
+  setGoalCompleted,
+  switchBudgetGoalTransactional,
   upsertBudgetSettings,
   upsertWeeklySummary,
 } from "@/lib/budget/repository"
@@ -69,35 +75,42 @@ export async function switchBudgetGoal(
   supabase: SupabaseLike,
   input: { profileId: string; name: string; category: BudgetGoalCategory; targetCents: number; idempotencyKey: string },
 ) {
-  const activeGoal = await getActiveBudgetGoal(supabase, input.profileId)
-  if (!activeGoal) {
-    return { validationError: "No active goal to switch from." }
-  }
-
-  const { data: created, error: createError } = await createBudgetGoal(supabase, {
+  const { data: switchedPayload, error: switchError } = await switchBudgetGoalTransactional(supabase, {
     profileId: input.profileId,
     name: input.name,
     category: input.category,
     targetCents: input.targetCents,
-    balanceCents: activeGoal.currentBalanceCents,
-    switchedFromGoalId: activeGoal.id,
   })
-  if (createError) return { error: createError }
+  if (switchError) return { error: switchError }
+  if (switchedPayload?.validationError) return { validationError: switchedPayload.validationError as string }
 
-  const { error: archiveError } = await archiveGoal(supabase, input.profileId, activeGoal.id, "archived")
-  if (archiveError) return { error: archiveError }
+  const goal = switchedPayload?.goal
+  const previousGoalId = switchedPayload?.previousGoalId as string | undefined
+  if (!goal || !previousGoalId) return { error: new Error("Invalid switch goal payload from RPC.") }
+
+  if (switchedPayload?.completedNow) {
+    await appendProductEvent(supabase, input.profileId, {
+      eventType: "budget.goal_completed",
+      idempotencyKey: buildIdempotencyKey(["budget-goal-completed", input.profileId, goal.id]),
+      metadata: { goalId: goal.id, balanceCents: goal.current_balance_cents, targetCents: goal.target_cents },
+    })
+  } else if (isGoalCompleted(goal.current_balance_cents, goal.target_cents)) {
+    const { data: completed, error: completedError } = await setGoalCompleted(supabase, input.profileId, goal.id)
+    if (completedError) return { error: completedError }
+    Object.assign(goal, completed)
+  }
 
   await appendProductEvent(supabase, input.profileId, {
     eventType: "budget.goal_switched",
     idempotencyKey: input.idempotencyKey,
     metadata: {
-      fromGoalId: activeGoal.id,
-      toGoalId: created.id,
-      transferredBalanceCents: activeGoal.currentBalanceCents,
+      fromGoalId: previousGoalId,
+      toGoalId: goal.id,
+      transferredBalanceCents: switchedPayload?.transferredBalanceCents ?? 0,
     },
   })
 
-  return { goal: created, previousGoalId: activeGoal.id }
+  return { goal, previousGoalId }
 }
 
 export async function logBudgetSpendEntry(
@@ -114,6 +127,18 @@ export async function logBudgetSpendEntry(
   },
 ) {
   const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date()
+  if (Number.isNaN(occurredAt.getTime())) {
+    return { validationError: "Invalid occurredAt date." }
+  }
+
+  if (input.mediaAssetId) {
+    const { data: mediaAsset } = await getOwnedMediaAsset(supabase, input.profileId, input.mediaAssetId)
+    if (!mediaAsset) return { validationError: "mediaAssetId does not belong to the authenticated profile." }
+  }
+  if (input.verificationTaskId) {
+    const { data: verificationTask } = await getOwnedVerificationTask(supabase, input.profileId, input.verificationTaskId)
+    if (!verificationTask) return { validationError: "verificationTaskId does not belong to the authenticated profile." }
+  }
   const weekRange = getWeekRange(occurredAt)
   const { data, error } = await logBudgetSpend(supabase, {
     profileId: input.profileId,
@@ -193,6 +218,9 @@ export async function computeWeeklySummaryForWeek(
   if (!settings) {
     return { validationError: "Budget settings are required before computing summaries." }
   }
+  if (!isCanonicalWeekStart(weekStartDate, settings.cycleStartDow)) {
+    return { validationError: "weekStartDate must be a valid cycle-aligned date." }
+  }
 
   const { weekEndDate } = getWeekRange(`${weekStartDate}T00:00:00.000Z`)
   const { data: spendLogs, error: spendError } = await getSpendLogsForWeek(supabase, profileId, weekStartDate)
@@ -204,7 +232,7 @@ export async function computeWeeklySummaryForWeek(
   }))
   const aggregated = aggregateTrackedSpend(mappedLogs)
   const rawSurplus = computeRawSurplus(settings.weeklyBudgetCents, aggregated.trackedCents)
-  const bankableSurplus = computeBankableSurplus(rawSurplus, settings.weeklyBudgetCents)
+  const bankableSurplus = computeBankableSurplus(rawSurplus, settings.weeklyBudgetCents, settings.allocationCapBps)
   const status = bankableSurplus > 0 ? "ready_to_allocate" : "no_surplus"
 
   const { data: summary, error } = await upsertWeeklySummary(supabase, {
@@ -266,83 +294,44 @@ export async function allocateWeeklySurplus(
   supabase: SupabaseLike,
   input: { profileId: string; weekStartDate: string; idempotencyKey: string },
 ) {
-  const { data: existingContribution } = await (supabase as any)
-    .from("budget_contributions")
-    .select("*")
-    .eq("profile_id", input.profileId)
-    .eq("idempotency_key", input.idempotencyKey)
-    .maybeSingle()
-  if (existingContribution) {
-    return { contribution: existingContribution, duplicate: true }
-  }
+  const parsedWeekStart = parseIsoDateOrNull(input.weekStartDate)
+  if (!parsedWeekStart) return { validationError: "weekStartDate must use YYYY-MM-DD format." }
 
-  const summaryResult = await getWeeklySummary(supabase, input.profileId, input.weekStartDate)
-  const summary = summaryResult.data
-  if (!summary) return { validationError: "Weekly summary not found." }
-  if (summary.bankable_surplus_cents <= 0) {
-    return { validationError: "No bankable surplus available for this week." }
-  }
-  if (summary.status === "allocated") {
-    return { validationError: "Surplus already allocated for this week." }
-  }
-
-  const activeGoal = await getActiveBudgetGoal(supabase, input.profileId)
-  if (!activeGoal) return { validationError: "No active goal available for allocation." }
-
-  const nextBalance = activeGoal.currentBalanceCents + summary.bankable_surplus_cents
-  const { data: updatedGoal, error: goalError } = await updateGoalBalance(supabase, input.profileId, activeGoal.id, nextBalance)
-  if (goalError) return { error: goalError }
-
-  const { data: contribution, error: contributionError } = await insertContribution(supabase, {
+  const { data: allocationPayload, error: allocationError } = await allocateWeeklySurplusTransactional(supabase, {
     profileId: input.profileId,
-    goalId: activeGoal.id,
-    weeklySummaryId: summary.id,
-    amountCents: summary.bankable_surplus_cents,
+    weekStartDate: input.weekStartDate,
     idempotencyKey: input.idempotencyKey,
   })
-  if (contributionError) return { error: contributionError }
+  if (allocationError) return { error: allocationError }
+  if (allocationPayload?.validationError) return { validationError: allocationPayload.validationError as string }
 
-  const { error: summaryError } = await upsertWeeklySummary(supabase, {
-    profileId: input.profileId,
-    weekStartDate: summary.week_start_date,
-    weekEndDate: summary.week_end_date,
-    weeklyBudgetCents: summary.weekly_budget_cents,
-    manualSpendCents: summary.manual_spend_cents,
-    receiptSpendCents: summary.receipt_spend_cents,
-    trackedSpendCents: summary.tracked_spend_cents,
-    rawSurplusCents: summary.raw_surplus_cents,
-    bankableSurplusCents: summary.bankable_surplus_cents,
-    capApplied: summary.cap_applied,
-    status: "allocated",
-    allocationIdempotencyKey: input.idempotencyKey,
-    allocatedAt: new Date().toISOString(),
-  })
-  if (summaryError) return { error: summaryError }
+  const contribution = allocationPayload?.contribution
+  const goal = allocationPayload?.goal
+  const summary = allocationPayload?.summary
+  const duplicate = Boolean(allocationPayload?.duplicate)
+  if (!contribution || !goal) return { error: new Error("Invalid allocation payload from RPC.") }
 
-  await appendProductEvent(supabase, input.profileId, {
-    eventType: "budget.surplus_allocated",
-    idempotencyKey: input.idempotencyKey,
-    metadata: {
-      weekStartDate: summary.week_start_date,
-      amountCents: summary.bankable_surplus_cents,
-      goalId: activeGoal.id,
-    },
-  })
-
-  if (isGoalCompleted(nextBalance, activeGoal.targetCents)) {
-    await (supabase as any)
-      .from("budget_goals")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
-      .eq("id", activeGoal.id)
-      .eq("profile_id", input.profileId)
+  if (!duplicate) {
     await appendProductEvent(supabase, input.profileId, {
-      eventType: "budget.goal_completed",
-      idempotencyKey: buildIdempotencyKey(["budget-goal-completed", input.profileId, activeGoal.id]),
-      metadata: { goalId: activeGoal.id, balanceCents: nextBalance, targetCents: activeGoal.targetCents },
+      eventType: "budget.surplus_allocated",
+      idempotencyKey: input.idempotencyKey,
+      metadata: {
+        weekStartDate: summary?.week_start_date ?? input.weekStartDate,
+        amountCents: contribution.amount_cents,
+        goalId: goal.id,
+      },
     })
   }
 
-  return { contribution, goal: updatedGoal, duplicate: false }
+  if (allocationPayload?.completedNow) {
+    await appendProductEvent(supabase, input.profileId, {
+      eventType: "budget.goal_completed",
+      idempotencyKey: buildIdempotencyKey(["budget-goal-completed", input.profileId, goal.id]),
+      metadata: { goalId: goal.id, balanceCents: goal.current_balance_cents, targetCents: goal.target_cents },
+    })
+  }
+
+  return { contribution, goal, duplicate }
 }
 
 export async function buildBudgetDashboard(supabase: SupabaseLike, profileId: string) {
@@ -353,12 +342,9 @@ export async function buildBudgetDashboard(supabase: SupabaseLike, profileId: st
   const summaryResult = await computeWeeklySummaryForWeek(supabase, profileId, currentWeek.weekStartDate, { shouldEmitEvent: false })
   const currentWeekSummary = "summary" in summaryResult ? summaryResult.summary : null
 
-  const { data: recentContributions } = await (supabase as any)
-    .from("budget_contributions")
-    .select("contributed_at")
-    .eq("profile_id", profileId)
-    .order("contributed_at", { ascending: false })
-    .limit(12)
+  const { data: recentContributions } = await getRecentContributions(supabase, profileId, 12)
+  const { data: recentSpendLogs } = await getRecentSpendLogs(supabase, profileId, 12)
+  const { data: latestCompletedGoal } = await getLatestCompletedGoal(supabase, profileId)
 
   const intervals: number[] = []
   const sorted = (recentContributions ?? []).map((row: any) => new Date(row.contributed_at).getTime()).sort((a: number, b: number) => a - b)
@@ -413,25 +399,44 @@ export async function buildBudgetDashboard(supabase: SupabaseLike, profileId: st
     }
   }
 
+  const activeGoalView = activeGoal
+    ? { ...activeGoal, progressPercent: computeGoalProgressPercent(activeGoal.currentBalanceCents, activeGoal.targetCents) }
+    : null
+  const sourceBreakdown = currentWeekSummary
+    ? {
+        manualCents: currentWeekSummary.manual_spend_cents ?? 0,
+        receiptCents: currentWeekSummary.receipt_spend_cents ?? 0,
+        trackedCents: currentWeekSummary.tracked_spend_cents ?? 0,
+      }
+    : null
+  const completedGoalView = latestCompletedGoal
+    ? {
+        ...latestCompletedGoal,
+        progressPercent: computeGoalProgressPercent(latestCompletedGoal.current_balance_cents, latestCompletedGoal.target_cents),
+      }
+    : null
+  const nudgeView = shouldShowNudge
+    ? {
+        thresholdDays: nudgeState?.current_threshold_days ?? 21,
+        lastContributionAt: nudgeState?.last_contribution_at ?? null,
+        snoozedUntil: nudgeState?.snoozed_until ?? null,
+      }
+    : null
+
   return {
+    featureState: { budgetTrackingEnabled: true },
     settings,
-    activeGoal: activeGoal
-      ? {
-          ...activeGoal,
-          progressPercent: computeGoalProgressPercent(activeGoal.currentBalanceCents, activeGoal.targetCents),
-        }
-      : null,
+    activeGoal: activeGoalView,
     currentWeek: {
       ...currentWeek,
       summary: currentWeekSummary,
     },
-    nudge: shouldShowNudge
-      ? {
-          thresholdDays: nudgeState?.current_threshold_days ?? 21,
-          lastContributionAt: nudgeState?.last_contribution_at ?? null,
-          snoozedUntil: nudgeState?.snoozed_until ?? null,
-        }
-      : null,
+    sourceBreakdown,
+    recentSpendLogs: recentSpendLogs ?? [],
+    recentContributions: recentContributions ?? [],
+    pendingAllocatableWeek: currentWeekSummary?.status === "ready_to_allocate" ? currentWeek : null,
+    completedGoal: completedGoalView,
+    nudge: nudgeView,
   }
 }
 

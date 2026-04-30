@@ -13,7 +13,20 @@ export async function GET() {
 
     const enabled = await assertBudgetEnabled(profile.supabase as any, profile.profileId)
     if (!enabled) {
-      return NextResponse.json({ error: "Budget tracking is disabled" }, { status: 403 })
+      return NextResponse.json({
+        dashboard: {
+          featureState: { budgetTrackingEnabled: false },
+          settings: null,
+          activeGoal: null,
+          currentWeek: null,
+          sourceBreakdown: null,
+          recentSpendLogs: [],
+          recentContributions: [],
+          pendingAllocatableWeek: null,
+          completedGoal: null,
+          nudge: null,
+        },
+      })
     }
 
     await computePendingWeeklySummaries(profile.supabase as any, profile.profileId)

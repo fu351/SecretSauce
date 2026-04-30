@@ -6,8 +6,10 @@ import {
   computeGoalProgressPercent,
   computeRawSurplus,
   getWeekRange,
+  isCanonicalWeekStart,
   isGoalCompleted,
   isNudgeEligible,
+  parseIsoDateOrNull,
 } from "@/lib/budget/calculations"
 
 describe("budget calculations", () => {
@@ -32,14 +34,21 @@ describe("budget calculations", () => {
 
   it("computes surplus with 30% cap and over-budget floor", () => {
     const raw = computeRawSurplus(10000, 5000)
-    const bankable = computeBankableSurplus(raw, 10000)
+    const bankable = computeBankableSurplus(raw, 10000, 3000)
     expect(raw).toBe(5000)
     expect(bankable).toBe(3000)
 
     const overBudgetRaw = computeRawSurplus(10000, 12000)
-    const overBudgetBankable = computeBankableSurplus(overBudgetRaw, 10000)
+    const overBudgetBankable = computeBankableSurplus(overBudgetRaw, 10000, 3000)
     expect(overBudgetRaw).toBe(0)
     expect(overBudgetBankable).toBe(0)
+  })
+
+  it("validates ISO date and canonical week starts", () => {
+    expect(parseIsoDateOrNull("2026-04-27")).toBeTruthy()
+    expect(parseIsoDateOrNull("2026-4-27")).toBeNull()
+    expect(isCanonicalWeekStart("2026-04-27", 1)).toBe(true)
+    expect(isCanonicalWeekStart("2026-04-28", 1)).toBe(false)
   })
 
   it("caps visual progress at 100 while preserving completion threshold", () => {

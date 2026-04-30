@@ -1,0 +1,46 @@
+name: Budget Smoke
+
+on:
+  pull_request:
+    paths:
+      - "app/budget/**"
+      - "app/api/budget/**"
+      - "components/budget/**"
+      - "lib/budget/**"
+      - "hooks/use-budget-dashboard.ts"
+      - "e2e/flows/12-budget-smoke.spec.ts"
+      - "playwright.config.ts"
+      - ".github/workflows/budget-smoke.yml"
+  workflow_dispatch: {}
+
+jobs:
+  budget-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run budget smoke flow
+        env:
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+          E2E_TEST_MFA_CODE: ${{ secrets.E2E_TEST_MFA_CODE }}
+        run: pnpm exec playwright test e2e/flows/12-budget-smoke.spec.ts --project=flows

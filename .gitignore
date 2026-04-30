@@ -45,6 +45,7 @@ AGENTS.md
 !supabase/migrations/20260411002000_add_recipe_reposts.sql
 !supabase/migrations/20260428090000_add_shared_product_foundation.sql
 !supabase/migrations/20260428110000_harden_existing_database_warnings.sql
+!supabase/migrations/20260430034500_budget_rpc_transactions.sql
 
 CLAUDE.md
 

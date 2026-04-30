@@ -23,6 +23,8 @@ import {
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/ui/use-toast"
+import { useFeaturePreferences } from "@/hooks/use-feature-preferences"
+import { useFoundationFeatureFlag } from "@/hooks/use-feature-flag"
 import Image from "next/image"
 import { useState, useEffect, useRef } from "react"
 
@@ -33,6 +35,9 @@ export function Header() {
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
+  const budgetFlag = useFoundationFeatureFlag("budget_tracking")
+  const featurePreferences = useFeaturePreferences(Boolean(user))
+  const savingsEnabled = Boolean(user) && budgetFlag.isEnabled && featurePreferences.preferences.budgetTrackingEnabled
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
   const [mobileLogoMenuOpen, setMobileLogoMenuOpen] = useState(false)
@@ -120,6 +125,7 @@ export function Header() {
     "/store": { title: "Shopping", subtext: "Manage your grocery list" },
     "/dashboard": { title: "Dashboard", subtext: "Your cooking overview" },
     "/settings": { title: "Settings", subtext: "Manage your account preferences" },
+    "/budget": { title: "Savings", subtext: "Track weekly spending and build your goal jar" },
     "/pantry": { title: "My Pantry", subtext: "Keep track of your ingredients and reduce food waste" },
     "/upload-recipe": { title: "Add Recipe", subtext: "Create a new recipe manually or import from a URL" },
   }
@@ -222,6 +228,16 @@ export function Header() {
         >
           Shopping
         </Link>
+        {savingsEnabled ? (
+          <Link
+            href="/budget"
+            className={`hover:opacity-80 transition-opacity ${
+              pathname === "/budget" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+            }`}
+          >
+            Savings
+          </Link>
+        ) : null}
         <Button
           size="sm"
           asChild
@@ -519,6 +535,11 @@ export function Header() {
                     <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
                       <Link href="/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
+                    {savingsEnabled ? (
+                      <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
+                        <Link href="/budget">Savings</Link>
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
                       <Link href="/settings">Settings</Link>
                     </DropdownMenuItem>

@@ -52,6 +52,9 @@ export async function POST(req: Request) {
       idempotencyKey,
     })
 
+    if ("validationError" in result) {
+      return NextResponse.json({ error: result.validationError }, { status: 400 })
+    }
     if ("error" in result && result.error) {
       console.error("[budget/spend POST] DB error:", result.error)
       return NextResponse.json({ error: "Failed to log spend" }, { status: 500 })

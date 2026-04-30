@@ -1,6 +1,7 @@
 import type { BudgetSpendLog } from "@/lib/budget/types"
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 export function toDateOnlyIso(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -8,6 +9,9 @@ export function toDateOnlyIso(date: Date): string {
 
 export function getWeekRange(input: Date | string, cycleStartDow = 1): { weekStartDate: string; weekEndDate: string } {
   const date = typeof input === "string" ? new Date(input) : new Date(input)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date input")
+  }
   const day = date.getUTCDay()
   const offset = (day - cycleStartDow + 7) % 7
   const weekStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
@@ -18,6 +22,19 @@ export function getWeekRange(input: Date | string, cycleStartDow = 1): { weekSta
     weekStartDate: toDateOnlyIso(weekStart),
     weekEndDate: toDateOnlyIso(weekEnd),
   }
+}
+
+export function parseIsoDateOrNull(value: unknown): Date | null {
+  if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) return null
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
+}
+
+export function isCanonicalWeekStart(weekStartDate: string, cycleStartDow = 1): boolean {
+  const parsed = parseIsoDateOrNull(weekStartDate)
+  if (!parsed) return false
+  return parsed.getUTCDay() === cycleStartDow
 }
 
 export function listPendingWeekRanges(lastComputedWeekStart: string | null, now: Date): Array<{ weekStartDate: string; weekEndDate: string }> {
@@ -56,8 +73,10 @@ export function computeRawSurplus(weeklyBudgetCents: number, trackedCents: numbe
   return Math.max(0, weeklyBudgetCents - trackedCents)
 }
 
-export function computeBankableSurplus(rawSurplusCents: number, weeklyBudgetCents: number): number {
-  return Math.min(rawSurplusCents, Math.floor(weeklyBudgetCents * 0.3))
+export function computeBankableSurplus(rawSurplusCents: number, weeklyBudgetCents: number, allocationCapBps = 3000): number {
+  const capBps = Math.max(0, Math.min(10_000, Math.round(allocationCapBps)))
+  const maxBankable = Math.floor((weeklyBudgetCents * capBps) / 10_000)
+  return Math.min(rawSurplusCents, maxBankable)
 }
 
 export function isCapApplied(rawSurplusCents: number, bankableSurplusCents: number): boolean {
@@ -92,4 +111,13 @@ export function isNudgeEligible(input: {
   if (!input.lastContributionAt) return false
   const daysSinceContribution = Math.floor((input.now.getTime() - new Date(input.lastContributionAt).getTime()) / DAY_MS)
   return daysSinceContribution >= input.currentThresholdDays
+}
+
+export function formatUsdFromCents(cents: number): string {
+  const value = cents / 100
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value)
 }

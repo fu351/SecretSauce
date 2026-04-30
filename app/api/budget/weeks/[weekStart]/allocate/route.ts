@@ -3,6 +3,7 @@ import { getAuthenticatedProfile } from "@/lib/foundation/server"
 import { allocateWeeklySurplus, assertBudgetEnabled } from "@/lib/budget/service"
 import { buildIdempotencyKey } from "@/lib/foundation/product-events"
 import { getPostHogClient } from "@/lib/posthog-server"
+import { parseIsoDateOrNull } from "@/lib/budget/calculations"
 
 export const runtime = "nodejs"
 
@@ -29,6 +30,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ weekSta
     if (!body) return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     const routeParams = await params
     const weekStart = routeParams.weekStart
+    if (!parseIsoDateOrNull(weekStart)) {
+      return NextResponse.json({ error: "Invalid weekStart parameter. Use YYYY-MM-DD." }, { status: 400 })
+    }
 
     const idempotencyKey =
       typeof body.idempotencyKey === "string" && body.idempotencyKey.trim().length > 0
