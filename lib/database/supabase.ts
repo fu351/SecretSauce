@@ -1293,6 +1293,13 @@ export type Database = {
           id: string
           price: number | null
           product_mapping_id: string
+          source: string
+          source_currency: string | null
+          source_location_id: number | null
+          source_payload: Json
+          source_price_date: string | null
+          source_price_id: string | null
+          source_proof_id: number | null
         }
         Insert: {
           created_at?: string | null
@@ -1300,6 +1307,13 @@ export type Database = {
           id?: string
           price?: number | null
           product_mapping_id: string
+          source?: string
+          source_currency?: string | null
+          source_location_id?: number | null
+          source_payload?: Json
+          source_price_date?: string | null
+          source_price_id?: string | null
+          source_proof_id?: number | null
         }
         Update: {
           created_at?: string | null
@@ -1307,6 +1321,13 @@ export type Database = {
           id?: string
           price?: number | null
           product_mapping_id?: string
+          source?: string
+          source_currency?: string | null
+          source_location_id?: number | null
+          source_payload?: Json
+          source_price_date?: string | null
+          source_price_id?: string | null
+          source_proof_id?: number | null
         }
         Relationships: [
           {
@@ -5333,6 +5354,29 @@ export type Database = {
         | "walmart"
         | "andronicos"
         | "wholefoods"
+        | "albertsons"
+        | "costco"
+        | "groceryoutlet"
+        | "sprouts"
+        | "smartandfinal"
+        | "raleys"
+        | "savemart"
+        | "shoprite"
+        | "publix"
+        | "winco"
+        | "heb"
+        | "weismarkets"
+        | "aholddelhaize"
+        | "hmart"
+        | "marketbasket"
+        | "bjs"
+        | "samsclub"
+        | "dollartree"
+        | "keyfood"
+        | "eataly"
+        | "ikea"
+        | "cvs"
+        | "independent"
       item_category_enum:
         | "baking"
         | "beverages"
@@ -5600,6 +5644,29 @@ export const Constants = {
         "walmart",
         "andronicos",
         "wholefoods",
+        "albertsons",
+        "costco",
+        "groceryoutlet",
+        "sprouts",
+        "smartandfinal",
+        "raleys",
+        "savemart",
+        "shoprite",
+        "publix",
+        "winco",
+        "heb",
+        "weismarkets",
+        "aholddelhaize",
+        "hmart",
+        "marketbasket",
+        "bjs",
+        "samsclub",
+        "dollartree",
+        "keyfood",
+        "eataly",
+        "ikea",
+        "cvs",
+        "independent",
       ],
       item_category_enum: [
         "baking",

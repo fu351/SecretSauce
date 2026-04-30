@@ -7,19 +7,9 @@ import { buildStoreMetadataFromStoreData, type StoreMetadataMap } from "@/lib/st
 import { normalizeZipCode } from "@/lib/utils/zip"
 import { profileIdFromClerkUserId } from "@/lib/auth/clerk-profile-id"
 import type { Database } from "@/lib/database/supabase"
+import { SUPPORTED_GROCERY_STORE_ENUMS } from "@/lib/store/open-prices-store-map"
 
-const DEFAULT_STORE_KEYS = [
-  "walmart",
-  "target",
-  "kroger",
-  "meijer",
-  "99ranch",
-  "traderjoes",
-  "aldi",
-  "andronicos",
-  "wholefoods",
-  "safeway",
-]
+const DEFAULT_STORE_KEYS = [...SUPPORTED_GROCERY_STORE_ENUMS]
 
 export async function GET(request: NextRequest) {
   try {

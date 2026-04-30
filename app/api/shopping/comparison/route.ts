@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getAuthenticatedProfile } from "@/lib/foundation/server"
 import type { PricingResult } from "@/lib/database/ingredients-db"
 import type { GroceryItem, ShoppingListIngredient, StoreComparison } from "@/lib/types/store"
+import { STORE_DISPLAY_NAMES } from "@/lib/store/open-prices-store-map"
 
 type ComparisonItem = GroceryItem & {
   shoppingItemId: string
@@ -9,21 +10,8 @@ type ComparisonItem = GroceryItem & {
   shoppingItemIds?: string[]
 }
 
-const STORE_DISPLAY_NAMES: Record<string, string> = {
-  aldi: "Aldi",
-  kroger: "Kroger",
-  safeway: "Safeway",
-  meijer: "Meijer",
-  target: "Target",
-  traderjoes: "Trader Joe's",
-  "99ranch": "99 Ranch",
-  walmart: "Walmart",
-  andronicos: "Andronico's Community Markets",
-  wholefoods: "Whole Foods",
-}
-
 function getStoreDisplayName(storeKey: string, fallback?: string | null) {
-  return STORE_DISPLAY_NAMES[storeKey] || fallback || storeKey || "Store"
+  return STORE_DISPLAY_NAMES[storeKey as keyof typeof STORE_DISPLAY_NAMES] || fallback || storeKey || "Store"
 }
 
 function normalizeShoppingItemId(value: unknown): string {

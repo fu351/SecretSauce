@@ -49,6 +49,7 @@ Last verified: 2026-04-30.
 - `/delivery` lists current and past delivery orders.
 - `/delivery/[id]` shows order details.
 - `/budget` is the authenticated Savings surface (goal setup, spend logging, source breakdown, weekly wrap allocation, goal switching, and supportive nudges).
+- `/streaks` is the authenticated streak cadence surface (daily count, weekly cook dial, confirmations, grace, and freeze controls).
 
 ### Account and billing
 
@@ -79,6 +80,7 @@ Last verified: 2026-04-30.
 - `lib/auth/admin.ts` and `hooks/use-admin.ts` gate admin and analytics surfaces.
 - `lib/foundation/*` owns shared feature flags, user feature preferences, private media semantics, product event idempotency helpers, social projection privacy checks, and AI verification status routing.
 - `lib/budget/*` owns budget domain calculations, guard checks, and state-transition services built on top of foundation primitives.
+- `lib/streaks/*` owns streak calculations, verification fallback transitions, daily ledger state, and milestone archive logic.
 - Budget state lives in private tables (`budget_settings`, `budget_goals`, `budget_spend_logs`, `budget_weekly_summaries`, `budget_contributions`, `budget_nudge_state`) and never projects into `social_activity_projections`.
 
 ## Shared Product Foundation
@@ -89,6 +91,7 @@ Last verified: 2026-04-30.
 - `verification_tasks` and `confirmation_items` provide the common AI confidence and manual confirmation path. Low-confidence AI output routes to confirmation rather than rejecting user progress.
 - `social_activity_projections` is the future public/followers-readable layer. It is intentionally separate from private budget, pantry, media, and verification tables.
 - Budget product events include goal creation/switching/completion, spend logging, weekly summary creation, no-surplus weeks, surplus allocation, and nudge lifecycle events.
+- Streaks depends on foundation media/verification/confirmation/recipe_tries and does not require social or pantry features to function.
 - `recipe_tries` is the shared durable record for cooked/attempted recipes so streaks, pantry auto-deduct, and social aggregates can converge on one source later.
 
 ## Route Notes

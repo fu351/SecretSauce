@@ -101,6 +101,25 @@ Last verified: 2026-04-30.
 - `POST /api/budget/nudges/dismiss`
   - Snoozes supportive stagnation nudges.
 
+### Streaks core
+
+- `GET /api/streaks/dashboard`
+  - Returns streak state, weekly dial, pending confirmations, and milestone progress for the authenticated profile.
+- `POST /api/streaks/manual-confirm`
+  - Records user-confirmed fallback meal and credits at most one day per calendar date.
+- `POST /api/streaks/verification/create`
+  - Starts meal verification task for streaks with optimistic pending behavior.
+- `POST /api/streaks/verification/[id]/confirm`
+  - Confirms a pending verification and credits eligible streak day while creating a recipe try record.
+- `POST /api/streaks/verification/[id]/ai-result`
+  - Internal/server path for AI status updates; never exposes other users’ data.
+- `POST /api/streaks/freeze/use`
+  - Applies one freeze token (if available) without punitive reset behavior.
+- `POST /api/streaks/grace/apply`
+  - Applies weekly grace skip semantics once per week.
+- `GET /api/streaks/pending-confirmations`
+  - Returns pending streak confirmation tasks for the authenticated profile only.
+
 ## Frontend Callers
 
 - `contexts/auth-context.tsx`, `app/auth/signin/page.tsx`, `app/auth/signup/page.tsx`, and `app/auth/check-email/page.tsx` call `/api/auth/ensure-profile`.
@@ -127,6 +146,7 @@ Last verified: 2026-04-30.
 - Frontend hooks and helpers read through `lib/database/*` wrappers rather than querying tables directly.
 - Budget writes are profile-scoped and authenticated server-side; client-supplied profile/user identifiers are ignored.
 - Budget state is private and does not flow into `social_activity_projections`.
+- Streak writes are profile-scoped and private; streak day crediting uses verification/confirmation + recipe_tries foundations and avoids social projections by default.
 
 ### Stripe
 

@@ -36,8 +36,10 @@ export function Header() {
   const router = useRouter()
   const { toast } = useToast()
   const budgetFlag = useFoundationFeatureFlag("budget_tracking")
+  const streaksFlag = useFoundationFeatureFlag("gamification_streaks")
   const featurePreferences = useFeaturePreferences(Boolean(user))
   const savingsEnabled = Boolean(user) && budgetFlag.isEnabled && featurePreferences.preferences.budgetTrackingEnabled
+  const streaksEnabled = Boolean(user) && streaksFlag.isEnabled && featurePreferences.preferences.streaksEnabled
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
   const [mobileLogoMenuOpen, setMobileLogoMenuOpen] = useState(false)
@@ -126,6 +128,7 @@ export function Header() {
     "/dashboard": { title: "Dashboard", subtext: "Your cooking overview" },
     "/settings": { title: "Settings", subtext: "Manage your account preferences" },
     "/budget": { title: "Savings", subtext: "Track weekly spending and build your goal jar" },
+    "/streaks": { title: "Streaks", subtext: "Build a steady daily cooking rhythm" },
     "/pantry": { title: "My Pantry", subtext: "Keep track of your ingredients and reduce food waste" },
     "/upload-recipe": { title: "Add Recipe", subtext: "Create a new recipe manually or import from a URL" },
   }
@@ -236,6 +239,16 @@ export function Header() {
             }`}
           >
             Savings
+          </Link>
+        ) : null}
+        {streaksEnabled ? (
+          <Link
+            href="/streaks"
+            className={`hover:opacity-80 transition-opacity ${
+              pathname === "/streaks" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+            }`}
+          >
+            Streaks
           </Link>
         ) : null}
         <Button
@@ -538,6 +551,11 @@ export function Header() {
                     {savingsEnabled ? (
                       <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
                         <Link href="/budget">Savings</Link>
+                      </DropdownMenuItem>
+                    ) : null}
+                    {streaksEnabled ? (
+                      <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
+                        <Link href="/streaks">Streaks</Link>
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">

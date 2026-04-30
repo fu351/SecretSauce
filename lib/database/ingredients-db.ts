@@ -1,27 +1,12 @@
 import { BaseTable } from "./base-db"
 import type { Database } from "@/lib/database/supabase"
 import { standardizedIngredientsDB } from "./standardized-ingredients-db"
-
-const normalizeStoreName = (store: string): string =>
-  store.toLowerCase().replace(/\s+/g, "").replace(/[']/g, "").trim()
+import { normalizeStoreName, resolveParentGroceryStoreEnum } from "@/lib/store/open-prices-store-map"
 
 function resolveGroceryStoreEnum(
   store: string | null | undefined
 ): Database["public"]["Enums"]["grocery_store"] | null {
-  if (!store) return null
-  const value = normalizeStoreName(store)
-  if (value.includes("target")) return "target"
-  if (value.includes("kroger")) return "kroger"
-  if (value.includes("foodsco")) return "kroger"
-  if (value.includes("meijer")) return "meijer"
-  if (value.includes("99") || value.includes("ranch")) return "99ranch"
-  if (value.includes("walmart")) return "walmart"
-  if (value.includes("trader")) return "traderjoes"
-  if (value.includes("aldi")) return "aldi"
-  if (value.includes("andronico")) return "andronicos"
-  if (value.includes("safeway")) return "safeway"
-  if (value.includes("whole")) return "wholefoods"
-  return null
+  return resolveParentGroceryStoreEnum(store)
 }
 
 type IngredientsHistoryRow = Database["public"]["Tables"]["ingredients_history"]["Row"]

@@ -19,6 +19,14 @@ export {
   useAllocateWeeklySurplus,
   useDismissBudgetNudge,
 } from "./use-budget-dashboard"
+export {
+  useStreakDashboard,
+  useManualConfirmStreakMeal,
+  useCreateStreakVerification,
+  useConfirmStreakVerification,
+  useUseStreakFreeze,
+  useApplyStreakGrace,
+} from "./use-streak-dashboard"
 
 // Recipe Hooks
 export {

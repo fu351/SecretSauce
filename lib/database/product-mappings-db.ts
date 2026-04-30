@@ -1,41 +1,19 @@
 import { supabase, type Database } from "@/lib/database/supabase"
-
-const GROCERY_STORE_ENUMS = new Set<Database["public"]["Enums"]["grocery_store"]>([
-  "aldi",
-  "kroger",
-  "safeway",
-  "meijer",
-  "target",
-  "traderjoes",
-  "99ranch",
-  "walmart",
-  "andronicos",
-  "wholefoods",
-])
-
-function normalizeStoreName(store: string): string {
-  return store.toLowerCase().replace(/\s+/g, "").replace(/[']/g, "").trim()
-}
+import {
+  GROCERY_STORE_ENUM_SET,
+  normalizeStoreName,
+  resolveParentGroceryStoreEnum,
+} from "@/lib/store/open-prices-store-map"
 
 function resolveStoreBrand(
   value: string | Database["public"]["Enums"]["grocery_store"] | null | undefined
 ): Database["public"]["Enums"]["grocery_store"] | null {
   if (!value) return null
   const normalized = normalizeStoreName(value)
-  if (GROCERY_STORE_ENUMS.has(normalized as Database["public"]["Enums"]["grocery_store"])) {
+  if (GROCERY_STORE_ENUM_SET.has(normalized as Database["public"]["Enums"]["grocery_store"])) {
     return normalized as Database["public"]["Enums"]["grocery_store"]
   }
-  if (normalized.includes("target")) return "target"
-  if (normalized.includes("kroger") || normalized.includes("foodsco")) return "kroger"
-  if (normalized.includes("meijer")) return "meijer"
-  if (normalized.includes("99") || normalized.includes("ranch")) return "99ranch"
-  if (normalized.includes("walmart")) return "walmart"
-  if (normalized.includes("trader")) return "traderjoes"
-  if (normalized.includes("aldi")) return "aldi"
-  if (normalized.includes("andronico")) return "andronicos"
-  if (normalized.includes("safeway")) return "safeway"
-  if (normalized.includes("whole")) return "wholefoods"
-  return null
+  return resolveParentGroceryStoreEnum(value)
 }
 
 type ProductMappingInsert = {

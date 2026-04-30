@@ -96,6 +96,13 @@ export type AnalyticsEventName =
   | "budget_goal_switched"
   | "budget_spend_logged"
   | "budget_surplus_allocated"
+  | "streak_dashboard_viewed"
+  | "meal_verification_started"
+  | "meal_verification_confirmed"
+  | "streak_day_counted"
+  | "streak_freeze_used"
+  | "streak_grace_applied"
+  | "streak_milestone_reached"
 
 /**
  * Type-safe properties for each event
@@ -321,6 +328,29 @@ export interface EventProperties {
     week_start_date: string
     duplicate?: boolean
   }
+  streak_dashboard_viewed: {
+    current_count: number
+  }
+  meal_verification_started: {
+    source: "photo" | "manual"
+    duplicate?: boolean
+  }
+  meal_verification_confirmed: {
+    source: "photo" | "manual"
+    already_counted?: boolean
+  }
+  streak_day_counted: {
+    already_counted?: boolean
+  }
+  streak_freeze_used: {
+    streak_date: string
+  }
+  streak_grace_applied: {
+    streak_date: string
+  }
+  streak_milestone_reached: {
+    milestone: 7 | 21 | 45 | 90
+  }
 }
 
 /**
@@ -413,6 +443,13 @@ export const EVENT_TYPE_MAPPING: Record<AnalyticsEventName, ABEventType> = {
   budget_goal_switched: "custom",
   budget_spend_logged: "custom",
   budget_surplus_allocated: "custom",
+  streak_dashboard_viewed: "custom",
+  meal_verification_started: "custom",
+  meal_verification_confirmed: "custom",
+  streak_day_counted: "custom",
+  streak_freeze_used: "custom",
+  streak_grace_applied: "custom",
+  streak_milestone_reached: "custom",
 }
 
 /**
