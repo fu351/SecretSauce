@@ -14,6 +14,8 @@ import {
 import { normalizeConfidence } from "../../../lib/utils/number"
 import { normalizeCanonicalName, singularizeCanonicalName } from "../../scripts/utils/canonical-matching"
 import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
+import { cleanScraperProductName, buildUnitStripRegexes, type UnitStripRegexes } from "../shared/ingredient-cleaning"
+import { getWorkerUnitKeywords } from "../shared/unit-keywords"
 import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"
 import { resolveCanonicalWithDoubleCheck } from "./canonical/double-check"
@@ -315,6 +317,10 @@ async function resolveIngredientCandidates(
     }
   }
 
+  const scraperUnitRegexes: UnitStripRegexes | undefined = await getWorkerUnitKeywords()
+    .then(buildUnitStripRegexes)
+    .catch(() => undefined)
+
   for (const [context, contextRows] of rowsByContext.entries()) {
     const uniqueInputByKey = new Map<string, { id: string; name: string; cacheKey: string }>()
     const rowToInputKey = new Map<string, string>()
@@ -322,7 +328,11 @@ async function resolveIngredientCandidates(
 
     for (const row of contextRows) {
       const originalSearchTerm = getSearchTerm(row)
-      const searchTerm = getIngredientSearchTerm(row, unitByRowId?.get(row.id))
+      const rawSearchTerm = getIngredientSearchTerm(row, unitByRowId?.get(row.id))
+      const searchTerm =
+        context === "scraper"
+          ? cleanScraperProductName(rawSearchTerm, scraperUnitRegexes)
+          : rawSearchTerm
       const dedupeKey = searchTerm.toLowerCase()
       const cacheKey = buildIngredientLocalCacheKey(context, searchTerm)
 

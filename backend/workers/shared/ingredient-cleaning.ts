@@ -12,6 +12,42 @@ export const OPTIONAL_PHRASE_RE = /\b(?:to taste|if needed|as needed|optional|di
 export const TRAILING_PACKAGING_RE =
   /\s+\d+(?:\.\d+)?\s*(?:oz|ounce|ounces|lb|lbs|pound|pounds|g|gram|grams|kg|kilogram|kilograms|ml|milliliter|milliliters|l|liter|liters|litre|litres|ltr|qt|quart|quarts|pt|pint|pints|gal|gallon|gallons|fl\s*oz|floz|ct|count|counts|pk|pkg|pack|packs|package|packages|bottle|bottles|bag|bags|box|boxes|can|cans|jar|jars|carton|cartons|tray|trays|case|cases|pouch|pouches|unit|units|each|ea|piece|pieces)\b.*$/i
 
+// Scraper path: strips trailing brand suffixes like "- Good & Gather", "– Organic Valley"
+export const BRAND_SUFFIX_RE = /\s+[-–]\s*[a-z0-9][a-z0-9 &']{0,30}$/gi
+
+// Scraper path: strips compact nutrition label segments like "- 14g Protein", "- 32g Fat"
+export const COMPACT_NUTRITION_RE = /\s*[-–,]\s*\d+[gGmMkK][gG]?\s+\w+(\s+\w+)?\s*$/gi
+
+// Scraper path: strips trailing pack descriptors like "- 6 pack", ", 6 pack"
+export const TRAILING_PACK_DESCRIPTOR_RE = /[\s,\-–]+\d+\s*pack\s*$/gi
+
+// Dynamic regexes built from unit_standardization_map keywords (see unit-keywords.ts).
+// trailingSeparatorUnit: strips trailing separator+qty+unit blocks like "- 32oz", "- 14g Protein 32oz"
+// fusedMidUnit: strips fused qty+unit mid-string like "Butter 16oz unsalted" → "Butter unsalted"
+export interface UnitStripRegexes {
+  trailingSeparatorUnit: RegExp
+  fusedMidUnit: RegExp
+}
+
+// keywords must be sorted longest-first so longer patterns match before short ones consume them.
+// fn_get_recipe_parser_unit_keywords returns them in that order already.
+export function buildUnitStripRegexes(keywords: string[]): UnitStripRegexes {
+  const fallback =
+    "fl\\s*oz|oz|lbs?|lb|g|kg|mg|ml|gal|ct|each|ea|pk|pt|qt|cup|tbsp|tsp|dz|dozen|bunch|unit"
+  const units = keywords.length
+    ? keywords
+        .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"))
+        .join("|")
+    : fallback
+  return {
+    trailingSeparatorUnit: new RegExp(
+      `(\\s*[-–,]\\s*\\d*\\.?\\d+\\s*(${units})(\\s+\\w+)?)+\\s*$`,
+      "gi"
+    ),
+    fusedMidUnit: new RegExp(`\\s+\\d*\\.?\\d+(${units})\\s+`, "gi"),
+  }
+}
+
 // Scraper path: strips packing/carrier medium phrases like "in extra virgin olive oil", "in brine"
 export const PACKING_MEDIUM_RE =
   /\s+in\s+(?:(?:extra\s+virgin|light|heavy|pure)\s+)?(?:olive\s+oil|vegetable\s+oil|sunflower\s+oil|canola\s+oil|oil|water|brine|syrup|juice|tomato\s+sauce|sauce|vinegar)\b/gi
@@ -47,20 +83,26 @@ export function cleanRecipeIngredientName(name: string): string {
     .trim()
 }
 
-// Scraper path: hoist product type to front, strip packing medium and processing qualifiers.
-export function cleanScraperProductName(name: string): string {
-  return hoistProductType(name)
+// Scraper path: hoist product type to front, strip packing medium, processing qualifiers,
+// brand suffixes, nutrition labels, pack descriptors, and optionally fused unit tokens.
+export function cleanScraperProductName(name: string, unitRegexes?: UnitStripRegexes): string {
+  let result = hoistProductType(name)
     .replace(PACKING_MEDIUM_RE, "")
     .replace(PROCESSING_QUALIFIER_RE, "")
-    .replace(/\s{2,}/g, " ")
-    .trim()
+    .replace(BRAND_SUFFIX_RE, "")
+  if (unitRegexes) result = result.replace(unitRegexes.trailingSeparatorUnit, "")
+  result = result.replace(COMPACT_NUTRITION_RE, "")
+  if (unitRegexes) result = result.replace(unitRegexes.fusedMidUnit, " ")
+  result = result.replace(TRAILING_PACK_DESCRIPTOR_RE, "")
+  return result.replace(/\s{2,}/g, " ").trim()
 }
 
 // Dispatcher: routes to the correct cleaner based on standardizer context.
 export function cleanIngredientByContext(
   name: string,
-  context: IngredientStandardizerContext
+  context: IngredientStandardizerContext,
+  unitRegexes?: UnitStripRegexes
 ): string {
   if (context === "recipe" || context === "pantry") return cleanRecipeIngredientName(name)
-  return cleanScraperProductName(name)
+  return cleanScraperProductName(name, unitRegexes)
 }
