@@ -131,6 +131,7 @@ export function StoreMap({
   const [userLocation, setUserLocation] = useState<LatLng | null>(null)
   const [storeLocations, setStoreLocations] = useState<Map<number, LatLng>>(new Map())
   const [storeResolvedNames, setStoreResolvedNames] = useState<Map<number, string>>(new Map())
+  const [distanceOverrides, setDistanceOverrides] = useState<Map<number, number>>(new Map())
   const [customAddress, setCustomAddress] = useState("")
   const [geocodingAddress, setGeocodingAddress] = useState(false)
   const [travelMode, setTravelMode] = useState<TravelMode>("driving")
@@ -232,6 +233,7 @@ export function StoreMap({
 
         const locations = new Map<number, LatLng>()
         const names = new Map<number, string>()
+        const distances = new Map<number, number>()
         const skipped: string[] = []
         const fallbackPlaced: string[] = []
         const missingDbCoords: string[] = []
@@ -245,7 +247,7 @@ export function StoreMap({
             // Update comparison distance if not already set
             if (!comparison.distanceMiles && userCoords) {
               const distance = calculateDistance(userCoords.lat, userCoords.lng, comparison.latitude, comparison.longitude)
-              comparison.distanceMiles = distance
+              distances.set(index, distance)
             }
           } else {
             missingDbCoords.push(comparison.store)
@@ -255,7 +257,7 @@ export function StoreMap({
               locations.set(index, jittered)
               fallbackPlaced.push(comparison.store)
               if (!comparison.distanceMiles) {
-                comparison.distanceMiles = calculateDistance(userCoords.lat, userCoords.lng, jittered.lat, jittered.lng)
+                distances.set(index, calculateDistance(userCoords.lat, userCoords.lng, jittered.lat, jittered.lng))
               }
               console.warn(`[StoreMap] Missing DB coordinates; approximating near user for ${comparison.store}`)
             } else {
@@ -267,6 +269,7 @@ export function StoreMap({
 
         setStoreLocations(locations)
         setStoreResolvedNames(names)
+        setDistanceOverrides(distances)
         setSkippedStores(skipped)
 
         if (missingDbCoords.length > 0) {
@@ -315,12 +318,11 @@ export function StoreMap({
         console.log("[StoreMap] Updated user location from custom address", { coordinates: coords, address: customAddress })
 
         // Recalculate distances
+        const nextDistances = new Map<number, number>()
         storeLocations.forEach((loc, index) => {
-          const distance = calculateDistance(coords.lat, coords.lng, loc.lat, loc.lng)
-          if (comparisons[index]) {
-            comparisons[index].distanceMiles = distance
-          }
+          nextDistances.set(index, calculateDistance(coords.lat, coords.lng, loc.lat, loc.lng))
         })
+        setDistanceOverrides(nextDistances)
 
         // Clear routes to force recalculation
         setRoutes(new Map())
@@ -336,11 +338,11 @@ export function StoreMap({
     } finally {
       setGeocodingAddress(false)
     }
-  }, [customAddress, storeLocations, comparisons, showRoutes])
+  }, [customAddress, storeLocations, showRoutes])
 
   // Build popup content for store markers
   const buildPopupContent = useCallback(
-    (comparison: StoreComparison, storeIndex: number) => {
+    (comparison: StoreComparison, storeIndex: number, distanceMiles?: number | null) => {
       const bgColor = isDark ? "#1f1e1a" : "#ffffff"
       const textColor = isDark ? "#f5f2e9" : "#1f2937"
       const mutedColor = isDark ? "#c8c3b5" : "#4b5563"
@@ -351,7 +353,7 @@ export function StoreMap({
       const brandName = comparison.store?.trim() ?? ""
       const requestedAlias = comparison.providerAliases?.[0]?.trim() || brandName
       const displayName = resolvedName || requestedAlias || brandName || "Store"
-      const distanceMiles = toNumberOrNull(comparison.distanceMiles)
+      const resolvedDistanceMiles = toNumberOrNull(distanceMiles ?? comparison.distanceMiles)
 
       return `
         <div style="min-width:220px;background:${bgColor};color:${textColor};padding:12px;border-radius:12px;font-family:'Inter',system-ui,sans-serif;">
@@ -367,11 +369,7 @@ export function StoreMap({
     ? `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">+$${comparison.savings.toFixed(2)} vs best</div>`
     : `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">Best price!</div>`
 }
-          ${
-  distanceMiles !== null
-    ? `<div style="margin-top:6px;font-size:13px;color:${mutedColor};">Distance: ${distanceMiles.toFixed(1)} mi</div>`
-    : ""
-}
+          ${resolvedDistanceMiles !== null ? `<div style="margin-top:6px;font-size:13px;color:${mutedColor};">Distance: ${resolvedDistanceMiles.toFixed(1)} mi</div>` : ""}
           ${
   travelTime
     ? `<div style="margin-top:4px;font-size:13px;color:${mutedColor};">Est. ${travelMode === "walking" ? "walk" : "drive"}: ${travelTime}</div>`
@@ -587,6 +585,7 @@ export function StoreMap({
               const comparison = comparisons[index]
               const isSelected = index === selectedStoreIndex
               const icon = isSelected ? redIcon : blueIcon
+              const effectiveDistanceMiles = distanceOverrides.get(index) ?? comparison?.distanceMiles ?? null
 
               return (
                 <Marker
@@ -602,7 +601,7 @@ export function StoreMap({
                   }}
                 >
                   <Popup>
-                    <div dangerouslySetInnerHTML={{ __html: buildPopupContent(comparison, index) }} />
+                    <div dangerouslySetInnerHTML={{ __html: buildPopupContent(comparison, index, effectiveDistanceMiles) }} />
                   </Popup>
                 </Marker>
               )

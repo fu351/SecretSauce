@@ -5,12 +5,14 @@ import dynamic from "next/dynamic"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, AlertCircle, RefreshCw, ShoppingBag, Map as MapIcon, List, PackageCheck } from "lucide-react"
+import { Loader2, AlertCircle, RefreshCw, ShoppingBag, Map as MapIcon, List, PackageCheck, Copy, Check } from "lucide-react"
 import { StoreSelector } from "./store-selector"
 import { ReceiptItem } from "./receipt-item"
 import type { ShoppingListIngredient as ShoppingListItem, StoreComparison } from "@/lib/types/store"
 import { mergeShoppingListItems, type ShoppingListDisplayItem } from "@/lib/utils/shopping-list-grouping"
 import { calcLineTotal } from "@/lib/utils/package-pricing"
+import { copyTextToClipboard } from "@/lib/clipboard"
+import { buildStoreComparisonExportPayload } from "@/lib/store/store-comparison-export"
 
 const StoreMap = dynamic(() => import("./store-map").then((mod) => mod.StoreMap), {
   ssr: false,
@@ -59,6 +61,7 @@ export function ShoppingReceiptView({
   className = ""
 }: ShoppingReceiptViewProps) {
   const [showMap, setShowMap] = useState(false)
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle")
   const quantityByItemId = useMemo(() => {
     const map = new Map<string, number>()
     shoppingList.forEach((item) => {
@@ -240,6 +243,21 @@ export function ShoppingReceiptView({
     onStoreChange(selectedFromMap.store)
   }, [storeComparisonsWithLocalTotals, onStoreChange])
 
+  const isDevMode = process.env.NODE_ENV !== "production"
+
+  const handleCopyStoreComparisonExport = useCallback(async () => {
+    try {
+      const payload = buildStoreComparisonExportPayload(storeComparisonsWithLocalTotals, selectedStoreIndex)
+      await copyTextToClipboard(JSON.stringify(payload, null, 2))
+      setCopyState("copied")
+      window.setTimeout(() => setCopyState("idle"), 2000)
+    } catch (error) {
+      console.error("[ShoppingReceiptView] Failed to copy store comparison export", error)
+      setCopyState("error")
+      window.setTimeout(() => setCopyState("idle"), 2000)
+    }
+  }, [selectedStoreIndex, storeComparisonsWithLocalTotals])
+
   // Calculate totals
   const subtotal = selectedStoreData?.total || 0
   const foundCount = pricingMap.size
@@ -350,23 +368,41 @@ export function ShoppingReceiptView({
               </p>
             </div>
           </div>
-          {(loading || isStale) && onRefresh && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onRefresh}
-              disabled={loading}
-              className="text-xs"
-              data-tutorial="store-refresh"
-            >
-              {loading ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3 mr-1" />
-              )}
-              {loading ? "Updating..." : "Refresh"}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {isDevMode && storeComparisonsWithLocalTotals.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handleCopyStoreComparisonExport()}
+                className="text-xs"
+                data-tutorial="store-export-mapping"
+              >
+                {copyState === "copied" ? (
+                  <Check className="h-3 w-3 mr-1" />
+                ) : (
+                  <Copy className="h-3 w-3 mr-1" />
+                )}
+                {copyState === "copied" ? "Copied" : "Copy JSONB"}
+              </Button>
+            )}
+            {(loading || isStale) && onRefresh && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onRefresh}
+                disabled={loading}
+                className="text-xs"
+                data-tutorial="store-refresh"
+              >
+                {loading ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                )}
+                {loading ? "Updating..." : "Refresh"}
+              </Button>
+            )}
+          </div>
         </div>
 
         {storeComparisonsWithLocalTotals.length > 0 ? (

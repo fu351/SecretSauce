@@ -150,13 +150,7 @@ class IngredientMatchQueueTable extends BaseTable<
     const leaseSeconds = params?.leaseSeconds ?? 180
     const reviewMode = params?.reviewMode ?? "ingredient"
     const source = params?.source ?? "any"
-    const allowFallback = params?.allowFallback ?? true
-
-    // Legacy recipe rows can remain pending with ingredient review disabled.
-    // Normalize flags so ingredient-mode workers can claim and standardize them.
-    if (reviewMode === "ingredient" && (source === "recipe" || source === "any")) {
-      await this.backfillRecipeIngredientReviewFlags()
-    }
+    const allowFallback = params?.allowFallback ?? false
 
     const { data, error } = await (this.supabase.rpc as any)("claim_ingredient_match_queue", {
       p_limit: limit,
@@ -170,7 +164,8 @@ class IngredientMatchQueueTable extends BaseTable<
       this.handleError(error, "claimPending")
       if (!allowFallback) return []
 
-      // Legacy fallback for environments that have not yet applied the claim RPC migration.
+      // Legacy fallback — non-atomic read-then-write; safe for single-worker deployments only.
+      console.warn("[claimPending] RPC unavailable; using non-atomic fallback — safe for single-worker only")
       const pending = await this.fetchPendingFiltered({ limit, reviewMode, source })
       if (!pending.length) return []
 

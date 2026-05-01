@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useEffect, useRef, useState } from "react"
+import React, { useMemo, useEffect, useRef, useState, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,9 @@ import {
   DollarSign,
   Map as MapIcon,
   List,
-  Clock
+  Clock,
+  Copy,
+  Check
 } from "lucide-react"
 
 import type { StoreComparison } from "@/lib/types/store"
@@ -22,6 +24,8 @@ import { getUserLocation } from "@/lib/location-client"
 import Image from "next/image"
 import { mergeShoppingListItems } from "@/lib/utils/shopping-list-grouping"
 import { ProductImage } from "@/components/store/product-image"
+import { copyTextToClipboard } from "@/lib/clipboard"
+import { buildStoreComparisonExportPayload } from "@/lib/store/store-comparison-export"
 
 // Dynamically import StoreMap to prevent SSR issues with Leaflet
 const StoreMap = dynamic(() => import("@/components/store/store-map").then((mod) => mod.StoreMap), {
@@ -112,6 +116,7 @@ export function StoreComparisonSection({
 }: StoreComparisonSectionProps) {
   const listContainerRef = useRef<HTMLDivElement>(null)
   const [userCoords, setUserCoords] = useState<google.maps.LatLngLiteral | null>(null)
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle")
 
   // Initialize the new hook
   const { closestIndex, travelData, calculateClosest, isLoading: travelLoading } = useClosestStore()
@@ -157,6 +162,21 @@ export function StoreComparisonSection({
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`
     window.open(mapsUrl, "_blank", "noopener,noreferrer")
   }
+
+  const isDevMode = process.env.NODE_ENV !== "production"
+
+  const handleCopyStoreComparisonExport = useCallback(async () => {
+    try {
+      const payload = buildStoreComparisonExportPayload(displayResults, carouselIndex)
+      await copyTextToClipboard(JSON.stringify(payload, null, 2))
+      setCopyState("copied")
+      window.setTimeout(() => setCopyState("idle"), 2000)
+    } catch (error) {
+      console.error("[StoreComparisonSection] Failed to copy store comparison export", error)
+      setCopyState("error")
+      window.setTimeout(() => setCopyState("idle"), 2000)
+    }
+  }, [carouselIndex, displayResults])
 
 
   const cheapestIndex = useMemo(() => {
@@ -212,6 +232,18 @@ export function StoreComparisonSection({
           Compare Stores ({displayResults.length})
         </label>
         <div className="flex items-center gap-2">
+          {isDevMode && displayResults.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 px-3"
+              onClick={() => void handleCopyStoreComparisonExport()}
+            >
+              {copyState === "copied" ? <Check className="h-3.5 w-3.5 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+              {copyState === "copied" ? "Copied" : "Copy JSONB"}
+            </Button>
+          )}
           <Button
             variant={sortMode === "cheapest" ? "default" : "outline"}
             size="sm"

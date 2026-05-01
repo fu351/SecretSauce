@@ -13,6 +13,9 @@ import {
 } from "../standardizer-worker"
 import { normalizeConfidence } from "../../../lib/utils/number"
 import { normalizeCanonicalName, singularizeCanonicalName } from "../../scripts/utils/canonical-matching"
+import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
+import { cleanScraperProductName, buildUnitStripRegexes, type UnitStripRegexes } from "../shared/ingredient-cleaning"
+import { getWorkerUnitKeywords } from "../shared/unit-keywords"
 import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"
 import { resolveCanonicalWithDoubleCheck } from "./canonical/double-check"
@@ -53,50 +56,6 @@ import {
   stripMeasurementFromSearchTerm,
 } from "./unit-resolution-utils"
 
-const NON_FOOD_TITLE_TOKENS = new Set([
-  "balm",
-  "body",
-  "candle",
-  "conditioner",
-  "cosmetic",
-  "deodorant",
-  "dog",
-  "face",
-  "fragrance",
-  "lotion",
-  "lip",
-  "makeup",
-  "mask",
-  "perfume",
-  "pet",
-  "shampoo",
-  "skincare",
-  "soap",
-  "scented",
-  "toothpaste",
-  "toy",
-  "treat",
-  "treats",
-  "cat",
-  "litter",
-])
-
-const NON_FOOD_TITLE_PHRASES = [
-  ["body", "butter"],
-  ["body", "oil"],
-  ["body", "wash"],
-  ["face", "mask"],
-  ["lip", "balm"],
-  ["lip", "mask"],
-  ["lip", "oil"],
-  ["lip", "gloss"],
-  ["pet", "treats"],
-  ["dog", "treats"],
-  ["cat", "treats"],
-  ["dog", "food"],
-  ["cat", "food"],
-  ["tooth", "paste"],
-]
 
 interface ResolveBatchResult {
   resolved: number
@@ -142,6 +101,9 @@ const NON_FOOD_KEYWORD_PATTERNS = [
   "lip balm", "lip mask", "lip butter",
   "face mask", "face wash", "face scrub",
   "hand soap", "foaming hand soap",
+  "baseball cap", "cap", "hat", "apparel", "clothing",
+  "shirt", "tee", "tshirt", "hoodie", "sweater", "jacket",
+  "dress", "pants", "shorts", "skirt", "socks", "shoes",
   "shampoo", "conditioner",
   "toothpaste", "mouthwash",
   "deodorant", "sunscreen",
@@ -204,21 +166,6 @@ function buildCanonicalProbationSourceSignature(row: IngredientMatchQueueRow, so
   }
 
   return `${row.source}:row:${row.id}`
-}
-
-function hasNonFoodTitleSignals(sourceSearchTerm: string): boolean {
-  const normalized = normalizeCanonicalName(sourceSearchTerm)
-  if (!normalized) return false
-
-  const tokens = normalized.split(" ").filter(Boolean)
-  if (!tokens.length) return false
-
-  const tokenSet = new Set(tokens)
-  if (tokens.some((token) => NON_FOOD_TITLE_TOKENS.has(token))) {
-    return true
-  }
-
-  return NON_FOOD_TITLE_PHRASES.some((phrase) => phrase.every((token) => tokenSet.has(token)))
 }
 
 function inferIngredientSemanticRejectReason(errorMessage: string): string | null {
@@ -373,6 +320,10 @@ async function resolveIngredientCandidates(
     }
   }
 
+  const scraperUnitRegexes: UnitStripRegexes | undefined = await getWorkerUnitKeywords()
+    .then(buildUnitStripRegexes)
+    .catch(() => undefined)
+
   for (const [context, contextRows] of rowsByContext.entries()) {
     const uniqueInputByKey = new Map<string, { id: string; name: string; cacheKey: string }>()
     const rowToInputKey = new Map<string, string>()
@@ -380,7 +331,11 @@ async function resolveIngredientCandidates(
 
     for (const row of contextRows) {
       const originalSearchTerm = getSearchTerm(row)
-      const searchTerm = getIngredientSearchTerm(row, unitByRowId?.get(row.id))
+      const rawSearchTerm = getIngredientSearchTerm(row, unitByRowId?.get(row.id))
+      const searchTerm =
+        context === "scraper"
+          ? cleanScraperProductName(rawSearchTerm, scraperUnitRegexes)
+          : rawSearchTerm
       const dedupeKey = searchTerm.toLowerCase()
       const cacheKey = buildIngredientLocalCacheKey(context, searchTerm)
 
@@ -771,9 +726,49 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
     const learnedVarietySensitivity = await getLearnedVarietySensitivity()
     const confidenceCalibrator = await getIngredientConfidenceCalibrator()
     const tokenIdfScorer = await getCanonicalTokenIdfScorer()
+    // Early non-food pass: apply title-signal detection to ALL valid rows before any
+    // LLM or unit resolution work. This catches non-food items even when
+    // needs_ingredient_review = false (e.g. rows that had a cached product mapping),
+    // so is_food_item is always written for clearly non-food products.
+    const earlyNonFoodRowIds = new Set<string>()
+    const earlyNonFoodWritePromises: Promise<unknown>[] = []
+    for (const row of validRows) {
+      const nameToCheck = row.raw_product_name || row.cleaned_name || ""
+      if (hasNonFoodTitleSignals(nameToCheck)) {
+        earlyNonFoodRowIds.add(row.id)
+        if (!config.dryRun) {
+          earlyNonFoodWritePromises.push(
+            ingredientMatchQueueDB.markResolved({
+              rowId: row.id,
+              canonicalName:
+                normalizeCanonicalName(row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "") ||
+                "unknown",
+              resolvedIngredientId: null,
+              confidence: 0,
+              resolver: config.resolverName,
+              isFoodItem: false,
+              clearIngredientReviewFlag: true,
+              clearUnitReviewFlag: true,
+            })
+          )
+        }
+        console.log(
+          `[QueueResolver]${config.dryRun ? " [DRY RUN]" : ""} ${row.id} early non-food signal ` +
+            `(raw="${row.raw_product_name}")`
+        )
+      }
+    }
+    if (earlyNonFoodWritePromises.length) {
+      await Promise.allSettled(earlyNonFoodWritePromises)
+    }
+    if (earlyNonFoodRowIds.size) {
+      processableRows = processableRows.filter((row) => !earlyNonFoodRowIds.has(row.id))
+      shortCircuitResolvedCount += earlyNonFoodRowIds.size
+    }
+
     // Non-food short-circuit: skip LLM for rows whose product_mapping_id was already
     // resolved as non-food in a prior queue run.
-    const mappingIdsToCheck = validRows
+    const mappingIdsToCheck = processableRows
       .filter((row) => row.needs_ingredient_review && row.product_mapping_id)
       .map((row) => row.product_mapping_id as string)
     const knownNonFoodMappingIds = mappingIdsToCheck.length
@@ -782,7 +777,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
     const nonFoodShortCircuitRowIds = new Set<string>()
     const shortCircuitWritePromises: Promise<unknown>[] = []
-    for (const row of validRows) {
+    for (const row of processableRows) {
       if (
         row.needs_ingredient_review &&
         row.product_mapping_id &&
@@ -815,10 +810,10 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       await Promise.allSettled(shortCircuitWritePromises)
     }
 
-    shortCircuitResolvedCount = nonFoodShortCircuitRowIds.size
-    processableRows = shortCircuitResolvedCount
-      ? validRows.filter((row) => !nonFoodShortCircuitRowIds.has(row.id))
-      : validRows
+    shortCircuitResolvedCount += nonFoodShortCircuitRowIds.size
+    if (nonFoodShortCircuitRowIds.size) {
+      processableRows = processableRows.filter((row) => !nonFoodShortCircuitRowIds.has(row.id))
+    }
 
     const firstPassUnitByRowId = await resolveUnitCandidates(processableRows, undefined, config)
     const ingredientByRowId = await resolveIngredientCandidates(processableRows, config, firstPassUnitByRowId)
@@ -1466,6 +1461,17 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
     `[QueueResolver] ${modePrefix}Unit resolver: enabled=${config.enableUnitResolution}, ` +
       `unit_dry_run=${config.unitDryRun}, unit_min_confidence=${config.unitMinConfidence}`
   )
+
+  if (
+    !config.dryRun &&
+    (config.reviewMode === "ingredient" || config.reviewMode === "any") &&
+    (config.queueSource === "recipe" || config.queueSource === "any")
+  ) {
+    const backfilled = await ingredientMatchQueueDB.backfillRecipeIngredientReviewFlags()
+    if (backfilled > 0) {
+      console.log(`[QueueResolver] Backfilled ${backfilled} legacy recipe row(s) to needs_ingredient_review=true`)
+    }
+  }
 
   let cycle = 0
   let totalResolved = 0

@@ -132,6 +132,16 @@ EXAMPLES OF PROPER NORMALIZATION:
   -> category: "dairy"
   -> confidence: 0.88
 
+[OK] "grated parmigiano reggiano"
+  -> canonicalName: "parmigiano reggiano"
+  -> category: "dairy"
+  -> confidence: 0.90
+
+[OK] "fresh bocconcini mozzarella, sliced"
+  -> canonicalName: "bocconcini mozzarella"
+  -> category: "dairy"
+  -> confidence: 0.86
+
 [OK] "Charles Shaw Nouveau Red Table Wine 2024"
   -> canonicalName: "red wine"
   -> category: "beverages"
@@ -162,10 +172,30 @@ EXAMPLES OF PROPER NORMALIZATION:
   -> category: "beverages"
   -> confidence: 0.76
 
+[OK] "Italian Whole Peeled Tomatoes with Basil Leaf 28 Oz"
+  -> canonicalName: "whole peeled tomatoes"
+  -> category: "pantry_staples"
+  -> confidence: 0.78
+
+[OK] "Eggplant Garlic Spread 12 Oz"
+  -> canonicalName: "eggplant garlic spread"
+  -> category: "condiments"
+  -> confidence: 0.74
+
+[OK] "Lightly Smoked Sardines in Olive Oil 4.25 Oz"
+  -> canonicalName: "sardines in olive oil"
+  -> category: "meat_seafood"
+  -> confidence: 0.80
+
 **Non-Food Items (ALL contexts):**
 
 [X] "Bounty paper towels"
   -> canonicalName: "paper towel"
+  -> category: null
+  -> confidence: 0.0
+
+[X] "Anna-Kaci Women's Embroidered Sausage Dog Baseball Cap with Curved Brim and Adjustable Strap Casual Life- Beige"
+  -> canonicalName: "baseball cap"
   -> category: null
   -> confidence: 0.0
 
@@ -232,7 +262,12 @@ HANDLING EDGE CASES:
    - Contains: bowl, tub, kit, meal, soup, stew, casserole, skillet, bake, roast, side, dish
    - Contains: baby food, baby snack, toddler, puree, blend
    - Contains: spread, dip, hummus, salsa, pesto, aioli, butter (flavored)
-   - Has a container size + brand + color descriptor pattern typical of retail prepared foods
+  - Has a container size + brand + color descriptor pattern typical of retail prepared foods
+
+   [OK] "Little Spoon Organic Kale Apple Curl Baby Puffs 1oz"
+     -> canonicalName: "baby puffs"      ← NOT "kale"
+     -> category: "snacks"
+     -> confidence: 0.55
 
 **3. Unknown Food Items:**
    - If you don't recognize it but it SEEMS like food: confidence 0.5-0.7

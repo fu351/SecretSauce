@@ -110,6 +110,52 @@ describe("ingredient standardizer non-food override", () => {
       },
     ])
   })
+
+  it("forces apparel titles to non-food even when the model misclassifies them", async () => {
+    const { standardizeIngredientsWithAI } = await import("../ingredient-standardizer")
+
+    axiosMock.post.mockResolvedValueOnce({
+      data: {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify([
+                {
+                  id: "item-2",
+                  originalName: "Anna-Kaci Women's Embroidered Sausage Dog Baseball Cap",
+                  canonicalName: "sausage dog baseball cap",
+                  isFoodItem: true,
+                  category: "snacks",
+                  confidence: 0.92,
+                },
+              ]),
+            },
+          },
+        ],
+      },
+    })
+
+    const results = await standardizeIngredientsWithAI(
+      [
+        {
+          id: "item-2",
+          name: "Anna-Kaci Women's Embroidered Sausage Dog Baseball Cap",
+        },
+      ],
+      "scraper"
+    )
+
+    expect(results).toEqual([
+      {
+        id: "item-2",
+        originalName: "Anna-Kaci Women's Embroidered Sausage Dog Baseball Cap",
+        canonicalName: "anna kaci women s embroidered sausage dog baseball cap",
+        isFoodItem: false,
+        category: null,
+        confidence: 0.12,
+      },
+    ])
+  })
 })
 
 describe("ingredient standardizer contexts", () => {

@@ -148,7 +148,7 @@ class StandardizedIngredientsTable extends BaseTable<
       const { data, error } = await this.supabase
         .from(this.tableName)
         .select("*")
-        .ilike("canonical_name", `%${variants[0]}%`)
+        .or(variants.map((v) => `canonical_name.ilike.%${v}%`).join(","))
 
       if (error) {
         this.handleError(error, "searchByVariants")
@@ -425,6 +425,7 @@ class StandardizedIngredientsTable extends BaseTable<
       const { data, error } = await this.supabase
         .from(this.tableName)
         .select("canonical_name")
+        .order("id", { ascending: false })
         .limit(sampleSize)
 
       if (error) {

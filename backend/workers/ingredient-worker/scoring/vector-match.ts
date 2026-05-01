@@ -32,8 +32,38 @@ const HEAD_BONUS = 0.03
 const LEXICAL_BONUS = 0.02
 const CATEGORY_PENALTY = -0.05
 const FORM_PENALTY = -0.04
+const OVERLAP_PENALTY = -0.03
+const FULL_CONTAINMENT_TAIL_PENALTY = -0.025
 
 const EMBEDDING_CACHE_MAX_SIZE = 2000
+
+const MATCH_NOISE_TOKENS = new Set([
+  "fresh",
+  "organic",
+  "premium",
+  "extra",
+  "light",
+  "lightly",
+  "low",
+  "part",
+  "skim",
+  "whole",
+  "sliced",
+  "chopped",
+  "minced",
+  "grated",
+  "diced",
+  "with",
+  "and",
+  "or",
+  "plus",
+  "more",
+  "moisture",
+  "original",
+  "classic",
+  "natural",
+  "plain",
+])
 
 export const PROTECTED_FORM_TOKENS = new Set([
   "paste",
@@ -145,6 +175,8 @@ export interface VectorMatchCandidate {
   lexicalBonus: number
   categoryPenalty: number
   formPenalty: number
+  overlapPenalty: number
+  containmentTailPenalty: number
   finalScore: number
 }
 
@@ -204,12 +236,17 @@ function tokenize(name: string): string[] {
   return name.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean)
 }
 
+function meaningfulTokens(tokens: string[]): string[] {
+  return tokens.filter((token) => !MATCH_NOISE_TOKENS.has(token))
+}
+
 /**
  * Head noun: the first meaningful token (skip single-letter tokens).
  * "chickpea flour" → "chickpea"; "flour" → "flour"; "a sauce" → "sauce".
  */
 function headNoun(tokens: string[]): string {
-  return tokens.find((t) => t.length > 1) ?? tokens[0] ?? ""
+  const meaningful = meaningfulTokens(tokens)
+  return meaningful.find((t) => t.length > 1) ?? tokens.find((t) => t.length > 1) ?? tokens[0] ?? ""
 }
 
 /** Simple character bigram overlap (Jaccard) as a proxy for trigram similarity. */
@@ -254,6 +291,37 @@ function computeFormPenalty(queryTokens: string[], candidateTokens: string[]): n
   return conflict ? FORM_PENALTY : 0
 }
 
+function computeOverlapPenalty(queryTokens: string[], candidateTokens: string[]): number {
+  const queryMeaningful = meaningfulTokens(queryTokens)
+  const candidateMeaningful = meaningfulTokens(candidateTokens)
+  if (!queryMeaningful.length || !candidateMeaningful.length) return 0
+
+  const shared = new Set(queryMeaningful.filter((token) => candidateMeaningful.includes(token)))
+  if (shared.size === 0) return 0
+
+  if (queryMeaningful.length <= 2 && candidateMeaningful.length >= 3 && shared.size <= 1) {
+    return OVERLAP_PENALTY
+  }
+
+  if (queryMeaningful.length >= 3 && candidateMeaningful.length >= 3 && shared.size <= 1) {
+    return OVERLAP_PENALTY
+  }
+
+  return 0
+}
+
+function computeContainmentTailPenalty(queryTokens: string[], candidateTokens: string[]): number {
+  const queryMeaningful = meaningfulTokens(queryTokens)
+  const candidateMeaningful = meaningfulTokens(candidateTokens)
+  if (!queryMeaningful.length || !candidateMeaningful.length) return 0
+  if (candidateMeaningful.length < queryMeaningful.length + 3) return 0
+
+  const shared = new Set(queryMeaningful.filter((token) => candidateMeaningful.includes(token)))
+  if (shared.size !== queryMeaningful.length) return 0
+
+  return FULL_CONTAINMENT_TAIL_PENALTY
+}
+
 /** Apply the deterministic rerank formula and sort: final_score DESC, cosine DESC, name ASC. */
 function rerankCandidates(
   query: string,
@@ -268,7 +336,16 @@ function rerankCandidates(
     const lexicalBonus = computeLexicalBonus(query, row.matched_name)
     const categoryPenalty = computeCategoryPenalty(queryCategory, row.matched_category)
     const formPenalty = computeFormPenalty(queryTokens, candidateTokens)
-    const finalScore = row.confidence + headBonus + lexicalBonus + categoryPenalty + formPenalty
+    const overlapPenalty = computeOverlapPenalty(queryTokens, candidateTokens)
+    const containmentTailPenalty = computeContainmentTailPenalty(queryTokens, candidateTokens)
+    const finalScore =
+      row.confidence +
+      headBonus +
+      lexicalBonus +
+      categoryPenalty +
+      formPenalty +
+      overlapPenalty +
+      containmentTailPenalty
 
     return {
       matchedId: row.matched_id,
@@ -280,6 +357,8 @@ function rerankCandidates(
       lexicalBonus,
       categoryPenalty,
       formPenalty,
+      overlapPenalty,
+      containmentTailPenalty,
       finalScore,
     }
   })
