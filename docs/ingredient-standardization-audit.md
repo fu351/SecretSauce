@@ -3,6 +3,20 @@
 **Date:** 2026-05-01  
 **Scope:** Full path from recipe input UI → API → Supabase, including the async queue-based background pipeline.
 
+**Branch update:** This branch includes follow-up fixes for several audit findings:
+
+- **`c5b8bfb`** resolved B1–B6: `searchByVariants()` now queries all variants; `getCanonicalNameSample()` returns recent rows; `NON_FOOD_TITLE_TOKENS` extracted to shared module; backfill moved out of `claimPending()`; `allowFallback` defaults to `false`; `max_tokens` raised to 4096.
+
+- **`5a45d80`** split ingredient cleaning by context and slimmed the DB trigger:
+  - Created `backend/workers/shared/ingredient-cleaning.ts` as the single source of truth for all cleaning constants and functions.
+  - Recipe/pantry inputs now get prep-word stripping (`chopped`, `organic`, `to taste`…); scraper inputs get product-type hoisting, packing-medium stripping, and processing-qualifier stripping.
+  - SQL trigger `fn_autolink_recipe_ingredient` slimmed: removed the `fn_clean_product_name` / `fn_strip_units_from_name` dependency (a 6-pass retail product cleaner) and replaced it with five lines of minimal inline SQL (lowercase, unaccent, strip symbols, strip parentheticals). TypeScript now owns deeper context-aware cleaning.
+
+- **`c913e8d`** ported the remaining 5 passes of `fn_strip_units_from_name` into TypeScript for the scraper path:
+  - Created `backend/workers/shared/unit-keywords.ts`: fetches `unit_standardization_map` keywords via `fn_get_recipe_parser_unit_keywords` RPC with a 1-hour in-process cache.
+  - Added `BRAND_SUFFIX_RE`, `COMPACT_NUTRITION_RE`, `TRAILING_PACK_DESCRIPTOR_RE` (static passes), plus `buildUnitStripRegexes()` for two dynamic passes (trailing separator+unit blocks, fused mid-string units like `"Butter 16oz unsalted"`).
+  - `processor.ts` now fetches unit keywords once per batch and applies `cleanScraperProductName()` for scraper-context rows at claim time (after `getIngredientSearchTerm`). The result is automatically persisted back to `cleaned_name` by the existing "persist if changed" block, so retries see the clean name without re-running the logic.
+
 ---
 
 ## Overview
@@ -13,6 +27,68 @@ The standardization pipeline has **two distinct execution paths** depending on t
 |------|---------|-------------|------|
 | **Pantry (sync)** | `POST /api/ingredients/standardize` | Deterministic only | Real-time on pantry item save |
 | **Recipe (async)** | `fn_upsert_recipe_with_ingredients` RPC → DB trigger | Vector fast-path + AI (GPT-4o-mini) | Background worker, nightly or on-demand |
+
+Shared helpers handle cleaning and non-food detection:
+- `backend/workers/shared/non-food-signals.ts` — `NON_FOOD_TITLE_TOKENS`, `NON_FOOD_TITLE_PHRASES`, `hasNonFoodTitleSignals()`.
+- `backend/workers/shared/ingredient-cleaning.ts` — all cleaning constants and context-aware functions.
+- `backend/workers/shared/unit-keywords.ts` — worker-safe fetcher for dynamic unit vocabulary.
+
+---
+
+## Cleaning Architecture
+
+Three distinct cleaning layers handle different stages and input types. After the branch fixes, context-awareness is enforced at every layer.
+
+### Layer 1 — DB Trigger (SQL, insert-time)
+
+**Function:** `fn_autolink_recipe_ingredient` — fires `BEFORE INSERT OR UPDATE` on `recipe_ingredients`.
+
+**What it does now (post-`5a45d80`):**
+1. Strip trailing `" - qty unit"` suffix (e.g. `"baby potatoes - 1.5 lb"`)
+2. Strip leading `"qty unit "` prefix (e.g. `"2 cups Flour"`)
+3. Minimal normalization: `lower(unaccent(...))`, strip `®™©`, strip parentheticals `(...)`, collapse spaces
+
+Previously this called `fn_clean_product_name → fn_strip_units_from_name`, a 6-pass retail product cleaner that was inappropriate for recipe data (brand suffix stripping, pack descriptor stripping, nutrition label stripping). That dependency was removed. The functions remain in the DB and are still called by scraper ingestion flows.
+
+### Layer 2 — TypeScript Cleaning (shared module)
+
+**File:** `backend/workers/shared/ingredient-cleaning.ts`
+
+**Recipe / Pantry path** (`cleanRecipeIngredientName`):
+- `normalizeCanonicalName` (lowercase, unaccent, unicode normalize)
+- `PREPARATION_AND_MARKETING_RE` — strips `chopped`, `minced`, `organic`, `fresh`, `premium`, etc.
+- `OPTIONAL_PHRASE_RE` — strips `"to taste"`, `"if needed"`, `"optional"`, `"divided"`
+- `TRAILING_PACKAGING_RE` — strips trailing `"8 oz"`, `"1 lb"`, `"4 ct"`, etc.
+
+**Scraper path** (`cleanScraperProductName`):
+- `hoistProductType` — moves product-type suffixes to front (`"Honey Wheat Sandwich Bread"` → `"Sandwich Bread Honey Wheat"`)
+- `PACKING_MEDIUM_RE` — strips `"in extra virgin olive oil"`, `"in brine"`, etc.
+- `PROCESSING_QUALIFIER_RE` — strips `"cold-pressed"`, `"stone-ground"`, `"flash-frozen"`, etc.
+- `BRAND_SUFFIX_RE` — strips trailing `"- Good & Gather"`, `"– Organic Valley"`, etc.
+- `trailingSeparatorUnit` (dynamic) — strips `"- 32oz"`, `"- 16.9fl oz"`, `", 8 oz"` using `unit_standardization_map` vocabulary
+- `COMPACT_NUTRITION_RE` — strips `"- 14g Protein"`, `", 32g Fat"`, etc.
+- `fusedMidUnit` (dynamic) — strips fused mid-string units like `"Butter 16oz unsalted"` → `"Butter unsalted"`
+- `TRAILING_PACK_DESCRIPTOR_RE` — strips `"- 6 pack"`, `", 6 pack"`
+
+**Dispatcher:** `cleanIngredientByContext(name, context, unitRegexes?)` routes to the correct path based on `"recipe"`, `"pantry"`, or `"scraper"` context.
+
+### Layer 3 — Queue Processor (TypeScript, claim-time)
+
+**File:** `backend/workers/ingredient-worker/processor.ts` → `resolveIngredientCandidates()`
+
+At claim time, for scraper-context rows:
+1. `getWorkerUnitKeywords()` fetches the live unit vocabulary (1hr cached)
+2. `buildUnitStripRegexes(keywords)` builds the two dynamic regex objects
+3. `cleanScraperProductName(rawSearchTerm, scraperUnitRegexes)` applies all scraper passes
+4. If the result differs from the original `cleaned_name`, it is written back to the queue row — retries see the pre-cleaned name
+
+This placement is intentional: only `needs_ingredient_review = true` rows reach this code (rows already resolved skip it), and the persist-back ensures the work is not repeated on retries.
+
+### `unit_standardization_map` — Self-Learning Unit Vocabulary
+
+The two dynamic scraper passes draw from `unit_standardization_map`, a Postgres table with ~175 rows mapping raw unit strings to canonical `unit_label` enum values. It grows automatically: whenever a queue row is resolved with a `resolved_unit`, the `trg_learn_unit_from_queue` trigger fires `fn_learn_unit_mapping()`, which upserts the `raw_unit` string into the table (max 3 words / 25 chars; leading digit stripped to learn just the unit part).
+
+The table is queried via `fn_get_recipe_parser_unit_keywords()` RPC, which returns strings sorted longest-first (so `"fluid ounce"` is tried before `"oz"`) and excludes ambiguous strings (those with `standard_unit IS NULL`). The TypeScript module `unit-keywords.ts` caches the result for 1 hour.
 
 ---
 
@@ -115,10 +191,10 @@ export function standardizeIngredientsDeterministically(
 
 **Processing steps per ingredient:**
 
-1. `cleanIngredientName(name)` — normalizes unicode, removes preparation words (chopped, organic, fresh…), optional phrases ("to taste"), and trailing packaging info (oz, lb, ct…)
+1. `cleanRecipeIngredientName(name)` from `backend/workers/shared/ingredient-cleaning.ts` — normalizes unicode, removes preparation words (chopped, organic, fresh…), optional phrases ("to taste"), and trailing packaging info (oz, lb, ct…)
 2. `singularizeCanonicalName(cleaned)` — reduces plurals
 3. `applyFormTokenGuard(sourceCanonical, candidateCanonical)` — if the source name contains a "protected form token" (seed, soup, stew, ravioli, chicken, etc.) that the candidate would drop, retains the source form
-4. `hasNonFoodTitleSignals(name)` — checks token set against `NON_FOOD_TITLE_TOKENS` and phrase pairs; sets `isFoodItem: false, confidence: 0.05` if triggered
+4. `hasNonFoodTitleSignals(name)` from `backend/workers/shared/non-food-signals.ts` — checks token set against `NON_FOOD_TITLE_TOKENS` and phrase pairs; sets `isFoodItem: false, confidence: 0.05` if triggered
 5. `inferCategory(canonicalName)` — keyword-token matching against ordered category buckets (pantry_staples before produce, condiments before produce, etc.)
 6. `deterministicConfidence(source, canonical, isFoodItem)` — `0.92` if exact match, `0.84` for ≥2 shared tokens, `0.78` for 1 shared, `0.70` otherwise
 
@@ -140,7 +216,7 @@ export async function standardizeIngredientsWithAI(
 **Processing steps:**
 
 1. `fetchCanonicalIngredients(200)` — queries `standardized_ingredients` for up to 200 canonical names (used as context for the prompt)
-2. `preprocessInputName(name)` — strips packing medium phrases ("in extra virgin olive oil"), processing qualifiers ("cold-pressed"), and hoists product-type suffixes to the front via `PRODUCT_TYPE_SUFFIX_RE`
+2. `cleanIngredientByContext(name, context, unitRegexes?)` from `backend/workers/shared/ingredient-cleaning.ts` — acts as a safety net on already-cleaned names; recipe/pantry inputs strip prep words and packaging noise; scraper inputs apply all scraper passes (see Cleaning Architecture §Layer 2). Primary scraper cleaning happens earlier at claim time in `processor.ts`.
 3. Builds prompt via `buildIngredientStandardizerPrompt()` with context-specific rules (`recipe` / `pantry` / `scraper`)
 4. Calls OpenAI `gpt-4o-mini` via `callOpenAI(prompt)` with a 20-second timeout
 5. Parses JSON response, maps result entries by `id`, normalizes canonical output
@@ -195,6 +271,7 @@ while (pending rows exist):
 - Deduplicates inputs by lowercased search term within each context
 - Checks `localQueueAICache` (file-based cache) first
 - **Vector fast-path:** embeds search term, runs cosine search against `ingredient_embeddings`; if `finalScore >= VECTOR_MATCH_HIGH_CONFIDENCE`, skips AI entirely
+- **Scraper cleanup:** scraper-context rows now also run through `cleanScraperProductName()` with unit regexes built from `getWorkerUnitKeywords()` / `buildUnitStripRegexes()`, and the normalized value is persisted back to `cleaned_name`
 - **LLM context augmentation:** for remaining inputs, gathers mid-confidence vector candidates as `vectorCandidates` hints in the prompt
 - Calls `runStandardizerProcessor({ mode: "ingredient", inputs, context })`
 - Writes AI results to `localQueueAICache`
@@ -217,6 +294,10 @@ while (pending rows exist):
 
 **Step 7 — Unit Resolution (second pass)**
 - `rerunUnitCandidatesWithIngredientContext()` — reruns unit resolution for rows that failed or had low confidence, now with ingredient canonical context
+
+**Startup behavior:**
+- `runIngredientQueueResolver()` now backfills legacy recipe rows once at startup instead of on every `claimPending()` call.
+- `ingredientMatchQueueDB.claimPending()` defaults `allowFallback` to `false`, so the non-atomic fallback path is disabled unless explicitly requested.
 
 ---
 
@@ -249,6 +330,10 @@ Embeds canonical ingredient names into `ingredient_embeddings` table. Powers the
 | `product_mapping_relink_cache` | Staging table for product-mapping relink phases |
 
 ---
+
+### Branch Note
+
+The branch commits below resolve the main audit items, so the findings section is now a mix of fixed issues and remaining risks.
 
 ## Bugs and Issues
 
@@ -427,15 +512,18 @@ The find and update are separate queries. A concurrent worker that upgraded the 
 
 ## Summary Table
 
-| # | Severity | File | Issue |
-|---|----------|------|-------|
-| B1 | Medium | `standardized-ingredients-db.ts:423` | Sample fetches oldest 200 rows, not random |
-| B2 | High | `standardized-ingredients-db.ts:148` | `searchByVariants()` ignores all variants after index 0 |
-| B3 | Medium | 3 files | `NON_FOOD_TITLE_TOKENS` triplicated; divergence risk |
-| B4 | Medium | `ingredient-match-queue-db.ts:157` | `backfillRecipeIngredientReviewFlags()` runs every claim cycle |
-| B5 | High | `ingredient-match-queue-db.ts:172` | Non-atomic fallback claim path is racy under concurrent workers |
-| B6 | Medium | `ingredient-standardizer.ts:457` | `max_tokens: 1000` can silently truncate batches |
-| B7 | Low | `ingredient-match-queue-db.ts:80` | `fetchPendingFiltered()` full-scans in application code |
-| B8 | Low | `ingredient-standardizer.ts:484` | Non-JSON OpenAI response logs warning but does not return null |
-| B9 | Info | `recipe-db.ts:372` | New recipe ingredients always null on save; queue latency is a UX gap |
-| B10 | Low | `standardized-ingredients-db.ts:180` | Non-transactional find + update in `getOrCreate()` |
+| # | Severity | Status | File | Issue |
+|---|----------|--------|------|-------|
+| B1 | Medium | ✅ Fixed `c5b8bfb` | `standardized-ingredients-db.ts:423` | Sample fetches oldest 200 rows, not random |
+| B2 | High | ✅ Fixed `c5b8bfb` | `standardized-ingredients-db.ts:148` | `searchByVariants()` ignores all variants after index 0 |
+| B3 | Medium | ✅ Fixed `c5b8bfb` | 3 files | `NON_FOOD_TITLE_TOKENS` triplicated; divergence risk |
+| B4 | Medium | ✅ Fixed `c5b8bfb` | `ingredient-match-queue-db.ts:157` | `backfillRecipeIngredientReviewFlags()` runs every claim cycle |
+| B5 | High | ✅ Fixed `c5b8bfb` | `ingredient-match-queue-db.ts:172` | Non-atomic fallback claim path is racy under concurrent workers |
+| B6 | Medium | ✅ Fixed `c5b8bfb` | `ingredient-standardizer.ts:457` | `max_tokens: 1000` can silently truncate batches |
+| B7 | Low | Open | `ingredient-match-queue-db.ts:80` | `fetchPendingFiltered()` full-scans in application code |
+| B8 | Low | Open | `ingredient-standardizer.ts:484` | Non-JSON OpenAI response logs warning but does not return null |
+| B9 | Info | By design | `recipe-db.ts:372` | New recipe ingredients always null on save; queue latency is a UX gap |
+| B10 | Low | Open | `standardized-ingredients-db.ts:180` | Non-transactional find + update in `getOrCreate()` |
+| B11 | Medium | ✅ Fixed `5a45d80` | `fn_autolink_recipe_ingredient` (SQL) | DB trigger called `fn_strip_units_from_name` (retail product cleaner) on recipe data |
+| B12 | Medium | ✅ Fixed `5a45d80` | `ingredient-standardizer.ts`, `realtime-standardizer.ts` | Cleaning was not context-aware; recipe rows got scraper-oriented transforms and vice versa |
+| B13 | Low | ✅ Fixed `c913e8d` | `processor.ts` | Scraper names reached AI with brand suffixes, pack descriptors, and fused unit tokens intact |
