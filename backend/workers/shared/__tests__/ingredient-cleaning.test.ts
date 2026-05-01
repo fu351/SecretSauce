@@ -25,6 +25,10 @@ describe("cleanRecipeIngredientName", () => {
     expect(cleanRecipeIngredientName("olive oil divided")).toBe("olive oil")
   })
 
+  it("strips plus more", () => {
+    expect(cleanRecipeIngredientName("olive oil, plus more")).toBe("olive oil")
+  })
+
   it("strips trailing packaging noise", () => {
     expect(cleanRecipeIngredientName("heavy cream 8 oz")).toBe("heavy cream")
   })
@@ -48,6 +52,10 @@ describe("cleanRecipeIngredientName", () => {
 
   it("lowercases and normalises unicode", () => {
     expect(cleanRecipeIngredientName("Jalapeño")).toBe("jalapeno")
+  })
+
+  it("retains core recipe ingredient names after minimal cleaning", () => {
+    expect(cleanRecipeIngredientName("grated parmigiano reggiano")).toBe("parmigiano reggiano")
   })
 })
 
@@ -91,6 +99,12 @@ describe("cleanScraperProductName", () => {
     )
   })
 
+  it("hoists string cheese product types", () => {
+    const cleaned = cleanScraperProductName("Low-Moisture Part-Skim Mozzarella String Cheese - 12oz/12ct")
+    expect(cleaned.toLowerCase()).toMatch(/^string cheese\b/)
+    expect(cleaned.toLowerCase()).toContain("mozzarella")
+  })
+
   it("strips compact nutrition label", () => {
     expect(cleanScraperProductName("Coffee Creamer - 14g Protein").toLowerCase()).toBe("coffee creamer")
   })
@@ -108,8 +122,33 @@ describe("cleanScraperProductName", () => {
     // "olive oil" has no product-type suffix match so hoistProductType is a no-op here
     const unitRegexes = buildUnitStripRegexes(["oz"])
     expect(cleanScraperProductName("Olive Oil 16oz Extra Virgin", unitRegexes).toLowerCase()).toBe(
-      "olive oil extra virgin"
+      "olive oil"
     )
+  })
+
+  it("hoists baby puffs titles so the product type stays visible", () => {
+    const title =
+      "Little Spoon Organic Kale Apple Curl Baby Puffs – 1oz: Age 6 Months & Up, Toddler Stage, Bag, Ready to Eat"
+
+    expect(hoistProductType(title)).toMatch(/^baby puffs /i)
+    expect(cleanScraperProductName(title)).toMatch(/^baby puffs /i)
+    expect(cleanScraperProductName(title)).not.toMatch(/^kale\b/i)
+  })
+
+  it("strips trademarked brand suffixes from scraper titles", () => {
+    const title = "Extra Cream Heavy Whipping Cream - 16 fl oz - Good & Gather™"
+
+    const cleaned = cleanScraperProductName(title)
+
+    expect(cleaned).not.toContain("good & gather")
+    expect(cleaned).not.toContain("™")
+    expect(cleaned.toLowerCase()).toContain("heavy whipping cream")
+  })
+
+  it("removes carrier medium noise from scraper titles", () => {
+    const title = "Spice World Minced Garlic in Extra Virgin Olive Oil 4.5 oz"
+
+    expect(cleanScraperProductName(title)).toBe("Spice World Minced Garlic")
   })
 })
 

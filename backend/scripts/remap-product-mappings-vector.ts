@@ -31,6 +31,7 @@
 import "dotenv/config"
 import { createClient } from "@supabase/supabase-js"
 import { fetchEmbeddingsFromOllama } from "../../lib/ollama/embeddings"
+import { hasNonFoodTitleSignals } from "../workers/shared/non-food-signals"
 
 // ---------------------------------------------------------------------------
 // Config
@@ -278,6 +279,9 @@ async function processRow(
   embedding: number[],
 ): Promise<RowResult> {
   const productName = normalizeProductName(row.raw_product_name!)
+  if (hasNonFoodTitleSignals(productName)) {
+    return { outcome: "no_match" }
+  }
 
   const rawCandidates = await matchVector(supabase, embedding)
   if (!rawCandidates.length) return { outcome: "no_match" }

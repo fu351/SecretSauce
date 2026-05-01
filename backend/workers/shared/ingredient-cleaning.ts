@@ -6,7 +6,7 @@ export const PREPARATION_AND_MARKETING_RE =
   /\b(?:chopped|minced|diced|sliced|grated|shredded|crushed|cooked|raw|steamed|boiled|roasted|grilled|fried|large|small|medium|jumbo|fresh|organic|premium|extra|fancy|ripe|unripe|deluxe|gourmet|artisan|homestyle|restaurant-style|grade|cage|free|low|fat|part|skim|blend|style|collection|flavor|flavored|microwavable|ready-to-eat)\b/gi
 
 // Recipe/pantry path: inline optional/usage phrases
-export const OPTIONAL_PHRASE_RE = /\b(?:to taste|if needed|as needed|optional|divided)\b/gi
+export const OPTIONAL_PHRASE_RE = /\b(?:to taste|if needed|as needed|optional|divided|plus more)\b/gi
 
 // Shared: trailing packaging/unit noise (used by recipe path and realtime-standardizer)
 export const TRAILING_PACKAGING_RE =
@@ -60,7 +60,7 @@ export const PROCESSING_QUALIFIER_RE =
 // e.g. "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
 //   -> group1: "Red Bell Pepper, Garlic & Parmesan"  group2: "cream cheese spread"
 export const PRODUCT_TYPE_SUFFIX_RE =
-  /^(.+?)\s+(cream\s+cheese\s+spread|cheese\s+spread|food\s+tub|baby\s+(?:food|snack)|meal\s+kit|cream\s+cheese|cream\s+sauce|pasta\s+sauce|tomato\s+sauce|hot\s+sauce|(?:\w+\s+)?soup|(?:\w+\s+)?stew|(?:\w+\s+)?chili|(?:\w+\s+)?curry|sandwich\s+bread|wheat\s+bread|white\s+bread|sourdough\s+bread|english\s+muffin|greek\s+yogurt|ice\s+cream|granola\s+bar|protein\s+bar|energy\s+bar|spread|tub|dip|hummus|salsa|pesto|aioli|kit|bread|bagel|muffin|croissant|tortilla|wrap|pita|cracker|cereal|granola|oatmeal|yogurt|sorbet|gelato|butter)\b/i
+  /^(.+?)\s+(cream\s+cheese\s+spread|cheese\s+spread|string\s+cheese|food\s+tub|baby\s+(?:food|snack|puffs?)|meal\s+kit|cream\s+cheese|cream\s+sauce|pasta\s+sauce|tomato\s+sauce|hot\s+sauce|(?:\w+\s+)?soup|(?:\w+\s+)?stew|(?:\w+\s+)?chili|(?:\w+\s+)?curry|sandwich\s+bread|wheat\s+bread|white\s+bread|sourdough\s+bread|english\s+muffin|greek\s+yogurt|ice\s+cream|granola\s+bar|protein\s+bar|energy\s+bar|spread|tub|dip|hummus|salsa|pesto|aioli|kit|bread|bagel|muffin|croissant|tortilla|wrap|pita|cracker|cereal|granola|oatmeal|yogurt|sorbet|gelato|butter)\b/i
 
 // Moves product-type suffix to the front so the LLM anchors on it rather than the first flavor token.
 // "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
@@ -87,13 +87,16 @@ export function cleanRecipeIngredientName(name: string): string {
 // brand suffixes, nutrition labels, pack descriptors, and optionally fused unit tokens.
 export function cleanScraperProductName(name: string, unitRegexes?: UnitStripRegexes): string {
   let result = hoistProductType(name)
+    .replace(/[®™©]/g, "")
     .replace(PACKING_MEDIUM_RE, "")
     .replace(PROCESSING_QUALIFIER_RE, "")
     .replace(BRAND_SUFFIX_RE, "")
+    .replace(TRAILING_PACKAGING_RE, "")
   if (unitRegexes) result = result.replace(unitRegexes.trailingSeparatorUnit, "")
   result = result.replace(COMPACT_NUTRITION_RE, "")
   if (unitRegexes) result = result.replace(unitRegexes.fusedMidUnit, " ")
   result = result.replace(TRAILING_PACK_DESCRIPTOR_RE, "")
+  result = result.replace(/[\s,–-]+$/g, "")
   return result.replace(/\s{2,}/g, " ").trim()
 }
 
