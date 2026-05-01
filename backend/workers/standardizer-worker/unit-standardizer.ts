@@ -5,6 +5,7 @@ import { buildUnitStandardizerPrompt, type UnitStandardizerPromptInput } from ".
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
+const OPENAI_TIMEOUT_MS = Math.max(5000, Number.parseInt(process.env.OPENAI_TIMEOUT_MS || "60000", 10))
 
 type UnitLabel = Database["public"]["Enums"]["unit_label"]
 
@@ -321,6 +322,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
           Authorization: `Bearer ${OPENAI_API_KEY}`,
           "Content-Type": "application/json",
         },
+        timeout: OPENAI_TIMEOUT_MS,
       }
     )
 
@@ -355,7 +357,7 @@ export async function standardizeUnitsWithAI(
       inputs: normalizedInputs,
       allowedUnits: [...SUPPORTED_UNIT_LABELS],
     })
-    const content = await withTimeout(callOpenAI(prompt), 20000)
+    const content = await withTimeout(callOpenAI(prompt), OPENAI_TIMEOUT_MS)
     if (!content) {
       return inputs.map((input) => errorResult(input.id, "OpenAI returned empty content"))
     }

@@ -7,6 +7,7 @@ import { cleanIngredientByContext } from "../shared/ingredient-cleaning"
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
+const OPENAI_TIMEOUT_MS = Math.max(5000, Number.parseInt(process.env.OPENAI_TIMEOUT_MS || "60000", 10))
 
 // ---------------------------------------------------------------------------
 // Context types (previously in lib/utils/ingredient-standardizer-context.ts)
@@ -377,6 +378,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
           Authorization: `Bearer ${OPENAI_API_KEY}`,
           "Content-Type": "application/json",
         },
+        timeout: OPENAI_TIMEOUT_MS,
       },
     )
 
@@ -439,7 +441,7 @@ export async function standardizeIngredientsWithAI(
   try {
     const canonicalList = await fetchCanonicalIngredients()
     const prompt = buildPrompt(inputs, canonicalList, context)
-    const content = await withTimeout(callOpenAI(prompt), 20000)
+    const content = await withTimeout(callOpenAI(prompt), OPENAI_TIMEOUT_MS)
 
     if (!content) {
       console.warn("[IngredientStandardizer] OpenAI returned empty content")

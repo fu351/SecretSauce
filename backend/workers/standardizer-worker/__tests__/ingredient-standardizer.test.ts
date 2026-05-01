@@ -156,6 +156,41 @@ describe("ingredient standardizer non-food override", () => {
       },
     ])
   })
+
+  it("sends OpenAI requests with the expected chat-completions payload and timeout", async () => {
+    const { standardizeIngredientsWithAI } = await import("../ingredient-standardizer")
+
+    await standardizeIngredientsWithAI(
+      [
+        {
+          id: "item-3",
+          name: "Black Peppercorn Grinder - 1.8oz - Good & Gather™",
+        },
+      ],
+      "scraper"
+    )
+
+    expect(axiosMock.post).toHaveBeenCalledTimes(1)
+    expect(axiosMock.post).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/chat/completions",
+      expect.objectContaining({
+        model: expect.any(String),
+        temperature: 0,
+        max_tokens: 4096,
+        messages: expect.arrayContaining([
+          expect.objectContaining({ role: "system" }),
+          expect.objectContaining({ role: "user" }),
+        ]),
+      }),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-key",
+          "Content-Type": "application/json",
+        }),
+        timeout: expect.any(Number),
+      }),
+    )
+  })
 })
 
 describe("ingredient standardizer contexts", () => {
