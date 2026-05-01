@@ -41,6 +41,27 @@ const { enforceRateLimit } = createRateLimiter({
 // Utility function to handle timeouts
 const withTimeout = (promise, ms) => withScraperTimeout(promise, ms);
 
+// Proxy support: Walmart aggressively blocks datacenter IPs with PerimeterX.
+// Set WALMART_HTTP_PROXY=http://user:pass@host:port to route through a residential
+// proxy or a scraper-relay service (e.g. Bright Data, Smartproxy, ScraperAPI).
+const WALMART_HTTP_PROXY = "placeholder" || '';
+function parseProxyUrl(urlStr) {
+    if (!urlStr) return undefined;
+    try {
+        const u = new URL(urlStr);
+        const proxy = { protocol: u.protocol.replace(':', ''), host: u.hostname, port: Number(u.port) || (u.protocol === 'https:' ? 443 : 80) };
+        if (u.username || u.password) {
+            proxy.auth = { username: decodeURIComponent(u.username), password: decodeURIComponent(u.password) };
+        }
+        return proxy;
+    } catch (e) { return undefined; }
+}
+const WALMART_PROXY_CONFIG = parseProxyUrl(WALMART_HTTP_PROXY);
+if (WALMART_PROXY_CONFIG) {
+    log.debug('[walmart] HTTP proxy enabled via WALMART_HTTP_PROXY');
+}
+
+
 function getWalmartDedupeKey(item) {
     if (!item) return '';
     return item.product_id || item.id || `${item.title}-${item.price}`;
@@ -144,6 +165,7 @@ async function fetchWalmartSearchHtml(keyword, zipCode) {
                 axios.get(url, {
                     headers,
                     timeout: Math.floor(currentTimeout * 0.9),
+                    proxy: WALMART_PROXY_CONFIG || false,
                     validateStatus: function (status) {
                         // Don't throw on any status, we'll handle it ourselves
                         return status < 600;
@@ -244,6 +266,13 @@ function extractReduxState(html) {
     const startIndex = html.indexOf(marker);
 
     if (startIndex === -1) {
+        const titleMatch = html?.match(/<title>([^<]+)<\/title>/i);
+        const title = titleMatch ? titleMatch[1] : '';
+        if (/robot|human|verify|captcha/i.test(title) || /press &amp; hold/i.test(html || '')) {
+            log.error('[walmart] ⚠️  Walmart bot challenge detected (PerimeterX). Title=' + title);
+            log.error('[walmart] Set WALMART_HTTP_PROXY=<residential-proxy-url> or rely on the Exa fallback (requires EXA_API_KEY).');
+            return null;
+        }
         log.error("[walmart] Redux state marker not found in HTML");
         log.error("[walmart] HTML length:", html?.length || 0);
         log.error("[walmart] HTML preview:", html?.substring(0, 500));
@@ -711,11 +740,20 @@ async function searchWalmartWithExa(keyword, zipCode) {
     }
 }
 
+let _walmartFallbackWarned = false;
 async function searchWalmart(keyword, zipCode) {
     const cacheKey = resultCache.buildKey(keyword, zipCode);
     return resultCache.runCached(cacheKey, async () => {
         const directResults = await searchWalmartDirect(keyword, zipCode);
         const exaResults = await searchWalmartWithExa(keyword, zipCode);
+        if (!_walmartFallbackWarned && directResults.length === 0 && exaResults.length === 0) {
+            const noExa = EXA_API_KEY === 'your_exa_api_key_here' || !EXA_API_KEY;
+            const noProxy = !WALMART_HTTP_PROXY;
+            if (noExa && noProxy) {
+                log.warn('[walmart] Both direct and Exa returned 0 results. Likely PerimeterX block. Configure WALMART_HTTP_PROXY (residential proxy) or EXA_API_KEY to recover.');
+                _walmartFallbackWarned = true;
+            }
+        }
 
         const merged = resultCache.createDeduper({ getKey: getWalmartDedupeKey });
         merged.addMany(directResults);
