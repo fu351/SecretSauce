@@ -112,6 +112,10 @@ const NON_FOOD_KEYWORD_PATTERNS = [
   "scented candle", "candle",
   "dish soap", "laundry",
   "paper towel", "toilet paper",
+  "all purpose cleaner", "multipurpose cleaner", "multi-purpose cleaner",
+  "disinfecting cleaner", "disinfectant cleanser", "disinfecting spray",
+  "disinfectant spray", "cleaning spray", "cleaning solution",
+  "dish detergent", "laundry detergent",
 ]
 
 function likelyNonFoodByKeyword(name: string): boolean {

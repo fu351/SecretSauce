@@ -52,6 +52,15 @@ export const NON_FOOD_TITLE_TOKENS = new Set([
   "cat",
   "litter",
   "wreath",
+  "bleach",
+  "cleaner",
+  "cleanser",
+  "degreaser",
+  "detergent",
+  "disinfectant",
+  "disinfecting",
+  "sanitizer",
+  "sanitizing",
 ])
 
 export const NON_FOOD_TITLE_PHRASES: string[][] = [
