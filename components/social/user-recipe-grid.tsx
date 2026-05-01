@@ -69,8 +69,8 @@ export function UserRecipeGrid({
         fetchPage(0),
         isOwnProfile
           ? fetch(`/api/users/${encodeURIComponent(username)}/pinned-recipes`)
-              .then((r) => r.json())
-              .catch(() => ({ pinnedIds: [] }))
+            .then((r) => r.json())
+            .catch(() => ({ pinnedIds: [] }))
           : Promise.resolve({ pinnedIds: [] }),
       ])
       if (cancelled) return

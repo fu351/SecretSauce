@@ -1,7 +1,7 @@
-import type { RecipeIngredient } from './ingredient'
-import type { Instruction } from './instruction'
-import type { NutritionInfo } from './nutrition'
-import type { RecipeTags, DifficultyLevel, ProteinTag, MealTypeTag, CuisineType } from './tags'
+import type { RecipeIngredient } from "./ingredient"
+import type { Instruction } from "./instruction"
+import type { NutritionInfo } from "./nutrition"
+import type { RecipeTags, DifficultyLevel, ProteinTag, MealTypeTag, CuisineType } from "./tags"
 
 /**
  * UI Recipe Type

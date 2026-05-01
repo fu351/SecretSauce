@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
-import type { RecipeImportResponse } from '@/lib/types'
+import { NextRequest, NextResponse } from "next/server"
+import type { RecipeImportResponse } from "@/lib/types"
 
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || process.env.NEXT_PUBLIC_PYTHON_SERVICE_URL
 
@@ -9,27 +9,27 @@ export async function POST(request: NextRequest) {
 
     if (!text || text.trim().length < 20) {
       return NextResponse.json(
-        { success: false, error: 'OCR text is too short or empty' } as RecipeImportResponse,
+        { success: false, error: "OCR text is too short or empty" } as RecipeImportResponse,
         { status: 400 }
       )
     }
 
     if (!PYTHON_SERVICE_URL) {
       return NextResponse.json(
-        { success: false, error: 'Python service URL not configured' } as RecipeImportResponse,
+        { success: false, error: "Python service URL not configured" } as RecipeImportResponse,
         { status: 500 }
       )
     }
 
     // Call Python backend to parse the OCR text
     const response = await fetch(`${PYTHON_SERVICE_URL}recipe-import/text`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         text,
-        source_type: 'image'
+        source_type: "image"
       }),
     })
 
@@ -45,11 +45,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data)
 
   } catch (error) {
-    console.error('Image import error:', error)
+    console.error("Image import error:", error)
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to parse recipe from image'
+        error: error instanceof Error ? error.message : "Failed to parse recipe from image"
       } as RecipeImportResponse,
       { status: 500 }
     )

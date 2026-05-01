@@ -10,7 +10,7 @@ import { useTheme } from "@/contexts/theme-context"
 
 interface DragData {
   recipe: Recipe
-  source: 'modal' | 'slot'
+  source: "modal" | "slot"
   sourceMealType?: string
   sourceDate?: string
 }
@@ -23,7 +23,7 @@ interface MealSlotCardProps {
   onAdd?: (mealType: string, date: string) => void
   onSlotSelect?: (mealType: string, date: string) => void
   onRecipeClick?: (recipeId: string) => void
-  getDraggableProps: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
+  getDraggableProps: (recipe: Recipe, source: "modal" | "slot", mealType?: string, date?: string) => { draggableId: string; data: DragData }
   getDroppableProps: (mealType: string, date: string, recipe?: Recipe | null) => { droppableId: string; data: { mealType: string; date: string; hasRecipe?: boolean; existingRecipe?: Recipe } }
   activeDragData: DragData | null
   activeDropTarget: { mealType: string; date: string } | null
@@ -91,15 +91,15 @@ function MealSlotCardComponent({
   })
 
   // Make recipe draggable (when slot has a recipe)
-  const draggableProps = recipe ? getDraggableProps(recipe, 'slot', mealType, date) : null
+  const draggableProps = recipe ? getDraggableProps(recipe, "slot", mealType, date) : null
   const { attributes, listeners, setNodeRef: setDragRef } = useDraggable({
-    id: draggableProps?.draggableId || '',
+    id: draggableProps?.draggableId || "",
     data: draggableProps?.data,
     disabled: !recipe,
   })
 
   // Check if this is being dragged
-  const isDragging = activeDragData?.source === 'slot' &&
+  const isDragging = activeDragData?.source === "slot" &&
                      activeDragData?.sourceMealType === mealType &&
                      activeDragData?.sourceDate === date
 
@@ -128,7 +128,7 @@ function MealSlotCardComponent({
             onClick={handleSlotClick}
             className="absolute inset-0 cursor-grab active:cursor-grabbing z-[1]"
           >
-          <Image
+            <Image
               src={imageSrc}
               alt={recipe.title}
               fill

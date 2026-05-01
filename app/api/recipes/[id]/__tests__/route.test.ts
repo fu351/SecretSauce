@@ -86,14 +86,14 @@ describe("recipes/[id] route", () => {
               maybeSingle: vi.fn().mockResolvedValue(
                 column === "id"
                   ? {
-                      data: {
-                        id: value,
-                        username: "chef-soup",
-                        full_name: "Chef Soup",
-                        avatar_url: null,
-                        is_private: false,
-                      },
-                    }
+                    data: {
+                      id: value,
+                      username: "chef-soup",
+                      full_name: "Chef Soup",
+                      avatar_url: null,
+                      is_private: false,
+                    },
+                  }
                   : { data: { id: "viewer_1" } }
               ),
             })),

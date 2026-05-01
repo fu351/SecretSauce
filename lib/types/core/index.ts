@@ -1,1 +1,1 @@
-export type { BaseIngredient, StandardizedIngredient } from './ingredient'
+export type { BaseIngredient, StandardizedIngredient } from "./ingredient"

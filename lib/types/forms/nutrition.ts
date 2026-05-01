@@ -1,4 +1,4 @@
-import type { NutritionInfo } from '../recipe/nutrition'
+import type { NutritionInfo } from "../recipe/nutrition"
 
 /**
  * Form Input for Nutrition

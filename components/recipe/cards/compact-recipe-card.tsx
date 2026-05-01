@@ -15,7 +15,7 @@ import { useDraggable } from "@dnd-kit/core"
 
 interface DragData {
   recipe: Recipe
-  source: 'modal' | 'slot'
+  source: "modal" | "slot"
   sourceMealType?: string
   sourceDate?: string
 }
@@ -27,7 +27,7 @@ interface CompactRecipeCardProps {
   mutedTextClass?: string
   cardBgClass?: string
   theme?: "light" | "dark"
-  getDraggableProps?: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
+  getDraggableProps?: (recipe: Recipe, source: "modal" | "slot", mealType?: string, date?: string) => { draggableId: string; data: DragData }
   onClick?: (recipe: Recipe) => void
   simplified?: boolean
   isDragging?: boolean
@@ -54,9 +54,9 @@ export function CompactRecipeCard({
   const isFallbackImage = isDefaultImageFallback(imageSrc)
 
   // Setup draggable if getDraggableProps is provided
-  const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
+  const draggableProps = getDraggableProps ? getDraggableProps(recipe, "modal") : null
   const { attributes, listeners, setNodeRef } = useDraggable({
-    id: draggableProps?.draggableId || '',
+    id: draggableProps?.draggableId || "",
     data: draggableProps?.data,
     disabled: !getDraggableProps,
   })

@@ -165,10 +165,10 @@ export default function PantryPage() {
           items.map((item) =>
             item.id === pantryItemId
               ? {
-                  ...item,
-                  standardized_ingredient_id: match.standardizedIngredientId,
-                  standardized_name: match.canonicalName,
-                }
+                ...item,
+                standardized_ingredient_id: match.standardizedIngredientId,
+                standardized_name: match.canonicalName,
+              }
               : item,
           ),
         )

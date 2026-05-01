@@ -14,12 +14,12 @@ import { useDraggable } from "@dnd-kit/core"
 
 interface DragData {
   recipe: Recipe
-  source: 'modal' | 'slot'
+  source: "modal" | "slot"
   sourceMealType?: string
   sourceDate?: string
 }
 
-interface RecipeCardCompactProps extends Omit<Partial<Recipe>, 'tags'> {
+interface RecipeCardCompactProps extends Omit<Partial<Recipe>, "tags"> {
   id: string
   title: string
   rating_avg: number
@@ -30,7 +30,7 @@ interface RecipeCardCompactProps extends Omit<Partial<Recipe>, 'tags'> {
   onFavoriteChange?: (id: string, isFavorited: boolean) => void
   showFavorite?: boolean
   isDragging?: boolean
-  getDraggableProps?: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
+  getDraggableProps?: (recipe: Recipe, source: "modal" | "slot", mealType?: string, date?: string) => { draggableId: string; data: DragData }
 }
 
 function RecipeCardCompactComponent({
@@ -61,9 +61,9 @@ function RecipeCardCompactComponent({
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided
-  const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
+  const draggableProps = getDraggableProps ? getDraggableProps(recipe, "modal") : null
   const { attributes, listeners, setNodeRef } = useDraggable({
-    id: draggableProps?.draggableId || '',
+    id: draggableProps?.draggableId || "",
     data: draggableProps?.data,
     disabled: !getDraggableProps,
   })
@@ -143,7 +143,7 @@ function RecipeCardCompactComponent({
   return (
     <div
       ref={setNodeRef}
-      className={`relative group transition-all duration-200 ${getDraggableProps ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragging ? 'opacity-50' : ''} hover:shadow-md`}
+      className={`relative group transition-all duration-200 ${getDraggableProps ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragging ? "opacity-50" : ""} hover:shadow-md`}
       {...(getDraggableProps ? { ...attributes, ...listeners } : {})}
     >
       <div className="relative overflow-hidden rounded-lg bg-background border border-border/40">

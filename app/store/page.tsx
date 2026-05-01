@@ -537,7 +537,7 @@ export default function ShoppingReceiptPage() {
 
     // Add cart items if available (URL encoding for safe transport)
     if (cartItems.length > 0) {
-      queryParams.set('cartItems', encodeURIComponent(JSON.stringify(cartItems)))
+      queryParams.set("cartItems", encodeURIComponent(JSON.stringify(cartItems)))
     }
 
     router.push(`/checkout?${queryParams.toString()}`)

@@ -1,4 +1,4 @@
-import type { ShoppingListIngredient } from './ingredient'
+import type { ShoppingListIngredient } from "./ingredient"
 
 /**
  * Grocery Item Type

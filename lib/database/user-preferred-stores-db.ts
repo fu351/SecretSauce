@@ -1,20 +1,20 @@
-import { BaseTable } from './base-db'
-import type { Database } from '@/lib/database/supabase'
+import { BaseTable } from "./base-db"
+import type { Database } from "@/lib/database/supabase"
 
-type GroceryStoreEnum = Database['public']['Enums']['grocery_store']
-type UserPreferredStoreRow = Database['public']['Tables']['user_preferred_stores']['Row']
-type UserPreferredStoreInsert = Database['public']['Tables']['user_preferred_stores']['Insert']
-type UserPreferredStoreUpdate = Database['public']['Tables']['user_preferred_stores']['Update']
-type ClosestStoreResult = Database['public']['Functions']['get_closest_stores']['Returns']
+type GroceryStoreEnum = Database["public"]["Enums"]["grocery_store"]
+type UserPreferredStoreRow = Database["public"]["Tables"]["user_preferred_stores"]["Row"]
+type UserPreferredStoreInsert = Database["public"]["Tables"]["user_preferred_stores"]["Insert"]
+type UserPreferredStoreUpdate = Database["public"]["Tables"]["user_preferred_stores"]["Update"]
+type ClosestStoreResult = Database["public"]["Functions"]["get_closest_stores"]["Returns"]
 
 class UserPreferredStoresTable extends BaseTable<
-  'user_preferred_stores',
+  "user_preferred_stores",
   UserPreferredStoreRow,
   UserPreferredStoreInsert,
   UserPreferredStoreUpdate
 > {
   private static instance: UserPreferredStoresTable | null = null
-  readonly tableName = 'user_preferred_stores' as const
+  readonly tableName = "user_preferred_stores" as const
 
   private constructor() {
     super()
@@ -32,12 +32,12 @@ class UserPreferredStoresTable extends BaseTable<
 
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select('*')
-      .eq('profile_id', profileId)
-      .order('distance_miles', { ascending: true })
+      .select("*")
+      .eq("profile_id", profileId)
+      .order("distance_miles", { ascending: true })
 
     if (error) {
-      this.handleError(error, 'fetchForProfile')
+      this.handleError(error, "fetchForProfile")
       return []
     }
 
@@ -49,12 +49,12 @@ class UserPreferredStoresTable extends BaseTable<
 
     const { data, error } = await (this.supabase as any)
       .from(this.tableName)
-      .select('*, grocery_stores!inner(zip_code)')
-      .eq('profile_id', profileId)
-      .order('distance_miles', { ascending: true })
+      .select("*, grocery_stores!inner(zip_code)")
+      .eq("profile_id", profileId)
+      .order("distance_miles", { ascending: true })
 
     if (error) {
-      this.handleError(error, 'fetchForProfileWithStoreData')
+      this.handleError(error, "fetchForProfileWithStoreData")
       return []
     }
 
@@ -75,13 +75,13 @@ class UserPreferredStoresTable extends BaseTable<
   ): Promise<UserPreferredStoreRow | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select('*')
-      .eq('profile_id', profileId)
-      .eq('store_enum', storeEnum)
+      .select("*")
+      .eq("profile_id", profileId)
+      .eq("store_enum", storeEnum)
       .maybeSingle()
 
     if (error) {
-      this.handleError(error, 'fetchPreference')
+      this.handleError(error, "fetchPreference")
       return null
     }
 
@@ -96,12 +96,12 @@ class UserPreferredStoresTable extends BaseTable<
 
     const { data, error } = await (this.supabase as any)
       .from(this.tableName)
-      .upsert(payload, { onConflict: 'profile_id,store_enum' })
-      .select('*')
+      .upsert(payload, { onConflict: "profile_id,store_enum" })
+      .select("*")
       .maybeSingle()
 
     if (error) {
-      this.handleError(error, 'upsertPreference')
+      this.handleError(error, "upsertPreference")
       return null
     }
 
@@ -116,13 +116,13 @@ class UserPreferredStoresTable extends BaseTable<
     const { data, error } = await (this.supabase as any)
       .from(this.tableName)
       .update({ distance_miles: distanceMiles, updated_at: new Date().toISOString() } as UserPreferredStoreUpdate)
-      .eq('profile_id', profileId)
-      .eq('store_enum', storeEnum)
-      .select('*')
+      .eq("profile_id", profileId)
+      .eq("store_enum", storeEnum)
+      .select("*")
       .maybeSingle()
 
     if (error) {
-      this.handleError(error, 'updateDistance')
+      this.handleError(error, "updateDistance")
       return null
     }
 
@@ -133,11 +133,11 @@ class UserPreferredStoresTable extends BaseTable<
     const { error } = await this.supabase
       .from(this.tableName)
       .delete()
-      .eq('profile_id', profileId)
-      .eq('store_enum', storeEnum)
+      .eq("profile_id", profileId)
+      .eq("store_enum", storeEnum)
 
     if (error) {
-      this.handleError(error, 'removePreference')
+      this.handleError(error, "removePreference")
       return false
     }
 
@@ -147,10 +147,10 @@ class UserPreferredStoresTable extends BaseTable<
   async getClosestStoresForUser(profileId: string): Promise<ClosestStoreResult> {
     if (!profileId) return []
 
-    const { data, error } = await (this.supabase.rpc as any)('get_closest_stores', { user_id: profileId })
+    const { data, error } = await (this.supabase.rpc as any)("get_closest_stores", { user_id: profileId })
 
     if (error) {
-      this.handleError(error, 'getClosestStoresForUser')
+      this.handleError(error, "getClosestStoresForUser")
       return []
     }
 

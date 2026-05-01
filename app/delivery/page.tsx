@@ -171,11 +171,11 @@ function OrderList({ orders, router, styles, isPast }: OrderListProps) {
               <Calendar className="h-5 w-5" />
               {delivery.deliveryDate !== "TBD"
                 ? new Date(delivery.deliveryDate).toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })
                 : "Date TBD"}
               <Badge className="ml-2">${delivery.grandTotal.toFixed(2)}</Badge>
               {delivery.isConfirmed ? (

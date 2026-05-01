@@ -38,7 +38,7 @@ export function normalizeInstructions(
   if (!instructions) return []
 
   // Check if it's a string array (legacy format)
-  if (instructions.length > 0 && typeof instructions[0] === 'string') {
+  if (instructions.length > 0 && typeof instructions[0] === "string") {
     return (instructions as string[]).map((desc, index) => ({
       step: index + 1,
       description: desc,
@@ -71,7 +71,7 @@ export function parseInstructionsFromDB(instructions: any): Instruction[] {
   }
 
   // If it's a string, try to parse it
-  if (typeof instructions === 'string') {
+  if (typeof instructions === "string") {
     try {
       const parsed = JSON.parse(instructions)
       return normalizeInstructions(Array.isArray(parsed) ? parsed : [])

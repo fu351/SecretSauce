@@ -75,31 +75,31 @@ describe("ItemReplacementModal", () => {
     mockBatchStandardizeAndMatch.mockResolvedValue(2)
     mockGetIngredientPriceDetails
       .mockResolvedValueOnce([
-      {
-        store: "walmart",
-        productMappingId: "pm-a",
-        unitPrice: 1.99,
-        packagePrice: 1.99,
-        totalPrice: 1.99,
-        packagesToBuy: 1,
-        productName: "Apple Brand A",
-        imageUrl: "https://example.com/a.png",
-        distance: 1.2,
-      },
-    ])
+        {
+          store: "walmart",
+          productMappingId: "pm-a",
+          unitPrice: 1.99,
+          packagePrice: 1.99,
+          totalPrice: 1.99,
+          packagesToBuy: 1,
+          productName: "Apple Brand A",
+          imageUrl: "https://example.com/a.png",
+          distance: 1.2,
+        },
+      ])
       .mockResolvedValueOnce([
-      {
-        store: "walmart",
-        productMappingId: "pm-b",
-        unitPrice: 0.99,
-        packagePrice: 0.99,
-        totalPrice: 0.99,
-        packagesToBuy: 1,
-        productName: "Banana Brand B",
-        imageUrl: "https://example.com/b.png",
-        distance: 1.2,
-      },
-    ])
+        {
+          store: "walmart",
+          productMappingId: "pm-b",
+          unitPrice: 0.99,
+          packagePrice: 0.99,
+          totalPrice: 0.99,
+          packagesToBuy: 1,
+          productName: "Banana Brand B",
+          imageUrl: "https://example.com/b.png",
+          distance: 1.2,
+        },
+      ])
     mockIncrementCounts.mockResolvedValue("pm-fallback")
 
     const onSelect = vi.fn()

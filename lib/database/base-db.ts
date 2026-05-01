@@ -1,15 +1,15 @@
-import { SupabaseClient, PostgrestError } from '@supabase/supabase-js';
-import { supabase, Database } from '@/lib/database/supabase';
+import { SupabaseClient, PostgrestError } from "@supabase/supabase-js"
+import { supabase, Database } from "@/lib/database/supabase"
 
 let loggedJwtSignatureHint = false
 
 // Define types for table names valid in the database schema
-type TableName = keyof Database['public']['Tables'];
+type TableName = keyof Database["public"]["Tables"];
 
 // Define generic types for Row, Insert, and Update based on the schema
-type Row<T extends TableName> = Database['public']['Tables'][T]['Row'];
-type Insert<T extends TableName> = Database['public']['Tables'][T]['Insert'];
-type Update<T extends TableName> = Database['public']['Tables'][T]['Update'];
+type Row<T extends TableName> = Database["public"]["Tables"][T]["Row"];
+type Insert<T extends TableName> = Database["public"]["Tables"][T]["Insert"];
+type Update<T extends TableName> = Database["public"]["Tables"][T]["Update"];
 
 /**
  * An abstract class for creating database service classes.
@@ -26,7 +26,7 @@ export abstract class BaseTable<
   TInsert = Insert<T>,
   TUpdate = Update<T>
 > {
-  protected readonly supabase: SupabaseClient<Database>;
+  protected readonly supabase: SupabaseClient<Database>
   
   /**
    * Must be defined in the subclass (e.g., readonly tableName = "recipes" as const)
@@ -34,7 +34,7 @@ export abstract class BaseTable<
   abstract readonly tableName: T;
 
   constructor() {
-    this.supabase = supabase;
+    this.supabase = supabase
   }
 
   /**
@@ -42,7 +42,7 @@ export abstract class BaseTable<
    * Subclasses should override this to handle JSONB parsing or nested objects.
    */
   protected map(data: any): TRow {
-    return data as TRow;
+    return data as TRow
   }
   
   /**
@@ -50,21 +50,21 @@ export abstract class BaseTable<
    * Prevents crashes during early initialization if tableName is not yet set.
    */
   protected handleError = (error: PostgrestError | Error | any, context: string) => {
-      const name = this.tableName || 'UnknownTable';
-      const errorMessage = error?.message || 'Unknown error';
-      console.error(`[${this.constructor.name}:${name}] Error in ${context}:`, errorMessage, error);
+    const name = this.tableName || "UnknownTable"
+    const errorMessage = error?.message || "Unknown error"
+    console.error(`[${this.constructor.name}:${name}] Error in ${context}:`, errorMessage, error)
 
-      if (
-        !loggedJwtSignatureHint &&
+    if (
+      !loggedJwtSignatureHint &&
         error?.code === "PGRST301" &&
         typeof error?.message === "string" &&
         error.message.includes("JWSInvalidSignature")
-      ) {
-        loggedJwtSignatureHint = true
-        console.error(
-          "[Supabase JWT] Signature mismatch detected. Verify Supabase Third-Party Auth is configured for your Clerk instance (Issuer/JWKS), and that NEXT_PUBLIC_SUPABASE_URL points to that same Supabase project."
-        )
-      }
+    ) {
+      loggedJwtSignatureHint = true
+      console.error(
+        "[Supabase JWT] Signature mismatch detected. Verify Supabase Third-Party Auth is configured for your Clerk instance (Issuer/JWKS), and that NEXT_PUBLIC_SUPABASE_URL points to that same Supabase project."
+      )
+    }
   }
 
   /**
@@ -74,31 +74,31 @@ export abstract class BaseTable<
   async findById(id: string): Promise<TRow | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+      .select("*")
+      .eq("id", id)
+      .maybeSingle()
 
     if (error) {
-      this.handleError(error, `findById(${id})`);
-      return null;
+      this.handleError(error, `findById(${id})`)
+      return null
     }
 
-    return data ? this.map(data) : null;
+    return data ? this.map(data) : null
   }
 
   async findByIds(ids: string[]): Promise<TRow[]> {
-    if (ids.length === 0) return [];
+    if (ids.length === 0) return []
     
     const { data, error } = await this.supabase
       .from(this.tableName)
-      .select('*')
-      .in('id', ids);
+      .select("*")
+      .in("id", ids)
     if (error) {
-      this.handleError(error, `findByIds([${ids.join(', ')}])`);
-      return [];
+      this.handleError(error, `findByIds([${ids.join(", ")}])`)
+      return []
     }
 
-    return (data || []).map(d => this.map(d));
+    return (data || []).map(d => this.map(d))
   }
 
   /**
@@ -107,20 +107,20 @@ export abstract class BaseTable<
   async findAll(options? : { limit?: number}): Promise<TRow[]> {
     let query = this.supabase
       .from(this.tableName)
-      .select('*');
+      .select("*")
     
     if (options?.limit) {
-      query = query.limit(options.limit);
+      query = query.limit(options.limit)
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query
 
     if (error) {
-      this.handleError(error, `findAll()`);
-      return [];
+      this.handleError(error, "findAll()")
+      return []
     }
 
-    return (data || []).map(d => this.map(d));
+    return (data || []).map(d => this.map(d))
   }
 
   /**
@@ -132,14 +132,14 @@ export abstract class BaseTable<
       .from(this.tableName)
       .insert(insertData as any)
       .select()
-      .single();
+      .single()
 
     if (error) {
-      this.handleError(error, `create()`);
-      return null;
+      this.handleError(error, "create()")
+      return null
     }
 
-    return data ? this.map(data) : null;
+    return data ? this.map(data) : null
   }
 
   /**
@@ -151,16 +151,16 @@ export abstract class BaseTable<
     const { data, error } = await this.supabase
       .from(this.tableName)
       .update(updateData as any)
-      .eq('id', id)
+      .eq("id", id)
       .select()
-      .single();
+      .single()
 
     if (error) {
-      this.handleError(error, `update(${id})`);
-      return null;
+      this.handleError(error, `update(${id})`)
+      return null
     }
     
-    return data ? this.map(data) : null;
+    return data ? this.map(data) : null
   }
 
   /**
@@ -171,20 +171,20 @@ export abstract class BaseTable<
     const { error } = await this.supabase
       .from(this.tableName)
       .delete()
-      .eq('id', id);
+      .eq("id", id)
 
     if (error) {
-      this.handleError(error, `remove(${id})`);
-      return false;
+      this.handleError(error, `remove(${id})`)
+      return false
     }
-    return true;
+    return true
   }
 
   /**
    * Static helper for direct query builder access if needed.
    */
   static from<K extends TableName>(tableName: K) {
-    return supabase.from(tableName);
+    return supabase.from(tableName)
   }
 }
 
@@ -193,5 +193,5 @@ export abstract class BaseTable<
  * Use this instead of BaseTable.from() to avoid bundling issues with static methods.
  */
 export function from<K extends TableName>(tableName: K) {
-  return supabase.from(tableName);
+  return supabase.from(tableName)
 }

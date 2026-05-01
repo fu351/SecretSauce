@@ -50,6 +50,7 @@ Last verified: 2026-04-30.
 - `/delivery/[id]` shows order details.
 - `/budget` is the authenticated Savings surface (goal setup, spend logging, source breakdown, weekly wrap allocation, goal switching, and supportive nudges).
 - `/streaks` is the authenticated streak cadence surface (daily count, weekly cook dial, confirmations, grace, and freeze controls).
+- `/kitchen` is the private-by-default Kitchen Sync surface for cook check drafts, approval/edit/skip, and chronological safe social feed.
 
 ### Account and billing
 
@@ -92,6 +93,8 @@ Last verified: 2026-04-30.
 - `social_activity_projections` is the future public/followers-readable layer. It is intentionally separate from private budget, pantry, media, and verification tables.
 - Budget product events include goal creation/switching/completion, spend logging, weekly summary creation, no-surplus weeks, surplus allocation, and nudge lifecycle events.
 - Streaks depends on foundation media/verification/confirmation/recipe_tries and does not require social or pantry features to function.
+- Social Sprint 1 adds cook-check sharing and Kitchen Sync feed projections. Raw budget/pantry/verification internals remain private; only sanitized approved payloads are projected.
+- Projection compatibility is forward-ready for: cook checks, recipe tries, streak milestones, meal plan shares, cooking journeys, savings achievements, pantry milestones, badges, competitions, challenge results, leaderboard milestones, and campus cup outcomes.
 - `recipe_tries` is the shared durable record for cooked/attempted recipes so streaks, pantry auto-deduct, and social aggregates can converge on one source later.
 
 ## Route Notes

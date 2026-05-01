@@ -84,151 +84,151 @@ export const RecipeGrid = memo(function RecipeGrid({
           const imageSrc = getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) || imageFallback
           const isFallbackImage = isDefaultImageFallback(imageSrc)
           return (
-        <article
-          key={recipe.id}
-          id={idx === 0 ? "tutorial-recipe-card" : undefined}
-          className="relative mb-3 md:mb-4 break-inside-avoid"
-          data-tutorial={idx === 0 ? "recipe-card" : undefined}
-          role="link"
-          aria-label={`Open recipe ${recipe.title}`}
-          tabIndex={0}
-          onClick={(e) => handleTileClick(recipe, e)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault()
-              onRecipeClick(recipe.id)
-            }
-          }}
-        >
-          <div
-            className={`group relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm ${
-              aspectClasses[stableIndex(recipe.id) % aspectClasses.length]
-            }`}
-          >
-            <Image
-              src={imageSrc}
-              alt={recipe.title}
-              fill
-              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className={`${isFallbackImage ? "object-contain p-3" : "object-cover"} transition-transform duration-300 md:group-hover:scale-[1.03]`}
-              loading="lazy"
-              onError={(event) => {
-                const target = event.currentTarget as HTMLImageElement
-                if (!target.src.includes(imageFallback)) {
-                  target.src = imageFallback
-                  applyFallbackImageStyles(target)
+            <article
+              key={recipe.id}
+              id={idx === 0 ? "tutorial-recipe-card" : undefined}
+              className="relative mb-3 md:mb-4 break-inside-avoid"
+              data-tutorial={idx === 0 ? "recipe-card" : undefined}
+              role="link"
+              aria-label={`Open recipe ${recipe.title}`}
+              tabIndex={0}
+              onClick={(e) => handleTileClick(recipe, e)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  onRecipeClick(recipe.id)
                 }
               }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-
-            <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
-              {onPinToggle && pinnedIds && (
-                <button
-                  type="button"
-                  data-pin-button
-                  aria-label={pinnedIds.includes(recipe.id) ? "Unpin recipe" : "Pin recipe"}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    void onPinToggle(recipe.id, e)
+            >
+              <div
+                className={`group relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm ${
+                  aspectClasses[stableIndex(recipe.id) % aspectClasses.length]
+                }`}
+              >
+                <Image
+                  src={imageSrc}
+                  alt={recipe.title}
+                  fill
+                  sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  className={`${isFallbackImage ? "object-contain p-3" : "object-cover"} transition-transform duration-300 md:group-hover:scale-[1.03]`}
+                  loading="lazy"
+                  onError={(event) => {
+                    const target = event.currentTarget as HTMLImageElement
+                    if (!target.src.includes(imageFallback)) {
+                      target.src = imageFallback
+                      applyFallbackImageStyles(target)
+                    }
                   }}
-                  className={`pointer-events-auto rounded-full p-2 backdrop-blur-sm transition ${
-                    pinnedIds.includes(recipe.id)
-                      ? "bg-black/45 text-amber-400"
-                      : "bg-black/35 text-white/90 hover:text-white"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+
+                <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
+                  {onPinToggle && pinnedIds && (
+                    <button
+                      type="button"
+                      data-pin-button
+                      aria-label={pinnedIds.includes(recipe.id) ? "Unpin recipe" : "Pin recipe"}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        void onPinToggle(recipe.id, e)
+                      }}
+                      className={`pointer-events-auto rounded-full p-2 backdrop-blur-sm transition ${
+                        pinnedIds.includes(recipe.id)
+                          ? "bg-black/45 text-amber-400"
+                          : "bg-black/35 text-white/90 hover:text-white"
+                      }`}
+                    >
+                      {pinnedIds.includes(recipe.id)
+                        ? <PinOff className="h-4 w-4" />
+                        : <Pin className="h-4 w-4" />}
+                    </button>
+                  )}
+                </div>
+
+                <div className="absolute inset-x-0 bottom-0 p-2.5">
+                  <p className="line-clamp-2 text-sm font-medium leading-tight text-white drop-shadow">
+                    {recipe.title}
+                  </p>
+                </div>
+
+                <div
+                  className={`absolute inset-0 z-[6] flex flex-col justify-end bg-black/75 p-3 text-white transition ${
+                    expandedRecipeId === recipe.id
+                      ? "opacity-100"
+                      : "opacity-0 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100"
                   }`}
                 >
-                  {pinnedIds.includes(recipe.id)
-                    ? <PinOff className="h-4 w-4" />
-                    : <Pin className="h-4 w-4" />}
-                </button>
-              )}
-            </div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="line-clamp-1 text-sm font-semibold">{recipe.title}</h3>
+                  </div>
 
-            <div className="absolute inset-x-0 bottom-0 p-2.5">
-              <p className="line-clamp-2 text-sm font-medium leading-tight text-white drop-shadow">
-                {recipe.title}
-              </p>
-            </div>
+                  {recipe.content?.description && (
+                    <p className="mb-2 line-clamp-3 text-xs text-white/85">{recipe.content.description}</p>
+                  )}
 
-            <div
-              className={`absolute inset-0 z-[6] flex flex-col justify-end bg-black/75 p-3 text-white transition ${
-                expandedRecipeId === recipe.id
-                  ? "opacity-100"
-                  : "opacity-0 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100"
-              }`}
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="line-clamp-1 text-sm font-semibold">{recipe.title}</h3>
-              </div>
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-white/90">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {getTotalTime(recipe)}m
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {recipe.servings}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                      {(recipe.rating_avg || 0).toFixed(1)}
+                    </span>
+                    {recipe.tags?.[0] && (
+                      <Badge variant="secondary" className="h-5 bg-white/15 text-[10px] text-white border-white/20">
+                        {formatDietaryTag(recipe.tags[0])}
+                      </Badge>
+                    )}
+                  </div>
 
-              {recipe.content?.description && (
-                <p className="mb-2 line-clamp-3 text-xs text-white/85">{recipe.content.description}</p>
-              )}
-
-              <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-white/90">
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {getTotalTime(recipe)}m
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  {recipe.servings}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                  {(recipe.rating_avg || 0).toFixed(1)}
-                </span>
-                {recipe.tags?.[0] && (
-                  <Badge variant="secondary" className="h-5 bg-white/15 text-[10px] text-white border-white/20">
-                    {formatDietaryTag(recipe.tags[0])}
-                  </Badge>
-                )}
-              </div>
-
-              {(recipe.nutrition?.calories ||
+                  {(recipe.nutrition?.calories ||
                 recipe.nutrition?.protein ||
                 recipe.nutrition?.carbs ||
                 recipe.nutrition?.fat) && (
-                <div className="mb-2 hidden md:block rounded-lg border border-white/10 bg-white/10 px-2 py-1.5">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/90">
-                    {recipe.nutrition?.calories !== undefined && (
-                      <span className="inline-flex items-center gap-1">
-                        <Flame className="h-3 w-3 text-orange-200" />
-                        {recipe.nutrition.calories} cal
-                      </span>
-                    )}
-                    {recipe.nutrition?.protein !== undefined && (
-                      <span>
-                        <span className="text-white/70">P</span> {recipe.nutrition.protein}g
-                      </span>
-                    )}
-                    {recipe.nutrition?.carbs !== undefined && (
-                      <span>
-                        <span className="text-white/70">C</span> {recipe.nutrition.carbs}g
-                      </span>
-                    )}
-                    {recipe.nutrition?.fat !== undefined && (
-                      <span>
-                        <span className="text-white/70">F</span> {recipe.nutrition.fat}g
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
+                    <div className="mb-2 hidden md:block rounded-lg border border-white/10 bg-white/10 px-2 py-1.5">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/90">
+                        {recipe.nutrition?.calories !== undefined && (
+                          <span className="inline-flex items-center gap-1">
+                            <Flame className="h-3 w-3 text-orange-200" />
+                            {recipe.nutrition.calories} cal
+                          </span>
+                        )}
+                        {recipe.nutrition?.protein !== undefined && (
+                          <span>
+                            <span className="text-white/70">P</span> {recipe.nutrition.protein}g
+                          </span>
+                        )}
+                        {recipe.nutrition?.carbs !== undefined && (
+                          <span>
+                            <span className="text-white/70">C</span> {recipe.nutrition.carbs}g
+                          </span>
+                        )}
+                        {recipe.nutrition?.fat !== undefined && (
+                          <span>
+                            <span className="text-white/70">F</span> {recipe.nutrition.fat}g
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-              <Button
-                size="sm"
-                data-open-button
-                className="h-8 w-full bg-white text-black hover:bg-white/90"
-                onClick={() => onRecipeClick(recipe.id)}
-              >
+                  <Button
+                    size="sm"
+                    data-open-button
+                    className="h-8 w-full bg-white text-black hover:bg-white/90"
+                    onClick={() => onRecipeClick(recipe.id)}
+                  >
                 View Recipe
-              </Button>
-            </div>
-          </div>
-        </article>
+                  </Button>
+                </div>
+              </div>
+            </article>
           )
         })()
       ))}

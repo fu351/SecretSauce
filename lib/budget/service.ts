@@ -404,23 +404,23 @@ export async function buildBudgetDashboard(supabase: SupabaseLike, profileId: st
     : null
   const sourceBreakdown = currentWeekSummary
     ? {
-        manualCents: currentWeekSummary.manual_spend_cents ?? 0,
-        receiptCents: currentWeekSummary.receipt_spend_cents ?? 0,
-        trackedCents: currentWeekSummary.tracked_spend_cents ?? 0,
-      }
+      manualCents: currentWeekSummary.manual_spend_cents ?? 0,
+      receiptCents: currentWeekSummary.receipt_spend_cents ?? 0,
+      trackedCents: currentWeekSummary.tracked_spend_cents ?? 0,
+    }
     : null
   const completedGoalView = latestCompletedGoal
     ? {
-        ...latestCompletedGoal,
-        progressPercent: computeGoalProgressPercent(latestCompletedGoal.current_balance_cents, latestCompletedGoal.target_cents),
-      }
+      ...latestCompletedGoal,
+      progressPercent: computeGoalProgressPercent(latestCompletedGoal.current_balance_cents, latestCompletedGoal.target_cents),
+    }
     : null
   const nudgeView = shouldShowNudge
     ? {
-        thresholdDays: nudgeState?.current_threshold_days ?? 21,
-        lastContributionAt: nudgeState?.last_contribution_at ?? null,
-        snoozedUntil: nudgeState?.snoozed_until ?? null,
-      }
+      thresholdDays: nudgeState?.current_threshold_days ?? 21,
+      lastContributionAt: nudgeState?.last_contribution_at ?? null,
+      snoozedUntil: nudgeState?.snoozed_until ?? null,
+    }
     : null
 
   return {

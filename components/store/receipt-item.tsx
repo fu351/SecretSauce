@@ -57,8 +57,8 @@ export function ReceiptItem({
   const packageQuantityDisplay = !isAvailable
     ? "0"
     : adjustedPackagesToBuy !== null
-    ? formatMeasure(adjustedPackagesToBuy)
-    : String(Math.max(1, Math.ceil(quantity)))
+      ? formatMeasure(adjustedPackagesToBuy)
+      : String(Math.max(1, Math.ceil(quantity)))
 
   const rawItemName = typeof item.name === "string" ? item.name.trim() : ""
   const displayName = rawItemName || pricing?.originalName?.trim() || pricing?.title?.trim() || "Unnamed item"
@@ -75,7 +75,7 @@ export function ReceiptItem({
     ? `${formatMeasure(adjustedPackagesToBuy)} ${Math.abs(adjustedPackagesToBuy - 1) < 0.0001 ? "package" : "packages"}`
     : !isAvailable
       ? "0 packages"
-    : cartQuantitySummary
+      : cartQuantitySummary
 
   const textPrimaryClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
   const stepperBgClass = theme === "dark" ? "bg-white/5 border-white/10" : "bg-gray-100 border-gray-200"
@@ -158,19 +158,19 @@ export function ReceiptItem({
                 )}
               </div>
               <div className="min-w-0">
-              <p className={`font-semibold text-sm md:text-base leading-tight break-words pr-1 ${textPrimaryClass}`}>
-                {displayName}
-              </p>
-              {showMatchedProductInline && (
-                <p className="text-xs text-muted-foreground truncate mt-0.5">
-                  {matchedProductName}
+                <p className={`font-semibold text-sm md:text-base leading-tight break-words pr-1 ${textPrimaryClass}`}>
+                  {displayName}
                 </p>
-              )}
-              {!isAvailable && (
-                <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+                {showMatchedProductInline && (
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {matchedProductName}
+                  </p>
+                )}
+                {!isAvailable && (
+                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
                   Not available at this store
-                </p>
-              )}
+                  </p>
+                )}
               </div>
             </div>
 

@@ -1,31 +1,31 @@
-import { BaseTable } from './base-db'
-import { standardizedIngredientsDB } from './standardized-ingredients-db'
-import type { Database } from '@/lib/database/supabase'
+import { BaseTable } from "./base-db"
+import { standardizedIngredientsDB } from "./standardized-ingredients-db"
+import type { Database } from "@/lib/database/supabase"
 
-type RecipeIngredientRow = Database['public']['Tables']['recipe_ingredients']['Row']
-type RecipeIngredientInsert = Database['public']['Tables']['recipe_ingredients']['Insert']
-type RecipeIngredientUpdate = Database['public']['Tables']['recipe_ingredients']['Update']
-type StandardizedIngredientRow = Database['public']['Tables']['standardized_ingredients']['Row']
+type RecipeIngredientRow = Database["public"]["Tables"]["recipe_ingredients"]["Row"]
+type RecipeIngredientInsert = Database["public"]["Tables"]["recipe_ingredients"]["Insert"]
+type RecipeIngredientUpdate = Database["public"]["Tables"]["recipe_ingredients"]["Update"]
+type StandardizedIngredientRow = Database["public"]["Tables"]["standardized_ingredients"]["Row"]
 
 export type RecipeIngredientWithStandardized = RecipeIngredientRow & {
   standardized_ingredient: StandardizedIngredientRow | null
 }
 
 class RecipeIngredientsTable extends BaseTable<
-  'recipe_ingredients',
+  "recipe_ingredients",
   RecipeIngredientRow,
   RecipeIngredientInsert,
   RecipeIngredientUpdate
 > {
   private static instance: RecipeIngredientsTable
-  readonly tableName = 'recipe_ingredients' as const
+  readonly tableName = "recipe_ingredients" as const
 
   private constructor() {
     super()
   }
 
   private async getDebugContext(): Promise<{ userId: string | null } | null> {
-    if (process.env.NODE_ENV === 'production') return null
+    if (process.env.NODE_ENV === "production") return null
     // In Clerk token mode (supabase accessToken option), supabase.auth.* is unavailable in browser clients.
     return { userId: null }
   }
@@ -43,26 +43,26 @@ class RecipeIngredientsTable extends BaseTable<
   async findByRecipeId(recipeId: string): Promise<RecipeIngredientRow[]> {
     try {
       const debugContext = await this.getDebugContext()
-      console.log('[RecipeIngredients DB] findByRecipeId start', { recipeId, ...(debugContext || {}) })
+      console.log("[RecipeIngredients DB] findByRecipeId start", { recipeId, ...(debugContext || {}) })
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('recipe_id', recipeId)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true })
+        .select("*")
+        .eq("recipe_id", recipeId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
 
       if (error) {
-        console.error('[RecipeIngredients DB] findByRecipeId error', error)
-        this.handleError(error, 'findByRecipeId')
+        console.error("[RecipeIngredients DB] findByRecipeId error", error)
+        this.handleError(error, "findByRecipeId")
         return []
       }
 
-      console.log('[RecipeIngredients DB] findByRecipeId result', { recipeId, count: data?.length ?? 0 })
+      console.log("[RecipeIngredients DB] findByRecipeId result", { recipeId, count: data?.length ?? 0 })
       return data || []
     } catch (error) {
-      console.error('[RecipeIngredients DB] findByRecipeId exception', error)
-      this.handleError(error, 'findByRecipeId')
+      console.error("[RecipeIngredients DB] findByRecipeId exception", error)
+      this.handleError(error, "findByRecipeId")
       return []
     }
   }
@@ -73,7 +73,7 @@ class RecipeIngredientsTable extends BaseTable<
   async findByRecipeIds(recipeIds: string[]): Promise<RecipeIngredientRow[]> {
     try {
       const debugContext = await this.getDebugContext()
-      console.log('[RecipeIngredients DB] findByRecipeIds start', {
+      console.log("[RecipeIngredients DB] findByRecipeIds start", {
         recipeIdsCount: recipeIds.length,
         ...(debugContext || {})
       })
@@ -82,23 +82,23 @@ class RecipeIngredientsTable extends BaseTable<
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .in('recipe_id', recipeIds)
-        .is('deleted_at', null)
-        .order('recipe_id', { ascending: true })
-        .order('created_at', { ascending: true })
+        .select("*")
+        .in("recipe_id", recipeIds)
+        .is("deleted_at", null)
+        .order("recipe_id", { ascending: true })
+        .order("created_at", { ascending: true })
 
       if (error) {
-        console.error('[RecipeIngredients DB] findByRecipeIds error', error)
-        this.handleError(error, 'findByRecipeIds')
+        console.error("[RecipeIngredients DB] findByRecipeIds error", error)
+        this.handleError(error, "findByRecipeIds")
         return []
       }
 
-      console.log('[RecipeIngredients DB] findByRecipeIds result', { count: data?.length ?? 0 })
+      console.log("[RecipeIngredients DB] findByRecipeIds result", { count: data?.length ?? 0 })
       return data || []
     } catch (error) {
-      console.error('[RecipeIngredients DB] findByRecipeIds exception', error)
-      this.handleError(error, 'findByRecipeIds')
+      console.error("[RecipeIngredients DB] findByRecipeIds exception", error)
+      this.handleError(error, "findByRecipeIds")
       return []
     }
   }
@@ -109,26 +109,26 @@ class RecipeIngredientsTable extends BaseTable<
   async findByRecipeIdWithStandardized(recipeId: string): Promise<RecipeIngredientWithStandardized[]> {
     try {
       const debugContext = await this.getDebugContext()
-      console.log('[RecipeIngredients DB] findByRecipeIdWithStandardized start', {
+      console.log("[RecipeIngredients DB] findByRecipeIdWithStandardized start", {
         recipeId,
         ...(debugContext || {})
       })
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('recipe_id', recipeId)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true })
+        .select("*")
+        .eq("recipe_id", recipeId)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
 
       if (error) {
-        console.error('[RecipeIngredients DB] findByRecipeIdWithStandardized error', error)
-        this.handleError(error, 'findByRecipeIdWithStandardized')
+        console.error("[RecipeIngredients DB] findByRecipeIdWithStandardized error", error)
+        this.handleError(error, "findByRecipeIdWithStandardized")
         return []
       }
 
       const ingredients = data || []
-      console.log('[RecipeIngredients DB] findByRecipeIdWithStandardized result', {
+      console.log("[RecipeIngredients DB] findByRecipeIdWithStandardized result", {
         recipeId,
         count: ingredients.length
       })
@@ -144,7 +144,7 @@ class RecipeIngredientsTable extends BaseTable<
       }
 
       const standardized = await standardizedIngredientsDB.findByIds(standardizedIds)
-      console.log('[RecipeIngredients DB] standardized lookup result', {
+      console.log("[RecipeIngredients DB] standardized lookup result", {
         recipeId,
         standardizedIdsCount: standardizedIds.length,
         standardizedFound: standardized.length
@@ -158,8 +158,8 @@ class RecipeIngredientsTable extends BaseTable<
           : null
       })) as RecipeIngredientWithStandardized[]
     } catch (error) {
-      console.error('[RecipeIngredients DB] findByRecipeIdWithStandardized exception', error)
-      this.handleError(error, 'findByRecipeIdWithStandardized')
+      console.error("[RecipeIngredients DB] findByRecipeIdWithStandardized exception", error)
+      this.handleError(error, "findByRecipeIdWithStandardized")
       return []
     }
   }
@@ -180,16 +180,16 @@ class RecipeIngredientsTable extends BaseTable<
 
       const { error } = await this.supabase
         .from(this.tableName)
-        .upsert(payloads, { onConflict: 'recipe_id,display_name' })
+        .upsert(payloads, { onConflict: "recipe_id,display_name" })
 
       if (error) {
-        this.handleError(error, 'batchUpsertDisplayNames')
+        this.handleError(error, "batchUpsertDisplayNames")
         return false
       }
 
       return true
     } catch (error) {
-      this.handleError(error, 'batchUpsertDisplayNames')
+      this.handleError(error, "batchUpsertDisplayNames")
       return false
     }
   }
@@ -204,20 +204,20 @@ class RecipeIngredientsTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('recipe_id', recipeId)
-        .eq('display_name', displayName)
-        .is('deleted_at', null)
+        .select("*")
+        .eq("recipe_id", recipeId)
+        .eq("display_name", displayName)
+        .is("deleted_at", null)
         .single()
 
       if (error) {
-        this.handleError(error, 'findByRecipeIdAndDisplayName')
+        this.handleError(error, "findByRecipeIdAndDisplayName")
         return null
       }
 
       return data
     } catch (error) {
-      this.handleError(error, 'findByRecipeIdAndDisplayName')
+      this.handleError(error, "findByRecipeIdAndDisplayName")
       return null
     }
   }
@@ -241,19 +241,19 @@ class RecipeIngredientsTable extends BaseTable<
             standardized_ingredient_id: standardizedIngredientId,
             deleted_at: null,
           },
-          { onConflict: 'recipe_id,display_name' }
+          { onConflict: "recipe_id,display_name" }
         )
-        .select('*')
+        .select("*")
         .single()
 
       if (error) {
-        this.handleError(error, 'upsertDisplayNameWithStandardized')
+        this.handleError(error, "upsertDisplayNameWithStandardized")
         return null
       }
 
       return data
     } catch (error) {
-      this.handleError(error, 'upsertDisplayNameWithStandardized')
+      this.handleError(error, "upsertDisplayNameWithStandardized")
       return null
     }
   }
@@ -277,16 +277,16 @@ class RecipeIngredientsTable extends BaseTable<
 
       const { error } = await this.supabase
         .from(this.tableName)
-        .upsert(payload, { onConflict: 'recipe_id,display_name' })
+        .upsert(payload, { onConflict: "recipe_id,display_name" })
 
       if (error) {
-        this.handleError(error, 'batchUpsertStandardized')
+        this.handleError(error, "batchUpsertStandardized")
         return false
       }
 
       return true
     } catch (error) {
-      this.handleError(error, 'batchUpsertStandardized')
+      this.handleError(error, "batchUpsertStandardized")
       return false
     }
   }

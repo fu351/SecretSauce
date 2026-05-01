@@ -1,4 +1,4 @@
-import type { RecipeIngredient } from '../recipe/ingredient'
+import type { RecipeIngredient } from "../recipe/ingredient"
 
 /**
  * Form Input for Ingredients

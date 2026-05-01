@@ -74,7 +74,7 @@ export function RecipeFrictionIllustration() {
         {/* Tablet / phone with recipe */}
         <rect x="55" y="8" width="150" height="165" rx="14" stroke="#D4AF37" strokeWidth="1" opacity="0.45" />
         {/* Recipe image placeholder */}
-        <rect x="68" y="22" width="124" height="60" rx="6" fill="#D4AF37" opacity="0.06" stroke="#D4AF37" strokeWidth="0.5" opacity="0.2" />
+        <rect x="68" y="22" width="124" height="60" rx="6" fill="#D4AF37" opacity="0.2" stroke="#D4AF37" strokeWidth="0.5" />
         {/* Food icon in image */}
         <circle cx="130" cy="52" r="12" stroke="#D4AF37" strokeWidth="0.5" opacity="0.2" />
         <path d="M124,52 L130,46 L136,52 L130,58 Z" fill="#D4AF37" opacity="0.1" />

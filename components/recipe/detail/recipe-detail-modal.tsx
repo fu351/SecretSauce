@@ -151,16 +151,16 @@ export function RecipeDetailModal({
                   {/* Primary Stats */}
                   <div className={`grid grid-cols-2 sm:grid-cols-4 gap-4 py-5 border-y ${borderClass}`}>
                     <StatCard
-                        icon={<Clock className={`h-4 w-4 ${iconClass}`} />}
-                        label="Time"
-                        value={`${totalTime}m`}
-                        theme={theme}
+                      icon={<Clock className={`h-4 w-4 ${iconClass}`} />}
+                      label="Time"
+                      value={`${totalTime}m`}
+                      theme={theme}
                     />
                     <StatCard
-                        icon={<Users className={`h-4 w-4 ${iconClass}`} />}
-                        label="Servings"
-                        value={servings}
-                        theme={theme}
+                      icon={<Users className={`h-4 w-4 ${iconClass}`} />}
+                      label="Servings"
+                      value={servings}
+                      theme={theme}
                     />
                     <div className="flex flex-col gap-1">
                       <span className={`text-[10px] uppercase tracking-wider font-bold ${mutedTextClass}`}>Difficulty</span>

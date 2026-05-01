@@ -196,11 +196,11 @@ export default function OrderDetailPage() {
                     <Calendar className="h-4 w-4" />
                     {order.deliveryDate
                       ? new Date(order.deliveryDate).toLocaleDateString("en-US", {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
                       : "Date TBD"}
                   </div>
                   <div>

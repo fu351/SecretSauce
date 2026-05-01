@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedProfile } from "@/lib/foundation/server"
-import { assertStreaksEnabled, useFreezeToken } from "@/lib/streaks/service"
+import { assertStreaksEnabled, useFreezeToken as applyFreezeToken } from "@/lib/streaks/service"
 import { getLocalStreakDate } from "@/lib/streaks/calculations"
 import { buildIdempotencyKey } from "@/lib/foundation/product-events"
 import { getPostHogClient } from "@/lib/posthog-server"
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
         ? body.idempotencyKey.trim()
         : buildIdempotencyKey(["streak-freeze-use", profile.profileId, streakDate])
 
-    const result = await useFreezeToken(profile.supabase as any, {
+    const result = await applyFreezeToken(profile.supabase as any, {
       profileId: profile.profileId,
       streakDate,
       idempotencyKey,

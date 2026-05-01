@@ -27,6 +27,15 @@ export {
   useUseStreakFreeze,
   useApplyStreakGrace,
 } from "./use-streak-dashboard"
+export {
+  useKitchenSyncFeed,
+  useCookCheckDrafts,
+  useCreateCookCheckDraft,
+  usePublishCookCheck,
+  useSkipCookCheck,
+  useToggleCookCheckReaction,
+  useSocialPreferences,
+} from "./use-kitchen-sync"
 
 // Recipe Hooks
 export {

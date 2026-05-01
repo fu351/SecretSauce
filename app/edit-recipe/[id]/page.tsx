@@ -145,22 +145,22 @@ export default function EditRecipePage() {
   // Convert Recipe to ImportedRecipe format, merging any pasted ingredients
   const recipeData: ImportedRecipe | undefined = recipe
     ? {
-        title: recipe.title || undefined,
-        description: recipe.description || undefined,
-        image_url: recipe.image_url || undefined,
-        prep_time: recipe.prep_time,
-        cook_time: recipe.cook_time,
-        servings: recipe.servings,
-        difficulty: recipe.difficulty,
-        cuisine: recipe.cuisine_name || undefined,
-        tags: recipe.tags,
-        ingredients: extraIngredients.length
-          ? [...(recipe.ingredients as any[]), ...extraIngredients]
-          : recipe.ingredients,
-        instructions: parseInstructionsFromDB(recipe.instructions_list),
-        nutrition: recipe.nutrition,
-        source_type: "manual" as const,
-      }
+      title: recipe.title || undefined,
+      description: recipe.description || undefined,
+      image_url: recipe.image_url || undefined,
+      prep_time: recipe.prep_time,
+      cook_time: recipe.cook_time,
+      servings: recipe.servings,
+      difficulty: recipe.difficulty,
+      cuisine: recipe.cuisine_name || undefined,
+      tags: recipe.tags,
+      ingredients: extraIngredients.length
+        ? [...(recipe.ingredients as any[]), ...extraIngredients]
+        : recipe.ingredients,
+      instructions: parseInstructionsFromDB(recipe.instructions_list),
+      nutrition: recipe.nutrition,
+      source_type: "manual" as const,
+    }
     : undefined
 
   if (isLoading) {

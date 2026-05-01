@@ -15,8 +15,12 @@ import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
  * intentional and safe: the function returns a single `keyword text` column.
  */
 export async function getUnitKeywords(): Promise<string[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createServiceSupabaseClient() as any
+  const supabase = createServiceSupabaseClient() as unknown as {
+    rpc: (name: string, args: Record<string, never>) => Promise<{
+      data: Array<{ keyword: string }> | null
+      error: unknown | null
+    }>
+  }
   const { data, error } = await supabase.rpc("fn_get_recipe_parser_unit_keywords", {})
 
   if (error) throw error

@@ -96,7 +96,7 @@ function WelcomePageContent() {
               Welcome to Secret Sauce!
             </h1>
             <p className={`text-lg font-light ${isDark ? "text-[#e8dcc4]/70" : "text-gray-700"}`}>
-              Your account is ready. Let's get you started.
+              Your account is ready. Let&apos;s get you started.
             </p>
           </div>
 

@@ -17,11 +17,11 @@
  * and MSW browser intercepts are bypassed.
  */
 
-import 'dotenv/config'
-import { describe, it, expect, beforeAll } from 'vitest'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/lib/database/supabase'
-import pipelineDefaults from '../../../.github/workflows/config/pipeline-defaults.json'
+import "dotenv/config"
+import { describe, it, expect, beforeAll } from "vitest"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import type { Database } from "@/lib/database/supabase"
+import pipelineDefaults from "../../../.github/workflows/config/pipeline-defaults.json"
 
 // ---------------------------------------------------------------------------
 // Region config — sourced directly from the nightly workflow defaults
@@ -29,7 +29,7 @@ import pipelineDefaults from '../../../.github/workflows/config/pipeline-default
 
 const { scraper_state, scraper_cities_csv } = pipelineDefaults.nightly_workflow
 const CONFIGURED_CITIES = new Set(
-  scraper_cities_csv.split(',').map((c) => c.trim()).filter(Boolean)
+  scraper_cities_csv.split(",").map((c) => c.trim()).filter(Boolean)
 )
 
 const SAMPLE_SIZE = 10
@@ -47,8 +47,8 @@ function buildServiceClient(): SupabaseClient<Database> {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
     throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — ' +
-        'add them to .env to run region-price-coverage tests.'
+      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — " +
+        "add them to .env to run region-price-coverage tests."
     )
   }
   return createClient<Database>(url, key, {
@@ -64,13 +64,13 @@ function buildServiceClient(): SupabaseClient<Database> {
 
 if (!hasServiceEnv) {
   console.warn(
-    '[region-price-coverage] Skipping real DB checks because NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing.'
+    "[region-price-coverage] Skipping real DB checks because NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing."
   )
 }
 
 const describeRegionPriceCoverage = hasServiceEnv ? describe : describe.skip
 
-describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
+describeRegionPriceCoverage("Region Price Coverage (real DB)", () => {
   let supabase: SupabaseClient<Database>
 
   beforeAll(() => {
@@ -83,14 +83,14 @@ describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
 
   it(`profiles with state=${scraper_state} have a non-null zip_code`, async () => {
     const { data, error } = await supabase
-      .from('profiles')
-      .select('id, zip_code, city, state')
-      .eq('state', scraper_state)
-      .not('zip_code', 'is', null)
+      .from("profiles")
+      .select("id, zip_code, city, state")
+      .eq("state", scraper_state)
+      .not("zip_code", "is", null)
       .limit(SAMPLE_SIZE)
 
     expect(error, error?.message).toBeNull()
-    expect(data!.length, `No CA profiles with a zip_code found`).toBeGreaterThan(0)
+    expect(data!.length, "No CA profiles with a zip_code found").toBeGreaterThan(0)
 
     for (const profile of data!) {
       expect(profile.zip_code).toBeTruthy()
@@ -105,21 +105,21 @@ describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
 
   it(`profile zip codes from state=${scraper_state} exist in scraped_zipcodes`, async () => {
     const { data: profiles, error: profileErr } = await supabase
-      .from('profiles')
-      .select('zip_code')
-      .eq('state', scraper_state)
-      .not('zip_code', 'is', null)
+      .from("profiles")
+      .select("zip_code")
+      .eq("state", scraper_state)
+      .not("zip_code", "is", null)
       .limit(SAMPLE_SIZE)
 
     expect(profileErr, profileErr?.message).toBeNull()
 
     const zips = [...new Set(profiles!.map((p) => p.zip_code).filter(Boolean))] as string[]
-    expect(zips.length, 'No unique zip codes found in CA profiles').toBeGreaterThan(0)
+    expect(zips.length, "No unique zip codes found in CA profiles").toBeGreaterThan(0)
 
     const { data: scraped, error: scrapedErr } = await supabase
-      .from('scraped_zipcodes' as any)
-      .select('zip_code')
-      .in('zip_code', zips)
+      .from("scraped_zipcodes" as any)
+      .select("zip_code")
+      .in("zip_code", zips)
 
     expect(scrapedErr, scrapedErr?.message).toBeNull()
 
@@ -128,8 +128,8 @@ describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
 
     expect(
       unscraped,
-      `Profile zip codes not found in scraped_zipcodes (scraper has never run there):\n` +
-        unscraped.map((z) => `  ${z}`).join('\n')
+      "Profile zip codes not found in scraped_zipcodes (scraper has never run there):\n" +
+        unscraped.map((z) => `  ${z}`).join("\n")
     ).toHaveLength(0)
   })
 
@@ -139,19 +139,19 @@ describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
 
   it(`scraped_zipcodes for the configured cities are all in state=${scraper_state}`, async () => {
     const { data, error } = await supabase
-      .from('scraped_zipcodes' as any)
-      .select('zip_code, city, state')
-      .in('city', [...CONFIGURED_CITIES])
+      .from("scraped_zipcodes" as any)
+      .select("zip_code, city, state")
+      .in("city", [...CONFIGURED_CITIES])
       .limit(SAMPLE_SIZE)
 
     expect(error, error?.message).toBeNull()
-    expect(data!.length, `No scraped_zipcodes rows found for the configured Bay Area cities`).toBeGreaterThan(0)
+    expect(data!.length, "No scraped_zipcodes rows found for the configured Bay Area cities").toBeGreaterThan(0)
 
     const wrongState = (data ?? []).filter((r: any) => r.state !== scraper_state)
     expect(
       wrongState,
       `scraped_zipcodes rows outside state=${scraper_state}:\n` +
-        wrongState.map((r: any) => `  city=${r.city} zip=${r.zip_code} state=${r.state}`).join('\n')
+        wrongState.map((r: any) => `  city=${r.city} zip=${r.zip_code} state=${r.state}`).join("\n")
     ).toHaveLength(0)
   })
 
@@ -161,27 +161,27 @@ describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
 
   it(`grocery_stores exist for zip codes in the ${scraper_state} scraper region`, async () => {
     const { data: scrapedZips, error: scrapedErr } = await supabase
-      .from('scraped_zipcodes' as any)
-      .select('zip_code')
-      .in('city', [...CONFIGURED_CITIES])
+      .from("scraped_zipcodes" as any)
+      .select("zip_code")
+      .in("city", [...CONFIGURED_CITIES])
       .limit(SAMPLE_SIZE)
 
     expect(scrapedErr, scrapedErr?.message).toBeNull()
 
     const zips = (scrapedZips ?? []).map((r: any) => r.zip_code) as string[]
-    expect(zips.length, 'No scraped zip codes found for configured cities').toBeGreaterThan(0)
+    expect(zips.length, "No scraped zip codes found for configured cities").toBeGreaterThan(0)
 
     const { data: stores, error: storeErr } = await supabase
-      .from('grocery_stores')
-      .select('id, zip_code, store_enum, is_active')
-      .in('zip_code', zips)
-      .eq('is_active', true)
+      .from("grocery_stores")
+      .select("id, zip_code, store_enum, is_active")
+      .in("zip_code", zips)
+      .eq("is_active", true)
       .limit(1)
 
     expect(storeErr, storeErr?.message).toBeNull()
     expect(
       stores!.length,
-      `No active grocery_stores found for any scraped zip code in [${zips.slice(0, 5).join(', ')}…]`
+      `No active grocery_stores found for any scraped zip code in [${zips.slice(0, 5).join(", ")}…]`
     ).toBeGreaterThan(0)
   })
 
@@ -194,36 +194,36 @@ describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
   it(`ingredients_recent has price data for at least one store in the ${scraper_state} scraper region`, async () => {
     // Collect zip codes that have been scraped for the configured cities
     const { data: scrapedZips, error: zipErr } = await supabase
-      .from('scraped_zipcodes' as any)
-      .select('zip_code')
-      .in('city', [...CONFIGURED_CITIES])
+      .from("scraped_zipcodes" as any)
+      .select("zip_code")
+      .in("city", [...CONFIGURED_CITIES])
       .limit(50)
 
     expect(zipErr, zipErr?.message).toBeNull()
     const zips = (scrapedZips ?? []).map((r: any) => r.zip_code) as string[]
-    expect(zips.length, 'No scraped zip codes found for configured cities').toBeGreaterThan(0)
+    expect(zips.length, "No scraped zip codes found for configured cities").toBeGreaterThan(0)
 
     // Get active stores in those zips
     // Cast through any: geom: unknown | null in grocery_stores breaks query-builder type inference
     type StoreRow = { id: string; zip_code: string | null; store_enum: string }
     const { data: storesRaw, error: storeErr } = await (supabase as any)
-      .from('grocery_stores')
-      .select('id, zip_code, store_enum')
-      .in('zip_code', zips)
-      .eq('is_active', true)
+      .from("grocery_stores")
+      .select("id, zip_code, store_enum")
+      .in("zip_code", zips)
+      .eq("is_active", true)
     const stores = (storesRaw ?? []) as StoreRow[]
 
     expect(storeErr, storeErr?.message).toBeNull()
-    expect(stores.length, `No active stores in scraped region zips`).toBeGreaterThan(0)
+    expect(stores.length, "No active stores in scraped region zips").toBeGreaterThan(0)
 
     // Check each store for at least one price row in ingredients_recent
     const coverage = await Promise.all(
       stores.map(async (store) => {
         const { data, error } = await (supabase as any)
-          .from('ingredients_recent')
-          .select('price')
-          .eq('grocery_store_id', store.id)
-          .gt('price', 0)
+          .from("ingredients_recent")
+          .select("price")
+          .eq("grocery_store_id", store.id)
+          .gt("price", 0)
           .limit(1)
 
         return {
@@ -243,14 +243,14 @@ describeRegionPriceCoverage('Region Price Coverage (real DB)', () => {
       `[region-price-coverage] ${scraper_state} price coverage: ` +
         `${withPrices.length}/${coverage.length} stores have prices in ingredients_recent\n` +
         (missing.length
-          ? `  Missing: ` + missing.map((r) => `${r.brand}@${r.zip}`).join(', ')
-          : `  All stores covered`)
+          ? "  Missing: " + missing.map((r) => `${r.brand}@${r.zip}`).join(", ")
+          : "  All stores covered")
     )
 
     expect(
       withPrices.length,
       `No store in the ${scraper_state} scraper region has any price data in ingredients_recent.\n` +
-        `Checked ${stores.length} active stores across zips: ${zips.slice(0, 5).join(', ')}…\n` +
+        `Checked ${stores.length} active stores across zips: ${zips.slice(0, 5).join(", ")}…\n` +
         `Run the nightly scraper for state=${scraper_state} to populate prices.`
     ).toBeGreaterThan(0)
   })

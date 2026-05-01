@@ -9,7 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import {
   useMealPlannerRecipes,
   useMealPlannerNutrition,
-  useHeuristicPlan,
+  useHeuristicPlan as generateHeuristicPlan,
   useMealPlannerDragDrop,
   useWeeklyMealPlan,
 } from "@/hooks"
@@ -244,7 +244,7 @@ function MealPlannerPageContent() {
     setHeuristicPlanLoading(true)
 
     try {
-      const heuristicPlan = await useHeuristicPlan(user.id, weekIndex)
+      const heuristicPlan = await generateHeuristicPlan(user.id, weekIndex)
 
       if (heuristicPlan.meals && heuristicPlan.meals.length > 0) {
         const weekDates = getDatesForWeek(weekIndex).map((d) => d.toISOString().split("T")[0])

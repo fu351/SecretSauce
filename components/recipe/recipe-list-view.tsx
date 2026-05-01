@@ -53,138 +53,138 @@ export const RecipeListView = memo(function RecipeListView({
           const imageSrc = getRecipeImageUrl(recipe.content?.image_url || recipe.image_url, theme) || imageFallback
           const isFallbackImage = isDefaultImageFallback(imageSrc)
           return (
-        <div
-          key={recipe.id}
-          className="relative"
-          id={idx === 0 ? "tutorial-recipe-card" : undefined}
-        >
-          <Link href={`/recipes/${recipe.id}`}>
-            <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 bg-card backdrop-blur-sm shadow-lg overflow-hidden">
-              <CardContent className="p-0">
-                <div className="flex flex-col md:flex-row">
-                  <div className="w-full md:w-1/2 relative min-h-[200px] md:min-h-[300px]">
-                    <Image
-                      src={imageSrc}
-                      alt={recipe.title}
-                      fill
-                      className={isFallbackImage ? "object-contain p-4" : "object-cover"}
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                      loading="lazy"
-                      onError={(event) => {
-                        const target = event.currentTarget as HTMLImageElement
-                        if (!target.src.includes(imageFallback)) {
-                          target.src = imageFallback
-                          applyFallbackImageStyles(target)
-                        }
-                      }}
-                    />
-                  </div>
-
-                  <div className="w-full md:w-1/2 p-4 md:p-8 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-start justify-between mb-3 md:mb-4 gap-3">
-                        <h3 className="text-lg md:text-2xl font-bold group-hover:text-primary transition-colors text-foreground">
-                          {recipe.title}
-                        </h3>
-                        <Badge className={getDifficultyColor(recipe.difficulty)}>
-                          {recipe.difficulty}
-                        </Badge>
+            <div
+              key={recipe.id}
+              className="relative"
+              id={idx === 0 ? "tutorial-recipe-card" : undefined}
+            >
+              <Link href={`/recipes/${recipe.id}`}>
+                <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 bg-card backdrop-blur-sm shadow-lg overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="flex flex-col md:flex-row">
+                      <div className="w-full md:w-1/2 relative min-h-[200px] md:min-h-[300px]">
+                        <Image
+                          src={imageSrc}
+                          alt={recipe.title}
+                          fill
+                          className={isFallbackImage ? "object-contain p-4" : "object-cover"}
+                          sizes="(max-width: 768px) 100vw, 50vw"
+                          loading="lazy"
+                          onError={(event) => {
+                            const target = event.currentTarget as HTMLImageElement
+                            if (!target.src.includes(imageFallback)) {
+                              target.src = imageFallback
+                              applyFallbackImageStyles(target)
+                            }
+                          }}
+                        />
                       </div>
 
-                      <p className="mb-4 md:mb-6 line-clamp-3 text-sm md:text-base text-muted-foreground">
-                        {recipe.content?.description}
-                      </p>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
-                        <div className="flex items-center gap-3">
-                          <Clock className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Total Time</p>
-                            <p className="font-semibold text-foreground">
-                              {getTotalTime(recipe)} minutes
-                            </p>
+                      <div className="w-full md:w-1/2 p-4 md:p-8 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-start justify-between mb-3 md:mb-4 gap-3">
+                            <h3 className="text-lg md:text-2xl font-bold group-hover:text-primary transition-colors text-foreground">
+                              {recipe.title}
+                            </h3>
+                            <Badge className={getDifficultyColor(recipe.difficulty)}>
+                              {recipe.difficulty}
+                            </Badge>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-3">
-                          <Users className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Servings</p>
-                            <p className="font-semibold text-foreground">
-                              {recipe.servings} servings
-                            </p>
-                          </div>
-                        </div>
+                          <p className="mb-4 md:mb-6 line-clamp-3 text-sm md:text-base text-muted-foreground">
+                            {recipe.content?.description}
+                          </p>
 
-                        <div className="flex items-center gap-3">
-                          <ChefHat className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Nutrition</p>
-                            <div className="text-xs space-y-1 text-foreground">
-                              {recipe.nutrition?.calories && (
-                                <div>{recipe.nutrition.calories} Calories</div>
-                              )}
-                              {recipe.nutrition?.protein && (
-                                <div>{recipe.nutrition.protein}g Protein</div>
-                              )}
-                              {recipe.nutrition?.fat && (
-                                <div>{recipe.nutrition.fat}g Fat</div>
-                              )}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
+                            <div className="flex items-center gap-3">
+                              <Clock className="h-5 w-5 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm text-muted-foreground">Total Time</p>
+                                <p className="font-semibold text-foreground">
+                                  {getTotalTime(recipe)} minutes
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        </div>
 
-                        <div className="flex items-center gap-3">
-                          <BarChart3 className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Rating</p>
-                            <div className="flex items-center gap-1">
-                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                              <span className="font-semibold text-foreground">
-                                {(recipe.rating_avg || 0).toFixed(1)}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
+                            <div className="flex items-center gap-3">
+                              <Users className="h-5 w-5 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm text-muted-foreground">Servings</p>
+                                <p className="font-semibold text-foreground">
+                                  {recipe.servings} servings
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <ChefHat className="h-5 w-5 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm text-muted-foreground">Nutrition</p>
+                                <div className="text-xs space-y-1 text-foreground">
+                                  {recipe.nutrition?.calories && (
+                                    <div>{recipe.nutrition.calories} Calories</div>
+                                  )}
+                                  {recipe.nutrition?.protein && (
+                                    <div>{recipe.nutrition.protein}g Protein</div>
+                                  )}
+                                  {recipe.nutrition?.fat && (
+                                    <div>{recipe.nutrition.fat}g Fat</div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm text-muted-foreground">Rating</p>
+                                <div className="flex items-center gap-1">
+                                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                  <span className="font-semibold text-foreground">
+                                    {(recipe.rating_avg || 0).toFixed(1)}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
                                 ({recipe.rating_count || 0})
-                              </span>
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
+
+                        {recipe.tags && recipe.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {recipe.tags.map((tag, index) => (
+                              <Badge key={index} variant="secondary">
+                                {formatDietaryTag(tag)}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              </Link>
 
-                    {recipe.tags && recipe.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {recipe.tags.map((tag, index) => (
-                          <Badge key={index} variant="secondary">
-                            {formatDietaryTag(tag)}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <div className="absolute top-2 right-2 md:top-4 md:right-4 z-[5]">
-            <Button
-              variant="ghost"
-              size="sm"
-              data-favorite-button
-              className={`bg-white/90 hover:bg-white ${favorites.has(recipe.id) ? "text-red-500" : "text-gray-600"}`}
-              aria-label={favorites.has(recipe.id) ? "Remove from saved recipes" : "Save recipe"}
-              title={favorites.has(recipe.id) ? "Remove from saved recipes" : "Save recipe"}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                void onFavoriteToggle(recipe.id, e)
-              }}
-            >
-              <Heart className={`h-4 w-4 ${favorites.has(recipe.id) ? "fill-current" : ""}`} />
-            </Button>
-          </div>
-        </div>
+              <div className="absolute top-2 right-2 md:top-4 md:right-4 z-[5]">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-favorite-button
+                  className={`bg-white/90 hover:bg-white ${favorites.has(recipe.id) ? "text-red-500" : "text-gray-600"}`}
+                  aria-label={favorites.has(recipe.id) ? "Remove from saved recipes" : "Save recipe"}
+                  title={favorites.has(recipe.id) ? "Remove from saved recipes" : "Save recipe"}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    void onFavoriteToggle(recipe.id, e)
+                  }}
+                >
+                  <Heart className={`h-4 w-4 ${favorites.has(recipe.id) ? "fill-current" : ""}`} />
+                </Button>
+              </div>
+            </div>
           )
         })()
       ))}

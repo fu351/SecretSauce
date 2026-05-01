@@ -1,12 +1,12 @@
 
-import { BaseTable } from './base-db'
-import type { Database } from '@/lib/database/supabase'
-import { profileDB } from './profile-db'
-import { recipeDB } from './recipe-db'
+import { BaseTable } from "./base-db"
+import type { Database } from "@/lib/database/supabase"
+import { profileDB } from "./profile-db"
+import { recipeDB } from "./recipe-db"
 
-type RecipeReviewRow = Database['public']['Tables']['recipe_reviews']['Row']
-type RecipeReviewInsert = Database['public']['Tables']['recipe_reviews']['Insert']
-type RecipeReviewUpdate = Database['public']['Tables']['recipe_reviews']['Update']
+type RecipeReviewRow = Database["public"]["Tables"]["recipe_reviews"]["Row"]
+type RecipeReviewInsert = Database["public"]["Tables"]["recipe_reviews"]["Insert"]
+type RecipeReviewUpdate = Database["public"]["Tables"]["recipe_reviews"]["Update"]
 
 export type RecipeReviewWithUser = RecipeReviewRow & {
   user_email?: string
@@ -19,13 +19,13 @@ export type RecipeReviewWithDetails = RecipeReviewRow & {
 }
 
 class RecipeReviewsTable extends BaseTable<
-  'recipe_reviews',
+  "recipe_reviews",
   RecipeReviewRow,
   RecipeReviewInsert,
   RecipeReviewUpdate
 > {
   private static instance: RecipeReviewsTable
-  readonly tableName = 'recipe_reviews' as const
+  readonly tableName = "recipe_reviews" as const
 
   private constructor() {
     super()
@@ -50,11 +50,11 @@ class RecipeReviewsTable extends BaseTable<
           *,
           profiles (email, full_name)
         `)
-        .eq('recipe_id', recipeId)
-        .order('created_at', { ascending: false })
+        .eq("recipe_id", recipeId)
+        .order("created_at", { ascending: false })
 
       if (error) {
-        this.handleError(error, 'findByRecipeId')
+        this.handleError(error, "findByRecipeId")
         return []
       }
 
@@ -68,7 +68,7 @@ class RecipeReviewsTable extends BaseTable<
         profiles: undefined // Remove the nested object
       })) as RecipeReviewWithUser[]
     } catch (error) {
-      this.handleError(error, 'findByRecipeId')
+      this.handleError(error, "findByRecipeId")
       return []
     }
   }
@@ -84,19 +84,19 @@ class RecipeReviewsTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .eq('recipe_id', recipeId)
+        .select("*")
+        .eq("user_id", userId)
+        .eq("recipe_id", recipeId)
         .single()
 
       if (error) {
-        this.handleError(error, 'findByUserAndRecipe')
+        this.handleError(error, "findByUserAndRecipe")
         return null
       }
 
       return data
     } catch (error) {
-      this.handleError(error, 'findByUserAndRecipe')
+      this.handleError(error, "findByUserAndRecipe")
       return null
     }
   }
@@ -109,18 +109,18 @@ class RecipeReviewsTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
 
       if (error) {
-        this.handleError(error, 'findByUserId')
+        this.handleError(error, "findByUserId")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findByUserId')
+      this.handleError(error, "findByUserId")
       return []
     }
   }
@@ -158,7 +158,7 @@ class RecipeReviewsTable extends BaseTable<
         .single()
 
       if (error) {
-        this.handleError(error, 'createReview')
+        this.handleError(error, "createReview")
         return null
       }
 
@@ -167,7 +167,7 @@ class RecipeReviewsTable extends BaseTable<
 
       return data
     } catch (error) {
-      this.handleError(error, 'createReview')
+      this.handleError(error, "createReview")
       return null
     }
   }
@@ -201,12 +201,12 @@ class RecipeReviewsTable extends BaseTable<
           comment: updates.comment,
           updated_at: new Date().toISOString()
         })
-        .eq('id', reviewId)
+        .eq("id", reviewId)
         .select()
         .single()
 
       if (error) {
-        this.handleError(error, 'updateReview')
+        this.handleError(error, "updateReview")
         return null
       }
 
@@ -217,7 +217,7 @@ class RecipeReviewsTable extends BaseTable<
 
       return data
     } catch (error) {
-      this.handleError(error, 'updateReview')
+      this.handleError(error, "updateReview")
       return null
     }
   }
@@ -241,10 +241,10 @@ class RecipeReviewsTable extends BaseTable<
       const { error } = await this.supabase
         .from(this.tableName)
         .delete()
-        .eq('id', reviewId)
+        .eq("id", reviewId)
 
       if (error) {
-        this.handleError(error, 'deleteReview')
+        this.handleError(error, "deleteReview")
         return false
       }
 
@@ -253,7 +253,7 @@ class RecipeReviewsTable extends BaseTable<
 
       return true
     } catch (error) {
-      this.handleError(error, 'deleteReview')
+      this.handleError(error, "deleteReview")
       return false
     }
   }
@@ -270,8 +270,8 @@ class RecipeReviewsTable extends BaseTable<
     try {
       const reviews = await this.supabase
         .from(this.tableName)
-        .select('rating')
-        .eq('recipe_id', recipeId)
+        .select("rating")
+        .eq("recipe_id", recipeId)
 
       if (reviews.error || !reviews.data || reviews.data.length === 0) {
         return {
@@ -298,7 +298,7 @@ class RecipeReviewsTable extends BaseTable<
         distribution
       }
     } catch (error) {
-      this.handleError(error, 'getRatingStats')
+      this.handleError(error, "getRatingStats")
       return {
         average: 0,
         count: 0,
@@ -319,12 +319,12 @@ class RecipeReviewsTable extends BaseTable<
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .in('recipe_id', recipeIds)
-        .order('created_at', { ascending: false })
+        .select("*")
+        .in("recipe_id", recipeIds)
+        .order("created_at", { ascending: false })
 
       if (error) {
-        this.handleError(error, 'findByRecipeIds')
+        this.handleError(error, "findByRecipeIds")
         return new Map()
       }
 
@@ -340,7 +340,7 @@ class RecipeReviewsTable extends BaseTable<
 
       return reviewsByRecipe
     } catch (error) {
-      this.handleError(error, 'findByRecipeIds')
+      this.handleError(error, "findByRecipeIds")
       return new Map()
     }
   }
@@ -357,11 +357,11 @@ class RecipeReviewsTable extends BaseTable<
           *,
           profiles (full_name)
         `)
-        .order('created_at', { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(limit)
 
       if (error) {
-        this.handleError(error, 'findRecent')
+        this.handleError(error, "findRecent")
         return []
       }
 
@@ -380,7 +380,7 @@ class RecipeReviewsTable extends BaseTable<
         profiles: undefined
       })) as RecipeReviewWithDetails[]
     } catch (error) {
-      this.handleError(error, 'findRecent')
+      this.handleError(error, "findRecent")
       return []
     }
   }
@@ -409,7 +409,7 @@ class RecipeReviewsTable extends BaseTable<
       console.log(`[RecipeReviewsTable] Updated recipe ${recipeId} rating: avg=${stats.average}, count=${stats.count}`)
       return true
     } catch (error) {
-      this.handleError(error, 'updateRecipeRating')
+      this.handleError(error, "updateRecipeRating")
       return false
     }
   }

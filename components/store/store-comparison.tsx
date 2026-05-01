@@ -42,20 +42,20 @@ function titleCaseStore(name: string): string {
 }
 
 function getStoreLogo(storeName: string): string | null {
-  const normalized = storeName.toLowerCase().replace(/\s+/g, '')
+  const normalized = storeName.toLowerCase().replace(/\s+/g, "")
   const logoMap: Record<string, string> = {
-    'walmart': '/walmart.png',
-    'target': '/Target.jpg',
-    'kroger': '/kroger.jpg',
-    'safeway': '/safeway.jpeg',
-    'aldi': '/aldi.png',
-    'traderjoes': '/trader-joes.png',
-    "trader joe's": '/trader-joes.png',
-    'meijer': '/meijers.png',
-    'meijers': '/meijers.png',
-    '99ranch': '/99ranch.png',
-    '99 ranch': '/99ranch.png',
-    '99ranchmarket': '/99ranch.png',
+    "walmart": "/walmart.png",
+    "target": "/Target.jpg",
+    "kroger": "/kroger.jpg",
+    "safeway": "/safeway.jpeg",
+    "aldi": "/aldi.png",
+    "traderjoes": "/trader-joes.png",
+    "trader joe's": "/trader-joes.png",
+    "meijer": "/meijers.png",
+    "meijers": "/meijers.png",
+    "99ranch": "/99ranch.png",
+    "99 ranch": "/99ranch.png",
+    "99ranchmarket": "/99ranch.png",
   }
 
   // Try exact match first
@@ -110,85 +110,85 @@ export function StoreComparisonSection({
   sortMode,
   onChangeSort,
 }: StoreComparisonSectionProps) {
-  const listContainerRef = useRef<HTMLDivElement>(null);
-  const [userCoords, setUserCoords] = useState<google.maps.LatLngLiteral | null>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null)
+  const [userCoords, setUserCoords] = useState<google.maps.LatLngLiteral | null>(null)
 
   // Initialize the new hook
-  const { closestIndex, travelData, calculateClosest, isLoading: travelLoading } = useClosestStore();
+  const { closestIndex, travelData, calculateClosest, isLoading: travelLoading } = useClosestStore()
 
   // Use results directly from props (server-provided)
-  const displayResults = massSearchResults;
+  const displayResults = massSearchResults
 
   // 1. Get User Location on Mount
   useEffect(() => {
     const fetchLocation = async () => {
-      const loc = await getUserLocation();
-      if (loc) setUserCoords(loc);
-    };
-    fetchLocation();
-  }, []);
+      const loc = await getUserLocation()
+      if (loc) setUserCoords(loc)
+    }
+    fetchLocation()
+  }, [])
 
   // 2. Trigger Distance Calculations
   useEffect(() => {
     if (userCoords && displayResults.length > 0) {
-      calculateClosest(userCoords, displayResults);
+      calculateClosest(userCoords, displayResults)
     }
-  }, [userCoords, displayResults, calculateClosest]);
+  }, [userCoords, displayResults, calculateClosest])
 
   const activeStore = useMemo(() => {
-    return displayResults[carouselIndex] || displayResults[0];
-  }, [displayResults, carouselIndex]);
+    return displayResults[carouselIndex] || displayResults[0]
+  }, [displayResults, carouselIndex])
 
   // Items come pre-merged from get_pricing; render directly
-  const displayItems = activeStore?.items || [];
+  const displayItems = activeStore?.items || []
   const displayMissingIngredients = useMemo(() => {
     return mergeShoppingListItems(activeStore?.missingIngredients || [])
   }, [activeStore?.missingIngredients])
 
   useEffect(() => {
     if (listContainerRef.current) {
-      listContainerRef.current.scrollTop = 0;
+      listContainerRef.current.scrollTop = 0
     }
-  }, [carouselIndex]);
+  }, [carouselIndex])
 
   const handleFindClosest = () => {
-    if (!activeStore) return;
-    const query = encodeURIComponent(`${activeStore.store} near ${postalCode || 'me'}`);
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
-    window.open(mapsUrl, "_blank", "noopener,noreferrer");
-  };
+    if (!activeStore) return
+    const query = encodeURIComponent(`${activeStore.store} near ${postalCode || "me"}`)
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`
+    window.open(mapsUrl, "_blank", "noopener,noreferrer")
+  }
 
 
   const cheapestIndex = useMemo(() => {
-    if (!displayResults?.length) return -1;
-    let bestIdx = 0;
-    let min = Number(displayResults[0].total);
+    if (!displayResults?.length) return -1
+    let bestIdx = 0
+    let min = Number(displayResults[0].total)
     displayResults.forEach((store, idx) => {
-      const t = Number(store.total);
+      const t = Number(store.total)
       if (t < min) {
-        min = t;
-        bestIdx = idx;
+        min = t
+        bestIdx = idx
       }
-    });
-    return bestIdx;
-  }, [displayResults]);
+    })
+    return bestIdx
+  }, [displayResults])
 
   const bestValueIndex = useMemo(() => {
-    if (!displayResults?.length) return -1;
-    let bestIdx = -1;
-    let minScore = Infinity;
+    if (!displayResults?.length) return -1
+    let bestIdx = -1
+    let minScore = Infinity
 
     displayResults.forEach((store, idx) => {
-       const missingCount = store.missingIngredients?.length || 0;
-       const penalty = missingCount * 20;
-       const score = store.total + penalty;
-       if (score < minScore) {
-         minScore = score;
-         bestIdx = idx;
-       }
-    });
-    return bestIdx;
-  }, [displayResults]);
+      const missingCount = store.missingIngredients?.length || 0
+      const penalty = missingCount * 20
+      const score = store.total + penalty
+      if (score < minScore) {
+        minScore = score
+        bestIdx = idx
+      }
+    })
+    return bestIdx
+  }, [displayResults])
 
   if ((!displayResults?.length) && !comparisonLoading) {
     return (
@@ -196,13 +196,13 @@ export function StoreComparisonSection({
         <Store className="h-12 w-12 mb-4 opacity-10" />
         <p className="text-sm">No stores found with these items.</p>
       </div>
-    );
+    )
   }
 
-  const missingCount = displayMissingIngredients.length;
+  const missingCount = displayMissingIngredients.length
   const percentFound = activeStore
     ? Math.round((displayItems.length / (displayItems.length + missingCount)) * 100)
-    : 0;
+    : 0
 
   return (
     <div className="space-y-8">
@@ -242,12 +242,12 @@ export function StoreComparisonSection({
       {/* STORE SWITCHER RAIL */}
       <div className="flex items-center gap-6 overflow-x-auto pb-8 scrollbar-hide snap-x px-4 pt-4">
         {displayResults.map((result, idx) => {
-          const isSelected = carouselIndex === idx;
-          const isCheapest = idx === cheapestIndex;
-          const isBest = idx === bestValueIndex;
-          const isClosest = idx === closestIndex; // From new hook
-          const travelInfo = travelData.get(idx); // From new hook
-          const storeLogo = getStoreLogo(result.store);
+          const isSelected = carouselIndex === idx
+          const isCheapest = idx === cheapestIndex
+          const isBest = idx === bestValueIndex
+          const isClosest = idx === closestIndex // From new hook
+          const travelInfo = travelData.get(idx) // From new hook
+          const storeLogo = getStoreLogo(result.store)
 
           return (
             <button
@@ -259,8 +259,8 @@ export function StoreComparisonSection({
               <div className="relative m-1">
                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 overflow-hidden bg-white
                   ${isSelected
-                    ? "border-green-500 shadow-lg scale-110"
-                    : theme === 'dark' ? "border-[#e8dcc4]/10" : "border-gray-200 shadow-sm"}
+              ? "border-green-500 shadow-lg scale-110"
+              : theme === "dark" ? "border-[#e8dcc4]/10" : "border-gray-200 shadow-sm"}
                 `}>
                   {storeLogo ? (
                     <div className="relative w-full h-full p-2">
@@ -304,7 +304,7 @@ export function StoreComparisonSection({
                 <div className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                   isSelected
                     ? "bg-green-500 text-white shadow-md"
-                    : theme === 'dark'
+                    : theme === "dark"
                       ? "bg-[#1f1e1a] text-[#e8dcc4] border border-[#e8dcc4]/20"
                       : "bg-white text-gray-900 border border-gray-200 shadow-sm"
                 }`}>
@@ -320,7 +320,7 @@ export function StoreComparisonSection({
                 )}
               </div>
             </button>
-          );
+          )
         })}
       </div>
 
@@ -329,133 +329,133 @@ export function StoreComparisonSection({
         {/* LEFT SIDE: LIST */}
         <div className="lg:col-span-2">
           <Card className={`overflow-hidden border-0 shadow-2xl ${cardBgClass} transition-all duration-300 h-full flex flex-col`}>
-          <div className={`p-6 flex justify-between items-end border-b ${theme === 'dark' ? 'border-white/5 bg-white/5' : 'border-gray-100 bg-gray-50/50'}`}>
-            <div>
-            <div className="flex items-center gap-2 mb-1.5">
-                <h4 className={`text-2xl font-bold ${textClass}`}>{titleCaseStore(activeStore.store)}</h4>
+            <div className={`p-6 flex justify-between items-end border-b ${theme === "dark" ? "border-white/5 bg-white/5" : "border-gray-100 bg-gray-50/50"}`}>
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <h4 className={`text-2xl font-bold ${textClass}`}>{titleCaseStore(activeStore.store)}</h4>
+                </div>
+                <p className={`text-xs font-medium ${percentFound === 100 ? "text-green-500" : "text-amber-500"}`}>
+                  {percentFound}% Stock Match ({activeStore.items.length} items found)
+                </p>
+              </div>
+              <div className="text-right">
+                <p className={`text-[10px] font-bold uppercase tracking-tight ${mutedTextClass} mb-1`}>Total</p>
+                <p className={`text-4xl font-black ${textClass} tracking-tight`}>
+                  <span className="text-xl font-normal mr-0.5 opacity-70">$</span>{activeStore.total.toFixed(2)}
+                </p>
+              </div>
             </div>
-              <p className={`text-xs font-medium ${percentFound === 100 ? 'text-green-500' : 'text-amber-500'}`}>
-                {percentFound}% Stock Match ({activeStore.items.length} items found)
-              </p>
-            </div>
-            <div className="text-right">
-              <p className={`text-[10px] font-bold uppercase tracking-tight ${mutedTextClass} mb-1`}>Total</p>
-              <p className={`text-4xl font-black ${textClass} tracking-tight`}>
-                <span className="text-xl font-normal mr-0.5 opacity-70">$</span>{activeStore.total.toFixed(2)}
-              </p>
-            </div>
-          </div>
 
-          <CardContent
-            key={activeStore.store}
-            ref={listContainerRef}
-            className="p-0 min-h-[400px] max-h-[600px] overflow-y-auto scroll-smooth"
-          >
-            <div className="divide-y divide-gray-100 dark:divide-white/5">
-        {displayItems.map((item, i) => (
-          <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
-            <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === 'dark' ? 'bg-white border-white/10' : 'bg-white border-gray-100'}`}>
-              <ProductImage
-                src={item.image_url}
-                alt={item.title}
-                imgClassName="w-full h-full object-contain"
-                fallbackClassName="h-5 w-5 text-gray-400"
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold truncate ${textClass}`}>{item.title}</p>
-              <p className={`text-[11px] ${mutedTextClass}`}>
-                {item.originalName ? `Original: ${item.originalName}` : (item.brand || 'Store Brand')}
-              </p>
-            </div>
-            {(() => {
-              const quantityLabel = formatMeasure(item.quantity)
-              const needText = quantityLabel
-                ? `Need ${quantityLabel} ${item.requestedUnit ?? "units"}`
-                : null
-              const packageSizeLabel = formatMeasure(item.productQuantity)
-              const packageSizeText = packageSizeLabel && item.productUnit
-                ? `Package ${packageSizeLabel} ${item.productUnit}`
-                : null
-              const conversionLabel = formatMeasure(item.convertedQuantity)
-              const conversionText = conversionLabel && item.requestedUnit
-                ? `Covers ${conversionLabel} ${item.requestedUnit}`
-                : null
-              const packagePriceText = item.packagePrice != null
-                ? `Package price: $${Number(item.packagePrice).toFixed(2)}`
-                : null
-              const packagesText =
+            <CardContent
+              key={activeStore.store}
+              ref={listContainerRef}
+              className="p-0 min-h-[400px] max-h-[600px] overflow-y-auto scroll-smooth"
+            >
+              <div className="divide-y divide-gray-100 dark:divide-white/5">
+                {displayItems.map((item, i) => (
+                  <div key={`${item.id}-${i}`} className="p-4 flex items-center gap-4 group hover:bg-black/5 transition-colors">
+                    <div className={`h-12 w-12 rounded-lg p-1 flex-shrink-0 shadow-sm flex items-center justify-center border ${theme === "dark" ? "bg-white border-white/10" : "bg-white border-gray-100"}`}>
+                      <ProductImage
+                        src={item.image_url}
+                        alt={item.title}
+                        imgClassName="w-full h-full object-contain"
+                        fallbackClassName="h-5 w-5 text-gray-400"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-semibold truncate ${textClass}`}>{item.title}</p>
+                      <p className={`text-[11px] ${mutedTextClass}`}>
+                        {item.originalName ? `Original: ${item.originalName}` : (item.brand || "Store Brand")}
+                      </p>
+                    </div>
+                    {(() => {
+                      const quantityLabel = formatMeasure(item.quantity)
+                      const needText = quantityLabel
+                        ? `Need ${quantityLabel} ${item.requestedUnit ?? "units"}`
+                        : null
+                      const packageSizeLabel = formatMeasure(item.productQuantity)
+                      const packageSizeText = packageSizeLabel && item.productUnit
+                        ? `Package ${packageSizeLabel} ${item.productUnit}`
+                        : null
+                      const conversionLabel = formatMeasure(item.convertedQuantity)
+                      const conversionText = conversionLabel && item.requestedUnit
+                        ? `Covers ${conversionLabel} ${item.requestedUnit}`
+                        : null
+                      const packagePriceText = item.packagePrice != null
+                        ? `Package price: $${Number(item.packagePrice).toFixed(2)}`
+                        : null
+                      const packagesText =
                 typeof item.packagesToBuy === "number" && item.packagesToBuy > 0
                   ? `Packages: ${Math.ceil(item.packagesToBuy)}`
                   : null
-              const estimateText = item.usedEstimate
-                ? "Uses estimated unit conversion"
-                : null
-              const conversionWarningText = item.conversionError
-                ? "Conversion unavailable for requested unit"
-                : null
-              const detailClass = `text-[10px] leading-tight ${mutedTextClass}`
+                      const estimateText = item.usedEstimate
+                        ? "Uses estimated unit conversion"
+                        : null
+                      const conversionWarningText = item.conversionError
+                        ? "Conversion unavailable for requested unit"
+                        : null
+                      const detailClass = `text-[10px] leading-tight ${mutedTextClass}`
 
-              return (
-                <div className="text-right mr-2">
-                  <p className={`text-sm font-bold ${textClass}`}>${Number(item.price || 0).toFixed(2)}</p>
-                  <div className="mt-1 flex flex-col items-end gap-0.5">
-                    {needText && <p className={detailClass}>{needText}</p>}
-                    {packageSizeText && <p className={detailClass}>{packageSizeText}</p>}
-                    {conversionText && <p className={detailClass}>{conversionText}</p>}
-                    {packagePriceText && <p className={detailClass}>{packagePriceText}</p>}
-                    {packagesText && <p className={detailClass}>{packagesText}</p>}
-                    {estimateText && <p className={detailClass}>{estimateText}</p>}
-                    {conversionWarningText && (
-                      <p className="text-[10px] leading-tight text-amber-500">{conversionWarningText}</p>
-                    )}
+                      return (
+                        <div className="text-right mr-2">
+                          <p className={`text-sm font-bold ${textClass}`}>${Number(item.price || 0).toFixed(2)}</p>
+                          <div className="mt-1 flex flex-col items-end gap-0.5">
+                            {needText && <p className={detailClass}>{needText}</p>}
+                            {packageSizeText && <p className={detailClass}>{packageSizeText}</p>}
+                            {conversionText && <p className={detailClass}>{conversionText}</p>}
+                            {packagePriceText && <p className={detailClass}>{packagePriceText}</p>}
+                            {packagesText && <p className={detailClass}>{packagesText}</p>}
+                            {estimateText && <p className={detailClass}>{estimateText}</p>}
+                            {conversionWarningText && (
+                              <p className="text-[10px] leading-tight text-amber-500">{conversionWarningText}</p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => onReloadItem({
+                        term: item.originalName,
+                        store: activeStore.store,
+                        shoppingListId: item.shoppingItemIds?.[0] || item.shoppingItemId,
+                        shoppingListIds: item.shoppingItemIds,
+                        groceryStoreId: activeStore.groceryStoreId,
+                      })}
+                    >
+                      <ArrowLeftRight className="h-4 w-4" />
+                    </Button>
                   </div>
-                </div>
-              )
-            })()}
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-9 w-9 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => onReloadItem({
-                      term: item.originalName,
-                      store: activeStore.store,
-                      shoppingListId: item.shoppingItemIds?.[0] || item.shoppingItemId,
-                      shoppingListIds: item.shoppingItemIds,
-                      groceryStoreId: activeStore.groceryStoreId,
-                    })}
-                  >
-                    <ArrowLeftRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                ))}
 
-              {missingCount > 0 && (
-                <div className="bg-amber-50/30 dark:bg-amber-900/10 p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                     <AlertCircle className="h-4 w-4 text-amber-500" />
-                     <span className="text-xs font-bold uppercase tracking-widest text-amber-600">Missing ({missingCount})</span>
+                {missingCount > 0 && (
+                  <div className="bg-amber-50/30 dark:bg-amber-900/10 p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <AlertCircle className="h-4 w-4 text-amber-500" />
+                      <span className="text-xs font-bold uppercase tracking-widest text-amber-600">Missing ({missingCount})</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {displayMissingIngredients.map((item, i) => (
+                        <div key={item.id || `miss-${i}`} className="flex justify-between items-center bg-white/60 dark:bg-black/40 p-3 rounded-lg border border-amber-100 dark:border-amber-900/50">
+                          <span className={`text-xs font-medium ${textClass}`}>{item.name}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {displayMissingIngredients.map((item, i) => (
-                      <div key={item.id || `miss-${i}`} className="flex justify-between items-center bg-white/60 dark:bg-black/40 p-3 rounded-lg border border-amber-100 dark:border-amber-900/50">
-                        <span className={`text-xs font-medium ${textClass}`}>{item.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
+                )}
+              </div>
+            </CardContent>
 
-          <div className="p-5 bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-white/5 flex gap-3">
-            <Button
-              onClick={handleFindClosest}
-              className={`flex-1 h-14 text-lg font-bold shadow-2xl transition-transform active:scale-[0.98] ${buttonClass}`}
-            >
+            <div className="p-5 bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-white/5 flex gap-3">
+              <Button
+                onClick={handleFindClosest}
+                className={`flex-1 h-14 text-lg font-bold shadow-2xl transition-transform active:scale-[0.98] ${buttonClass}`}
+              >
               Find Closest {activeStore.store} <MapPin className="ml-2 h-5 w-5" />
-            </Button>
-          </div>
+              </Button>
+            </div>
           </Card>
         </div>
 
@@ -472,5 +472,5 @@ export function StoreComparisonSection({
         </div>
       </div>
     </div>
-  );
+  )
 }

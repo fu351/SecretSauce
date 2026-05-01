@@ -81,18 +81,18 @@ export function WeeklyView({
 
         return (
           <div key={dateStr} className="md:w-auto">
-          <DayCard
-            date={date}
-            meals={dayMeals}
-            onRemove={onRemove}
-            onAdd={onAdd}
-            onSlotSelect={onSlotSelect}
-            onRecipeClick={onRecipeClick}
-            getDraggableProps={getDraggableProps}
-            getDroppableProps={getDroppableProps}
-            activeDragData={activeDragData}
-            activeDropTarget={activeDropTarget}
-          />
+            <DayCard
+              date={date}
+              meals={dayMeals}
+              onRemove={onRemove}
+              onAdd={onAdd}
+              onSlotSelect={onSlotSelect}
+              onRecipeClick={onRecipeClick}
+              getDraggableProps={getDraggableProps}
+              getDroppableProps={getDroppableProps}
+              activeDragData={activeDragData}
+              activeDropTarget={activeDropTarget}
+            />
           </div>
         )
       })}

@@ -321,7 +321,7 @@ export function RecipeReviews({ recipeId, friendProfileIds = [] }: RecipeReviews
 
         {hasReviewed && user && (
           <div className={reviewedMessageClass}>
-            Thank you for your review! You've already reviewed this recipe.
+            Thank you for your review! You&apos;ve already reviewed this recipe.
           </div>
         )}
 

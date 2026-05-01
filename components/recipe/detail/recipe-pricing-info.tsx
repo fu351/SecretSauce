@@ -89,12 +89,12 @@ export function RecipePricingInfo({
           .map((res, index) => {
             // Only count it as a valid result if it found ingredients (totalCost > 0)
             if (res && res.totalCost > 0) {
-              return { ...res, store: STORES_TO_CHECK[index] };
+              return { ...res, store: STORES_TO_CHECK[index] }
             }
-            return null;
+            return null
           })
           .filter(Boolean)
-          .sort((a, b) => a.totalCost - b.totalCost);
+          .sort((a, b) => a.totalCost - b.totalCost)
 
         setPricingResults(validResults)
       } catch (err) {

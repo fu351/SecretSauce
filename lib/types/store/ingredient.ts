@@ -1,4 +1,4 @@
-import type { StandardizedIngredient } from '../core/ingredient'
+import type { StandardizedIngredient } from "../core/ingredient"
 
 /**
  * Shopping List Ingredient Type
@@ -73,4 +73,4 @@ export type ShoppingListItem = ShoppingListIngredient
  * Indicates whether a shopping list item comes from a recipe or was added manually.
  * Used to customize display and behavior in the shopping list UI.
  */
-export type ShoppingSourceType = 'recipe' | 'manual'
+export type ShoppingSourceType = "recipe" | "manual"

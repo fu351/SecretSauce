@@ -145,26 +145,26 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
       const fallbackResults = scrapeResults.length > 0
         ? scrapeResults
         : replacementOptions.flatMap((option, optionIdx) => {
-            const offers = Array.isArray(option.offers) ? option.offers : []
-            return offers.map((offer, offerIdx) => {
-              const stableKey = `${target?.store || ""}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
-              const stableId = `replacement-${stableKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `${optionIdx}-${offerIdx}`}`
-              return {
-                id: stableId,
-                title: offer.product_name || option.canonical_name || searchTerm,
-                brand: "",
-                price: Number(offer.price) || 0,
-                pricePerUnit:
+          const offers = Array.isArray(option.offers) ? option.offers : []
+          return offers.map((offer, offerIdx) => {
+            const stableKey = `${target?.store || ""}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
+            const stableId = `replacement-${stableKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `${optionIdx}-${offerIdx}`}`
+            return {
+              id: stableId,
+              title: offer.product_name || option.canonical_name || searchTerm,
+              brand: "",
+              price: Number(offer.price) || 0,
+              pricePerUnit:
                   offer.unit_price != null
                     ? `$${Number(offer.unit_price).toFixed(2)}${offer.unit ? `/${offer.unit}` : ""}`
                     : undefined,
-                unit: offer.unit || undefined,
-                image_url: offer.image_url || "",
-                provider: target?.store || "",
-                category: option.category || undefined,
-              } satisfies GroceryItem
-            })
+              unit: offer.unit || undefined,
+              image_url: offer.image_url || "",
+              provider: target?.store || "",
+              category: option.category || undefined,
+            } satisfies GroceryItem
           })
+        })
 
       const flatResults = fallbackResults.filter((item) => {
         const itemProvider = normalizeStoreName(item.provider || target?.store || "")
@@ -305,80 +305,80 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         <div className="space-y-4">
           <div className="flex gap-2">
             <Input
-                value={term}
-                onChange={e => setTerm(e.target.value)}
-                aria-label="Search replacements"
-                placeholder="Search replacements"
-                className={styles.theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
-                onKeyDown={(e) => e.key === 'Enter' && performSearch(term)}
+              value={term}
+              onChange={e => setTerm(e.target.value)}
+              aria-label="Search replacements"
+              placeholder="Search replacements"
+              className={styles.theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/30 text-[#e8dcc4]" : ""}
+              onKeyDown={(e) => e.key === "Enter" && performSearch(term)}
             />
             <Button onClick={() => performSearch(term)}>Search</Button>
           </div>
 
-      <div className="max-h-[300px] overflow-y-auto">
-        {loading ? (
-          <div className="p-4 text-center">
-            <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
-          </div>
-        ) : (
-          <>
-            {results.length === 0 && (
-                <p className={`p-4 text-center ${styles.mutedTextClass}`}>No results found at {target?.store}</p>
-            )}
-            {results.map((item, i) => (
-              <div key={item.id || `${item.title}-${i}`} className={`flex justify-between items-center p-2 border-b ${styles.theme === "dark" ? "border-[#e8dcc4]/10" : ""}`}>
-                  <div className="flex items-center gap-3">
-                    <ProductImage src={item.image_url} alt={item.title} imgClassName="w-8 h-8 object-contain" fallbackClassName="w-8 h-8 text-gray-400" />
-                    <div>
-                      <div className={`font-medium ${styles.textClass}`}>{item.title}</div>
-                      <div className={`text-xs ${styles.mutedTextClass}`}>{item.provider} - ${item.price.toFixed(2)}</div>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      const ingredientId = target?.standardizedIngredientId ?? null
-                      const groceryStoreId = target?.groceryStoreId ?? null
-
-                      const persistOverride = (mappingId: string) => {
-                        if (ingredientId && groceryStoreId) {
-                          ingredientsRecentDB.saveUserProductOverride(ingredientId, groceryStoreId, mappingId)
-                            .catch(err => console.warn("[ItemReplacementModal] Failed to save override", err))
-                        }
-                      }
-
-                      if (item.productMappingId) {
-                        // DB-sourced item — mapping ID already known; persist override and select
-                        persistOverride(item.productMappingId)
-                        onSelect(item)
-                      } else {
-                        // Persist the user-selected scraper result as a cached candidate.
-                        await persistManualSelection(item)
-
-                        // Scraper-sourced fallback — look up/create mapping, then persist override
-                        productMappingsDB.incrementCounts({
-                          external_product_id: item.id,
-                          store: target?.store ?? null,
-                          raw_product_name: item.title,
-                          standardized_ingredient_id: ingredientId,
-                          exchange_delta: 1,
-                        }).then(mappingId => {
-                          if (mappingId) persistOverride(mappingId)
-                          onSelect({ ...item, productMappingId: mappingId || undefined })
-                        }).catch((error) => {
-                          console.error("[ItemReplacementModal] Failed to increment mapping counts", error)
-                          onSelect(item)
-                        })
-                      }
-                    }}
-                  >
-                    Select
-                  </Button>
+          <div className="max-h-[300px] overflow-y-auto">
+            {loading ? (
+              <div className="p-4 text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto"/>
               </div>
-            ))}
-          </>
-        )}
-      </div>
+            ) : (
+              <>
+                {results.length === 0 && (
+                  <p className={`p-4 text-center ${styles.mutedTextClass}`}>No results found at {target?.store}</p>
+                )}
+                {results.map((item, i) => (
+                  <div key={item.id || `${item.title}-${i}`} className={`flex justify-between items-center p-2 border-b ${styles.theme === "dark" ? "border-[#e8dcc4]/10" : ""}`}>
+                    <div className="flex items-center gap-3">
+                      <ProductImage src={item.image_url} alt={item.title} imgClassName="w-8 h-8 object-contain" fallbackClassName="w-8 h-8 text-gray-400" />
+                      <div>
+                        <div className={`font-medium ${styles.textClass}`}>{item.title}</div>
+                        <div className={`text-xs ${styles.mutedTextClass}`}>{item.provider} - ${item.price.toFixed(2)}</div>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        const ingredientId = target?.standardizedIngredientId ?? null
+                        const groceryStoreId = target?.groceryStoreId ?? null
+
+                        const persistOverride = (mappingId: string) => {
+                          if (ingredientId && groceryStoreId) {
+                            ingredientsRecentDB.saveUserProductOverride(ingredientId, groceryStoreId, mappingId)
+                              .catch(err => console.warn("[ItemReplacementModal] Failed to save override", err))
+                          }
+                        }
+
+                        if (item.productMappingId) {
+                        // DB-sourced item — mapping ID already known; persist override and select
+                          persistOverride(item.productMappingId)
+                          onSelect(item)
+                        } else {
+                        // Persist the user-selected scraper result as a cached candidate.
+                          await persistManualSelection(item)
+
+                          // Scraper-sourced fallback — look up/create mapping, then persist override
+                          productMappingsDB.incrementCounts({
+                            external_product_id: item.id,
+                            store: target?.store ?? null,
+                            raw_product_name: item.title,
+                            standardized_ingredient_id: ingredientId,
+                            exchange_delta: 1,
+                          }).then(mappingId => {
+                            if (mappingId) persistOverride(mappingId)
+                            onSelect({ ...item, productMappingId: mappingId || undefined })
+                          }).catch((error) => {
+                            console.error("[ItemReplacementModal] Failed to increment mapping counts", error)
+                            onSelect(item)
+                          })
+                        }
+                      }}
+                    >
+                    Select
+                    </Button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

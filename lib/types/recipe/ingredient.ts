@@ -1,4 +1,4 @@
-import { StandardizedIngredient } from '../core/ingredient'
+import { StandardizedIngredient } from "../core/ingredient"
 
 /**
  * Recipe Ingredient Type

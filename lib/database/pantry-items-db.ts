@@ -1,19 +1,19 @@
 
-import { BaseTable } from './base-db'
-import type { Database } from '@/lib/database/supabase'
+import { BaseTable } from "./base-db"
+import type { Database } from "@/lib/database/supabase"
 
-type PantryItemRow = Database['public']['Tables']['pantry_items']['Row']
-type PantryItemInsert = Database['public']['Tables']['pantry_items']['Insert']
-type PantryItemUpdate = Database['public']['Tables']['pantry_items']['Update']
+type PantryItemRow = Database["public"]["Tables"]["pantry_items"]["Row"]
+type PantryItemInsert = Database["public"]["Tables"]["pantry_items"]["Insert"]
+type PantryItemUpdate = Database["public"]["Tables"]["pantry_items"]["Update"]
 
 class PantryItemsTable extends BaseTable<
-  'pantry_items',
+  "pantry_items",
   PantryItemRow,
   PantryItemInsert,
   PantryItemUpdate
 > {
   private static instance: PantryItemsTable
-  readonly tableName = 'pantry_items' as const
+  readonly tableName = "pantry_items" as const
 
   private constructor() {
     super()
@@ -35,17 +35,17 @@ class PantryItemsTable extends BaseTable<
     options?: {
       category?: string
       includeExpired?: boolean
-      sortBy?: 'name' | 'expiry_date' | 'created_at'
+      sortBy?: "name" | "expiry_date" | "created_at"
     }
   ): Promise<PantryItemRow[]> {
     try {
       let query = this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
+        .select("*")
+        .eq("user_id", userId)
 
       if (options?.category) {
-        query = query.eq('category', options.category)
+        query = query.eq("category", options.category)
       }
 
       if (!options?.includeExpired) {
@@ -53,19 +53,19 @@ class PantryItemsTable extends BaseTable<
       }
 
       // Sort order
-      const sortBy = options?.sortBy || 'created_at'
-      query = query.order(sortBy, { ascending: sortBy === 'name' })
+      const sortBy = options?.sortBy || "created_at"
+      query = query.order(sortBy, { ascending: sortBy === "name" })
 
       const { data, error } = await query
 
       if (error) {
-        this.handleError(error, 'findByUserId')
+        this.handleError(error, "findByUserId")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findByUserId')
+      this.handleError(error, "findByUserId")
       return []
     }
   }
@@ -84,21 +84,21 @@ class PantryItemsTable extends BaseTable<
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .not('expiry_date', 'is', null)
-        .gte('expiry_date', new Date().toISOString())
-        .lte('expiry_date', futureDate.toISOString())
-        .order('expiry_date', { ascending: true })
+        .select("*")
+        .eq("user_id", userId)
+        .not("expiry_date", "is", null)
+        .gte("expiry_date", new Date().toISOString())
+        .lte("expiry_date", futureDate.toISOString())
+        .order("expiry_date", { ascending: true })
 
       if (error) {
-        this.handleError(error, 'findExpiringSoon')
+        this.handleError(error, "findExpiringSoon")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findExpiringSoon')
+      this.handleError(error, "findExpiringSoon")
       return []
     }
   }
@@ -111,20 +111,20 @@ class PantryItemsTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .not('expiry_date', 'is', null)
-        .lt('expiry_date', new Date().toISOString())
-        .order('expiry_date', { ascending: true })
+        .select("*")
+        .eq("user_id", userId)
+        .not("expiry_date", "is", null)
+        .lt("expiry_date", new Date().toISOString())
+        .order("expiry_date", { ascending: true })
 
       if (error) {
-        this.handleError(error, 'findExpired')
+        this.handleError(error, "findExpired")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findExpired')
+      this.handleError(error, "findExpired")
       return []
     }
   }
@@ -139,19 +139,19 @@ class PantryItemsTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .eq('category', category)
-        .order('name', { ascending: true })
+        .select("*")
+        .eq("user_id", userId)
+        .eq("category", category)
+        .order("name", { ascending: true })
 
       if (error) {
-        this.handleError(error, 'findByCategory')
+        this.handleError(error, "findByCategory")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findByCategory')
+      this.handleError(error, "findByCategory")
       return []
     }
   }
@@ -167,18 +167,18 @@ class PantryItemsTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .eq('standardized_ingredient_id', standardizedIngredientId)
+        .select("*")
+        .eq("user_id", userId)
+        .eq("standardized_ingredient_id", standardizedIngredientId)
 
       if (error) {
-        this.handleError(error, 'findByStandardizedId')
+        this.handleError(error, "findByStandardizedId")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findByStandardizedId')
+      this.handleError(error, "findByStandardizedId")
       return []
     }
   }
@@ -196,18 +196,18 @@ class PantryItemsTable extends BaseTable<
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .in('standardized_ingredient_id', standardizedIngredientIds)
+        .select("*")
+        .eq("user_id", userId)
+        .in("standardized_ingredient_id", standardizedIngredientIds)
 
       if (error) {
-        this.handleError(error, 'findByStandardizedIds')
+        this.handleError(error, "findByStandardizedIds")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findByStandardizedIds')
+      this.handleError(error, "findByStandardizedIds")
       return []
     }
   }
@@ -242,18 +242,18 @@ class PantryItemsTable extends BaseTable<
           quantity: newQuantity,
           updated_at: new Date().toISOString()
         })
-        .eq('id', itemId)
+        .eq("id", itemId)
         .select()
         .single()
 
       if (error) {
-        this.handleError(error, 'updateQuantity')
+        this.handleError(error, "updateQuantity")
         return null
       }
 
       return data
     } catch (error) {
-      this.handleError(error, 'updateQuantity')
+      this.handleError(error, "updateQuantity")
       return null
     }
   }
@@ -271,13 +271,13 @@ class PantryItemsTable extends BaseTable<
         .select()
 
       if (error) {
-        this.handleError(error, 'batchCreate')
+        this.handleError(error, "batchCreate")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'batchCreate')
+      this.handleError(error, "batchCreate")
       return []
     }
   }
@@ -291,20 +291,20 @@ class PantryItemsTable extends BaseTable<
       const { data, error } = await this.supabase
         .from(this.tableName)
         .delete()
-        .eq('user_id', userId)
-        .not('expiry_date', 'is', null)
-        .lt('expiry_date', new Date().toISOString())
+        .eq("user_id", userId)
+        .not("expiry_date", "is", null)
+        .lt("expiry_date", new Date().toISOString())
         .select()
 
       if (error) {
-        this.handleError(error, 'deleteExpired')
+        this.handleError(error, "deleteExpired")
         return 0
       }
 
       const count = data?.length || 0
       return count
     } catch (error) {
-      this.handleError(error, 'deleteExpired')
+      this.handleError(error, "deleteExpired")
       return 0
     }
   }
@@ -327,19 +327,19 @@ class PantryItemsTable extends BaseTable<
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .ilike('name', `%${query}%`)
-        .order('name', { ascending: true })
+        .select("*")
+        .eq("user_id", userId)
+        .ilike("name", `%${query}%`)
+        .order("name", { ascending: true })
 
       if (error) {
-        this.handleError(error, 'searchByName')
+        this.handleError(error, "searchByName")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'searchByName')
+      this.handleError(error, "searchByName")
       return []
     }
   }
@@ -352,16 +352,16 @@ class PantryItemsTable extends BaseTable<
       const { error } = await this.supabase
         .from(this.tableName)
         .delete()
-        .eq('user_id', userId)
+        .eq("user_id", userId)
 
       if (error) {
-        this.handleError(error, 'deleteByUserId')
+        this.handleError(error, "deleteByUserId")
         return false
       }
 
       return true
     } catch (error) {
-      this.handleError(error, 'deleteByUserId')
+      this.handleError(error, "deleteByUserId")
       return false
     }
   }
@@ -390,7 +390,7 @@ class PantryItemsTable extends BaseTable<
 
       for (const item of items) {
         // Count by category
-        const category = item.category || 'Uncategorized'
+        const category = item.category || "Uncategorized"
         byCategory[category] = (byCategory[category] || 0) + 1
 
         // Count expiring/expired
@@ -411,7 +411,7 @@ class PantryItemsTable extends BaseTable<
         byCategory
       }
     } catch (error) {
-      this.handleError(error, 'getStats')
+      this.handleError(error, "getStats")
       return {
         totalItems: 0,
         expiringCount: 0,

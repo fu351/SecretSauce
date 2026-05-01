@@ -13,7 +13,7 @@ interface AiProgress {
 interface AiPlanResult {
   storeId: string
   totalCost: number
-  meals: Array<{ dayIndex: number; mealType: 'breakfast' | 'lunch' | 'dinner'; recipeId: string }>
+  meals: Array<{ dayIndex: number; mealType: "breakfast" | "lunch" | "dinner"; recipeId: string }>
   explanation: string
 }
 

@@ -15,20 +15,20 @@ import { useIsMobile } from "@/hooks/ui/use-mobile"
 
 // Map store names to logo files (reused from store-comparison)
 function getStoreLogo(storeName: string): string | null {
-  const normalized = storeName.toLowerCase().replace(/\s+/g, '')
+  const normalized = storeName.toLowerCase().replace(/\s+/g, "")
   const logoMap: Record<string, string> = {
-    'walmart': '/walmart.png',
-    'target': '/Target.jpg',
-    'kroger': '/kroger.jpg',
-    'safeway': '/safeway.jpeg',
-    'aldi': '/aldi.png',
-    'traderjoes': '/trader-joes.png',
-    "trader joe's": '/trader-joes.png',
-    'meijer': '/meijers.png',
-    'meijers': '/meijers.png',
-    '99ranch': '/99ranch.png',
-    '99 ranch': '/99ranch.png',
-    '99ranchmarket': '/99ranch.png',
+    "walmart": "/walmart.png",
+    "target": "/Target.jpg",
+    "kroger": "/kroger.jpg",
+    "safeway": "/safeway.jpeg",
+    "aldi": "/aldi.png",
+    "traderjoes": "/trader-joes.png",
+    "trader joe's": "/trader-joes.png",
+    "meijer": "/meijers.png",
+    "meijers": "/meijers.png",
+    "99ranch": "/99ranch.png",
+    "99 ranch": "/99ranch.png",
+    "99ranchmarket": "/99ranch.png",
   }
 
   // Try exact match first

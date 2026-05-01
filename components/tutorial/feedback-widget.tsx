@@ -130,14 +130,14 @@ export function FeedbackWidget({ position = "bottom-left" }: FeedbackWidgetProps
                 Send us Feedback
               </h2>
               <p className={clsx("text-sm", isDark ? "text-[#e8dcc4]/60" : "text-gray-600")}>
-                We'd love to hear your suggestions, concerns, or feedback to help us improve Secret Sauce.
+                We&apos;d love to hear your suggestions, concerns, or feedback to help us improve Secret Sauce.
               </p>
             </div>
 
             {/* Feedback Categories */}
             <div className="mb-4 space-y-2">
               <p className={clsx("text-xs font-medium uppercase tracking-widest", isDark ? "text-[#e8dcc4]/60" : "text-gray-500")}>
-                What's on your mind?
+                What&apos;s on your mind?
               </p>
               <div className="flex flex-wrap gap-2">
                 {["Suggestion", "Bug Report", "Concern", "Other"].map((category) => (

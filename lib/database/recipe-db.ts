@@ -152,8 +152,8 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
   }
   
   async fetchRecipeByIds(ids: string[]): Promise<Recipe[]> {
-    if (ids.length === 0) return [];
-    return this.findByIds(ids);
+    if (ids.length === 0) return []
+    return this.findByIds(ids)
   }
 
   /**
@@ -748,11 +748,11 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
 
     if (error) {
       this.handleError(error, "calculateCostEstimate")
-      return null;
+      return null
     }
 
     // data is the JSONB object: { totalCost: X, costPerServing: Y, ingredients: {...} }
-    return data;
+    return data
   }
 
   async calculateMultipleCostEstimates(
@@ -766,7 +766,7 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     const recipeConfigs = recipeIds.map(id => ({
       id: id,
       servings: servingsMap[id] || 1
-    }));
+    }))
 
     // 2. Make ONE call to the batch function
     const { data, error } = await this.supabase.rpc("calculate_weekly_basket", {
@@ -777,11 +777,11 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     })
 
     if (error) {
-      this.handleError(error, "calculateMultipleCostEstimates");
-      return null;
+      this.handleError(error, "calculateMultipleCostEstimates")
+      return null
     }
 
-    return data;
+    return data
   }
 
   async getSmartRecommendations(userId: string, limit: number): Promise<Recipe[]> {
@@ -790,14 +790,14 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     const { data, error } = await this.supabase.rpc("recommend_recipes_global", {
       p_user_id: userId,
       p_limit: limit
-    });
+    })
 
     if (error) {
-      this.handleError(error, "getSmartRecommendations");
-      return [];
+      this.handleError(error, "getSmartRecommendations")
+      return []
     }
 
-    return (data || []).map((item: any) => this.map(item));
+    return (data || []).map((item: any) => this.map(item))
   }
 
   async getSmartTrendingRecommendations(userId: string, limit = 5): Promise<Recipe[]> {
@@ -806,14 +806,14 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     const { data, error } = await this.supabase.rpc("get_smart_trending_recommendations", {
       p_user_id: userId,
       p_limit: limit
-    });
+    })
 
     if (error) {
-      this.handleError(error, "getSmartTrendingRecommendations");
-      return [];
+      this.handleError(error, "getSmartTrendingRecommendations")
+      return []
     }
 
-    return (data || []).map((item: any) => this.map(item));
+    return (data || []).map((item: any) => this.map(item))
   }
 
   async getSmartRecommendationsByMealType(userId: string, limit: number, mealType: MealTypeTag): Promise<Recipe[]> {
@@ -827,14 +827,14 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
       p_user_id: userId,
       p_meal_type: mealTypeEnum,
       p_limit: limit
-    });
+    })
 
     if (error) {
-      this.handleError(error, "getSmartRecommendationsByMealType");
-      return [];
+      this.handleError(error, "getSmartRecommendationsByMealType")
+      return []
     }
 
-    return (data || []).map((item: any) => this.map(item));
+    return (data || []).map((item: any) => this.map(item))
   }
 }
 

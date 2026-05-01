@@ -48,6 +48,7 @@ AGENTS.md
 !supabase/migrations/20260430034500_budget_rpc_transactions.sql
 !supabase/migrations/20260430120000_open_prices_us_importer.sql
 !supabase/migrations/20260430160000_add_streaks_core.sql
+!supabase/migrations/20260501090000_social_sprint1_kitchen_sync.sql
 !supabase/migrations/20260430233000_open_prices_backup_pricing.sql
 
 CLAUDE.md

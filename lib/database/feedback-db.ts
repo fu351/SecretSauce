@@ -1,19 +1,19 @@
 
-import { BaseTable } from './base-db'
-import type { Database } from '@/lib/database/supabase'
+import { BaseTable } from "./base-db"
+import type { Database } from "@/lib/database/supabase"
 
-type FeedbackRow = Database['public']['Tables']['feedback']['Row']
-type FeedbackInsert = Database['public']['Tables']['feedback']['Insert']
-type FeedbackUpdate = Database['public']['Tables']['feedback']['Update']
+type FeedbackRow = Database["public"]["Tables"]["feedback"]["Row"]
+type FeedbackInsert = Database["public"]["Tables"]["feedback"]["Insert"]
+type FeedbackUpdate = Database["public"]["Tables"]["feedback"]["Update"]
 
 class FeedbackTable extends BaseTable<
-  'feedback',
+  "feedback",
   FeedbackRow,
   FeedbackInsert,
   FeedbackUpdate
 > {
   private static instance: FeedbackTable
-  readonly tableName = 'feedback' as const
+  readonly tableName = "feedback" as const
 
   private constructor() {
     super()
@@ -42,13 +42,13 @@ class FeedbackTable extends BaseTable<
         .single()
 
       if (error) {
-        this.handleError(error, 'submitFeedback')
+        this.handleError(error, "submitFeedback")
         return null
       }
 
       return data
     } catch (error) {
-      this.handleError(error, 'submitFeedback')
+      this.handleError(error, "submitFeedback")
       return null
     }
   }
@@ -66,15 +66,15 @@ class FeedbackTable extends BaseTable<
     try {
       let query = this.supabase
         .from(this.tableName)
-        .select('*')
-        .order('created_at', { ascending: false })
+        .select("*")
+        .order("created_at", { ascending: false })
 
       if (options?.unreadOnly) {
-        query = query.eq('read', false)
+        query = query.eq("read", false)
       }
 
       if (options?.userId) {
-        query = query.eq('user_id', options.userId)
+        query = query.eq("user_id", options.userId)
       }
 
       if (options?.limit) {
@@ -88,13 +88,13 @@ class FeedbackTable extends BaseTable<
       const { data, error } = await query
 
       if (error) {
-        this.handleError(error, 'findAll')
+        this.handleError(error, "findAll")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findAll')
+      this.handleError(error, "findAll")
       return []
     }
   }
@@ -106,18 +106,18 @@ class FeedbackTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
 
       if (error) {
-        this.handleError(error, 'findByUserId')
+        this.handleError(error, "findByUserId")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findByUserId')
+      this.handleError(error, "findByUserId")
       return []
     }
   }
@@ -131,18 +131,18 @@ class FeedbackTable extends BaseTable<
       const { data, error } = await this.supabase
         .from(this.tableName)
         .update({ read: true })
-        .eq('id', feedbackId)
+        .eq("id", feedbackId)
         .select()
         .single()
 
       if (error) {
-        this.handleError(error, 'markAsRead')
+        this.handleError(error, "markAsRead")
         return null
       }
 
       return data
     } catch (error) {
-      this.handleError(error, 'markAsRead')
+      this.handleError(error, "markAsRead")
       return null
     }
   }
@@ -158,16 +158,16 @@ class FeedbackTable extends BaseTable<
       const { error } = await this.supabase
         .from(this.tableName)
         .update({ read: true })
-        .in('id', feedbackIds)
+        .in("id", feedbackIds)
 
       if (error) {
-        this.handleError(error, 'batchMarkAsRead')
+        this.handleError(error, "batchMarkAsRead")
         return false
       }
 
       return true
     } catch (error) {
-      this.handleError(error, 'batchMarkAsRead')
+      this.handleError(error, "batchMarkAsRead")
       return false
     }
   }
@@ -179,17 +179,17 @@ class FeedbackTable extends BaseTable<
     try {
       const { count, error } = await this.supabase
         .from(this.tableName)
-        .select('*', { count: 'exact', head: true })
-        .eq('read', false)
+        .select("*", { count: "exact", head: true })
+        .eq("read", false)
 
       if (error) {
-        this.handleError(error, 'getUnreadCount')
+        this.handleError(error, "getUnreadCount")
         return 0
       }
 
       return count || 0
     } catch (error) {
-      this.handleError(error, 'getUnreadCount')
+      this.handleError(error, "getUnreadCount")
       return 0
     }
   }
@@ -201,18 +201,18 @@ class FeedbackTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .order('created_at', { ascending: false })
+        .select("*")
+        .order("created_at", { ascending: false })
         .limit(limit || 10)
 
       if (error) {
-        this.handleError(error, 'findRecent')
+        this.handleError(error, "findRecent")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findRecent')
+      this.handleError(error, "findRecent")
       return []
     }
   }
@@ -225,18 +225,18 @@ class FeedbackTable extends BaseTable<
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .ilike('message', `%${query}%`)
-        .order('created_at', { ascending: false })
+        .select("*")
+        .ilike("message", `%${query}%`)
+        .order("created_at", { ascending: false })
 
       if (error) {
-        this.handleError(error, 'search')
+        this.handleError(error, "search")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'search')
+      this.handleError(error, "search")
       return []
     }
   }

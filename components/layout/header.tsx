@@ -37,9 +37,11 @@ export function Header() {
   const { toast } = useToast()
   const budgetFlag = useFoundationFeatureFlag("budget_tracking")
   const streaksFlag = useFoundationFeatureFlag("gamification_streaks")
+  const socialFlag = useFoundationFeatureFlag("social_layer")
   const featurePreferences = useFeaturePreferences(Boolean(user))
   const savingsEnabled = Boolean(user) && budgetFlag.isEnabled && featurePreferences.preferences.budgetTrackingEnabled
   const streaksEnabled = Boolean(user) && streaksFlag.isEnabled && featurePreferences.preferences.streaksEnabled
+  const kitchenEnabled = Boolean(user) && socialFlag.isEnabled && featurePreferences.preferences.socialEnabled
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
   const [mobileLogoMenuOpen, setMobileLogoMenuOpen] = useState(false)
@@ -129,14 +131,15 @@ export function Header() {
     "/settings": { title: "Settings", subtext: "Manage your account preferences" },
     "/budget": { title: "Savings", subtext: "Track weekly spending and build your goal jar" },
     "/streaks": { title: "Streaks", subtext: "Build a steady daily cooking rhythm" },
+    "/kitchen": { title: "Kitchen Sync", subtext: "Private-by-default cook checks and shared kitchen moments" },
     "/pantry": { title: "My Pantry", subtext: "Keep track of your ingredients and reduce food waste" },
     "/upload-recipe": { title: "Add Recipe", subtext: "Create a new recipe manually or import from a URL" },
   }
 
   const pageInfo = pathname === "/" ? null : pageTitles[pathname] ?? 
     (pathname.startsWith("/recipes/") ? pageTitles["/recipes"] :
-     pathname.startsWith("/edit-recipe/") ? { title: "Edit Recipe", subtext: "Update your recipe details" } :
-     pathname.startsWith("/upload-recipe") ? pageTitles["/upload-recipe"] : null)
+      pathname.startsWith("/edit-recipe/") ? { title: "Edit Recipe", subtext: "Update your recipe details" } :
+        pathname.startsWith("/upload-recipe") ? pageTitles["/upload-recipe"] : null)
 
   const handleSignOut = async () => {
     setSignOutModalOpen(false)
@@ -181,153 +184,163 @@ export function Header() {
       >
         {/* Left: logo+title on desktop */}
         <div className="flex min-w-0 flex-none items-center justify-start gap-4 xl:gap-6">
-        {/* Desktop: logo + title */}
-        <Link href="/home" className="block flex-shrink-0" data-tutorial-nav="/home">
-          <Image
-            src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
-            alt="Secret Sauce"
-            width={60}
-            height={60}
-            className="cursor-pointer"
-          />
-        </Link>
-        {pageInfo && (
-          <div className="flex w-[260px] min-w-0 shrink flex-col xl:w-[380px]">
-            <span className={`text-lg font-serif font-light ${pathname === "/" ? "" : isDark ? "text-foreground" : "text-gray-900"}`}>
-              {pageInfo.title}
-            </span>
-            <span className="hidden lg:block text-sm text-muted-foreground mt-0.5 leading-tight">
-              {pageInfo.subtext}
-            </span>
-          </div>
-        )}
+          {/* Desktop: logo + title */}
+          <Link href="/home" className="block flex-shrink-0" data-tutorial-nav="/home">
+            <Image
+              src={isDark ? "/logo-dark.png" : "/logo-warm.png"}
+              alt="Secret Sauce"
+              width={60}
+              height={60}
+              className="cursor-pointer"
+            />
+          </Link>
+          {pageInfo && (
+            <div className="flex w-[260px] min-w-0 shrink flex-col xl:w-[380px]">
+              <span className={`text-lg font-serif font-light ${pathname === "/" ? "" : isDark ? "text-foreground" : "text-gray-900"}`}>
+                {pageInfo.title}
+              </span>
+              <span className="hidden lg:block text-sm text-muted-foreground mt-0.5 leading-tight">
+                {pageInfo.subtext}
+              </span>
+            </div>
+          )}
         </div>
 
         <nav className="hidden items-center gap-4 xl:flex xl:gap-6">
-        <Link
-          href="/recipes"
-          data-tutorial-nav="/recipes"
-          className={`hover:opacity-80 transition-opacity ${
-            pathname === "/recipes" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
-          }`}
-        >
+          <Link
+            href="/recipes"
+            data-tutorial-nav="/recipes"
+            className={`hover:opacity-80 transition-opacity ${
+              pathname === "/recipes" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+            }`}
+          >
           Recipes
-        </Link>
-        <Link
-          href="/meal-planner"
-          data-tutorial-nav="/meal-planner"
-          className={`hover:opacity-80 transition-opacity ${
-            pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
-          }`}
-        >
+          </Link>
+          <Link
+            href="/meal-planner"
+            data-tutorial-nav="/meal-planner"
+            className={`hover:opacity-80 transition-opacity ${
+              pathname === "/meal-planner" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+            }`}
+          >
           Meal Planner
-        </Link>
-        <Link
-          href="/store"
-          data-tutorial-nav="/store"
-          className={`hover:opacity-80 transition-opacity ${
-            pathname === "/store" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
-          }`}
-        >
+          </Link>
+          <Link
+            href="/store"
+            data-tutorial-nav="/store"
+            className={`hover:opacity-80 transition-opacity ${
+              pathname === "/store" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+            }`}
+          >
           Shopping
-        </Link>
-        {savingsEnabled ? (
-          <Link
-            href="/budget"
-            className={`hover:opacity-80 transition-opacity ${
-              pathname === "/budget" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
-            }`}
-          >
+          </Link>
+          {savingsEnabled ? (
+            <Link
+              href="/budget"
+              className={`hover:opacity-80 transition-opacity ${
+                pathname === "/budget" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+              }`}
+            >
             Savings
-          </Link>
-        ) : null}
-        {streaksEnabled ? (
-          <Link
-            href="/streaks"
-            className={`hover:opacity-80 transition-opacity ${
-              pathname === "/streaks" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
-            }`}
-          >
+            </Link>
+          ) : null}
+          {streaksEnabled ? (
+            <Link
+              href="/streaks"
+              className={`hover:opacity-80 transition-opacity ${
+                pathname === "/streaks" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+              }`}
+            >
             Streaks
-          </Link>
-        ) : null}
-        <Button
-          size="sm"
-          asChild
-          className={
-            isDark
-              ? "bg-primary text-primary-foreground hover:bg-primary/90"
-              : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"
-          }
-        >
-          <Link href="/upload-recipe" className="flex items-center gap-1.5">
-            <Plus className="h-4 w-4" />
+            </Link>
+          ) : null}
+          {kitchenEnabled ? (
+            <Link
+              href="/kitchen"
+              className={`hover:opacity-80 transition-opacity ${
+                pathname === "/kitchen" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
+              }`}
+            >
+            Kitchen Sync
+            </Link>
+          ) : null}
+          <Button
+            size="sm"
+            asChild
+            className={
+              isDark
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                : "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"
+            }
+          >
+            <Link href="/upload-recipe" className="flex items-center gap-1.5">
+              <Plus className="h-4 w-4" />
             Add Recipe
-          </Link>
-        </Button>
+            </Link>
+          </Button>
         </nav>
 
         <div className="flex min-w-0 flex-none items-center justify-end gap-2 xl:gap-3">
           {user ? (
             <>
-            {/* Account action buttons */}
-            <div className="flex items-center gap-1 md:gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
-              >
-                <Link href="/dashboard" data-tutorial-nav="/dashboard">
-                  <User className="h-5 w-5" />
-                  <span className="sr-only">Dashboard</span>
-                </Link>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
-              >
-                <Link href="/settings" data-tutorial-nav="/settings">
-                  <Settings className="h-5 w-5" />
-                  <span className="sr-only">Settings</span>
-                </Link>
-              </Button>
-
-              {/* Admin Dev Tools Link */}
-              {isAdmin && (
+              {/* Account action buttons */}
+              <div className="flex items-center gap-1 md:gap-2">
                 <Button
                   variant="ghost"
                   size="icon"
                   asChild
-                  className={`${isDark ? "hover:bg-muted" : "hover:bg-gray-100"} ${
-                    pathname.startsWith("/dev")
-                      ? "bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400"
-                      : ""
-                  }`}
-                  title="Admin Dev Tools"
+                  className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
                 >
-                  <Link href="/dev">
-                    <Wrench className="h-5 w-5" />
-                    <span className="sr-only">Dev Tools</span>
+                  <Link href="/dashboard" data-tutorial-nav="/dashboard">
+                    <User className="h-5 w-5" />
+                    <span className="sr-only">Dashboard</span>
                   </Link>
                 </Button>
-              )}
 
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSignOutModalOpen(true)}
-                className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
-              >
-                <LogOut className="h-5 w-5" />
-                <span className="sr-only">Sign Out</span>
-              </Button>
-            </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
+                >
+                  <Link href="/settings" data-tutorial-nav="/settings">
+                    <Settings className="h-5 w-5" />
+                    <span className="sr-only">Settings</span>
+                  </Link>
+                </Button>
 
-            <Dialog open={signOutModalOpen} onOpenChange={setSignOutModalOpen}>
+                {/* Admin Dev Tools Link */}
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    asChild
+                    className={`${isDark ? "hover:bg-muted" : "hover:bg-gray-100"} ${
+                      pathname.startsWith("/dev")
+                        ? "bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400"
+                        : ""
+                    }`}
+                    title="Admin Dev Tools"
+                  >
+                    <Link href="/dev">
+                      <Wrench className="h-5 w-5" />
+                      <span className="sr-only">Dev Tools</span>
+                    </Link>
+                  </Button>
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSignOutModalOpen(true)}
+                  className={isDark ? "hover:bg-muted" : "hover:bg-gray-100"}
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span className="sr-only">Sign Out</span>
+                </Button>
+              </div>
+
+              <Dialog open={signOutModalOpen} onOpenChange={setSignOutModalOpen}>
                 <DialogContent className={isDark ? "bg-card border-border text-card-foreground" : ""}>
                   <DialogHeader>
                     <DialogTitle>Sign out</DialogTitle>
@@ -345,7 +358,7 @@ export function Header() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-              </>
+            </>
           ) : (
             <div className="flex items-center gap-2">
               <Button
@@ -556,6 +569,11 @@ export function Header() {
                     {streaksEnabled ? (
                       <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
                         <Link href="/streaks">Streaks</Link>
+                      </DropdownMenuItem>
+                    ) : null}
+                    {kitchenEnabled ? (
+                      <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
+                        <Link href="/kitchen">Kitchen Sync</Link>
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">

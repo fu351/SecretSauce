@@ -18,12 +18,12 @@ import { useDraggable } from "@dnd-kit/core"
 
 interface DragData {
   recipe: Recipe
-  source: 'modal' | 'slot'
+  source: "modal" | "slot"
   sourceMealType?: string
   sourceDate?: string
 }
 
-interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
+interface RecipeCardProps extends Omit<Partial<Recipe>, "tags"> {
   id: string
   title: string
   rating_avg: number
@@ -35,7 +35,7 @@ interface RecipeCardProps extends Omit<Partial<Recipe>, 'tags'> {
   onFavoriteChange?: (id: string, isFavorited: boolean) => void
   showFavorite?: boolean
   isDragging?: boolean
-  getDraggableProps?: (recipe: Recipe, source: 'modal' | 'slot', mealType?: string, date?: string) => { draggableId: string; data: DragData }
+  getDraggableProps?: (recipe: Recipe, source: "modal" | "slot", mealType?: string, date?: string) => { draggableId: string; data: DragData }
 }
 
 function RecipeCardComponent({
@@ -66,9 +66,9 @@ function RecipeCardComponent({
   const { toast } = useToast()
 
   // Setup draggable if getDraggableProps is provided
-  const draggableProps = getDraggableProps ? getDraggableProps(recipe, 'modal') : null
+  const draggableProps = getDraggableProps ? getDraggableProps(recipe, "modal") : null
   const { attributes, listeners, setNodeRef } = useDraggable({
-    id: draggableProps?.draggableId || '',
+    id: draggableProps?.draggableId || "",
     data: draggableProps?.data,
     disabled: !getDraggableProps,
   })
@@ -170,7 +170,7 @@ function RecipeCardComponent({
   return (
     <div
       ref={setNodeRef}
-      className={`relative group transition-opacity ${getDraggableProps ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragging ? 'opacity-50' : ''}`}
+      className={`relative group transition-opacity ${getDraggableProps ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragging ? "opacity-50" : ""}`}
       {...(getDraggableProps ? { ...attributes, ...listeners } : {})}
     >
       <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-gray-200">

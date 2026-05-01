@@ -18,23 +18,23 @@ export type RecipeTags = (DietaryTag | AllergenTag)[]
  */
 export type DietaryTag =
   // --- Lifestyle & Diets ---
-  | 'vegetarian'
-  | 'vegan'
-  | 'gluten-free'
-  | 'dairy-free'
-  | 'keto'
-  | 'paleo'
-  | 'low-carb'
-  | 'other'
+  | "vegetarian"
+  | "vegan"
+  | "gluten-free"
+  | "dairy-free"
+  | "keto"
+  | "paleo"
+  | "low-carb"
+  | "other"
 
-  // --- Allergen Flags ---
-  export type AllergenTag =
-    | 'contains-dairy'
-    | 'contains-gluten'
-    | 'contains-nuts'
-    | 'contains-shellfish'
-    | 'contains-egg'
-    | 'contains-soy'
+// --- Allergen Flags ---
+export type AllergenTag =
+    | "contains-dairy"
+    | "contains-gluten"
+    | "contains-nuts"
+    | "contains-shellfish"
+    | "contains-egg"
+    | "contains-soy"
 
 /**
  * Protein Tag Type - values derived from PROTEIN_TAGS constant
@@ -43,16 +43,16 @@ export type DietaryTag =
  * Auto-generated based on ingredient analysis.
  */
 export type ProteinTag =
-  | 'chicken'
-  | 'beef'
-  | 'pork'
-  | 'fish'
-  | 'shellfish'
-  | 'turkey'
-  | 'tofu'
-  | 'legume'
-  | 'egg'
-  | 'other'
+  | "chicken"
+  | "beef"
+  | "pork"
+  | "fish"
+  | "shellfish"
+  | "turkey"
+  | "tofu"
+  | "legume"
+  | "egg"
+  | "other"
 
 /**
  * Meal Type Tag - values derived from MEAL_TYPE_TAGS constant
@@ -60,7 +60,7 @@ export type ProteinTag =
  * Classifies the recipe as breakfast, lunch, dinner, snack, or dessert.
  * Auto-generated based on recipe characteristics.
  */
-export type MealTypeTag = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
+export type MealTypeTag = "breakfast" | "lunch" | "dinner" | "snack" | "dessert"
 
 /**
  * Cuisine Type - values derived from CUISINE_TYPES constant
@@ -69,21 +69,21 @@ export type MealTypeTag = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
  * Can be auto-detected or manually specified.
  */
 export type CuisineType =
-  | 'italian'
-  | 'mexican'
-  | 'chinese'
-  | 'indian'
-  | 'american'
-  | 'french'
-  | 'japanese'
-  | 'thai'
-  | 'mediterranean'
-  | 'korean'
-  | 'greek'
-  | 'spanish'
-  | 'vietnamese'
-  | 'middle-eastern'
-  | 'other'
+  | "italian"
+  | "mexican"
+  | "chinese"
+  | "indian"
+  | "american"
+  | "french"
+  | "japanese"
+  | "thai"
+  | "mediterranean"
+  | "korean"
+  | "greek"
+  | "spanish"
+  | "vietnamese"
+  | "middle-eastern"
+  | "other"
 
 /**
  * Difficulty Level Type - values derived from DIFFICULTY_LEVELS constant
@@ -91,4 +91,4 @@ export type CuisineType =
  * Represents the complexity level of the recipe.
  * Helps users find recipes appropriate for their skill level.
  */
-export type DifficultyLevel = 'beginner' | 'intermediate' | 'advanced'
+export type DifficultyLevel = "beginner" | "intermediate" | "advanced"

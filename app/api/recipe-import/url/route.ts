@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
-import type { RecipeImportResponse } from '@/lib/types'
+import { NextRequest, NextResponse } from "next/server"
+import type { RecipeImportResponse } from "@/lib/types"
 
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || process.env.NEXT_PUBLIC_PYTHON_SERVICE_URL
 
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
 
     if (!url) {
       return NextResponse.json(
-        { success: false, error: 'URL is required' } as RecipeImportResponse,
+        { success: false, error: "URL is required" } as RecipeImportResponse,
         { status: 400 }
       )
     }
@@ -19,23 +19,23 @@ export async function POST(request: NextRequest) {
       new URL(url)
     } catch {
       return NextResponse.json(
-        { success: false, error: 'Invalid URL format' } as RecipeImportResponse,
+        { success: false, error: "Invalid URL format" } as RecipeImportResponse,
         { status: 400 }
       )
     }
 
     if (!PYTHON_SERVICE_URL) {
       return NextResponse.json(
-        { success: false, error: 'Python service URL not configured' } as RecipeImportResponse,
+        { success: false, error: "Python service URL not configured" } as RecipeImportResponse,
         { status: 500 }
       )
     }
 
     // Call Python backend
     const response = await fetch(`${PYTHON_SERVICE_URL}recipe-import/url`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ url }),
     })
@@ -52,11 +52,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data)
 
   } catch (error) {
-    console.error('Recipe URL import error:', error)
+    console.error("Recipe URL import error:", error)
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to import recipe from URL'
+        error: error instanceof Error ? error.message : "Failed to import recipe from URL"
       } as RecipeImportResponse,
       { status: 500 }
     )

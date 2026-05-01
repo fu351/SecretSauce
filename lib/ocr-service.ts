@@ -1,5 +1,5 @@
-import { createWorker, Worker } from 'tesseract.js'
-import type { OCRResult } from '@/lib/types'
+import { createWorker, Worker } from "tesseract.js"
+import type { OCRResult } from "@/lib/types"
 
 let worker: Worker | null = null
 
@@ -9,9 +9,9 @@ let worker: Worker | null = null
  */
 async function getWorker(): Promise<Worker> {
   if (!worker) {
-    worker = await createWorker('eng', 1, {
+    worker = await createWorker("eng", 1, {
       logger: (m) => {
-        if (m.status === 'recognizing text') {
+        if (m.status === "recognizing text") {
           // Progress updates can be used to show loading state
           console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`)
         }
@@ -33,9 +33,9 @@ export async function performOCR(
 ): Promise<OCRResult> {
   try {
     // Create a worker with progress tracking
-    const ocrWorker = await createWorker('eng', 1, {
+    const ocrWorker = await createWorker("eng", 1, {
       logger: (m) => {
-        if (m.status === 'recognizing text' && onProgress) {
+        if (m.status === "recognizing text" && onProgress) {
           onProgress(Math.round(m.progress * 100))
         }
       },
@@ -69,11 +69,11 @@ export async function performOCR(
       blocks,
     }
   } catch (error) {
-    console.error('OCR error:', error)
+    console.error("OCR error:", error)
     throw new Error(
       error instanceof Error
         ? `OCR failed: ${error.message}`
-        : 'Failed to perform OCR on image'
+        : "Failed to perform OCR on image"
     )
   }
 }
@@ -89,9 +89,9 @@ export async function performOCRFromUrl(
   onProgress?: (progress: number) => void
 ): Promise<OCRResult> {
   try {
-    const ocrWorker = await createWorker('eng', 1, {
+    const ocrWorker = await createWorker("eng", 1, {
       logger: (m) => {
-        if (m.status === 'recognizing text' && onProgress) {
+        if (m.status === "recognizing text" && onProgress) {
           onProgress(Math.round(m.progress * 100))
         }
       },
@@ -110,11 +110,11 @@ export async function performOCRFromUrl(
       })) || [],
     }
   } catch (error) {
-    console.error('OCR error:', error)
+    console.error("OCR error:", error)
     throw new Error(
       error instanceof Error
         ? `OCR failed: ${error.message}`
-        : 'Failed to perform OCR on image'
+        : "Failed to perform OCR on image"
     )
   }
 }
@@ -125,14 +125,14 @@ export async function performOCRFromUrl(
 export function cleanOCRText(text: string): string {
   return text
     // Remove excessive whitespace
-    .replace(/\s+/g, ' ')
+    .replace(/\s+/g, " ")
     // Fix common OCR mistakes
-    .replace(/\|/g, 'l')
-    .replace(/0(?=[a-zA-Z])/g, 'O')
+    .replace(/\|/g, "l")
+    .replace(/0(?=[a-zA-Z])/g, "O")
     // Remove isolated single characters that are likely noise
-    .replace(/\s[a-zA-Z]\s/g, ' ')
+    .replace(/\s[a-zA-Z]\s/g, " ")
     // Normalize line breaks
-    .replace(/\n\s*\n/g, '\n')
+    .replace(/\n\s*\n/g, "\n")
     .trim()
 }
 

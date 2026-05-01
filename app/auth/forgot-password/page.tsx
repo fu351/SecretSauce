@@ -198,7 +198,7 @@ export default function ForgotPasswordPage() {
           <form onSubmit={handleResetPassword} className="space-y-6">
             <div className="p-4 rounded-lg bg-[#e8dcc4]/5 border border-[#e8dcc4]/20">
               <p className="text-sm text-[#e8dcc4]/80 text-center">
-                We've sent a password reset code to <strong>{email}</strong>
+                We&apos;ve sent a password reset code to <strong>{email}</strong>
               </p>
               <p className="text-xs text-[#e8dcc4]/60 text-center mt-2">
                 Enter the code below and choose a new password.

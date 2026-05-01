@@ -1,6 +1,6 @@
-import type { RecipeIngredient } from '../recipe/ingredient'
-import type { Instruction } from '../recipe/instruction'
-import type { NutritionInfo } from '../recipe/nutrition'
+import type { RecipeIngredient } from "../recipe/ingredient"
+import type { Instruction } from "../recipe/instruction"
+import type { NutritionInfo } from "../recipe/nutrition"
 
 /**
  * Recipe Submission Data Type

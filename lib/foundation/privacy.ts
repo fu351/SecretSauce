@@ -23,8 +23,15 @@ export const SOCIAL_PROJECTION_EVENT_TYPES = [
   "cook_check.approved",
   "recipe_try.logged",
   "streak_milestone.reached",
-  "plan_share.published",
-  "cook_along.joined",
+  "meal_plan_share.published",
+  "cooking_journey.published",
+  "savings_achievement.reached",
+  "pantry_utilization_milestone.reached",
+  "badge_earned.published",
+  "competition_win.published",
+  "challenge_result.published",
+  "leaderboard_milestone.reached",
+  "campus_cup_result.published",
 ] as const
 
 export type SocialProjectionEventType = (typeof SOCIAL_PROJECTION_EVENT_TYPES)[number]

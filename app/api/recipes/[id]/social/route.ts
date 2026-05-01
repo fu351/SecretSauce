@@ -40,11 +40,11 @@ export async function GET(
 
       viewerId
         ? supabase
-            .from("recipe_likes")
-            .select("id")
-            .eq("recipe_id", recipeId)
-            .eq("profile_id", viewerId)
-            .maybeSingle()
+          .from("recipe_likes")
+          .select("id")
+          .eq("recipe_id", recipeId)
+          .eq("profile_id", viewerId)
+          .maybeSingle()
         : Promise.resolve({ data: null }),
 
       supabase
@@ -54,11 +54,11 @@ export async function GET(
 
       viewerId
         ? supabase
-            .from("recipe_reposts")
-            .select("id")
-            .eq("recipe_id", recipeId)
-            .eq("profile_id", viewerId)
-            .maybeSingle()
+          .from("recipe_reposts")
+          .select("id")
+          .eq("recipe_id", recipeId)
+          .eq("profile_id", viewerId)
+          .maybeSingle()
         : Promise.resolve({ data: null }),
     ])
 

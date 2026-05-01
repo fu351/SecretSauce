@@ -120,6 +120,23 @@ Last verified: 2026-04-30.
 - `GET /api/streaks/pending-confirmations`
   - Returns pending streak confirmation tasks for the authenticated profile only.
 
+### Social Sprint 1 (Kitchen Sync + Cook Checks)
+
+- `GET/PATCH /api/social/preferences`
+  - Reads/updates allowlisted social preference fields (`socialEnabled`, `socialVisibilityDefault`, `showReactionCounts`).
+- `GET/POST /api/social/cook-checks/drafts`
+  - Lists own drafts or creates idempotent draft from owned eligible source (`recipe_try`, `streak`, `verification`, `manual_meal`).
+- `POST /api/social/cook-checks/[id]/publish`
+  - Publishes owner draft with validated caption/visibility and emits sanitized `cook_check.approved` projection.
+- `PATCH /api/social/cook-checks/[id]`
+  - Owner-only draft edit (caption/visibility).
+- `POST /api/social/cook-checks/[id]/skip`
+  - Owner-only skip transition.
+- `GET /api/social/kitchen-sync`
+  - Chronological Kitchen Sync feed from safe projections only; private/follower visibility enforced.
+- `POST/DELETE /api/social/cook-checks/[id]/reactions`
+  - Adds/removes lightweight reactions when viewer can access the cook check.
+
 ## Frontend Callers
 
 - `contexts/auth-context.tsx`, `app/auth/signin/page.tsx`, `app/auth/signup/page.tsx`, and `app/auth/check-email/page.tsx` call `/api/auth/ensure-profile`.
@@ -147,6 +164,7 @@ Last verified: 2026-04-30.
 - Budget writes are profile-scoped and authenticated server-side; client-supplied profile/user identifiers are ignored.
 - Budget state is private and does not flow into `social_activity_projections`.
 - Streak writes are profile-scoped and private; streak day crediting uses verification/confirmation + recipe_tries foundations and avoids social projections by default.
+- Kitchen Sync never exposes raw budget/pantry/receipt/AI-confidence/private media internals. Approved social payloads must stay sanitized and explicitly shared.
 
 ### Stripe
 

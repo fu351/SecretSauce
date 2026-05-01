@@ -357,26 +357,26 @@ export function StoreMap({
         <div style="min-width:220px;background:${bgColor};color:${textColor};padding:12px;border-radius:12px;font-family:'Inter',system-ui,sans-serif;">
           <div style="font-size:15px;font-weight:600;">${displayName}</div>
           ${
-            resolvedName && resolvedName !== requestedAlias
-              ? `<div style="margin-top:4px;font-size:12px;color:${mutedColor};">Found: ${resolvedName}</div>`
-              : ""
-          }
+  resolvedName && resolvedName !== requestedAlias
+    ? `<div style="margin-top:4px;font-size:12px;color:${mutedColor};">Found: ${resolvedName}</div>`
+    : ""
+}
           <div style="margin-top:6px;font-size:14px;">Total: <strong>$${comparison.total.toFixed(2)}</strong></div>
           ${
-            comparison.savings > 0
-              ? `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">+$${comparison.savings.toFixed(2)} vs best</div>`
-              : `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">Best price!</div>`
-          }
+  comparison.savings > 0
+    ? `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">+$${comparison.savings.toFixed(2)} vs best</div>`
+    : `<div style="font-size:13px;color:${extraCostColor};margin-top:2px;">Best price!</div>`
+}
           ${
-            distanceMiles !== null
-              ? `<div style="margin-top:6px;font-size:13px;color:${mutedColor};">Distance: ${distanceMiles.toFixed(1)} mi</div>`
-              : ""
-          }
+  distanceMiles !== null
+    ? `<div style="margin-top:6px;font-size:13px;color:${mutedColor};">Distance: ${distanceMiles.toFixed(1)} mi</div>`
+    : ""
+}
           ${
-            travelTime
-              ? `<div style="margin-top:4px;font-size:13px;color:${mutedColor};">Est. ${travelMode === "walking" ? "walk" : "drive"}: ${travelTime}</div>`
-              : ""
-          }
+  travelTime
+    ? `<div style="margin-top:4px;font-size:13px;color:${mutedColor};">Est. ${travelMode === "walking" ? "walk" : "drive"}: ${travelTime}</div>`
+    : ""
+}
         </div>
       `
     },

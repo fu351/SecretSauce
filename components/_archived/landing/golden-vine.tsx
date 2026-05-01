@@ -309,23 +309,23 @@ export function GoldenVine() {
           {/* 6. Third strand flow */}
           <path data-flow="strand3" d={STRAND3} fill="none" stroke="#D4AF37" strokeWidth="0.85" strokeLinecap="round" opacity="0.1" style={{ strokeDasharray: `0 ${TRUNK_LEN}` }} />
 
-        {/* ═══════════ ILLUMINATED SAUCE BEADS (along stream) ═══════════ */}
-        {DRIP_CURVES.map((d, i) => {
-          const m = d.match(/M[\d.]+,([\d.]+)/)
-          return (
-            <path key={`lt${i}`} data-ty={m ? m[1] : "0"} d={d} fill="none" stroke="#FFCC44" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" opacity="0" />
-          )
-        })}
+          {/* ═══════════ ILLUMINATED SAUCE BEADS (along stream) ═══════════ */}
+          {DRIP_CURVES.map((d, i) => {
+            const m = d.match(/M[\d.]+,([\d.]+)/)
+            return (
+              <path key={`lt${i}`} data-ty={m ? m[1] : "0"} d={d} fill="none" stroke="#FFCC44" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" opacity="0" />
+            )
+          })}
 
-        {/* ═══════════ ILLUMINATED SAUCE DROPLETS (along main stream) ═══════════ */}
-        {NODES.map((n, i) => (
-          <g key={`ln${i}`} data-ny={n.y} opacity="0">
-            <circle cx={trunkX(n.y)} cy={n.y} r={n.r + 5} fill="#D4AF37" opacity="0.12" filter="url(#gN)" />
-            <circle cx={trunkX(n.y)} cy={n.y} r={n.r + 1.5} fill="#D4AF37" opacity="0.3" />
-            <circle cx={trunkX(n.y)} cy={n.y} r={n.r} fill="#FFCC44" opacity="0.45" />
-            <circle cx={trunkX(n.y)} cy={n.y} r={n.r * 0.4} fill="#FFF8DC" opacity="0.9" />
-          </g>
-        ))}
+          {/* ═══════════ ILLUMINATED SAUCE DROPLETS (along main stream) ═══════════ */}
+          {NODES.map((n, i) => (
+            <g key={`ln${i}`} data-ny={n.y} opacity="0">
+              <circle cx={trunkX(n.y)} cy={n.y} r={n.r + 5} fill="#D4AF37" opacity="0.12" filter="url(#gN)" />
+              <circle cx={trunkX(n.y)} cy={n.y} r={n.r + 1.5} fill="#D4AF37" opacity="0.3" />
+              <circle cx={trunkX(n.y)} cy={n.y} r={n.r} fill="#FFCC44" opacity="0.45" />
+              <circle cx={trunkX(n.y)} cy={n.y} r={n.r * 0.4} fill="#FFF8DC" opacity="0.9" />
+            </g>
+          ))}
 
         </g>
       </svg>

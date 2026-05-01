@@ -3,6 +3,7 @@ import { createRecipeTry } from "@/lib/foundation/recipe-tries"
 import { appendProductEvent } from "@/lib/foundation/product-events-service"
 import { buildIdempotencyKey } from "@/lib/foundation/product-events"
 import { createVerificationTaskWithRouting, applyUserVerificationDecision } from "@/lib/foundation/verification-service"
+import { createCookCheckDraftFromSource } from "@/lib/social/service"
 import {
   calculateCurrentStreak,
   calculateWeeklyCookDialCount,
@@ -27,6 +28,14 @@ import {
 } from "@/lib/streaks/repository"
 
 type SupabaseLike = { from: (table: string) => any }
+
+async function tryCreateCookCheckDraft(supabase: SupabaseLike, input: Parameters<typeof createCookCheckDraftFromSource>[1]) {
+  try {
+    await createCookCheckDraftFromSource(supabase as any, input as any)
+  } catch {
+    // Cook check draft creation must never block streak progression.
+  }
+}
 
 export async function assertStreaksEnabled(supabase: SupabaseLike, profileId: string): Promise<boolean> {
   return isStreaksEnabledForProfile(supabase, profileId)
@@ -224,6 +233,14 @@ export async function confirmStreakVerification(
     metadata: { recipeTryId: recipeTryResult.recipeTry.id, sourceVerificationTaskId: input.verificationTaskId },
   })
 
+  await tryCreateCookCheckDraft(supabase as any, {
+    profileId: input.profileId,
+    sourceType: "verification",
+    sourceVerificationTaskId: input.verificationTaskId,
+    sourceRecipeTryId: recipeTryResult.recipeTry.id,
+    caption: "Cook check ready to share",
+  })
+
   return applyCountedDay(supabase, {
     profileId: input.profileId,
     streakDate,
@@ -252,6 +269,13 @@ export async function manualConfirmMeal(
     eventType: "streak.manual_meal_confirmed",
     idempotencyKey: buildIdempotencyKey(["streak-manual-confirmed", input.profileId, streakDate]),
     metadata: { sourceType: "manual" },
+  })
+
+  await tryCreateCookCheckDraft(supabase as any, {
+    profileId: input.profileId,
+    sourceType: "manual_meal",
+    sourceRecipeTryId: recipeTryResult.recipeTry.id,
+    caption: "Cook check ready to share",
   })
 
   return applyCountedDay(supabase, {

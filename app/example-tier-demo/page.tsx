@@ -99,7 +99,7 @@ export default async function TierDemoPage() {
           {/* This uses server-side tier check - no loading state needed */}
           {tier === "free" || tier === null ? (
             <div className="text-gray-600">
-              <p className="mb-2">You're on the free tier.</p>
+              <p className="mb-2">You&apos;re on the free tier.</p>
               <Link
                 href="/pricing"
                 className="text-blue-600 hover:text-blue-700 underline"
@@ -122,7 +122,7 @@ export default async function TierDemoPage() {
           <div className="space-y-2 text-sm text-blue-800">
             <p>
               <strong>Server Components:</strong> Use{" "}
-              <code className="bg-blue-100 px-1 rounded">requireTier("premium")</code> to
+              <code className="bg-blue-100 px-1 rounded">requireTier(&quot;premium&quot;)</code> to
               protect entire pages
             </p>
             <p>

@@ -239,8 +239,8 @@ export function LandingPage() {
         </div>
 
         <div className="relative z-10 flex flex-col items-center text-center max-w-2xl mx-auto">
-        {/* Section 8 “easy” image replaces logo at bottom */}
-        <div className="mb-2 w-full">
+          {/* Section 8 “easy” image replaces logo at bottom */}
+          <div className="mb-2 w-full">
             <Image
               src="/end.png"
               alt="Secret Sauce"

@@ -178,7 +178,7 @@ export function TutorialCardBody({
           ) : (
             <>
               <p className="text-xs opacity-60 mb-2">
-                We couldn't find the UI element for this step.
+                We couldn&apos;t find the UI element for this step.
               </p>
               <p className="text-[10px] opacity-40 mb-6">
                 Step {completedSteps} of {totalSteps}
@@ -236,8 +236,8 @@ export function TutorialCardBody({
             {isPageTransition
               ? `You're done here. Use the navigation ${isMobile ? "below" : "above"} to go to ${PAGE_NAMES[nextSlot!.page] ?? nextSlot!.page}.`
               : isWildcardTransition
-              ? `You're done here. ${currentSubstep?.instruction ?? "Click a card to continue to the next step."}`
-              : currentSubstep?.instruction ?? currentStep?.description}
+                ? `You're done here. ${currentSubstep?.instruction ?? "Click a card to continue to the next step."}`
+                : currentSubstep?.instruction ?? currentStep?.description}
           </p>
 
           {showScrollPrompt ? (

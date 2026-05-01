@@ -1,7 +1,7 @@
-import type { RecipeIngredient } from '../recipe/ingredient'
-import type { Instruction } from '../recipe/instruction'
-import type { NutritionInfo } from '../recipe/nutrition'
-import type { RecipeTags, DietaryTag } from '../recipe/tags'
+import type { RecipeIngredient } from "../recipe/ingredient"
+import type { Instruction } from "../recipe/instruction"
+import type { NutritionInfo } from "../recipe/nutrition"
+import type { RecipeTags, DietaryTag } from "../recipe/tags"
 
 /**
  * Recipe Import Source Type
@@ -9,7 +9,7 @@ import type { RecipeTags, DietaryTag } from '../recipe/tags'
  * Indicates where the recipe data was imported from.
  * Used to customize import handling and data validation.
  */
-export type RecipeImportSource = 'url' | 'instagram' | 'image' | 'manual'
+export type RecipeImportSource = "url" | "instagram" | "image" | "manual"
 
 /**
  * Imported Recipe Data Type
@@ -44,7 +44,7 @@ export interface ImportedRecipe {
   total_time?: number
   servings?: number
   cuisine?: string
-  difficulty?: 'beginner' | 'intermediate' | 'advanced'
+  difficulty?: "beginner" | "intermediate" | "advanced"
 
   // Recipe components
   ingredients?: RecipeIngredient[]

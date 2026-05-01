@@ -294,7 +294,7 @@ export function TutorialOverlay() {
   // we create a ref so the scroll hook can reference it without a circular dep.
   const scheduleHighlightUpdateRef = useRef<
     (opts?: { immediate?: boolean; minIntervalMs?: number }) => void
-  >(() => {})
+      >(() => {})
 
   const { scrollToTarget } = useScrollToTarget({
     headerHeight,
@@ -452,8 +452,8 @@ export function TutorialOverlay() {
   const scrollPromptLabel = isTargetClippedByContainer
     ? "Scroll the filter panel to the highlighted option"
     : isTargetAbove
-    ? "Scroll up to highlighted element"
-    : "Scroll down to highlighted element"
+      ? "Scroll up to highlighted element"
+      : "Scroll down to highlighted element"
   const scrollPromptDirectionUp = isTargetClippedByContainer
     ? isTargetAboveContainer
     : isTargetAbove
@@ -468,17 +468,17 @@ export function TutorialOverlay() {
       ? "w-[calc(100vw-1.5rem)] max-w-none"
       : "w-72 max-w-[calc(100vw-2rem)]"
     : isMobile
-    ? "w-[calc(100vw-1.5rem)] max-w-none"
-    : "w-[calc(100vw-2rem)] max-w-[400px]"
+      ? "w-[calc(100vw-1.5rem)] max-w-none"
+      : "w-[calc(100vw-2rem)] max-w-[400px]"
   const overlayHeaderClass = isMobile
     ? clsx(
-        "flex items-center justify-between border-b border-white/5 p-3 touch-none",
-        isDraggingOverlay ? "cursor-grabbing" : "cursor-grab"
-      )
+      "flex items-center justify-between border-b border-white/5 p-3 touch-none",
+      isDraggingOverlay ? "cursor-grabbing" : "cursor-grab"
+    )
     : clsx(
-        "flex items-center justify-between p-4 border-b border-white/5",
-        isDraggingOverlay ? "cursor-grabbing" : "cursor-grab"
-      )
+      "flex items-center justify-between p-4 border-b border-white/5",
+      isDraggingOverlay ? "cursor-grabbing" : "cursor-grab"
+    )
   const overlayBodyClass = isMobile
     ? "max-h-[min(44vh,24rem)] overflow-y-auto p-3"
     : "p-6"
@@ -556,10 +556,10 @@ export function TutorialOverlay() {
               {isMinimized
                 ? `Paused - ${completedSteps}/${totalSteps}`
                 : isPageLoading
-                ? "Loading content..."
-                : isChangingPage
-                ? "Syncing UI..."
-                : "Tutorial"}
+                  ? "Loading content..."
+                  : isChangingPage
+                    ? "Syncing UI..."
+                    : "Tutorial"}
             </span>
           </div>
           <div className="flex gap-1">

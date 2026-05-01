@@ -1194,105 +1194,105 @@ export default function HomeReturningPage() {
 
         {/* Post Your Dish dialog */}
         {isLoggedIn && (
-        <Dialog
-          open={postDishOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              resetPostDishForm()
-              setComposerMode("post")
-            }
-            setPostDishOpen(open)
-          }}
-        >
-          <DialogContent className="w-[96vw] max-w-md max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] p-0 overflow-hidden">
-            <DialogHeader className="px-4 py-3 pt-[calc(env(safe-area-inset-top)+0.5rem)] border-b text-left">
-              <DialogTitle className="text-base">
-                {composerMode === "story" ? "Add a story" : "Post your dish"}
-              </DialogTitle>
-              <p className="text-xs text-muted-foreground">
-                {composerMode === "story"
-                  ? "Your newest dish post becomes your story for the next 24 hours."
-                  : "Share what you cooked."}
-              </p>
-            </DialogHeader>
-            <div className="p-4 space-y-4 overflow-y-auto overscroll-contain">
-              <div className="space-y-2">
-                <Label>Photo</Label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageSelect}
-                />
-                <button
-                  type="button"
-                  className="relative w-full aspect-[4/3] rounded-xl border bg-muted overflow-hidden flex items-center justify-center hover:bg-muted/80 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {postImagePreview ? (
-                    <Image src={postImagePreview} alt="Preview" fill className="object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Upload className="h-8 w-8" />
-                      <span className="text-sm">Tap to choose a photo</span>
-                    </div>
-                  )}
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="post-title">Dish name</Label>
-                <Input
-                  id="post-title"
-                  value={postDishTitle}
-                  onChange={(e) => setPostDishTitle(e.target.value)}
-                  placeholder="e.g., Chili crisp noodles"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="post-caption">Caption</Label>
-                <Textarea
-                  id="post-caption"
-                  value={postDishCaption}
-                  onChange={(e) => setPostDishCaption(e.target.value)}
-                  placeholder="What's your secret?"
-                  rows={3}
-                />
-              </div>
-
-              {activeChallenge && (
-                <div className="rounded-xl border p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Challenge</span>
-                    <Badge variant="secondary">{activeChallenge.title}</Badge>
-                  </div>
+          <Dialog
+            open={postDishOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                resetPostDishForm()
+                setComposerMode("post")
+              }
+              setPostDishOpen(open)
+            }}
+          >
+            <DialogContent className="w-[96vw] max-w-md max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] p-0 overflow-hidden">
+              <DialogHeader className="px-4 py-3 pt-[calc(env(safe-area-inset-top)+0.5rem)] border-b text-left">
+                <DialogTitle className="text-base">
+                  {composerMode === "story" ? "Add a story" : "Post your dish"}
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground">
+                  {composerMode === "story"
+                    ? "Your newest dish post becomes your story for the next 24 hours."
+                    : "Share what you cooked."}
+                </p>
+              </DialogHeader>
+              <div className="p-4 space-y-4 overflow-y-auto overscroll-contain">
+                <div className="space-y-2">
+                  <Label>Photo</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageSelect}
+                  />
+                  <button
+                    type="button"
+                    className="relative w-full aspect-[4/3] rounded-xl border bg-muted overflow-hidden flex items-center justify-center hover:bg-muted/80 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {postImagePreview ? (
+                      <Image src={postImagePreview} alt="Preview" fill className="object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Upload className="h-8 w-8" />
+                        <span className="text-sm">Tap to choose a photo</span>
+                      </div>
+                    )}
+                  </button>
                 </div>
-              )}
-            </div>
 
-            <div className="border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  disabled={submittingPost}
-                  onClick={closePostDishDialog}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1"
-                  disabled={submittingPost || !postImage || !postDishTitle.trim()}
-                  onClick={handlePostSubmit}
-                >
-                  {submittingPost ? "Posting…" : composerMode === "story" ? "Share story" : "Post"}
-                </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="post-title">Dish name</Label>
+                  <Input
+                    id="post-title"
+                    value={postDishTitle}
+                    onChange={(e) => setPostDishTitle(e.target.value)}
+                    placeholder="e.g., Chili crisp noodles"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="post-caption">Caption</Label>
+                  <Textarea
+                    id="post-caption"
+                    value={postDishCaption}
+                    onChange={(e) => setPostDishCaption(e.target.value)}
+                    placeholder="What's your secret?"
+                    rows={3}
+                  />
+                </div>
+
+                {activeChallenge && (
+                  <div className="rounded-xl border p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Challenge</span>
+                      <Badge variant="secondary">{activeChallenge.title}</Badge>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+
+              <div className="border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    disabled={submittingPost}
+                    onClick={closePostDishDialog}
+                  >
+                  Cancel
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    disabled={submittingPost || !postImage || !postDishTitle.trim()}
+                    onClick={handlePostSubmit}
+                  >
+                    {submittingPost ? "Posting…" : composerMode === "story" ? "Share story" : "Post"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
 
         <Dialog
@@ -1443,147 +1443,147 @@ export default function HomeReturningPage() {
 
         {/* Leaders + challenge + week summary (signed-in only) */}
         {isLoggedIn && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="md:col-span-1">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium flex items-center justify-between">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="md:col-span-1">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-medium flex items-center justify-between">
                 This Week&apos;s Leaders
-                <Crown className="h-4 w-4 text-primary" />
-              </CardTitle>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={leaderboardScope === "friends" ? "secondary" : "ghost"}
-                  className="rounded-full"
-                  onClick={() => handleLeaderboardScope("friends")}
-                >
+                  <Crown className="h-4 w-4 text-primary" />
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={leaderboardScope === "friends" ? "secondary" : "ghost"}
+                    className="rounded-full"
+                    onClick={() => handleLeaderboardScope("friends")}
+                  >
                   Friends
-                </Button>
-                <Button
-                  size="sm"
-                  variant={leaderboardScope === "global" ? "secondary" : "ghost"}
-                  className="rounded-full"
-                  onClick={() => handleLeaderboardScope("global")}
-                >
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={leaderboardScope === "global" ? "secondary" : "ghost"}
+                    className="rounded-full"
+                    onClick={() => handleLeaderboardScope("global")}
+                  >
                   Global
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {leaderboard.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">
-                  {leaderboardScope === "friends" ? "No friends in this challenge yet." : "No entries yet. Be the first!"}
-                </p>
-              ) : (
-                <ol className="space-y-2">
-                  {leaderboard.map((l, i) => (
-                    <li
-                      key={l.profile_id}
-                      className={`flex items-center justify-between rounded-lg px-3 py-2 ${l.is_viewer ? "bg-primary/10" : "bg-muted/30"}`}
-                    >
-                      <span className="text-sm text-foreground truncate">
-                        <span className="mr-2 text-muted-foreground">{i + 1}.</span>
-                        {l.is_viewer ? "You" : (l.full_name ?? l.username ?? "Chef")}
-                      </span>
-                      <span className="text-sm font-medium text-foreground flex-shrink-0 ml-2">
-                        {l.total_points} pts
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="md:col-span-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Keep your week moving
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-3">
-              <div className={`grid grid-cols-1 ${savingsEnabled ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
-                {weekSummary.loading ? (
-                  <>
-                    <div className="rounded-xl border p-3 space-y-2">
-                      <div className="h-4 w-44 rounded bg-muted animate-pulse" />
-                      <div className="h-3 w-full rounded bg-muted/70 animate-pulse" />
-                      <div className="h-9 w-full rounded-md bg-muted animate-pulse mt-3" />
-                    </div>
-                    <div className="rounded-xl border p-3 space-y-2">
-                      <div className="h-4 w-48 rounded bg-muted animate-pulse" />
-                      <div className="h-3 w-full rounded bg-muted/70 animate-pulse" />
-                      <div className="h-9 w-full rounded-md bg-muted animate-pulse mt-3" />
-                    </div>
-                  </>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {leaderboard.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">
+                    {leaderboardScope === "friends" ? "No friends in this challenge yet." : "No entries yet. Be the first!"}
+                  </p>
                 ) : (
-                  <>
-                    <div className="rounded-xl border p-3">
-                      <p className="text-sm font-medium text-foreground">
-                        {weekSummary.dinnersLeft > 0
-                          ? `${weekSummary.dinnersLeft} dinner${weekSummary.dinnersLeft === 1 ? "" : "s"} left this week`
-                          : "Dinners covered this week"}
-                      </p>
-                      <p className="hidden sm:block text-xs text-muted-foreground mt-1">
-                        {weekSummary.dinnersLeft > 0
-                          ? "Add them on your meal planner from today through Sunday."
-                          : "Open the planner to tweak meals or jump ahead to next week."}
-                      </p>
-                      <Button className="mt-2 sm:mt-3 w-full" asChild>
-                        <Link href="/meal-planner">
-                          {weekSummary.dinnersLeft > 0 ? "Plan dinners" : "Meal planner"}
-                        </Link>
-                      </Button>
-                    </div>
-                    <div className="rounded-xl border p-3">
-                      <p className="text-sm font-medium text-foreground">
-                        {weekSummary.expiringSoon > 0
-                          ? `${weekSummary.expiringSoon} item${weekSummary.expiringSoon === 1 ? "" : "s"} expiring soon`
-                          : "No pantry items expiring soon"}
-                      </p>
-                      <p className="hidden sm:block text-xs text-muted-foreground mt-1">
-                        {weekSummary.expiringSoon > 0
-                          ? "Use them soon or update dates on your pantry."
-                          : "Track ingredients with dates to see reminders here."}
-                      </p>
-                      <Button className="mt-2 sm:mt-3 w-full" variant="outline" asChild>
-                        <Link href="/pantry">{weekSummary.expiringSoon > 0 ? "Use pantry" : "Open pantry"}</Link>
-                      </Button>
-                    </div>
-                    {savingsEnabled ? (
+                  <ol className="space-y-2">
+                    {leaderboard.map((l, i) => (
+                      <li
+                        key={l.profile_id}
+                        className={`flex items-center justify-between rounded-lg px-3 py-2 ${l.is_viewer ? "bg-primary/10" : "bg-muted/30"}`}
+                      >
+                        <span className="text-sm text-foreground truncate">
+                          <span className="mr-2 text-muted-foreground">{i + 1}.</span>
+                          {l.is_viewer ? "You" : (l.full_name ?? l.username ?? "Chef")}
+                        </span>
+                        <span className="text-sm font-medium text-foreground flex-shrink-0 ml-2">
+                          {l.total_points} pts
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="md:col-span-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                Keep your week moving
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-3">
+                <div className={`grid grid-cols-1 ${savingsEnabled ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+                  {weekSummary.loading ? (
+                    <>
+                      <div className="rounded-xl border p-3 space-y-2">
+                        <div className="h-4 w-44 rounded bg-muted animate-pulse" />
+                        <div className="h-3 w-full rounded bg-muted/70 animate-pulse" />
+                        <div className="h-9 w-full rounded-md bg-muted animate-pulse mt-3" />
+                      </div>
+                      <div className="rounded-xl border p-3 space-y-2">
+                        <div className="h-4 w-48 rounded bg-muted animate-pulse" />
+                        <div className="h-3 w-full rounded bg-muted/70 animate-pulse" />
+                        <div className="h-9 w-full rounded-md bg-muted animate-pulse mt-3" />
+                      </div>
+                    </>
+                  ) : (
+                    <>
                       <div className="rounded-xl border p-3">
-                        <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                          <PiggyBank className="h-4 w-4 text-amber-500" />
-                          Track weekly savings
+                        <p className="text-sm font-medium text-foreground">
+                          {weekSummary.dinnersLeft > 0
+                            ? `${weekSummary.dinnersLeft} dinner${weekSummary.dinnersLeft === 1 ? "" : "s"} left this week`
+                            : "Dinners covered this week"}
                         </p>
                         <p className="hidden sm:block text-xs text-muted-foreground mt-1">
-                          Compare spend vs goal and adjust quickly.
+                          {weekSummary.dinnersLeft > 0
+                            ? "Add them on your meal planner from today through Sunday."
+                            : "Open the planner to tweak meals or jump ahead to next week."}
                         </p>
-                        <Button className="mt-2 sm:mt-3 w-full" variant="outline" asChild>
-                          <Link href="/budget">Open savings</Link>
+                        <Button className="mt-2 sm:mt-3 w-full" asChild>
+                          <Link href="/meal-planner">
+                            {weekSummary.dinnersLeft > 0 ? "Plan dinners" : "Meal planner"}
+                          </Link>
                         </Button>
                       </div>
-                    ) : null}
+                      <div className="rounded-xl border p-3">
+                        <p className="text-sm font-medium text-foreground">
+                          {weekSummary.expiringSoon > 0
+                            ? `${weekSummary.expiringSoon} item${weekSummary.expiringSoon === 1 ? "" : "s"} expiring soon`
+                            : "No pantry items expiring soon"}
+                        </p>
+                        <p className="hidden sm:block text-xs text-muted-foreground mt-1">
+                          {weekSummary.expiringSoon > 0
+                            ? "Use them soon or update dates on your pantry."
+                            : "Track ingredients with dates to see reminders here."}
+                        </p>
+                        <Button className="mt-2 sm:mt-3 w-full" variant="outline" asChild>
+                          <Link href="/pantry">{weekSummary.expiringSoon > 0 ? "Use pantry" : "Open pantry"}</Link>
+                        </Button>
+                      </div>
+                      {savingsEnabled ? (
+                        <div className="rounded-xl border p-3">
+                          <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                            <PiggyBank className="h-4 w-4 text-amber-500" />
+                          Track weekly savings
+                          </p>
+                          <p className="hidden sm:block text-xs text-muted-foreground mt-1">
+                          Compare spend vs goal and adjust quickly.
+                          </p>
+                          <Button className="mt-2 sm:mt-3 w-full" variant="outline" asChild>
+                            <Link href="/budget">Open savings</Link>
+                          </Button>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+                {activeChallenge && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {activeChallenge.participant_count} people joined {activeChallenge.title} this week
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {timeUntil(activeChallenge.ends_at)} to submit your entry · +{activeChallenge.points} pts
+                      </p>
+                    </div>
                   </>
                 )}
-              </div>
-              {activeChallenge && (
-                <>
-                  <Separator />
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      {activeChallenge.participant_count} people joined {activeChallenge.title} this week
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {timeUntil(activeChallenge.ends_at)} to submit your entry · +{activeChallenge.points} pts
-                    </p>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* Recommended for you */}

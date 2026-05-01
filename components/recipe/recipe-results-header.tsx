@@ -33,7 +33,7 @@ export function RecipeResultsHeader({
           {searchTerm && `Search results for "${searchTerm}" - `}
           {totalCount > 0 ? (
             <>
-              Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} of {totalCount} recipe{totalCount !== 1 ? 's' : ''}
+              Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} of {totalCount} recipe{totalCount !== 1 ? "s" : ""}
             </>
           ) : (
             <>Showing 0 recipes</>

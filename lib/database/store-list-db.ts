@@ -203,13 +203,13 @@ class ShoppingListTable extends BaseTable<
       return
     }
 
-    const { error } = await this.supabase.rpc('complete_order', {
+    const { error } = await this.supabase.rpc("complete_order", {
       input_data: selections,
       target_delivery_date: targetDeliveryDate,
     })
 
     if (error) {
-      this.handleError(error, 'completeOrder')
+      this.handleError(error, "completeOrder")
       throw error
     }
   }

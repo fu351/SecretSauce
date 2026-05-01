@@ -9,11 +9,11 @@ import { formatDietaryTag } from "@/lib/tag-formatter"
 const tagIconMap: Record<string, React.ComponentType<any>> = {
   vegetarian: Leaf,
   vegan: TreePine,
-  'gluten-free': Zap,
-  'dairy-free': Droplet,
+  "gluten-free": Zap,
+  "dairy-free": Droplet,
   keto: Flame,
   paleo: Apple,
-  'low-carb': Flame,
+  "low-carb": Flame,
   other: Leaf,
 }
 
@@ -32,16 +32,16 @@ const cuisineIconMap: Record<string, React.ComponentType<any>> = {
   greek: Leaf,
   spanish: Sun,
   vietnamese: Soup,
-  'middle-eastern': Sun,
+  "middle-eastern": Sun,
   other: Globe,
 }
 
 // Format cuisine type for display (capitalize and handle hyphens)
 const formatCuisineType = (cuisine: string): string => {
   return cuisine
-    .split('-')
+    .split("-")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+    .join(" ")
 }
 
 interface FilterOption {
@@ -49,7 +49,7 @@ interface FilterOption {
   icon: React.ComponentType<any>
   label: string
   active: boolean
-  category: 'favorites' | 'dietary' | 'cuisine'
+  category: "favorites" | "dietary" | "cuisine"
 }
 
 const dietaryFilters: FilterOption[] = DIETARY_TAGS.map(tag => ({
@@ -57,7 +57,7 @@ const dietaryFilters: FilterOption[] = DIETARY_TAGS.map(tag => ({
   icon: tagIconMap[tag] || Leaf,
   label: formatDietaryTag(tag),
   active: false,
-  category: 'dietary' as const,
+  category: "dietary" as const,
 }))
 
 interface SearchFiltersProps {
@@ -75,7 +75,7 @@ export function SearchFilters({ availableCuisines }: SearchFiltersProps) {
     icon: cuisineIconMap[cuisine as CuisineType] || Globe,
     label: formatCuisineType(cuisine),
     active: false,
-    category: 'cuisine' as const,
+    category: "cuisine" as const,
   }))
 
   return (

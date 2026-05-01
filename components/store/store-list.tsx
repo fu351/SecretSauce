@@ -40,9 +40,9 @@ import { DEFAULT_CATEGORY, normalizeCategory, getCategoryIcon } from "@/lib/cons
 function toTitleCase(str: string): string {
   return str
     .toLowerCase()
-    .split(' ')
+    .split(" ")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+    .join(" ")
 }
 
 /**
@@ -111,8 +111,8 @@ export function ShoppingListSection({
 }: ExtendedShoppingListSectionProps) {
   
   // -- View State --
-  type ViewMode = 'recipe' | 'category'
-  const [viewMode, setViewMode] = useState<ViewMode>('recipe')
+  type ViewMode = "recipe" | "category"
+  const [viewMode, setViewMode] = useState<ViewMode>("recipe")
   const [showUnits, setShowUnits] = useState(true)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
@@ -183,13 +183,13 @@ export function ShoppingListSection({
   // 1. DEDUPLICATE LIST
   // =========================================================
   const uniqueList = useMemo(() => {
-    const seen = new Set<string>();
+    const seen = new Set<string>()
     return shoppingList.filter(item => {
-      if (!item.id || seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
-  }, [shoppingList]);
+      if (!item.id || seen.has(item.id)) return false
+      seen.add(item.id)
+      return true
+    })
+  }, [shoppingList])
 
   // =========================================================
   // 2. GROUPING LOGIC
@@ -213,7 +213,7 @@ export function ShoppingListSection({
     })
 
     return { recipeGroups: groups, miscItems: misc }
-  }, [uniqueList, recipeTitles]);
+  }, [uniqueList, recipeTitles])
 
   // =========================================================
   // 2B. CATEGORY GROUPING LOGIC
@@ -406,7 +406,7 @@ export function ShoppingListSection({
             variant="ghost"
             type="button"
             onClick={() => onRemoveItem(item.id)}
-            className={`h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20`}
+            className={"h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -422,7 +422,7 @@ export function ShoppingListSection({
 
     // Get servings from first item (all items in a recipe share the same servings)
     const currentServings = items[0]?.servings || 1
-    const isRecipe = items[0]?.source_type === 'recipe' && !hideServings
+    const isRecipe = items[0]?.source_type === "recipe" && !hideServings
 
     return (
       <div
@@ -457,7 +457,7 @@ export function ShoppingListSection({
             {/* Servings control for recipe items */}
             {isRecipe && onUpdateRecipeServings && (
               <div
-                className={`flex items-center gap-1 rounded-md px-2 py-1 ${theme === 'dark' ? 'bg-white/5' : 'bg-gray-100'}`}
+                className={`flex items-center gap-1 rounded-md px-2 py-1 ${theme === "dark" ? "bg-white/5" : "bg-gray-100"}`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <Users className={`h-3 w-3 ${mutedTextClass}`} />
@@ -481,9 +481,9 @@ export function ShoppingListSection({
                     autoFocus
                     min="1"
                     className={`w-6 text-center text-xs font-medium px-0.5 py-0 border rounded [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                      theme === 'dark'
-                        ? 'bg-[#181813] border-[#e8dcc4]/40 text-[#e8dcc4]'
-                        : 'bg-white border-gray-300 text-gray-900'
+                      theme === "dark"
+                        ? "bg-[#181813] border-[#e8dcc4]/40 text-[#e8dcc4]"
+                        : "bg-white border-gray-300 text-gray-900"
                     }`}
                   />
                 ) : (
@@ -507,7 +507,7 @@ export function ShoppingListSection({
             )}
 
             <div className={`text-xs ${mutedTextClass}`}>
-              <span>{totalCount} item{totalCount !== 1 ? 's' : ''}</span>
+              <span>{totalCount} item{totalCount !== 1 ? "s" : ""}</span>
             </div>
 
             {!isMisc && onRemoveRecipe && (
@@ -553,7 +553,7 @@ export function ShoppingListSection({
                   value={newItemInput}
                   onChange={(e) => onNewItemInputChange(e.target.value)}
                   placeholder="Add custom item..."
-                  onKeyDown={(e) => e.key === 'Enter' && onAddCustomItem()}
+                  onKeyDown={(e) => e.key === "Enter" && onAddCustomItem()}
                   className={`h-8 ${inputClass}`}
                 />
                 <Button
@@ -590,9 +590,9 @@ export function ShoppingListSection({
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => setViewMode('recipe')}
+                      onClick={() => setViewMode("recipe")}
                       className={`h-7 w-7 rounded-sm transition-all ${
-                        viewMode === 'recipe'
+                        viewMode === "recipe"
                           ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
                           : mutedTextClass
                       }`}
@@ -603,9 +603,9 @@ export function ShoppingListSection({
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => setViewMode('category')}
+                      onClick={() => setViewMode("category")}
                       className={`h-7 w-7 rounded-sm transition-all ${
-                        viewMode === 'category'
+                        viewMode === "category"
                           ? theme === "dark" ? "bg-[#e8dcc4]/20 text-[#e8dcc4]" : "bg-white shadow-sm text-black"
                           : mutedTextClass
                       }`}
@@ -634,18 +634,18 @@ export function ShoppingListSection({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className={`h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 px-2`}
+                        className={"h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 px-2"}
                         title="Clear entire shopping list"
                       >
                         <Trash2 className="h-4 w-4 sm:mr-1" />
                         <span className="hidden sm:inline">Clear All</span>
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className={`${theme === 'dark' ? 'bg-[#181813] border-[#e8dcc4]/20' : 'bg-white'}`}>
+                    <DialogContent className={`${theme === "dark" ? "bg-[#181813] border-[#e8dcc4]/20" : "bg-white"}`}>
                       <DialogHeader>
                         <DialogTitle className={textClass}>Clear Shopping List?</DialogTitle>
                         <DialogDescription>
-                          This will remove all {uniqueList.length} item{uniqueList.length !== 1 ? 's' : ''} from your shopping list. This action cannot be undone.
+                          This will remove all {uniqueList.length} item{uniqueList.length !== 1 ? "s" : ""} from your shopping list. This action cannot be undone.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="flex gap-3 justify-end">
@@ -683,7 +683,7 @@ export function ShoppingListSection({
           </div>
         ) : (
           <div className="space-y-4">
-            {viewMode === 'recipe' ? (
+            {viewMode === "recipe" ? (
               <>
                 {Object.entries(recipeGroups).map(([recipeId, group]) =>
                   renderSection(

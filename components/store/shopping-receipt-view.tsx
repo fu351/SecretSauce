@@ -289,7 +289,7 @@ export function ShoppingReceiptView({
   // Empty state
   if (shoppingList.length === 0 && !loading) {
     return (
-      <Card className={`${theme === 'dark' ? 'bg-[#1f1e1a]' : 'bg-white'} w-full max-w-full overflow-hidden ${className}`}>
+      <Card className={`${theme === "dark" ? "bg-[#1f1e1a]" : "bg-white"} w-full max-w-full overflow-hidden ${className}`}>
         <CardContent className="flex flex-col items-center justify-center py-16">
           <ShoppingBag className="h-16 w-16 text-gray-300 mb-4" />
           <p className="text-lg font-semibold text-gray-900 dark:text-[#e8dcc4] mb-2">
@@ -305,13 +305,13 @@ export function ShoppingReceiptView({
 
   return (
     <div className={`flex min-w-0 max-w-full flex-col overflow-hidden rounded-xl border ${
-      theme === 'dark' ? 'border-white/10 bg-[#1f1e1a]' : 'border-gray-200 bg-white'
+      theme === "dark" ? "border-white/10 bg-[#1f1e1a]" : "border-gray-200 bg-white"
     } ${className}`} data-tutorial="store-overview">
       {/* Store Selector - Sticky Header */}
       <div className={`sticky top-0 z-10 ${
-        theme === 'dark' ? 'bg-[#1f1e1a]' : 'bg-white'
+        theme === "dark" ? "bg-[#1f1e1a]" : "bg-white"
       } border-b ${
-        theme === 'dark' ? 'border-white/5' : 'border-gray-200'
+        theme === "dark" ? "border-white/5" : "border-gray-200"
       } px-3 py-3 sm:px-4 lg:px-5 lg:py-4`}>
         <div className="mb-3 flex min-w-0 flex-col gap-3 lg:mb-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -319,33 +319,33 @@ export function ShoppingReceiptView({
               Shopping
             </p>
             <h1 className={`truncate text-xl font-semibold tracking-tight lg:text-2xl ${
-              theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'
+              theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
             }`}>
               Price comparison
             </h1>
           </div>
           <div className="grid grid-cols-3 gap-2 lg:min-w-[300px]">
             <div className={`rounded-lg border px-3 py-2 ${
-              theme === 'dark' ? 'border-white/10 bg-white/[0.03]' : 'border-gray-200 bg-gray-50'
+              theme === "dark" ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-gray-50"
             }`}>
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Priced</p>
-              <p className={`mt-0.5 text-sm font-semibold ${theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'}`}>
+              <p className={`mt-0.5 text-sm font-semibold ${theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"}`}>
                 {foundCount}/{totalItems}
               </p>
             </div>
             <div className={`rounded-lg border px-3 py-2 ${
-              theme === 'dark' ? 'border-white/10 bg-white/[0.03]' : 'border-gray-200 bg-gray-50'
+              theme === "dark" ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-gray-50"
             }`}>
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Missing</p>
-              <p className={`mt-0.5 text-sm font-semibold ${missingCount > 0 ? 'text-amber-600 dark:text-amber-400' : theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'}`}>
+              <p className={`mt-0.5 text-sm font-semibold ${missingCount > 0 ? "text-amber-600 dark:text-amber-400" : theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"}`}>
                 {missingCount}
               </p>
             </div>
             <div className={`rounded-lg border px-3 py-2 ${
-              theme === 'dark' ? 'border-white/10 bg-white/[0.03]' : 'border-gray-200 bg-gray-50'
+              theme === "dark" ? "border-white/10 bg-white/[0.03]" : "border-gray-200 bg-gray-50"
             }`}>
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total</p>
-              <p className={`mt-0.5 truncate font-mono text-sm font-semibold ${theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'}`}>
+              <p className={`mt-0.5 truncate font-mono text-sm font-semibold ${theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"}`}>
                 ${subtotal.toFixed(2)}
               </p>
             </div>
@@ -430,7 +430,7 @@ export function ShoppingReceiptView({
       {/* Receipt Items */}
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <Card className={`${
-          theme === 'dark' ? 'bg-[#1f1e1a] shadow-none' : 'bg-white shadow-sm'
+          theme === "dark" ? "bg-[#1f1e1a] shadow-none" : "bg-white shadow-sm"
         } border-0 rounded-none`}>
           <CardContent className="p-0">
             {/* Loading state for initial load */}
@@ -442,7 +442,7 @@ export function ShoppingReceiptView({
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-white/5" data-tutorial="store-items">
                 <div className={`hidden grid-cols-[minmax(0,1fr)_7.5rem_6.5rem_7rem] gap-4 border-b px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground lg:grid ${
-                  theme === 'dark' ? 'border-white/5 bg-white/[0.02]' : 'border-gray-100 bg-gray-50/70'
+                  theme === "dark" ? "border-white/5 bg-white/[0.02]" : "border-gray-100 bg-gray-50/70"
                 }`}>
                   <span>Item</span>
                   <span>Packages</span>
@@ -470,10 +470,10 @@ export function ShoppingReceiptView({
                   <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-semibold text-amber-900 dark:text-amber-500">
-                      {missingCount} {missingCount === 1 ? 'item' : 'items'} not available
+                      {missingCount} {missingCount === 1 ? "item" : "items"} not available
                     </p>
                     <p className="text-xs text-amber-700 dark:text-amber-600">
-                      at {selectedStoreData?.store || 'this store'}. Try a different store or find alternatives.
+                      at {selectedStoreData?.store || "this store"}. Try a different store or find alternatives.
                     </p>
                   </div>
                 </div>
@@ -485,9 +485,9 @@ export function ShoppingReceiptView({
 
       {/* Footer - Sticky Bottom with Total */}
       <div className={`sticky bottom-0 ${
-        theme === 'dark' ? 'bg-[#1f1e1a]' : 'bg-white'
+        theme === "dark" ? "bg-[#1f1e1a]" : "bg-white"
       } border-t ${
-        theme === 'dark' ? 'border-white/5' : 'border-gray-200'
+        theme === "dark" ? "border-white/5" : "border-gray-200"
       } px-3 py-3 shadow-lg sm:px-4 lg:px-5`}>
         {/* Stats */}
         <div className="mb-3 flex min-w-0 items-center justify-between gap-3 text-xs text-muted-foreground">
@@ -503,12 +503,12 @@ export function ShoppingReceiptView({
         {/* Total */}
         <div className="mb-4 flex min-w-0 items-center justify-between gap-4" data-tutorial="store-total">
           <span className={`text-base font-bold ${
-            theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'
+            theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
           }`}>
             Total
           </span>
           <span className={`text-2xl md:text-3xl font-mono font-black ${
-            theme === 'dark' ? 'text-[#e8dcc4]' : 'text-gray-900'
+            theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
           }`}>
             ${subtotal.toFixed(2)}
           </span>

@@ -1,9 +1,9 @@
-import { BaseTable } from './base-db'
-import type { Database } from '@/lib/database/supabase'
+import { BaseTable } from "./base-db"
+import type { Database } from "@/lib/database/supabase"
 
-type StandardizedIngredientRow = Database['public']['Tables']['standardized_ingredients']['Row']
-type StandardizedIngredientInsert = Database['public']['Tables']['standardized_ingredients']['Insert']
-type StandardizedIngredientUpdate = Database['public']['Tables']['standardized_ingredients']['Update']
+type StandardizedIngredientRow = Database["public"]["Tables"]["standardized_ingredients"]["Row"]
+type StandardizedIngredientInsert = Database["public"]["Tables"]["standardized_ingredients"]["Insert"]
+type StandardizedIngredientUpdate = Database["public"]["Tables"]["standardized_ingredients"]["Update"]
 type ItemCategoryEnum = Database["public"]["Enums"]["item_category_enum"]
 
 const ITEM_CATEGORY_ENUM_VALUES = new Set<ItemCategoryEnum>([
@@ -20,13 +20,13 @@ const ITEM_CATEGORY_ENUM_VALUES = new Set<ItemCategoryEnum>([
 ])
 
 class StandardizedIngredientsTable extends BaseTable<
-  'standardized_ingredients',
+  "standardized_ingredients",
   StandardizedIngredientRow,
   StandardizedIngredientInsert,
   StandardizedIngredientUpdate
 > {
   private static instance: StandardizedIngredientsTable
-  readonly tableName = 'standardized_ingredients' as const
+  readonly tableName = "standardized_ingredients" as const
 
   private constructor() {
     super()
@@ -84,18 +84,18 @@ class StandardizedIngredientsTable extends BaseTable<
       const normalized = this.normalizeCanonicalName(canonicalName)
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('canonical_name', normalized)
+        .select("*")
+        .eq("canonical_name", normalized)
         .maybeSingle()
 
       if (error) {
-        this.handleError(error, 'findByCanonicalName')
+        this.handleError(error, "findByCanonicalName")
         return null
       }
 
       return data
     } catch (error) {
-      this.handleError(error, 'findByCanonicalName')
+      this.handleError(error, "findByCanonicalName")
       return null
     }
   }
@@ -114,23 +114,23 @@ class StandardizedIngredientsTable extends BaseTable<
     try {
       console.log(`[StandardizedIngredientsTable] Searching for: ${query}`)
 
-    const { data, error } = await this.supabase
-      .from(this.tableName)
-      .select('*')
+      const { data, error } = await this.supabase
+        .from(this.tableName)
+        .select("*")
       // Add the configuration object as the third argument
-      .textSearch('search_vector', query, {
-        config: 'english',
-        type: 'plain' // <--- This is the key change
-      })
-      .limit(options?.limit || 10)
+        .textSearch("search_vector", query, {
+          config: "english",
+          type: "plain" // <--- This is the key change
+        })
+        .limit(options?.limit || 10)
       if (error) {
-        this.handleError(error, 'searchByText')
+        this.handleError(error, "searchByText")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'searchByText')
+      this.handleError(error, "searchByText")
       return []
     }
   }
@@ -143,21 +143,21 @@ class StandardizedIngredientsTable extends BaseTable<
     try {
       if (variants.length === 0) return []
 
-      console.log(`[StandardizedIngredientsTable] Searching variants: ${variants.join(', ')}`)
+      console.log(`[StandardizedIngredientsTable] Searching variants: ${variants.join(", ")}`)
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .ilike('canonical_name', `%${variants[0]}%`)
+        .select("*")
+        .ilike("canonical_name", `%${variants[0]}%`)
 
       if (error) {
-        this.handleError(error, 'searchByVariants')
+        this.handleError(error, "searchByVariants")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'searchByVariants')
+      this.handleError(error, "searchByVariants")
       return []
     }
   }
@@ -260,13 +260,13 @@ class StandardizedIngredientsTable extends BaseTable<
           return retryData
         }
 
-        this.handleError(error, 'getOrCreate')
+        this.handleError(error, "getOrCreate")
         return null
       }
 
       return data
     } catch (error) {
-      this.handleError(error, 'getOrCreate')
+      this.handleError(error, "getOrCreate")
       return null
     }
   }
@@ -337,13 +337,13 @@ class StandardizedIngredientsTable extends BaseTable<
       const { data, error } = await this.supabase
         .from(this.tableName)
         .upsert(insertData, {
-          onConflict: 'canonical_name',
+          onConflict: "canonical_name",
           ignoreDuplicates: true
         })
         .select()
 
       if (error) {
-        this.handleError(error, 'batchGetOrCreate')
+        this.handleError(error, "batchGetOrCreate")
         return result
       }
 
@@ -364,7 +364,7 @@ class StandardizedIngredientsTable extends BaseTable<
 
       return result
     } catch (error) {
-      this.handleError(error, 'batchGetOrCreate')
+      this.handleError(error, "batchGetOrCreate")
       return new Map()
     }
   }
@@ -377,18 +377,18 @@ class StandardizedIngredientsTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .eq('category', category)
-        .order('canonical_name', { ascending: true })
+        .select("*")
+        .eq("category", category)
+        .order("canonical_name", { ascending: true })
 
       if (error) {
-        this.handleError(error, 'findByCategory')
+        this.handleError(error, "findByCategory")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'findByCategory')
+      this.handleError(error, "findByCategory")
       return []
     }
   }
@@ -402,17 +402,17 @@ class StandardizedIngredientsTable extends BaseTable<
 
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('*')
-        .in('id', ids)
+        .select("*")
+        .in("id", ids)
 
       if (error) {
-        this.handleError(error, 'fetchByIds')
+        this.handleError(error, "fetchByIds")
         return []
       }
 
       return data || []
     } catch (error) {
-      this.handleError(error, 'fetchByIds')
+      this.handleError(error, "fetchByIds")
       return []
     }
   }
@@ -424,11 +424,11 @@ class StandardizedIngredientsTable extends BaseTable<
     try {
       const { data, error } = await this.supabase
         .from(this.tableName)
-        .select('canonical_name')
+        .select("canonical_name")
         .limit(sampleSize)
 
       if (error) {
-        this.handleError(error, 'getCanonicalNameSample')
+        this.handleError(error, "getCanonicalNameSample")
         return []
       }
 
@@ -436,7 +436,7 @@ class StandardizedIngredientsTable extends BaseTable<
         .map((row) => row.canonical_name)
         .filter((name): name is string => !!name && name.trim().length > 0)
     } catch (error) {
-      this.handleError(error, 'getCanonicalNameSample')
+      this.handleError(error, "getCanonicalNameSample")
       return []
     }
   }

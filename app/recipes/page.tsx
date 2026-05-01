@@ -556,8 +556,8 @@ export default function RecipesPage() {
                         setPage(1)
                         updateURL({ sort: value }, true)
                       }}
-      showFavoritesOnly={showLikedOnly}
-      onFavoritesToggle={handleLikedToggle}
+                      showFavoritesOnly={showLikedOnly}
+                      onFavoritesToggle={handleLikedToggle}
                       showUserOnly={showUserOnly}
                       onUserRecipesToggle={handleUserRecipesToggle}
                       selectedCollectionId={selectedCollectionId}
@@ -751,7 +751,7 @@ export default function RecipesPage() {
                         <span>Scroll down for more</span>
                       )
                     ) : (
-                      <span>You've reached the end</span>
+                      <span>You&apos;ve reached the end</span>
                     )}
                   </div>
                   <div ref={mobileLoadMoreRef} className="h-8" />
