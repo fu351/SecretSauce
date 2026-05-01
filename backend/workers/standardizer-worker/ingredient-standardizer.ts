@@ -1,55 +1,11 @@
 import axios from "axios"
 import { standardizedIngredientsDB } from "../../../lib/database/standardized-ingredients-db"
 import { buildIngredientStandardizerPrompt } from "./prompts/ingredient/build-prompt"
+import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
-
-const NON_FOOD_TITLE_TOKENS = new Set([
-  "balm",
-  "body",
-  "candle",
-  "conditioner",
-  "cosmetic",
-  "deodorant",
-  "dog",
-  "face",
-  "fragrance",
-  "lotion",
-  "lip",
-  "makeup",
-  "mask",
-  "perfume",
-  "pet",
-  "shampoo",
-  "skincare",
-  "soap",
-  "scented",
-  "toothpaste",
-  "toy",
-  "treat",
-  "treats",
-  "cat",
-  "litter",
-])
-
-const NON_FOOD_TITLE_PHRASES = [
-  ["body", "butter"],
-  ["body", "oil"],
-  ["body", "wash"],
-  ["face", "mask"],
-  ["lip", "balm"],
-  ["lip", "mask"],
-  ["lip", "oil"],
-  ["lip", "gloss"],
-  ["pet", "treats"],
-  ["dog", "treats"],
-  ["cat", "treats"],
-  ["dog", "food"],
-  ["cat", "food"],
-  ["tooth", "paste"],
-]
 
 // ---------------------------------------------------------------------------
 // Context types (previously in lib/utils/ingredient-standardizer-context.ts)
@@ -379,21 +335,6 @@ function normalizeCanonicalOutput(value: string): string {
     .trim()
 }
 
-function hasNonFoodTitleSignals(sourceName: string): boolean {
-  const normalized = normalizeCanonicalOutput(sourceName)
-  if (!normalized) return false
-
-  const tokens = normalized.split(" ").filter(Boolean)
-  if (!tokens.length) return false
-
-  const tokenSet = new Set(tokens)
-  if (tokens.some((token) => NON_FOOD_TITLE_TOKENS.has(token))) {
-    return true
-  }
-
-  return NON_FOOD_TITLE_PHRASES.some((phrase) => phrase.every((token) => tokenSet.has(token)))
-}
-
 export interface IngredientStandardizationResult {
   id: string
   originalName: string
@@ -453,7 +394,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
       {
         model: OPENAI_MODEL,
         temperature: 0,
-        max_tokens: 1000,
+        max_tokens: 4096,
         messages: [
           {
             role: "system",

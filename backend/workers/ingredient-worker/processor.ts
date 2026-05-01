@@ -13,6 +13,7 @@ import {
 } from "../standardizer-worker"
 import { normalizeConfidence } from "../../../lib/utils/number"
 import { normalizeCanonicalName, singularizeCanonicalName } from "../../scripts/utils/canonical-matching"
+import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
 import type { QueueWorkerConfig } from "../config"
 import { chunkItems, mapWithConcurrency } from "./batching"
 import { resolveCanonicalWithDoubleCheck } from "./canonical/double-check"
@@ -53,50 +54,6 @@ import {
   stripMeasurementFromSearchTerm,
 } from "./unit-resolution-utils"
 
-const NON_FOOD_TITLE_TOKENS = new Set([
-  "balm",
-  "body",
-  "candle",
-  "conditioner",
-  "cosmetic",
-  "deodorant",
-  "dog",
-  "face",
-  "fragrance",
-  "lotion",
-  "lip",
-  "makeup",
-  "mask",
-  "perfume",
-  "pet",
-  "shampoo",
-  "skincare",
-  "soap",
-  "scented",
-  "toothpaste",
-  "toy",
-  "treat",
-  "treats",
-  "cat",
-  "litter",
-])
-
-const NON_FOOD_TITLE_PHRASES = [
-  ["body", "butter"],
-  ["body", "oil"],
-  ["body", "wash"],
-  ["face", "mask"],
-  ["lip", "balm"],
-  ["lip", "mask"],
-  ["lip", "oil"],
-  ["lip", "gloss"],
-  ["pet", "treats"],
-  ["dog", "treats"],
-  ["cat", "treats"],
-  ["dog", "food"],
-  ["cat", "food"],
-  ["tooth", "paste"],
-]
 
 interface ResolveBatchResult {
   resolved: number
@@ -204,21 +161,6 @@ function buildCanonicalProbationSourceSignature(row: IngredientMatchQueueRow, so
   }
 
   return `${row.source}:row:${row.id}`
-}
-
-function hasNonFoodTitleSignals(sourceSearchTerm: string): boolean {
-  const normalized = normalizeCanonicalName(sourceSearchTerm)
-  if (!normalized) return false
-
-  const tokens = normalized.split(" ").filter(Boolean)
-  if (!tokens.length) return false
-
-  const tokenSet = new Set(tokens)
-  if (tokens.some((token) => NON_FOOD_TITLE_TOKENS.has(token))) {
-    return true
-  }
-
-  return NON_FOOD_TITLE_PHRASES.some((phrase) => phrase.every((token) => tokenSet.has(token)))
 }
 
 function inferIngredientSemanticRejectReason(errorMessage: string): string | null {
@@ -1466,6 +1408,17 @@ export async function runIngredientQueueResolver(config: QueueWorkerConfig): Pro
     `[QueueResolver] ${modePrefix}Unit resolver: enabled=${config.enableUnitResolution}, ` +
       `unit_dry_run=${config.unitDryRun}, unit_min_confidence=${config.unitMinConfidence}`
   )
+
+  if (
+    !config.dryRun &&
+    (config.reviewMode === "ingredient" || config.reviewMode === "any") &&
+    (config.queueSource === "recipe" || config.queueSource === "any")
+  ) {
+    const backfilled = await ingredientMatchQueueDB.backfillRecipeIngredientReviewFlags()
+    if (backfilled > 0) {
+      console.log(`[QueueResolver] Backfilled ${backfilled} legacy recipe row(s) to needs_ingredient_review=true`)
+    }
+  }
 
   let cycle = 0
   let totalResolved = 0
