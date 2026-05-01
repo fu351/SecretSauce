@@ -22,6 +22,17 @@ ENUM_TO_SPIDER: dict[str, str] = {
     "99ranch": "99_ranch_market_us",
     "walmart": "walmart_us",
     "wholefoods": "whole_foods",
+    # Instacart-backed stores
+    "costco": "costco",
+    "samsclub": "sams_club",
+    "publix": "publix",
+    "heb": "heb",
+    "wegmans": "wegmans",
+    "shoprite": "shoprite",
+    "stopandshop": "stop_and_shop",
+    "foodlion": "food_lion",
+    "winndixie": "winn_dixie",
+    "bjs": "bjs_wholesale_club",
 }
 
 

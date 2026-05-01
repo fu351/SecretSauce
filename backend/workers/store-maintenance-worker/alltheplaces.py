@@ -22,6 +22,12 @@ SPIDER_ALIASES: dict[str, list[str]] = {
     "trader_joes_us": ["trader_joes"],
     "99_ranch_market_us": ["99_ranch_market"],
     "whole_foods": ["whole_foods_us"],
+    # Instacart-backed store aliases
+    "sams_club": ["sams_club_us"],
+    "bjs_wholesale_club": ["bjs_wholesale_club_us", "bjs"],
+    "stop_and_shop": ["stop_and_shop_us"],
+    "food_lion": ["food_lion_us"],
+    "winn_dixie": ["winn_dixie_us"],
 }
 
 
