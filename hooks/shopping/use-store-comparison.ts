@@ -220,6 +220,7 @@ async function hydratePricingGaps(
 type PerformMassSearchOptions = {
   skipPricingGaps?: boolean
   showCachedFirst?: boolean
+  zipCodeOverride?: string | null
 }
 
 export function useStoreComparison(
@@ -236,7 +237,6 @@ export function useStoreComparison(
   const [activeStoreIndex, setActiveStoreIndex] = useState(0)
   const [sortMode, setSortMode] = useState<"cheapest" | "best-value" | "nearest">("cheapest")
   const searchGenerationRef = useRef(0)
-  const resolvedZipCode = normalizeZipCode(zipCode) || undefined
 
   const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[], storeMetadata: StoreMetadataMap): StoreComparison[] => {
     const storeMap = new Map<string, StoreComparison>()
@@ -437,7 +437,9 @@ export function useStoreComparison(
       return
     }
 
-    if (!resolvedZipCode) {
+    const searchZipCode = normalizeZipCode(options?.zipCodeOverride ?? zipCode) || undefined
+
+    if (!searchZipCode) {
       toast({ title: "Zip Code Required", description: "Set your zip code in your profile to compare store prices.", variant: "destructive" })
       return
     }
@@ -454,12 +456,12 @@ export function useStoreComparison(
         skipPricingGaps: Boolean(options?.skipPricingGaps),
         showCachedFirst: Boolean(options?.showCachedFirst),
         shoppingListCount: shoppingList.length,
-        resolvedZipCode: resolvedZipCode || null,
+        resolvedZipCode: searchZipCode || null,
         userId: user?.id ?? null,
       })
 
       // ----- Fetch user preferred stores metadata via API (uses RPC with fallback) -----
-      const storeMetadata = await fetchUserStoreMetadata(user?.id, resolvedZipCode)
+      const storeMetadata = await fetchUserStoreMetadata(user?.id, searchZipCode)
       devPricingLog("store metadata", {
         count: storeMetadata.size,
         stores: Array.from(storeMetadata.keys()),
@@ -551,7 +553,7 @@ export function useStoreComparison(
         if (pricingGaps.length > 0) {
           console.warn("[useStoreComparison] Filling pricing gaps", { gaps: pricingGaps.length })
           console.log("[useStoreComparison] Pricing gaps payload", pricingGaps)
-          const { inserted } = await hydratePricingGaps(pricingGaps, resolvedZipCode)
+          const { inserted } = await hydratePricingGaps(pricingGaps, searchZipCode)
           insertedFromGapHydration = inserted
           devPricingLog("hydratePricingGaps completed", {
             gaps: pricingGaps.length,
@@ -587,7 +589,7 @@ export function useStoreComparison(
     } finally {
       if (!isStale()) setLoading(false)
     }
-  }, [shoppingList, resolvedZipCode, toast, user, buildComparisonsFromPricing])
+  }, [shoppingList, zipCode, toast, user, buildComparisonsFromPricing])
 
   // -- FIX: IMMUTABLE STATE PATCHER --
   // This ensures price changes trigger a re-render by creating new object references

@@ -322,18 +322,36 @@ export default function ShoppingReceiptPage() {
     if (refreshInProgressRef.current) return
     refreshInProgressRef.current = true
     try {
+      let refreshedZipCode: string | null = normalizedZipCode || null
+
       if (user?.id) {
         const locationUpdate = await updateLocation(user.id)
         if (!locationUpdate.success && locationUpdate.error) {
           console.warn("[store] updateLocation failed:", locationUpdate.error)
+        } else if (locationUpdate.location) {
+          const reverseGeocodedZip = await reverseGeocodeToPostalCode(locationUpdate.location)
+          if (reverseGeocodedZip) {
+            refreshedZipCode = reverseGeocodedZip
+            previousListSignaturesRef.current = {
+              identity: listIdentitySignature,
+              quantity: listQuantitySignature,
+              zipCode: reverseGeocodedZip,
+            }
+            setZipCode(reverseGeocodedZip)
+          }
         }
       }
+
       await saveChanges()
-      await performMassSearch({ showCachedFirst: false, skipPricingGaps: false })
+      await performMassSearch({
+        showCachedFirst: false,
+        skipPricingGaps: false,
+        zipCodeOverride: refreshedZipCode,
+      })
     } finally {
       refreshInProgressRef.current = false
     }
-  }, [user?.id, saveChanges, performMassSearch])
+  }, [normalizedZipCode, listIdentitySignature, listQuantitySignature, user?.id, saveChanges, performMassSearch])
 
   const handleMobileAddItem = useCallback(async (name: string) => {
     const itemName = name.trim()
