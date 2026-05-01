@@ -2,6 +2,7 @@ import axios from "axios"
 import { standardizedIngredientsDB } from "../../../lib/database/standardized-ingredients-db"
 import { buildIngredientStandardizerPrompt } from "./prompts/ingredient/build-prompt"
 import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
+import { cleanIngredientByContext } from "../shared/ingredient-cleaning"
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
@@ -282,41 +283,6 @@ export interface IngredientStandardizationInput {
   vectorCandidates?: string[]
 }
 
-// Strips packing/carrier medium phrases like "in extra virgin olive oil", "in water", "in brine"
-// so the LLM sees "Solid Light Yellowfin Tuna 4.5 Oz" rather than latching onto "Extra Virgin Olive Oil".
-const PACKING_MEDIUM_RE =
-  /\s+in\s+(?:(?:extra\s+virgin|light|heavy|pure)\s+)?(?:olive\s+oil|vegetable\s+oil|sunflower\s+oil|canola\s+oil|oil|water|brine|syrup|juice|tomato\s+sauce|sauce|vinegar)\b/gi
-
-// Strips processing/preparation qualifiers that add no ingredient meaning and can mislead canonicalization.
-const PROCESSING_QUALIFIER_RE =
-  /\b(?:cold[\s-]pressed|cold[\s-]brew(?:ed)?|stone[\s-]ground|slow[\s-]roasted|slow[\s-]cooked|flash[\s-]frozen|air[\s-]chilled|high[\s-]pressure[\s-]processed|HPP)\b\s*/gi
-
-// Matches known product-type suffixes that appear after flavor/ingredient modifiers.
-// Capture group 1 = flavor prefix, group 2 = product type.
-// e.g. "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
-//   -> group1: "Red Bell Pepper, Garlic & Parmesan"
-//   -> group2: "cream cheese spread"
-const PRODUCT_TYPE_SUFFIX_RE = /^(.+?)\s+(cream\s+cheese\s+spread|cheese\s+spread|food\s+tub|baby\s+(?:food|snack)|meal\s+kit|cream\s+cheese|cream\s+sauce|pasta\s+sauce|tomato\s+sauce|hot\s+sauce|(?:\w+\s+)?soup|(?:\w+\s+)?stew|(?:\w+\s+)?chili|(?:\w+\s+)?curry|sandwich\s+bread|wheat\s+bread|white\s+bread|sourdough\s+bread|english\s+muffin|greek\s+yogurt|ice\s+cream|granola\s+bar|protein\s+bar|energy\s+bar|spread|tub|dip|hummus|salsa|pesto|aioli|kit|bread|bagel|muffin|croissant|tortilla|wrap|pita|cracker|cereal|granola|oatmeal|yogurt|sorbet|gelato|butter)\b/i
-
-// If the name has a recognizable product-type suffix preceded by ingredient/flavor modifiers,
-// move the product type to the front so the LLM anchors on it rather than the first ingredient token.
-// "Red Bell Pepper, Garlic & Parmesan Cream Cheese Spread 8 Oz"
-//   -> "cream cheese spread Red Bell Pepper, Garlic & Parmesan 8 Oz"
-function hoistProductType(name: string): string {
-  const match = PRODUCT_TYPE_SUFFIX_RE.exec(name)
-  if (!match) return name
-  const [, flavorPrefix, productType] = match
-  const remainder = name.slice(match[0].length).trim()
-  return `${productType} ${flavorPrefix}${remainder ? " " + remainder : ""}`.replace(/\s{2,}/g, " ").trim()
-}
-
-function preprocessInputName(name: string): string {
-  return hoistProductType(name)
-    .replace(PACKING_MEDIUM_RE, "")
-    .replace(PROCESSING_QUALIFIER_RE, "")
-    .replace(/\s{2,}/g, " ")
-    .trim()
-}
 
 function normalizeCanonicalOutput(value: string): string {
   return value
@@ -435,7 +401,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
 
 function buildPrompt(inputs: IngredientStandardizationInput[], canonicalNames: string[], context: IngredientStandardizerContext) {
   const contextRules = getIngredientStandardizerContextRules(context)
-  const preprocessed = inputs.map((i) => ({ ...i, name: preprocessInputName(i.name) }))
+  const preprocessed = inputs.map((i) => ({ ...i, name: cleanIngredientByContext(i.name, context) }))
   return buildIngredientStandardizerPrompt({
     inputs: preprocessed,
     canonicalNames,

@@ -2,6 +2,7 @@ import { normalizeCanonicalName, singularizeCanonicalName } from "../../scripts/
 import type { IngredientStandardizerContext } from "./ingredient-standardizer"
 import type { IngredientStandardizationInput, IngredientStandardizationResult } from "./ingredient-standardizer"
 import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
+import { cleanRecipeIngredientName } from "../shared/ingredient-cleaning"
 
 const PROTECTED_FORM_TOKENS = new Set([
   "seed",
@@ -87,23 +88,6 @@ const PROTECTED_FORM_TOKENS = new Set([
   "tempeh",
 ])
 
-const PREPARATION_AND_MARKETING_RE =
-  /\b(?:chopped|minced|diced|sliced|grated|shredded|crushed|cooked|raw|steamed|boiled|roasted|grilled|fried|large|small|medium|jumbo|fresh|organic|premium|extra|fancy|ripe|unripe|deluxe|gourmet|artisan|homestyle|restaurant-style|grade|cage|free|low|fat|part|skim|blend|style|collection|flavor|flavored|microwavable|ready-to-eat)\b/gi
-
-const OPTIONAL_PHRASE_RE = /\b(?:to taste|if needed|as needed|optional|divided)\b/gi
-
-const TRAILING_PACKAGING_RE =
-  /\s+\d+(?:\.\d+)?\s*(?:oz|ounce|ounces|lb|lbs|pound|pounds|g|gram|grams|kg|kilogram|kilograms|ml|milliliter|milliliters|l|liter|liters|litre|litres|ltr|qt|quart|quarts|pt|pint|pints|gal|gallon|gallons|fl\s*oz|floz|ct|count|counts|pk|pkg|pack|packs|package|packages|bottle|bottles|bag|bags|box|boxes|can|cans|jar|jars|carton|cartons|tray|trays|case|cases|pouch|pouches|unit|units|each|ea|piece|pieces)\b.*$/i
-
-function cleanIngredientName(name: string): string {
-  return normalizeCanonicalName(name)
-    .replace(PREPARATION_AND_MARKETING_RE, " ")
-    .replace(OPTIONAL_PHRASE_RE, " ")
-    .replace(TRAILING_PACKAGING_RE, "")
-    .replace(/\s{2,}/g, " ")
-    .trim()
-}
-
 function applyFormTokenGuard(sourceCanonical: string, candidateCanonical: string): string {
   const source = normalizeCanonicalName(sourceCanonical)
   const candidate = normalizeCanonicalName(candidateCanonical)
@@ -188,7 +172,7 @@ function inferCategory(canonicalName: string): string | null {
 }
 
 function buildDeterministicCanonicalName(name: string): string {
-  const cleaned = cleanIngredientName(name)
+  const cleaned = cleanRecipeIngredientName(name)
   const sourceCanonical = cleaned || normalizeCanonicalName(name)
   const candidateCanonical = singularizeCanonicalName(cleaned || name)
   return applyFormTokenGuard(sourceCanonical, candidateCanonical)
@@ -217,7 +201,7 @@ export function standardizeIngredientsDeterministically(
   }
 
   return inputs.map((input, index) => {
-    const sourceCanonical = cleanIngredientName(input.name) || normalizeCanonicalName(input.name)
+    const sourceCanonical = cleanRecipeIngredientName(input.name) || normalizeCanonicalName(input.name)
     const inferredNonFood = hasNonFoodTitleSignals(input.name)
     const canonicalName = inferredNonFood
       ? sourceCanonical
