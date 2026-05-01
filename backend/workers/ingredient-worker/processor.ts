@@ -726,9 +726,49 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
     const learnedVarietySensitivity = await getLearnedVarietySensitivity()
     const confidenceCalibrator = await getIngredientConfidenceCalibrator()
     const tokenIdfScorer = await getCanonicalTokenIdfScorer()
+    // Early non-food pass: apply title-signal detection to ALL valid rows before any
+    // LLM or unit resolution work. This catches non-food items even when
+    // needs_ingredient_review = false (e.g. rows that had a cached product mapping),
+    // so is_food_item is always written for clearly non-food products.
+    const earlyNonFoodRowIds = new Set<string>()
+    const earlyNonFoodWritePromises: Promise<unknown>[] = []
+    for (const row of validRows) {
+      const nameToCheck = row.raw_product_name || row.cleaned_name || ""
+      if (hasNonFoodTitleSignals(nameToCheck)) {
+        earlyNonFoodRowIds.add(row.id)
+        if (!config.dryRun) {
+          earlyNonFoodWritePromises.push(
+            ingredientMatchQueueDB.markResolved({
+              rowId: row.id,
+              canonicalName:
+                normalizeCanonicalName(row.best_fuzzy_match || row.cleaned_name || row.raw_product_name || "") ||
+                "unknown",
+              resolvedIngredientId: null,
+              confidence: 0,
+              resolver: config.resolverName,
+              isFoodItem: false,
+              clearIngredientReviewFlag: true,
+              clearUnitReviewFlag: true,
+            })
+          )
+        }
+        console.log(
+          `[QueueResolver]${config.dryRun ? " [DRY RUN]" : ""} ${row.id} early non-food signal ` +
+            `(raw="${row.raw_product_name}")`
+        )
+      }
+    }
+    if (earlyNonFoodWritePromises.length) {
+      await Promise.allSettled(earlyNonFoodWritePromises)
+    }
+    if (earlyNonFoodRowIds.size) {
+      processableRows = processableRows.filter((row) => !earlyNonFoodRowIds.has(row.id))
+      shortCircuitResolvedCount += earlyNonFoodRowIds.size
+    }
+
     // Non-food short-circuit: skip LLM for rows whose product_mapping_id was already
     // resolved as non-food in a prior queue run.
-    const mappingIdsToCheck = validRows
+    const mappingIdsToCheck = processableRows
       .filter((row) => row.needs_ingredient_review && row.product_mapping_id)
       .map((row) => row.product_mapping_id as string)
     const knownNonFoodMappingIds = mappingIdsToCheck.length
@@ -737,7 +777,7 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
 
     const nonFoodShortCircuitRowIds = new Set<string>()
     const shortCircuitWritePromises: Promise<unknown>[] = []
-    for (const row of validRows) {
+    for (const row of processableRows) {
       if (
         row.needs_ingredient_review &&
         row.product_mapping_id &&
@@ -770,10 +810,10 @@ async function resolveBatch(rows: IngredientMatchQueueRow[], config: QueueWorker
       await Promise.allSettled(shortCircuitWritePromises)
     }
 
-    shortCircuitResolvedCount = nonFoodShortCircuitRowIds.size
-    processableRows = shortCircuitResolvedCount
-      ? validRows.filter((row) => !nonFoodShortCircuitRowIds.has(row.id))
-      : validRows
+    shortCircuitResolvedCount += nonFoodShortCircuitRowIds.size
+    if (nonFoodShortCircuitRowIds.size) {
+      processableRows = processableRows.filter((row) => !nonFoodShortCircuitRowIds.has(row.id))
+    }
 
     const firstPassUnitByRowId = await resolveUnitCandidates(processableRows, undefined, config)
     const ingredientByRowId = await resolveIngredientCandidates(processableRows, config, firstPassUnitByRowId)
