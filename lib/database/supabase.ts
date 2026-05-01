@@ -5377,6 +5377,10 @@ export type Database = {
         | "ikea"
         | "cvs"
         | "independent"
+        | "wegmans"
+        | "stopandshop"
+        | "foodlion"
+        | "winndixie"
       item_category_enum:
         | "baking"
         | "beverages"
@@ -5667,6 +5671,10 @@ export const Constants = {
         "ikea",
         "cvs",
         "independent",
+        "wegmans",
+        "stopandshop",
+        "foodlion",
+        "winndixie",
       ],
       item_category_enum: [
         "baking",
