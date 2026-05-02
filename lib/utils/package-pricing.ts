@@ -10,6 +10,8 @@ export interface PackagePricingInput {
   packagePrice: number | null | undefined
   convertedQty: number | null | undefined
   conversionError?: boolean
+  baselineQty?: number | null | undefined
+  baselinePackages?: number | null | undefined
 }
 
 /** Whether a priced item has valid package pricing (vs. falling back to per-unit). */
@@ -32,16 +34,36 @@ export function calcPackages(qty: number, convertedQty: number): number {
 }
 
 /**
+ * Estimate the number of packages needed when we cannot convert units directly,
+ * but we know the baseline packages required for the baseline quantity.
+ */
+export function calcPackageEstimate(
+  qty: number,
+  baselineQty: number | null | undefined,
+  baselinePackages: number | null | undefined
+): number | null {
+  const bq = Number(baselineQty)
+  const bp = Number(baselinePackages)
+
+  if (!Number.isFinite(bq) || bq <= 0 || !Number.isFinite(bp) || bp <= 0) return null
+
+  return Math.max(1, Math.ceil((bp / bq) * qty))
+}
+
+/**
  * Total cost for the packages needed to cover `qty`.
  * Returns null if package pricing data is missing or invalid.
- * When unit conversion fails (conversionError=true), falls back to 1 package
- * rather than multiplying by the raw recipe quantity (which is in an incommensurable unit).
+ * When unit conversion fails, falls back to the baseline package estimate
+ * when one exists; otherwise uses a single package as the conservative minimum.
  */
 export function calcLineTotal(input: PackagePricingInput): number | null {
-  const { qty, packagePrice, convertedQty, conversionError } = input
+  const { qty, packagePrice, convertedQty, conversionError, baselineQty, baselinePackages } = input
   const pp = Number(packagePrice)
   if (!Number.isFinite(pp) || pp <= 0) return null
-  if (conversionError) return pp
+  if (conversionError) {
+    const packageEstimate = calcPackageEstimate(qty, baselineQty, baselinePackages)
+    return pp * (packageEstimate ?? 1)
+  }
   if (!hasPackagePricing(packagePrice, convertedQty, conversionError)) return null
   return pp * calcPackages(qty, Number(convertedQty))
 }

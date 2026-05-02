@@ -38,6 +38,8 @@ function getStoreItemLineTotal(
     packagePrice: item.packagePrice,
     convertedQty: item.convertedQuantity,
     conversionError: item.conversionError ?? undefined,
+    baselineQty: item.quantity,
+    baselinePackages: item.packagesToBuy,
   })
 
   return lineTotal ?? (Number(item.price) || 0) * effectiveQty

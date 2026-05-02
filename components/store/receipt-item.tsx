@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Minus, Plus, X, ArrowLeftRight, ShoppingCart, ChevronDown, ChevronUp } from "lucide-react"
 import type { ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import type { StoreComparison } from "@/lib/types/store"
-import { hasPackagePricing, calcPackages, calcLineTotal, incrementPackageQty, decrementPackageQty } from "@/lib/utils/package-pricing"
+import { hasPackagePricing, calcPackages, calcLineTotal, calcPackageEstimate, incrementPackageQty, decrementPackageQty } from "@/lib/utils/package-pricing"
 
 interface ReceiptItemProps {
   item: ShoppingListItem
@@ -46,18 +46,43 @@ export function ReceiptItem({
   const adjustedPackagesToBuy = usePackagePricing && convertedQty !== null
     ? calcPackages(quantity, convertedQty)
     : null
+  const estimatePackageCount = calcPackageEstimate(quantity, pricing?.quantity, pricing?.packagesToBuy)
   const lineTotalFromPkg = usePackagePricing && convertedQty !== null
-    ? calcLineTotal({ qty: quantity, packagePrice: pkgPrice, convertedQty, conversionError: pricing?.conversionError ?? undefined })
+    ? calcLineTotal({
+      qty: quantity,
+      packagePrice: pkgPrice,
+      convertedQty,
+      conversionError: pricing?.conversionError ?? undefined,
+      baselineQty: pricing?.quantity,
+      baselinePackages: pricing?.packagesToBuy,
+    })
+    : pricing?.conversionError
+      ? calcLineTotal({
+        qty: quantity,
+        packagePrice: pkgPrice,
+        convertedQty: null,
+        conversionError: true,
+        baselineQty: pricing?.quantity,
+        baselinePackages: pricing?.packagesToBuy,
+      })
     : null
   const lineTotal = pricing
-    ? (lineTotalFromPkg ?? (Number(pricing.price) || 0) * quantity)
+    ? (lineTotalFromPkg ?? (pkgPrice != null ? pkgPrice * quantity : (Number(pricing.price) || 0) * quantity))
     : null
+  const packageEstimateDisplay =
+    adjustedPackagesToBuy !== null
+      ? adjustedPackagesToBuy
+      : estimatePackageCount !== null
+        ? estimatePackageCount
+      : pricing?.packagesToBuy != null
+        ? Math.max(1, Math.ceil(pricing.packagesToBuy))
+        : null
   // Ceil when falling back — package counts must be whole numbers even if the
   // ingredient quantity is fractional (e.g. 1.5 cups when no converted_quantity).
   const packageQuantityDisplay = !isAvailable
     ? "0"
-    : adjustedPackagesToBuy !== null
-      ? formatMeasure(adjustedPackagesToBuy)
+    : packageEstimateDisplay !== null
+      ? formatMeasure(packageEstimateDisplay)
       : String(Math.max(1, Math.ceil(quantity)))
 
   const rawItemName = typeof item.name === "string" ? item.name.trim() : ""
@@ -73,6 +98,10 @@ export function ReceiptItem({
   const cartQuantitySummary = `${quantityDisplay}${unit ? ` ${unit}` : ""}`
   const purchaseQuantitySummary = adjustedPackagesToBuy !== null
     ? `${formatMeasure(adjustedPackagesToBuy)} ${Math.abs(adjustedPackagesToBuy - 1) < 0.0001 ? "package" : "packages"}`
+    : estimatePackageCount !== null
+      ? `${formatMeasure(estimatePackageCount)} ${Math.abs(estimatePackageCount - 1) < 0.0001 ? "package" : "packages"}`
+      : packageEstimateDisplay !== null
+        ? `${formatMeasure(packageEstimateDisplay)} ${Math.abs(packageEstimateDisplay - 1) < 0.0001 ? "package" : "packages"}`
     : !isAvailable
       ? "0 packages"
       : cartQuantitySummary

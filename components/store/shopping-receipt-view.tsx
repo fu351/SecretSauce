@@ -99,6 +99,8 @@ export function ShoppingReceiptView({
       packagePrice: pricedItem.packagePrice,
       convertedQty: pricedItem.convertedQuantity,
       conversionError: pricedItem.conversionError ?? undefined,
+      baselineQty: pricedItem.quantity,
+      baselinePackages: pricedItem.packagesToBuy,
     })
     return total ?? (Number(pricedItem.price) || 0) * effectiveQty
   }, [getEffectiveQuantity])
@@ -147,7 +149,9 @@ export function ShoppingReceiptView({
           shoppingItemIds,
           quantity,
           price: quantity > 0 ? totalPrice / quantity : totalPrice,
-          packagesToBuy: undefined,
+          packagesToBuy: typeof priceItem.packagesToBuy === "number"
+            ? priceItem.packagesToBuy
+            : undefined,
           // keep packagePrice and convertedQuantity from priceItem so receipt-item
           // can display correct package counts and compute totals
           totalPrice,
@@ -160,6 +164,11 @@ export function ShoppingReceiptView({
       existing.totalPrice = nextTotal
       existing.quantity = nextQuantity
       existing.price = nextQuantity > 0 ? nextTotal / nextQuantity : nextTotal
+      if (typeof existing.packagesToBuy === "number" && typeof priceItem.packagesToBuy === "number") {
+        existing.packagesToBuy += priceItem.packagesToBuy
+      } else if (typeof existing.packagesToBuy !== "number" && typeof priceItem.packagesToBuy === "number") {
+        existing.packagesToBuy = priceItem.packagesToBuy
+      }
       existing.shoppingItemIds = [...new Set([...(existing.shoppingItemIds || []), ...shoppingItemIds])]
       existing.shoppingItemId = existing.shoppingItemId || shoppingItemIds[0] || priceItem.shoppingItemId
     })

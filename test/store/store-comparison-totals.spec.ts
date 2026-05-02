@@ -69,4 +69,41 @@ describe("store comparison totals", () => {
     expect(comparisons[0].savings).toBe(1)
     expect(comparisons[1].savings).toBe(0)
   })
+
+  it("scales conversion-error package totals from the baseline package estimate", () => {
+    const quantityMap = buildQuantityMap([
+      { id: "item-1", quantity: 3 },
+    ])
+
+    const comparisons = calculateStoreComparisonTotals(
+      [
+        {
+          store: "walmart",
+          items: [
+            {
+              id: "walmart-item-1",
+              title: "Chicken thighs",
+              brand: "",
+              price: 2.79,
+              provider: "walmart",
+              image_url: null,
+              quantity: 1,
+              shoppingItemId: "item-1",
+              originalName: "Chicken thighs",
+              shoppingItemIds: ["item-1"],
+              packagePrice: 2.79,
+              packagesToBuy: 1,
+              convertedQuantity: null,
+              conversionError: true,
+            },
+          ],
+          total: 2.79,
+          savings: 0,
+        },
+      ],
+      quantityMap
+    )
+
+    expect(comparisons[0].total).toBeCloseTo(8.37)
+  })
 })
