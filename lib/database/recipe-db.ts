@@ -2,26 +2,7 @@
 import { BaseTable } from "./base-db"
 import { MealTypeTag, Recipe, parseInstructionsFromDB } from "@/lib/types"
 import type { Database } from "./supabase"
-import type { RecipeIngredient } from "@/lib/types"
-
-type UpsertRecipePayload = {
-  recipeId?: string | null
-  title: string
-  authorId: string
-  cuisine?: string | null
-  mealType?: string | null
-  protein?: string | null
-  difficulty?: string | null
-  servings?: number | null
-  prepTime?: number | null
-  cookTime?: number | null
-  tags?: string[] | null
-  nutrition?: Recipe["nutrition"] | null
-  description?: string | null
-  imageUrl?: string | null
-  instructions?: string[] | null
-  ingredients?: RecipeIngredient[] | null
-}
+import { upsertRecipeWithIngredients, type UpsertRecipePayload } from "./recipe-write"
 
 /**
  * Database operations for recipes
@@ -369,45 +350,10 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     return data ? this.map(data) : null
   }
 
-  private prepareIngredientsForRpc(ingredients?: RecipeIngredient[] | null) {
-    if (!ingredients || ingredients.length === 0) return []
-    return ingredients
-      .filter((ingredient) => ingredient.name?.trim())
-      .map((ingredient) => ({
-        display_name: ingredient.name.trim(),
-        standardized_ingredient_id: ingredient.standardizedIngredientId ?? null,
-        quantity: ingredient.quantity ?? null,
-        units: ingredient.unit ?? null,
-      }))
-  }
-
   async upsertRecipeWithIngredients(payload: UpsertRecipePayload): Promise<Recipe | null> {
-    const ingredientsPayload = this.prepareIngredientsForRpc(payload.ingredients)
-    const { data, error } = await this.supabase.rpc("fn_upsert_recipe_with_ingredients", {
-      p_recipe_id: payload.recipeId ?? null,
-      p_title: payload.title,
-      p_author_id: payload.authorId,
-      p_cuisine: payload.cuisine ?? null,
-      p_meal_type: payload.mealType ?? null,
-      p_protein: payload.protein ?? null,
-      p_difficulty: payload.difficulty ?? null,
-      p_servings: payload.servings ?? null,
-      p_prep_time: payload.prepTime ?? null,
-      p_cook_time: payload.cookTime ?? null,
-      p_tags: payload.tags ?? [],
-      p_nutrition: payload.nutrition ?? {},
-      p_description: payload.description ?? null,
-      p_image_url: payload.imageUrl ?? null,
-      p_instructions: payload.instructions ?? [],
-      p_ingredients: ingredientsPayload,
-    })
-
-    if (error) {
-      this.handleError(error, "upsertRecipeWithIngredients")
-      return null
-    }
-
-    return data ? this.map(data) : null
+    const saved = await upsertRecipeWithIngredients(this.supabase, payload)
+    if (!saved) return null
+    return this.map(saved)
   }
 
   /**
@@ -513,6 +459,23 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
     }
 
     console.log("[Recipe DB] Soft delete successful for recipe:", id)
+    return true
+  }
+
+  /**
+   * Restore a soft-deleted recipe.
+   */
+  async restoreRecipe(id: string): Promise<boolean> {
+    const { error } = await (this.supabase.from(this.tableName) as any)
+      .update({ deleted_at: null })
+      .eq("id", id)
+
+    if (error) {
+      this.handleError(error, `restoreRecipe(${id})`)
+      return false
+    }
+
+    console.log("[Recipe DB] Restore successful for recipe:", id)
     return true
   }
 

@@ -31,6 +31,11 @@ export async function POST(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 })
     }
 
+    const post = await postDB.withServiceClient(supabase).fetchPostById(postId)
+    if (!post) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 })
+    }
+
     const liked = await postDB.withServiceClient(supabase).toggleLike(postId, profile.id)
     return NextResponse.json({ liked })
   } catch (error) {

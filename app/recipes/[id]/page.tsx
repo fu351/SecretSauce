@@ -13,6 +13,7 @@ import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
 import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-info"
 import { RecipeActionBar } from "@/components/recipe/social/recipe-action-bar"
 import { RecipeCollectionManager } from "@/components/recipe/collections/recipe-collection-manager"
+import { RecipeFlagButton } from "@/components/recipe/detail/recipe-flag-button"
 import { ProfileFollowButton } from "@/components/social/profile-follow-button"
 import { useToast } from "@/hooks"
 import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
@@ -496,17 +497,20 @@ export default function RecipeDetailPage() {
                     >
                       {recipe.title}
                     </h1>
-                    {isRecipeOwner && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="whitespace-nowrap"
-                        onClick={() => { trackEvent("recipe_edit_clicked", { recipe_id: recipe.id }); router.push(`/edit-recipe/${recipe.id}`) }}
-                      >
-                        <Pencil className="w-4 h-4" />
-                        Edit
-                      </Button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isRecipeOwner && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="whitespace-nowrap"
+                          onClick={() => { trackEvent("recipe_edit_clicked", { recipe_id: recipe.id }); router.push(`/edit-recipe/${recipe.id}`) }}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Edit
+                        </Button>
+                      )}
+                      <RecipeFlagButton recipeId={recipe.id} recipeTitle={recipe.title} />
+                    </div>
                   </div>
 
                   <p className={clsx("leading-relaxed text-base sm:text-lg mt-6", descriptionTextClass)}>

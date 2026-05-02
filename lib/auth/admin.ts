@@ -62,6 +62,15 @@ async function getAuthenticatedUser() {
 }
 
 /**
+ * Resolve the current authenticated profile ID without enforcing admin access.
+ * Returns null when there is no linked profile.
+ */
+export async function resolveAuthenticatedProfileId(): Promise<string | null> {
+  const { user } = await getAuthenticatedUser()
+  return user?.id ?? null
+}
+
+/**
  * Check if a user has admin privileges
  */
 export async function isAdmin(userId: string): Promise<boolean> {
