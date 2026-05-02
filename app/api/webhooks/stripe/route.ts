@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
 
         // Track subscription activation server-side
         if (supabaseUserId) {
-          const posthog = getPostHogClient()
+          const posthog = getPostHogClient(request.headers.get("cookie"))
           posthog.capture({
             distinctId: supabaseUserId,
             event: "subscription_activated",

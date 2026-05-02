@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/ui/use-toast"
 import Image from "next/image"
 import { ArrowRight, X } from "lucide-react"
-import posthog from "posthog-js"
+import { capturePosthogEvent } from "@/lib/analytics/posthog-client"
 import { ensureProfileWithTimeout } from "@/lib/auth/ensure-profile-client"
 import { isProfileOnboardingComplete } from "@/lib/auth/onboarding"
 
@@ -118,7 +118,7 @@ export default function SignInPage() {
 
     await setActive({ session: createdSessionId })
     const payload = await ensureProfileWithTimeout()
-    posthog.capture("user_signed_in", { method: "email" })
+    capturePosthogEvent("user_signed_in", { method: "email" })
     toast({
       title: "Welcome Back",
       description: "Access granted.",

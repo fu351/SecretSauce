@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to create budget goal" }, { status: 500 })
     }
 
-    getPostHogClient().capture({
+    getPostHogClient(req.headers.get("cookie")).capture({
       distinctId: profile.profileId,
       event: "budget_goal_created",
       properties: { category, target_cents: targetCents },

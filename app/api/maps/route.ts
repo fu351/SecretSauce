@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { parseCookieConsentFromCookieHeader } from "@/lib/privacy/cookie-consent"
 
 const API_KEY =
   process.env.GOOGLE_MAPS_SERVER_KEY ||
@@ -22,6 +23,14 @@ const buildUrl = (base: string, params: Record<string, string | number | undefin
 export async function POST(request: NextRequest) {
   if (!API_KEY) {
     return NextResponse.json({ error: "Google Maps API key is not configured." }, { status: 500 })
+  }
+
+  const thirdPartyAllowed = parseCookieConsentFromCookieHeader(request.headers.get("cookie"))?.thirdParty ?? false
+  if (!thirdPartyAllowed) {
+    return NextResponse.json(
+      { error: "Third-party map services are disabled until cookie consent is granted." },
+      { status: 403 }
+    )
   }
 
   let body: { action?: MapsAction; params?: Record<string, any> }

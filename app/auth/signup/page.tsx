@@ -15,7 +15,7 @@ import Image from "next/image"
 import { ArrowRight } from "lucide-react"
 import { normalizeUsername, validateUsername } from "@/lib/auth/username"
 import { ensureProfileWithTimeout } from "@/lib/auth/ensure-profile-client"
-import posthog from "posthog-js"
+import { capturePosthogEvent, identifyPosthogUser } from "@/lib/analytics/posthog-client"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -81,8 +81,8 @@ export default function SignUpPage() {
       if (result.status === "complete" && result.createdSessionId) {
         await setActive({ session: result.createdSessionId })
         await ensureProfile(normalizedUsername)
-        posthog.identify(normalizedUsername, { email, username: normalizedUsername })
-        posthog.capture("user_signed_up", { method: "email", username: normalizedUsername })
+        identifyPosthogUser(normalizedUsername, { email, username: normalizedUsername })
+        capturePosthogEvent("user_signed_up", { method: "email", username: normalizedUsername })
         toast({
           title: "Account created!",
           description: "Let's set up your preferences.",
@@ -95,7 +95,7 @@ export default function SignUpPage() {
         strategy: "email_code",
       })
 
-      posthog.capture("user_signed_up", { method: "email", username: normalizedUsername })
+      capturePosthogEvent("user_signed_up", { method: "email", username: normalizedUsername })
       toast({
         title: "Check your email",
         description: "Enter the verification code we sent to finish creating your account.",

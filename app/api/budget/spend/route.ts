@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to log spend" }, { status: 500 })
     }
 
-    getPostHogClient().capture({
+    getPostHogClient(req.headers.get("cookie")).capture({
       distinctId: profile.profileId,
       event: "budget_spend_logged",
       properties: { source_type: sourceType, amount_cents: amountCents, duplicate: result.duplicate ?? false },

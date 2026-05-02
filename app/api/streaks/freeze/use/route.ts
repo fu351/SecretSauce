@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     if ("validationError" in result) return NextResponse.json({ error: result.validationError }, { status: 409 })
     if ("error" in result && result.error) return NextResponse.json({ error: "Failed to use freeze token" }, { status: 500 })
 
-    getPostHogClient().capture({
+    getPostHogClient(req.headers.get("cookie")).capture({
       distinctId: profile.profileId,
       event: "streak_freeze_used",
       properties: { streak_date: streakDate },

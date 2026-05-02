@@ -1,3 +1,5 @@
+import { parseCookieConsentFromCookieHeader } from "@/lib/privacy/cookie-consent"
+
 type CaptureParams = {
   distinctId: string
   event: string
@@ -8,13 +10,14 @@ type CaptureParams = {
  * Minimal server-side PostHog capture using the REST API directly.
  * Used in API routes and webhooks where posthog-js is not available.
  */
-export function getPostHogClient() {
+export function getPostHogClient(cookieHeader?: string | null) {
   const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN
   const host = process.env.NEXT_PUBLIC_POSTHOG_HOST
+  const analyticsAllowed = parseCookieConsentFromCookieHeader(cookieHeader)?.analytics ?? false
 
   return {
     capture({ distinctId, event, properties }: CaptureParams) {
-      if (!token || !host) return
+      if (!token || !host || !analyticsAllowed) return
       // Fire-and-forget; webhook handlers must not block on analytics
       fetch(`${host}/capture/`, {
         method: "POST",

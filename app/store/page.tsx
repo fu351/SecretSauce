@@ -3,12 +3,14 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { useCookieConsent } from "@/contexts/cookie-consent-context"
 import { useTheme } from "@/contexts/theme-context"
 import { useToast } from "@/hooks"
 import { useShoppingList } from "@/hooks/shopping/use-shopping-list"
 import { useStoreComparison } from "@/hooks/shopping/use-store-comparison"
 import { updateLocation, getUserLocation, reverseGeocodeToPostalCode } from "@/lib/location-client"
 import dynamic from "next/dynamic"
+import { CookieSettingsButton } from "@/components/privacy/cookie-settings-button"
 import { ShoppingReceiptView } from "@/components/store/shopping-receipt-view"
 import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { MobileQuickAddPanel } from "@/components/store/mobile-quick-add-panel"
@@ -61,6 +63,7 @@ function buildListQuantitySignature(items: Array<{ id: string; quantity?: number
 export default function ShoppingReceiptPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { thirdPartyAllowed } = useCookieConsent()
   const { theme } = useTheme()
   const { toast } = useToast()
   const [mounted, setMounted] = useState(false)
@@ -509,7 +512,7 @@ export default function ShoppingReceiptPage() {
             />
 
             {/* Map: desktop sidebar only */}
-            {visibleStoreComparisons.length > 0 && (
+            {visibleStoreComparisons.length > 0 && thirdPartyAllowed && (
               <div className={`hidden lg:block rounded-lg overflow-hidden border ${
                 isDark ? "border-white/10 bg-[#1f1e1a]" : "border-gray-200 bg-white"
               }`} data-tutorial="store-map">
@@ -522,6 +525,18 @@ export default function ShoppingReceiptPage() {
                 />
               </div>
             )}
+            {visibleStoreComparisons.length > 0 && !thirdPartyAllowed ? (
+              <div className={`hidden lg:block rounded-lg border p-4 ${
+                isDark ? "border-white/10 bg-[#1f1e1a] text-[#e8dcc4]/80" : "border-gray-200 bg-white text-gray-700"
+              }`}>
+                <p className="text-sm font-medium">Map features are disabled</p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  Store maps, routing, and address lookups use third-party services. Enable third-party cookies
+                  in cookie settings to load them.
+                </p>
+                <CookieSettingsButton className="mt-3 text-xs" />
+              </div>
+            ) : null}
           </aside>
 
           {/* Receipt view */}

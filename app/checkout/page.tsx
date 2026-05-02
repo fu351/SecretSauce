@@ -4,7 +4,7 @@ import { useTransition, useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import posthog from "posthog-js"
+import { capturePosthogEvent } from "@/lib/analytics/posthog-client"
 
 export default function CheckoutPage() {
   const [isPending, startTransition] = useTransition()
@@ -49,7 +49,7 @@ export default function CheckoutPage() {
   }, [searchParams])
 
   const handleCheckout = () => {
-    posthog.capture("subscription_checkout_started", {
+    capturePosthogEvent("subscription_checkout_started", {
       item_count: pricingInfo.itemCount,
       total_amount: pricingInfo.totalAmount,
     })

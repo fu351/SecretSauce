@@ -11,7 +11,7 @@ import { ChefHat, DollarSign, Users, MapPin, Clock, ArrowLeft, ArrowRight, Loade
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/ui/use-toast"
 import { useTheme } from "@/contexts/theme-context"
-import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
+import { AddressAutocompleteWithConsent } from "@/components/shared/address-autocomplete-with-consent"
 import { DIETARY_TAGS, CUISINE_TYPES, type DifficultyLevel } from "@/lib/types"
 const goals = [
   {
@@ -558,24 +558,21 @@ export default function OnboardingPage() {
                 <Label htmlFor="address" className={`mb-1 block ${isDark ? "text-[#e8dcc4]" : "text-amber-950"}`}>
                   Address search
                 </Label>
-                <div className="relative">
-                  <MapPin className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 ${isDark ? "text-[#e8dcc4]/40" : "text-orange-700"}`} />
-                  <AddressAutocomplete
-                    value={{
-                      formattedAddress,
-                      addressLine1,
-                      addressLine2,
-                      city,
-                      state: stateRegion,
-                      postalCode,
-                      country,
-                      lat,
-                      lng,
-                    }}
-                    onChange={handleAddressChange}
-                    placeholder="Search your address"
-                  />
-                </div>
+                <AddressAutocompleteWithConsent
+                  value={{
+                    formattedAddress,
+                    addressLine1,
+                    addressLine2,
+                    city,
+                    state: stateRegion,
+                    postalCode,
+                    country,
+                    lat,
+                    lng,
+                  }}
+                  onChange={handleAddressChange}
+                  placeholder="Search your address"
+                />
                 <p className={`hidden text-xs sm:block ${isDark ? "text-[#e8dcc4]/40" : "text-amber-900"}`}>Use the search to auto-complete your address for better store accuracy.</p>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
