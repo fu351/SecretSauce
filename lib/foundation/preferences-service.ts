@@ -13,23 +13,46 @@ export async function getOrCreateUserFeaturePreferences(
   supabase: SupabaseClientLike,
   profileId: string,
 ): Promise<{ preferences: UserFeaturePreferences; error: unknown | null }> {
-  const { data, error } = await (supabase as any)
+  const existing = await (supabase as any)
     .from("user_feature_preferences")
-    .upsert(
-      {
-        profile_id: profileId,
-        ...buildPreferenceDbUpdate(DEFAULT_USER_FEATURE_PREFERENCES),
-      },
-      { onConflict: "profile_id", ignoreDuplicates: true },
-    )
     .select("*")
-    .single()
+    .eq("profile_id", profileId)
+    .maybeSingle()
 
-  if (error) {
-    return { preferences: DEFAULT_USER_FEATURE_PREFERENCES, error }
+  if (existing.error) {
+    return { preferences: DEFAULT_USER_FEATURE_PREFERENCES, error: existing.error }
   }
 
-  return { preferences: normalizeUserFeaturePreferences(data), error: null }
+  if (existing.data) {
+    return { preferences: normalizeUserFeaturePreferences(existing.data), error: null }
+  }
+
+  const created = await (supabase as any)
+    .from("user_feature_preferences")
+    .insert({
+      profile_id: profileId,
+      ...buildPreferenceDbUpdate(DEFAULT_USER_FEATURE_PREFERENCES),
+    })
+    .select("*")
+    .maybeSingle()
+
+  if (created.error) {
+    if (created.error.code === "23505" || created.error.code === "PGRST116") {
+      const retry = await (supabase as any)
+        .from("user_feature_preferences")
+        .select("*")
+        .eq("profile_id", profileId)
+        .maybeSingle()
+
+      if (!retry.error && retry.data) {
+        return { preferences: normalizeUserFeaturePreferences(retry.data), error: null }
+      }
+    }
+
+    return { preferences: DEFAULT_USER_FEATURE_PREFERENCES, error: created.error }
+  }
+
+  return { preferences: normalizeUserFeaturePreferences(created.data), error: null }
 }
 
 export async function updateUserFeaturePreferences(
