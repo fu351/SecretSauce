@@ -4,6 +4,7 @@ import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { followDB } from "@/lib/database/follow-db"
 import { parseInstructionsFromDB } from "@/lib/types"
 import { isAdmin, resolveAuthenticatedProfileId } from "@/lib/auth/admin"
+import { upsertRecipeWithIngredients } from "@/lib/database/recipe-write"
 
 export const runtime = "nodejs"
 
@@ -73,18 +74,6 @@ async function loadRecipeResponse(supabase: ReturnType<typeof createServiceSupab
   }
 
   return { recipe, error: null as string | null }
-}
-
-function normalizeIngredientsForRpc(ingredients: any[] | null | undefined) {
-  if (!Array.isArray(ingredients) || ingredients.length === 0) return []
-  return ingredients
-    .filter((ingredient) => ingredient?.name?.trim())
-    .map((ingredient) => ({
-      display_name: String(ingredient.name).trim(),
-      standardized_ingredient_id: ingredient.standardizedIngredientId ?? null,
-      quantity: ingredient.quantity ?? null,
-      units: ingredient.unit ?? null,
-    }))
 }
 
 export async function GET(
@@ -188,35 +177,31 @@ export async function PATCH(
       return NextResponse.json({ error: "title is required" }, { status: 400 })
     }
 
-    const instructionSteps = Array.isArray(body?.instructions)
-      ? body.instructions
-          .map((step: any) => (typeof step === "string" ? step.trim() : step?.description?.trim()))
-          .filter(Boolean)
-      : []
-
-    const ingredients = normalizeIngredientsForRpc(Array.isArray(body?.ingredients) ? body.ingredients : [])
-
-    const { data, error } = await supabase.rpc("fn_upsert_recipe_with_ingredients", {
-      p_recipe_id: recipeId,
-      p_title: title,
-      p_author_id: existingRecipe.author_id || profileId,
-      p_cuisine: typeof body?.cuisine === "string" ? body.cuisine || null : null,
-      p_meal_type: body?.mealType ?? null,
-      p_protein: body?.protein ?? null,
-      p_difficulty: body?.difficulty ?? null,
-      p_servings: body?.servings ? Number(body.servings) : null,
-      p_prep_time: body?.prepTime ? Number(body.prepTime) : null,
-      p_cook_time: body?.cookTime ? Number(body.cookTime) : null,
-      p_tags: Array.isArray(body?.tags) ? body.tags : [],
-      p_nutrition: body?.nutrition ?? {},
-      p_description: typeof body?.description === "string" ? body.description : null,
-      p_image_url: typeof body?.imageUrl === "string" ? body.imageUrl || null : null,
-      p_instructions: instructionSteps,
-      p_ingredients: ingredients,
+    const savedRecipe = await upsertRecipeWithIngredients(supabase, {
+      recipeId,
+      title,
+      authorId: existingRecipe.author_id || profileId,
+      cuisine: typeof body?.cuisine === "string" ? body.cuisine || null : null,
+      mealType: body?.mealType ?? null,
+      protein: body?.protein ?? null,
+      difficulty: body?.difficulty ?? null,
+      servings: body?.servings ? Number(body.servings) : null,
+      prepTime: body?.prepTime ? Number(body.prepTime) : null,
+      cookTime: body?.cookTime ? Number(body.cookTime) : null,
+      tags: Array.isArray(body?.tags) ? body.tags : [],
+      nutrition: body?.nutrition ?? {},
+      description: typeof body?.description === "string" ? body.description : null,
+      imageUrl: typeof body?.imageUrl === "string" ? body.imageUrl || null : null,
+      instructions: Array.isArray(body?.instructions)
+        ? body.instructions
+            .map((step: any) => (typeof step === "string" ? step.trim() : step?.description?.trim()))
+            .filter(Boolean)
+        : [],
+      ingredients: Array.isArray(body?.ingredients) ? body.ingredients : [],
     })
 
-    if (error || !data) {
-      return NextResponse.json({ error: error?.message || "Failed to update recipe" }, { status: 500 })
+    if (!savedRecipe) {
+      return NextResponse.json({ error: "Failed to update recipe" }, { status: 500 })
     }
 
     const response = await loadRecipeResponse(supabase, recipeId)
