@@ -517,6 +517,23 @@ class RecipeTable extends BaseTable<"recipes", Recipe, Partial<Recipe>, Partial<
   }
 
   /**
+   * Restore a soft-deleted recipe.
+   */
+  async restoreRecipe(id: string): Promise<boolean> {
+    const { error } = await (this.supabase.from(this.tableName) as any)
+      .update({ deleted_at: null })
+      .eq("id", id)
+
+    if (error) {
+      this.handleError(error, `restoreRecipe(${id})`)
+      return false
+    }
+
+    console.log("[Recipe DB] Restore successful for recipe:", id)
+    return true
+  }
+
+  /**
    * Override remove to use soft delete
    */
   async remove(id: string): Promise<boolean> {

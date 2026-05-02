@@ -25,6 +25,7 @@ const TABLES = [
       { name: "recipe_collection_items", description: "Recipes assigned to folders" },
       { name: "recipe_favorites", description: "Legacy favorite recipes" },
       { name: "recipe_reviews", description: "Recipe ratings and reviews" },
+      { name: "recipe_flags", description: "Recipe moderation reports and resolution state" },
       { name: "feedback", description: "User feedback messages" },
     ],
   },

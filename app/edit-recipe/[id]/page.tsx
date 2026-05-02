@@ -6,8 +6,8 @@ import { useQueryClient } from "@tanstack/react-query"
 import clsx from "clsx"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast, useRecipe } from "@/hooks"
+import { useIsAdmin } from "@/hooks/use-admin"
 import { useTheme } from "@/contexts/theme-context"
-import { recipeDB } from "@/lib/database/recipe-db"
 import { uploadRecipeImage } from "@/lib/image-helper"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-entry-form"
@@ -23,6 +23,7 @@ export default function EditRecipePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { theme } = useTheme()
+  const { isAdmin, loading: adminLoading } = useIsAdmin()
   const pageBackgroundClass = theme === "dark" ? "bg-background" : "bg-gradient-to-br from-orange-50 to-yellow-50"
 
   const recipeId = Array.isArray(params.id) ? params.id[0] : params.id
@@ -37,7 +38,10 @@ export default function EditRecipePage() {
   const [extraIngredients, setExtraIngredients] = useState<ImportedRecipe["ingredients"]>([])
 
   // Permission check
-  if (recipe && recipe.author_id !== user?.id) {
+  const isOwner = Boolean(recipe && user && recipe.author_id === user.id)
+  const canEditRecipe = isOwner || isAdmin
+
+  if (recipe && !isOwner && !adminLoading && !isAdmin) {
     toast({
       title: "Permission denied",
       description: "You can only edit your own recipes.",
@@ -45,6 +49,14 @@ export default function EditRecipePage() {
     })
     router.push("/recipes?mine=true")
     return null
+  }
+
+  if (recipe && !canEditRecipe && adminLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   const handleSubmit = async (data: RecipeSubmissionData) => {
@@ -63,26 +75,36 @@ export default function EditRecipePage() {
         .map((step) => step.description?.trim())
         .filter(Boolean)
 
-      const updatedRecipe = await recipeDB.upsertRecipeWithIngredients({
-        recipeId,
-        title: data.title,
-        authorId: recipe?.author_id || user.id,
-        cuisine: data.cuisine || recipe?.cuisine_name || null,
-        mealType: recipe?.meal_type ?? null,
-        protein: recipe?.protein ?? null,
-        difficulty: data.difficulty,
-        servings: data.servings,
-        prepTime: data.prep_time,
-        cookTime: data.cook_time,
-        tags: data.tags || [],
-        nutrition: data.nutrition,
-        description: data.description,
-        imageUrl: imageValue,
-        instructions: instructionSteps,
-        ingredients: data.ingredients,
+      const response = await fetch(`/api/recipes/${recipeId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: data.title,
+          cuisine: data.cuisine || recipe?.cuisine_name || null,
+          mealType: recipe?.meal_type ?? null,
+          protein: recipe?.protein ?? null,
+          difficulty: data.difficulty,
+          servings: data.servings,
+          prepTime: data.prep_time,
+          cookTime: data.cook_time,
+          tags: data.tags || [],
+          nutrition: data.nutrition,
+          description: data.description,
+          imageUrl: imageValue,
+          instructions: instructionSteps,
+          ingredients: data.ingredients,
+        }),
       })
 
-      if (!updatedRecipe) {
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to update recipe record")
+      }
+      const updatedRecipe = payload.recipe
+      if (!updatedRecipe?.id) {
         throw new Error("Failed to update recipe record")
       }
 
@@ -92,7 +114,7 @@ export default function EditRecipePage() {
 
       toast({
         title: "Recipe updated!",
-        description: "Your recipe has been successfully updated.",
+        description: "Recipe has been successfully updated.",
       })
 
       router.push(`/recipes/${updatedRecipe.id}`)
@@ -113,14 +135,23 @@ export default function EditRecipePage() {
 
     setDeleting(true)
     try {
-      await recipeDB.deleteRecipe(recipeId)
+      const response = await fetch(`/api/recipes/${recipeId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to delete recipe")
+      }
 
       // Invalidate cache
+      await queryClient.invalidateQueries({ queryKey: ["recipe", recipeId] })
       await queryClient.invalidateQueries({ queryKey: ["recipes"] })
 
       toast({
         title: "Recipe deleted",
-        description: "Your recipe has been successfully deleted.",
+        description: "Recipe has been successfully deleted.",
       })
 
       router.push("/recipes?mine=true")
@@ -180,7 +211,9 @@ export default function EditRecipePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Edit Recipe</h1>
-          <p className="text-muted-foreground">Update your recipe details</p>
+          <p className="text-muted-foreground">
+            {isOwner ? "Update your recipe details" : "Update recipe details"}
+          </p>
         </div>
 
         <Tabs value={editTab} onValueChange={(v) => setEditTab(v as "form" | "paragraph")} className="space-y-6">
