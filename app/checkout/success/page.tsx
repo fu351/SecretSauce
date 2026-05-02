@@ -4,14 +4,14 @@ import { useEffect } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import posthog from "posthog-js"
+import { capturePosthogEvent } from "@/lib/analytics/posthog-client"
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get("session_id")
 
   useEffect(() => {
-    posthog.capture("subscription_purchased", { session_id: sessionId ?? undefined })
+    capturePosthogEvent("subscription_purchased", { session_id: sessionId ?? undefined })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -36,4 +36,3 @@ export default function CheckoutSuccessPage() {
     </main>
   )
 }
-

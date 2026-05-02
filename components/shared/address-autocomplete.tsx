@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 
 declare const google: any
 
-type ParsedAddress = {
+export type ParsedAddress = {
   formattedAddress: string
   addressLine1?: string
   addressLine2?: string
@@ -17,11 +17,12 @@ type ParsedAddress = {
   lng?: number | null
 }
 
-interface AddressAutocompleteProps {
+export interface AddressAutocompleteProps {
   value: ParsedAddress
   onChange: (address: ParsedAddress) => void
   placeholder?: string
   disabled?: boolean
+  mapsReady?: boolean
 }
 
 const componentMap: Record<string, keyof ParsedAddress> = {
@@ -72,7 +73,7 @@ function parsePlace(place: any): ParsedAddress {
   return parsed
 }
 
-export function AddressAutocomplete({ value, onChange, placeholder, disabled }: AddressAutocompleteProps) {
+export function AddressAutocomplete({ value, onChange, placeholder, disabled, mapsReady }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const controlledValue = useMemo(
     () => value?.formattedAddress || value?.addressLine1 || "",
@@ -88,6 +89,7 @@ export function AddressAutocomplete({ value, onChange, placeholder, disabled }: 
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    if (!mapsReady) return
     const inputEl = inputRef.current
     if (!inputEl) return
     if (!window.google?.maps?.places?.Autocomplete) return
@@ -114,7 +116,7 @@ export function AddressAutocomplete({ value, onChange, placeholder, disabled }: 
     }
     // Only recreate autocomplete if onChange function identity changes (not on every value update)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onChange])
+  }, [mapsReady, onChange])
 
   return (
     <Input

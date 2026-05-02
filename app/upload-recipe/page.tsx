@@ -14,7 +14,7 @@ import { RecipeManualEntryForm } from "@/components/recipe/forms/recipe-manual-e
 import { RecipeImportTabs } from "@/components/recipe/import/recipe-import-tabs"
 import { RecipeImportParagraph } from "@/components/recipe/import/recipe-import-paragraph"
 import type { ImportedRecipe, RecipeSubmissionData } from "@/lib/types"
-import posthog from "posthog-js"
+import { capturePosthogEvent } from "@/lib/analytics/posthog-client"
 
 export default function UploadRecipePage() {
   const router = useRouter()
@@ -58,7 +58,7 @@ export default function UploadRecipePage() {
 
     setFormData(data)
     setMainTab("manual")
-    posthog.capture("recipe_imported", { source: shareImport === "instagram" ? "instagram" : "url" })
+    capturePosthogEvent("recipe_imported", { source: shareImport === "instagram" ? "instagram" : "url" })
   }
 
   const handleSubmit = async (submissionData: RecipeSubmissionData) => {
@@ -103,7 +103,7 @@ export default function UploadRecipePage() {
 
       if (!newRecipe) throw new Error("Failed to create recipe record")
 
-      posthog.capture("recipe_created", {
+      capturePosthogEvent("recipe_created", {
         recipe_id: newRecipe.id,
         method: formData ? "import" : "manual",
       })

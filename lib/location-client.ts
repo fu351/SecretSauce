@@ -1,3 +1,5 @@
+import { readCookieConsentFromDocument } from "@/lib/privacy/cookie-consent"
+
 type LatLng = { lat: number; lng: number }
 
 type GoogleGeocodeResult = {
@@ -17,6 +19,7 @@ type GoogleGeocodeResponse = {
 async function geocodeAddress(address: string): Promise<LatLng | null> {
   const trimmed = address.trim()
   if (!trimmed) return null
+  if (!readCookieConsentFromDocument()?.thirdParty) return null
 
   try {
     const response = await fetch("/api/maps", {
@@ -47,6 +50,8 @@ export async function geocodePostalCode(input: string): Promise<LatLng | null> {
 }
 
 export async function reverseGeocodeToPostalCode(coords: LatLng): Promise<string | null> {
+  if (!readCookieConsentFromDocument()?.thirdParty) return null
+
   try {
     const response = await fetch("/api/maps", {
       method: "POST",

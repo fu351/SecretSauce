@@ -52,7 +52,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ weekSta
       return NextResponse.json({ error: "Failed to allocate surplus" }, { status: 500 })
     }
 
-    getPostHogClient().capture({
+    getPostHogClient(req.headers.get("cookie")).capture({
       distinctId: profile.profileId,
       event: "budget_surplus_allocated",
       properties: { week_start_date: weekStart, duplicate: result.duplicate ?? false },

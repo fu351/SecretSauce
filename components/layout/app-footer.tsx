@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { CookieSettingsButton } from "@/components/privacy/cookie-settings-button"
 
 const footerGroups = [
   {
@@ -90,6 +91,11 @@ export function AppFooter() {
                     </Link>
                   </li>
                 ))}
+                {group.title === "Legal" ? (
+                  <li>
+                    <CookieSettingsButton className="text-sm text-muted-foreground hover:text-foreground" />
+                  </li>
+                ) : null}
               </ul>
             </div>
           ))}

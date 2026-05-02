@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     if ("validationError" in result) return NextResponse.json({ error: result.validationError }, { status: 409 })
     if ("error" in result && result.error) return NextResponse.json({ error: "Failed to create verification task" }, { status: 500 })
 
-    getPostHogClient().capture({
+    getPostHogClient(req.headers.get("cookie")).capture({
       distinctId: profile.profileId,
       event: "meal_verification_started",
       properties: { source: mediaAssetId ? "photo" : "manual", duplicate: result.duplicate ?? false },

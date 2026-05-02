@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to switch goal" }, { status: 500 })
     }
 
-    getPostHogClient().capture({
+    getPostHogClient(req.headers.get("cookie")).capture({
       distinctId: profile.profileId,
       event: "budget_goal_switched",
       properties: { goal_id: result.goal.id, previous_goal_id: result.previousGoalId },

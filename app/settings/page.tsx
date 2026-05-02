@@ -15,7 +15,8 @@ import { Accessibility, Bell, BookOpen, FileText, HelpCircle, Info, Lock, LogOut
 import { supabase } from "@/lib/database/supabase"
 import { profileDB, type Profile } from "@/lib/database/profile-db"
 import { TutorialSelectionModal } from "@/components/tutorial/tutorial-selection-modal"
-import { AddressAutocomplete } from "@/components/shared/address-autocomplete"
+import { AddressAutocompleteWithConsent } from "@/components/shared/address-autocomplete-with-consent"
+import { CookieSettingsButton } from "@/components/privacy/cookie-settings-button"
 import { useToast } from "@/hooks"
 import { AuthGate } from "@/components/auth/tier-gate"
 import { useRouter } from "next/navigation"
@@ -779,7 +780,7 @@ function SettingsPageContent() {
           <CardContent className={sectionContentClass}>
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground">Home address</Label>
-              <AddressAutocomplete
+              <AddressAutocompleteWithConsent
                 value={{
                   formattedAddress,
                   addressLine1,
@@ -1034,6 +1035,7 @@ function SettingsPageContent() {
               <MessageCircle className="h-4 w-4" />
               Send Feedback
             </Button>
+            <CookieSettingsButton className="mt-2 min-h-12 w-full justify-start gap-3 rounded-md border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/50 hover:text-foreground" />
           </CardContent>
         </Card>
 
