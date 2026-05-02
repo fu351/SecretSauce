@@ -13,6 +13,7 @@ import { mergeShoppingListItems, type ShoppingListDisplayItem } from "@/lib/util
 import { calcLineTotal } from "@/lib/utils/package-pricing"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { buildStoreComparisonExportPayload } from "@/lib/store/store-comparison-export"
+import { buildQuantityMap, calculateStoreComparisonTotals } from "@/lib/store/store-comparison-totals"
 
 const StoreMap = dynamic(() => import("./store-map").then((mod) => mod.StoreMap), {
   ssr: false,
@@ -62,13 +63,7 @@ export function ShoppingReceiptView({
 }: ShoppingReceiptViewProps) {
   const [showMap, setShowMap] = useState(false)
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle")
-  const quantityByItemId = useMemo(() => {
-    const map = new Map<string, number>()
-    shoppingList.forEach((item) => {
-      map.set(item.id, Number(item.quantity) || 0)
-    })
-    return map
-  }, [shoppingList])
+  const quantityByItemId = useMemo(() => buildQuantityMap(shoppingList), [shoppingList])
 
   const displayShoppingList = useMemo(() => mergeShoppingListItems(shoppingList), [shoppingList])
 
@@ -109,41 +104,7 @@ export function ShoppingReceiptView({
   }, [getEffectiveQuantity])
 
   const storeComparisonsWithLocalTotals = useMemo(() => {
-    if (storeComparisons.length === 0) return storeComparisons
-
-    const updatedComparisons = storeComparisons.map((store) => {
-      const localTotal = store.items.reduce((sum, pricedItem) => {
-        const itemIds = pricedItem.shoppingItemIds?.filter(Boolean) || [pricedItem.shoppingItemId]
-        let effectiveQty = 0
-
-        itemIds.forEach((id) => {
-          effectiveQty += quantityByItemId.get(id) ?? 0
-        })
-
-        if (effectiveQty <= 0) {
-          effectiveQty = Math.max(1, Number(pricedItem.quantity) || 1)
-        }
-
-        const lineTotal = calcLineTotal({
-          qty: effectiveQty,
-          packagePrice: pricedItem.packagePrice,
-          convertedQty: pricedItem.convertedQuantity,
-          conversionError: pricedItem.conversionError ?? undefined,
-        })
-        return sum + (lineTotal ?? (Number(pricedItem.price) || 0) * effectiveQty)
-      }, 0)
-
-      return {
-        ...store,
-        total: localTotal,
-      }
-    })
-
-    const maxTotal = Math.max(...updatedComparisons.map((store) => store.total), 0)
-    return updatedComparisons.map((store) => ({
-      ...store,
-      savings: maxTotal - store.total,
-    }))
+    return calculateStoreComparisonTotals(storeComparisons, quantityByItemId)
   }, [storeComparisons, quantityByItemId])
 
   // Get the selected store's data

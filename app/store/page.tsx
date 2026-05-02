@@ -13,7 +13,8 @@ import { ShoppingReceiptView } from "@/components/store/shopping-receipt-view"
 import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { MobileQuickAddPanel } from "@/components/store/mobile-quick-add-panel"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
-import type { GroceryItem } from "@/lib/types/store"
+import type { GroceryItem, StoreComparison } from "@/lib/types/store"
+import { buildQuantityMap, calculateStoreComparisonTotals } from "@/lib/store/store-comparison-totals"
 
 const StoreMap = dynamic(
   () => import("@/components/store/store-map").then((mod) => mod.StoreMap),
@@ -104,7 +105,11 @@ export default function ShoppingReceiptPage() {
   } = useStoreComparison(shoppingList, zipCode, null)
   const listIdentitySignature = useMemo(() => buildListIdentitySignature(shoppingList), [shoppingList])
   const listQuantitySignature = useMemo(() => buildListQuantitySignature(shoppingList), [shoppingList])
-  const visibleStoreComparisons = storeComparisons
+  const quantityByItemId = useMemo(() => buildQuantityMap(shoppingList), [shoppingList])
+  const visibleStoreComparisons = useMemo(
+    () => calculateStoreComparisonTotals(storeComparisons, quantityByItemId),
+    [storeComparisons, quantityByItemId]
+  )
   const normalizedZipCode = zipCode.trim()
 
   // Hydration handling

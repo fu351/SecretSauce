@@ -10,6 +10,8 @@
 
 import { test, expect, type Page } from "@playwright/test"
 
+test.use({ storageState: undefined })
+
 const shoppingListItems = [
   {
     id: "item-apple-1",
@@ -276,5 +278,22 @@ test.describe("Store page merged ingredients", () => {
     const url = new URL(page.url())
     expect(url.searchParams.get("items")).toBe("1")
     expect(url.searchParams.get("total")).toBe("3.00")
+  })
+
+  test("updates the map popup total when cart quantity changes", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto("/store")
+
+    await expect(page.getByRole("heading", { name: /shopping receipt/i })).toBeVisible({ timeout: 15_000 })
+    await page.getByTitle("Show map").click()
+
+    await expect(page.locator(".leaflet-marker-icon")).toHaveCount(3, { timeout: 15_000 })
+    await page.locator(".leaflet-marker-icon").nth(1).click({ force: true })
+    await expect(page.getByText("Total: $5.00")).toBeVisible({ timeout: 15_000 })
+
+    await page.getByRole("button", { name: /increase quantity for bananas/i }).click()
+
+    await page.locator(".leaflet-marker-icon").nth(1).click({ force: true })
+    await expect(page.getByText("Total: $5.50")).toBeVisible({ timeout: 15_000 })
   })
 })
