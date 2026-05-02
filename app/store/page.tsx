@@ -507,14 +507,13 @@ export default function ShoppingReceiptPage() {
         const packagePrice = Number(item.packagePrice)
 
         // Use package-based pricing when available
-        if (
-          Number.isFinite(packagePrice) &&
-          packagePrice > 0 &&
-          Number.isFinite(baselinePackages) &&
-          baselinePackages > 0
-        ) {
-          const packagesPerQuantity = baselinePackages / baselineQuantity
-          const adjustedPackages = Math.max(1, Math.ceil(packagesPerQuantity * effectiveQty))
+        if (Number.isFinite(packagePrice) && packagePrice > 0) {
+          // When unit conversion fails (e.g. "10 leaves" → oz has no factor), buy 1 package.
+          const adjustedPackages = item.conversionError
+            ? 1
+            : Number.isFinite(baselinePackages) && baselinePackages > 0
+              ? Math.max(1, Math.ceil((baselinePackages / baselineQuantity) * effectiveQty))
+              : 1
 
           // Add to cart items if we have required data
           if (item.shoppingItemId && item.productMappingId) {

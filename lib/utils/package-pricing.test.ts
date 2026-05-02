@@ -66,8 +66,8 @@ describe("calcLineTotal", () => {
   it("returns null when packagePrice is null", () => {
     expect(calcLineTotal({ qty: 2, packagePrice: null, convertedQty: 10 })).toBeNull()
   })
-  it("returns null when conversionError is true", () => {
-    expect(calcLineTotal({ qty: 2, packagePrice: 3.50, convertedQty: 10, conversionError: true })).toBeNull()
+  it("returns 1× packagePrice when conversionError is true (optimistic: 1 package)", () => {
+    expect(calcLineTotal({ qty: 2, packagePrice: 3.50, convertedQty: 10, conversionError: true })).toBe(3.50)
   })
   it("returns null when convertedQty is 0", () => {
     expect(calcLineTotal({ qty: 2, packagePrice: 3.50, convertedQty: 0 })).toBeNull()

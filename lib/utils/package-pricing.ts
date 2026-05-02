@@ -34,11 +34,16 @@ export function calcPackages(qty: number, convertedQty: number): number {
 /**
  * Total cost for the packages needed to cover `qty`.
  * Returns null if package pricing data is missing or invalid.
+ * When unit conversion fails (conversionError=true), falls back to 1 package
+ * rather than multiplying by the raw recipe quantity (which is in an incommensurable unit).
  */
 export function calcLineTotal(input: PackagePricingInput): number | null {
   const { qty, packagePrice, convertedQty, conversionError } = input
+  const pp = Number(packagePrice)
+  if (!Number.isFinite(pp) || pp <= 0) return null
+  if (conversionError) return pp
   if (!hasPackagePricing(packagePrice, convertedQty, conversionError)) return null
-  return Number(packagePrice) * calcPackages(qty, Number(convertedQty))
+  return pp * calcPackages(qty, Number(convertedQty))
 }
 
 /**
