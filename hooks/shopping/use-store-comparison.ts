@@ -240,6 +240,7 @@ export function useStoreComparison(
 
   const buildComparisonsFromPricing = useCallback((pricingData: PricingResult[], storeMetadata: StoreMetadataMap): StoreComparison[] => {
     const storeMap = new Map<string, StoreComparison>()
+    const storeSlotIdsByBrand = new Map<string, Set<string>>()
     const itemsById = new Map(shoppingList.map(item => [normalizeShoppingItemId(item.id), item]))
     const itemsByIngredientId = new Map<string, ShoppingListItem[]>()
     const diagnostics: Array<{
@@ -261,6 +262,24 @@ export function useStoreComparison(
       const existing = itemsByIngredientId.get(ingredientId) ?? []
       existing.push(item)
       itemsByIngredientId.set(ingredientId, existing)
+    })
+
+    pricingData.forEach((entry: any) => {
+      const offers: any[] =
+        parseJsonArray(entry?.offers) ??
+        parseJsonArray(entry?.store_offers) ??
+        parseJsonArray(entry?.pricing_offers) ??
+        []
+
+      offers.forEach((offer) => {
+        const canonicalStore = (offer?.store || offer?.store_enum || offer?.store_name || "Unknown").toString().trim()
+        const slotId = normalizeShoppingItemId(offer?.store_id ?? offer?.grocery_store_id)
+        if (!canonicalStore || !slotId) return
+        const normalizedStore = normalizeStoreName(canonicalStore)
+        const slotIds = storeSlotIdsByBrand.get(normalizedStore) ?? new Set<string>()
+        slotIds.add(slotId)
+        storeSlotIdsByBrand.set(normalizedStore, slotIds)
+      })
     })
 
     pricingData.forEach((entry: any) => {
@@ -308,20 +327,29 @@ export function useStoreComparison(
       offers.forEach(offer => {
         const canonicalStore = (offer?.store || offer?.store_enum || offer?.store_name || "Unknown").toString().trim()
         const storeDisplayName = (offer?.store_name || canonicalStore || "Unknown").toString().trim()
+        const normalizedStore = normalizeStoreName(canonicalStore)
+        const preferredStoreId = normalizeShoppingItemId(offer?.store_id ?? offer?.grocery_store_id)
+        const splitStoreSlots = preferredStoreId && (storeSlotIdsByBrand.get(normalizedStore)?.size ?? 0) > 1
+        const storeKey = splitStoreSlots ? `${normalizedStore}:${preferredStoreId}` : canonicalStore
+        const comparisonStoreName = splitStoreSlots && offer?.zip_code
+          ? `${storeDisplayName} (${offer.zip_code})`
+          : canonicalStore
 
-        if (!storeMap.has(canonicalStore)) {
-          storeMap.set(canonicalStore, {
-            store: canonicalStore,
+        if (!storeMap.has(storeKey)) {
+          storeMap.set(storeKey, {
+            store: comparisonStoreName,
+            storeBrand: canonicalStore,
             items: [],
             total: 0,
             savings: 0,
             missingItems: false,
             missingCount: 0,
-            missingIngredients: []
+            missingIngredients: [],
+            groceryStoreId: preferredStoreId || null,
           })
         }
 
-        const comp = storeMap.get(canonicalStore)!
+        const comp = storeMap.get(storeKey)!
         const requestedAmountRaw = Number(entry?.total_amount ?? entry?.total_quantity ?? 1)
         const requestedAmount = requestedAmountRaw > 0 ? requestedAmountRaw : 1
         const totalQty = Math.max(1, Math.ceil(requestedAmount))
@@ -334,9 +362,9 @@ export function useStoreComparison(
         const requestedUnitNormalized = canonicalizeUnit(normalizeUnitValue(requestedUnit))
         const productUnitNormalized = canonicalizeUnit(normalizeUnitValue(productUnit))
         const packagesFromOffer = parsePositiveNumber(offer?.packages_to_buy)
-        const packagesToBuy =
-          packagesFromOffer != null ? Math.max(1, Math.ceil(packagesFromOffer)) :
-          (!conversionError && requestedUnitNormalized && productUnitNormalized && requestedUnitNormalized === productUnitNormalized
+        const packagesToBuy = packagesFromOffer != null
+          ? Math.max(1, Math.ceil(packagesFromOffer))
+          : (!conversionError && requestedUnitNormalized && productUnitNormalized && requestedUnitNormalized === productUnitNormalized
             ? totalQty
             : undefined)
         const productQuantity = parseNumber(offer?.product_quantity)
@@ -346,7 +374,7 @@ export function useStoreComparison(
         const stableItemKey = primaryShoppingItemId || standardizedIngredientId || rpcItemIds[0] || String(comp.items.length)
 
         comp.items.push({
-          id: `${canonicalStore}-${stableItemKey}`,
+          id: `${storeKey}-${stableItemKey}`,
           title: offer?.product_name || fallbackName,
           brand: "",
           price: totalPrice,
@@ -390,8 +418,9 @@ export function useStoreComparison(
       const missingIngredients = shoppingList.filter(item => !foundItemIds.has(normalizeShoppingItemId(item.id)))
 
       // Get coordinates from store metadata (from getUserPreferredStores)
-      const normalizedStore = normalizeStoreName(comp.store)
+      const normalizedStore = normalizeStoreName(comp.storeBrand || comp.store)
       const metadata = storeMetadata.get(normalizedStore)
+      const explicitGroceryStoreId = comp.groceryStoreId ?? null
 
       // The metadata from getUserPreferredStores already has latitude/longitude from the RPC
       const latitude = metadata?.latitude ?? undefined
@@ -406,7 +435,7 @@ export function useStoreComparison(
         latitude,
         longitude,
         distanceMiles,
-        groceryStoreId: metadata?.grocery_store_id ?? null,
+        groceryStoreId: explicitGroceryStoreId ?? metadata?.grocery_store_id ?? null,
       }
     })
 

@@ -147,6 +147,7 @@ export default function ShoppingReceiptPage() {
   const [reloadTarget, setReloadTarget] = useState<{
     term: string
     store: string
+    storeBrand?: string | null
     shoppingListId?: string
     shoppingListIds?: string[]
     standardizedIngredientId?: string | null
@@ -435,6 +436,7 @@ export default function ShoppingReceiptPage() {
     setReloadTarget({
       term: replacementSearchTerm,
       store: activeStore,
+      storeBrand: activeStoreData?.storeBrand ?? activeStoreData?.canonicalKey ?? activeStore,
       shoppingListId: item.id,
       shoppingListIds: shoppingListIds?.length ? shoppingListIds : [item.id],
       standardizedIngredientId,

@@ -17,6 +17,7 @@ interface ItemReplacementModalProps {
   target: {
     term: string
     store: string
+    storeBrand?: string | null
     shoppingListId?: string
     shoppingListIds?: string[]
     standardizedIngredientId?: string | null
@@ -62,6 +63,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
 
   const persistManualSelection = async (item: GroceryItem) => {
     if (!target?.store) return
+    const storeBrand = target.storeBrand || target.store
     try {
       const response = await fetch("/api/grocery-search/cache-selection", {
         method: "POST",
@@ -71,7 +73,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         body: JSON.stringify({
           searchTerm: target.term || term || item.title,
           standardizedIngredientId: target.standardizedIngredientId || null,
-          store: target.store,
+          store: storeBrand,
           zipCode: zipCode || null,
           groceryStoreId: target.groceryStoreId ?? null,
           product: {
@@ -105,18 +107,19 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
     const isStale = () => searchGenerationRef.current !== generation
     setLoading(true)
     try {
-      const normalizedTargetStore = normalizeStoreName(target?.store || "")
+      const targetStoreBrand = target?.storeBrand || target?.store || ""
+      const normalizedTargetStoreBrand = normalizeStoreName(targetStoreBrand)
 
       // 1. Fetch RPC options and live scrape results in parallel.
       // The scraper is always the primary display source; the RPC only provides ingredient IDs.
       const [replacementOptions, scrapeStoreResults] = await Promise.all([
         userId && target?.store
-          ? ingredientsRecentDB.getReplacement(userId, target.store, searchTerm)
+          ? ingredientsRecentDB.getReplacement(userId, targetStoreBrand, searchTerm)
           : Promise.resolve([]),
         searchGroceryStores(
           searchTerm,
           zipCode,
-          target?.store,
+          targetStoreBrand,
           true,
           target?.standardizedIngredientId || null
         ),
@@ -126,7 +129,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
       replacementOptions.forEach((option, optionIdx) => {
         const offers = Array.isArray(option.offers) ? option.offers : []
         offers.forEach((offer, offerIdx) => {
-          const stableKey = `${target?.store || ""}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
+          const stableKey = `${targetStoreBrand}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
           const stableId = `replacement-${stableKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `${optionIdx}-${offerIdx}`}`
           rpcIngredientByItemId.set(stableId, option.ingredient_id)
         })
@@ -134,11 +137,11 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
 
       // 2. Use live scrape results; fall back to RPC-only results if scraper returned nothing.
       const scrapeResults = scrapeStoreResults
-        .filter((storeResult) => normalizeStoreName(storeResult.store) === normalizedTargetStore)
+        .filter((storeResult) => normalizeStoreName(storeResult.store) === normalizedTargetStoreBrand)
         .flatMap((storeResult) =>
           (storeResult.items || []).map((item) => ({
             ...item,
-            provider: target?.store || item.provider || "",
+            provider: targetStoreBrand || item.provider || "",
           }))
         )
 
@@ -147,7 +150,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
         : replacementOptions.flatMap((option, optionIdx) => {
           const offers = Array.isArray(option.offers) ? option.offers : []
           return offers.map((offer, offerIdx) => {
-            const stableKey = `${target?.store || ""}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
+            const stableKey = `${targetStoreBrand}-${option.ingredient_id}-${offer.product_name || option.canonical_name}-${offer.unit || ""}-${offer.price ?? ""}`
             const stableId = `replacement-${stableKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `${optionIdx}-${offerIdx}`}`
             return {
               id: stableId,
@@ -160,15 +163,15 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                     : undefined,
               unit: offer.unit || undefined,
               image_url: offer.image_url || "",
-              provider: target?.store || "",
+              provider: targetStoreBrand || "",
               category: option.category || undefined,
             } satisfies GroceryItem
           })
         })
 
       const flatResults = fallbackResults.filter((item) => {
-        const itemProvider = normalizeStoreName(item.provider || target?.store || "")
-        return itemProvider === normalizedTargetStore
+        const itemProvider = normalizeStoreName(item.provider || targetStoreBrand || "")
+        return itemProvider === normalizedTargetStoreBrand
       })
 
       if (isStale()) return
@@ -197,7 +200,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
           ingredientMap.get(item.title) ||
           resolvedIngredientId ||
           null,
-        store: item.provider?.toLowerCase?.() || target?.store || "unknown",
+        store: item.provider?.toLowerCase?.() || targetStoreBrand || "unknown",
         price: item.price,
         productName: item.title,
         productId: item.id,
@@ -211,7 +214,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
       // 5. Query back via get_ingredient_price_details and enrich the visible results
       // with any product mapping IDs we can recover, but keep every candidate that
       // the RPC or scraper returned.
-      const targetStore = normalizeStoreName(target?.store || "")
+      const targetStore = normalizeStoreName(targetStoreBrand)
       const enrichmentIngredientIds = [
         ...new Set(
           [
@@ -259,8 +262,8 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                 target?.standardizedIngredientId ||
                 null
               const matchedMappingId =
-                mappingByKey.get(buildResultKey(normalizedTargetStore, item.title, item.price, itemIngredientId)) ||
-                mappingByKey.get(buildResultKey(normalizedTargetStore, item.title, undefined, itemIngredientId))
+                mappingByKey.get(buildResultKey(normalizedTargetStoreBrand, item.title, item.price, itemIngredientId)) ||
+                mappingByKey.get(buildResultKey(normalizedTargetStoreBrand, item.title, undefined, itemIngredientId))
 
               return matchedMappingId
                 ? { ...item, productMappingId: matchedMappingId }
@@ -285,7 +288,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
           .map(item =>
             productMappingsDB.incrementCounts({
               external_product_id: item.id,
-              store: target?.store ?? null,
+              store: target?.storeBrand ?? target?.store ?? null,
               raw_product_name: target?.term || item.title,
               standardized_ingredient_id: target?.standardizedIngredientId || null,
               modal_delta: 1,
@@ -358,7 +361,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                           // Scraper-sourced fallback — look up/create mapping, then persist override
                           productMappingsDB.incrementCounts({
                             external_product_id: item.id,
-                            store: target?.store ?? null,
+                            store: target?.storeBrand ?? target?.store ?? null,
                             raw_product_name: item.title,
                             standardized_ingredient_id: ingredientId,
                             exchange_delta: 1,

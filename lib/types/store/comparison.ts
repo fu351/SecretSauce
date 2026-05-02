@@ -57,6 +57,7 @@ export interface GroceryItem {
  */
 export interface StoreComparison {
   store: string
+  storeBrand?: string | null
   items: (GroceryItem & {
     shoppingItemId: string
     originalName: string
