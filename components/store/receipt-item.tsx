@@ -39,6 +39,8 @@ export function ReceiptItem({
   const unit = item.unit || ""
   const isAvailable = pricing !== null
   const pkgPrice = pricing?.packagePrice != null ? Number(pricing.packagePrice) : null
+  const baselineQty = (pricing as { baseQuantity?: number } | null)?.baseQuantity ?? pricing?.quantity ?? quantity
+  const baselinePackages = (pricing as { basePackagesToBuy?: number | null } | null)?.basePackagesToBuy ?? pricing?.packagesToBuy
   const convertedQty = pricing?.convertedQuantity != null && !pricing.conversionError
     ? Number(pricing.convertedQuantity)
     : null
@@ -46,15 +48,15 @@ export function ReceiptItem({
   const adjustedPackagesToBuy = usePackagePricing && convertedQty !== null
     ? calcPackages(quantity, convertedQty)
     : null
-  const estimatePackageCount = calcPackageEstimate(quantity, pricing?.quantity, pricing?.packagesToBuy)
+  const estimatePackageCount = calcPackageEstimate(quantity, baselineQty, baselinePackages)
   const lineTotalFromPkg = usePackagePricing && convertedQty !== null
     ? calcLineTotal({
       qty: quantity,
       packagePrice: pkgPrice,
       convertedQty,
       conversionError: pricing?.conversionError ?? undefined,
-      baselineQty: pricing?.quantity,
-      baselinePackages: pricing?.packagesToBuy,
+      baselineQty,
+      baselinePackages,
     })
     : pricing?.conversionError
       ? calcLineTotal({
@@ -62,8 +64,8 @@ export function ReceiptItem({
         packagePrice: pkgPrice,
         convertedQty: null,
         conversionError: true,
-        baselineQty: pricing?.quantity,
-        baselinePackages: pricing?.packagesToBuy,
+        baselineQty,
+        baselinePackages,
       })
     : null
   const lineTotal = pricing
@@ -71,11 +73,11 @@ export function ReceiptItem({
     : null
   const packageEstimateDisplay =
     adjustedPackagesToBuy !== null
-      ? adjustedPackagesToBuy
-      : estimatePackageCount !== null
-        ? estimatePackageCount
-      : pricing?.packagesToBuy != null
-        ? Math.max(1, Math.ceil(pricing.packagesToBuy))
+    ? adjustedPackagesToBuy
+    : estimatePackageCount !== null
+      ? estimatePackageCount
+      : baselinePackages != null
+        ? Math.max(1, Math.ceil(baselinePackages))
         : null
   // Ceil when falling back — package counts must be whole numbers even if the
   // ingredient quantity is fractional (e.g. 1.5 cups when no converted_quantity).

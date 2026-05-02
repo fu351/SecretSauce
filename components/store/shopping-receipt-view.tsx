@@ -99,8 +99,8 @@ export function ShoppingReceiptView({
       packagePrice: pricedItem.packagePrice,
       convertedQty: pricedItem.convertedQuantity,
       conversionError: pricedItem.conversionError ?? undefined,
-      baselineQty: pricedItem.quantity,
-      baselinePackages: pricedItem.packagesToBuy,
+      baselineQty: (pricedItem as { baseQuantity?: number }).baseQuantity ?? pricedItem.quantity,
+      baselinePackages: (pricedItem as { basePackagesToBuy?: number | null }).basePackagesToBuy ?? pricedItem.packagesToBuy,
     })
     return total ?? (Number(pricedItem.price) || 0) * effectiveQty
   }, [getEffectiveQuantity])
@@ -122,6 +122,8 @@ export function ShoppingReceiptView({
 
     type AggregatedPricing = StoreComparison["items"][number] & {
       totalPrice: number
+      baseQuantity: number
+      basePackagesToBuy?: number | null
     }
 
     const groupedPricing = new Map<string, AggregatedPricing>()
@@ -152,6 +154,10 @@ export function ShoppingReceiptView({
           packagesToBuy: typeof priceItem.packagesToBuy === "number"
             ? priceItem.packagesToBuy
             : undefined,
+          baseQuantity: Number(priceItem.quantity) || quantity,
+          basePackagesToBuy: typeof priceItem.packagesToBuy === "number"
+            ? priceItem.packagesToBuy
+            : undefined,
           // keep packagePrice and convertedQuantity from priceItem so receipt-item
           // can display correct package counts and compute totals
           totalPrice,
@@ -164,10 +170,13 @@ export function ShoppingReceiptView({
       existing.totalPrice = nextTotal
       existing.quantity = nextQuantity
       existing.price = nextQuantity > 0 ? nextTotal / nextQuantity : nextTotal
+      existing.baseQuantity += Number(priceItem.quantity) || quantity
       if (typeof existing.packagesToBuy === "number" && typeof priceItem.packagesToBuy === "number") {
         existing.packagesToBuy += priceItem.packagesToBuy
+        existing.basePackagesToBuy = (existing.basePackagesToBuy ?? 0) + priceItem.packagesToBuy
       } else if (typeof existing.packagesToBuy !== "number" && typeof priceItem.packagesToBuy === "number") {
         existing.packagesToBuy = priceItem.packagesToBuy
+        existing.basePackagesToBuy = priceItem.packagesToBuy
       }
       existing.shoppingItemIds = [...new Set([...(existing.shoppingItemIds || []), ...shoppingItemIds])]
       existing.shoppingItemId = existing.shoppingItemId || shoppingItemIds[0] || priceItem.shoppingItemId

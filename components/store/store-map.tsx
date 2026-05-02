@@ -44,6 +44,15 @@ interface StoreComparison {
   longitude?: number
 }
 
+function getStoreKey(comparison: StoreComparison, index: number): string {
+  if (comparison.canonicalKey) return comparison.canonicalKey
+  if (comparison.providerAliases?.[0]) return comparison.providerAliases[0]
+  if (comparison.latitude != null && comparison.longitude != null) {
+    return `${comparison.store}:${comparison.latitude},${comparison.longitude}`
+  }
+  return comparison.store || `store-${index}`
+}
+
 interface StoreMapProps {
   comparisons: StoreComparison[]
   onStoreSelected?: (storeIndex: number) => void
@@ -129,9 +138,9 @@ export function StoreMap({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userLocation, setUserLocation] = useState<LatLng | null>(null)
-  const [storeLocations, setStoreLocations] = useState<Map<number, LatLng>>(new Map())
-  const [storeResolvedNames, setStoreResolvedNames] = useState<Map<number, string>>(new Map())
-  const [distanceOverrides, setDistanceOverrides] = useState<Map<number, number>>(new Map())
+  const [storeLocations, setStoreLocations] = useState<Map<string, LatLng>>(new Map())
+  const [storeResolvedNames, setStoreResolvedNames] = useState<Map<string, string>>(new Map())
+  const [distanceOverrides, setDistanceOverrides] = useState<Map<string, number>>(new Map())
   const [customAddress, setCustomAddress] = useState("")
   const [geocodingAddress, setGeocodingAddress] = useState(false)
   const [travelMode, setTravelMode] = useState<TravelMode>("driving")
@@ -188,14 +197,34 @@ export function StoreMap({
     []
   )
 
+  const mapSetupSignature = useMemo(
+    () =>
+      comparisons
+        .map((comparison, index) => [
+          getStoreKey(comparison, index),
+          comparison.store ?? "",
+          comparison.latitude ?? "",
+          comparison.longitude ?? "",
+        ].join("|"))
+        .join("||"),
+    [comparisons]
+  )
+
   // Memoize routing destinations so RoutingControl doesn't rerun on every local state change
   const routingDestinations = useMemo(
     () =>
-      Array.from(storeLocations.entries()).map(([index, latLng]) => ({
-        index,
-        latLng,
-        name: comparisons[index]?.store || `Store ${index}`,
-      })),
+      comparisons
+        .map((comparison, index) => {
+          const key = getStoreKey(comparison, index)
+          const latLng = storeLocations.get(key)
+          if (!latLng) return null
+          return {
+            index,
+            latLng,
+            name: comparison.store || `Store ${index}`,
+          }
+        })
+        .filter((destination): destination is { index: number; latLng: LatLng; name: string } => Boolean(destination)),
     [storeLocations, comparisons]
   )
 
@@ -231,33 +260,34 @@ export function StoreMap({
 
         setUserLocation(userCoords)
 
-        const locations = new Map<number, LatLng>()
-        const names = new Map<number, string>()
-        const distances = new Map<number, number>()
+        const locations = new Map<string, LatLng>()
+        const names = new Map<string, string>()
+        const distances = new Map<string, number>()
         const skipped: string[] = []
         const fallbackPlaced: string[] = []
         const missingDbCoords: string[] = []
 
         comparisons.forEach((comparison, index) => {
+          const storeKey = getStoreKey(comparison, index)
           // Prefer coordinates from database (via API)
           if (comparison.latitude && comparison.longitude) {
-            locations.set(index, { lat: comparison.latitude, lng: comparison.longitude })
+            locations.set(storeKey, { lat: comparison.latitude, lng: comparison.longitude })
             console.log(`[StoreMap] Using database coordinates for ${comparison.store}`)
 
             // Update comparison distance if not already set
             if (!comparison.distanceMiles && userCoords) {
               const distance = calculateDistance(userCoords.lat, userCoords.lng, comparison.latitude, comparison.longitude)
-              distances.set(index, distance)
+              distances.set(storeKey, distance)
             }
           } else {
             missingDbCoords.push(comparison.store)
             // No geocoding allowed; optionally place near user to keep visible
             if (userCoords) {
               const jittered = jitterLocation(userCoords, index)
-              locations.set(index, jittered)
+              locations.set(storeKey, jittered)
               fallbackPlaced.push(comparison.store)
               if (!comparison.distanceMiles) {
-                distances.set(index, calculateDistance(userCoords.lat, userCoords.lng, jittered.lat, jittered.lng))
+                distances.set(storeKey, calculateDistance(userCoords.lat, userCoords.lng, jittered.lat, jittered.lng))
               }
               console.warn(`[StoreMap] Missing DB coordinates; approximating near user for ${comparison.store}`)
             } else {
@@ -303,7 +333,7 @@ export function StoreMap({
     }
 
     initialize()
-  }, [comparisons, userPostalCode, maxDistanceMiles])
+  }, [mapSetupSignature, userPostalCode, maxDistanceMiles])
 
   // Geocode custom address and update user location
   const handleAddressSearch = useCallback(async () => {
@@ -318,9 +348,9 @@ export function StoreMap({
         console.log("[StoreMap] Updated user location from custom address", { coordinates: coords, address: customAddress })
 
         // Recalculate distances
-        const nextDistances = new Map<number, number>()
-        storeLocations.forEach((loc, index) => {
-          nextDistances.set(index, calculateDistance(coords.lat, coords.lng, loc.lat, loc.lng))
+        const nextDistances = new Map<string, number>()
+        storeLocations.forEach((loc, key) => {
+          nextDistances.set(key, calculateDistance(coords.lat, coords.lng, loc.lat, loc.lng))
         })
         setDistanceOverrides(nextDistances)
 
@@ -581,15 +611,17 @@ export function StoreMap({
             </Marker>
 
             {/* Store Markers */}
-            {Array.from(storeLocations.entries()).map(([index, location]) => {
-              const comparison = comparisons[index]
+            {comparisons.map((comparison, index) => {
+              const storeKey = getStoreKey(comparison, index)
+              const location = storeLocations.get(storeKey)
+              if (!location) return null
               const isSelected = index === selectedStoreIndex
               const icon = isSelected ? redIcon : blueIcon
-              const effectiveDistanceMiles = distanceOverrides.get(index) ?? comparison?.distanceMiles ?? null
+              const effectiveDistanceMiles = distanceOverrides.get(storeKey) ?? comparison?.distanceMiles ?? null
 
               return (
                 <Marker
-                  key={index}
+                  key={storeKey}
                   position={[location.lat, location.lng]}
                   icon={icon}
                   eventHandlers={{
