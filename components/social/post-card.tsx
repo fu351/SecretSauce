@@ -6,6 +6,7 @@ import { Heart, Repeat2, Share2 } from "lucide-react"
 import type { PostWithMeta } from "@/lib/database/post-db"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { PostFlagButton } from "@/components/social/post-flag-button"
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -71,10 +72,13 @@ export function PostCard({
               authorContent
             )}
           </div>
-          <Button variant="ghost" size="icon" type="button" disabled>
-            <Share2 className="h-4 w-4" />
-            <span className="sr-only">Share</span>
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" type="button" disabled>
+              <Share2 className="h-4 w-4" />
+              <span className="sr-only">Share</span>
+            </Button>
+            <PostFlagButton postId={post.id} postTitle={post.title} />
+          </div>
         </div>
       </CardHeader>
 

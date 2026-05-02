@@ -51,7 +51,7 @@ export async function GET() {
       // Recent likes on viewer's posts
       supabase
         .from("post_likes")
-        .select("created_at, profiles!post_likes_profile_id_fkey(id, full_name, avatar_url, username), posts!post_likes_post_id_fkey(id, title)")
+        .select("created_at, profiles!post_likes_profile_id_fkey(id, full_name, avatar_url, username), posts!post_likes_post_id_fkey(id, title, deleted_at)")
         .eq("posts.author_id", viewerId)
         .gte("created_at", WINDOW)
         .order("created_at", { ascending: false })
@@ -60,7 +60,7 @@ export async function GET() {
       // Recent reposts of viewer's posts
       supabase
         .from("post_reposts")
-        .select("created_at, profiles!post_reposts_profile_id_fkey(id, full_name, avatar_url, username), posts!post_reposts_post_id_fkey(id, title)")
+        .select("created_at, profiles!post_reposts_profile_id_fkey(id, full_name, avatar_url, username), posts!post_reposts_post_id_fkey(id, title, deleted_at)")
         .eq("posts.author_id", viewerId)
         .gte("created_at", WINDOW)
         .order("created_at", { ascending: false })
@@ -87,7 +87,7 @@ export async function GET() {
     for (const r of (recentLikes.data ?? [])) {
       const from = (r as any).profiles
       const post = (r as any).posts
-      if (!from || !post) continue
+      if (!from || !post || post.deleted_at) continue
       notifications.push({ type: "post_like", from, post: { id: post.id, title: post.title }, created_at: r.created_at })
     }
 
@@ -95,7 +95,7 @@ export async function GET() {
     for (const r of (recentReposts.data ?? [])) {
       const from = (r as any).profiles
       const post = (r as any).posts
-      if (!from || !post) continue
+      if (!from || !post || post.deleted_at) continue
       notifications.push({ type: "post_repost", from, post: { id: post.id, title: post.title }, created_at: r.created_at })
     }
 

@@ -108,6 +108,18 @@ export default async function DevPage() {
             </p>
           </Link>
 
+          <Link
+            href="/dev/posts"
+            className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg"
+          >
+            <h3 className="text-lg font-semibold text-gray-900">
+              📝 Post Moderation
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Review post flags, edit content, and manage deletes/restores
+            </p>
+          </Link>
+
           {/* API Tester */}
           <Link
             href="/dev/api-tester"
