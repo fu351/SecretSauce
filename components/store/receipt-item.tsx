@@ -205,7 +205,8 @@ export function ReceiptItem({
                 type="button"
                 onClick={() => onRemove(item.id)}
                 className="h-8 w-8"
-                title="Remove item"
+                aria-label={`Remove ${displayName}`}
+                title={`Remove ${displayName}`}
               >
                 <X className="h-4 w-4 text-gray-500 hover:text-red-500" />
               </Button>

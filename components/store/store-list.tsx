@@ -510,7 +510,7 @@ export function ShoppingListSection({
               <span>{totalCount} item{totalCount !== 1 ? "s" : ""}</span>
             </div>
 
-            {!isMisc && onRemoveRecipe && (
+            {isRecipe && onRemoveRecipe && (
               <div
                 className={`border-l pl-2 ${theme === "dark" ? "border-[#e8dcc4]/20" : "border-gray-200"}`}
                 onClick={(e) => e.stopPropagation()}

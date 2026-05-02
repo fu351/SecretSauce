@@ -120,6 +120,8 @@ const pricingEntries = [
 ]
 
 async function mockStorePageData(page: Page) {
+  let currentShoppingListItems = [...shoppingListItems]
+
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "geolocation", {
       value: {
@@ -141,8 +143,29 @@ async function mockStorePageData(page: Page) {
   })
 
   await page.route("**/rest/v1/shopping_list_items**", async (route) => {
+    if (route.request().method() === "DELETE") {
+      const requestUrl = new URL(route.request().url())
+      const filter = requestUrl.searchParams.get("id") || ""
+      const match = filter.match(/^in\.\((.*)\)$/)
+      const ids = match?.[1]
+        ? match[1].split(",").map((id) => id.trim()).filter(Boolean)
+        : []
+
+      if (ids.length > 0) {
+        currentShoppingListItems = currentShoppingListItems.filter((item) => !ids.includes(item.id))
+      }
+
+      await route.fulfill({
+        json: [],
+        headers: {
+          "content-type": "application/json",
+        },
+      })
+      return
+    }
+
     await route.fulfill({
-      json: shoppingListItems,
+      json: currentShoppingListItems,
       headers: {
         "content-type": "application/json",
       },
@@ -233,5 +256,25 @@ test.describe("Store page merged ingredients", () => {
     const url = new URL(page.url())
     expect(url.searchParams.get("items")).toBe("2")
     expect(url.searchParams.get("total")).toBe("5.00")
+  })
+
+  test("deletes an item from the shopping list and updates the receipt", async ({ page }) => {
+    await expect(page.getByRole("heading", { name: /shopping receipt/i })).toBeVisible({ timeout: 15_000 })
+
+    const deleteRequest = page.waitForRequest((request) =>
+      request.method() === "DELETE" &&
+      request.url().includes("/rest/v1/shopping_list_items")
+    )
+
+    await page.getByLabel("Remove Bananas").click()
+    await deleteRequest
+
+    await expect(page.getByText(/^Bananas$/)).toHaveCount(0, { timeout: 15_000 })
+    await expect(page.getByText(/^Apples$/)).toHaveCount(1)
+    await page.getByRole("button", { name: /proceed to checkout/i }).click()
+
+    const url = new URL(page.url())
+    expect(url.searchParams.get("items")).toBe("1")
+    expect(url.searchParams.get("total")).toBe("3.00")
   })
 })
