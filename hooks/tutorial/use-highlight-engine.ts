@@ -240,7 +240,9 @@ export function useHighlightEngine({
     const hasMoved =
       !prev ||
       Math.abs(newRect.top - prev.top) > 2 ||
-      Math.abs(newRect.left - prev.left) > 2
+      Math.abs(newRect.left - prev.left) > 2 ||
+      Math.abs(newRect.width - prev.width) > 2 ||
+      Math.abs(newRect.height - prev.height) > 2
 
     if (hasMoved) {
       setTargetRect(newRect)

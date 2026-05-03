@@ -6,21 +6,7 @@
  */
 
 import { test, expect } from "@playwright/test"
-import { generalPages } from "../../contents/tutorial-content"
 import { seedTutorialStateBeforeNavigation, clickNext, waitForOverlayGone } from "../fixtures/tutorial-helpers"
-
-function getExpectedStepCount(isMobile: boolean) {
-  return generalPages.reduce((total, page) => {
-    return (
-      total +
-      page.steps.filter((step) => {
-        if (step.mobileOnly && !isMobile) return false
-        if (step.desktopOnly && isMobile) return false
-        return true
-      }).length
-    )
-  }, 0)
-}
 
 test.describe("Tutorial overlay UI", () => {
   test.beforeEach(async ({ page }) => {
@@ -58,27 +44,19 @@ test.describe("Tutorial overlay UI", () => {
     await expect(overlay.getByRole("button", { name: /^next$|^finish$/i })).toBeVisible({ timeout: 3_000 })
   })
 
-  test("progress label shows 1 of total on first slot", async ({ page }) => {
+  test("does not show a visible step count", async ({ page }) => {
     const overlay = page.locator("[data-testid='tutorial-overlay']")
-    const viewport = page.viewportSize()
-    const expectedTotal = getExpectedStepCount((viewport?.width ?? 1280) < 768)
-    await expect(
-      overlay.getByText(new RegExp(`step 1 of ${expectedTotal}`, "i"))
-    ).toBeVisible({ timeout: 5_000 })
+    await expect(overlay).not.toContainText(/step \d+ of \d+/i)
   })
 
   test("progress bar fills as steps advance", async ({ page }) => {
     const overlay = page.locator("[data-testid='tutorial-overlay']")
     const bar = overlay.getByTestId("tutorial-progress-fill")
-    const viewport = page.viewportSize()
-    const expectedTotal = getExpectedStepCount((viewport?.width ?? 1280) < 768)
 
     const widthBefore = await bar.evaluate((el) => parseFloat(getComputedStyle(el).width))
 
     await clickNext(page)
-    await expect(
-      overlay.getByText(new RegExp(`step 2 of ${expectedTotal}`, "i"))
-    ).toBeVisible({ timeout: 5_000 })
+    await expect(overlay).toContainText("Your Command Center", { timeout: 5_000 })
 
     await expect
       .poll(

@@ -6,7 +6,7 @@ The tutorial is now a single shared walkthrough that overlays the live UI. It fo
 
 ```text
 TutorialProvider (context)
-  └── builds flatSequence from contents/tutorials/general.ts
+  └── builds flatSequence from lib/tutorial/tutorials/general.ts
   └── persists currentSlotIndex in localStorage
   └── exposes startTutorial / nextStep / prevStep / skipTutorial / resetTutorial
 
@@ -19,7 +19,7 @@ TutorialOverlay (component)
 
 ## Content Model
 
-All tutorial content lives in [general.ts](/Users/maddoxnoon/SecretSauce.nosync/contents/tutorials/general.ts).
+All tutorial content lives in [general.ts](../lib/tutorial/tutorials/general.ts).
 
 Each page is defined as a `GeneralPageEntry`:
 
@@ -45,7 +45,7 @@ The current shared page order is:
 
 ## State
 
-The provider in [tutorial-context.tsx](/Users/maddoxnoon/SecretSauce.nosync/contexts/tutorial-context.tsx) owns:
+The provider in [tutorial-context.tsx](../contexts/tutorial-context.tsx) owns:
 
 - `isActive`
 - `flatSequence`
@@ -73,7 +73,7 @@ Dismissal is still stored separately in `tutorial_dismissed_v1`.
 
 ## Start Flow
 
-The start UI uses [tutorial-selection-modal.tsx](/Users/maddoxnoon/SecretSauce.nosync/components/tutorial/tutorial-selection-modal.tsx), but it is now a simple confirmation modal for the shared tour. Starting the tour calls `startTutorial()`.
+The start UI uses [tutorial-selection-modal.tsx](../components/tutorial/tutorial-selection-modal.tsx), but it is now a simple confirmation modal for the shared tour. Starting the tour calls `startTutorial()`.
 
 `startTutorial()`:
 
@@ -94,7 +94,7 @@ The start UI uses [tutorial-selection-modal.tsx](/Users/maddoxnoon/SecretSauce.n
 
 ## Highlights And Scrolling
 
-The highlight engine lives in [use-highlight-engine.ts](/Users/maddoxnoon/SecretSauce.nosync/hooks/tutorial/use-highlight-engine.ts).
+The highlight engine lives in [use-highlight-engine.ts](../hooks/tutorial/use-highlight-engine.ts).
 
 It:
 
@@ -104,7 +104,7 @@ It:
 4. Measures the target rect
 5. Re-runs on resize, scroll, and DOM mutations
 
-Scrolling support lives in [use-scroll-to-target.ts](/Users/maddoxnoon/SecretSauce.nosync/hooks/tutorial/use-scroll-to-target.ts) and [tutorial-utils.ts](/Users/maddoxnoon/SecretSauce.nosync/lib/tutorial-utils.ts).
+Scrolling support lives in [use-scroll-to-target.ts](../hooks/tutorial/use-scroll-to-target.ts) and [tutorial-utils.ts](../lib/tutorial-utils.ts).
 
 The current system supports both:
 
@@ -113,7 +113,7 @@ The current system supports both:
 
 ## Mandatory Steps
 
-Mandatory actions are handled in [use-mandatory-completion.ts](/Users/maddoxnoon/SecretSauce.nosync/hooks/tutorial/use-mandatory-completion.ts).
+Mandatory actions are handled in [use-mandatory-completion.ts](../hooks/tutorial/use-mandatory-completion.ts).
 
 A step can complete when:
 
@@ -137,7 +137,7 @@ These events now describe the shared walkthrough rather than path-specific branc
 
 To add or adjust the tutorial:
 
-1. Edit [general.ts](/Users/maddoxnoon/SecretSauce.nosync/contents/tutorials/general.ts)
+1. Edit [general.ts](../lib/tutorial/tutorials/general.ts)
 2. Add or update `data-tutorial="..."` attributes in the UI
 3. Keep page content ordered top to bottom where possible
 4. Avoid duplicate guidance that says the same thing in slightly different words

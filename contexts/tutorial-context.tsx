@@ -11,9 +11,9 @@ import { setTutorialToastSuppression } from "@/hooks/ui/use-toast"
 import type {
   TutorialSubstep,
   GeneralPageEntry,
-} from "../contents/tutorial-content"
+} from "@/lib/tutorial/content"
 
-import { generalPages } from "../contents/tutorial-content"
+import { generalPages } from "@/lib/tutorial/content"
 
 export interface FlatTutorialSlot {
   page: string

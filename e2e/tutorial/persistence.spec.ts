@@ -9,28 +9,34 @@ import { test, expect } from "@playwright/test"
 import {
   seedTutorialStateBeforeNavigation,
   clickNext,
+  getTutorialSlotIndex,
   waitForOverlayGone,
 } from "../fixtures/tutorial-helpers"
 
 test.describe("Tutorial state persistence", () => {
   test("resumes at the correct slot after a hard refresh", async ({ page }) => {
-    // Inject state at slot 3 (recipes page overview)
-    await seedTutorialStateBeforeNavigation(page, 3)
+    await seedTutorialStateBeforeNavigation(
+      page,
+      getTutorialSlotIndex("/recipes", 1)
+    )
     await page.goto("/recipes")
 
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator("[data-tutorial='recipe-overview']")).toBeVisible({ timeout: 8_000 })
+    await expect(page.locator("[data-tutorial='recipe-filter']")).toBeVisible({ timeout: 8_000 })
 
     // Reload
     await page.reload()
 
     // Overlay should reappear on the same page at the same slot
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator("[data-tutorial='recipe-overview']")).toBeVisible({ timeout: 8_000 })
+    await expect(page.locator("[data-tutorial='recipe-filter']")).toBeVisible({ timeout: 8_000 })
   })
 
   test("advancing a step then refreshing resumes at the new slot", async ({ page }) => {
-    await seedTutorialStateBeforeNavigation(page, 3)
+    await seedTutorialStateBeforeNavigation(
+      page,
+      getTutorialSlotIndex("/recipes", 1)
+    )
     await page.goto("/recipes")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 
@@ -71,10 +77,10 @@ test.describe("Tutorial state persistence", () => {
       })
     })
 
-    // Last desktop slot is 31 (/home step 2: "go back to Dashboard").
-    // The /store page (5 slots, 25-29) was added after /meal-planner, shifting
-    // the original last slot from 26 to 31.
-    await seedTutorialStateBeforeNavigation(page, 31)
+    await seedTutorialStateBeforeNavigation(
+      page,
+      getTutorialSlotIndex("/home", 2)
+    )
     await page.goto("/home")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 

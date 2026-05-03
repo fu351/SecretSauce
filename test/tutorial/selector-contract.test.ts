@@ -12,7 +12,7 @@ import { describe, it, expect } from "vitest"
 import { readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 
-import { generalPages } from "../../contents/tutorial-content"
+import { generalPages } from "../../lib/tutorial/content"
 
 const ROOT = path.resolve(__dirname, "../..")
 
@@ -62,13 +62,15 @@ function buildSelectorIndex(): Map<string, string[]> {
       /\.(tsx|ts)$/.test(relPath) &&
       !relPath.startsWith("test/") &&
       !relPath.startsWith("e2e/") &&
-      !relPath.startsWith("contents/tutorials/"),
+      !relPath.startsWith("contents/tutorials/") &&
+      !relPath.startsWith("lib/tutorial/"),
     ignoreDir: (relPath) =>
       relPath === "node_modules" ||
       relPath === ".next" ||
       relPath === "test" ||
       relPath === "e2e" ||
-      relPath === "contents/tutorials",
+      relPath === "contents/tutorials" ||
+      relPath === "lib/tutorial",
   })
 
   const index = new Map<string, string[]>()
@@ -161,18 +163,24 @@ describe("Tutorial selector contracts", () => {
       })
 
       for (const substep of page.steps ?? []) {
-        if (!substep.highlightSelector) continue
-        const attr = extractAttr(substep.highlightSelector)
-        it(`step ${substep.id} "[data-tutorial='${attr}']" exists in source`, () => {
-          expect(
-            attr,
-            `Could not parse attribute from selector: ${substep.highlightSelector}`
-          ).not.toBeNull()
-          expect(
-            selectorIndex.has(attr!),
-            `data-tutorial="${attr}" is not present in any source file (used in step ${substep.id} of page ${page.page})`
-          ).toBe(true)
-        })
+        for (const [selectorKind, selector] of [
+          ["highlightSelector", substep.highlightSelector],
+          ["completionSelector", substep.completionSelector],
+        ] as const) {
+          if (!selector) continue
+
+          const attr = extractAttr(selector)
+          it(`step ${substep.id} ${selectorKind} "[data-tutorial='${attr}']" exists in source`, () => {
+            expect(
+              attr,
+              `Could not parse attribute from selector: ${selector}`
+            ).not.toBeNull()
+            expect(
+              selectorIndex.has(attr!),
+              `data-tutorial="${attr}" is not present in any source file (used in ${selectorKind} of step ${substep.id} on page ${page.page})`
+            ).toBe(true)
+          })
+        }
       }
     })
   }

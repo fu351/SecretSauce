@@ -43,6 +43,7 @@ export default function RecipeDetailPage() {
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
+  const [savingRecipe, setSavingRecipe] = useState(false)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
   const [recipeAuthor, setRecipeAuthor] = useState<{
     id: string
@@ -240,7 +241,7 @@ export default function RecipeDetailPage() {
     return () => window.clearTimeout(t)
   }, [showSwipeHint])
 
-  const openCollectionManager = () => {
+  const handleSaveClick = async () => {
     if (!user) {
       toast({
         title: "Sign in required",
@@ -250,7 +251,32 @@ export default function RecipeDetailPage() {
       return
     }
 
-    setShowCollectionManager(true)
+    if (!recipe) return
+
+    if (isFavorite) {
+      setShowCollectionManager(true)
+      return
+    }
+
+    setSavingRecipe(true)
+    try {
+      await recipeFavoritesDB.addFavorite(user.id, recipe.id)
+      setIsFavorite(true)
+      trackEvent("recipe_added_to_favorites", { recipe_id: recipe.id, source: "recipe_detail" })
+      toast({
+        title: "Saved recipe",
+        description: "Recipe saved to your Saved Recipes folder.",
+      })
+    } catch (error) {
+      console.error("Error saving recipe:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save recipe. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingRecipe(false)
+    }
   }
 
   const handleAddToBasket = async () => {
@@ -420,7 +446,8 @@ export default function RecipeDetailPage() {
             <RecipeActionBar
               recipeId={recipe.id}
               isFavorite={isFavorite}
-              onSaveClick={openCollectionManager}
+              isSaving={savingRecipe}
+              onSaveClick={handleSaveClick}
               likeCount={likeCount}
               isLiked={isLiked}
               onLikeToggle={(liked, count) => { setIsLiked(liked); setLikeCount(count) }}

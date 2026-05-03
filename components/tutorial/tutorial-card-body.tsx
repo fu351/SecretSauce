@@ -32,8 +32,6 @@ interface TutorialCardBodyProps {
   currentSubstep: TutorialSubstep | null | undefined
   currentSlotIndex: number
   nextSlot: FlatTutorialSlot | null
-  totalSteps: number
-  completedSteps: number
   expectedSelector: string | null
   targetRect: DOMRect | null
   syncRetries: number
@@ -90,8 +88,6 @@ export function TutorialCardBody({
   currentSubstep,
   currentSlotIndex,
   nextSlot,
-  totalSteps,
-  completedSteps,
   expectedSelector,
   targetRect,
   syncRetries,
@@ -180,16 +176,11 @@ export function TutorialCardBody({
               <p className="text-xs opacity-60 mb-2">
                 We couldn&apos;t find the UI element for this step.
               </p>
-              <p className="text-[10px] opacity-40 mb-6">
-                Step {completedSteps} of {totalSteps}
-                {expectedSelector ? (
-                  <>
-                    {" "}
-                    - Selector:{" "}
-                    <span className="font-mono">{expectedSelector}</span>
-                  </>
-                ) : null}
-              </p>
+              {expectedSelector ? (
+                <p className="text-[10px] opacity-40 mb-6">
+                  Selector: <span className="font-mono">{expectedSelector}</span>
+                </p>
+              ) : null}
               <div className={overlayDualActionClass}>
                 <Button
                   variant="outline"
@@ -216,14 +207,6 @@ export function TutorialCardBody({
       ) : (
         // Normal step content
         <>
-          <p
-            className={clsx(
-              "text-[11px] uppercase tracking-[0.18em] mb-2 font-semibold",
-              isDark ? "text-[#e8dcc4]/55" : "text-gray-500"
-            )}
-          >
-            Step {completedSteps} of {totalSteps}
-          </p>
           <h3 className="text-xl font-bold mb-2 leading-tight">
             {currentStep?.title}
           </h3>

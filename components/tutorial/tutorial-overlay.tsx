@@ -24,6 +24,7 @@ import {
   CONTAINER_SCROLL_PADDING,
   WINDOW_SCROLL_PADDING,
   DASHBOARD_AUTO_SCROLL_SELECTORS,
+  findFirstVisibleElement,
 } from "@/lib/tutorial-utils"
 
 declare global {
@@ -137,6 +138,15 @@ export function TutorialOverlay() {
         Array.from(document.querySelectorAll(selector)).filter(
           (el) => !overlayRef.current?.contains(el)
         )
+
+      if (
+        substepExpectedSelector &&
+        findFirstVisibleElement(substepExpectedSelector)
+      ) {
+        setIsPageLoading(false)
+        return
+      }
+
       const hasLoadingSpinner =
         getAllWithClass('[class*="animate-spin"]').length > 0
       const hasSkeletonLoader =
@@ -163,7 +173,7 @@ export function TutorialOverlay() {
       observer.disconnect()
       if (debounceTimer) clearTimeout(debounceTimer)
     }
-  }, [isActive])
+  }, [isActive, substepExpectedSelector])
 
   // Effect 2b: reset UI state on tutorial activation
 
@@ -554,7 +564,7 @@ export function TutorialOverlay() {
             </div>
             <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-50">
               {isMinimized
-                ? `Paused - ${completedSteps}/${totalSteps}`
+                ? "Paused"
                 : isPageLoading
                   ? "Loading content..."
                   : isChangingPage
@@ -621,8 +631,6 @@ export function TutorialOverlay() {
             currentSubstep={currentSubstep}
             currentSlotIndex={currentSlotIndex}
             nextSlot={nextSlot}
-            totalSteps={totalSteps}
-            completedSteps={completedSteps}
             expectedSelector={expectedSelector}
             targetRect={targetRect}
             syncRetries={syncRetries}

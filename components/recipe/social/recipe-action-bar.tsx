@@ -18,6 +18,7 @@ interface RecipeActionBarProps {
   recipeId: string
   // Save / favourite
   isFavorite: boolean
+  isSaving?: boolean
   onSaveClick: () => void
   // Like
   likeCount: number
@@ -75,6 +76,7 @@ function buildFriendLabel(friends: FriendProfile[], likeCount: number): string {
 export function RecipeActionBar({
   recipeId,
   isFavorite,
+  isSaving = false,
   onSaveClick,
   likeCount,
   isLiked,
@@ -203,10 +205,11 @@ export function RecipeActionBar({
           type="button"
           className={mobileTileActive.save}
           onClick={onSaveClick}
-          title={isFavorite ? "Manage your saved folders" : "Save to a folder"}
+          disabled={isSaving}
+          title={isFavorite ? "Manage your saved folders" : "Save recipe"}
         >
           <Bookmark className={clsx("h-4 w-4", isFavorite ? "fill-current" : "")} />
-          <span>{isFavorite ? "Saved" : "Save"}</span>
+          <span>{isSaving ? "Saving" : isFavorite ? "Saved" : "Save"}</span>
         </button>
 
         <button
@@ -270,10 +273,11 @@ export function RecipeActionBar({
           type="button"
           className={isFavorite ? activeRedClass : neutralClass}
           onClick={onSaveClick}
-          title={isFavorite ? "Manage your saved folders" : "Save to a folder"}
+          disabled={isSaving}
+          title={isFavorite ? "Manage your saved folders" : "Save recipe"}
         >
           <Bookmark className={clsx("h-4 w-4", isFavorite ? "fill-current" : "")} />
-          <span>{isFavorite ? "Saved" : "Save"}</span>
+          <span>{isSaving ? "Saving" : isFavorite ? "Saved" : "Save"}</span>
         </button>
 
         {/* Like */}

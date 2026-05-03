@@ -4,10 +4,34 @@
 
 import type { Page } from "@playwright/test"
 import { expect } from "@playwright/test"
+import { generalPages } from "../../lib/tutorial/content"
 
 const TUTORIAL_STATE_KEY = "tutorial_state_v1"
 const DISMISS_KEY = "tutorial_dismissed_v1"
 const TUTORIAL_STATE_VERSION = 10
+
+export function getTutorialSlotIndex(
+  pagePath: string,
+  stepId: number,
+  isMobile = false
+) {
+  let index = 0
+
+  for (const page of generalPages) {
+    for (const step of page.steps) {
+      if (step.mobileOnly && !isMobile) continue
+      if (step.desktopOnly && isMobile) continue
+
+      if (page.page === pagePath && step.id === stepId) {
+        return index
+      }
+
+      index += 1
+    }
+  }
+
+  throw new Error(`Tutorial slot not found for ${pagePath} step ${stepId}`)
+}
 
 /**
  * Seeds tutorial state before the first page navigation so tests do not need

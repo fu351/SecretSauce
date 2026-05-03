@@ -124,7 +124,7 @@ export function RecipeCollectionManager({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl" data-tutorial="recipe-save-dialog">
         <DialogHeader>
           <DialogTitle>Save to collections</DialogTitle>
           <DialogDescription>
@@ -139,7 +139,9 @@ export function RecipeCollectionManager({
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>{activeCount > 0 ? `Saved in ${activeCount} collection${activeCount !== 1 ? "s" : ""}` : "Not saved in any collection"}</span>
+              <span data-tutorial={activeCount > 0 ? "recipe-saved-confirmation" : undefined}>
+                {activeCount > 0 ? `Saved in ${activeCount} collection${activeCount !== 1 ? "s" : ""}` : "Not saved in any collection"}
+              </span>
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             </div>
 
@@ -162,6 +164,7 @@ export function RecipeCollectionManager({
                     <button
                       type="button"
                       onClick={() => toggleCollection(collection.id)}
+                      data-tutorial={!active ? "recipe-save-folder-option" : undefined}
                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
                       disabled={savingCollectionId === collection.id}
                     >

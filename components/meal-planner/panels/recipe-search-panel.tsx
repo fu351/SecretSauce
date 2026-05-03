@@ -169,7 +169,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
               <TabButton active={!showFavoritesOnly} onClick={() => setShowFavoritesOnly(false)}>
                 Browse
               </TabButton>
-              <TabButton active={showFavoritesOnly} onClick={() => setShowFavoritesOnly(true)} dataTutorial="planner-saved-tab">
+              <TabButton active={showFavoritesOnly} onClick={() => setShowFavoritesOnly(true)} dataTutorial="planner-favorites-tab">
                 <Heart className={cn("h-3 w-3", showFavoritesOnly && "fill-current")} />
                 Saved
               </TabButton>

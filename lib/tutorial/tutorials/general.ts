@@ -1,4 +1,4 @@
-import type { GeneralPageEntry } from "../../lib/types/tutorial"
+import type { GeneralPageEntry } from "../../types/tutorial"
 
 export const generalPages: GeneralPageEntry[] = [
   {
@@ -129,7 +129,7 @@ export const generalPages: GeneralPageEntry[] = [
       },
       {
         id: 11,
-        instruction: "Favorite this recipe so it shows up in the planner's Saved tab when you are ready to schedule it for the week.",
+        instruction: "Save this recipe so it shows up in the planner's Saved tab when you are ready to schedule it for the week.",
         highlightSelector: "[data-tutorial='recipe-favorite']",
         mandatory: true,
       },

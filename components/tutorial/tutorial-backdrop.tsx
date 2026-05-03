@@ -28,45 +28,68 @@ export function TutorialBackdrop({
   showVisibleHighlight,
   blockClick,
 }: TutorialBackdropProps) {
+  const padding = 10
+  const cutoutTop = Math.max(0, targetRect.top - padding)
+  const cutoutLeft = Math.max(0, targetRect.left - padding)
+  const cutoutRight = targetRect.right + padding
+  const cutoutBottom = targetRect.bottom + padding
+  const dimTop = targetIsWithinHeader ? 0 : headerHeight
+  const dimClassName = clsx(
+    "fixed z-[10030] pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
+    isDark ? "bg-black/80" : "bg-slate-950/45"
+  )
+
   return (
     <>
       {/* Dimmed backdrop (desktop only) */}
       {!isMobile && (
         showVisibleHighlight ? (
-          <svg className="fixed inset-0 z-[10030] pointer-events-none w-full h-full">
-            <defs>
-              <mask id="tutorial-mask">
-                <rect width="100%" height="100%" fill="white" />
-                <rect
-                  x={targetRect.left - 10}
-                  y={targetRect.top - 10}
-                  width={targetRect.width + 20}
-                  height={targetRect.height + 20}
-                  rx="12"
-                  fill="black"
-                  className="transition-all duration-300 ease-out"
-                />
-                {/* When highlighting a header element, darken the rest of the header too.
-                    Otherwise keep the full header unmasked so navigation remains visible. */}
-                {!targetIsWithinHeader && (
-                  <rect x="0" y="0" width="100%" height={headerHeight} fill="black" />
-                )}
-              </mask>
-            </defs>
-            <rect
-              width="100%"
-              height="100%"
-              fill={isDark ? "rgba(0,0,0,0.78)" : "rgba(17,24,39,0.45)"}
-              mask="url(#tutorial-mask)"
-              className="backdrop-blur-[2px] transition-opacity duration-500"
+          <>
+            <div
+              data-testid="tutorial-backdrop-panel"
+              className={dimClassName}
+              style={{
+                top: dimTop,
+                left: 0,
+                right: 0,
+                height: Math.max(0, cutoutTop - dimTop),
+              }}
             />
-          </svg>
+            <div
+              data-testid="tutorial-backdrop-panel"
+              className={dimClassName}
+              style={{
+                top: cutoutTop,
+                left: 0,
+                width: cutoutLeft,
+                height: Math.max(0, cutoutBottom - cutoutTop),
+              }}
+            />
+            <div
+              data-testid="tutorial-backdrop-panel"
+              className={dimClassName}
+              style={{
+                top: cutoutTop,
+                left: cutoutRight,
+                right: 0,
+                height: Math.max(0, cutoutBottom - cutoutTop),
+              }}
+            />
+            <div
+              data-testid="tutorial-backdrop-panel"
+              className={dimClassName}
+              style={{
+                top: cutoutBottom,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
+            />
+          </>
         ) : (
           <div
-            className={clsx(
-              "fixed inset-0 z-[10030] pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
-              isDark ? "bg-black/80" : "bg-slate-950/45"
-            )}
+            className={dimClassName}
+            style={{ inset: 0 }}
           />
         )
       )}
@@ -87,6 +110,7 @@ export function TutorialBackdrop({
       {/* Highlight ring */}
       {showVisibleHighlight && (
         <div
+          data-testid="tutorial-highlight-ring"
           className="fixed z-[10040] pointer-events-none rounded-[18px] border-2 border-blue-400 transition-all duration-300 ease-out"
           style={{
             top: targetRect.top - 12,

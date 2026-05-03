@@ -10,12 +10,16 @@ import {
   clearTutorialStateBeforeNavigation,
   seedTutorialStateBeforeNavigation,
   clickNext,
+  getTutorialSlotIndex,
   getOverlayHeaderLabel,
 } from "../fixtures/tutorial-helpers"
 
 test.describe("Shared tutorial flat sequence", () => {
   test("advancing from dashboard moves straight to recipes", async ({ page }) => {
-    await seedTutorialStateBeforeNavigation(page, 2)
+    await seedTutorialStateBeforeNavigation(
+      page,
+      getTutorialSlotIndex("/dashboard", 3)
+    )
     await page.goto("/dashboard")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
 
@@ -33,7 +37,10 @@ test.describe("Shared tutorial flat sequence", () => {
   })
 
   test("recipes still follow the shared tutorial content", async ({ page }) => {
-    await seedTutorialStateBeforeNavigation(page, 3)
+    await seedTutorialStateBeforeNavigation(
+      page,
+      getTutorialSlotIndex("/recipes", 1)
+    )
     await page.goto("/recipes")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
     // The heading only appears once the highlight engine locates [data-tutorial='recipe-filter'];
@@ -42,7 +49,10 @@ test.describe("Shared tutorial flat sequence", () => {
   })
 
   test("home is still the last page in the shared walkthrough", async ({ page }) => {
-    await seedTutorialStateBeforeNavigation(page, 30)
+    await seedTutorialStateBeforeNavigation(
+      page,
+      getTutorialSlotIndex("/home", 1)
+    )
     await page.goto("/home")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole("heading", { name: "Thanks for Exploring" })).toBeVisible({ timeout: 5_000 })

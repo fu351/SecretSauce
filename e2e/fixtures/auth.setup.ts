@@ -18,6 +18,8 @@ const AUTH_FILE = path.join(__dirname, "../.auth/user.json")
 const CLERK_TEST_EMAIL_PATTERN = /\+clerk_test@/i
 const POST_SIGN_IN_PATH_PATTERN = /\/(dashboard|welcome)/
 
+setup.use({ storageState: undefined })
+
 async function waitForRedirectOrSecondFactor(page: Page) {
   const verificationCodeInput = page.getByLabel(/verification code|backup code/i)
   const signOutButton = page.getByRole("button", { name: /sign out/i })
