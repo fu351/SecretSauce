@@ -64,12 +64,13 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const consentCookie = cookies().get(COOKIE_CONSENT_COOKIE)?.value ?? null
+  const cookieStore = await cookies()
+  const consentCookie = cookieStore.get(COOKIE_CONSENT_COOKIE)?.value ?? null
   const initialConsent = parseCookieConsentCookieValue(consentCookie)
 
   return (
