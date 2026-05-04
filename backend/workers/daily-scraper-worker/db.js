@@ -35,6 +35,33 @@ export function parseMetadataObject(metadata) {
   return metadata
 }
 
+function chunkValuesByMaxLength(values, maxChars) {
+  const chunks = []
+  let currentChunk = []
+  let currentLength = 0
+
+  for (const value of values) {
+    const stringValue = String(value)
+    const nextLength = currentChunk.length === 0 ? stringValue.length : currentLength + 1 + stringValue.length
+
+    if (currentChunk.length > 0 && nextLength > maxChars) {
+      chunks.push(currentChunk)
+      currentChunk = [stringValue]
+      currentLength = stringValue.length
+      continue
+    }
+
+    currentChunk.push(stringValue)
+    currentLength = nextLength
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk)
+  }
+
+  return chunks
+}
+
 // ─── DB metadata helpers ──────────────────────────────────────────────────────
 
 export async function appendStoreFailureMetadata(store, details, config) {
@@ -304,11 +331,10 @@ export async function fetchAllCanonicalIngredients(config) {
 
   // Step 2: fetch canonical names for those IDs in batches
   const ids = [...ingredientIdSet]
-  const ID_BATCH_SIZE = 500
   const allIngredients = []
+  const ID_BATCH_MAX_CHARS = 8000
 
-  for (let i = 0; i < ids.length; i += ID_BATCH_SIZE) {
-    const batch = ids.slice(i, i + ID_BATCH_SIZE)
+  for (const batch of chunkValuesByMaxLength(ids, ID_BATCH_MAX_CHARS)) {
     const { data, error } = await getSupabase(config)
       .from('standardized_ingredients')
       .select('canonical_name')
