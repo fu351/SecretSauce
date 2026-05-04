@@ -20,6 +20,23 @@ interface RecipePricingProps {
 
 const STORES_TO_CHECK = ["walmart", "target", "kroger", "safeway", "aldi"]
 
+type CostEstimate = {
+  totalCost: number
+  costPerServing: number | null
+  ingredients: Record<string, unknown>
+  store: string
+}
+
+const toFiniteNumber = (value: unknown): number | null => {
+  const numberValue = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(numberValue) ? numberValue : null
+}
+
+const formatPrice = (value: unknown, fallback = "0.00") => {
+  const numberValue = toFiniteNumber(value)
+  return numberValue === null ? fallback : numberValue.toFixed(2)
+}
+
 const getStoreLogoPath = (store: string) => {
   const key = store.toLowerCase()
   if (key.includes("target")) return "/Target.jpg"
@@ -36,15 +53,16 @@ export function RecipePricingInfo({
   zipCode 
 }: RecipePricingProps) {
   const { user } = useAuth()
+  const userId = user?.id ?? null
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [pricingResults, setPricingResults] = useState<any[]>([])
+  const [pricingResults, setPricingResults] = useState<CostEstimate[]>([])
   const [profileZipCode, setProfileZipCode] = useState<string | null>(null)
   const resolvedZipCode = normalizeZipCode(zipCode || profileZipCode)
   const displayZipCode = resolvedZipCode || zipCode || "your area"
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setProfileZipCode(null)
       return
     }
@@ -52,7 +70,7 @@ export function RecipePricingInfo({
     let isActive = true
     void (async () => {
       try {
-        const data = await profileDB.fetchProfileFields(user.id, ["zip_code"])
+        const data = await profileDB.fetchProfileFields(userId, ["zip_code"])
         if (isActive) {
           setProfileZipCode(data?.zip_code ?? null)
         }
@@ -64,7 +82,7 @@ export function RecipePricingInfo({
     return () => {
       isActive = false
     }
-  }, [user])
+  }, [userId])
 
   useEffect(() => {
     async function fetchAllPricing() {
@@ -80,20 +98,28 @@ export function RecipePricingInfo({
         setError(null)
         // Fetch pricing for all supported stores in parallel
         const pricePromises = STORES_TO_CHECK.map(store => 
-          recipeDB.calculateCostEstimate(recipeId, store, resolvedZipCode, servings, user?.id ?? null)
+          recipeDB.calculateCostEstimate(recipeId, store, resolvedZipCode, servings, userId)
         )
         
         const results = await Promise.all(pricePromises)
         // Filter out nulls (stores where items weren't found) and add the store name
         const validResults = results
           .map((res, index) => {
+            const totalCost = toFiniteNumber(res?.totalCost)
+
             // Only count it as a valid result if it found ingredients (totalCost > 0)
-            if (res && res.totalCost > 0) {
-              return { ...res, store: STORES_TO_CHECK[index] }
+            if (res && totalCost !== null && totalCost > 0) {
+              return {
+                ...res,
+                totalCost,
+                costPerServing: toFiniteNumber(res.costPerServing),
+                ingredients: res.ingredients && typeof res.ingredients === "object" ? res.ingredients : {},
+                store: STORES_TO_CHECK[index],
+              }
             }
             return null
           })
-          .filter(Boolean)
+          .filter((result): result is CostEstimate => result !== null)
           .sort((a, b) => a.totalCost - b.totalCost)
 
         setPricingResults(validResults)
@@ -105,7 +131,7 @@ export function RecipePricingInfo({
     }
 
     fetchAllPricing()
-  }, [recipeId, servings, resolvedZipCode])
+  }, [recipeId, servings, resolvedZipCode, userId])
 
   if (loading) return <RecipePricingSkeleton />
 
@@ -165,10 +191,10 @@ export function RecipePricingInfo({
             </div>
             <div className="text-right">
               <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
-                ${cheapest.totalCost.toFixed(2) ?? "0.00"}
+                ${formatPrice(cheapest.totalCost)}
               </p>
               <p className="text-xs text-muted-foreground">
-                ${cheapest.costPerServing.toFixed(2) ?? "0.00"} / serving
+                ${formatPrice(cheapest.costPerServing)} / serving
               </p>
             </div>
           </div>
@@ -188,7 +214,9 @@ export function RecipePricingInfo({
             {Object.entries(cheapest.ingredients as Record<string, number>).map(([name, price]) => (
               <div key={name} className="flex justify-between p-3 text-sm">
                 <span className="capitalize">{name}</span>
-                <span className="font-mono font-medium text-foreground">${price.toFixed(2)}</span>
+                <span className="font-mono font-medium text-foreground">
+                  {toFiniteNumber(price) === null ? "Unavailable" : `$${formatPrice(price)}`}
+                </span>
               </div>
             ))}
           </div>
@@ -215,7 +243,7 @@ export function RecipePricingInfo({
                     </div>
                     <span className="text-xs font-medium capitalize">{result.store}</span>
                   </div>
-                  <span className="text-xs font-bold">${result.totalCost.toFixed(2)}</span>
+                  <span className="text-xs font-bold">${formatPrice(result.totalCost)}</span>
                 </div>
               ))}
             </div>
