@@ -23,7 +23,7 @@ jobs:
   truncate-recent:
     name: Wipe Recent Table
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,12 +31,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install Supabase client (isolated)
         run: |
           mkdir -p /tmp/supabase-client
-          npm install --no-save --no-package-lock --legacy-peer-deps --prefix /tmp/supabase-client @supabase/supabase-js
+          npm install --no-save --no-package-lock --legacy-peer-deps --prefix /tmp/supabase-client @supabase/supabase-js ws
 
       - name: Wipe ingredients_recent via Supabase
         env:
@@ -46,50 +46,62 @@ jobs:
         run: |
           node - <<'NODE'
           const { createClient } = require('/tmp/supabase-client/node_modules/@supabase/supabase-js')
+          const WebSocket = require('/tmp/supabase-client/node_modules/ws')
 
           const supabaseUrl = process.env.SUPABASE_URL
           const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
           const purgeMode = String(process.env.PURGE_MODE || "execute").toLowerCase()
 
           if (!supabaseUrl || !supabaseKey) {
-            console.error("❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+            console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
             process.exit(1)
           }
 
-          const supabase = createClient(supabaseUrl, supabaseKey)
+          const supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+              autoRefreshToken: false,
+              persistSession: false,
+            },
+            realtime: {
+              transport: WebSocket,
+            },
+          })
 
           async function wipeRecent() {
             const isDryRun = purgeMode !== "execute"
 
             const { count, error: countError } = await supabase
-              .from('ingredients_recent')
-              .select('*', { head: true, count: 'exact' })
+              .from("ingredients_recent")
+              .select("*", { head: true, count: "exact" })
 
             if (countError) {
-              console.error("❌ Error counting rows:", countError)
+              console.error("Error counting rows:", countError)
               process.exit(1)
             }
 
             if (isDryRun) {
-              console.log(`🧪 DRY RUN: would delete approximately ${count ?? 0} rows from ingredients_recent`)
+              console.log(`DRY RUN: would delete approximately ${count ?? 0} rows from ingredients_recent`)
               return
             }
 
-            console.log("🧹 Attempting to wipe ingredients_recent...")
+            console.log("Attempting to wipe ingredients_recent...")
 
-            // Delete all rows; the dummy UUID protects against accidental full-table delete guardrails
+            // Delete all rows; the dummy UUID protects against accidental full-table delete guardrails.
             const { error } = await supabase
-              .from('ingredients_recent')
+              .from("ingredients_recent")
               .delete()
-              .neq('id', '00000000-0000-0000-0000-000000000000')
+              .neq("id", "00000000-0000-0000-0000-000000000000")
 
             if (error) {
-              console.error("❌ Error wiping table:", error)
+              console.error("Error wiping table:", error)
               process.exit(1)
             }
 
-            console.log(`✅ ingredients_recent table is now empty (deleted approximately ${count ?? 0} rows).`)
+            console.log(`ingredients_recent table is now empty (deleted approximately ${count ?? 0} rows).`)
           }
 
-          wipeRecent()
+          wipeRecent().catch((error) => {
+            console.error("Unexpected purge failure:", error)
+            process.exit(1)
+          })
           NODE
