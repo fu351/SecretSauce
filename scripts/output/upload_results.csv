@@ -1,0 +1,21 @@
+domain,source_url,recipe_id,success,title,ingredients_inserted,error
+tastykitchen.com,https://tastykitchen.com/recipes/appetizers-and-snacks/french-onion-dip-2/,804472c4-c948-41b2-b380-e9d48503ac48,true,French Onion Dip,10,
+chefjeanpierre.com,https://chefjeanpierre.com/recipes/essentials/compound-butter/,b4caecee-8524-4234-bce5-967d3edf2029,true,5 Compound Butter Recipes That Will Up Your Game!,31,
+tudogostoso.com.br,https://www.tudogostoso.com.br/datas/diadasmaes,3105a69e-d1a0-4cd4-9968-fd5221d624c9,true,Ideias de receitas para o almoço de Dia das Mães,10,
+realfood.tesco.com,https://realfood.tesco.com/recipes/popular/slow-cooker-recipes.html,efac8d2a-18e5-492f-bdf0-6f6685115fa7,true,Slow-cooker recipes,1,
+reishunger.de,https://www.reishunger.de/rezepte/rezept/3292/sushi-pizza-mit-wasabi-dip-und-sushi-mayo,d8370482-ae9f-4c1c-b984-7f7945f07f3c,true,Sushi Pizza mit Wasabi Dip und Sushi Mayo,18,
+briceletbaklava.ch,https://briceletbaklava.ch/2026/03/baklava-de-gavar.html,c3dfddca-f621-4eff-9af8-1337d3c4ff84,true,Baklava de Gavar,17,
+meljoulwan.com,https://meljoulwan.com/category/recipes/,,false,,,Could not extract recipe content from this page
+hellofresh.com,https://hellofresh.com/recipes/vegetarian-recipes,,false,,,Could not extract recipe content from this page
+felix.kitchen,https://felix.kitchen/rezepte-az/,,false,,,Could not extract recipe content from this page
+cucchiaio.it,https://cucchiaio.it/ricetta/pasta-alla-montecarlo/,181055fe-914d-4215-bfc7-307bf209736a,true,Pasta alla Montecarlo,12,
+hellofresh.co.nz,https://hellofresh.co.nz/recipes/vegetarian-recipes,,false,,,Could not extract recipe content from this page
+donalskehan.com,https://donalskehan.com/recipes/roast-chicken-with-wild-garlic-butter-jerusalem-artichokes/,216d4498-d364-44d7-b5d2-ba9b328e64b4,true,Roast Chicken with Wild Garlic Butter & Jerusalem Artichokes - Donal Skehan | EAT LIVE GO,11,
+amazingoriental.com,https://amazingoriental.com/recept/visballen-met-gochujangsaus/,,false,,,Failed to parse recipe: recipe-scrapers exception: No Recipe Schema found at https://amazingoriental.com/recept/visballen-met-gochujangsaus/.
+sallys-blog.de,https://sallys-blog.de/rezepte/obsttorte-herzkuchen-mit-fruechten,c6988b94-7c5c-4b87-8375-8a408f69b7f4,true,Obsttorte / Herzkuchen mit Früchten,16,
+hellofresh.no,https://www.hellofresh.no/recipes/vegetar-oppskrifter,,false,,,Could not extract recipe content from this page
+nhs.uk,https://nhs.uk/nhs-services/prescriptions/how-to-order-a-repeat-prescription/,,false,,,Could not extract recipe content from this page
+choosehomemade.org,https://choosehomemade.org/recipes/green-picadillo/,,false,,,Failed to parse recipe: recipe-scrapers exception: No Recipe Schema found at https://choosehomemade.org/recipes/green-picadillo/.
+jocooks.com,https://www.jocooks.com/recipes/hit-run-baked-chicken-and-veggies/,18a6f142-d2d2-4a3a-858d-f0e74b34e654,true,Roasted Chicken And Vegetables,12,
+flavorsbylinbie.com,https://flavorsbylinbie.com/about/,,false,,,Failed to parse recipe: recipe-scrapers exception: No Recipe Schema found at https://flavorsbylinbie.com/about/.
+thecookingguy.com,https://thecookingguy.com/recipes/chili-crisp-honey-chicken-gnocchi,8013bb08-7e2d-42cd-89e0-39bc43196bf5,true,Chili Crisp Honey Chicken Gnocchi,18,

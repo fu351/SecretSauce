@@ -1,0 +1,607 @@
+domain,valid,test_url,title,ingredients_count,error
+101cookbooks.com,False,https://www.101cookbooks.com/ingredient/avocado,,,"fetch error: Client error '403 Forbidden' for url 'https://www.101cookbooks.com/ingredient/avocado'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403"
+15gram.be,False,https://15gram.be/artikelen/topic/voor-elke-dag,,,scraped but no title returned
+24kitchen.nl,False,,,,"no recipe link found — ConnectError on /: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /recipes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /recipe/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /recipes: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /recipe: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /recettes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /rezepte/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /ricette/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /recetas/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /cooking/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /cook/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /dishes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /food/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081); ConnectError on /sitemap.xml: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for '24kitchen.nl'. (_ssl.c:1081)"
+40aprons.com,False,https://40aprons.com/recipes/favorites/,,,scraped but no title returned
+750g.com,True,https://www.750g.com/recettes-boissons/cocktails/,Cocktails maison,8,
+abeautifulmess.com,False,https://abeautifulmess.com/wprm_print/cookie-dough-dip,,,scraped but no title returned
+aberlehome.com,True,https://aberlehome.com/category/recipes/,100% Whole Wheat Sourdough Bread (Mixer Recipe),0,
+abuelascounter.com,False,https://abuelascounter.com/wp-content/uploads/2021/11/IMG_5741.jpg,,,scraped but no title returned
+acouplecooks.com,False,https://www.acouplecooks.com/category/recipes/,,,scraped but no title returned
+acozykitchen.com,False,https://www.acozykitchen.com/subscribe,,,scraped but no title returned
+addapinch.com,False,https://addapinch.com/category/recipes/collections/,,,scraped but no title returned
+adozensundays.com,False,https://adozensundays.com/blog/,,,scraped but no title returned
+adrianasbestrecipes.com,False,https://www.adrianasbestrecipes.com/resume/about-chef-adriana/,,,scraped but no title returned
+afarmgirlsdabbles.com,False,https://www.afarmgirlsdabbles.com/recipes/appetizers/,,,scraped but no title returned
+afghankitchenrecipes.com,False,,,,no recipe link found — ConnectError on /: [Errno 11001] getaddrinfo failed; ConnectError on /recipes/: [Errno 11001] getaddrinfo failed; ConnectError on /recipe/: [Errno 11001] getaddrinfo failed; ConnectError on /recipes: [Errno 11001] getaddrinfo failed; ConnectError on /recipe: [Errno 11001] getaddrinfo failed; ConnectError on /recettes/: [Errno 11001] getaddrinfo failed; ConnectError on /rezepte/: [Errno 11001] getaddrinfo failed; ConnectError on /ricette/: [Errno 11001] getaddrinfo failed; ConnectError on /recetas/: [Errno 11001] getaddrinfo failed; ConnectError on /cooking/: [Errno 11001] getaddrinfo failed; ConnectError on /cook/: [Errno 11001] getaddrinfo failed; ConnectError on /dishes/: [Errno 11001] getaddrinfo failed; ConnectError on /food/: [Errno 11001] getaddrinfo failed; ConnectError on /sitemap.xml: [Errno 11001] getaddrinfo failed
+aflavorjournal.com,False,https://aflavorjournal.com/about/,,,scraped but no title returned
+africanbites.com,False,https://www.africanbites.com/wprm_print/black-magic-cookie-dough-cake,,,scraped but no title returned
+ah.be,False,https://ah.be/bonus/folder,,,scraped but no title returned
+ah.nl,False,https://ah.nl/producten/eerder-gekocht?sortBy=purchase_frequency,,,scraped but no title returned
+ahealthysliceoflife.com,False,https://ahealthysliceoflife.com/about/contact-us/,,,scraped but no title returned
+akispetretzikis.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+aldi-nord.de,False,https://www.aldi-nord.de/sortiment/sortiment-highlights.html,,,scraped but no title returned
+aldi-sued.de,False,https://aldi-sued.de/tools/features/angebote,,,scraped but no title returned
+aldi-suisse.ch,False,https://aldi-suisse.ch/de/broschuere,,,scraped but no title returned
+aldi.com.au,True,https://aldi.com.au/recipes/autumn-recipes,Autumn Recipes & Produce,0,
+aldi.es,False,https://aldi.es/servicios/contactanos.html,,,scraped but no title returned
+aldi.fr,False,https://www.aldi.fr/produits/recompenses.html,,,scraped but no title returned
+aldi.hu,False,https://aldi.hu/hu/customer-services/privacy-policy.html,,,scraped but no title returned
+aldi.it,False,https://aldi.it/it/servizi-aldi/servizio-clienti/privacy-policy.html,,,scraped but no title returned
+aldi.lu,False,,,,no recipe link found — HTTP 404 on /recipes/; HTTP 404 on /recipe/; HTTP 404 on /recipes; HTTP 404 on /recipe; HTTP 404 on /recettes/; HTTP 404 on /rezepte/; HTTP 404 on /ricette/; HTTP 404 on /recetas/; HTTP 404 on /cooking/; HTTP 404 on /cook/; HTTP 404 on /dishes/; HTTP 404 on /food/; HTTP 404 on /sitemap.xml
+aldi.nl,False,https://www.aldi.nl/producten/speciaal-assortiment.html,,,scraped but no title returned
+aldi.pl,False,https://www.aldi.pl/informacje-dla-klienta/nasze-nowe-sklepy.html,,,scraped but no title returned
+aldi.pt,False,https://aldi.pt/tools/contacto.html,,,scraped but no title returned
+alexandracooks.com,False,https://alexandracooks.com/category/recipe/,,,scraped but no title returned
+alisoneroman.com,True,https://alisoneroman.com/recipes/chicken-noodle-soup-with-cabbage-dill-and-lots-of-lemon,Tomato Pasta with Eggplant and Sausage (on the side),11,
+alittlebityummy.com,False,https://alittlebityummy.com/recipe/recipe_category/lunch/,,,scraped but no title returned
+allrecipes.com,False,,,,links found but none scored as a recipe page
+allthehealthythings.com,False,https://allthehealthythings.com/dietary/dairy-free/,,,scraped but no title returned
+alltommat.se,False,https://alltommat.se/alltommat/nyhetsbrev/,,,scraped but no title returned
+altonbrown.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+amazingoriental.com,True,https://amazingoriental.com/recept/visballen-met-gochujangsaus/,Visballen met gochujangsaus,13,
+amazingribs.com,False,https://amazingribs.com/contest-and-games/gold-medal-giveaways/,,,scraped but no title returned
+amberskitchencooks.com,False,https://amberskitchencooks.com/favorite-type/beauty/,,,scraped but no title returned
+ambitiouskitchen.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+ameessavorydish.com,False,https://ameessavorydish.com/about/contact-me/,,,scraped but no title returned
+americastestkitchen.com,True,https://www.americastestkitchen.com/recipes/17361-bacon-and-gruyere-egg-bites,Bacon and Gruyère Egg Bites,5,
+anitalianinmykitchen.com,False,https://anitalianinmykitchen.com/cooking-tips/,,,scraped but no title returned
+app.samsungfood.com,True,https://app.samsungfood.com/recipes/1010290cabaa15c0cdad685a959d596e9c815475800,Beef and Broccoli Recipe,12,
+archanaskitchen.com,False,https://archanaskitchen.com/category/recipes/indian,,,scraped but no title returned
+argiro.gr,True,https://www.argiro.gr/recipe/gemistes-piperies-stin-katsarola-me-krema-fetas/,Γεμιστές πιπεριές στην κατσαρόλα με κρέμα φέτας,17,
+arla.se,False,https://arla.se/event-sponsring/koslapp/,,,scraped but no title returned
+asweetpeachef.com,False,https://www.asweetpeachef.com/category/recipes/,,,scraped but no title returned
+atelierdeschefs.fr,False,https://formation.atelierdeschefs.fr/formations/restauration/cap-cuisine/,,,unsupported site; skipped (wild mode off)
+aubreyskitchen.com,False,https://aubreyskitchen.com/recipes/,,,scraped but no title returned
+averiecooks.com,False,https://www.averiecooks.com/category/recipes/,,,scraped but no title returned
+bakels.co.uk,False,,,,"no recipe link found — ConnectError on /: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /recipes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /recipe/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /recipes: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /recipe: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /recettes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /rezepte/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /ricette/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /recetas/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /cooking/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /cook/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /dishes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /food/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081); ConnectError on /sitemap.xml: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'bakels.co.uk'. (_ssl.c:1081)"
+bakels.com.au,True,https://www.bakels.com.au/recipe-category/bakery/,Bakery,4,
+bakerbynature.com,False,https://bakerbynature.com/work-with-me/,,,scraped but no title returned
+bakewithzoha.com,False,https://bakewithzoha.com/recipes/,,,scraped but no title returned
+baking-sense.com,False,https://baking-sense.com/cdn-cgi/l/email-protection#bfdad6d3dadad191ddded4d6d1d8ccdad1ccdaffd8d2ded6d391dcd0d2,,,"fetch error: Client error '404 Not Found' for url 'https://baking-sense.com/cdn-cgi/l/email-protection#bfdad6d3dadad191ddded4d6d1d8ccdad1ccdaffd8d2ded6d391dcd0d2'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+bakingmischief.com,False,https://bakingmischief.com/about/privacy-disclosure/,,,scraped but no title returned
+barefeetinthekitchen.com,False,https://barefeetinthekitchen.com/recipes/,,,scraped but no title returned
+barefootcontessa.com,True,https://barefootcontessa.com/recipes/quinoa-tabbouleh-with-feta,Quinoa Tabbouleh with Feta | Recipes,10,
+barefootinthepines.com,False,https://barefootinthepines.com/wprm_print/blueberry-crumble-pie,,,scraped but no title returned
+bbc.co.uk,True,https://bbc.co.uk/food/collections/weekend_one_pots,Weekend one pots,0,
+bbc.com,True,https://bbc.com/video/docs,Documentaries,0,
+bbcgoodfood.com,True,https://www.bbcgoodfood.com/recipes/collection/easy-dinner-recipes,Easy dinner recipes,1,
+belleofthekitchen.com,False,https://belleofthekitchen.com/recipes/appetizers/,,,scraped but no title returned
+bellyfull.net,False,https://bellyfull.net/recipes/,,,scraped but no title returned
+bestrecipes.com.au,False,,,,no recipe link found — ConnectTimeout on /: timed out; ConnectTimeout on /recipes/: timed out; ConnectTimeout on /recipe/: timed out; ConnectTimeout on /recipes: timed out; ConnectTimeout on /recipe: timed out; ConnectTimeout on /recettes/: timed out; ConnectTimeout on /rezepte/: timed out; ConnectTimeout on /ricette/: timed out; ConnectTimeout on /recetas/: timed out; ConnectTimeout on /cooking/: timed out; ConnectTimeout on /cook/: timed out; ConnectTimeout on /dishes/: timed out; ConnectTimeout on /food/: timed out; ConnectTimeout on /sitemap.xml: timed out
+betterfoodguru.com,False,https://betterfoodguru.com/recipes/,,,scraped but no title returned
+bettybossi.ch,False,https://bettybossi.ch/de/shop/kategorie/top-angebote-l1/,,,scraped but no title returned
+bettycrocker.com,False,https://bettycrocker.com/recipes/easy-recipes,,,scraped but no title returned
+beyondfrosting.com,False,https://beyondfrosting.com/recipes/desserts/,,,scraped but no title returned
+biancazapatka.com,False,https://biancazapatka.com/en/recipes/basics-en/,,,scraped but no title returned
+bigoven.com,True,https://bigoven.com/recipe/breakfast-protein-bars/3204146,Breakfast Protein Bars,15,
+billyparisi.com,False,https://www.billyparisi.com/recipes/,,,scraped but no title returned
+bitsofcarey.com,False,https://bitsofcarey.com/category/recipes/,,,scraped but no title returned
+blueapron.com,False,https://blueapron.com/pages/terms,,,scraped but no title returned
+bluejeanchef.com,True,https://bluejeanchef.com/recipes/apple-dutch-baby-pancake/,Apple Dutch Baby Pancake,11,
+bodybuilding.com,False,https://bodybuilding.com/collections/bodybuilding-signature,,,scraped but no title returned
+bofrost.de,False,https://bofrost.de/rezeptwelt/rezepte/,,,scraped but no title returned
+bonappetit.com,True,https://bonappetit.com/recipe/whole-lemon-bars,Whole Lemon Bars,14,
+bongeats.com,True,https://bongeats.com/recipe/boal-machher-jhol,Boal Machher Jhol,18,
+books.ottolenghi.co.uk,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+bowlofdelicious.com,False,https://www.bowlofdelicious.com/recipes/,,,scraped but no title returned
+breadtopia.com,False,https://breadtopia.com/category/recipes/,,,scraped but no title returned
+briceletbaklava.ch,True,https://briceletbaklava.ch/2026/03/baklava-de-gavar.html,Baklava de Gavar,17,
+brokenovenbaking.com,False,https://brokenovenbaking.com/recipes/,,,scraped but no title returned
+budgetbytes.com,False,https://www.budgetbytes.com/category/recipes/,,,scraped but no title returned
+cafedelites.com,False,https://cafedelites.com/recipes/,,,scraped but no title returned
+cakemehometonight.com,False,https://cakemehometonight.com/about/,,,scraped but no title returned
+cambreabakes.com,False,https://cambreabakes.com/spring-recipes/,,,scraped but no title returned
+carlsbadcravings.com,False,https://carlsbadcravings.com/recipes/,,,scraped but no title returned
+carriesexperimentalkitchen.com,False,https://www.carriesexperimentalkitchen.com/aboutcontact/contact-me/,,,scraped but no title returned
+castironketo.net,False,https://www.castironketo.net/recipes/,,,scraped but no title returned
+cdkitchen.com,False,https://www.cdkitchen.com/recipes/dish/breads-and-baking/,,,scraped but no title returned
+celebratingsweets.com,False,https://celebratingsweets.com/recipe-index/,,,scraped but no title returned
+chefjackovens.com,False,https://chefjackovens.com/recipes/,,,"fetch error: Client error '406 Not Acceptable' for url 'https://chefjackovens.com/recipes/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+chefjeanpierre.com,True,https://chefjeanpierre.com/recipes/essentials/compound-butter/,5 Compound Butter Recipes That Will Up Your Game!,31,
+chefkoch.de,False,https://www.chefkoch.de/benutzer/einloggen?context=login/init,,,scraped but no title returned
+chefnini.com,False,https://www.chefnini.com/categories/sucre/,,,scraped but no title returned
+chefsavvy.com,False,https://chefsavvy.com/recipe-type/air-fryer/,,,scraped but no title returned
+chewoutloud.com,False,https://www.chewoutloud.com/course/dinner/,,,scraped but no title returned
+choosehomemade.org,True,https://choosehomemade.org/recipes/green-picadillo/,Green Picadillo,15,
+claudia.abril.com.br,False,https://claudia.abril.com.br/ofertas/claudia/?&source=cl_sites&channel=botaoassine&url-retorno=https://claudia.abril.com.br,,,scraped but no title returned
+cleaneatingkitchen.com,False,https://www.cleaneatingkitchen.com/about/what-is-clean-eating/,,,scraped but no title returned
+closetcooking.com,False,https://www.closetcooking.com/category/recipe/,,,scraped but no title returned
+coleycooks.com,True,https://coleycooks.com/roasted-asparagus-parmesan-breadcrumbs/,Parmesan Panko Roasted Asparagus (Crispy Oven Method),9,
+colleenchristensennutrition.com,False,https://colleenchristensennutrition.com/category/recipes/,,,scraped but no title returned
+comidinhasdochef.com,True,https://comidinhasdochef.com/receitas/bebidas/,Quentão de Pinga,0,
+cook-talk.com,False,,,,no recipe link found — ConnectError on /: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /recipes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /recipe/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /recipes: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /recipe: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /recettes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /rezepte/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /ricette/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /recetas/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /cooking/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /cook/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /dishes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /food/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081); ConnectError on /sitemap.xml: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)
+cookedandloved.com,False,https://www.cookedandloved.com/recipes/meals-courses/,,,scraped but no title returned
+cookieandkate.com,False,https://cookieandkate.com/about/,,,scraped but no title returned
+cookiesandcups.com,False,https://cookiesandcups.com/recipes/dessert/,,,scraped but no title returned
+cooking.nytimes.com,True,https://cooking.nytimes.com/recipes/1026635-burgoo,Burgoo,25,
+cookingcircle.com,False,,,,links found but none scored as a recipe page
+cookinglight.com,False,,,,links found but none scored as a recipe page
+cookinglsl.com,False,https://cookinglsl.com/recipes/,,,scraped but no title returned
+cookingwithjanica.com,False,https://cookingwithjanica.com/recipes/,,,scraped but no title returned
+cookomix.com,False,https://www.cookomix.com/recettes/categories/soupes/,,,scraped but no title returned
+cookpad.com,False,https://cookpad.com/jp/recipes/new,,,scraped but no title returned
+cookwell.com,True,https://cookwell.com/recipe/higher-protein-chicken-enchiladas,Higher Protein Chicken Enchiladas Verdes,18,
+copykat.com,False,https://copykat.com/recipes/,,,scraped but no title returned
+corriecooks.com,False,https://www.corriecooks.com/c/food/,,,scraped but no title returned
+costco.com,False,https://sameday.costco.com/store/costco/collections/rc-cmn-general-mills-fy26,,,unsupported site; skipped (wild mode off)
+countryliving.com,True,https://countryliving.com/food-drinks/recipes/a4959/asparagus-peas-tomatoes-herb-butter-recipe-clx0414/,"Asparagus, Peas, and Tomatoes with Herb Butter",10,
+creativecanning.com,False,https://creativecanning.com/subscribe/,,,scraped but no title returned
+cucchiaio.it,True,https://cucchiaio.it/ricetta/pasta-alla-montecarlo/,Pasta alla Montecarlo,12,
+cuisineaz.com,True,https://cuisineaz.com/recettes/lasagnes-a-la-bolognaise-facile-54832.aspx,Lasagnes à la bolognaise facile,21,
+cuisinez-pour-bebe.fr,False,https://cuisinez-pour-bebe.fr/recette-bebe/ingredients/,,,scraped but no title returned
+culinaryhill.com,False,https://www.culinaryhill.com/eats/30-minute-meals/,,,scraped but no title returned
+culy.nl,False,https://www.culy.nl/recepten/menugang/ontbijt/,,,scraped but no title returned
+cybercook.com.br,False,,,,no recipe link found — no links collected
+dagelijksekost.vrt.be,False,https://dagelijksekost.vrt.be/profile/tabs/favorites,,,scraped but no title returned
+damndelicious.net,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+davidlebovitz.com,False,https://www.davidlebovitz.com/category/recipes/,,,scraped but no title returned
+deliciouslysprinkled.com,False,https://deliciouslysprinkled.com/recipes/,,,scraped but no title returned
+delish.com,True,https://delish.com/cooking/recipe-ideas/recipes/a46562/santa-fe-skillet-chicken-recipe/,Santa Fe Skillet Chicken,12,
+dinneratthezoo.com,False,https://www.dinneratthezoo.com/all-recipes/,,,scraped but no title returned
+dinnerthendessert.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+dish.co.nz,False,https://dish.co.nz/recipes/issues/holiday-2,,,scraped but no title returned
+dobruchut.aktuality.sk,False,https://dobruchut.aktuality.sk/recepty/1/polievky/,,,scraped but no title returned
+domesticate-me.com,False,https://domesticate-me.com/category/recipes/,,,scraped but no title returned
+donalskehan.com,True,https://donalskehan.com/recipes/roast-chicken-with-wild-garlic-butter-jerusalem-artichokes/,Roast Chicken with Wild Garlic Butter & Jerusalem Artichokes - Donal Skehan | EAT LIVE GO,11,
+downshiftology.com,True,https://downshiftology.com/recipes/best-salsa-recipe/,Best Salsa Recipe (Restaurant-Style),8,
+dr.dk,False,https://dr.dk/auth/drlogin/login,,,scraped but no title returned
+drizzleanddip.com,False,https://drizzleanddip.com/recipe-index/,,,"fetch error: Server error '502 Bad Gateway or Proxy Error' for url 'https://drizzleanddip.com/recipe-index/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502"
+eatingbirdfood.com,False,https://www.eatingbirdfood.com/recipe-index/,,,scraped but no title returned
+eatingeuropean.com,False,https://eatingeuropean.com/about/about-edyta/,,,scraped but no title returned
+eatingonadime.com,False,https://www.eatingonadime.com/recipe-index/,,,scraped but no title returned
+eatingwell.com,False,,,,links found but none scored as a recipe page
+eatliverun.com,False,http://www.eatliverun.com/recipes/img_1161/,,,scraped but no title returned
+eatsmarter.com,False,https://eatsmarter.com/rezepte/saison/fruehling,,,scraped but no title returned
+eatsmarter.de,False,https://eatsmarter.de/rezepte/saison/fruehling,,,scraped but no title returned
+eatthismuch.com,False,https://eatthismuch.com/food/browse,,,scraped but no title returned
+eattolerant.de,False,https://eattolerant.de/hauptgerichte/unbeschwert-einkaufen-bei-einer-histaminintoleranz-histaminarme-einkaufsliste/,,,scraped but no title returned
+eatwell101.com,False,https://www.eatwell101.com/category/healthy-recipes-recipes/recipes/appetizer,,,scraped but no title returned
+eatwhattonight.com,False,,,,no recipe link found — HTTP 429 on /dishes/; HTTP 429 on /food/; HTTP 429 on /sitemap.xml
+editions-larousse.fr,True,https://editions-larousse.fr/recette/tartelettes-fines-aux-abricots-et-amandes/,Tartelettes fines aux abricots et amandes,10,
+eggs.ca,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+elavegan.com,False,https://elavegan.com/recipes/,,,scraped but no title returned
+emmikochteinfach.de,True,https://emmikochteinfach.de/rezepte/backen/,Backrezepte – einfach & schnell,0,
+en.wikibooks.org,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+epicurious.com,True,https://epicurious.com/recipes/food/views/ba-syn-pork-carnitas-recipe,"Carnitas (Crispy, Tender Mexican Pork)",6,
+erinliveswhole.com,False,https://www.erinliveswhole.com/aboutme/about-me/,,,scraped but no title returned
+erinscozykitchen.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+errenskitchen.com,False,https://www.errenskitchen.com/category/recipes/,,,scraped but no title returned
+ethanchlebowski.com,False,https://www.ethanchlebowski.com/cooking-techniques-recipes/want-moist-fluffy-pancakes-dont-use-butter,,,scraped but no title returned
+everyday-delicious.com,False,https://www.everyday-delicious.com/subscribe/,,,scraped but no title returned
+everydaypie.com,False,https://everydaypie.com/recipes/,,,scraped but no title returned
+evolvingtable.com,False,https://www.evolvingtable.com/store/Weeknight-Winners-Cookbook-p696046375/,,,scraped but no title returned
+familyfoodonthetable.com,False,https://www.familyfoodonthetable.com/recipes/,,,scraped but no title returned
+farmhouseonboone.com,False,https://www.farmhouseonboone.com/recipe-index/,,,scraped but no title returned
+farmtojar.com,False,https://farmtojar.com/recipes/,,,scraped but no title returned
+fattoincasadabenedetta.it,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+feastingathome.com,False,https://www.feastingathome.com/recipes/,,,scraped but no title returned
+feelgoodfoodie.net,True,https://feelgoodfoodie.net/recipe/lemon-ricotta-pancakes/,Lemon Ricotta Pancakes,11,
+felix.kitchen,True,https://felix.kitchen/rezepte-az/,REZEPTE A–Z,0,
+festligare.se,False,https://festligare.se/cdn-cgi/content?id=fV.w85PEXkCtiLST1fLiiHqhnUXaQ1pZvRRk3NkNyxU-1777853940.82623-1.0.1.1-pSZh12ZT9T.qpI9_lFTMQW7huypiPkRiO_0LcoK.Q5w,,,scraped but no title returned
+fifteenspatulas.com,False,https://www.fifteenspatulas.com/recipes/breakfast/,,,scraped but no title returned
+figjar.com,False,https://www.figjar.com/about-me/nutrition-disclaimer/,,,scraped but no title returned
+finedininglovers.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+fithealthymacros.com,True,https://fithealthymacros.com/recipes/high-protein-chicken-alfredo-lasagna/,High-Protein Chicken Alfredo Lasagna,13,
+fitmencook.com,True,https://fitmencook.com/recipes/summer-corn-chowder-dairy-free-gluten-free/,Summer Corn Chowder – Dairy Free and Gluten-Free,16,
+fitslowcookerqueen.com,False,https://fitslowcookerqueen.com/about-me/privacy-policy/,,,scraped but no title returned
+flavorsbylinbie.com,True,https://flavorsbylinbie.com/about/,About - Flavors By Linbie,4,
+food.com,False,https://food.com/recipe/all/popular?ref=nav,,,scraped but no title returned
+food52.com,False,https://food52.com/recipes/quick-and-easy,,,scraped but no title returned
+foodandwine.com,False,,,,links found but none scored as a recipe page
+foodbymaria.com,False,https://www.foodbymaria.com/recipes/stuffed/,,,scraped but no title returned
+foodfidelity.com,False,https://www.foodfidelity.com/recipe-index/,,,scraped but no title returned
+foodnetwork.co.uk,False,https://foodnetwork.co.uk/recipes/prawn-white-bean-and-feta-skillet-for-two,,,scraped but no title returned
+foodnetwork.com,False,https://www.foodnetwork.com/recipes/breakfast,,,scraped but no title returned
+foodrepublic.com,False,https://foodrepublic.com/category/recipes/,,,scraped but no title returned
+forksoverknives.com,False,https://www.forksoverknives.com/recipes/vegan-menus-collections/,,,scraped but no title returned
+forktospoon.com,False,https://forktospoon.com/method/cooking/,,,scraped but no title returned
+franzoesischkochen.de,False,https://www.franzoesischkochen.de/shop/franzoesische-feinkost/,,,scraped but no title returned
+garnishandglaze.com,False,https://www.garnishandglaze.com/about-garnish-and-glaze/,,,scraped but no title returned
+gesund-aktiv.com,False,https://www.gesund-aktiv.com/erfolgsgeschichten/von-der-ernaehrungsumstellung-zur-lebensumstellung,,,scraped but no title returned
+gimmesomeoven.com,False,https://www.gimmesomeoven.com/courses/appetizers/,,,scraped but no title returned
+girlgonegourmet.com,False,https://www.girlgonegourmet.com/wp-content/uploads/2018/09/Final-Cover-e1539525836423.jpg,,,scraped but no title returned
+gloriousrecipes.com,False,https://www.gloriousrecipes.com/category/recipes/,,,scraped but no title returned
+glutenfreeonashoestring.com,False,https://glutenfreeonashoestring.com/about/faqs/,,,scraped but no title returned
+godt.no,False,https://godt.no/rulett/oppskrifter,,,scraped but no title returned
+goldnplump.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+gonnawantseconds.com,False,https://www.gonnawantseconds.com/recipes/,,,scraped but no title returned
+goodfooddiscoveries.com,False,https://goodfooddiscoveries.com/recipes/chicken-recipes/,,,scraped but no title returned
+goodhousekeeping.com,False,https://goodhousekeeping.com/food-recipes/cooking/a71142856/how-long-does-chicken-last/,,,scraped but no title returned
+goodstuff.recipes,False,https://goodstuff.recipes/about/,,,scraped but no title returned
+gourmettraveller.com.au,True,https://www.gourmettraveller.com.au/recipe/fast-recipes/pan-fried-barramundi-with-sugar-snap-pea-and-couscous-salad/,Pan-fried barramundi with sugar snap pea and couscous salad,18,
+grandbaby-cakes.com,False,https://grandbaby-cakes.com/meals-courses/dinner/,,,scraped but no title returned
+grandfrais.com,True,https://grandfrais.com/recettes/tarte-aux-fraises-facon-madeleine,Tarte aux fraises façon madeleine,15,
+greatbritishchefs.com,True,https://www.greatbritishchefs.com/recipes/chilled-pumpkin-seed-soup-courgettes-recipe,"Chilled pumpkin seed soup, courgettes and gooseberries",15,
+grimgrains.com,False,,,,no recipe link found — HTTP 404 on /recipes/; HTTP 404 on /recipe/; HTTP 404 on /recipes; HTTP 404 on /recipe; HTTP 404 on /recettes/; HTTP 404 on /rezepte/; HTTP 404 on /ricette/; HTTP 404 on /recetas/; HTTP 404 on /cooking/; HTTP 404 on /cook/; HTTP 404 on /dishes/; HTTP 404 on /food/; HTTP 404 on /sitemap.xml
+grouprecipes.com,False,,,,no recipe link found — ConnectTimeout on /: timed out; ConnectTimeout on /recipes/: timed out; ConnectTimeout on /recipe/: timed out; ConnectTimeout on /recipes: timed out; ConnectTimeout on /recipe: timed out; ConnectTimeout on /recettes/: timed out; ConnectTimeout on /rezepte/: timed out; ConnectTimeout on /ricette/: timed out; ConnectTimeout on /recetas/: timed out; ConnectTimeout on /cooking/: timed out; ConnectTimeout on /cook/: timed out; ConnectTimeout on /dishes/: timed out; ConnectTimeout on /food/: timed out; ConnectTimeout on /sitemap.xml: timed out
+halfbakedharvest.com,False,https://www.halfbakedharvest.com/recipes/,,,scraped but no title returned
+handletheheat.com,False,https://handletheheat.com/recipes/,,,scraped but no title returned
+hassanchef.com,False,https://www.hassanchef.com/p/about_31.html,,,scraped but no title returned
+headbangerskitchen.com,False,https://headbangerskitchen.com/category/recipes/,,,scraped but no title returned
+healthyeating.nhlbi.nih.gov,True,https://healthyeating.nhlbi.nih.gov/health/asthma,Healthy Eating Recipes,0,
+healthywithachanceofsprinkles.com,False,https://healthywithachanceofsprinkles.com/simple-category-index/,,,scraped but no title returned
+heatherchristo.com,False,https://heatherchristo.com/category/recipes/,,,scraped but no title returned
+heb.com,False,,,,no recipe link found — HTTP 404 on /sitemap.xml
+hellofresh.at,True,https://hellofresh.at/recipes/italienische-rezepte,Italienische Rezepte,0,
+hellofresh.be,True,https://hellofresh.be/recipes/vlees-recepten,Vleesrecepten voor avondeten,0,
+hellofresh.ca,True,https://www.hellofresh.ca/recipes/vegetarian-recipes,Vegetarian Recipes,0,
+hellofresh.ch,True,https://hellofresh.ch/recipes/italienische-rezepte,Italienische Rezepte,0,
+hellofresh.co.nz,True,https://hellofresh.co.nz/recipes/vegetarian-recipes,Vegetarian Recipes,0,
+hellofresh.co.uk,True,https://www.hellofresh.co.uk/recipes/vegetarian-recipes,Vegetarian Recipes,0,
+hellofresh.com,True,https://hellofresh.com/recipes/vegetarian-recipes,Vegetarian Recipes & Plant-Based Meal Ideas | HelloFresh,0,
+hellofresh.com.au,True,https://hellofresh.com.au/recipes/vegetarian-recipes,Vegetarian recipes,0,
+hellofresh.de,True,https://www.hellofresh.de/recipes/vegetarische-rezepte,Vegetarische Rezepte,0,
+hellofresh.dk,True,https://www.hellofresh.dk/recipes/vegetariske-opskrifter,Vegetarretter,0,
+hellofresh.es,True,https://hellofresh.es/recipes/recetas-vegetarianas,Más de 120 Recetas Vegetarianas Deliciosas y Saludables,0,
+hellofresh.fr,True,https://hellofresh.fr/recipes/tofu,Tofu recettes,0,
+hellofresh.ie,True,https://www.hellofresh.ie/recipes/vegetarian-recipes,Vegetarian Recipes,0,
+hellofresh.it,True,https://hellofresh.it/recipes/ricette-regionali,Ricette regionali | Scopri i sapori della tradizione | HelloFresh,0,
+hellofresh.lu,True,https://hellofresh.lu/recipes/recettes-fusion,Recettes fusion,0,
+hellofresh.nl,True,https://hellofresh.nl/recipes/vlees-recepten,Vleesrecepten voor avondeten,0,
+hellofresh.no,True,https://www.hellofresh.no/recipes/vegetar-oppskrifter,Vegetar middag,0,
+hellofresh.se,True,https://www.hellofresh.se/recipes/vegetariska-recept,Vegetariska Recept,0,
+hersheyland.com,False,https://hersheyland.com/recipes/cakes.html,,,scraped but no title returned
+hilahcooking.com,False,https://hilahcooking.com/recipes/,,,scraped but no title returned
+hofer.at,False,https://hofer.at/de/informationen/datenschutzhinweis-impressum#ErhebungVerarbeitung,,,scraped but no title returned
+hofer.si,False,https://hofer.si/tools/features/ponudba,,,scraped but no title returned
+homeandplate.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+homechef.com,True,https://homechef.com/recipes/poultry,"Southern Chicken and Corn ""Chowder"" Bowl with green beans and creamy black pepper sauce",0,
+hostthetoast.com,False,https://hostthetoast.com/recipes/,,,scraped but no title returned
+howtocook.recipes,False,https://howtocook.recipes/beverages/masala-chai/,,,"fetch error: Client error '404 Not Found' for url 'https://www.howtocook.recipes/beverages/masala-chai/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+howtofeedaloon.com,False,https://howtofeedaloon.com/recipes/,,,scraped but no title returned
+hungryhappens.net,False,https://hungryhappens.net/category/recipes/appetizers/,,,scraped but no title returned
+iamafoodblog.com,False,https://iamafoodblog.com/category/recipes/food/noodles/,,,scraped but no title returned
+iambaker.net,False,https://iambaker.net/recipe-index/,,,scraped but no title returned
+ica.se,False,https://www.ica.se/butiker/catering/,,,scraped but no title returned
+im-worthy.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+inbloombakery.com,False,https://inbloombakery.com/recipes/,,,scraped but no title returned
+indianhealthyrecipes.com,False,https://www.indianhealthyrecipes.com/recipes/latest-updates/,,,scraped but no title returned
+ingoodflavor.com,False,https://ingoodflavor.com/recipe-index-search-for-recipes/,,,scraped but no title returned
+innit.com,False,https://www.innit.com/privacy,,,"fetch error: Client error '404 Not Found' for url 'https://www.innit.com/privacy'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+insanelygoodrecipes.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+inspiralized.com,False,https://inspiralized.com/cookbooks/feeding-littles-and-beyond/,,,scraped but no title returned
+inspiredtaste.net,False,https://www.inspiredtaste.net/category/recipes/,,,scraped but no title returned
+iowagirleats.com,False,https://iowagirleats.com/recipes/,,,scraped but no title returned
+irishcentral.com,True,https://irishcentral.com/irish-shopping/buy-irish,Buy Irish,4,
+itdoesnttastelikechicken.com,False,https://itdoesnttastelikechicken.com/category/recipes/lunches-dinners/homemade-vegan-meats/,,,scraped but no title returned
+itsnotaboutnutrition.com,False,https://itsnotaboutnutrition.com/privacy-policy/,,,scraped but no title returned
+izzycooking.com,False,https://izzycooking.com/cdn-cgi/l/email-protection#b58ac6c0d7dfd0d6c188ecdac0c7908785d3c7dcd0dbd1908785ddd4c6908785c6ddd4c7d0d1908785d4db908785d4c7c1dcd6d9d0908785c2dcc1dd908785ccdac09b93d4d8c58ed7dad1cc888481908785f0d4c6cc908785e7d0d6dcc5d0c6908785e2dcc1dd908785fdd4c6dd908785f7c7dac2dbc69085f19085f4ddc1c1c5c69086f49087f39087f3dccfcfccd6dadadedcdbd29bd6dad89087f3c7d0d6dcc5d0c698c2dcc1dd98ddd4c6dd98d7c7dac2dbc69087f39085f19085f4,,,"fetch error: Client error '404 Not Found' for url 'https://izzycooking.com/cdn-cgi/l/email-protection#b58ac6c0d7dfd0d6c188ecdac0c7908785d3c7dcd0dbd1908785ddd4c6908785c6ddd4c7d0d1908785d4db908785d4c7c1dcd6d9d0908785c2dcc1dd908785ccdac09b93d4d8c58ed7dad1cc888481908785f0d4c6cc908785e7d0d6dcc5d0c6908785e2dcc1dd908785fdd4c6dd908785f7c7dac2dbc69085f19085f4ddc1c1c5c69086f49087f39087f3dccfcfccd6dadadedcdbd29bd6dad89087f3c7d0d6dcc5d0c698c2dcc1dd98ddd4c6dd98d7c7dac2dbc69087f39085f19085f4'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+jamieoliver.com,False,https://jamieoliver.com/recipes/all,,,scraped but no title returned
+jennycancook.com,False,https://www.jennycancook.com/recipe/most-popular/,,,scraped but no title returned
+jimcooksfoodgood.com,False,https://jimcooksfoodgood.com/wprm_print/restaurant-quality-french-fries,,,scraped but no title returned
+jocooks.com,True,https://www.jocooks.com/recipes/hit-run-baked-chicken-and-veggies/,Roasted Chicken And Vegetables,12,
+joshuaweissman.com,True,https://joshuaweissman.com/recipes/the-best-tater-tots-ever-recipe,The Best Tater Tots Ever,18,
+joyfoodsunshine.com,False,https://joyfoodsunshine.com/category/recipes/,,,scraped but no title returned
+joythebaker.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+juliegoodwin.com.au,True,https://juliegoodwin.com.au/recipes/,Recipes,0,
+jumbo.com,False,https://jumbo.com/service/7-zekerheden/vers-is-ook-echt-vers,,,scraped but no title returned
+justalittlebitofbacon.com,False,https://www.justalittlebitofbacon.com/564-2/privacy-policy/,,,scraped but no title returned
+justataste.com,False,https://www.justataste.com/recipes/,,,scraped but no title returned
+justbento.com,False,https://justbento.com/recipes/all,,,"fetch error: Client error '406 Not Acceptable' for url 'https://justbento.com/recipes/all'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+justinesnacks.com,False,https://justinesnacks.com/category/recipes/,,,scraped but no title returned
+justonecookbook.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+kalejunkie.com,False,https://kalejunkie.com/category/recipe/,,,scraped but no title returned
+kellyscleankitchen.com,False,https://kellyscleankitchen.com/recipes/breakfast,,,"fetch error: Client error '406 Not Acceptable' for url 'https://kellyscleankitchen.com/recipes/breakfast'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+kennethtemple.com,False,https://kennethtemple.com/recipes/cajun-creole/,,,scraped but no title returned
+kennymcgovern.com,False,https://kennymcgovern.com/category/recipes/indianrestaurantstyle/indian-rice-breads,,,scraped but no title returned
+keukenliefde.nl,True,https://www.keukenliefde.nl/gerechten/hapje/,Hapje Archieven,0,
+kfoods.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+kiddokitchen.se,True,https://kiddokitchen.se/recept/semmelbullar,Frasiga semmelbullar med grädde,9,
+kikkoman.eu,False,https://www.kikkoman.eu/recipes/recipe-collection/detail/what-exactly-are-onigiri,,,scraped but no title returned
+kingarthurbaking.com,False,https://kingarthurbaking.com/recipes/bread,,,scraped but no title returned
+kitchenaid.com.au,False,https://kitchenaid.com.au/collections/mothers-day-sale,,,scraped but no title returned
+kitchendivas.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+kitchendreaming.com,False,https://kitchendreaming.com/recipe/appetizers/,,,scraped but no title returned
+kitchensanctuary.com,False,https://www.kitchensanctuary.com/books/its-all-about-dinner-book/,,,scraped but no title returned
+kitchenstories.com,True,https://kitchenstories.com/en/recipes/croissant-bread-pudding-with-rhubarb-compote,Croissant bread pudding with rhubarb compote,14,
+kochbar.de,False,https://www.kochbar.de/rezept/neu,,,scraped but no title returned
+kochbucher.com,False,https://kochbucher.com/feed/rss/,,,scraped but no title returned
+koket.se,False,https://koket.se/matlagningstermer/grilla,,,scraped but no title returned
+kookjij.nl,False,https://www.kookjij.nl/food/Trending,,,scraped but no title returned
+kristineskitchenblog.com,False,https://kristineskitchenblog.com/recipe-index/,,,scraped but no title returned
+krollskorner.com,True,https://krollskorner.com/recipes/desserts/cookies/sheet-pan-chocolate-chip-cookies/,Sheet Pan Chocolate Chip Cookies,13,
+kuchnia-domowa.pl,False,https://kuchnia-domowa.pl/szukaj/tag,,,scraped but no title returned
+kuchynalidla.sk,False,https://kuchynalidla.sk/masiarova-cerstva-porcia/bravcove-maso,,,scraped but no title returned
+kwestiasmaku.com,False,https://kwestiasmaku.com/przepisy/na-skroty,,,scraped but no title returned
+lacucinaitaliana.com,False,https://lacucinaitaliana.com/recipes/pasta,,,scraped but no title returned
+lacucinaitaliana.it,True,https://lacucinaitaliana.it/ricetta/rosti-patate-tartare-manzo/,Rösti di patate con tartare di manzo,10,
+lanascooking.com,False,https://www.lanascooking.com/recipes/,,,scraped but no title returned
+latelierderoxane.com,False,,,,"no recipe link found — ConnectError on /: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /recipes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /recipe/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /recipes: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /recipe: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /recettes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /rezepte/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /ricette/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /recetas/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /cooking/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /cook/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /dishes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /food/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081); ConnectError on /sitemap.xml: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'latelierderoxane.com'. (_ssl.c:1081)"
+lazycatkitchen.com,False,,,,"no recipe link found — ConnectError on /: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /recipes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /recipe/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /recipes: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /recipe: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /recettes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /rezepte/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /ricette/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /recetas/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /cooking/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /cook/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /dishes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /food/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081); ConnectError on /sitemap.xml: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'lazycatkitchen.com'. (_ssl.c:1081)"
+leanandgreenrecipes.net,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+lecker.de,True,https://lecker.de/rezepte-der-woche,Rezepte der Woche,0,
+leckerschmecker.me,False,https://www.leckerschmecker.me/fruhstuck-rezepte,,,scraped but no title returned
+lecremedelacrumb.com,False,https://www.lecremedelacrumb.com/recipes/,,,scraped but no title returned
+leitesculinaria.com,False,https://leitesculinaria.com/category/recipes/holidays/mothers-day,,,scraped but no title returned
+lekkerensimpel.com,True,https://www.lekkerensimpel.com/hoofdgerechten/soep/,Soep,0,
+leukerecepten.nl,False,https://www.leukerecepten.nl/blogs/reviews/,,,scraped but no title returned
+lidiasitaly.com,True,https://lidiasitaly.com/recipes/four-cheese-baked-macaroni/,Four-Cheese Baked Macaroni,13,
+lifestyleofafoodie.com,False,https://lifestyleofafoodie.com/recipes/,,,scraped but no title returned
+littleferrarokitchen.com,False,https://littleferrarokitchen.com/authors/samantha-ferraro/,,,scraped but no title returned
+littlespicejar.com,False,https://www.littlespicejar.com/instant-updates/,,,scraped but no title returned
+littlesunnykitchen.com,False,https://littlesunnykitchen.com/recipes/,,,scraped but no title returned
+livelytable.com,False,https://livelytable.com/about/contact/,,,scraped but no title returned
+lmld.org,False,https://lmld.org/recipe-index/,,,scraped but no title returned
+lolascocina.com,False,https://lolascocina.com/recipes/recipes-by-category/aguas-frescas-and-drinks/,,,scraped but no title returned
+loveandlemons.com,False,https://loveandlemons.com/recipes/breakfast-recipes/,,,"fetch error: Client error '406 Not Acceptable' for url 'https://www.loveandlemons.com/recipes/breakfast-recipes/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+lovefood.com,True,https://lovefood.com/Topics/recipes,lovefood.com | Topics,0,
+lovingitvegan.com,False,https://lovingitvegan.com/recipes/,,,scraped but no title returned
+maangchi.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+madamecuisine.de,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+madensverden.dk,False,https://madensverden.dk/soegning/,,,scraped but no title returned
+madsvin.com,False,https://madsvin.com/opskrifter/,,,scraped but no title returned
+magimix.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+makeitdairyfree.com,False,https://makeitdairyfree.com/recipes/,,,scraped but no title returned
+marmiton.org,False,https://marmiton.org/espace-perso/mon-carnet-de-recettes.aspx,,,scraped but no title returned
+marthastewart.com,False,,,,links found but none scored as a recipe page
+matprat.no,False,https://matprat.no/var/enkelt-pa-grillen/,,,scraped but no title returned
+mccormick.com,False,https://mccormick.com/blogs/recipes/tagged/vegetables,,,scraped but no title returned
+mealprepmanual.com,False,https://mealprepmanual.com/recipes/,,,scraped but no title returned
+meganvskitchen.com,False,https://meganvskitchen.com/recipes/,,,scraped but no title returned
+melissaknorris.com,False,https://melissaknorris.com/category/recipes/,,,scraped but no title returned
+meljoulwan.com,True,https://meljoulwan.com/category/recipes/,Recipes | Mel Joulwan : Well Fed,0,
+melloschourico.com,True,https://melloschourico.com/recipes/chourico-rangoon,Chourico Rangoon,9,
+melskitchencafe.com,False,https://www.melskitchencafe.com/recipes/main-dish/,,,scraped but no title returned
+migusto.migros.ch,False,https://migusto.migros.ch/de/was-koche-ich-heute.html,,,scraped but no title returned
+miljuschka.nl,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+mindmegette.hu,False,https://mindmegette.hu/recept/a-legpuhabb-piskota-alaprecept,,,scraped but no title returned
+minimalistbaker.com,False,https://minimalistbaker.com/recipes/hearty-meals/,,,scraped but no title returned
+ministryofcurry.com,False,https://ministryofcurry.com/recipes/main-dishes/,,,scraped but no title returned
+misya.info,True,https://www.misya.info/ricetta/girelle-cranberry-e-brie.htm,Girelle cranberry e brie,6,
+mob.co.uk,False,https://mob.co.uk/recipes/collections/packed-lunch-recipes,,,scraped but no title returned
+mobkitchen.co.uk,False,https://mobkitchen.co.uk/recipes/collections/packed-lunch-recipes,,,scraped but no title returned
+modernhoney.com,False,https://www.modernhoney.com/subscribe/,,,scraped but no title returned
+momontimeout.com,False,https://www.momontimeout.com/about/disclosure/,,,scraped but no title returned
+momswithcrockpots.com,False,https://momswithcrockpots.com/category/recipes/appetizer/,,,scraped but no title returned
+motherthyme.com,False,https://www.motherthyme.com/2026/04/thrifted-frame-makeover-free-vintage-landscape-printable.html,,,scraped but no title returned
+moulinex.fr,False,https://moulinex.fr/recette/liste,,,scraped but no title returned
+mundodereceitasbimby.com.pt,False,https://mundodereceitasbimby.com.pt/procura/de-utilizador,,,scraped but no title returned
+mybakingaddiction.com,False,https://www.mybakingaddiction.com/appetizers/dips/,,,scraped but no title returned
+myjewishlearning.com,False,https://myjewishlearning.com/10up-myjewishlearning.pantheonsite.io/recipe/israeli-hummus-recipe/,,,"fetch error: Client error '404 Not Found' for url 'https://www.myjewishlearning.com/10up-myjewishlearning.pantheonsite.io/recipe/israeli-hummus-recipe/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+mykitchen101.com,True,https://mykitchen101.com/%e7%82%92cincalok%e4%b8%89%e5%b1%82%e8%82%89%e7%82%92%e5%92%b8%e8%99%be%e4%bb%94%e9%85%b1%e4%b8%89%e5%b1%82/,独特风味: 炒Cincalok三层肉的美味探秘 (炒咸虾仔酱三层肉),0,
+mykitchen101en.com,False,https://mykitchen101en.com/marble-butter-cake/,,,scraped but no title returned
+mykoreankitchen.com,False,https://mykoreankitchen.com/recipes/,,,scraped but no title returned
+myplate.gov,False,,,,no recipe link found — HTTP 403 on /; HTTP 404 on /recipes/; HTTP 404 on /recipe/; HTTP 404 on /recipes; HTTP 404 on /recipe; HTTP 404 on /recettes/; HTTP 404 on /rezepte/; HTTP 404 on /ricette/; HTTP 404 on /recetas/; HTTP 404 on /cooking/; HTTP 404 on /cook/; HTTP 404 on /dishes/; HTTP 404 on /food/; HTTP 404 on /sitemap.xml
+myrecipes.com,False,https://myrecipes.com/authentication/login?regSource=dyk4c6&isMyrecipes=true,,,scraped but no title returned
+myriadrecipes.com,False,https://myriadrecipes.com/recipe-index/,,,scraped but no title returned
+myvegetarianroots.com,False,https://myvegetarianroots.com/category/recipes/,,,"fetch error: Client error '406 Not Acceptable' for url 'https://myvegetarianroots.com/category/recipes/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+natashaskitchen.com,False,https://natashaskitchen.com/recipes/,,,scraped but no title returned
+naturallyella.com,False,https://naturallyella.com/recipes/,,,scraped but no title returned
+ndr.de,False,https://ndr.de/nachrichten/info,,,scraped but no title returned
+netacooks.com,False,https://netacooks.com/recipes/,,,scraped but no title returned
+nhs.uk,True,https://nhs.uk/nhs-services/prescriptions/how-to-order-a-repeat-prescription/,How to order a repeat prescription,0,
+nibbledish.com,False,https://nibbledish.com/how-to-make-barbecue-chicken/,,,extraction error: 'list' object has no attribute 'split'
+ninjatestkitchen.eu,True,https://ninjatestkitchen.eu/recipe/pizza-express-artisan-pizza/,PizzaExpress Margherita Pizza,7,
+noracooks.com,False,https://shop.noracooks.com/products/everyday-vegan-comfort,,,unsupported site; skipped (wild mode off)
+norecipes.com,False,https://norecipes.com/recipe/meal/breakfast/,,,scraped but no title returned
+nosalty.hu,True,https://www.nosalty.hu/recept/rozsepecsenye,Rőzsepecsenye,12,
+notenoughcinnamon.com,False,https://www.notenoughcinnamon.com/wprm_print/recipe/11887,,,scraped but no title returned
+nourishedbynutrition.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+nrk.no,False,https://nrk.no/video/humor/,,,scraped but no title returned
+number-2-pencil.com,False,https://www.number-2-pencil.com/contact/subscribe-to-email/,,,scraped but no title returned
+nutritionbynathalie.com,False,https://www.nutritionbynathalie.com/all-goo-eats,,,"fetch error: Client error '429 Too Many Requests' for url 'https://www.nutritionbynathalie.com/all-goo-eats'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429"
+nutritionfacts.org,False,https://nutritionfacts.org/es/recipes/,,,scraped but no title returned
+ohsheglows.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+ohsweetbasil.com,False,https://ohsweetbasil.com/season/cinco-de-mayo/,,,scraped but no title returned
+okokorecepten.nl,False,https://okokorecepten.nl/leden/inloggen,,,scraped but no title returned
+omnivorescookbook.com,False,https://omnivorescookbook.com/category/recipe/,,,scraped but no title returned
+onceuponachef.com,False,https://www.onceuponachef.com/recipes/dinner,,,scraped but no title returned
+onesweetappetite.com,False,https://onesweetappetite.com/dinner-recipes/30-minute-meals/,,,scraped but no title returned
+organicallyaddison.com,False,https://organicallyaddison.com/recipes/course/,,,scraped but no title returned
+ourbestbites.com,False,https://ourbestbites.com/category/recipes/,,,scraped but no title returned
+owen-han.com,False,,,,no recipe link found — HTTP 404 on /; HTTP 404 on /recipes/; HTTP 404 on /recipe/; HTTP 404 on /recipes; HTTP 404 on /recipe; HTTP 404 on /recettes/; HTTP 404 on /rezepte/; HTTP 404 on /ricette/; HTTP 404 on /recetas/; HTTP 404 on /cooking/; HTTP 404 on /cook/; HTTP 404 on /dishes/; HTTP 404 on /food/; HTTP 404 on /sitemap.xml
+paleorunningmomma.com,False,https://www.paleorunningmomma.com/course/appetizers/,,,scraped but no title returned
+panelinha.com.br,False,https://panelinha.com.br/home/receitas,,,scraped but no title returned
+paninihappy.com,False,https://paninihappy.com/category/recipes/pork-panini-recipes/,,,"fetch error: Client error '406 Not Acceptable' for url 'https://paninihappy.com/category/recipes/pork-panini-recipes/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+panlasangpinoy.com,False,https://panlasangpinoy.com/categories/recipes/breakfast-recipes/,,,scraped but no title returned
+pauladeen.com,False,https://pauladeen.com/recipes/,,,scraped but no title returned
+peelwithzeal.com,False,https://www.peelwithzeal.com/recipes/,,,scraped but no title returned
+persnicketyplates.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+pickuplimes.com,False,https://pickuplimes.com/recipe/chickpea-apricot-stew-2490,,,scraped but no title returned
+picnic.app,False,https://picnic.app/nl/app-downloaden/,,,scraped but no title returned
+piesandplots.net,False,https://piesandplots.net/recipes/,,,scraped but no title returned
+pilipinasrecipes.com,False,https://pilipinasrecipes.com/recipes/pork-recipes/,,,scraped but no title returned
+pinchofyum.com,False,https://pinchofyum.com/recipes/spring,,,scraped but no title returned
+pingodoce.pt,False,https://pingodoce.pt/home/home,,,scraped but no title returned
+pinkowlkitchen.com,False,https://pinkowlkitchen.com/about-me/media-kit/,,,scraped but no title returned
+platingpixels.com,False,https://www.platingpixels.com/category/recipe/,,,scraped but no title returned
+plowingthroughlife.com,False,https://plowingthroughlife.com/category/recipes/,,,scraped but no title returned
+polishfoodies.com,False,https://polishfoodies.com/category/recipes/,,,scraped but no title returned
+poppycooks.com,True,https://www.poppycooks.com/recipes/puff-pastry-dauphinois-pie/,Puff pastry dauphinois pie,9,
+popsugar.com,False,https://www.popsugar.com/latest/mental-health,,,scraped but no title returned
+potatorolls.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+practicalselfreliance.com,False,https://practicalselfreliance.com/subscribe/,,,scraped but no title returned
+preppykitchen.com,False,https://preppykitchen.com/recipes/,,,scraped but no title returned
+pressureluckcooking.com,False,https://pressureluckcooking.com/recipes/,,,scraped but no title returned
+primaledgehealth.com,False,https://www.primaledgehealth.com/category/recipes/snacks/,,,scraped but no title returned
+projectgezond.nl,False,https://www.projectgezond.nl/recepten/ontbijt,,,scraped but no title returned
+przepisy.pl,False,https://przepisy.pl/przepisy/dania-i-przekaski,,,scraped but no title returned
+purelypope.com,False,https://purelypope.com/blog/recipes/,,,"fetch error: Client error '406 Not Acceptable' for url 'https://purelypope.com/blog/recipes/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+purplecarrot.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+quakeroats.com,True,http://www.quakeroats.com/oats-do-more/why-oats/surprising-uses-for-oats,Uses of Oats | Quaker Oats,0,
+quitoque.fr,True,https://quitoque.fr/recettes/penne-au-poulet-et-courgette-a-la-creme-dail-confit,Saumon à la crème d'ail confit,10,
+rachlmansfield.com,False,https://rachlmansfield.com/category/recipes/,,,scraped but no title returned
+rainbowplantlife.com,False,https://rainbowplantlife.com/category/recipes/vegan-breakfast/,,,scraped but no title returned
+realfood.tesco.com,True,https://realfood.tesco.com/recipes/popular/slow-cooker-recipes.html,Slow-cooker recipes,1,
+realfoodwell.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+realmomnutrition.com,False,https://www.realmomnutrition.com/about-real-mom-nutrition/,,,scraped but no title returned
+realsimple.com,False,,,,links found but none scored as a recipe page
+receitas.globo.com,False,https://receitas.globo.com/blog/alimentacao-e-saude/come-mas-logo-sente-fome-o-problema-pode-estar-no-pico-de-glicemia.ghtml,,,scraped but no title returned
+receitas.ig.com.br,False,https://receitas.ig.com.br/colunas/joao-felippe/,,,scraped but no title returned
+receitasnestle.com.br,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+recept.se,False,,,,links found but none scored as a recipe page
+recepti.index.hr,False,https://recepti.index.hr/recepti/brzo-i-lako,,,scraped but no title returned
+receptyprevas.sk,False,https://www.receptyprevas.sk/kategorie/blog/,,,scraped but no title returned
+recette.plus,False,https://recette.plus/recettes/aperitifs/,,,scraped but no title returned
+recipe.yamasa.com,True,https://recipe.yamasa.com/recipes/6327,春レタスのコンビーフこれ!うま!!マヨチーズパン,0,
+recipeforperfection.com,False,https://recipeforperfection.com/recipes/beverages/,,,scraped but no title returned
+recipegirl.com,False,https://www.recipegirl.com/recipes/,,,scraped but no title returned
+recipeland.com,False,https://recipeland.com/recipes/list,,,scraped but no title returned
+reciperunner.com,False,https://reciperunner.com/category/recipes/,,,scraped but no title returned
+recipes.farmhousedelivery.com,True,https://recipes.farmhousedelivery.com/a-weeks-cascading-meal-prep-chicken-edition/,A Week’s Cascading Meal Prep: Chicken Edition,12,
+recipes.timesofindia.com,True,https://recipes.timesofindia.com/recipes/lemon-iced-tea/articleshow/84339280.cms,Lemon Iced Tea Recipe,7,
+recipetineats.com,False,https://www.recipetineats.com/recipetin-meals/,,,"fetch error: Client error '403 Forbidden' for url 'https://recipetinmeals.org.au'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403"
+redhousespice.com,False,https://redhousespice.com/about/wei-guo/,,,scraped but no title returned
+reishunger.de,True,https://www.reishunger.de/rezepte/rezept/3292/sushi-pizza-mit-wasabi-dip-und-sushi-mayo,Sushi Pizza mit Wasabi Dip und Sushi Mayo,18,
+rewe.de,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+rezeptwelt.de,False,https://rezeptwelt.de/suche/benutzer,,,scraped but no title returned
+ricetta.it,False,https://ricetta.it/users/Login.aspx?ReturnUrl=%2f,,,scraped but no title returned
+ricette.giallozafferano.it,False,https://ricette.giallozafferano.it/ricette-cat/Dolci-e-Desserts/,,,"fetch error: Client error '404 Not Found' for url 'https://ricette.giallozafferano.it/ricette-cat/Dolci-e-Desserts/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+ricetteperbimby.it,False,https://www.ricetteperbimby.it/categoria/antipasti-di-carne,,,scraped but no title returned
+rosannapansino.com,True,https://rosannapansino.com/blogs/recipes/wicked-cakes-glinda-elphaba,Wicked Cakes - Glinda & Elphaba,0,
+rutgerbakt.nl,True,https://rutgerbakt.nl/inspiratie/bak-het-beste-brood-met-mijn-broodbakbol/,Bak het beste brood met mijn broodbakbol,0,
+saboresajinomoto.com.br,False,https://www.saboresajinomoto.com.br/receita/macarrao-da-cris,,,"fetch error: Client error '403 Forbidden' for url 'https://www.saboresajinomoto.com.br/receita/macarrao-da-cris'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403"
+sallys-blog.de,True,https://sallys-blog.de/rezepte/obsttorte-herzkuchen-mit-fruechten,Obsttorte / Herzkuchen mit Früchten,16,
+sallysbakingaddiction.com,False,https://sallysbakingaddiction.com/=https:/sallysbakingaddiction.com/sallys-baking-101/,,,"fetch error: Client error '404 Not Found' for url 'https://sallysbakingaddiction.com/=https:/sallysbakingaddiction.com/sallys-baking-101/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+saltpepperskillet.com,False,https://saltpepperskillet.com/about/contact/,,,scraped but no title returned
+sandwichtribunal.com,False,https://www.sandwichtribunal.com/the-list/the-list-2014/,,,scraped but no title returned
+saveur.com,False,https://saveur.com/recipes/asparagus-mustard-vinaigrette/,,,scraped but no title returned
+savoringthegood.com,False,https://www.savoringthegood.com/wprm_print/caramels,,,scraped but no title returned
+savorynothings.com,False,https://www.savorynothings.com/category/recipes/,,,scraped but no title returned
+savvysavingcouple.net,False,https://www.savvysavingcouple.net/category/recipes/breakfast-recipes/,,,scraped but no title returned
+schoolofwok.co.uk,False,https://schoolofwok.co.uk/cdn-cgi/l/email-protection#ff96919990bf8c9c979090939099889094d19c90d18a94,,,"fetch error: Client error '404 Not Found' for url 'https://schoolofwok.co.uk/cdn-cgi/l/email-protection#ff96919990bf8c9c979090939099889094d19c90d18a94'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+scrambledandscrumptious.com,True,https://scrambledandscrumptious.com/recipes/healthy-instant-pot-chicken-pot-pie-soup,Healthy Instant Pot Chicken Pot Pie Soup,16,
+scrummylane.com,False,https://scrummylane.com/subscribe/,,,scraped but no title returned
+seriouseats.com,False,,,,links found but none scored as a recipe page
+sharkninja.com,False,https://sharkninja.com/discover/recipes/supper-club-recipes,,,scraped but no title returned
+shelikesfood.com,False,https://www.shelikesfood.com/blog/,,,scraped but no title returned
+simple-veganista.com,False,https://simple-veganista.com/recipes/course/breakfast-brunch/,,,scraped but no title returned
+simplegreensmoothies.com,False,https://simplegreensmoothies.com/recipes/smoothies/,,,scraped but no title returned
+simplehomeedit.com,False,https://simplehomeedit.com/recipe/at-home/,,,scraped but no title returned
+simply-cookit.com,False,https://simply-cookit.com/de/metaseiten/impressum/informationen-datenschutz,,,"fetch error: Client error '404 Not Found' for url 'https://www.simply-cookit.com/de/metaseiten/impressum/informationen-datenschutz'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+simplyquinoa.com,False,https://www.simplyquinoa.com/category/recipes/breakfast/,,,scraped but no title returned
+simplyrecipes.com,False,,,,links found but none scored as a recipe page
+simplywhisked.com,False,https://www.simplywhisked.com/desserts/cakes/,,,scraped but no title returned
+sipandfeast.com,False,https://www.sipandfeast.com/recipes/,,,scraped but no title returned
+sizzlefish.com,False,https://sizzlefish.com/pages/6-free-soft-shell-crabs,,,scraped but no title returned
+sizzlingeats.com,False,https://www.sizzlingeats.com/category/recipe/breakfasts/,,,scraped but no title returned
+skinnytaste.com,False,https://www.skinnytaste.com/recipes/dairy-free/,,,scraped but no title returned
+smalltownwoman.com,False,https://www.smalltownwoman.com/recipe-index/,,,scraped but no title returned
+smulweb.nl,False,,,,no recipe link found — ConnectError on /: [Errno 11002] getaddrinfo failed; ConnectError on /recipes/: [Errno 11002] getaddrinfo failed; ConnectError on /recipe/: [Errno 11002] getaddrinfo failed; ConnectError on /recipes: [Errno 11002] getaddrinfo failed; ConnectError on /recipe: [Errno 11002] getaddrinfo failed; ConnectError on /recettes/: [Errno 11002] getaddrinfo failed; ConnectError on /rezepte/: [Errno 11002] getaddrinfo failed; ConnectError on /ricette/: [Errno 11002] getaddrinfo failed; ConnectError on /recetas/: [Errno 11002] getaddrinfo failed; ConnectError on /cooking/: [Errno 11002] getaddrinfo failed; ConnectError on /cook/: [Errno 11002] getaddrinfo failed; ConnectError on /dishes/: [Errno 11002] getaddrinfo failed; ConnectError on /food/: [Errno 11002] getaddrinfo failed; ConnectError on /sitemap.xml: [Errno 11002] getaddrinfo failed
+sobors.hu,False,https://sobors.hu/receptek/mibol-foznel/,,,scraped but no title returned
+southernbite.com,False,https://southernbite.com/cookbooks/supper-made-simple/,,,scraped but no title returned
+southerncastiron.com,False,https://southerncastiron.com/southern-cast-iron-cook-off/recipes/,,,scraped but no title returned
+southernliving.com,False,,,,links found but none scored as a recipe page
+spainonafork.com,False,https://spainonafork.com/about/,,,scraped but no title returned
+spendwithpennies.com,False,https://www.spendwithpennies.com/category/recipes/,,,scraped but no title returned
+spicysouthernkitchen.com,False,https://spicysouthernkitchen.com/recipes/appetizers/,,,scraped but no title returned
+spisbedre.dk,False,https://spisbedre.dk/opskrifter/asparges-med-brunet-smor-og-knas,,,scraped but no title returned
+springlane.de,False,https://springlane.de/collections/eismaschinen-joghurtbereiter,,,scraped but no title returned
+stacyling.com,False,https://stacyling.com/category/recipes/,,,scraped but no title returned
+staysnatched.com,False,https://www.staysnatched.com/about-me/,,,scraped but no title returned
+steamykitchen.com,False,https://steamykitchen.com/category/recipes/microwave-recipes,,,scraped but no title returned
+streetkitchen.hu,False,https://streetkitchen.hu/kategoriak/bogracsos-etelek,,,scraped but no title returned
+strongrfastr.com,False,https://strongrfastr.com/recipes/browser,,,"fetch error: Client error '404 Not Found' for url 'https://strongrfastr.com/recipes/browser'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+sudachirecipes.com,False,https://sudachirecipes.com/about-us/yuto-omura/,,,scraped but no title returned
+sugarhero.com,False,https://www.sugarhero.com/recipes/,,,scraped but no title returned
+sugarspunrun.com,False,https://sugarspunrun.com/contact/privacy-policy/,,,scraped but no title returned
+sunbasket.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+sundpaabudget.dk,False,,,,no recipe link found — HTTP 455 on /; HTTP 455 on /recipes/; HTTP 455 on /recipe/; HTTP 455 on /recipes; HTTP 455 on /recipe; HTTP 455 on /recettes/; HTTP 455 on /rezepte/; HTTP 455 on /ricette/; HTTP 455 on /recetas/; HTTP 455 on /cooking/; HTTP 455 on /cook/; HTTP 455 on /dishes/; HTTP 455 on /food/; HTTP 455 on /sitemap.xml
+sunset.com,True,https://sunset.com/recipe/miso-braised-red-cabbage-with-fennel,Miso-Braised Red Cabbage with Fennel,10,
+sweetcsdesigns.com,False,https://sweetcsdesigns.com/recipes/keto/,,,scraped but no title returned
+sweetpeasandsaffron.com,False,https://sweetpeasandsaffron.com/recipes/,,,scraped but no title returned
+swissmilk.ch,False,https://swissmilk.ch/de/rezepte-kochideen/,,,scraped but no title returned
+tableanddish.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+taste.com.au,False,https://taste.com.au/recipes/collections/breakfast-recipes,,,scraped but no title returned
+tasteatlas.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+tastefullygrace.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+tasteofhome.com,False,https://tasteofhome.com/recipes/meal-types/dinner/,,,scraped but no title returned
+tastesbetterfromscratch.com,False,https://ad.tastesbetterfromscratch.com/products/taste-of-europe-digital-cookbook,,,unsupported site; skipped (wild mode off)
+tastesoflizzyt.com,False,https://shop.tastesoflizzyt.com/products/at-the-family-table-125-recipes-to-share-and-savor?utm_source=banner&utm_medium=banner&utm_campaign=top+banner+ad,,,unsupported site; skipped (wild mode off)
+tastinghistory.com,True,https://tastinghistory.com/recipes/kanasustew,Kanasu Stew,11,
+tasty.co,True,https://tasty.co/recipe/croissant-bouquet,Croissant Bouquet Recipe by Tasty,7,
+tastykitchen.com,True,https://tastykitchen.com/recipes/appetizers-and-snacks/french-onion-dip-2/,French Onion Dip,10,
+tastyoven.com,False,https://tastyoven.com/quick-and-tasty-recipes-for-busy-families-2/,,,scraped but no title returned
+tatyanaseverydayfood.com,False,https://tatyanaseverydayfood.com/recipes/,,,scraped but no title returned
+thealmondeater.com,False,https://thealmondeater.com/recipes/,,,scraped but no title returned
+thebigmansworld.com,False,https://thebigmansworld.com/recipes/,,,scraped but no title returned
+theclevercarrot.com,False,https://www.theclevercarrot.com/cookbooks/artisan-sourdough-made-simple/,,,scraped but no title returned
+thecookierookie.com,False,https://www.thecookierookie.com/recipes/,,,scraped but no title returned
+thecookingguy.com,True,https://thecookingguy.com/recipes/chili-crisp-honey-chicken-gnocchi,Chili Crisp Honey Chicken Gnocchi,18,
+thefirstmess.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+thefoodietakesflight.com,False,https://thefoodietakesflight.com/cookbooks/free-bonus-ebook/,,,scraped but no title returned
+theglutenfreeaustrian.com,False,https://theglutenfreeaustrian.com/recipes/,,,scraped but no title returned
+thehappyfoodie.co.uk,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+theicecreamconfectionals.com,False,https://theicecreamconfectionals.com/recipe/ninja-creami-chocolate-frozen-yogurt/,,,"fetch error: Client error '406 Not Acceptable' for url 'https://theicecreamconfectionals.com/recipe/ninja-creami-chocolate-frozen-yogurt/'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+thekitchencommunity.org,False,https://thekitchencommunity.org/recipes/,,,scraped but no title returned
+thekitchenmagpie.com,False,https://www.thekitchenmagpie.com/recipes/air-fryer-recipes/,,,scraped but no title returned
+thekitchn.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+theloopywhisk.com,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+themagicalslowcooker.com,False,https://www.themagicalslowcooker.com/recipes/,,,scraped but no title returned
+themediterraneandish.com,False,https://www.themediterraneandish.com/recipes/,,,scraped but no title returned
+themodernproper.com,False,https://themodernproper.com/recipes/season/spring,,,scraped but no title returned
+theoldwomanandthesea.com,False,,,,"no recipe link found — ConnectError on /: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /recipes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /recipe/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /recipes: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /recipe: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /recettes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /rezepte/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /ricette/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /recetas/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /cooking/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /cook/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /dishes/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /food/: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081); ConnectError on /sitemap.xml: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'theoldwomanandthesea.com'. (_ssl.c:1081)"
+thepalatablelife.com,False,,,,no recipe link found — no links collected
+thepioneerwoman.com,True,https://thepioneerwoman.com/food-cooking/recipes/a71144313/pea-and-goat-cheese-tart-recipe/,Spring Pea and Goat Cheese Puff Pastry Tart,10,
+theplantbasedschool.com,False,https://theplantbasedschool.com/recipes/,,,scraped but no title returned
+therecipecritic.com,False,https://therecipecritic.com/food-blogger/team/,,,scraped but no title returned
+thesaltymarshmallow.com,False,https://thesaltymarshmallow.com/recipes/,,,scraped but no title returned
+thespicetrain.com,False,https://thespicetrain.com/recipes/,,,scraped but no title returned
+thespruceeats.com,False,,,,links found but none scored as a recipe page
+thesuburbansoapbox.com,False,https://thesuburbansoapbox.com/recipes/,,,scraped but no title returned
+thevintagemixer.com,False,https://www.thevintagemixer.com/category/vintage-mixer/recipes/,,,scraped but no title returned
+thewoksoflife.com,False,https://thewoksoflife.com/category/recipes/,,,scraped but no title returned
+thinlicious.com,False,https://thinlicious.com/recipes/,,,scraped but no title returned
+thishealthytable.com,True,https://thishealthytable.com/blog/bang-bang-salmon-bowl/,Bang Bang Salmon Bowl,16,
+tidymom.net,False,https://tidymom.net/category/recipes/appetizers/,,,scraped but no title returned
+tine.no,False,https://tine.no/om-tine/sponsing/norges-friidrettsforbund-og-tinestafetten,,,scraped but no title returned
+tofoo.co.uk,False,,,,no recipe link found — HTTP 403 on /; HTTP 403 on /recipes/; HTTP 403 on /recipe/; HTTP 403 on /recipes; HTTP 403 on /recipe; HTTP 403 on /recettes/; HTTP 403 on /rezepte/; HTTP 403 on /ricette/; HTTP 403 on /recetas/; HTTP 403 on /cooking/; HTTP 403 on /cook/; HTTP 403 on /dishes/; HTTP 403 on /food/; HTTP 403 on /sitemap.xml
+toriavey.com,False,https://toriavey.com/recipes/winter-holidays/,,,scraped but no title returned
+tudogostoso.com.br,True,https://www.tudogostoso.com.br/datas/diadasmaes,Ideias de receitas para o almoço de Dia das Mães,10,
+twopeasandtheirpod.com,True,https://www.twopeasandtheirpod.com/recipe-for-cinnamon-rolls/,Best Cinnamon Rolls,17,
+uitpaulineskeuken.nl,True,https://uitpaulineskeuken.nl/kerst/hoofdgerechten,Hoofdgerechten Kerst,0,
+unsophisticook.com,False,https://unsophisticook.com/desserts/cookie-recipes/,,,scraped but no title returned
+usapears.org,False,https://www.usapears.org/recipe/pear-tahini-swirl-brownies/,,,scraped but no title returned
+valdemarsro.dk,False,https://valdemarsro.dk/premium/opret/,,,parse error: 'list' object has no attribute 'get'
+vanillaandbean.com,False,https://vanillaandbean.com/cuisine/mexican-southwest/,,,scraped but no title returned
+varecha.pravda.sk,False,https://varecha.pravda.sk/magazin/rady-a-tipy/,,,scraped but no title returned
+vegetarbloggen.no,False,,,,links found but none scored as a recipe page
+vegolosi.it,True,https://www.vegolosi.it/downloads/affettati-vegetali-corso-vegolosi/,Affettati vegetali: impara a prepararli con le tue mani,0,
+vegrecipesofindia.com,False,https://www.vegrecipesofindia.com/recipes/indian-breakfast-recipes/,,,scraped but no title returned
+veroniquecloutier.com,False,https://veroniquecloutier.com/videos/magazine-vero/en-coulisses,,,scraped but no title returned
+waitrose.com,True,https://www.waitrose.com/ecom/recipe/green-baked-eggs-with-new-season-asparagus,Green baked eggs with new season asparagus,10,
+watchwhatueat.com,False,https://www.watchwhatueat.com/wp-content/uploads/2016/01/Profile-Pic-Styled.png,,,scraped but no title returned
+wearenotmartha.com,False,https://wearenotmartha.com/recipes/,,,scraped but no title returned
+wedishitup.com,False,https://wedishitup.com/recipes/,,,scraped but no title returned
+weightwatchers.com,False,https://weightwatchers.com/us/recipe/healthy,,,scraped but no title returned
+wellplated.com,False,https://www.wellplated.com/recipe-index/,,,scraped but no title returned
+whatsgabycooking.com,False,https://whatsgabycooking.com/my-best-friends-kitchen/,,,scraped but no title returned
+whole30.com,True,https://whole30.com/recipes/5-ingredient-chicken-salad,5 Ingredient Chicken Salad,7,
+wholefoodsmarket.co.uk,False,https://wholefoodsmarket.co.uk/recipes/ribeye-steak-skewers-with-garlic-naan-wrap,,,scraped but no title returned
+wholefoodsmarket.com,False,https://wholefoodsmarket.com/api/wwos/auth/login?returnToUrl=/redirect,,,scraped but no title returned
+williams-sonoma.com,False,https://williams-sonoma.com/recipe/appetizers/?cm_type=lnav,,,scraped but no title returned
+womensweeklyfood.com.au,True,https://www.womensweeklyfood.com.au/recipe/baking/best-anzac-biscuits-recipe-28575/,The best Anzac biscuits recipe of all time,8,
+woop.co.nz,False,https://woop.co.nz/customer/account/login/,,,scraped but no title returned
+www1.wdr.de,True,https://www1.wdr.de/nrw/niederrhein/rhein-kreis-neuss/grevenbroich-maedchen-erft-tot-100.html,Jugendliche ertrinkt bei Grenvebroich in der Erft: 16-Jährige konnte wohl nicht schwimmen,0,
+wyseguide.com,False,https://shop.wyseguide.com/products/well-hello-hat/,,,unsupported site; skipped (wild mode off)
+xiachufang.com,True,https://xiachufang.com/recipe/107335858/,纯手工自制烧仙草（仙草制作）无私经验分享,4,
+yemek.com,False,https://yemek.com/tarif/kahvaltiliklar/,,,scraped but no title returned
+yummly.com,False,https://yummly.com/outlet/major-appliances.html?plp=%3ABest%20Seller%3Acategory%3AMajorApplianceOutlet%3AshowMajorProductsOnly%3Atrue%3Acategory%3AMajorAppliancesDishwashers&plpView=list&currentPage=0,,,scraped but no title returned
+zaubertopf.de,False,https://www.zaubertopf.de/thermomix-rezepte/tipps-thermomix/,,,scraped but no title returned
+zeit.de,False,https://www.zeit.de/rezepte/index,,,parse error: 'item'
+zenbelly.com,False,https://www.zenbelly.com/recipes/,,,scraped but no title returned
+zestfulkitchen.com,False,https://zestfulkitchen.com/press/privacy-policy/,,,scraped but no title returned

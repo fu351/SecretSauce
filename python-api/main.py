@@ -508,20 +508,34 @@ async def parse_ingredients_with_ai(raw_ingredients: List[str]) -> List[Ingredie
 
     ingredients_text = "\n".join(f"- {ing}" for ing in raw_ingredients)
 
-    prompt = f"""Parse these ingredient strings into structured data.
+    prompt = f"""Parse these ingredient strings into structured data. Ingredients may be in any language.
+
 For each ingredient, extract:
 - amount: ONLY the numeric quantity (e.g., "1", "1/2", "2-3", "" if none). NEVER include units here.
-- unit: ONLY the measurement unit (e.g., "cup", "tablespoon", "oz", "lb", "" if none). NEVER include the number.
-- name: the ingredient name with any preparation notes (e.g., "garlic, minced", "chicken breast, diced")
+- unit: ONLY the measurement unit in English (e.g., "cup", "tablespoon", "oz", "lb", "" if none). NEVER include the number. Translate non-English units to their English equivalent.
+- name: ONLY the ingredient concept in English. Strip all quantities and units. Translate non-English ingredient names to English. Keep preparation notes (minced, diced, chopped, etc.) in English.
 
-CRITICAL: Separate amount and unit. Examples:
+CRITICAL RULES:
+1. name must NEVER contain a number or unit — those belong in amount/unit.
+2. Always translate both unit and name to English regardless of source language.
+3. Non-English unit examples: EL/EL. = tablespoon, TL = teaspoon, Becher = cup, dl = deciliter, g = gram, Bund = bunch, Dose = can, Stück/St = piece, Pakket = package, el = tablespoon (Dutch/German), ml = milliliter.
+
+Examples (English):
 - "1 cup flour" → amount="1", unit="cup", name="flour"
 - "2 tablespoons olive oil" → amount="2", unit="tablespoons", name="olive oil"
 - "1/2 tsp salt" → amount="1/2", unit="tsp", name="salt"
-- "1 (14 oz) can diced tomatoes" → amount="1", unit="can (14 oz)", name="diced tomatoes"
-- "Salt and pepper to taste" → amount="", unit="", name="salt and pepper to taste"
-- "2 large eggs" → amount="2", unit="large", name="eggs"
-- Keep preparation instructions with the name (minced, diced, chopped, etc.)
+- "1 (14 oz) can diced tomatoes" → amount="1", unit="can", name="diced tomatoes"
+- "Salt and pepper to taste" → amount="", unit="", name="salt and pepper"
+- "2 large eggs" → amount="2", unit="", name="eggs"
+
+Examples (non-English → English):
+- "3 EL Reisessig" → amount="3", unit="tablespoons", name="rice vinegar"
+- "1 TL Salz" → amount="1", unit="teaspoon", name="salt"
+- "1 Becher Crème fraîche" → amount="1", unit="cup", name="creme fraiche"
+- "0,5 Avocado" → amount="0.5", unit="", name="avocado"
+- "500 g Sushi-Reis" → amount="500", unit="g", name="sushi rice"
+- "2 el olijfolie" → amount="2", unit="tablespoons", name="olive oil"
+- "3 gousses d'ail" → amount="3", unit="", name="garlic cloves"
 
 Ingredients:
 {ingredients_text}
@@ -533,7 +547,7 @@ Return ONLY valid JSON, no markdown or explanation."""
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are an ingredient parser. Extract structured data from ingredient strings. Return only valid JSON."},
+                {"role": "system", "content": "You are a multilingual ingredient parser. Extract structured data from ingredient strings in any language, always outputting the unit and name fields in English. Return only valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
@@ -725,39 +739,56 @@ async def import_recipe_from_url(request: URLImportRequest):
             response.raise_for_status()
             html = response.text
 
-        # Parse with recipe-scrapers
-        scraper = scrape_html(html, org_url=url)
+        # Parse with recipe-scrapers — wild_mode allows best-effort on unsupported sites
+        scraper = scrape_html(html, org_url=url, wild_mode=True)
+
+        def safe_scrape(fn):
+            try:
+                return fn()
+            except Exception:
+                return None
 
         # Extract and parse ingredients with AI
-        raw_ingredients = scraper.ingredients()
+        raw_ingredients = safe_scrape(scraper.ingredients) or []
         ingredients = await parse_ingredients_with_ai(raw_ingredients)
 
         # Extract and parse instructions with AI
-        raw_instructions = scraper.instructions_list() if hasattr(scraper, 'instructions_list') else scraper.instructions().split('\n')
+        raw_instructions = (
+            safe_scrape(scraper.instructions_list)
+            or [s.strip() for s in (safe_scrape(scraper.instructions) or "").split('\n') if s.strip()]
+        )
         instructions = await parse_instructions_with_ai(raw_instructions)
+
+        # Require at least some content to consider the scrape successful
+        if not raw_ingredients and not raw_instructions:
+            return RecipeImportResponse(success=False, error="Could not extract recipe content from this page")
 
         # Extract nutrition if available
         nutrition = None
         try:
-            if hasattr(scraper, 'nutrients'):
-                raw_nutrients = scraper.nutrients()
+            raw_nutrients = safe_scrape(scraper.nutrients)
+            if raw_nutrients:
                 nutrition = parse_nutrition(raw_nutrients)
                 if nutrition:
                     logger.info(f"Extracted nutrition: calories={nutrition.calories}, protein={nutrition.protein}g")
         except Exception as e:
             logger.warning(f"Failed to extract nutrition: {e}")
 
+        title = safe_scrape(scraper.title) or ""
+        if not title:
+            return RecipeImportResponse(success=False, error="Could not extract recipe title from this page")
+
         # Build recipe object
         recipe = ImportedRecipe(
-            title=scraper.title(),
-            description=scraper.description() if hasattr(scraper, 'description') else None,
+            title=title,
+            description=safe_scrape(scraper.description),
             ingredients=ingredients,
             instructions=instructions,
-            image_url=scraper.image() if hasattr(scraper, 'image') else None,
-            prep_time=parse_time_string(scraper.prep_time() if hasattr(scraper, 'prep_time') else None),
-            cook_time=parse_time_string(scraper.cook_time() if hasattr(scraper, 'cook_time') else None),
-            total_time=parse_time_string(scraper.total_time() if hasattr(scraper, 'total_time') else None),
-            servings=parse_servings(scraper.yields() if hasattr(scraper, 'yields') else None),
+            image_url=safe_scrape(scraper.image),
+            prep_time=parse_time_string(safe_scrape(scraper.prep_time)),
+            cook_time=parse_time_string(safe_scrape(scraper.cook_time)),
+            total_time=parse_time_string(safe_scrape(scraper.total_time)),
+            servings=parse_servings(safe_scrape(scraper.yields)),
             nutrition=nutrition,
             source_url=url,
             source_type="url"
