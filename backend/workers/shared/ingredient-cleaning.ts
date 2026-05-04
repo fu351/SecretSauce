@@ -73,6 +73,33 @@ export function hoistProductType(name: string): string {
   return `${productType} ${flavorPrefix}${remainder ? " " + remainder : ""}`.replace(/\s{2,}/g, " ").trim()
 }
 
+// Units that are actually adjectives, prepositions, colors, or ingredient fragments —
+// never a valid measurement. Stored lowercase for case-insensitive comparison.
+const GARBAGE_UNITS = new Set([
+  // English adjectives / size descriptors
+  "large", "medium", "small", "big", "extra", "whole", "half",
+  // Prepositions / articles / conjunctions
+  "of", "and", "to", "a", "an", "the", "in", "with", "for",
+  // Colors / descriptors that slipped into unit field
+  "red", "green", "black", "white", "yellow", "fresh", "dried", "chopped",
+  "diced", "sliced", "minced",
+  // "to taste" fragments
+  "taste",
+  // Non-English equivalents of "to taste"
+  "geschmack",  // German
+  "smaak",      // Dutch
+])
+
+// Returns null if the unit is garbage/noise, otherwise trims and returns it unchanged.
+// Callers should treat null as "no unit" (store NULL in DB).
+export function cleanRecipeIngredientUnit(unit: string | null | undefined): string | null {
+  if (!unit) return null
+  const trimmed = unit.trim()
+  if (!trimmed) return null
+  if (GARBAGE_UNITS.has(trimmed.toLowerCase())) return null
+  return trimmed
+}
+
 // Recipe/pantry path: strip preparation words, optional phrases, and trailing packaging.
 export function cleanRecipeIngredientName(name: string): string {
   return normalizeCanonicalName(name)

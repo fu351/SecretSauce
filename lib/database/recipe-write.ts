@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/database/supabase"
 import type { RecipeIngredient } from "@/lib/types"
+import { cleanRecipeIngredientUnit } from "@/backend/workers/shared/ingredient-cleaning"
 
 export type UpsertRecipePayload = {
   recipeId?: string | null
@@ -31,7 +32,7 @@ function buildIngredientRows(recipeId: string, ingredients?: RecipeIngredient[] 
       display_name: ingredient.name.trim(),
       standardized_ingredient_id: ingredient.standardizedIngredientId ?? null,
       quantity: ingredient.quantity ?? null,
-      units: ingredient.unit ?? null,
+      units: cleanRecipeIngredientUnit(ingredient.unit),
       deleted_at: null,
     }))
 }

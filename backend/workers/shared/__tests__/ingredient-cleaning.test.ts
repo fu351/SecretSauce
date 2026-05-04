@@ -1,11 +1,105 @@
 import { describe, it, expect } from "vitest"
 import {
   cleanRecipeIngredientName,
+  cleanRecipeIngredientUnit,
   cleanScraperProductName,
   cleanIngredientByContext,
   hoistProductType,
   buildUnitStripRegexes,
 } from "../ingredient-cleaning"
+
+describe("cleanRecipeIngredientUnit", () => {
+  // Valid units — should pass through unchanged
+  it("passes through standard English units", () => {
+    expect(cleanRecipeIngredientUnit("cup")).toBe("cup")
+    expect(cleanRecipeIngredientUnit("tbsp")).toBe("tbsp")
+    expect(cleanRecipeIngredientUnit("tsp")).toBe("tsp")
+    expect(cleanRecipeIngredientUnit("oz")).toBe("oz")
+    expect(cleanRecipeIngredientUnit("g")).toBe("g")
+    expect(cleanRecipeIngredientUnit("ml")).toBe("ml")
+    expect(cleanRecipeIngredientUnit("lb")).toBe("lb")
+    expect(cleanRecipeIngredientUnit("kg")).toBe("kg")
+  })
+
+  it("passes through non-standard but valid units", () => {
+    expect(cleanRecipeIngredientUnit("dl")).toBe("dl")
+    expect(cleanRecipeIngredientUnit("sachet")).toBe("sachet")
+    expect(cleanRecipeIngredientUnit("stk")).toBe("stk")
+  })
+
+  it("trims surrounding whitespace from valid units", () => {
+    expect(cleanRecipeIngredientUnit("  cup  ")).toBe("cup")
+  })
+
+  // Garbage — adjectives / size descriptors
+  it("nulls out size adjectives", () => {
+    expect(cleanRecipeIngredientUnit("large")).toBeNull()
+    expect(cleanRecipeIngredientUnit("medium")).toBeNull()
+    expect(cleanRecipeIngredientUnit("small")).toBeNull()
+    expect(cleanRecipeIngredientUnit("big")).toBeNull()
+    expect(cleanRecipeIngredientUnit("extra")).toBeNull()
+    expect(cleanRecipeIngredientUnit("whole")).toBeNull()
+    expect(cleanRecipeIngredientUnit("half")).toBeNull()
+  })
+
+  it("nulls out size adjectives case-insensitively", () => {
+    expect(cleanRecipeIngredientUnit("Large")).toBeNull()
+    expect(cleanRecipeIngredientUnit("MEDIUM")).toBeNull()
+    expect(cleanRecipeIngredientUnit("Small")).toBeNull()
+  })
+
+  // Garbage — prepositions / conjunctions
+  it("nulls out prepositions and conjunctions", () => {
+    expect(cleanRecipeIngredientUnit("of")).toBeNull()
+    expect(cleanRecipeIngredientUnit("and")).toBeNull()
+    expect(cleanRecipeIngredientUnit("to")).toBeNull()
+    expect(cleanRecipeIngredientUnit("a")).toBeNull()
+    expect(cleanRecipeIngredientUnit("an")).toBeNull()
+    expect(cleanRecipeIngredientUnit("the")).toBeNull()
+    expect(cleanRecipeIngredientUnit("in")).toBeNull()
+    expect(cleanRecipeIngredientUnit("with")).toBeNull()
+    expect(cleanRecipeIngredientUnit("for")).toBeNull()
+  })
+
+  // Garbage — colors / preparation words
+  it("nulls out colors and preparation words", () => {
+    expect(cleanRecipeIngredientUnit("red")).toBeNull()
+    expect(cleanRecipeIngredientUnit("green")).toBeNull()
+    expect(cleanRecipeIngredientUnit("black")).toBeNull()
+    expect(cleanRecipeIngredientUnit("white")).toBeNull()
+    expect(cleanRecipeIngredientUnit("yellow")).toBeNull()
+    expect(cleanRecipeIngredientUnit("fresh")).toBeNull()
+    expect(cleanRecipeIngredientUnit("dried")).toBeNull()
+    expect(cleanRecipeIngredientUnit("chopped")).toBeNull()
+    expect(cleanRecipeIngredientUnit("diced")).toBeNull()
+    expect(cleanRecipeIngredientUnit("sliced")).toBeNull()
+    expect(cleanRecipeIngredientUnit("minced")).toBeNull()
+  })
+
+  // Garbage — taste / non-English equivalents seen in audit
+  it("nulls out 'taste' variants from the audit", () => {
+    expect(cleanRecipeIngredientUnit("taste")).toBeNull()
+    expect(cleanRecipeIngredientUnit("Geschmack")).toBeNull()  // German
+    expect(cleanRecipeIngredientUnit("smaak")).toBeNull()       // Dutch
+  })
+
+  // Null / empty inputs
+  it("returns null for null input", () => {
+    expect(cleanRecipeIngredientUnit(null)).toBeNull()
+  })
+
+  it("returns null for undefined input", () => {
+    expect(cleanRecipeIngredientUnit(undefined)).toBeNull()
+  })
+
+  it("returns null for empty string", () => {
+    expect(cleanRecipeIngredientUnit("")).toBeNull()
+  })
+
+  it("returns null for whitespace-only string", () => {
+    expect(cleanRecipeIngredientUnit("   ")).toBeNull()
+  })
+})
 
 describe("cleanRecipeIngredientName", () => {
   it("strips preparation words", () => {
