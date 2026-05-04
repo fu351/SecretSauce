@@ -14,8 +14,24 @@ services:
       retries: 10
       start_period: 10s
 
-  # One-shot init container: pulls nomic-embed-text before the worker starts.
-  # Skipped automatically on subsequent runs if the model is already cached.
+  # Dedicated Ollama server for chat/completion workloads. Exposes Gemma on a
+  # separate host port so chat traffic is isolated from the embedding server.
+  ollama-gemma:
+    image: ollama/ollama
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama-gemma-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  # One-shot init container: pulls the embedding model before the worker
+  # starts. Skipped automatically on subsequent runs if the model is already
+  # cached.
   ollama-init:
     image: ollama/ollama
     depends_on:
@@ -26,6 +42,18 @@ services:
     entrypoint: ["ollama", "pull", "nomic-embed-text"]
     volumes:
       - ollama-data:/root/.ollama
+
+  # Chat model init container for the dedicated Gemma Ollama server.
+  ollama-gemma-init:
+    image: ollama/ollama
+    depends_on:
+      ollama-gemma:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama-gemma:11434
+    entrypoint: ["/bin/sh", "-lc", "ollama pull gemma3:4b"]
+    volumes:
+      - ollama-gemma-data:/root/.ollama
 
   # Embedding queue worker — drains pending rows using the local Ollama model.
   # Requires Supabase credentials in .env.local (or set them in environment:).
@@ -55,7 +83,7 @@ services:
       context: .
       dockerfile: backend/docker/Dockerfile.ingredient-remap-worker
     depends_on:
-      ollama-init:
+      ollama-gemma-init:
         condition: service_completed_successfully
     env_file:
       - .env.local
@@ -69,6 +97,8 @@ services:
       - QUEUE_ENABLE_UNIT_RESOLUTION=true
       - QUEUE_STANDARDIZER_CONTEXT=dynamic
       - EMBEDDING_OPENAI_MODEL=text-embedding-3-small
+      - LLM_BASE_URL=http://ollama-gemma:11434
+      - LLM_MODEL=gemma3:4b
 
   # Monthly vector double-check candidate discovery - scans for high-similarity
   # ingredient pairs that haven't been reviewed yet and queues them for review.
@@ -93,7 +123,7 @@ services:
       context: .
       dockerfile: backend/docker/Dockerfile.canonical-consolidation
     depends_on:
-      ollama-init:
+      ollama-gemma-init:
         condition: service_completed_successfully
     env_file:
       - .env.local
@@ -112,6 +142,8 @@ services:
     depends_on:
       ollama-init:
         condition: service_completed_successfully
+      ollama-gemma-init:
+        condition: service_completed_successfully
     command: ["node_modules/.bin/tsx", "backend/orchestrators/canonical-pipeline/pipeline.ts"]
     env_file:
       - .env.local
@@ -122,6 +154,8 @@ services:
       - PIPELINE_ENABLE_CONSOLIDATION=true
       - PIPELINE_STOP_ON_STAGE_ERROR=true
       - OLLAMA_BASE_URL=http://ollama:11434
+      - LLM_BASE_URL=http://ollama-gemma:11434
+      - LLM_MODEL=gemma3:4b
       - PIPELINE_EMBEDDING_MODEL=nomic-embed-text
       - PIPELINE_VECTOR_EMBEDDING_MODEL=text-embedding-3-small
 
@@ -135,7 +169,7 @@ services:
       context: .
       dockerfile: backend/docker/Dockerfile.product-remap-worker
     depends_on:
-      ollama-init:
+      ollama-gemma-init:
         condition: service_completed_successfully
     env_file:
       - .env.local
@@ -155,6 +189,9 @@ services:
     build:
       context: .
       dockerfile: backend/docker/Dockerfile.daily-scraper
+    depends_on:
+      ollama-gemma-init:
+        condition: service_completed_successfully
     env_file:
       - .env.local
       - docker/compose/local/daily-scraper.shared.env
@@ -166,3 +203,4 @@ services:
 
 volumes:
   ollama-data:
+  ollama-gemma-data:

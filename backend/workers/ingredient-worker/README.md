@@ -47,11 +47,14 @@ Required for normal runs:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
+- `LLM_BASE_URL` and/or `LLM_CHAT_COMPLETIONS_URL` for the chat backend. In local Compose, point this at `http://ollama-gemma:11434` or the host-mapped `http://localhost:11435`.
+- `LLM_MODEL` for the chat model name
+- `LLM_API_KEY` when the endpoint requires auth
 
 Common optional knobs:
 
-- `OPENAI_MODEL` - chat model used by ingredient/unit standardizers; defaults to `gpt-4o-mini`
+- `OPENAI_API_KEY` and `OPENAI_MODEL` remain supported as compatibility fallbacks
+- `LLM_MODEL` - chat model used by ingredient/unit standardizers; defaults to `gemma3:4b`
 - `EMBEDDING_OPENAI_MODEL` - embedding model used by vector matching; defaults to `text-embedding-3-small`
 - `QUEUE_MAX_CYCLES` - stop after N cycles when running one-shot or bounded loops; default `0` means unlimited loop mode
 - `QUEUE_RESOLVER_NAME` - resolver label written to queue rows; default `ingredient-match-queue-pipeline`

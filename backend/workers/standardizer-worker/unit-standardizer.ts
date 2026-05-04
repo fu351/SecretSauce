@@ -1,10 +1,15 @@
-import axios from "axios"
 import type { Database } from "../../../lib/database/supabase"
 import { buildUnitStandardizerPrompt, type UnitStandardizerPromptInput } from "./prompts/unit/build-prompt"
+import {
+  requestChatCompletion,
+  resolveChatCompletionsUrl,
+  resolveLlmApiKey,
+  resolveLlmModel,
+} from "../../../lib/llm/openai-compatible.js"
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
+const LLM_URL = resolveChatCompletionsUrl()
+const LLM_MODEL = resolveLlmModel("gemma3:4b")
+const LLM_API_KEY = resolveLlmApiKey()
 
 type UnitLabel = Database["public"]["Enums"]["unit_label"]
 
@@ -296,37 +301,30 @@ export function parseUnitStandardizationPayload(
 }
 
 async function callOpenAI(prompt: string): Promise<string | null> {
-  if (!OPENAI_API_KEY) return null
+  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) return null
 
   try {
-    const response = await axios.post(
-      OPENAI_URL,
-      {
-        model: OPENAI_MODEL,
-        temperature: 0,
-        max_tokens: 1000,
-        messages: [
-          {
-            role: "system",
-            content: "You standardize grocery units and always return valid JSON.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
+    const response = await requestChatCompletion({
+      url: LLM_URL,
+      apiKey: LLM_API_KEY,
+      model: LLM_MODEL,
+      temperature: 0,
+      maxTokens: 1000,
+      messages: [
+        {
+          role: "system",
+          content: "You standardize grocery units and always return valid JSON.",
         },
-      }
-    )
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    })
 
-    return response.data?.choices?.[0]?.message?.content?.trim() ?? null
+    return response?.choices?.[0]?.message?.content?.trim() ?? null
   } catch (error) {
-    console.error("[UnitStandardizer] OpenAI request failed:", error)
+    console.error("[UnitStandardizer] LLM request failed:", error)
     return null
   }
 }
@@ -345,8 +343,8 @@ export async function standardizeUnitsWithAI(
     knownIngredientCanonicalName: input.knownIngredientCanonicalName ?? undefined,
   }))
 
-  if (!OPENAI_API_KEY) {
-    console.warn("[UnitStandardizer] OPENAI_API_KEY not configured; using deterministic fallback parser.")
+  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) {
+    console.warn("[UnitStandardizer] LLM API key not configured for OpenAI endpoint; using deterministic fallback parser.")
     return inputs.map(buildHeuristicFallback)
   }
 
@@ -357,12 +355,12 @@ export async function standardizeUnitsWithAI(
     })
     const content = await withTimeout(callOpenAI(prompt), 20000)
     if (!content) {
-      return inputs.map((input) => errorResult(input.id, "OpenAI returned empty content"))
+      return inputs.map((input) => errorResult(input.id, "LLM returned empty content"))
     }
 
     const extracted = extractJSON(content)
     if (!extracted) {
-      return inputs.map((input) => errorResult(input.id, "OpenAI returned no parseable JSON"))
+      return inputs.map((input) => errorResult(input.id, "LLM returned no parseable JSON"))
     }
 
     let parsed: unknown
@@ -370,7 +368,7 @@ export async function standardizeUnitsWithAI(
       parsed = JSON.parse(extracted)
     } catch (error) {
       console.error("[UnitStandardizer] JSON parse error:", error)
-      return inputs.map((input) => errorResult(input.id, "Model returned invalid JSON"))
+      return inputs.map((input) => errorResult(input.id, "LLM returned invalid JSON"))
     }
 
     return parseParsedPayload(inputs, parsed)
