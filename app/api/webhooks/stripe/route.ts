@@ -165,42 +165,75 @@ export async function POST(request: NextRequest) {
           })
         }
 
-        // Add cart items to delivery log after successful payment
-        // This happens AFTER payment is confirmed, ensuring items are only logged for completed checkouts
-        const cartItemsJson = session.metadata?.cart_items
-        if (cartItemsJson && supabaseUserId) {
+        // Add cart items to delivery log after successful payment.
+        // Reads from pending_cart_items (stored during checkout) to avoid the
+        // 500-char Stripe metadata limit that silently dropped large carts.
+        const cartId = session.metadata?.cart_id
+        const legacyCartItemsJson = session.metadata?.cart_items
+
+        if (supabaseUserId && (cartId || legacyCartItemsJson)) {
           try {
-            const cartItems = JSON.parse(cartItemsJson) as Array<{
+            let cartItems: Array<{
               item_id: string
               product_id: string
               num_pkgs: number
               frontend_price: number
-            }>
+            }> | null = null
 
-            // Use bulk function with server-side price verification
-            const results = await storeListHistoryDB.bulkAddToDeliveryLog(cartItems)
+            if (cartId) {
+              // Primary path: fetch from pending_cart_items, mark as consumed
+              const supabaseService = createServiceSupabaseClient()
+              const { data: pendingCart, error: fetchError } = await supabaseService
+                .from("pending_cart_items" as any)
+                .select("items, stripe_session_id")
+                .eq("id", cartId)
+                .maybeSingle()
 
-            // Log any price mismatches for fraud detection
-            const priceMismatches = results.filter(r => r.success && !r.price_matched)
-            if (priceMismatches.length > 0) {
-              console.warn(
-                `[stripe-webhook] Price mismatches detected for user ${supabaseUserId}:`,
-                priceMismatches
-              )
+              if (fetchError) {
+                console.error("[stripe-webhook] Failed to fetch pending cart:", fetchError)
+              } else if (!pendingCart) {
+                console.warn(`[stripe-webhook] Pending cart ${cartId} not found — may have expired`)
+              } else if ((pendingCart as any).stripe_session_id) {
+                // Already processed (webhook replay) — skip to prevent double-logging
+                console.log(`[stripe-webhook] Pending cart ${cartId} already consumed, skipping delivery log`)
+                cartItems = null
+              } else {
+                cartItems = (pendingCart as any).items
+
+                // Mark as consumed to make replay idempotent
+                await supabaseService
+                  .from("pending_cart_items" as any)
+                  .update({ stripe_session_id: session.id } as any)
+                  .eq("id", cartId)
+              }
+            } else if (legacyCartItemsJson) {
+              // Fallback: legacy cart_items metadata (carts created before this change)
+              cartItems = JSON.parse(legacyCartItemsJson)
             }
 
-            // Log any failures
-            const failures = results.filter(r => !r.success)
-            if (failures.length > 0) {
-              console.error(
-                `[stripe-webhook] Failed to add items to delivery log for user ${supabaseUserId}:`,
-                failures
+            if (cartItems && cartItems.length > 0) {
+              const results = await storeListHistoryDB.bulkAddToDeliveryLog(cartItems)
+
+              const priceMismatches = results.filter(r => r.success && !r.price_matched)
+              if (priceMismatches.length > 0) {
+                console.warn(
+                  `[stripe-webhook] Price mismatches detected for user ${supabaseUserId}:`,
+                  priceMismatches
+                )
+              }
+
+              const failures = results.filter(r => !r.success)
+              if (failures.length > 0) {
+                console.error(
+                  `[stripe-webhook] Failed to add items to delivery log for user ${supabaseUserId}:`,
+                  failures
+                )
+              }
+
+              console.log(
+                `[stripe-webhook] Added ${results.filter(r => r.success).length}/${cartItems.length} items to delivery log for user ${supabaseUserId}`
               )
             }
-
-            console.log(
-              `[stripe-webhook] Added ${results.filter(r => r.success).length}/${cartItems.length} items to delivery log for user ${supabaseUserId}`
-            )
           } catch (error) {
             console.error(
               "[stripe-webhook] Failed to process cart items for delivery log:",

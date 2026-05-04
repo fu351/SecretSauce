@@ -51,6 +51,8 @@ AGENTS.md
 !supabase/migrations/20260430160000_add_streaks_core.sql
 !supabase/migrations/20260501090000_social_sprint1_kitchen_sync.sql
 !supabase/migrations/20260430233000_open_prices_backup_pricing.sql
+!supabase/migrations/20260504000000_fix_delivery_log_functions.sql
+!supabase/migrations/20260504000001_add_pending_cart_items.sql
 
 CLAUDE.md
 

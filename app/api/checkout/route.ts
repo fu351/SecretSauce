@@ -196,10 +196,27 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin
     const baseUrl = appUrl.replace(/\/checkout$/, "")
 
-    // Prepare cart items for delivery log (passed via metadata)
-    // Note: Stripe metadata values are limited to 500 characters
-    // For large carts, consider storing in database and passing cart_id instead
-    const cartItemsJson = body.cartItems ? JSON.stringify(body.cartItems) : null
+    // Store cart items in pending_cart_items table so the webhook can retrieve
+    // them by a single UUID reference. This sidesteps the 500-char Stripe
+    // metadata limit that silently drops carts with 4+ items.
+    let pendingCartId: string | null = null
+    if (body.cartItems && body.cartItems.length > 0 && supabaseUserId) {
+      try {
+        const { data: pendingCart, error: pendingCartError } = await supabase
+          .from("pending_cart_items" as any)
+          .insert({ user_id: supabaseUserId, items: body.cartItems } as any)
+          .select("id")
+          .single()
+
+        if (pendingCartError) {
+          console.error("[checkout] Failed to store pending cart:", pendingCartError)
+        } else {
+          pendingCartId = (pendingCart as any).id
+        }
+      } catch (err) {
+        console.error("[checkout] Unexpected error storing pending cart:", err)
+      }
+    }
 
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       mode: "subscription",
@@ -220,8 +237,8 @@ export async function POST(request: NextRequest) {
         // DO NOT use these metadata values for pricing calculations
         total_amount: body.totalAmount?.toString() ?? "0",
         item_count: body.itemCount?.toString() ?? "0",
-        // Cart items for delivery log (added after successful payment)
-        ...(cartItemsJson && cartItemsJson.length < 500 ? { cart_items: cartItemsJson } : {}),
+        // cart_id references a pending_cart_items row — always fits in metadata (36 chars)
+        ...(pendingCartId ? { cart_id: pendingCartId } : {}),
       },
     }
 

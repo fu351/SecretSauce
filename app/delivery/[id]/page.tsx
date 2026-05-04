@@ -31,7 +31,6 @@ interface OrderItem {
   ingredientName: string
   quantity: number
   packagePrice: number
-  totalPrice: number
 }
 
 interface OrderDetail {
@@ -118,7 +117,6 @@ export default function OrderDetailPage() {
             ingredientName: item.standardized_ingredients.canonical_name,
             quantity: item.quantity_needed,
             packagePrice: item.price_at_selection,
-            totalPrice: item.total_item_price || 0,
           })),
           subtotal: items.reduce((sum, item) => sum + ((item.price_at_selection || 0) * item.quantity_needed), 0),
         })),

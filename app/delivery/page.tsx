@@ -150,13 +150,19 @@ export default function DeliveryPage() {
   )
 }
 
-/**
- * Component for rendering list of orders
- */
+type DeliveryStyles = {
+  bgClass: string
+  cardBgClass: string
+  textClass: string
+  mutedTextClass: string
+  buttonClass: string
+  buttonOutlineClass: string
+}
+
 interface OrderListProps {
   orders: GroupedDelivery[]
   router: ReturnType<typeof useRouter>
-  styles: any
+  styles: DeliveryStyles
   isPast: boolean
 }
 

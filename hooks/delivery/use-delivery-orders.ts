@@ -14,7 +14,6 @@ export interface DeliveryOrder {
   ingredientName: string
   quantity: number
   packagePrice: number
-  totalPrice: number
   deliveryDate: string | null
   isConfirmed: boolean | null
   createdAt: string
@@ -79,7 +78,6 @@ function groupByDateAndStore(data: StoreListHistoryWithJoins[]): GroupedDelivery
         ingredientName: item.standardized_ingredients?.canonical_name || "Unknown Item",
         quantity: item.quantity_needed,
         packagePrice: item.price_at_selection,
-        totalPrice: item.total_item_price || 0,
         deliveryDate: item.delivery_date,
         isConfirmed: item.is_delivery_confirmed,
         createdAt: item.created_at,
@@ -94,7 +92,7 @@ function groupByDateAndStore(data: StoreListHistoryWithJoins[]): GroupedDelivery
     return {
       orderId: items[0].order_id,
       deliveryDate: items[0].delivery_date || "TBD",
-      isConfirmed: items[0].is_delivery_confirmed,
+      isConfirmed: items.every((i) => i.is_delivery_confirmed === true),
       stores,
       grandTotal,
     }

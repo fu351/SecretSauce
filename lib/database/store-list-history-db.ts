@@ -58,7 +58,6 @@ class StoreListHistoryTable extends BaseTable<
       standardized_ingredient_id: dbItem.standardized_ingredient_id,
       price_at_selection: dbItem.price_at_selection,
       quantity_needed: dbItem.quantity_needed,
-      total_item_price: dbItem.total_item_price,
       week_index: dbItem.week_index,
       is_delivery_confirmed: dbItem.is_delivery_confirmed,
       order_id: dbItem.order_id,
@@ -229,13 +228,14 @@ class StoreListHistoryTable extends BaseTable<
   }
 
   /**
-   * Get all delivery log entries for a specific order
+   * Get all delivery log entries for a specific order, scoped to the given user
    */
-  async findByOrderId(orderId: string): Promise<StoreListHistoryRow[]> {
+  async findByOrderId(orderId: string, userId: string): Promise<StoreListHistoryRow[]> {
     const { data, error } = await this.supabase
       .from(this.tableName)
       .select("*")
       .eq("order_id", orderId)
+      .eq("user_id", userId)
 
     if (error) {
       this.handleError(error, `findByOrderId(${orderId})`)
