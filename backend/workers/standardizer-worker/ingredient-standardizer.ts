@@ -3,15 +3,11 @@ import { buildIngredientStandardizerPrompt } from "./prompts/ingredient/build-pr
 import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
 import { cleanIngredientByContext } from "../shared/ingredient-cleaning"
 import {
-  requestChatCompletion,
-  resolveChatCompletionsUrl,
-  resolveLlmApiKey,
-  resolveLlmModel,
-} from "../../../lib/llm/openai-compatible.js"
-
-const LLM_URL = resolveChatCompletionsUrl()
-const LLM_MODEL = resolveLlmModel("gemma3:4b")
-const LLM_API_KEY = resolveLlmApiKey()
+  extractJsonFromLlmText,
+  requestLlmChatCompletion,
+  requiresApiKey,
+  resolveLlmTaskConfig,
+} from "../../llm/index"
 
 // ---------------------------------------------------------------------------
 // Context types (previously in lib/utils/ingredient-standardizer-context.ts)
@@ -315,34 +311,12 @@ export interface IngredientStandardizationResult {
   confidence: number
 }
 
-const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
-  const timeout = new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms))
-  return Promise.race([promise, timeout])
-}
-
 /**
  * Extracts JSON from AI response, handling various formats
  * Returns null if no valid JSON found
  */
 function extractJSON(content: string): string | null {
-  if (!content) return null
-
-  // Remove markdown code blocks
-  let cleaned = content.replace(/```json\n?|```/gi, "").trim()
-
-  // Try to find JSON array or object
-  const arrayMatch = cleaned.match(/\[[\s\S]*\]/)
-  const objectMatch = cleaned.match(/\{[\s\S]*\}/)
-
-  // Prefer array (expected format) over object
-  if (arrayMatch) {
-    return arrayMatch[0]
-  } else if (objectMatch) {
-    return objectMatch[0]
-  }
-
-  // If no clear boundaries, assume entire cleaned string
-  return cleaned
+  return extractJsonFromLlmText(content, "array")
 }
 
 async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
@@ -357,15 +331,9 @@ async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
 }
 
 async function callOpenAI(prompt: string): Promise<string | null> {
-  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) return null
-
   try {
-    const response = await requestChatCompletion({
-      url: LLM_URL,
-      apiKey: LLM_API_KEY,
-      model: LLM_MODEL,
-      temperature: 0,
-      maxTokens: 4096,
+    const response = await requestLlmChatCompletion({
+      task: "ingredient.standardize",
       messages: [
         {
           role: "system",
@@ -378,7 +346,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
       ],
     })
 
-    const content = response?.choices?.[0]?.message?.content?.trim()
+    const content = response.content
 
     if (!content) {
       console.warn("[callOpenAI] Empty response from LLM")
@@ -427,7 +395,8 @@ export async function standardizeIngredientsWithAI(
     return []
   }
 
-  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) {
+  const llmConfig = resolveLlmTaskConfig("ingredient.standardize")
+  if (requiresApiKey(llmConfig) && !llmConfig.apiKey) {
     console.warn("[IngredientStandardizer] LLM API key missing for OpenAI endpoint; returning fallback mappings")
     return fallbackResults(inputs)
   }
@@ -437,7 +406,7 @@ export async function standardizeIngredientsWithAI(
   try {
     const canonicalList = await fetchCanonicalIngredients()
     const prompt = buildPrompt(inputs, canonicalList, context)
-    const content = await withTimeout(callOpenAI(prompt), 20000)
+    const content = await callOpenAI(prompt)
 
     if (!content) {
       console.warn("[IngredientStandardizer] LLM returned empty content")

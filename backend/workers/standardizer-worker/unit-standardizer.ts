@@ -1,15 +1,11 @@
 import type { Database } from "../../../lib/database/supabase"
 import { buildUnitStandardizerPrompt, type UnitStandardizerPromptInput } from "./prompts/unit/build-prompt"
 import {
-  requestChatCompletion,
-  resolveChatCompletionsUrl,
-  resolveLlmApiKey,
-  resolveLlmModel,
-} from "../../../lib/llm/openai-compatible.js"
-
-const LLM_URL = resolveChatCompletionsUrl()
-const LLM_MODEL = resolveLlmModel("gemma3:4b")
-const LLM_API_KEY = resolveLlmApiKey()
+  extractJsonFromLlmText,
+  requestLlmChatCompletion,
+  requiresApiKey,
+  resolveLlmTaskConfig,
+} from "../../llm/index"
 
 type UnitLabel = Database["public"]["Enums"]["unit_label"]
 
@@ -80,21 +76,8 @@ export interface UnitStandardizationResult {
   error?: string
 }
 
-const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
-  const timeout = new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms))
-  return Promise.race([promise, timeout])
-}
-
 function extractJSON(content: string): string | null {
-  if (!content) return null
-
-  const cleaned = content.replace(/```json\n?|```/gi, "").trim()
-  const arrayMatch = cleaned.match(/\[[\s\S]*\]/)
-  const objectMatch = cleaned.match(/\{[\s\S]*\}/)
-
-  if (arrayMatch) return arrayMatch[0]
-  if (objectMatch) return objectMatch[0]
-  return cleaned
+  return extractJsonFromLlmText(content, "array")
 }
 
 function parseConfidence(value: unknown, fallback = 0): number {
@@ -301,15 +284,9 @@ export function parseUnitStandardizationPayload(
 }
 
 async function callOpenAI(prompt: string): Promise<string | null> {
-  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) return null
-
   try {
-    const response = await requestChatCompletion({
-      url: LLM_URL,
-      apiKey: LLM_API_KEY,
-      model: LLM_MODEL,
-      temperature: 0,
-      maxTokens: 1000,
+    const response = await requestLlmChatCompletion({
+      task: "unit.standardize",
       messages: [
         {
           role: "system",
@@ -322,7 +299,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
       ],
     })
 
-    return response?.choices?.[0]?.message?.content?.trim() ?? null
+    return response.content
   } catch (error) {
     console.error("[UnitStandardizer] LLM request failed:", error)
     return null
@@ -343,7 +320,8 @@ export async function standardizeUnitsWithAI(
     knownIngredientCanonicalName: input.knownIngredientCanonicalName ?? undefined,
   }))
 
-  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) {
+  const llmConfig = resolveLlmTaskConfig("unit.standardize")
+  if (requiresApiKey(llmConfig) && !llmConfig.apiKey) {
     console.warn("[UnitStandardizer] LLM API key not configured for OpenAI endpoint; using deterministic fallback parser.")
     return inputs.map(buildHeuristicFallback)
   }
@@ -353,7 +331,7 @@ export async function standardizeUnitsWithAI(
       inputs: normalizedInputs,
       allowedUnits: [...SUPPORTED_UNIT_LABELS],
     })
-    const content = await withTimeout(callOpenAI(prompt), 20000)
+    const content = await callOpenAI(prompt)
     if (!content) {
       return inputs.map((input) => errorResult(input.id, "LLM returned empty content"))
     }

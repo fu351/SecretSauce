@@ -1,34 +1,16 @@
 import { buildParagraphParserPrompt } from "./prompts/paragraph-parser/build-prompt"
-import { requestChatCompletion, resolveLlmApiKey, resolveLlmModel, resolveChatCompletionsUrl } from "@/lib/llm/openai-compatible.js"
+import { extractJsonFromLlmText, requestLlmChatCompletion } from "@/backend/llm/index"
 import type { Instruction } from "./types/recipe/instruction"
 import type { RecipeIngredient } from "./types/recipe/ingredient"
-
-const LLM_URL = resolveChatCompletionsUrl()
-const LLM_MODEL = resolveLlmModel("gemma3:4b")
-const LLM_API_KEY = resolveLlmApiKey()
 
 export interface ParagraphParseResult {
   instructions: Instruction[]
   ingredients: RecipeIngredient[]
 }
 
-const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
-  const timeout = new Promise<T>((_, reject) =>
-    setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
-  )
-  return Promise.race([promise, timeout])
-}
-
 async function callOpenAI(prompt: string): Promise<string | null> {
-  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) return null
-
-  const response = await requestChatCompletion({
-    url: LLM_URL,
-    apiKey: LLM_API_KEY,
-    model: LLM_MODEL,
-    temperature: 0,
-    maxTokens: 4000,
-    responseFormat: { type: "json_object" },
+  const response = await requestLlmChatCompletion({
+    task: "recipe.paragraph.parse",
     messages: [
       {
         role: "system",
@@ -41,7 +23,7 @@ async function callOpenAI(prompt: string): Promise<string | null> {
     ],
   })
 
-  return response?.choices?.[0]?.message?.content?.trim() ?? null
+  return response.content
 }
 
 // ─── Preprocessing ────────────────────────────────────────────────────────────
@@ -190,15 +172,10 @@ function coerceResult(parsed: any): ParagraphParseResult {
 export async function parseRecipeParagraphWithAI(text: string): Promise<ParagraphParseResult> {
   if (!text?.trim()) return fallbackResult()
 
-  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) {
-    console.warn("[ParagraphParser] LLM_API_KEY not configured for OpenAI endpoint; returning empty result")
-    return fallbackResult()
-  }
-
   const prompt = buildParagraphParserPrompt({ text: preprocessRecipeText(text) })
 
   try {
-    const content = await withTimeout(callOpenAI(prompt), 30000)
+    const content = await callOpenAI(prompt)
     if (!content) {
       console.warn("[ParagraphParser] LLM returned empty content")
       return fallbackResult()
@@ -211,14 +188,13 @@ export async function parseRecipeParagraphWithAI(text: string): Promise<Paragrap
       parsed = JSON.parse(content)
     } catch {
       // Strip markdown fences if somehow present and try once more
-      const stripped = content.replace(/```json\n?|```/gi, "").trim()
-      const objectMatch = stripped.match(/\{[\s\S]*\}/)
-      if (!objectMatch) {
+      const extracted = extractJsonFromLlmText(content, "object")
+      if (!extracted) {
         console.error("[ParagraphParser] Could not extract JSON from LLM response")
         console.error("[ParagraphParser] Raw response:", content.substring(0, 300))
         return fallbackResult()
       }
-      parsed = JSON.parse(objectMatch[0])
+      parsed = JSON.parse(extracted)
     }
 
     return coerceResult(parsed)
