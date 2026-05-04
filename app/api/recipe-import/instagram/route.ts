@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { RecipeImportResponse } from "@/lib/types"
-
-const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || process.env.NEXT_PUBLIC_PYTHON_SERVICE_URL
+import { runPythonRecipeImportPipeline } from "@/backend/orchestrators/python-api-pipeline/pipeline"
 
 /** Matches instagram.com post/reel/tv shortcode; allows www, m., or no subdomain */
 const INSTAGRAM_URL_REGEX =
@@ -64,94 +63,17 @@ export async function POST(request: NextRequest) {
     }
     const { url } = parsed
 
-    if (!PYTHON_SERVICE_URL) {
-      return NextResponse.json(
-        { success: false, error: "Import service is not configured. Please try again later." } as RecipeImportResponse,
-        { status: 503 }
-      )
-    }
+    const result = await runPythonRecipeImportPipeline(
+      "instagram",
+      { url },
+      {
+        timeoutMs: FETCH_TIMEOUT_MS,
+        unavailableMessage: "Import service is not configured. Please try again later.",
+        mapUnsuccessfulResponseToStatus: 422,
+      }
+    )
 
-    const baseUrl = PYTHON_SERVICE_URL.replace(/\/$/, "")
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-
-    let response: Response
-    try {
-      response = await fetch(`${baseUrl}/recipe-import/instagram`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-        signal: controller.signal,
-      })
-    } catch (fetchError) {
-      clearTimeout(timeoutId)
-      const msg =
-        fetchError instanceof Error
-          ? fetchError.name === "AbortError"
-            ? "Import took too long. Try a different post or try again later."
-            : fetchError.message
-          : "Request failed."
-      const isNetwork =
-        fetchError instanceof TypeError ||
-        (fetchError instanceof Error && (fetchError.name === "AbortError" || /fetch|network|ECONNREFUSED|ETIMEDOUT/i.test(fetchError.message)))
-      return NextResponse.json(
-        {
-          success: false,
-          error: isNetwork
-            ? "Could not reach the import service. Please check your connection and try again."
-            : msg,
-        } as RecipeImportResponse,
-        { status: 503 }
-      )
-    }
-    clearTimeout(timeoutId)
-
-    const contentType = response.headers.get("content-type") ?? ""
-    const isJson = contentType.includes("application/json")
-    const text = await response.text()
-    let parsedData: unknown
-    let data: RecipeImportResponse
-
-    try {
-      parsedData = isJson && text ? JSON.parse(text) : { success: false, error: text || "No response from import service." }
-      data = parsedData as RecipeImportResponse
-    } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          error: response.ok
-            ? "Invalid response from import service. Please try again."
-            : (text || "Import service error. Please try again later."),
-        } as RecipeImportResponse,
-        { status: response.ok ? 502 : response.status }
-      )
-    }
-
-    if (!response.ok) {
-      const detailMessage =
-        parsedData &&
-        typeof parsedData === "object" &&
-        "detail" in parsedData &&
-        typeof (parsedData as Record<string, unknown>).detail === "string"
-          ? ((parsedData as Record<string, unknown>).detail as string)
-          : null
-
-      const message =
-        data?.error ||
-        detailMessage ||
-        text ||
-        "Import service unavailable. Please try again later."
-      return NextResponse.json(
-        { success: false, error: message } as RecipeImportResponse,
-        { status: response.status >= 500 ? 502 : response.status }
-      )
-    }
-
-    if (!data.success && data.error) {
-      return NextResponse.json(data as RecipeImportResponse, { status: 422 })
-    }
-
-    return NextResponse.json(data)
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("Instagram import error:", error)
     return NextResponse.json(

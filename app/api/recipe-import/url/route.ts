@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { RecipeImportResponse } from "@/lib/types"
-
-const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || process.env.NEXT_PUBLIC_PYTHON_SERVICE_URL
+import { runPythonRecipeImportPipeline } from "@/backend/orchestrators/python-api-pipeline/pipeline"
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,32 +23,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!PYTHON_SERVICE_URL) {
-      return NextResponse.json(
-        { success: false, error: "Python service URL not configured" } as RecipeImportResponse,
-        { status: 500 }
-      )
-    }
-
-    // Call Python backend
-    const response = await fetch(`${PYTHON_SERVICE_URL}recipe-import/url`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return NextResponse.json(
-        { success: false, error: `Backend error: ${errorText}` } as RecipeImportResponse,
-        { status: response.status }
-      )
-    }
-
-    const data: RecipeImportResponse = await response.json()
-    return NextResponse.json(data)
+    const result = await runPythonRecipeImportPipeline("url", { url })
+    return NextResponse.json(result.body, { status: result.status })
 
   } catch (error) {
     console.error("Recipe URL import error:", error)
