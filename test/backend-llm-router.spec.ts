@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   requestChatCompletion: vi.fn(),
@@ -21,6 +21,12 @@ import {
 } from "@/backend/llm/index"
 
 const originalEnv = { ...process.env }
+
+beforeEach(() => {
+  process.env.SUPABASE_URL = ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL = ""
+  process.env.SUPABASE_SERVICE_ROLE_KEY = ""
+})
 
 afterEach(() => {
   process.env = { ...originalEnv }

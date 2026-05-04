@@ -178,3 +178,10 @@ jobs:
     secrets: inherit
     with:
       embedding_dry_run: ${{ inputs.embedding_dry_run || 'false' }}
+
+  llm-usage-rollup:
+    name: Daily LLM Usage Rollup
+    needs: [embedding-queue]
+    if: ${{ always() && !contains(fromJson('["emergency_stop"]'), inputs.run_mode || 'normal') }}
+    uses: ./.github/workflows/daily-llm-usage-rollup.yml
+    secrets: inherit

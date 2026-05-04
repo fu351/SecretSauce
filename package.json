@@ -33,7 +33,8 @@
     "test:99ranch-scraper": "node backend/scripts/test-99ranch-scraper.js",
     "ingredient-match-queue-pipeline-runner": "tsx --env-file=.env.local backend/orchestrators/ingredient-match-queue-pipeline/runner.ts",
     "vector-double-check-pipeline-runner": "tsx --env-file=.env.local backend/orchestrators/vector-double-check-pipeline/runner.ts",
-    "backfill-clerk-user-ids": "tsx --env-file=.env.local backend/scripts/backfill-clerk-user-ids.ts"
+    "backfill-clerk-user-ids": "tsx --env-file=.env.local backend/scripts/backfill-clerk-user-ids.ts",
+    "llm-usage-rollup": "tsx --env-file=.env.local backend/scripts/rollup-llm-usage.ts"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.6",

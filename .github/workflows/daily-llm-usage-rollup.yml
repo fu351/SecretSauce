@@ -1,0 +1,65 @@
+name: Daily LLM Usage Rollup
+
+on:
+  schedule:
+    - cron: "30 8 * * *"
+  workflow_call:
+    inputs:
+      rollup_date:
+        description: "Optional YYYY-MM-DD date to roll up; default is database yesterday"
+        required: false
+        type: string
+        default: ""
+      purge_days:
+        description: "Raw event retention in days"
+        required: false
+        type: string
+        default: "30"
+      skip_purge:
+        description: "Skip raw event purge"
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      rollup_date:
+        description: "Optional YYYY-MM-DD date to roll up; blank = database yesterday"
+        required: false
+        type: string
+        default: ""
+      purge_days:
+        description: "Raw event retention in days"
+        required: false
+        type: string
+        default: "30"
+      skip_purge:
+        description: "Skip raw event purge"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  rollup:
+    name: Roll Up LLM Usage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Roll up LLM usage analytics
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_USAGE_ROLLUP_DATE: ${{ inputs.rollup_date || github.event.inputs.rollup_date || '' }}
+          LLM_USAGE_PURGE_DAYS: ${{ inputs.purge_days || github.event.inputs.purge_days || '30' }}
+          LLM_USAGE_SKIP_PURGE: ${{ inputs.skip_purge || github.event.inputs.skip_purge || false }}
+        run: npx tsx backend/scripts/rollup-llm-usage.ts

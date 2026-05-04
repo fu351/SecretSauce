@@ -5,6 +5,7 @@ import {
   resolveLlmModel,
 } from "@/lib/llm/openai-compatible.js"
 import { LLM_TASK_DEFAULTS, type LlmTask } from "./tasks"
+import { recordLlmUsageEvent } from "./usage-logger"
 
 export interface LlmChatMessage {
   role: "system" | "user" | "assistant"
@@ -147,8 +148,8 @@ function buildUsageTokenFields(usage: ChatCompletionUsage | undefined): Pick<
   }
 }
 
-export function logLlmUsageEvent(event: LlmUsageEvent): void {
-  console.info(JSON.stringify(event))
+export async function logLlmUsageEvent(event: LlmUsageEvent): Promise<void> {
+  await recordLlmUsageEvent(event)
 }
 
 export function requiresApiKey(config: Pick<LlmTaskConfig, "url">): boolean {
@@ -196,7 +197,7 @@ export async function requestLlmChatCompletion(params: {
   const provider = resolveProvider(config.url)
 
   if (isOpenAiEndpoint(config.url) && !config.apiKey) {
-    logLlmUsageEvent({
+    await logLlmUsageEvent({
       event: "llm.request.skipped",
       task: params.task,
       provider,
@@ -226,7 +227,7 @@ export async function requestLlmChatCompletion(params: {
     const durationMs = Date.now() - startedAt
     const content = response?.choices?.[0]?.message?.content?.trim() ?? null
 
-    logLlmUsageEvent({
+    await logLlmUsageEvent({
       event: "llm.request.completed",
       task: params.task,
       provider,
@@ -246,7 +247,7 @@ export async function requestLlmChatCompletion(params: {
     }
   } catch (error) {
     const durationMs = Date.now() - startedAt
-    logLlmUsageEvent({
+    await logLlmUsageEvent({
       event: "llm.request.failed",
       task: params.task,
       provider,
