@@ -79,7 +79,7 @@ def call_import_api(api_url: str, url: str, timeout: float = 45.0) -> dict | Non
         return {"success": False, "error": str(e)}
 
 
-def insert_recipe(supabase, author_id: str, recipe: dict, source_url: str) -> tuple[str | None, str | None]:
+def insert_recipe(supabase, author_id: str, recipe: dict, source_url: str, quality_score: float | None = None) -> tuple[str | None, str | None]:
     """Insert recipe + ingredients. Returns (recipe_id, error)."""
 
     instructions = [
@@ -108,6 +108,7 @@ def insert_recipe(supabase, author_id: str, recipe: dict, source_url: str) -> tu
         "nutrition": nutrition,
         "tags": [],
         "source_url": source_url,
+        "quality_score": quality_score,
     }
 
     res = supabase.table("recipes").insert(recipe_row).execute()

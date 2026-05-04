@@ -15,6 +15,7 @@ package-lock.json
 
 # analysis script output
 backend/scripts/output/
+scripts/output/
 
 # debug
 npm-debug.log*

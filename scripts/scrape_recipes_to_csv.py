@@ -192,12 +192,11 @@ def load_urls(path: str) -> list[str]:
     return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
 
 
-def find_recipe_url(domain: str) -> tuple[str | None, str | None]:
+def find_recipe_urls_multi(domain: str, max_urls: int = 5) -> tuple[list[str], str | None]:
     """
-    Try multiple strategies to find a real recipe URL on a domain:
-    1. Fetch homepage + common listing pages, collect all links
-    2. Score links by how recipe-like they look
-    3. Return (best_url, error_message) — one will always be None
+    Find up to max_urls recipe URLs on a domain by probing its homepage and common
+    listing paths, collecting links, scoring them, and returning the top candidates.
+    Returns (urls, error_message) — urls is empty on failure.
     """
     from urllib.parse import urljoin, urlparse
     from html.parser import HTMLParser
@@ -212,7 +211,6 @@ def find_recipe_url(domain: str) -> tuple[str | None, str | None]:
                 if href and not href.startswith(("#", "mailto:", "tel:", "javascript:")):
                     self.links.append(href)
 
-    # Pages to probe in order — homepage first, then common recipe listing paths
     probe_paths = [
         "/",
         "/recipes/", "/recipe/", "/recipes", "/recipe",
@@ -221,34 +219,48 @@ def find_recipe_url(domain: str) -> tuple[str | None, str | None]:
         "/sitemap.xml",
     ]
 
-    # Path segments that strongly indicate a recipe detail page (not a listing)
-    # Score: higher = more recipe-like
     def score_link(path: str) -> int:
         p = path.lower()
         score = 0
-        # Positive signals
-        if any(kw in p for kw in ("/recipe/", "/recipes/", "/recette/", "/rezept/", "/ricetta/", "/receta/")):
+
+        # Positive: explicit recipe path segment
+        if any(kw in p for kw in ("/recipe/", "/recipes/", "/recette/", "/recettes/", "/rezept/", "/rezepte/", "/ricetta/", "/ricette/", "/receta/", "/recetas/", "/recept/")):
             score += 3
-        if any(kw in p for kw in ("/cook/", "/dish/", "/meal/", "/food/", "/cooking/")):
+        if any(kw in p for kw in ("/cook/", "/dish/", "/meal/", "/cooking/")):
             score += 1
-        # A slug at the end (not just a category page) — has a meaningful path depth
-        parts = [p for p in path.strip("/").split("/") if p]
+
+        parts = [seg for seg in path.strip("/").split("/") if seg]
         if len(parts) >= 2:
             score += 1
-        # Path ends with a slug-like segment (letters/hyphens, not just numbers)
         if parts and re.search(r"[a-z]{3,}", parts[-1]):
             score += 1
-        # Negative signals — listing/category pages
-        if any(kw in p for kw in ("/category/", "/tag/", "/author/", "/page/", "/search", "/index", "sitemap")):
+
+        # Negative: listing/category pages
+        if any(kw in p for kw in ("/category/", "/kategorie/", "/kategoria/", "/tag/", "/author/", "/page/", "/search", "/index", "sitemap")):
             score -= 3
-        if p.rstrip("/") in ("", "/recipes", "/recipe", "/recettes", "/rezepte"):
+
+        # Negative: bare listing paths
+        if p.rstrip("/") in ("", "/recipes", "/recipe", "/recettes", "/rezepte", "/ricette", "/recetas", "/recept"):
             score -= 2
+
+        # Negative: last segment is a category slug ending in listing keywords
+        # e.g. "mexikanische-rezepte", "most-popular-recipes", "vegetar-oppskrifter"
+        _listing_suffixes = (
+            "recipes", "recettes", "rezepte", "ricette", "recetas", "recepten",
+            "oppskrifter", "opskrifter", "opskrifterna", "recepten",
+            "backen", "suppen", "gerechten", "nagerechten", "hoofdgerechten",
+        )
+        last = parts[-1] if parts else ""
+        if any(last == s or last.endswith("-" + s) for s in _listing_suffixes):
+            score -= 3
+
+        # Negative: non-food path keywords
+        if any(kw in p for kw in ("/news/", "/health/", "/nhs-services/", "/checkout/", "/account/", "/login", "/shop/", "/store/", "/buy", "/cart")):
+            score -= 4
+
         return score
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     all_links: list[str] = []
     base = f"https://{domain}"
     probe_errors: list[str] = []
@@ -261,7 +273,6 @@ def find_recipe_url(domain: str) -> tuple[str | None, str | None]:
                 if resp.status_code >= 400:
                     probe_errors.append(f"HTTP {resp.status_code} on {probe_path}")
                     continue
-                # For sitemap, extract URLs directly from XML
                 if "sitemap" in probe_path:
                     urls = re.findall(r"<loc>(https?://[^<]+)</loc>", resp.text)
                     all_links.extend(urls)
@@ -269,7 +280,6 @@ def find_recipe_url(domain: str) -> tuple[str | None, str | None]:
                     parser = LinkCollector()
                     parser.feed(resp.text)
                     all_links.extend(parser.links)
-                # Stop probing once we have plenty of candidates
                 if len(all_links) > 200:
                     break
             except httpx.HTTPStatusError as e:
@@ -281,9 +291,8 @@ def find_recipe_url(domain: str) -> tuple[str | None, str | None]:
 
     if not all_links:
         summary = "; ".join(probe_errors) if probe_errors else "no links collected"
-        return None, f"no recipe link found — {summary}"
+        return [], f"no recipe link found — {summary}"
 
-    # Resolve to absolute URLs and filter to same domain
     candidates: list[tuple[int, str]] = []
     seen: set[str] = set()
     for href in all_links:
@@ -295,21 +304,29 @@ def find_recipe_url(domain: str) -> tuple[str | None, str | None]:
             host = parsed.hostname or ""
             if domain not in host:
                 continue
+            # Strip fragments (#comments, #anchor, etc.) before deduplication
+            clean_url = parsed._replace(fragment="").geturl()
             path = parsed.path
-            if abs_url in seen or len(path) < 5:
+            if clean_url in seen or len(path) < 5:
                 continue
-            seen.add(abs_url)
+            seen.add(clean_url)
             s = score_link(path)
-            if s > 0:
-                candidates.append((s, abs_url))
+            if s >= 3:  # require an explicit recipe keyword, not just depth+slug
+                candidates.append((s, clean_url))
         except Exception:
             continue
 
     if not candidates:
-        return None, "links found but none scored as a recipe page"
+        return [], "links found but none scored as a recipe page"
 
     candidates.sort(key=lambda x: -x[0])
-    return candidates[0][1], None
+    return [url for _, url in candidates[:max_urls]], None
+
+
+def find_recipe_url(domain: str) -> tuple[str | None, str | None]:
+    """Find a single recipe URL on a domain. Wrapper around find_recipe_urls_multi."""
+    urls, error = find_recipe_urls_multi(domain, max_urls=1)
+    return (urls[0] if urls else None, error)
 
 
 RETRYABLE_ERROR_PREFIXES = (

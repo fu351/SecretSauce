@@ -8,6 +8,7 @@ import os
 import logging
 import tempfile
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
@@ -23,6 +24,90 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ── Argos Translate (offline, free) ──────────────────────────────────────────
+
+_argos_lock = threading.Lock()
+_installed_lang_codes: set[str] = set()
+_available_packages: list = []
+_package_index_loaded = False
+
+
+def _ensure_argos_package(lang_code: str) -> bool:
+    """Lazily download + install the lang_code→en Argos package. Thread-safe."""
+    global _package_index_loaded, _available_packages
+
+    if lang_code in _installed_lang_codes:
+        return True
+
+    with _argos_lock:
+        if lang_code in _installed_lang_codes:
+            return True
+        try:
+            import argostranslate.package
+            import argostranslate.translate
+
+            # Check already-installed packages (persisted from prior runs)
+            installed = {lang.code for lang in argostranslate.translate.get_installed_languages()}
+            if lang_code in installed:
+                _installed_lang_codes.add(lang_code)
+                return True
+
+            # Load package index once
+            if not _package_index_loaded:
+                argostranslate.package.update_package_index()
+                _available_packages = argostranslate.package.get_available_packages()
+                _package_index_loaded = True
+
+            pkg = next(
+                (p for p in _available_packages if p.from_code == lang_code and p.to_code == "en"),
+                None,
+            )
+            if not pkg:
+                logger.debug(f"No Argos package found for {lang_code}→en")
+                return False
+
+            logger.info(f"Downloading Argos Translate package: {lang_code}→en")
+            argostranslate.package.install_from_path(pkg.download())
+            _installed_lang_codes.add(lang_code)
+            logger.info(f"Installed Argos Translate: {lang_code}→en")
+            return True
+        except Exception as e:
+            logger.warning(f"Argos package install failed ({lang_code}): {e}")
+            return False
+
+
+def _translate_text(text: str) -> str:
+    """Detect language and translate to English using Argos Translate. Falls back to original on error."""
+    if not text or not text.strip():
+        return text
+    try:
+        from langdetect import detect, LangDetectException
+        import argostranslate.translate
+
+        try:
+            lang = detect(text)
+        except LangDetectException:
+            return text
+
+        if lang == "en":
+            return text
+
+        if not _ensure_argos_package(lang):
+            return text
+
+        translated = argostranslate.translate.translate(text, lang, "en")
+        return translated or text
+    except Exception as e:
+        logger.debug(f"Translation skipped: {e}")
+        return text
+
+
+async def translate_text(text: str) -> str:
+    """Async wrapper — runs Argos Translate in a thread pool to avoid blocking the event loop."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _translate_text, text)
+
 
 app = FastAPI(title="Grocery & Recipe Scraper API")
 
@@ -778,10 +863,29 @@ async def import_recipe_from_url(request: URLImportRequest):
         if not title:
             return RecipeImportResponse(success=False, error="Could not extract recipe title from this page")
 
+        raw_description = safe_scrape(scraper.description)
+
+        # Translate non-English fields to English (Argos Translate — offline, free)
+        title, raw_description = await asyncio.gather(
+            translate_text(title),
+            translate_text(raw_description or ""),
+        )
+        translated_instructions = await asyncio.gather(
+            *[translate_text(inst.description) for inst in instructions]
+        )
+        for inst, translated_desc in zip(instructions, translated_instructions):
+            inst.description = translated_desc
+
+        translated_ing_names = await asyncio.gather(
+            *[translate_text(ing.name) for ing in ingredients]
+        )
+        for ing, translated_name in zip(ingredients, translated_ing_names):
+            ing.name = translated_name
+
         # Build recipe object
         recipe = ImportedRecipe(
             title=title,
-            description=safe_scrape(scraper.description),
+            description=raw_description or None,
             ingredients=ingredients,
             instructions=instructions,
             image_url=safe_scrape(scraper.image),

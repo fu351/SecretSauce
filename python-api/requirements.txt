@@ -17,3 +17,7 @@ openai==1.54.0
 
 # Image processing (for OCR fallback if needed)
 Pillow==11.3.0
+
+# Offline translation (no API key needed)
+argostranslate==1.9.6
+langdetect==1.0.9
