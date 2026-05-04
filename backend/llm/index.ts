@@ -5,6 +5,7 @@ export {
 } from "./tasks"
 export {
   extractJsonFromLlmText,
+  logLlmUsageEvent,
   requiresApiKey,
   requestLlmChatCompletion,
   resolveLlmTaskConfig,
@@ -12,4 +13,6 @@ export {
   type LlmChatMessage,
   type LlmRequestOverrides,
   type LlmTaskConfig,
+  type LlmUsageEvent,
+  type LlmUsageMetadata,
 } from "./router"

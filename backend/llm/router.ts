@@ -30,6 +30,49 @@ export interface LlmRequestOverrides {
   responseFormat?: { type: "json_object" }
 }
 
+export interface LlmUsageMetadata {
+  requestId?: string
+  route?: string
+  userId?: string
+  inputCount?: number
+  fallbackUsed?: boolean
+  [key: string]: string | number | boolean | null | undefined
+}
+
+export interface LlmUsageEvent {
+  event: "llm.request.completed" | "llm.request.failed" | "llm.request.skipped"
+  task: LlmTask
+  provider: "openai" | "openai-compatible"
+  model: string
+  status: "success" | "failed" | "skipped"
+  durationMs: number
+  inputChars: number
+  outputChars?: number
+  messageCount: number
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+  errorType?: string
+  errorMessage?: string
+  skipReason?: string
+  metadata?: LlmUsageMetadata
+}
+
+interface ChatCompletionUsage {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+}
+
+interface ChatCompletionResponse {
+  choices?: Array<{
+    message?: {
+      content?: string | null
+    }
+  }>
+  usage?: ChatCompletionUsage
+}
+
 function trim(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
 }
@@ -66,6 +109,46 @@ function resolveTaskApiKey(envPrefix: string): string {
 
 function isOpenAiEndpoint(url: string): boolean {
   return url.includes("api.openai.com")
+}
+
+function resolveProvider(url: string): LlmUsageEvent["provider"] {
+  return isOpenAiEndpoint(url) ? "openai" : "openai-compatible"
+}
+
+function countMessageChars(messages: LlmChatMessage[]): number {
+  return messages.reduce((sum, message) => sum + message.content.length, 0)
+}
+
+function coerceTokenCount(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function getErrorType(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.name) return error.name
+    return error.constructor.name
+  }
+  return typeof error
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
+function buildUsageTokenFields(usage: ChatCompletionUsage | undefined): Pick<
+  LlmUsageEvent,
+  "promptTokens" | "completionTokens" | "totalTokens"
+> {
+  return {
+    promptTokens: coerceTokenCount(usage?.prompt_tokens),
+    completionTokens: coerceTokenCount(usage?.completion_tokens),
+    totalTokens: coerceTokenCount(usage?.total_tokens),
+  }
+}
+
+export function logLlmUsageEvent(event: LlmUsageEvent): void {
+  console.info(JSON.stringify(event))
 }
 
 export function requiresApiKey(config: Pick<LlmTaskConfig, "url">): boolean {
@@ -105,15 +188,29 @@ export async function requestLlmChatCompletion(params: {
   task: LlmTask
   messages: LlmChatMessage[]
   overrides?: LlmRequestOverrides
+  metadata?: LlmUsageMetadata
 }): Promise<{ content: string | null; config: LlmTaskConfig }> {
   const config = resolveLlmTaskConfig(params.task, params.overrides)
+  const startedAt = Date.now()
+  const inputChars = countMessageChars(params.messages)
+  const provider = resolveProvider(config.url)
 
   if (isOpenAiEndpoint(config.url) && !config.apiKey) {
-    console.warn(`[LLMRouter] ${params.task}: missing API key for OpenAI endpoint`)
+    logLlmUsageEvent({
+      event: "llm.request.skipped",
+      task: params.task,
+      provider,
+      model: config.model,
+      status: "skipped",
+      durationMs: Date.now() - startedAt,
+      inputChars,
+      messageCount: params.messages.length,
+      skipReason: "missing_api_key",
+      metadata: params.metadata,
+    })
     return { content: null, config }
   }
 
-  const startedAt = Date.now()
   try {
     const response = await requestChatCompletion({
       url: config.url,
@@ -124,23 +221,44 @@ export async function requestLlmChatCompletion(params: {
       responseFormat: config.responseFormat,
       timeoutMs: config.timeoutMs,
       messages: params.messages,
-    })
+    }) as ChatCompletionResponse
 
     const durationMs = Date.now() - startedAt
-    console.log(
-      `[LLMRouter] ${params.task}: completed model=${config.model} durationMs=${durationMs}`
-    )
+    const content = response?.choices?.[0]?.message?.content?.trim() ?? null
+
+    logLlmUsageEvent({
+      event: "llm.request.completed",
+      task: params.task,
+      provider,
+      model: config.model,
+      status: "success",
+      durationMs,
+      inputChars,
+      outputChars: content?.length ?? 0,
+      messageCount: params.messages.length,
+      ...buildUsageTokenFields(response?.usage),
+      metadata: params.metadata,
+    })
 
     return {
-      content: response?.choices?.[0]?.message?.content?.trim() ?? null,
+      content,
       config,
     }
   } catch (error) {
     const durationMs = Date.now() - startedAt
-    console.error(
-      `[LLMRouter] ${params.task}: failed model=${config.model} durationMs=${durationMs}`,
-      error
-    )
+    logLlmUsageEvent({
+      event: "llm.request.failed",
+      task: params.task,
+      provider,
+      model: config.model,
+      status: "failed",
+      durationMs,
+      inputChars,
+      messageCount: params.messages.length,
+      errorType: getErrorType(error),
+      errorMessage: getErrorMessage(error).slice(0, 300),
+      metadata: params.metadata,
+    })
     throw error
   }
 }
