@@ -3,7 +3,7 @@ const {
   requestChatCompletion,
   resolveChatCompletionsUrl,
   resolveLlmApiKey,
-  resolveLlmModel,
+  resolveLlmModelForUrl,
 } = require("../../../../../lib/llm/openai-compatible.js");
 
 const DEFAULT_OPENAI_API_KEY_PLACEHOLDER = "your_openai_api_key_here";
@@ -40,7 +40,7 @@ async function requestOpenAIJson({
   prompt,
   systemPrompt = "You are a precise web scraping assistant that returns only valid JSON.",
   openAiApiKey = resolveLlmApiKey(),
-  model = resolveLlmModel("gemma3:4b"),
+  model,
   maxTokens = 2000,
   temperature = 0.1,
   timeoutMs = 20000,
@@ -52,6 +52,10 @@ async function requestOpenAIJson({
 
   const resolvedApiKey = String(openAiApiKey || "").trim()
   const sanitizedApiKey = resolvedApiKey.includes(DEFAULT_OPENAI_API_KEY_PLACEHOLDER) ? "" : resolvedApiKey
+  const resolvedModel = model || resolveLlmModelForUrl(url, {
+    defaultModel: "gemma3:4b",
+    defaultOpenAiModel: "gpt-4o-mini",
+  })
 
   if (url.includes("api.openai.com") && !hasConfiguredOpenAIKey(sanitizedApiKey)) {
     throw new Error("LLM_API_KEY_NOT_CONFIGURED");
@@ -61,7 +65,7 @@ async function requestOpenAIJson({
     requestChatCompletion({
       url,
       apiKey: sanitizedApiKey,
-      model,
+      model: resolvedModel,
       messages: [
         {
           role: "system",
