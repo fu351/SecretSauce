@@ -22,8 +22,10 @@ Import from:
 
 ## Environment
 
-- `OPENAI_API_KEY` (required for AI standardization calls)
-- `OPENAI_MODEL` (optional, defaults to `gpt-4o-mini`)
+- `LLM_BASE_URL` - OpenAI-compatible chat endpoint, defaults to `https://api.openai.com` when unset. For local Gemma via Ollama, use `http://ollama-gemma:11434` in Compose or `http://localhost:11435` from your host.
+- `LLM_MODEL` - chat model name, defaults to `gemma3:4b`
+- `LLM_API_KEY` - optional bearer token for hosted OpenAI-compatible endpoints
+- `OPENAI_API_KEY` and `OPENAI_MODEL` are still honored as fallbacks for compatibility
 - `STANDARDIZER_RUNNER_MODE` (`ingredient` or `unit`) for `runner.ts` execution
 - `STANDARDIZER_RUNNER_INPUTS_JSON` (JSON array payload for runner execution)
 - `STANDARDIZER_RUNNER_CONTEXT` (optional context for ingredient mode: `recipe`, `pantry`, or `scraper`)

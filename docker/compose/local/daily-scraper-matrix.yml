@@ -7,6 +7,9 @@ x-daily-scraper-base: &daily-scraper-base
   env_file:
     - ../../../.env.local
     - ./daily-scraper.shared.env
+  depends_on:
+    ollama-gemma-init:
+      condition: service_completed_successfully
   environment: &daily-scraper-env
     STORE_STATE: "CA"
     STORE_CITIES_CSV: "San Francisco,Oakland,Berkeley"
@@ -17,6 +20,30 @@ x-daily-scraper-base: &daily-scraper-base
     SCRAPER_BATCH_SIZE: "50"
 
 services:
+  ollama-gemma:
+    image: ollama/ollama
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama-gemma-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  ollama-gemma-init:
+    image: ollama/ollama
+    depends_on:
+      ollama-gemma:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama-gemma:11434
+    entrypoint: ["/bin/sh", "-lc", "ollama pull gemma3:4b"]
+    volumes:
+      - ollama-gemma-data:/root/.ollama
+
   daily-scraper-target:
     <<: *daily-scraper-base
     environment:
@@ -63,3 +90,6 @@ services:
     environment:
       <<: *daily-scraper-env
       STORE_BRAND: "99ranch"
+
+volumes:
+  ollama-gemma-data:

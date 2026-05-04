@@ -1,12 +1,17 @@
-import axios from "axios"
 import { standardizedIngredientsDB } from "../../../lib/database/standardized-ingredients-db"
 import { buildIngredientStandardizerPrompt } from "./prompts/ingredient/build-prompt"
 import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
 import { cleanIngredientByContext } from "../shared/ingredient-cleaning"
+import {
+  requestChatCompletion,
+  resolveChatCompletionsUrl,
+  resolveLlmApiKey,
+  resolveLlmModel,
+} from "../../../lib/llm/openai-compatible.js"
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
+const LLM_URL = resolveChatCompletionsUrl()
+const LLM_MODEL = resolveLlmModel("gemma3:4b")
+const LLM_API_KEY = resolveLlmApiKey()
 
 // ---------------------------------------------------------------------------
 // Context types (previously in lib/utils/ingredient-standardizer-context.ts)
@@ -352,43 +357,36 @@ async function fetchCanonicalIngredients(sampleSize = 200): Promise<string[]> {
 }
 
 async function callOpenAI(prompt: string): Promise<string | null> {
-  if (!OPENAI_API_KEY) return null
+  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) return null
 
   try {
-    const response = await axios.post(
-      OPENAI_URL,
-      {
-        model: OPENAI_MODEL,
-        temperature: 0,
-        max_tokens: 4096,
-        messages: [
-          {
-            role: "system",
-            content: "You standardize ingredient names for a cooking application and always return valid JSON.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
+    const response = await requestChatCompletion({
+      url: LLM_URL,
+      apiKey: LLM_API_KEY,
+      model: LLM_MODEL,
+      temperature: 0,
+      maxTokens: 4096,
+      messages: [
+        {
+          role: "system",
+          content: "You standardize ingredient names for a cooking application and always return valid JSON.",
         },
-      },
-    )
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    })
 
-    const content = response.data?.choices?.[0]?.message?.content?.trim()
+    const content = response?.choices?.[0]?.message?.content?.trim()
 
     if (!content) {
-      console.warn("[callOpenAI] Empty response from OpenAI")
+      console.warn("[callOpenAI] Empty response from LLM")
       return null
     }
 
     // Validate it looks like JSON
-    if (!content.startsWith('[') && !content.startsWith('{')) {
+    if (!content.startsWith("[") && !content.startsWith("{")) {
       console.warn("[callOpenAI] Response doesn't look like JSON:", content.substring(0, 100))
     }
 
@@ -429,12 +427,12 @@ export async function standardizeIngredientsWithAI(
     return []
   }
 
-  if (!OPENAI_API_KEY) {
-    console.warn("[IngredientStandardizer] OPENAI_API_KEY missing; returning fallback mappings")
+  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) {
+    console.warn("[IngredientStandardizer] LLM API key missing for OpenAI endpoint; returning fallback mappings")
     return fallbackResults(inputs)
   }
 
-  console.log(`[IngredientStandardizer] Using OpenAI for ${inputs.length} ingredients`)
+  console.log(`[IngredientStandardizer] Using LLM for ${inputs.length} ingredients`)
 
   try {
     const canonicalList = await fetchCanonicalIngredients()
@@ -442,14 +440,14 @@ export async function standardizeIngredientsWithAI(
     const content = await withTimeout(callOpenAI(prompt), 20000)
 
     if (!content) {
-      console.warn("[IngredientStandardizer] OpenAI returned empty content")
+      console.warn("[IngredientStandardizer] LLM returned empty content")
       return fallbackResults(inputs)
     }
 
     // Extract JSON from response
     const extracted = extractJSON(content)
     if (!extracted) {
-      console.error("[IngredientStandardizer] OpenAI - Could not extract JSON from response")
+      console.error("[IngredientStandardizer] LLM - Could not extract JSON from response")
       console.error(`[IngredientStandardizer] Response preview: ${content.substring(0, 200)}...`)
       return fallbackResults(inputs)
     }
@@ -459,7 +457,7 @@ export async function standardizeIngredientsWithAI(
     try {
       parsed = JSON.parse(extracted)
     } catch (parseError) {
-      console.error("[IngredientStandardizer] OpenAI - JSON parse error:", parseError)
+      console.error("[IngredientStandardizer] LLM - JSON parse error:", parseError)
       console.error(`[IngredientStandardizer] Attempted to parse: ${extracted.substring(0, 300)}...`)
       return fallbackResults(inputs)
     }
@@ -471,7 +469,7 @@ export async function standardizeIngredientsWithAI(
         : []
 
     if (resultEntries.length === 0) {
-      console.warn("[IngredientStandardizer] OpenAI payload contained no results")
+      console.warn("[IngredientStandardizer] LLM payload contained no results")
       return fallbackResults(inputs)
     }
 
@@ -559,7 +557,7 @@ export async function standardizeIngredientsWithAI(
       }
     })
   } catch (error) {
-    console.error("[IngredientStandardizer] OpenAI failed:", error)
+    console.error("[IngredientStandardizer] LLM failed:", error)
     console.error(`[IngredientStandardizer] Error type: ${error instanceof Error ? error.constructor.name : typeof error}`)
     return fallbackResults(inputs)
   }

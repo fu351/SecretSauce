@@ -1,11 +1,11 @@
-import axios from "axios"
 import { buildParagraphParserPrompt } from "./prompts/paragraph-parser/build-prompt"
+import { requestChatCompletion, resolveLlmApiKey, resolveLlmModel, resolveChatCompletionsUrl } from "@/lib/llm/openai-compatible.js"
 import type { Instruction } from "./types/recipe/instruction"
 import type { RecipeIngredient } from "./types/recipe/ingredient"
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini"
+const LLM_URL = resolveChatCompletionsUrl()
+const LLM_MODEL = resolveLlmModel("gemma3:4b")
+const LLM_API_KEY = resolveLlmApiKey()
 
 export interface ParagraphParseResult {
   instructions: Instruction[]
@@ -20,35 +20,28 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
 }
 
 async function callOpenAI(prompt: string): Promise<string | null> {
-  if (!OPENAI_API_KEY) return null
+  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) return null
 
-  const response = await axios.post(
-    OPENAI_URL,
-    {
-      model: OPENAI_MODEL,
-      temperature: 0,
-      max_tokens: 4000,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: "You are a recipe parsing engine. Always return valid JSON matching the requested schema.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
+  const response = await requestChatCompletion({
+    url: LLM_URL,
+    apiKey: LLM_API_KEY,
+    model: LLM_MODEL,
+    temperature: 0,
+    maxTokens: 4000,
+    responseFormat: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: "You are a recipe parsing engine. Always return valid JSON matching the requested schema.",
       },
-    }
-  )
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+  })
 
-  return response.data?.choices?.[0]?.message?.content?.trim() ?? null
+  return response?.choices?.[0]?.message?.content?.trim() ?? null
 }
 
 // ─── Preprocessing ────────────────────────────────────────────────────────────
@@ -197,8 +190,8 @@ function coerceResult(parsed: any): ParagraphParseResult {
 export async function parseRecipeParagraphWithAI(text: string): Promise<ParagraphParseResult> {
   if (!text?.trim()) return fallbackResult()
 
-  if (!OPENAI_API_KEY) {
-    console.warn("[ParagraphParser] OPENAI_API_KEY not configured; returning empty result")
+  if (LLM_URL.includes("api.openai.com") && !LLM_API_KEY) {
+    console.warn("[ParagraphParser] LLM_API_KEY not configured for OpenAI endpoint; returning empty result")
     return fallbackResult()
   }
 
@@ -207,7 +200,7 @@ export async function parseRecipeParagraphWithAI(text: string): Promise<Paragrap
   try {
     const content = await withTimeout(callOpenAI(prompt), 30000)
     if (!content) {
-      console.warn("[ParagraphParser] OpenAI returned empty content")
+      console.warn("[ParagraphParser] LLM returned empty content")
       return fallbackResult()
     }
 
@@ -221,7 +214,7 @@ export async function parseRecipeParagraphWithAI(text: string): Promise<Paragrap
       const stripped = content.replace(/```json\n?|```/gi, "").trim()
       const objectMatch = stripped.match(/\{[\s\S]*\}/)
       if (!objectMatch) {
-        console.error("[ParagraphParser] Could not extract JSON from OpenAI response")
+        console.error("[ParagraphParser] Could not extract JSON from LLM response")
         console.error("[ParagraphParser] Raw response:", content.substring(0, 300))
         return fallbackResult()
       }
@@ -230,7 +223,7 @@ export async function parseRecipeParagraphWithAI(text: string): Promise<Paragrap
 
     return coerceResult(parsed)
   } catch (error) {
-    console.error("[ParagraphParser] OpenAI failed:", error)
+    console.error("[ParagraphParser] LLM failed:", error)
     return fallbackResult()
   }
 }
