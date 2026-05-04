@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
 from recipe_scrapers import scrape_html
-from openai import OpenAI
 import instaloader
 from supabase import create_client, Client
 from datetime import datetime, timedelta
@@ -111,12 +110,81 @@ async def translate_text(text: str) -> str:
 
 app = FastAPI(title="Grocery & Recipe Scraper API")
 
-# Initialize OpenAI client (will use OPENAI_API_KEY env var)
-openai_client = None
-try:
-    openai_client = OpenAI()
-except Exception as e:
-    logger.warning(f"OpenAI client initialization failed: {e}")
+def _trim(value: Optional[str]) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def resolve_chat_completions_url() -> str:
+    explicit = _trim(os.getenv("LLM_CHAT_COMPLETIONS_URL"))
+    if explicit:
+        return explicit
+
+    base_url = _trim(os.getenv("LLM_BASE_URL")) or _trim(os.getenv("OPENAI_BASE_URL"))
+    if not base_url:
+        return "https://api.openai.com/v1/chat/completions"
+
+    normalized_base = base_url.rstrip("/")
+    if normalized_base.endswith("/chat/completions"):
+        return normalized_base
+    if normalized_base.endswith("/v1"):
+        return f"{normalized_base}/chat/completions"
+    return f"{normalized_base}/v1/chat/completions"
+
+
+def resolve_llm_model(default_model: str = "gemma3:4b") -> str:
+    return (
+        _trim(os.getenv("LLM_MODEL"))
+        or _trim(os.getenv("GEMMA_MODEL"))
+        or _trim(os.getenv("OPENAI_MODEL"))
+        or default_model
+    )
+
+
+def resolve_llm_api_key() -> str:
+    return (
+        _trim(os.getenv("LLM_API_KEY"))
+        or _trim(os.getenv("GEMMA_API_KEY"))
+        or _trim(os.getenv("OPENAI_API_KEY"))
+    )
+
+
+def llm_requires_api_key() -> bool:
+    return "api.openai.com" in resolve_chat_completions_url()
+
+
+async def request_chat_completion(
+    messages: List[Dict[str, str]],
+    *,
+    system_prompt: Optional[str] = None,
+    model: Optional[str] = None,
+    temperature: float = 0.0,
+    max_tokens: Optional[int] = None,
+    response_format: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
+    url = resolve_chat_completions_url()
+    api_key = resolve_llm_api_key()
+
+    if llm_requires_api_key() and not api_key:
+        raise HTTPException(status_code=500, detail="LLM API key not configured")
+
+    payload: Dict[str, Any] = {
+        "model": model or resolve_llm_model(),
+        "temperature": temperature,
+        "messages": messages if system_prompt is None else [{"role": "system", "content": system_prompt}, *messages],
+    }
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    if response_format is not None:
+        payload["response_format"] = response_format
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
 
 # Pydantic models for recipe import
 class Ingredient(BaseModel):
@@ -444,12 +512,9 @@ def parse_nutrition(nutrients_dict) -> Optional[NutritionInfo]:
 
 async def parse_recipe_with_ai(text: str, source_type: str = "text") -> ImportedRecipe:
     """
-    Use OpenAI to parse unstructured recipe text into structured format.
+    Use the configured OpenAI-compatible chat backend to parse unstructured recipe text.
     Used for Instagram captions and OCR results.
     """
-    if not openai_client:
-        raise HTTPException(status_code=500, detail="OpenAI client not configured")
-
     prompt = f"""Parse the following recipe text and extract structured information.
 Return a JSON object with these fields:
 - title: string (the recipe name)
@@ -477,17 +542,14 @@ Recipe text:
 Return ONLY valid JSON, no markdown or explanation."""
 
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a recipe parser. Extract structured recipe data from text. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
+        response = await request_chat_completion(
+            [{"role": "user", "content": prompt}],
+            system_prompt="You are a recipe parser. Extract structured recipe data from text. Return only valid JSON.",
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(response["choices"][0]["message"]["content"])
 
         # Build the recipe object with post-processing to fix common parsing mistakes
         raw_ingredients = result.get("ingredients", [])
@@ -581,13 +643,9 @@ Return ONLY valid JSON, no markdown or explanation."""
 
 async def parse_ingredients_with_ai(raw_ingredients: List[str]) -> List[Ingredient]:
     """
-    Use OpenAI to parse raw ingredient strings into structured format.
+    Use the configured OpenAI-compatible chat backend to parse raw ingredient strings into structured format.
     Handles complex formats like "1 (14 oz) can diced tomatoes" or "Salt to taste".
     """
-    if not openai_client:
-        # Fallback to simple parsing if OpenAI not available
-        return simple_parse_ingredients(raw_ingredients)
-
     if not raw_ingredients:
         return []
 
@@ -625,21 +683,18 @@ Examples (non-English → English):
 Ingredients:
 {ingredients_text}
 
-Return a JSON object with an "ingredients" array containing objects with "amount", "unit", and "name" fields.
-Return ONLY valid JSON, no markdown or explanation."""
+    Return a JSON object with an "ingredients" array containing objects with "amount", "unit", and "name" fields.
+    Return ONLY valid JSON, no markdown or explanation."""
 
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a multilingual ingredient parser. Extract structured data from ingredient strings in any language, always outputting the unit and name fields in English. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
+        response = await request_chat_completion(
+            [{"role": "user", "content": prompt}],
+            system_prompt="You are a multilingual ingredient parser. Extract structured data from ingredient strings in any language, always outputting the unit and name fields in English. Return only valid JSON.",
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(response["choices"][0]["message"]["content"])
 
         # Post-processing to fix common parsing mistakes
         raw_ingredients = result.get("ingredients", [])
@@ -742,17 +797,9 @@ def simple_parse_ingredients(raw_ingredients: List[str]) -> List[Ingredient]:
 
 async def parse_instructions_with_ai(raw_instructions: List[str]) -> List[Instruction]:
     """
-    Use OpenAI to clean up and structure instructions.
+    Use the configured OpenAI-compatible chat backend to clean up and structure instructions.
     Handles poorly formatted instructions and combines/splits as needed.
     """
-    if not openai_client:
-        # Fallback to simple parsing
-        return [
-            Instruction(step=idx + 1, description=inst.strip())
-            for idx, inst in enumerate(raw_instructions)
-            if inst.strip()
-        ]
-
     if not raw_instructions:
         return []
 
@@ -772,21 +819,18 @@ Rules:
 Instructions:
 {instructions_text}
 
-Return a JSON object with an "instructions" array containing objects with "step" (number) and "description" (string) fields.
-Return ONLY valid JSON, no markdown or explanation."""
+    Return a JSON object with an "instructions" array containing objects with "step" (number) and "description" (string) fields.
+    Return ONLY valid JSON, no markdown or explanation."""
 
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a recipe instruction formatter. Clean up and structure cooking instructions. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
+        response = await request_chat_completion(
+            [{"role": "user", "content": prompt}],
+            system_prompt="You are a recipe instruction formatter. Clean up and structure cooking instructions. Return only valid JSON.",
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
-        result = json.loads(response.choices[0].message.content)
+        result = json.loads(response["choices"][0]["message"]["content"])
 
         return [
             Instruction(

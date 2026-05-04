@@ -12,9 +12,6 @@ beautifulsoup4==4.12.3
 # Instagram scraping
 instaloader==4.13.1
 
-# AI/OpenAI integration
-openai==1.54.0
-
 # Image processing (for OCR fallback if needed)
 Pillow==11.3.0
 
