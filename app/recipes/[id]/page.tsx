@@ -10,6 +10,7 @@ import { Clock, Users, ShoppingCart, ArrowLeft, ChefHat, Star, BarChart3, Utensi
 import { useAuth } from "@/contexts/auth-context"
 import { RecipeDetailSkeleton } from "@/components/recipe/cards/recipe-skeleton"
 import { RecipeReviews } from "@/components/recipe/detail/recipe-reviews"
+import { RecipePeerSuccess } from "@/components/recipe/social/recipe-peer-success"
 import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-info"
 import { RecipeActionBar } from "@/components/recipe/social/recipe-action-bar"
 import { RecipeCollectionManager } from "@/components/recipe/collections/recipe-collection-manager"
@@ -756,6 +757,10 @@ export default function RecipeDetailPage() {
               </div>
             </div>
           )}
+
+          <div className="w-full" data-tutorial="recipe-peer-success">
+            <RecipePeerSuccess recipeId={recipe.id} />
+          </div>
 
           <div className="w-full" data-tutorial="recipe-reviews">
             <RecipeReviews recipeId={recipe.id} friendProfileIds={friendProfileIds} />
