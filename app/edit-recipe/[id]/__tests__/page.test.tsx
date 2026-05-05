@@ -9,6 +9,7 @@ const mockInvalidateQueries = vi.fn()
 const mockUpsertRecipeWithIngredients = vi.fn()
 const mockDeleteRecipe = vi.fn()
 const mockUploadRecipeImage = vi.fn()
+const mockFetch = vi.fn()
 
 let mockAuthState = {
   user: { id: "user_1" },
@@ -25,6 +26,10 @@ vi.mock("@/contexts/theme-context", () => ({
 vi.mock("@/hooks", () => ({
   useToast: () => ({ toast: mockToast }),
   useRecipe: (...args: any[]) => mockUseRecipe(...args),
+}))
+
+vi.mock("@/hooks/use-admin", () => ({
+  useIsAdmin: () => false,
 }))
 
 vi.mock("@/lib/database/recipe-db", () => ({
@@ -137,6 +142,17 @@ describe("EditRecipePage", () => {
     mockUploadRecipeImage.mockResolvedValue("uploaded/edit.png")
     mockUpsertRecipeWithIngredients.mockResolvedValue({ id: "recipe_1" })
     mockDeleteRecipe.mockResolvedValue(undefined)
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/api/recipes/recipe_1") && init?.method === "PATCH") {
+        return Promise.resolve(Response.json({ recipe: { id: "recipe_1" } }))
+      }
+      if (url.includes("/api/recipes/recipe_1") && init?.method === "DELETE") {
+        return Promise.resolve(Response.json({ success: true }))
+      }
+      return Promise.resolve(Response.json({ isAdmin: false }))
+    })
+    vi.stubGlobal("fetch", mockFetch)
 
     const mod = await import("../page")
     EditRecipePage = mod.default
@@ -174,14 +190,20 @@ describe("EditRecipePage", () => {
 
     await waitFor(() => {
       expect(mockUploadRecipeImage).toHaveBeenCalledWith(expect.any(File), "user_1")
-      expect(mockUpsertRecipeWithIngredients).toHaveBeenCalledWith(
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/recipes/recipe_1",
         expect.objectContaining({
-          recipeId: "recipe_1",
-          title: "Updated Pasta",
-          imageUrl: "uploaded/edit.png",
-          instructions: ["Cook", "Serve"],
+          method: "PATCH",
+          credentials: "include",
         })
       )
+      expect(JSON.parse(mockFetch.mock.calls.find(([url, init]) =>
+        String(url).includes("/api/recipes/recipe_1") && init?.method === "PATCH"
+      )?.[1]?.body as string)).toMatchObject({
+        title: "Updated Pasta",
+        imageUrl: "uploaded/edit.png",
+        instructions: ["Cook", "Serve"],
+      })
       expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["recipe", "recipe_1"] })
       expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["recipes"] })
       expect(vi.mocked(useRouter)().push).toHaveBeenCalledWith("/recipes/recipe_1")
@@ -195,7 +217,13 @@ describe("EditRecipePage", () => {
     await user.click(screen.getByRole("button", { name: /delete recipe/i }))
 
     await waitFor(() => {
-      expect(mockDeleteRecipe).toHaveBeenCalledWith("recipe_1")
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/recipes/recipe_1",
+        expect.objectContaining({
+          method: "DELETE",
+          credentials: "include",
+        })
+      )
       expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["recipes"] })
       expect(vi.mocked(useRouter)().push).toHaveBeenCalledWith("/recipes?mine=true")
     })

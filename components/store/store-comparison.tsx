@@ -26,6 +26,10 @@ import { mergeShoppingListItems } from "@/lib/utils/shopping-list-grouping"
 import { ProductImage } from "@/components/store/product-image"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { buildStoreComparisonExportPayload } from "@/lib/store/store-comparison-export"
+import {
+  INSTACART_PRICE_FOOTNOTE,
+  shouldShowInstacartPriceDisclaimer,
+} from "@/lib/store/price-source-disclaimers"
 
 // Dynamically import StoreMap to prevent SSR issues with Leaflet
 const StoreMap = dynamic(() => import("@/components/store/store-map").then((mod) => mod.StoreMap), {
@@ -143,6 +147,7 @@ export function StoreComparisonSection({
   const activeStore = useMemo(() => {
     return displayResults[carouselIndex] || displayResults[0]
   }, [displayResults, carouselIndex])
+  const showActiveStorePriceDisclaimer = shouldShowInstacartPriceDisclaimer(activeStore)
 
   // Items come pre-merged from get_pricing; render directly
   const displayItems = activeStore?.items || []
@@ -280,6 +285,7 @@ export function StoreComparisonSection({
           const isClosest = idx === closestIndex // From new hook
           const travelInfo = travelData.get(idx) // From new hook
           const storeLogo = getStoreLogo(result.store)
+          const showStorePriceDisclaimer = shouldShowInstacartPriceDisclaimer(result)
 
           return (
             <button
@@ -342,6 +348,7 @@ export function StoreComparisonSection({
                 }`}>
                   <span className="text-[10px] opacity-70">$</span>
                   <span className="text-sm">{result.total.toFixed(2)}</span>
+                  {showStorePriceDisclaimer && <sup className="ml-0.5 text-[9px] leading-none">*</sup>}
                 </div>
 
                 {/* Travel Time Display */}
@@ -374,6 +381,7 @@ export function StoreComparisonSection({
                 <p className={`text-[10px] font-bold uppercase tracking-tight ${mutedTextClass} mb-1`}>Total</p>
                 <p className={`text-4xl font-black ${textClass} tracking-tight`}>
                   <span className="text-xl font-normal mr-0.5 opacity-70">$</span>{activeStore.total.toFixed(2)}
+                  {showActiveStorePriceDisclaimer && <sup className="ml-1 text-sm align-super">*</sup>}
                 </p>
               </div>
             </div>
@@ -480,10 +488,15 @@ export function StoreComparisonSection({
               </div>
             </CardContent>
 
-            <div className="p-5 bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-white/5 flex gap-3">
+            <div className="p-5 bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-white/5 space-y-3">
+              {showActiveStorePriceDisclaimer && (
+                <p className={`text-[11px] leading-snug ${mutedTextClass}`}>
+                  * {INSTACART_PRICE_FOOTNOTE}
+                </p>
+              )}
               <Button
                 onClick={handleFindClosest}
-                className={`flex-1 h-14 text-lg font-bold shadow-2xl transition-transform active:scale-[0.98] ${buttonClass}`}
+                className={`w-full h-14 text-lg font-bold shadow-2xl transition-transform active:scale-[0.98] ${buttonClass}`}
               >
               Find Closest {activeStore.store} <MapPin className="ml-2 h-5 w-5" />
               </Button>

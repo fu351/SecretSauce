@@ -379,7 +379,7 @@ describe("ShoppingReceiptPage", () => {
       expect(mockScrollToStore).toHaveBeenCalledWith(0)
     })
 
-    it("hides an item only from the active store when remove is clicked", async () => {
+    it("removes the selected receipt item from the shopping list", async () => {
       mockShoppingListWith({ items: sampleItems as any })
       mockStoreComparisonWith({
         results: [
@@ -428,10 +428,8 @@ describe("ShoppingReceiptPage", () => {
       await userEvent.click(screen.getByTestId("remove-btn"))
 
       await waitFor(() => {
-        expect(screen.getByTestId("selected-store-item-count")).toHaveTextContent("0")
+        expect(mockRemoveItem).toHaveBeenCalledWith("item_1")
       })
-
-      expect(mockRemoveItem).not.toHaveBeenCalled()
     })
   })
 

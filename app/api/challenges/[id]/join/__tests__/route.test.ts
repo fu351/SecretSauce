@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { POST } from "../route"
 
-const { mockAuth, mockFrom, mockWithServiceClient, mockJoinChallenge } = vi.hoisted(() => ({
+const { mockAuth, mockFrom, mockWithServiceClient, mockJoinChallenge, mockAwardBadges } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockFrom: vi.fn(),
   mockWithServiceClient: vi.fn(),
   mockJoinChallenge: vi.fn(),
+  mockAwardBadges: vi.fn(),
 }))
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -20,6 +21,10 @@ vi.mock("@/lib/database/challenge-db", () => ({
   challengeDB: {
     withServiceClient: mockWithServiceClient,
   },
+}))
+
+vi.mock("@/lib/badges/award-badge", () => ({
+  awardBadges: mockAwardBadges,
 }))
 
 function createProfileLookup(result: any) {
@@ -89,6 +94,7 @@ describe("POST /api/challenges/[id]/join", () => {
       .mockReturnValueOnce(createProfileLookup({ data: { id: "profile_1" } }))
       .mockReturnValueOnce(createChallengeLookup({ data: { id: "challenge_1", ends_at: "2026-04-20T23:59:59.000Z" } }))
     mockJoinChallenge.mockResolvedValue(entry)
+    mockAwardBadges.mockResolvedValue(undefined)
 
     const res = await POST(
       new Request("http://localhost/api/challenges/challenge_1/join", {
@@ -99,6 +105,7 @@ describe("POST /api/challenges/[id]/join", () => {
     )
 
     expect(mockJoinChallenge).toHaveBeenCalledWith("challenge_1", "profile_1", "post_9")
+    expect(mockAwardBadges).toHaveBeenCalledWith(expect.anything(), "profile_1", ["challenge_participant"])
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ entry })
   })

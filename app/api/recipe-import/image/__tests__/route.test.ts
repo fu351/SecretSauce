@@ -32,7 +32,7 @@ describe("POST /api/recipe-import/image", () => {
     })
   })
 
-  it("returns 500 when the Python service URL is not configured", async () => {
+  it("returns 503 when the Python service URL is not configured", async () => {
     delete process.env.PYTHON_SERVICE_URL
     const { POST } = await import("../route")
 
@@ -44,7 +44,7 @@ describe("POST /api/recipe-import/image", () => {
       }) as any
     )
 
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(503)
     expect(await response.json()).toEqual({
       success: false,
       error: "Python service URL not configured",
@@ -70,14 +70,18 @@ describe("POST /api/recipe-import/image", () => {
       }) as any
     )
 
-    expect(fetchMock).toHaveBeenCalledWith("https://python.example.com/recipe-import/text", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: "This is a sufficiently long OCR body for parsing.",
-        source_type: "image",
-      }),
-    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://python.example.com/recipe-import/text",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: "This is a sufficiently long OCR body for parsing.",
+          source_type: "image",
+        }),
+        signal: expect.any(AbortSignal),
+      })
+    )
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true, title: "Image Recipe" })
   })
@@ -105,7 +109,7 @@ describe("POST /api/recipe-import/image", () => {
     expect(response.status).toBe(422)
     expect(await response.json()).toEqual({
       success: false,
-      error: "Backend error: parse failed",
+      error: "parse failed",
     })
   })
 })

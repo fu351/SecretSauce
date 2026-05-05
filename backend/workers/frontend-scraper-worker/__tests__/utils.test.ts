@@ -72,7 +72,7 @@ describe("frontend scraper utils", () => {
       title: "Organic Tomato",
       brand: "",
       price: 2.25,
-      image_url: "/placeholder.svg",
+      image_url: "/default-image.svg",
       provider: "Target",
       rawUnit: "12 oz",
       category: "Produce",

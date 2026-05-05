@@ -9,7 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/ui/use-toast", () => ({
   useToast: () => ({ toast: mockToast }),
 }))
 

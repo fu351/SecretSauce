@@ -37,6 +37,17 @@ vi.mock("@/hooks", () => ({
   useToast: () => ({ toast: mockToast }),
 }))
 
+vi.mock("@/hooks/use-feature-preferences", () => ({
+  useFeaturePreferences: () => ({
+    error: null,
+    loading: false,
+    preferences: {},
+    updatePreferences: vi.fn(),
+    updatePreferencesAsync: vi.fn(),
+    updating: false,
+  }),
+}))
+
 vi.mock("@/lib/database/recipe-db", () => ({
   recipeDB: {
     fetchRecipes: mockFetchRecipes,
