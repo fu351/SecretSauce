@@ -6,6 +6,10 @@ export const dashboardTutorial: GeneralPageEntry = {
   description: "Start with the high-level view, then work downward into what deserves attention next.",
   steps: [
     {
+      id: 0,
+      instruction: "Welcome to Secret Sauce. This quick walkthrough will show you how to find recipes, save them into folders, schedule meals, and turn a plan into a shopping list.",
+    },
+    {
       id: 1,
       instruction: "Start with your stats for a quick snapshot of recipes, folders, planned meals, and shopping activity.",
       highlightSelector: "[data-tutorial='dashboard-stats']",
