@@ -132,7 +132,26 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
     showFavoritesOnly ? { limit: 0 } : filters
   )
 
-  const displayRecipes = showFavoritesOnly ? favoriteRecipes : allRecipes
+  const filteredFavorites = useMemo(() => {
+    if (!showFavoritesOnly) return favoriteRecipes
+    let result = favoriteRecipes
+    if (filters.search) {
+      const term = filters.search.toLowerCase()
+      result = result.filter((r) => r.title.toLowerCase().includes(term))
+    }
+    if (filters.difficulty) {
+      result = result.filter((r) => r.difficulty === filters.difficulty)
+    }
+    if (filters.cuisine) {
+      result = result.filter((r) => r.cuisine_guess === filters.cuisine)
+    }
+    if (filters.diet?.length) {
+      result = result.filter((r) => filters.diet!.some((d) => r.tags.includes(d as any)))
+    }
+    return result
+  }, [showFavoritesOnly, favoriteRecipes, filters])
+
+  const displayRecipes = showFavoritesOnly ? filteredFavorites : allRecipes
   const loading = showFavoritesOnly ? loadingFavorites : loadingAllRecipes
   const orderedRecipes = useMemo(() => {
     if (!focusedRecipeId) return displayRecipes

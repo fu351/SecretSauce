@@ -127,6 +127,7 @@ async function fetchExistingSchedule(userId: string, weekIndex?: number) {
   // Quick date mapper (assuming ISO strings in DB)
   return data.map((item: any) => ({
     ...item,
-    dayIndex: new Date(item.date).getDay()
+    // Convert to Monday-based index (0=Mon … 6=Sun) to match getDatesForWeek
+    dayIndex: (new Date(item.date).getDay() + 6) % 7,
   }))
 }

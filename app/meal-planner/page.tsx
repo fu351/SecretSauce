@@ -7,13 +7,12 @@ import { useIsMobile, useToast, useShoppingList } from "@/hooks"
 import { useHasAccess } from "@/hooks/use-subscription"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
-  useMealPlannerRecipes,
   useMealPlannerNutrition,
   useHeuristicPlan as generateHeuristicPlan,
   useMealPlannerDragDrop,
   useWeeklyMealPlan,
 } from "@/hooks"
-import { getCurrentWeekIndex, getDatesForWeek } from "@/lib/date-utils"
+import { getCurrentWeekIndex, getDatesForWeek, getLastWeekOfYear } from "@/lib/date-utils"
 import { DndContext, DragOverlay } from "@dnd-kit/core"
 import { AuthGate } from "@/components/auth/tier-gate"
 import { PlannerActions } from "@/components/meal-planner/controls/planner-actions"
@@ -101,8 +100,6 @@ function MealPlannerPageContent() {
     clearWeek,
   } = useWeeklyMealPlan(user?.id, weekIndex)
 
-  const recipes = useMealPlannerRecipes(user?.id)
-
   // 1. MEMOIZE DRAG HANDLERS
   // This prevents the dnd hook from changing references and causing unnecessary updates
   const mealPlannerHandlers = useMemo(() => ({
@@ -156,7 +153,8 @@ function MealPlannerPageContent() {
     setWeekIndex(prev => {
       const year = Math.floor(prev / 100)
       const week = prev % 100
-      return week > 1 ? prev - 1 : (year - 1) * 100 + 52
+      if (week > 1) return prev - 1
+      return (year - 1) * 100 + getLastWeekOfYear(year - 1)
     })
   }, [])
 
@@ -164,7 +162,7 @@ function MealPlannerPageContent() {
     setWeekIndex(prev => {
       const year = Math.floor(prev / 100)
       const week = prev % 100
-      return week < 52 ? prev + 1 : (year + 1) * 100 + 1
+      return week < getLastWeekOfYear(year) ? prev + 1 : (year + 1) * 100 + 1
     })
   }, [])
 
@@ -390,7 +388,7 @@ function MealPlannerPageContent() {
         }
       }
     },
-    [focusMode, addToMealPlan, isMobile, dnd.highlightNextEmptySlotAfter, getNextEmptySlotAfter]
+    [focusMode, addToMealPlan, isMobile, sessionSelections, dnd.highlightNextEmptySlotAfter, getNextEmptySlotAfter]
   )
 
   const handleConfirmSelections = useCallback(async () => {
@@ -427,10 +425,6 @@ function MealPlannerPageContent() {
   }, [user, shoppingList, toast])
 
   // Effects
-  useEffect(() => {
-    if (user?.id) recipes.loadAllRecipes()
-  }, [user?.id])
-
   useEffect(() => {
     if (focusMode) setShowRecipeSidebar(true)
   }, [focusMode])

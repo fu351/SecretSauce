@@ -5,6 +5,11 @@ export function getCurrentWeekIndex(): number {
   return getYear(now) * 100 + getWeek(now, { weekStartsOn: 1 })
 }
 
+// Dec 28 is always in the last ISO week of the year (ISO 8601)
+export function getLastWeekOfYear(year: number): number {
+  return getWeek(new Date(year, 11, 28), { weekStartsOn: 1 })
+}
+
 export function getDatesForWeek(weekIndex: number): Date[] {
   const year = Math.floor(weekIndex / 100)
   const week = weekIndex % 100
