@@ -127,6 +127,37 @@ describe("recipe import routes", () => {
     expect(mocks.runPythonRecipeImportPipeline).not.toHaveBeenCalled()
   })
 
+  it("rejects unauthenticated Instagram imports before calling the python orchestrator", async () => {
+    mocks.auth.mockResolvedValue({ userId: null })
+
+    const response = await instagramPost(
+      jsonPost("/api/recipe-import/instagram", {
+        url: "https://www.instagram.com/p/ABC123/",
+      })
+    )
+
+    expect(response.status).toBe(401)
+    expect(mocks.runPythonRecipeImportPipeline).not.toHaveBeenCalled()
+  })
+
+  it("does not leak internal Instagram import errors to clients", async () => {
+    mocks.runPythonRecipeImportPipeline.mockRejectedValue(
+      new Error("python stack included scraper token SECRET_TOKEN")
+    )
+
+    const response = await instagramPost(
+      jsonPost("/api/recipe-import/instagram", {
+        url: "https://www.instagram.com/p/ABC123/",
+      })
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: "Failed to import recipe from Instagram. Please try again.",
+    })
+  })
+
   it("normalizes Instagram URLs and routes them through the python orchestrator", async () => {
     mocks.runPythonRecipeImportPipeline.mockResolvedValue({
       status: 422,
