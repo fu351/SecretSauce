@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks"
+import { checkRecipeQuality, type QualityResult } from "@/lib/recipe-quality"
+import { RecipeQualityDialog } from "./recipe-quality-dialog"
 import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types"
 
 interface RecipeImportInstagramProps {
@@ -20,6 +22,8 @@ export function RecipeImportInstagram({ onImportSuccess, disabled, initialUrl }:
   const [url, setUrl] = useState(initialUrl ?? "")
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [pendingRecipe, setPendingRecipe] = useState<ImportedRecipe | null>(null)
+  const [qualityResult, setQualityResult] = useState<QualityResult | null>(null)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -65,6 +69,14 @@ export function RecipeImportInstagram({ onImportSuccess, disabled, initialUrl }:
         return
       }
 
+      const qr = checkRecipeQuality(data.recipe)
+
+      if (!qr.passed) {
+        setPendingRecipe(data.recipe)
+        setQualityResult(qr)
+        return
+      }
+
       setErrorMessage(null)
       toast({
         title: "Recipe imported from Instagram",
@@ -86,43 +98,63 @@ export function RecipeImportInstagram({ onImportSuccess, disabled, initialUrl }:
     }
   }
 
+  const handleFix = () => {
+    if (pendingRecipe) onImportSuccess(pendingRecipe)
+    setPendingRecipe(null)
+    setQualityResult(null)
+  }
+
+  const handleCancel = () => {
+    setPendingRecipe(null)
+    setQualityResult(null)
+  }
+
   return (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="instagram-url">Instagram Post URL</Label>
-        <Input
-          id="instagram-url"
-          placeholder="https://www.instagram.com/p/..."
-          value={url}
-          onChange={(e) => {
-            setUrl(e.target.value)
-            setErrorMessage(null)
-          }}
-          disabled={loading || disabled}
-        />
-        <p className="text-sm text-muted-foreground mt-1">
-          Paste a link to a <strong>public</strong> post, reel, or video whose caption contains the
-          full recipe (ingredients and instructions).
-        </p>
+    <>
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="instagram-url">Instagram Post URL</Label>
+          <Input
+            id="instagram-url"
+            placeholder="https://www.instagram.com/p/..."
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value)
+              setErrorMessage(null)
+            }}
+            disabled={loading || disabled}
+          />
+          <p className="text-sm text-muted-foreground mt-1">
+            Paste a link to a <strong>public</strong> post, reel, or video whose caption contains the
+            full recipe (ingredients and instructions).
+          </p>
+        </div>
+
+        {errorMessage && (
+          <Alert variant="destructive" className="flex gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        )}
+
+        <Button onClick={handleImport} disabled={loading || !url.trim() || disabled}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Importing...
+            </>
+          ) : (
+            "Import from Instagram"
+          )}
+        </Button>
       </div>
 
-      {errorMessage && (
-        <Alert variant="destructive" className="flex gap-2">
-          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <AlertDescription>{errorMessage}</AlertDescription>
-        </Alert>
-      )}
-
-      <Button onClick={handleImport} disabled={loading || !url.trim() || disabled}>
-        {loading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Importing...
-          </>
-        ) : (
-          "Import from Instagram"
-        )}
-      </Button>
-    </div>
+      <RecipeQualityDialog
+        open={!!pendingRecipe}
+        qualityResult={qualityResult}
+        onFix={handleFix}
+        onCancel={handleCancel}
+      />
+    </>
   )
 }

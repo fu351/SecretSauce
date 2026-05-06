@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks"
+import { checkRecipeQuality, type QualityResult } from "@/lib/recipe-quality"
+import { RecipeQualityDialog } from "./recipe-quality-dialog"
 import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types"
 
 interface RecipeImportUrlProps {
@@ -16,6 +18,8 @@ interface RecipeImportUrlProps {
 export function RecipeImportUrl({ onImportSuccess, disabled }: RecipeImportUrlProps) {
   const [url, setUrl] = useState("")
   const [loading, setLoading] = useState(false)
+  const [pendingRecipe, setPendingRecipe] = useState<ImportedRecipe | null>(null)
+  const [qualityResult, setQualityResult] = useState<QualityResult | null>(null)
   const { toast } = useToast()
 
   const handleImport = async () => {
@@ -43,6 +47,14 @@ export function RecipeImportUrl({ onImportSuccess, disabled }: RecipeImportUrlPr
         throw new Error(data.error || "Failed to import recipe")
       }
 
+      const qr = checkRecipeQuality(data.recipe)
+
+      if (!qr.passed) {
+        setPendingRecipe(data.recipe)
+        setQualityResult(qr)
+        return
+      }
+
       toast({
         title: "Recipe imported",
         description: "Review the details below and save when ready.",
@@ -61,31 +73,51 @@ export function RecipeImportUrl({ onImportSuccess, disabled }: RecipeImportUrlPr
     }
   }
 
+  const handleFix = () => {
+    if (pendingRecipe) onImportSuccess(pendingRecipe)
+    setPendingRecipe(null)
+    setQualityResult(null)
+  }
+
+  const handleCancel = () => {
+    setPendingRecipe(null)
+    setQualityResult(null)
+  }
+
   return (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="recipe-url">Recipe URL</Label>
-        <Input
-          id="recipe-url"
-          placeholder="https://www.allrecipes.com/recipe/..."
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          disabled={loading || disabled}
-        />
-        <p className="text-sm text-muted-foreground mt-1">
-          Supports 400+ recipe websites including AllRecipes, Food Network, and more
-        </p>
+    <>
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="recipe-url">Recipe URL</Label>
+          <Input
+            id="recipe-url"
+            placeholder="https://www.allrecipes.com/recipe/..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={loading || disabled}
+          />
+          <p className="text-sm text-muted-foreground mt-1">
+            Supports 400+ recipe websites including AllRecipes, Food Network, and more
+          </p>
+        </div>
+        <Button onClick={handleImport} disabled={loading || !url || disabled}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Importing...
+            </>
+          ) : (
+            "Import from URL"
+          )}
+        </Button>
       </div>
-      <Button onClick={handleImport} disabled={loading || !url || disabled}>
-        {loading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Importing...
-          </>
-        ) : (
-          "Import from URL"
-        )}
-      </Button>
-    </div>
+
+      <RecipeQualityDialog
+        open={!!pendingRecipe}
+        qualityResult={qualityResult}
+        onFix={handleFix}
+        onCancel={handleCancel}
+      />
+    </>
   )
 }

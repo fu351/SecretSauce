@@ -9,6 +9,8 @@ import { Upload, X, Loader2 } from "lucide-react"
 import Image from "next/image"
 import { useToast } from "@/hooks"
 import { performOCR } from "@/lib/ocr-service"
+import { checkRecipeQuality, type QualityResult } from "@/lib/recipe-quality"
+import { RecipeQualityDialog } from "./recipe-quality-dialog"
 import type { ImportedRecipe, RecipeImportResponse } from "@/lib/types"
 
 interface RecipeImportImageProps {
@@ -22,6 +24,8 @@ export function RecipeImportImage({ onImportSuccess, disabled }: RecipeImportIma
   const [imagePreview, setImagePreview] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [ocrProgress, setOcrProgress] = useState(0)
+  const [pendingRecipe, setPendingRecipe] = useState<ImportedRecipe | null>(null)
+  const [qualityResult, setQualityResult] = useState<QualityResult | null>(null)
   const { toast } = useToast()
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,14 +50,12 @@ export function RecipeImportImage({ onImportSuccess, disabled }: RecipeImportIma
     setOcrProgress(0)
 
     try {
-      // Perform OCR
       const ocrResult = await performOCR(imageFile, setOcrProgress)
 
       if (!ocrResult.text || ocrResult.text.trim().length < 20) {
         throw new Error("Could not extract enough text from the image. Please try a clearer image.")
       }
 
-      // Send to backend for AI parsing
       const response = await fetch("/api/recipe-import/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,7 +68,15 @@ export function RecipeImportImage({ onImportSuccess, disabled }: RecipeImportIma
         throw new Error(data.error || "Failed to parse recipe from image")
       }
 
-      // Low confidence warning
+      const qr = checkRecipeQuality(data.recipe)
+
+      if (!qr.passed) {
+        // Hold the recipe and show the quality dialog
+        setPendingRecipe(data.recipe)
+        setQualityResult(qr)
+        return
+      }
+
       if (ocrResult.confidence < 70) {
         toast({
           title: "Recipe imported with low confidence",
@@ -94,69 +104,91 @@ export function RecipeImportImage({ onImportSuccess, disabled }: RecipeImportIma
     }
   }
 
+  const handleQualityDialogFix = () => {
+    if (pendingRecipe) {
+      onImportSuccess(pendingRecipe)
+    }
+    setPendingRecipe(null)
+    setQualityResult(null)
+  }
+
+  const handleQualityDialogCancel = () => {
+    setPendingRecipe(null)
+    setQualityResult(null)
+  }
+
   return (
-    <div className="space-y-4">
-      <div>
-        <Label>Recipe Image</Label>
-        <div
-          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          {imagePreview ? (
-            <div className="relative">
-              <Image
-                src={imagePreview}
-                alt="Recipe preview"
-                width={300}
-                height={200}
-                className="mx-auto rounded object-cover"
-              />
-              <Button
-                variant="destructive"
-                size="sm"
-                className="absolute top-2 right-2"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setImageFile(null)
-                  setImagePreview("")
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <>
-              <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-              <p>Click to upload or drag and drop</p>
-              <p className="text-sm text-muted-foreground">PNG, JPG up to 10MB</p>
-            </>
-          )}
+    <>
+      <div className="space-y-4">
+        <div>
+          <Label>Recipe Image</Label>
+          <div
+            className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {imagePreview ? (
+              <div className="relative">
+                <Image
+                  src={imagePreview}
+                  alt="Recipe preview"
+                  width={300}
+                  height={200}
+                  className="mx-auto rounded object-cover"
+                />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="absolute top-2 right-2"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setImageFile(null)
+                    setImagePreview("")
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                <p>Click to upload or drag and drop</p>
+                <p className="text-sm text-muted-foreground">PNG, JPG up to 10MB</p>
+              </>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageSelect}
+            disabled={loading || disabled}
+          />
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleImageSelect}
-          disabled={loading || disabled}
-        />
-      </div>
-      {loading && ocrProgress > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm">Processing image... {ocrProgress}%</p>
-          <Progress value={ocrProgress} />
-        </div>
-      )}
-      <Button onClick={handleImport} disabled={loading || !imageFile || disabled}>
-        {loading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          "Extract Recipe from Image"
+        {loading && ocrProgress > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm">Processing image... {ocrProgress}%</p>
+            <Progress value={ocrProgress} />
+          </div>
         )}
-      </Button>
-    </div>
+        <Button onClick={handleImport} disabled={loading || !imageFile || disabled}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            "Extract Recipe from Image"
+          )}
+        </Button>
+      </div>
+
+      <RecipeQualityDialog
+        open={!!pendingRecipe}
+        qualityResult={qualityResult}
+        onFix={handleQualityDialogFix}
+        onCancel={handleQualityDialogCancel}
+      />
+    </>
   )
 }
