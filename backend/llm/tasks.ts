@@ -25,7 +25,7 @@ export const LLM_TASK_DEFAULTS: Record<LlmTask, LlmTaskDefaults> = {
   "ingredient.standardize": {
     envPrefix: "INGREDIENT_STANDARDIZE",
     defaultModel: "gemma3:4b",
-    timeoutMs: 20_000,
+    timeoutMs: 45_000,
     maxTokens: 4_096,
     temperature: 0,
   },

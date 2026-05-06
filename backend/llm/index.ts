@@ -5,6 +5,9 @@ export {
 } from "./tasks"
 export {
   extractJsonFromLlmText,
+  getLlmErrorMessage,
+  getLlmErrorSummary,
+  getLlmErrorType,
   logLlmUsageEvent,
   requiresApiKey,
   requestLlmChatCompletion,

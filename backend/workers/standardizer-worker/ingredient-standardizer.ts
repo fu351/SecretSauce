@@ -4,6 +4,7 @@ import { hasNonFoodTitleSignals } from "../shared/non-food-signals"
 import { cleanIngredientByContext } from "../shared/ingredient-cleaning"
 import {
   extractJsonFromLlmText,
+  getLlmErrorSummary,
   requestLlmChatCompletion,
   requiresApiKey,
   resolveLlmTaskConfig,
@@ -360,7 +361,8 @@ async function callOpenAI(prompt: string): Promise<string | null> {
 
     return content
   } catch (error) {
-    console.error("[callOpenAI] Request failed:", error)
+    const summary = getLlmErrorSummary(error)
+    console.error(`[IngredientStandardizer] LLM request failed (${summary.type}): ${summary.message}`)
     return null
   }
 }
@@ -426,8 +428,9 @@ export async function standardizeIngredientsWithAI(
     try {
       parsed = JSON.parse(extracted)
     } catch (parseError) {
-      console.error("[IngredientStandardizer] LLM - JSON parse error:", parseError)
-      console.error(`[IngredientStandardizer] Attempted to parse: ${extracted.substring(0, 300)}...`)
+      const summary = getLlmErrorSummary(parseError)
+      console.error(`[IngredientStandardizer] LLM returned invalid JSON (${summary.type}): ${summary.message}`)
+      console.error(`[IngredientStandardizer] Invalid JSON length: ${extracted.length}`)
       return fallbackResults(inputs)
     }
 
@@ -526,8 +529,8 @@ export async function standardizeIngredientsWithAI(
       }
     })
   } catch (error) {
-    console.error("[IngredientStandardizer] LLM failed:", error)
-    console.error(`[IngredientStandardizer] Error type: ${error instanceof Error ? error.constructor.name : typeof error}`)
+    const summary = getLlmErrorSummary(error)
+    console.error(`[IngredientStandardizer] LLM failed (${summary.type}): ${summary.message}`)
     return fallbackResults(inputs)
   }
 }

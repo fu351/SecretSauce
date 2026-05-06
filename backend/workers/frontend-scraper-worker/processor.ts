@@ -346,8 +346,10 @@ export async function runFrontendScraperApiProcessor(
   const rawStoreParam = (searchParams.get("store") || "").trim()
   const storeKey = resolveStoreKey(rawStoreParam)
   const storeKeys = storeKey ? [storeKey] : DEFAULT_STORE_KEYS
-  const forceRefresh = searchParams.get("forceRefresh") === "true"
-  const liveActivation = searchParams.get("liveActivation") === "true" || forceRefresh
+  const requestedForceRefresh = searchParams.get("forceRefresh") === "true"
+  const requestedLiveActivation = searchParams.get("liveActivation") === "true" || requestedForceRefresh
+  const forceRefresh = hasClerkSession && requestedForceRefresh
+  const liveActivation = hasClerkSession && requestedLiveActivation
   const scraperRuntimeConfig: ScraperRuntimeConfig | null = liveActivation
     ? { liveActivation: true }
     : null
@@ -401,6 +403,13 @@ export async function runFrontendScraperApiProcessor(
     }
   }
 
+  if (!hasClerkSession && requestedLiveActivation) {
+    return {
+      status: 401,
+      body: { error: "Authentication required for live grocery search" },
+    }
+  }
+
   const preferredStoresMap = await getUserPreferredStores(
     supabaseClient,
     userId,
@@ -411,7 +420,7 @@ export async function runFrontendScraperApiProcessor(
   const preferredStoreMetadata: StoreMetadataMap = buildStoreMetadataFromStoreData(preferredStoresMap)
   const cacheLookupOptions = {
     zipCode: zipToUse,
-    allowRealTimeScraping: true,
+    allowRealTimeScraping: hasClerkSession,
     storeMetadata: preferredStoreMetadata,
   }
 
@@ -556,6 +565,18 @@ export async function runFrontendScraperApiProcessor(
   }
 
   if (!cachedRows || cachedRows.length === 0) {
+    if (!hasClerkSession) {
+      return {
+        status: 401,
+        body: {
+          error: "Authentication required for live grocery search",
+          results: [],
+          cached: false,
+          source: "auth-required",
+        },
+      }
+    }
+
     console.warn("[grocery-search] No cached/scraped results via pipeline, attempting direct scrapers", {
       searchTerm: sanitizedSearchTerm,
       zipToUse,

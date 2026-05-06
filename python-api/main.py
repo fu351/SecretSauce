@@ -9,8 +9,11 @@ import logging
 import tempfile
 import re
 import threading
+import ipaddress
+import socket
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urljoin, urlparse
 import httpx
 from recipe_scrapers import scrape_html
 from openai import OpenAI
@@ -77,36 +80,49 @@ def _ensure_argos_package(lang_code: str) -> bool:
             return False
 
 
-def _translate_text(text: str) -> str:
-    """Detect language and translate to English using Argos Translate. Falls back to original on error."""
+def _detect_language(text: str) -> str | None:
+    """Detect language code from text. Returns None if English or undetectable."""
+    if not text or not text.strip():
+        return None
+    try:
+        from langdetect import detect, LangDetectException
+        lang = detect(text)
+        return None if lang == "en" else lang
+    except Exception:
+        return None
+
+
+def _translate_with_lang(text: str, lang: str) -> str:
+    """Translate text from lang→en using Argos Translate. Falls back to original on error."""
     if not text or not text.strip():
         return text
     try:
-        from langdetect import detect, LangDetectException
         import argostranslate.translate
-
-        try:
-            lang = detect(text)
-        except LangDetectException:
-            return text
-
-        if lang == "en":
-            return text
-
         if not _ensure_argos_package(lang):
             return text
-
-        translated = argostranslate.translate.translate(text, lang, "en")
-        return translated or text
+        return argostranslate.translate.translate(text, lang, "en") or text
     except Exception as e:
-        logger.debug(f"Translation skipped: {e}")
+        logger.debug(f"Translation skipped ({lang}→en): {e}")
         return text
+
+
+def _translate_text(text: str) -> str:
+    """Detect language and translate to English. Falls back to original on error."""
+    lang = _detect_language(text)
+    if not lang:
+        return text
+    return _translate_with_lang(text, lang)
 
 
 async def translate_text(text: str) -> str:
     """Async wrapper — runs Argos Translate in a thread pool to avoid blocking the event loop."""
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _translate_text, text)
+
+
+def _translate_ingredients_with_lang(raw_ingredients: list[str], lang: str) -> list[str]:
+    """Translate a list of raw ingredient strings from lang→en as a batch."""
+    return [_translate_with_lang(ing, lang) for ing in raw_ingredients]
 
 
 app = FastAPI(title="Grocery & Recipe Scraper API")
@@ -166,6 +182,73 @@ class InstagramImportRequest(BaseModel):
 class TextParseRequest(BaseModel):
     text: str
     source_type: str = "text"
+
+PRIVATE_HOSTNAMES = {"localhost"}
+MAX_RECIPE_IMPORT_REDIRECTS = 5
+MAX_RECIPE_IMPORT_BYTES = 2_000_000
+
+
+def _is_blocked_ip(host: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return False
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+async def _assert_public_http_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="URL must use http or https.")
+    if parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="URL credentials are not allowed.")
+
+    hostname = parsed.hostname.rstrip(".").lower()
+    if hostname in PRIVATE_HOSTNAMES or hostname.endswith(".localhost") or _is_blocked_ip(hostname):
+        raise HTTPException(status_code=400, detail="URL host is not allowed.")
+
+    try:
+        addresses = await asyncio.to_thread(socket.getaddrinfo, hostname, parsed.port, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail="Could not resolve URL host.")
+
+    for *_, sockaddr in addresses:
+        if sockaddr and _is_blocked_ip(sockaddr[0]):
+            raise HTTPException(status_code=400, detail="URL host is not allowed.")
+
+
+async def _fetch_public_recipe_html(url: str) -> Tuple[str, str]:
+    current_url = url
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+
+    async with httpx.AsyncClient(follow_redirects=False, timeout=30.0) as client:
+        for _ in range(MAX_RECIPE_IMPORT_REDIRECTS + 1):
+            await _assert_public_http_url(current_url)
+            response = await client.get(current_url, headers=headers)
+
+            if response.is_redirect:
+                location = response.headers.get("location")
+                if not location:
+                    raise HTTPException(status_code=400, detail="Recipe URL redirected without a location.")
+                current_url = urljoin(current_url, location)
+                continue
+
+            response.raise_for_status()
+            html = response.text
+            if len(response.content) > MAX_RECIPE_IMPORT_BYTES:
+                raise HTTPException(status_code=400, detail="Recipe page is too large.")
+            return html, str(response.url)
+
+    raise HTTPException(status_code=400, detail="Recipe URL redirected too many times.")
 
 # Add CORS middleware
 app.add_middleware(
@@ -833,8 +916,26 @@ async def import_recipe_from_url(request: URLImportRequest):
             except Exception:
                 return None
 
-        # Extract and parse ingredients with AI
+        title = safe_scrape(scraper.title) or ""
+        if not title:
+            return RecipeImportResponse(success=False, error="Could not extract recipe title from this page")
+
+        raw_description = safe_scrape(scraper.description)
+
+        # Detect language once from the title (longer text → more reliable than per-word detection)
+        loop = asyncio.get_event_loop()
+        source_lang = await loop.run_in_executor(None, _detect_language, title)
+        if source_lang:
+            logger.info(f"Detected source language: {source_lang}")
+
+        # Translate raw ingredient strings before AI parsing — batch translation using
+        # the title-detected language avoids unreliable per-word language detection
         raw_ingredients = safe_scrape(scraper.ingredients) or []
+        if source_lang and raw_ingredients:
+            raw_ingredients = await loop.run_in_executor(
+                None, _translate_ingredients_with_lang, raw_ingredients, source_lang
+            )
+
         ingredients = await parse_ingredients_with_ai(raw_ingredients)
 
         # Extract and parse instructions with AI
@@ -859,28 +960,16 @@ async def import_recipe_from_url(request: URLImportRequest):
         except Exception as e:
             logger.warning(f"Failed to extract nutrition: {e}")
 
-        title = safe_scrape(scraper.title) or ""
-        if not title:
-            return RecipeImportResponse(success=False, error="Could not extract recipe title from this page")
-
-        raw_description = safe_scrape(scraper.description)
-
-        # Translate non-English fields to English (Argos Translate — offline, free)
-        title, raw_description = await asyncio.gather(
-            translate_text(title),
-            translate_text(raw_description or ""),
-        )
-        translated_instructions = await asyncio.gather(
-            *[translate_text(inst.description) for inst in instructions]
-        )
-        for inst, translated_desc in zip(instructions, translated_instructions):
-            inst.description = translated_desc
-
-        translated_ing_names = await asyncio.gather(
-            *[translate_text(ing.name) for ing in ingredients]
-        )
-        for ing, translated_name in zip(ingredients, translated_ing_names):
-            ing.name = translated_name
+        # Translate title, description, and instructions using the detected language
+        if source_lang:
+            title = await loop.run_in_executor(None, _translate_with_lang, title, source_lang)
+            if raw_description:
+                raw_description = await loop.run_in_executor(None, _translate_with_lang, raw_description, source_lang)
+            translated_instructions = await asyncio.gather(
+                *[loop.run_in_executor(None, _translate_with_lang, inst.description, source_lang) for inst in instructions]
+            )
+            for inst, translated_desc in zip(instructions, translated_instructions):
+                inst.description = translated_desc
 
         # Build recipe object
         recipe = ImportedRecipe(

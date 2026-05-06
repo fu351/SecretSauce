@@ -16,6 +16,7 @@ vi.mock("@/lib/llm/openai-compatible.js", () => ({
 
 import {
   extractJsonFromLlmText,
+  getLlmErrorSummary,
   requestLlmChatCompletion,
   resolveLlmTaskConfig,
 } from "@/backend/llm/index"
@@ -55,6 +56,16 @@ describe("backend llm router", () => {
     })
   })
 
+  it("uses a longer default timeout for ingredient standardization", () => {
+    mocks.resolveChatCompletionsUrl.mockReturnValue("https://api.openai.com/v1/chat/completions")
+    mocks.resolveLlmApiKey.mockReturnValue("test-key")
+    mocks.resolveLlmModel.mockImplementation((fallback: string) => fallback)
+
+    const config = resolveLlmTaskConfig("ingredient.standardize")
+
+    expect(config.timeoutMs).toBe(45_000)
+  })
+
   it("short-circuits OpenAI requests when no API key is configured", async () => {
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined)
     mocks.resolveChatCompletionsUrl.mockReturnValue("https://api.openai.com/v1/chat/completions")
@@ -83,6 +94,22 @@ describe("backend llm router", () => {
   it("extracts fenced JSON with preferred object or array shapes", () => {
     expect(extractJsonFromLlmText('```json\n{"ok":true}\n```', "object")).toBe('{"ok":true}')
     expect(extractJsonFromLlmText('prefix [{"ok":true}] suffix', "array")).toBe('[{"ok":true}]')
+  })
+
+  it("summarizes errors without exposing attached request payloads", () => {
+    const error = new Error("timeout of 20000ms exceeded") as Error & {
+      config?: { data: string }
+    }
+    error.name = "AxiosError"
+    error.config = { data: "secret prompt body" }
+
+    const summary = getLlmErrorSummary(error)
+
+    expect(summary).toEqual({
+      type: "AxiosError",
+      message: "timeout of 20000ms exceeded",
+    })
+    expect(JSON.stringify(summary)).not.toContain("secret prompt body")
   })
 
   it("logs structured completion analytics without raw prompt content", async () => {

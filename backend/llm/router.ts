@@ -124,7 +124,7 @@ function coerceTokenCount(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
-function getErrorType(error: unknown): string {
+export function getLlmErrorType(error: unknown): string {
   if (error instanceof Error) {
     if (error.name) return error.name
     return error.constructor.name
@@ -132,9 +132,16 @@ function getErrorType(error: unknown): string {
   return typeof error
 }
 
-function getErrorMessage(error: unknown): string {
+export function getLlmErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+export function getLlmErrorSummary(error: unknown): { type: string; message: string } {
+  return {
+    type: getLlmErrorType(error),
+    message: getLlmErrorMessage(error).slice(0, 300),
+  }
 }
 
 function buildUsageTokenFields(usage: ChatCompletionUsage | undefined): Pick<
@@ -256,8 +263,8 @@ export async function requestLlmChatCompletion(params: {
       durationMs,
       inputChars,
       messageCount: params.messages.length,
-      errorType: getErrorType(error),
-      errorMessage: getErrorMessage(error).slice(0, 300),
+      errorType: getLlmErrorType(error),
+      errorMessage: getLlmErrorMessage(error).slice(0, 300),
       metadata: params.metadata,
     })
     throw error

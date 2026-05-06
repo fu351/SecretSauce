@@ -2,6 +2,7 @@ import type { Database } from "../../../lib/database/supabase"
 import { buildUnitStandardizerPrompt, type UnitStandardizerPromptInput } from "./prompts/unit/build-prompt"
 import {
   extractJsonFromLlmText,
+  getLlmErrorSummary,
   requestLlmChatCompletion,
   requiresApiKey,
   resolveLlmTaskConfig,
@@ -301,7 +302,8 @@ async function callOpenAI(prompt: string): Promise<string | null> {
 
     return response.content
   } catch (error) {
-    console.error("[UnitStandardizer] LLM request failed:", error)
+    const summary = getLlmErrorSummary(error)
+    console.error(`[UnitStandardizer] LLM request failed (${summary.type}): ${summary.message}`)
     return null
   }
 }
@@ -345,13 +347,15 @@ export async function standardizeUnitsWithAI(
     try {
       parsed = JSON.parse(extracted)
     } catch (error) {
-      console.error("[UnitStandardizer] JSON parse error:", error)
+      const summary = getLlmErrorSummary(error)
+      console.error(`[UnitStandardizer] LLM returned invalid JSON (${summary.type}): ${summary.message}`)
       return inputs.map((input) => errorResult(input.id, "LLM returned invalid JSON"))
     }
 
     return parseParsedPayload(inputs, parsed)
   } catch (error) {
-    console.error("[UnitStandardizer] Request failed:", error)
+    const summary = getLlmErrorSummary(error)
+    console.error(`[UnitStandardizer] Request failed (${summary.type}): ${summary.message}`)
     return inputs.map((input) => errorResult(input.id, "Unit standardization request failed"))
   }
 }
