@@ -18,7 +18,7 @@ test.describe("Shared tutorial flat sequence", () => {
   test("advancing from dashboard moves straight to recipes", async ({ page }) => {
     await seedTutorialStateBeforeNavigation(
       page,
-      getTutorialSlotIndex("/dashboard", 3)
+      getTutorialSlotIndex("/dashboard", 4)
     )
     await page.goto("/dashboard")
     await expect(page.locator("[data-testid='tutorial-overlay']")).toBeVisible({ timeout: 10_000 })
