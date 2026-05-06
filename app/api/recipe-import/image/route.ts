@@ -3,11 +3,15 @@ import { auth } from "@clerk/nextjs/server"
 import { hasAccessToTier } from "@/lib/auth/subscription"
 import type { RecipeImportResponse } from "@/lib/types"
 import { runPythonRecipeImportPipeline } from "@/backend/orchestrators/python-api-pipeline/pipeline"
+import { guardApiAvailability } from "@/lib/dev/api-availability"
 
 const MAX_OCR_TEXT_LENGTH = 10000
 
 export async function POST(request: NextRequest) {
   try {
+    const unavailable = guardApiAvailability("recipe-import-image")
+    if (unavailable) return unavailable
+
     const authState = await auth()
     if (!authState.userId) {
       return NextResponse.json(

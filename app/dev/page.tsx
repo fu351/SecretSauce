@@ -131,6 +131,16 @@ export default async function DevPage() {
             </p>
           </Link>
 
+          <Link
+            href="/dev/api-availability"
+            className="block rounded-lg bg-white p-6 shadow transition-shadow hover:shadow-lg"
+          >
+            <h3 className="text-lg font-semibold text-gray-900">API Availability</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Toggle selected API routes for unavailable-service testing
+            </p>
+          </Link>
+
           {/* A/B Hook Test Lab */}
           <Link
             href="/dev/ab-testing-lab"

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { RecipeImportResponse } from "@/lib/types"
 import { runPythonRecipeImportPipeline } from "@/backend/orchestrators/python-api-pipeline/pipeline"
+import { guardApiAvailability } from "@/lib/dev/api-availability"
 
 export const runtime = "nodejs"
 
@@ -52,6 +53,9 @@ function normalizeRecipeUrl(input: unknown): { url: string } | { error: string }
 
 export async function POST(request: NextRequest) {
   try {
+    const unavailable = guardApiAvailability("recipe-import-url")
+    if (unavailable) return unavailable
+
     const { url } = await request.json()
 
     const parsedUrl = normalizeRecipeUrl(url)

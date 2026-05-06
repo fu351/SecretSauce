@@ -101,6 +101,7 @@ vercel.local.json
 *.test.js
 *.test.jsx
 *.spec.ts
+!test/api-availability-route.spec.ts
 !test/location-route.spec.ts
 !test/recipes-route.spec.ts
 *.spec.tsx

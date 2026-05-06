@@ -3,8 +3,12 @@ import { auth } from "@clerk/nextjs/server"
 import { hasAccessToTier } from "@/lib/auth/subscription"
 import { parseRecipeParagraphWithAI } from "@/lib/recipe-paragraph-parser"
 import { extractTimes } from "@/lib/recipe-time-extractor"
+import { guardApiAvailability } from "@/lib/dev/api-availability"
 
 export async function POST(request: NextRequest) {
+  const unavailable = guardApiAvailability("recipe-import-paragraph")
+  if (unavailable) return unavailable
+
   const authState = await auth()
   if (!authState.userId) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 })

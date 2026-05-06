@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { RecipeImportResponse } from "@/lib/types"
 import { runPythonRecipeImportPipeline } from "@/backend/orchestrators/python-api-pipeline/pipeline"
+import { guardApiAvailability } from "@/lib/dev/api-availability"
 
 /** Matches instagram.com post/reel/tv shortcode; allows www, m., or no subdomain */
 const INSTAGRAM_URL_REGEX =
@@ -43,6 +44,9 @@ function normalizeAndValidateUrl(input: unknown): { url: string } | { error: str
 
 export async function POST(request: NextRequest) {
   try {
+    const unavailable = guardApiAvailability("recipe-import-instagram")
+    if (unavailable) return unavailable
+
     let body: unknown
     try {
       body = await request.json()

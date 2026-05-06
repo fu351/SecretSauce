@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { parseCookieConsentFromCookieHeader } from "@/lib/privacy/cookie-consent"
+import { guardApiAvailability } from "@/lib/dev/api-availability"
 
 const API_KEY =
   process.env.GOOGLE_MAPS_SERVER_KEY ||
@@ -73,6 +74,9 @@ function routeDistanceDegrees(a: LatLng, b: LatLng): number {
 }
 
 export async function POST(request: NextRequest) {
+  const unavailable = guardApiAvailability("maps")
+  if (unavailable) return unavailable
+
   if (!API_KEY) {
     return NextResponse.json({ error: "Google Maps API key is not configured." }, { status: 500 })
   }
