@@ -457,6 +457,9 @@ export function TutorialOverlay() {
     !hasSyncTimedOut
   const showVisibleHighlight =
     showTutorialBackdrop && !isTargetOffScreen && !isTargetClippedByContainer
+  const lockTargetInteraction =
+    !!currentSubstep?.lockInteraction ||
+    (!!currentSubstep?.mandatory && !isMandatoryCompleted)
   const showScrollPrompt =
     showTutorialBackdrop && (isTargetOffScreen || isTargetClippedByContainer)
   const scrollPromptLabel = isTargetClippedByContainer
@@ -517,6 +520,7 @@ export function TutorialOverlay() {
           isMobile={isMobile}
           showVisibleHighlight={showVisibleHighlight}
           blockClick={!!currentSubstep?.blockClick}
+          lockInteraction={lockTargetInteraction}
         />
       )}
 

@@ -10,14 +10,15 @@ interface TutorialBackdropProps {
   isMobile: boolean
   showVisibleHighlight: boolean
   blockClick: boolean
+  lockInteraction: boolean
 }
 
 /**
  * Renders the dimmed backdrop, the highlight ring around the target element,
  * and an optional click-blocking overlay when `blockClick` is set.
  *
- * Only rendered on desktop (isMobile=false) for the backdrop;
- * the highlight ring is rendered on all viewports.
+ * The dimmed backdrop is always shown on desktop, and also on mobile for
+ * interaction-locked steps. The highlight ring is rendered on all viewports.
  */
 export function TutorialBackdrop({
   targetRect,
@@ -27,6 +28,7 @@ export function TutorialBackdrop({
   isMobile,
   showVisibleHighlight,
   blockClick,
+  lockInteraction,
 }: TutorialBackdropProps) {
   const padding = 10
   const cutoutTop = Math.max(0, targetRect.top - padding)
@@ -35,14 +37,17 @@ export function TutorialBackdrop({
   const cutoutBottom = targetRect.bottom + padding
   const dimTop = targetIsWithinHeader ? 0 : headerHeight
   const dimClassName = clsx(
-    "fixed z-[10030] pointer-events-none backdrop-blur-[2px] transition-opacity duration-500",
+    "fixed z-[10030] backdrop-blur-[2px] transition-opacity duration-500",
+    lockInteraction ? "pointer-events-auto" : "pointer-events-none",
     isDark ? "bg-black/80" : "bg-slate-950/45"
   )
+  const blockingClassName = "fixed z-[10030] pointer-events-auto"
 
   return (
     <>
-      {/* Dimmed backdrop (desktop only) */}
-      {!isMobile && (
+      {/* Dimmed backdrop. Mandatory locked steps use the same panels on mobile so
+          only the highlighted control can be tapped. */}
+      {(!isMobile || lockInteraction) && (
         showVisibleHighlight ? (
           <>
             <div
@@ -88,7 +93,7 @@ export function TutorialBackdrop({
           </>
         ) : (
           <div
-            className={dimClassName}
+            className={lockInteraction ? blockingClassName : dimClassName}
             style={{ inset: 0 }}
           />
         )

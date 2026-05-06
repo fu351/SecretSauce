@@ -734,7 +734,13 @@ export default function HomeReturningPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" onClick={openMobileSearch} aria-label="Search recipes">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={openMobileSearch}
+                    aria-label="Search recipes"
+                    data-tutorial="home-mobile-search-button"
+                  >
                     <Search className="h-5 w-5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="hover:bg-muted/60">
@@ -753,7 +759,13 @@ export default function HomeReturningPage() {
                   <Button variant="outline" size="sm" className="h-8 px-3 text-xs" asChild>
                     <Link href="/auth/signin">Sign in</Link>
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={openMobileSearch} aria-label="Search recipes">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={openMobileSearch}
+                    aria-label="Search recipes"
+                    data-tutorial="home-mobile-search-button"
+                  >
                     <Search className="h-5 w-5" />
                   </Button>
                 </div>
@@ -837,7 +849,7 @@ export default function HomeReturningPage() {
           </div>
 
           {searchOpen && (
-            <div className="fixed inset-0 z-[100] md:z-[90]" data-testid="home-search-overlay">
+            <div className="fixed inset-0 z-[100] md:z-[90]" data-testid="home-search-overlay" data-tutorial="home-search-overlay">
               <button
                 type="button"
                 className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
@@ -879,7 +891,7 @@ export default function HomeReturningPage() {
                     ) : searchQuery.trim() ? (
                       <>
                         {isLoggedIn && searchResults.users.length > 0 && (
-                          <div className="rounded-xl border overflow-hidden">
+                          <div className="rounded-xl border overflow-hidden" data-tutorial="home-search-users">
                             <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
                               People
                             </div>
@@ -911,7 +923,7 @@ export default function HomeReturningPage() {
                         )}
 
                         {searchResults.recipes.length > 0 ? (
-                          <div className="rounded-xl border overflow-hidden">
+                          <div className="rounded-xl border overflow-hidden" data-tutorial="home-search-recipes">
                             <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
                               Recipes
                             </div>
@@ -934,7 +946,7 @@ export default function HomeReturningPage() {
                         )}
                       </>
                     ) : (
-                      <div className="rounded-xl border overflow-hidden">
+                      <div className="rounded-xl border overflow-hidden" data-tutorial="home-search-recipes">
                         <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b">
                           Suggested recipes
                         </div>
@@ -959,6 +971,7 @@ export default function HomeReturningPage() {
                     <Link
                       href={searchQuery.trim() ? `/recipes?search=${encodeURIComponent(searchQuery.trim())}` : "/recipes"}
                       onClick={clearSearch}
+                      data-tutorial="home-browse-recipes"
                       className="flex h-10 items-center justify-center rounded-full border text-sm font-medium transition-colors hover:bg-muted"
                     >
                       Browse all recipes

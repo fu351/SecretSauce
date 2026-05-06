@@ -20,6 +20,8 @@ export interface TutorialSubstep {
   mandatory?: boolean
   /** If true, pointer events on the highlighted element are blocked (display-only highlight). */
   blockClick?: boolean
+  /** If true, only the highlighted target remains clickable while the step is active. */
+  lockInteraction?: boolean
 }
 
 /**

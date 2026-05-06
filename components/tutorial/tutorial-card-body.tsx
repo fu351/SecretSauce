@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import type { TutorialSubstep, GeneralPageEntry } from "@/lib/types/ui/tutorial"
 import { findFirstVisibleElement } from "@/lib/tutorial-utils"
 import { useAnalytics } from "@/hooks/use-analytics"
+import type { FlatTutorialSlot } from "@/contexts/tutorial-context"
 import clsx from "clsx"
 
 interface TutorialCardBodyProps {
@@ -110,6 +111,7 @@ export function TutorialCardBody({
   pathname,
 }: TutorialCardBodyProps) {
   const { trackEvent } = useAnalytics()
+  const isMandatoryStep = !!currentSubstep?.mandatory
 
   return (
     <div className={overlayBodyClass}>
@@ -154,21 +156,23 @@ export function TutorialCardBody({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1"
+                  className={isMandatoryStep ? "w-full" : "flex-1"}
                   onClick={handleGoToExpectedPage}
                 >
                   Go There
                 </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 bg-blue-600"
-                  onClick={() => {
-                    trackEvent("tutorial_step_error_skipped", { step_index: currentSlotIndex, selector: expectedSelector })
-                    nextStep()
-                  }}
-                >
-                  Continue Anyway
-                </Button>
+                {!isMandatoryStep && (
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-blue-600"
+                    onClick={() => {
+                      trackEvent("tutorial_step_error_skipped", { step_index: currentSlotIndex, selector: expectedSelector })
+                      nextStep()
+                    }}
+                  >
+                    Continue Anyway
+                  </Button>
+                )}
               </div>
             </>
           ) : (
@@ -185,21 +189,23 @@ export function TutorialCardBody({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1"
+                  className={isMandatoryStep ? "w-full" : "flex-1"}
                   onClick={onRetryHighlight}
                 >
                   Retry
                 </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 bg-blue-600"
-                  onClick={() => {
-                    trackEvent("tutorial_step_error_skipped", { step_index: currentSlotIndex, selector: expectedSelector })
-                    nextStep()
-                  }}
-                >
-                  Continue Anyway
-                </Button>
+                {!isMandatoryStep && (
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-blue-600"
+                    onClick={() => {
+                      trackEvent("tutorial_step_error_skipped", { step_index: currentSlotIndex, selector: expectedSelector })
+                      nextStep()
+                    }}
+                  >
+                    Continue Anyway
+                  </Button>
+                )}
               </div>
             </>
           )}

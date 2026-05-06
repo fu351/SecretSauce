@@ -230,6 +230,12 @@ export function RecipeCollectionManager({
                 New folders automatically include the current recipe.
               </p>
             </div>
+
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => onOpenChange(false)} data-tutorial="recipe-save-dialog-done">
+                Done
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

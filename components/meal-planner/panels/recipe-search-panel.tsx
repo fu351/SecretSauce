@@ -319,6 +319,7 @@ export const RecipeSearchPanel = memo(function RecipeSearchPanel({
               size="sm"
               className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={onConfirmSelections}
+              data-tutorial="planner-mobile-confirm-selections"
             >
               Confirm selected {selectionCount > 0 ? `(${selectionCount})` : ""}
             </Button>
