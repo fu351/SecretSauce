@@ -145,7 +145,7 @@ function Paywall({ requiredTier }: { requiredTier: SubscriptionTier }) {
             {tierDescriptions[requiredTier]}
           </p>
           <Link
-            href={`/pricing?required=${requiredTier}`}
+            href={`/checkout?required=${requiredTier}`}
             onClick={handleUpgradeClick}
             className="inline-flex items-center rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >

@@ -10,10 +10,9 @@ import { StoreSelector } from "./store-selector"
 import { ReceiptItem } from "./receipt-item"
 import type { ShoppingListIngredient as ShoppingListItem, StoreComparison } from "@/lib/types/store"
 import { mergeShoppingListItems, type ShoppingListDisplayItem } from "@/lib/utils/shopping-list-grouping"
-import { calcLineTotal } from "@/lib/utils/package-pricing"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { buildStoreComparisonExportPayload } from "@/lib/store/store-comparison-export"
-import { buildQuantityMap, calculateStoreComparisonTotals } from "@/lib/store/store-comparison-totals"
+import { StoreBasketPricer } from "@/lib/store/store-basket-pricer"
 
 const StoreMap = dynamic(() => import("./store-map").then((mod) => mod.StoreMap), {
   ssr: false,
@@ -63,7 +62,10 @@ export function ShoppingReceiptView({
 }: ShoppingReceiptViewProps) {
   const [showMap, setShowMap] = useState(false)
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle")
-  const quantityByItemId = useMemo(() => buildQuantityMap(shoppingList), [shoppingList])
+
+  // Single pricer instance per shopping list snapshot — owns all quantity lookups
+  // and pricing calculations so there's one source of truth for the basket.
+  const pricer = useMemo(() => StoreBasketPricer.fromShoppingList(shoppingList), [shoppingList])
 
   const displayShoppingList = useMemo(() => mergeShoppingListItems(shoppingList), [shoppingList])
 
@@ -77,37 +79,9 @@ export function ShoppingReceiptView({
     return map
   }, [displayShoppingList])
 
-  const getEffectiveQuantity = useCallback((pricedItem: StoreComparison["items"][number]): number => {
-    const itemIds = pricedItem.shoppingItemIds?.filter(Boolean) || [pricedItem.shoppingItemId]
-    let effectiveQty = 0
-
-    itemIds.forEach((id) => {
-      effectiveQty += quantityByItemId.get(id) ?? 0
-    })
-
-    if (effectiveQty <= 0) {
-      effectiveQty = Math.max(1, Number(pricedItem.quantity) || 1)
-    }
-
-    return effectiveQty
-  }, [quantityByItemId])
-
-  const calculateSubtotal = useCallback((pricedItem: StoreComparison["items"][number]): number => {
-    const effectiveQty = getEffectiveQuantity(pricedItem)
-    const total = calcLineTotal({
-      qty: effectiveQty,
-      packagePrice: pricedItem.packagePrice,
-      convertedQty: pricedItem.convertedQuantity,
-      conversionError: pricedItem.conversionError ?? undefined,
-      baselineQty: (pricedItem as { baseQuantity?: number }).baseQuantity ?? pricedItem.quantity,
-      baselinePackages: (pricedItem as { basePackagesToBuy?: number | null }).basePackagesToBuy ?? pricedItem.packagesToBuy,
-    })
-    return total ?? (Number(pricedItem.price) || 0) * effectiveQty
-  }, [getEffectiveQuantity])
-
-  const storeComparisonsWithLocalTotals = useMemo(() => {
-    return calculateStoreComparisonTotals(storeComparisons, quantityByItemId)
-  }, [storeComparisons, quantityByItemId])
+  // storeComparisons prop is already quantity-corrected (computeTotals is called
+  // in the parent before passing it down), so use it directly.
+  const storeComparisonsWithLocalTotals = storeComparisons
 
   // Get the selected store's data
   const selectedStoreData = useMemo(() => {
@@ -133,14 +107,15 @@ export function ShoppingReceiptView({
         .map((id) => String(id || "").trim())
         .filter((id) => id.length > 0)
 
-      const groupKey = shoppingItemIds
-        .map((shoppingItemId) => itemGroupKeyBySourceItemId.get(shoppingItemId))
-        .find((value): value is string => Boolean(value))
-        || shoppingItemIds[0]
-        || String(priceItem.id)
+      const groupKey =
+        shoppingItemIds
+          .map((sid) => itemGroupKeyBySourceItemId.get(sid))
+          .find((value): value is string => Boolean(value)) ||
+        shoppingItemIds[0] ||
+        String(priceItem.id)
 
-      const totalPrice = calculateSubtotal(priceItem)
-      const quantity = getEffectiveQuantity(priceItem)
+      const totalPrice = pricer.getItemLineTotal(priceItem)
+      const quantity = pricer.getEffectiveQuantity(priceItem)
       const existing = groupedPricing.get(groupKey)
 
       if (!existing) {
@@ -151,15 +126,9 @@ export function ShoppingReceiptView({
           shoppingItemIds,
           quantity,
           price: quantity > 0 ? totalPrice / quantity : totalPrice,
-          packagesToBuy: typeof priceItem.packagesToBuy === "number"
-            ? priceItem.packagesToBuy
-            : undefined,
+          packagesToBuy: typeof priceItem.packagesToBuy === "number" ? priceItem.packagesToBuy : undefined,
           baseQuantity: Number(priceItem.quantity) || quantity,
-          basePackagesToBuy: typeof priceItem.packagesToBuy === "number"
-            ? priceItem.packagesToBuy
-            : undefined,
-          // keep packagePrice and convertedQuantity from priceItem so receipt-item
-          // can display correct package counts and compute totals
+          basePackagesToBuy: typeof priceItem.packagesToBuy === "number" ? priceItem.packagesToBuy : undefined,
           totalPrice,
         })
         return
@@ -178,7 +147,7 @@ export function ShoppingReceiptView({
         existing.packagesToBuy = priceItem.packagesToBuy
         existing.basePackagesToBuy = priceItem.packagesToBuy
       }
-      existing.shoppingItemIds = [...new Set([...(existing.shoppingItemIds || []), ...shoppingItemIds])]
+      existing.shoppingItemIds = [...new Set([...(existing.shoppingItemIds ?? []), ...shoppingItemIds])]
       existing.shoppingItemId = existing.shoppingItemId || shoppingItemIds[0] || priceItem.shoppingItemId
     })
 
@@ -191,14 +160,13 @@ export function ShoppingReceiptView({
     })
 
     return finalMap
-  }, [calculateSubtotal, getEffectiveQuantity, itemGroupKeyBySourceItemId, selectedStoreData])
+  }, [pricer, itemGroupKeyBySourceItemId, selectedStoreData])
 
   const orderedShoppingList = useMemo(() => {
     if (displayShoppingList.length <= 1) return displayShoppingList
 
     const availableItems: ShoppingListDisplayItem[] = []
     const missingItems: ShoppingListDisplayItem[] = []
-    const originalIndexByItemId = new Map(displayShoppingList.map((item, index) => [item.id, index]))
 
     displayShoppingList.forEach((item) => {
       if (pricingMap.has(item.id)) {
@@ -208,13 +176,10 @@ export function ShoppingReceiptView({
       }
     })
 
-    availableItems.sort((a, b) => {
-      const aPrice = (pricingMap.get(a.id) as { totalPrice?: number } | undefined)?.totalPrice ?? 0
-      const bPrice = (pricingMap.get(b.id) as { totalPrice?: number } | undefined)?.totalPrice ?? 0
-      if (aPrice !== bPrice) return bPrice - aPrice
-      return (originalIndexByItemId.get(a.id) ?? 0) - (originalIndexByItemId.get(b.id) ?? 0)
-    })
-
+    // Keep original shopping list order so items don't jump around when
+    // quantities (and thus prices) change — sorting by price caused the
+    // "pricing not updating" perception because items would reorder on
+    // every quantity change, leaving a different item in the same position.
     return [...availableItems, ...missingItems]
   }, [displayShoppingList, pricingMap])
 
@@ -245,8 +210,15 @@ export function ShoppingReceiptView({
     }
   }, [selectedStoreIndex, storeComparisonsWithLocalTotals])
 
-  // Calculate totals
-  const subtotal = selectedStoreData?.total || 0
+  // Sum totalPrice from pricingMap so the footer total exactly matches the
+  // sum of displayed line item totals (both use the same calculateSubtotal path).
+  const subtotal = useMemo(() => {
+    let total = 0
+    pricingMap.forEach((pricing) => {
+      total += (pricing as { totalPrice?: number }).totalPrice ?? 0
+    })
+    return total
+  }, [pricingMap])
   const foundCount = pricingMap.size
   const totalItems = displayShoppingList.length
   const missingCount = Math.max(0, totalItems - foundCount)

@@ -1,12 +1,12 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Minus, Plus, X, ArrowLeftRight, ShoppingCart, ChevronDown, ChevronUp } from "lucide-react"
 import type { ShoppingListIngredient as ShoppingListItem } from "@/lib/types/store"
 import type { StoreComparison } from "@/lib/types/store"
-import { hasPackagePricing, calcPackages, calcLineTotal, calcPackageEstimate, incrementPackageQty, decrementPackageQty } from "@/lib/utils/package-pricing"
+import { PricingStrategy } from "@/lib/utils/pricing-strategy"
 
 interface ReceiptItemProps {
   item: ShoppingListItem
@@ -35,78 +35,54 @@ export function ReceiptItem({
   const [isExpanded, setIsExpanded] = useState(false)
 
   const quantity = item.quantity || 1
-  const quantityDisplay = formatMeasure(quantity)
   const unit = item.unit || ""
   const isAvailable = pricing !== null
-  const pkgPrice = pricing?.packagePrice != null ? Number(pricing.packagePrice) : null
-  const baselineQty = (pricing as { baseQuantity?: number } | null)?.baseQuantity ?? pricing?.quantity ?? quantity
-  const baselinePackages = (pricing as { basePackagesToBuy?: number | null } | null)?.basePackagesToBuy ?? pricing?.packagesToBuy
-  const convertedQty = pricing?.convertedQuantity != null && !pricing.conversionError
-    ? Number(pricing.convertedQuantity)
-    : null
-  const usePackagePricing = hasPackagePricing(pkgPrice, convertedQty, pricing?.conversionError ?? undefined)
-  const adjustedPackagesToBuy = usePackagePricing && convertedQty !== null
-    ? calcPackages(quantity, convertedQty)
-    : null
-  const estimatePackageCount = calcPackageEstimate(quantity, baselineQty, baselinePackages)
-  const lineTotalFromPkg = usePackagePricing && convertedQty !== null
-    ? calcLineTotal({
-      qty: quantity,
-      packagePrice: pkgPrice,
-      convertedQty,
-      conversionError: pricing?.conversionError ?? undefined,
-      baselineQty,
-      baselinePackages,
+
+  const pricingStrategy = useMemo(() => {
+    if (!pricing) return null
+    return PricingStrategy.create({
+      packagePrice: pricing.packagePrice,
+      convertedQty: pricing.convertedQuantity,
+      conversionError: pricing.conversionError,
+      baselineQty: (pricing as { baseQuantity?: number }).baseQuantity ?? pricing.quantity,
+      baselinePackages:
+        (pricing as { basePackagesToBuy?: number | null }).basePackagesToBuy ??
+        pricing.packagesToBuy,
     })
-    : pricing?.conversionError
-      ? calcLineTotal({
-        qty: quantity,
-        packagePrice: pkgPrice,
-        convertedQty: null,
-        conversionError: true,
-        baselineQty,
-        baselinePackages,
-      })
-    : null
+  }, [pricing])
+
+  const packageCount = pricingStrategy?.getPackageCount(quantity) ?? null
+
   const lineTotal = pricing
-    ? (lineTotalFromPkg ?? (pkgPrice != null ? pkgPrice * quantity : (Number(pricing.price) || 0) * quantity))
+    ? (pricingStrategy?.getLineTotal(quantity) ??
+        (Number(pricing.packagePrice) > 0
+          ? Number(pricing.packagePrice) * quantity
+          : (Number(pricing.price) || 0) * quantity))
     : null
-  const packageEstimateDisplay =
-    adjustedPackagesToBuy !== null
-    ? adjustedPackagesToBuy
-    : estimatePackageCount !== null
-      ? estimatePackageCount
-      : baselinePackages != null
-        ? Math.max(1, Math.ceil(baselinePackages))
-        : null
-  // Ceil when falling back — package counts must be whole numbers even if the
-  // ingredient quantity is fractional (e.g. 1.5 cups when no converted_quantity).
-  const packageQuantityDisplay = !isAvailable
-    ? "0"
-    : packageEstimateDisplay !== null
-      ? formatMeasure(packageEstimateDisplay)
-      : String(Math.max(1, Math.ceil(quantity)))
+
+  const packageCountDisplay =
+    packageCount !== null ? formatMeasure(packageCount) : String(Math.max(1, Math.ceil(quantity)))
+
+  const cartQuantitySummary = `${formatMeasure(quantity)}${unit ? ` ${unit}` : ""}`
+
+  const purchaseQuantitySummary =
+    packageCount !== null
+      ? `${formatMeasure(packageCount)} ${Math.abs(packageCount - 1) < 0.0001 ? "package" : "packages"}`
+      : !isAvailable
+        ? "0 packages"
+        : cartQuantitySummary
 
   const rawItemName = typeof item.name === "string" ? item.name.trim() : ""
   const displayName = rawItemName || pricing?.originalName?.trim() || pricing?.title?.trim() || "Unnamed item"
   const matchedProductName = pricing?.title?.trim() || ""
-  const imageSourceRaw = (pricing as { image_url?: unknown; imageUrl?: unknown } | null)?.image_url
-    ?? (pricing as { image_url?: unknown; imageUrl?: unknown } | null)?.imageUrl
-  const imageSource = typeof imageSourceRaw === "string" && imageSourceRaw.trim().length > 0
-    ? imageSourceRaw.trim()
-    : null
+  const imageSourceRaw =
+    (pricing as { image_url?: unknown; imageUrl?: unknown } | null)?.image_url ??
+    (pricing as { image_url?: unknown; imageUrl?: unknown } | null)?.imageUrl
+  const imageSource =
+    typeof imageSourceRaw === "string" && imageSourceRaw.trim().length > 0
+      ? imageSourceRaw.trim()
+      : null
   const showMatchedProductInline = Boolean(matchedProductName && matchedProductName !== displayName)
-
-  const cartQuantitySummary = `${quantityDisplay}${unit ? ` ${unit}` : ""}`
-  const purchaseQuantitySummary = adjustedPackagesToBuy !== null
-    ? `${formatMeasure(adjustedPackagesToBuy)} ${Math.abs(adjustedPackagesToBuy - 1) < 0.0001 ? "package" : "packages"}`
-    : estimatePackageCount !== null
-      ? `${formatMeasure(estimatePackageCount)} ${Math.abs(estimatePackageCount - 1) < 0.0001 ? "package" : "packages"}`
-      : packageEstimateDisplay !== null
-        ? `${formatMeasure(packageEstimateDisplay)} ${Math.abs(packageEstimateDisplay - 1) < 0.0001 ? "package" : "packages"}`
-    : !isAvailable
-      ? "0 packages"
-      : cartQuantitySummary
 
   const textPrimaryClass = theme === "dark" ? "text-[#e8dcc4]" : "text-gray-900"
   const stepperBgClass = theme === "dark" ? "bg-white/5 border-white/10" : "bg-gray-100 border-gray-200"
@@ -140,19 +116,19 @@ export function ReceiptItem({
   const hasExpandedDetails = detailRows.length > 0
 
   const handleIncrement = () => {
-    if (usePackagePricing && convertedQty !== null) {
-      onQuantityChange(item.id, incrementPackageQty(quantity, convertedQty))
-      return
+    if (pricingStrategy) {
+      onQuantityChange(item.id, pricingStrategy.getIncrementedQty(quantity))
+    } else {
+      onQuantityChange(item.id, quantity + 1)
     }
-    onQuantityChange(item.id, quantity + 1)
   }
 
   const handleDecrement = () => {
-    if (usePackagePricing && convertedQty !== null) {
-      onQuantityChange(item.id, decrementPackageQty(quantity, convertedQty))
-      return
+    if (pricingStrategy) {
+      onQuantityChange(item.id, pricingStrategy.getDecrementedQty(quantity))
+    } else {
+      onQuantityChange(item.id, Math.max(1, quantity - 1))
     }
-    onQuantityChange(item.id, Math.max(1, quantity - 1))
   }
 
   return (
@@ -199,7 +175,7 @@ export function ReceiptItem({
                 )}
                 {!isAvailable && (
                   <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
-                  Not available at this store
+                    Not available at this store
                   </p>
                 )}
               </div>
@@ -255,7 +231,7 @@ export function ReceiptItem({
                   variant="ghost"
                   type="button"
                   onClick={handleDecrement}
-                  disabled={(adjustedPackagesToBuy !== null ? adjustedPackagesToBuy <= 1 : quantity <= 1) || !isAvailable}
+                  disabled={(packageCount !== null ? packageCount <= 1 : quantity <= 1) || !isAvailable}
                   className="h-7 w-7 md:h-8 md:w-8 flex-shrink-0 hover:bg-white/10 disabled:opacity-40"
                   aria-label={`Decrease quantity for ${displayName}`}
                 >
@@ -263,7 +239,7 @@ export function ReceiptItem({
                 </Button>
 
                 <span className="min-w-[2.25rem] text-center text-sm font-semibold">
-                  {packageQuantityDisplay}
+                  {!isAvailable ? "0" : packageCountDisplay}
                 </span>
 
                 <Button

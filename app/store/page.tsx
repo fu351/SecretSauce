@@ -16,8 +16,7 @@ import { ItemReplacementModal } from "@/components/store/store-replacement"
 import { MobileQuickAddPanel } from "@/components/store/mobile-quick-add-panel"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
 import type { GroceryItem, StoreComparison } from "@/lib/types/store"
-import { buildQuantityMap, calculateStoreComparisonTotals } from "@/lib/store/store-comparison-totals"
-import { calcPackageEstimate } from "@/lib/utils/package-pricing"
+import { StoreBasketPricer } from "@/lib/store/store-basket-pricer"
 
 const StoreMap = dynamic(
   () => import("@/components/store/store-map").then((mod) => mod.StoreMap),
@@ -109,10 +108,10 @@ export default function ShoppingReceiptPage() {
   } = useStoreComparison(shoppingList, zipCode, null)
   const listIdentitySignature = useMemo(() => buildListIdentitySignature(shoppingList), [shoppingList])
   const listQuantitySignature = useMemo(() => buildListQuantitySignature(shoppingList), [shoppingList])
-  const quantityByItemId = useMemo(() => buildQuantityMap(shoppingList), [shoppingList])
+  const pricer = useMemo(() => StoreBasketPricer.fromShoppingList(shoppingList), [shoppingList])
   const visibleStoreComparisons = useMemo(
-    () => calculateStoreComparisonTotals(storeComparisons, quantityByItemId),
-    [storeComparisons, quantityByItemId]
+    () => pricer.computeTotals(storeComparisons),
+    [pricer, storeComparisons]
   )
   const normalizedZipCode = zipCode.trim()
 
@@ -393,7 +392,6 @@ export default function ShoppingReceiptPage() {
     let totalAmount = 0
     let itemCount = 0
 
-    // Build cart items for delivery log (with server-side price verification)
     const cartItems: Array<{
       item_id: string
       product_id: string
@@ -402,64 +400,23 @@ export default function ShoppingReceiptPage() {
     }> = []
 
     if (activeStoreData?.items) {
-      // Use the same calculation logic as shopping-receipt-view for consistency
-      totalAmount = activeStoreData.items.reduce((sum, item) => {
-        const itemIds = item.shoppingItemIds?.filter(Boolean) || [item.shoppingItemId]
-        let effectiveQty = 0
+      activeStoreData.items.forEach((item) => {
+        const qty = pricer.getEffectiveQuantity(item)
+        const strategy = pricer.getPricingStrategy(item)
+        const pkgCount = strategy?.getPackageCount(qty) ?? qty
+        const lineTotal = pricer.getItemLineTotal(item)
+        totalAmount += lineTotal
 
-        itemIds.forEach((id) => {
-          const shoppingItem = shoppingList.find((si) => si.id === id)
-          if (shoppingItem) {
-            effectiveQty += Math.max(1, Number(shoppingItem.quantity) || 1)
-          }
-        })
-
-        if (effectiveQty <= 0) {
-          effectiveQty = Math.max(1, Number(item.quantity) || 1)
-        }
-
-        const baselineQuantity = Math.max(1, Number(item.quantity) || 1)
-        const baselinePackages = Number(item.packagesToBuy)
-        const packagePrice = Number(item.packagePrice)
-
-        // Use package-based pricing when available
-        if (Number.isFinite(packagePrice) && packagePrice > 0) {
-          const adjustedPackages = item.conversionError
-            ? calcPackageEstimate(effectiveQty, baselineQuantity, baselinePackages)
-            : Number.isFinite(baselinePackages) && baselinePackages > 0
-              ? Math.max(1, Math.ceil((baselinePackages / baselineQuantity) * effectiveQty))
-              : 1
-
-          // Add to cart items if we have required data
-          if (item.shoppingItemId && item.productMappingId) {
-            cartItems.push({
-              item_id: item.shoppingItemId,
-              product_id: item.productMappingId,
-              num_pkgs: adjustedPackages,
-              frontend_price: packagePrice,
-            })
-          }
-
-          return sum + (packagePrice * (adjustedPackages ?? 1))
-        }
-
-        // Fallback to simple price * quantity
-        const price = Number(item.price) || 0
-
-        // Add to cart items if we have required data
         if (item.shoppingItemId && item.productMappingId) {
           cartItems.push({
             item_id: item.shoppingItemId,
             product_id: item.productMappingId,
-            num_pkgs: effectiveQty,
-            frontend_price: price,
+            num_pkgs: pkgCount,
+            frontend_price: Number(item.packagePrice) || Number(item.price) || 0,
           })
         }
+      })
 
-        return sum + (price * effectiveQty)
-      }, 0)
-
-      // Set item count to actual priced items
       itemCount = activeStoreData.items.length
     }
 

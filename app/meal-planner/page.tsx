@@ -272,7 +272,7 @@ function MealPlannerPageContent() {
         title: "Premium feature",
         description: "Upgrade to Premium to use Smart Weekly Planner.",
       })
-      router.push("/pricing?required=premium")
+      router.push("/checkout?required=premium")
       return
     }
     setHeuristicPlanLoading(true)
@@ -324,7 +324,7 @@ function MealPlannerPageContent() {
       title: "Premium feature",
       description: "Upgrade to Premium to use Smart Weekly Planner.",
     })
-    router.push("/pricing?required=premium")
+    router.push("/checkout?required=premium")
   }, [toast, router])
 
   const handleClearWeek = useCallback(async () => {

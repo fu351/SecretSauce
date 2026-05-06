@@ -4,6 +4,7 @@ import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from ".
 import { normalizeScraperResults, type ScraperResult } from "./types"
 import { runScraperWorkerProcessor } from "./processor"
 import { normalizeZipCode } from "../../../lib/utils/zip"
+import { validateScrapedPrice } from "./utils/price-sanity"
 import type { StoreMetadataMap } from "@/lib/store/store-metadata"
 import type { ScraperRuntimeOverrides } from "./worker"
 
@@ -165,6 +166,20 @@ export async function getOrRefreshIngredientPricesForStores(
 
     if (!bestProduct) return null
 
+    const scrapedPrice = Number(bestProduct.price) || 0
+    const cachedPrice = cachedByStore.get(store)?.price ?? null
+    const sanityCheck = validateScrapedPrice(scrapedPrice, { referencePrice: cachedPrice })
+    if (!sanityCheck.ok) {
+      console.warn("[ingredient-pipeline] Price sanity check failed — skipping write", {
+        store,
+        canonicalName,
+        scrapedPrice,
+        cachedPrice,
+        reason: sanityCheck.reason,
+      })
+      return null
+    }
+
     const storeMeta = normalizedOptions.storeMetadata?.get(store)
     const resolvedStoreId = storeMeta?.storeId ?? storeMeta?.grocery_store_id ?? null
     const storeZip = storeMeta?.zipCode ?? normalizedOptions.zipCode
@@ -172,7 +187,7 @@ export async function getOrRefreshIngredientPricesForStores(
     // Return RPC payload shape for fn_bulk_insert_ingredient_history.
     return {
       store,
-      price: Number(bestProduct.price) || 0,
+      price: scrapedPrice,
       imageUrl: bestProduct.image_url,
       productName: bestProduct.product_name,
       productId: bestProduct.product_id ?? null,

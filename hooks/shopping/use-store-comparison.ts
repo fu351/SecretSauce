@@ -291,19 +291,24 @@ export function useStoreComparison(
         .map((itemId: unknown) => normalizeShoppingItemId(itemId))
         .filter((itemId: string) => itemId.length > 0)
       const standardizedIngredientId = normalizeShoppingItemId(entry?.standardized_ingredient_id)
-      const ingredientMatchedItems = standardizedIngredientId
-        ? (itemsByIngredientId.get(standardizedIngredientId) ?? [])
-        : []
+      // For quantity resolution, only use the IDs from the RPC (the snapshot at search time).
+      // Including all ingredient-matched items would pull in quantities from recipes added after
+      // the search ran, causing getEffectiveQuantity to exceed total_amount and inflating package counts.
       const idMatchedItems = rpcItemIds
         .map((itemId: string) => itemsById.get(itemId))
         .filter((item: ShoppingListItem | undefined): item is ShoppingListItem => Boolean(item))
-      const matchedItems = [...ingredientMatchedItems, ...idMatchedItems].filter(
+      const shoppingItemIds = rpcItemIds.length > 0
+        ? rpcItemIds
+        : (standardizedIngredientId
+            ? (itemsByIngredientId.get(standardizedIngredientId) ?? []).map(item => normalizeShoppingItemId(item.id)).filter(Boolean)
+            : [])
+      // For display metadata (name, image), allow ingredient-matched items as a broader fallback.
+      const ingredientMatchedItems = standardizedIngredientId
+        ? (itemsByIngredientId.get(standardizedIngredientId) ?? [])
+        : []
+      const matchedItems = [...idMatchedItems, ...ingredientMatchedItems].filter(
         (item, idx, arr) => arr.findIndex((candidate) => candidate.id === item.id) === idx
       )
-      const matchedShoppingItemIds = matchedItems
-        .map((item) => normalizeShoppingItemId(item.id))
-        .filter((itemId): itemId is string => itemId.length > 0)
-      const shoppingItemIds = [...new Set([...matchedShoppingItemIds, ...rpcItemIds])]
       const representativeItem = matchedItems[0] ?? itemsById.get(rpcItemIds[0] || "")
       const offers: any[] =
         parseJsonArray(entry?.offers) ??
@@ -315,7 +320,7 @@ export function useStoreComparison(
       diagnostics.push({
         standardizedIngredientId,
         rpcItemIds,
-        matchedShoppingItemIds,
+        matchedShoppingItemIds: shoppingItemIds,
         resolvedShoppingItemIds: shoppingItemIds,
         offersCount: offers.length,
         offerStores: offers.map((offer: any) => String(offer?.store || offer?.store_name || "unknown")),
