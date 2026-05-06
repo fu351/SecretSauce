@@ -50,6 +50,7 @@ AGENTS.md
 !supabase/migrations/20260430120000_open_prices_us_importer.sql
 !supabase/migrations/20260430160000_add_streaks_core.sql
 !supabase/migrations/20260501090000_social_sprint1_kitchen_sync.sql
+!supabase/migrations/20260506090000_social_sprint3_meal_plan_sharing_journeys.sql
 !supabase/migrations/20260430233000_open_prices_backup_pricing.sql
 !supabase/migrations/20260504000000_fix_delivery_log_functions.sql
 !supabase/migrations/20260504000001_add_pending_cart_items.sql
@@ -105,6 +106,7 @@ vercel.local.json
 !test/api-availability-route.spec.ts
 !test/location-route.spec.ts
 !test/recipes-route.spec.ts
+!test/social/meal-plan-sharing.spec.ts
 *.spec.tsx
 *.spec.js
 *.spec.jsx

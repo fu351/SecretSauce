@@ -10,6 +10,19 @@ const mocks = vi.hoisted(() => ({
   listKitchenSyncProjections: vi.fn(),
   getAcceptedFollowMapForViewer: vi.fn(),
   listReactionsForCookChecks: vi.fn(),
+  listMealScheduleForWeek: vi.fn(),
+  listRecipesByIds: vi.fn(),
+  findMealPlanShareByIdempotency: vi.fn(),
+  createMealPlanShare: vi.fn(),
+  updateMealPlanShare: vi.fn(),
+  getMealPlanShareById: vi.fn(),
+  listExistingMealSlots: vi.fn(),
+  insertMealScheduleRows: vi.fn(),
+  createMealPlanRemix: vi.fn(),
+  getCookingJourneyById: vi.fn(),
+  findJourneyEventByIdempotency: vi.fn(),
+  createJourneyEvent: vi.fn(),
+  updateCookingJourney: vi.fn(),
 }))
 
 vi.mock("@/lib/social/repository", () => ({
@@ -26,23 +39,50 @@ vi.mock("@/lib/social/repository", () => ({
   listKitchenSyncProjections: mocks.listKitchenSyncProjections,
   getAcceptedFollowMapForViewer: mocks.getAcceptedFollowMapForViewer,
   listReactionsForCookChecks: mocks.listReactionsForCookChecks,
+  listMealScheduleForWeek: mocks.listMealScheduleForWeek,
+  listRecipesByIds: mocks.listRecipesByIds,
+  findMealPlanShareByIdempotency: mocks.findMealPlanShareByIdempotency,
+  createMealPlanShare: mocks.createMealPlanShare,
+  updateMealPlanShare: mocks.updateMealPlanShare,
+  getMealPlanShareById: mocks.getMealPlanShareById,
+  listPublishedMealPlanShares: vi.fn(),
+  listExistingMealSlots: mocks.listExistingMealSlots,
+  insertMealScheduleRows: mocks.insertMealScheduleRows,
+  createMealPlanRemix: mocks.createMealPlanRemix,
+  archiveProjection: vi.fn(),
+  listCookingJourneys: vi.fn(),
+  createCookingJourney: vi.fn(),
+  getCookingJourneyById: mocks.getCookingJourneyById,
+  findJourneyEventByIdempotency: mocks.findJourneyEventByIdempotency,
+  createJourneyEvent: mocks.createJourneyEvent,
+  updateCookingJourney: mocks.updateCookingJourney,
   upsertCookCheckReaction: vi.fn(),
   deleteCookCheckReaction: vi.fn(),
 }))
 
-vi.mock("@/lib/foundation/product-events-service", () => ({
+const productEvents = vi.hoisted(() => ({
   appendProductEvent: vi.fn(),
 }))
 
-vi.mock("@/lib/foundation/social-projections", () => ({
+vi.mock("@/lib/foundation/product-events-service", () => ({
+  appendProductEvent: productEvents.appendProductEvent,
+}))
+
+const projections = vi.hoisted(() => ({
   createSocialActivityProjection: vi.fn(),
 }))
 
-import { createCookCheckDraftFromSource, getKitchenSyncFeed } from "@/lib/social/service"
+vi.mock("@/lib/foundation/social-projections", () => ({
+  createSocialActivityProjection: projections.createSocialActivityProjection,
+}))
+
+import { recordJourneyProgressEvent, remixMealPlanShare, shareMealPlanWeek, createCookCheckDraftFromSource, getKitchenSyncFeed } from "@/lib/social/service"
 
 describe("social service", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    productEvents.appendProductEvent.mockResolvedValue({ event: { id: "event_1" } })
+    projections.createSocialActivityProjection.mockResolvedValue({ projection: { id: "projection_1" } })
   })
 
   it("prevents duplicate source draft", async () => {
@@ -93,5 +133,95 @@ describe("social service", () => {
     const result = await getKitchenSyncFeed({} as any, "viewer_1")
     expect(result.feed).toHaveLength(1)
     expect(result.feed[0].id).toBe("proj_followers")
+  })
+
+  it("publishes sanitized meal plan share projections", async () => {
+    mocks.findMealPlanShareByIdempotency.mockResolvedValue({ data: null })
+    mocks.listMealScheduleForWeek.mockResolvedValue({
+      data: [
+        { id: "meal_1", user_id: "profile_1", recipe_id: "recipe_1", date: "2026-05-04", meal_type: "dinner", week_index: 202619 },
+      ],
+      error: null,
+    })
+    mocks.listRecipesByIds.mockResolvedValue({
+      data: [{ id: "recipe_1", title: "Chicken Bowl", tags: ["high-protein"], protein: "chicken" }],
+      error: null,
+    })
+    mocks.createMealPlanShare.mockResolvedValue({
+      data: { id: "share_1", sanitized_summary: {}, owner_profile_id: "profile_1" },
+      error: null,
+    })
+    mocks.updateMealPlanShare.mockResolvedValue({
+      data: { id: "share_1", projection_id: "projection_1" },
+      error: null,
+    })
+
+    const result = await shareMealPlanWeek({} as any, {
+      profileId: "profile_1",
+      weekIndex: 202619,
+      title: "Finals Week Meal Plan",
+      visibility: "followers",
+    })
+
+    expect((result as any).share.id).toBe("share_1")
+    expect(projections.createSocialActivityProjection).toHaveBeenCalledWith(
+      {},
+      "profile_1",
+      expect.objectContaining({
+        eventType: "meal_plan_share.published",
+        visibility: "followers",
+        payload: expect.not.objectContaining({ pantryInventory: expect.anything() }),
+      }),
+    )
+  })
+
+  it("remixes visible shared plans into user-owned meal slots", async () => {
+    mocks.getMealPlanShareById.mockResolvedValue({
+      data: {
+        id: "share_1",
+        owner_profile_id: "owner_1",
+        visibility: "followers",
+        status: "published",
+        sanitized_summary: {
+          title: "Finals Week",
+          slots: [{ dayOffset: 0, mealType: "dinner", recipeId: "recipe_1", recipeTitle: "Chicken Bowl" }],
+        },
+      },
+      error: null,
+    })
+    mocks.getAcceptedFollowMapForViewer.mockResolvedValue({ data: new Set(["owner_1"]) })
+    mocks.listExistingMealSlots.mockResolvedValue({ data: [], error: null })
+    mocks.insertMealScheduleRows.mockResolvedValue({ data: [{ id: "meal_new" }], error: null })
+    mocks.createMealPlanRemix.mockResolvedValue({ data: { id: "remix_1" }, error: null })
+
+    const result = await remixMealPlanShare({} as any, {
+      profileId: "profile_1",
+      shareId: "share_1",
+      targetWeekIndex: 202620,
+    })
+
+    expect((result as any).createdMeals).toHaveLength(1)
+    expect(mocks.insertMealScheduleRows).toHaveBeenCalledWith(
+      {},
+      [expect.objectContaining({ user_id: "profile_1", recipe_id: "recipe_1", week_index: 202620 })],
+    )
+  })
+
+  it("does not double-count idempotent journey progress events", async () => {
+    mocks.getCookingJourneyById.mockResolvedValue({
+      data: { id: "journey_1", profile_id: "profile_1", status: "active", current_progress: 2, target_count: 4 },
+      error: null,
+    })
+    mocks.findJourneyEventByIdempotency.mockResolvedValue({ data: { id: "event_existing" } })
+
+    const result = await recordJourneyProgressEvent({} as any, {
+      profileId: "profile_1",
+      journeyId: "journey_1",
+      idempotencyKey: "same-event",
+    })
+
+    expect((result as any).duplicate).toBe(true)
+    expect(mocks.createJourneyEvent).not.toHaveBeenCalled()
+    expect(mocks.updateCookingJourney).not.toHaveBeenCalled()
   })
 })

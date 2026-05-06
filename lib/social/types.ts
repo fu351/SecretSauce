@@ -20,3 +20,17 @@ export type CookCheckSourceType = "recipe_try" | "streak" | "verification" | "ma
 
 export const COOK_CHECK_REACTIONS = ["fire", "yum", "clap", "chefkiss"] as const
 export type CookCheckReaction = (typeof COOK_CHECK_REACTIONS)[number]
+
+export const COOKING_JOURNEY_TYPES = [
+  "cooking_rhythm",
+  "meal_prep",
+  "budget_friendly",
+  "high_protein",
+  "recipe_exploration",
+  "custom",
+] as const
+
+export type CookingJourneyType = (typeof COOKING_JOURNEY_TYPES)[number]
+export type CookingJourneyStatus = "active" | "completed" | "archived"
+export type JourneyEventType = "recipe_try" | "streak_day" | "meal_plan" | "manual_progress"
+export type MealPlanShareStatus = "draft" | "published" | "archived"

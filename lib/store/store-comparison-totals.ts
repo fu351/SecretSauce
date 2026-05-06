@@ -51,13 +51,17 @@ export function calculateStoreComparisonTotals(
 ): StoreComparison[] {
   if (storeComparisons.length === 0) return storeComparisons
 
-  const updatedComparisons = storeComparisons.map((store) => {
-    const total = store.items.reduce((sum, item) => sum + getStoreItemLineTotal(item, quantityByItemId), 0)
-    return {
-      ...store,
-      total,
-    }
-  })
+  const updatedComparisons = storeComparisons
+    .filter((store) => store.items.length > 0)
+    .map((store) => {
+      const total = store.items.reduce((sum, item) => sum + getStoreItemLineTotal(item, quantityByItemId), 0)
+      return {
+        ...store,
+        total,
+      }
+    })
+
+  if (updatedComparisons.length === 0) return []
 
   const maxTotal = Math.max(...updatedComparisons.map((store) => store.total), 0)
   return updatedComparisons.map((store) => ({

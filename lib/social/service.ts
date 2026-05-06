@@ -3,6 +3,7 @@ import { appendProductEvent } from "@/lib/foundation/product-events-service"
 import { buildIdempotencyKey } from "@/lib/foundation/product-events"
 import { createSocialActivityProjection } from "@/lib/foundation/social-projections"
 import { isSocialEnabledForProfile } from "@/lib/social/guards"
+import { getCurrentWeekIndex, getDatesForWeek } from "@/lib/date-utils"
 import {
   buildCookCheckProjectionPayload,
   canViewerSeeVisibility,
@@ -12,23 +13,52 @@ import {
   validateReactionKey,
 } from "@/lib/social/helpers"
 import {
+  buildMealPlanShareProjectionPayload as buildMealPlanShareProjectionPayloadFromSprint3,
+  calculateJourneyProgress as calculateSprint3JourneyProgress,
+  canRemixMealPlan as canRemixMealPlanShare,
+  canViewMealPlanShare as canViewSharedMealPlan,
+  detectJourneyCompletion as detectSprint3JourneyCompletion,
+  sanitizeJourneyProjectionPayload as sanitizeCookingJourneyProjectionPayload,
+  sanitizeMealPlanForShare as sanitizeWeeklyMealPlanForShare,
+  validateJourneyType as validateCookingJourneyType,
+  validateMealPlanShareVisibility,
+  type SanitizedMealPlanShare,
+} from "@/lib/social/meal-plan-sharing"
+import {
+  archiveProjection,
+  createCookingJourney,
   createCookCheckDraft,
+  createJourneyEvent,
+  createMealPlanRemix,
+  createMealPlanShare,
   deleteCookCheckReaction,
   findExistingDraftBySource,
+  findJourneyEventByIdempotency,
+  findMealPlanShareByIdempotency,
   getAcceptedFollowMapForViewer,
+  getCookingJourneyById,
   getCookCheckById,
+  getMealPlanShareById,
   getOwnedProductEvent,
   getOwnedRecipeTry,
   getOwnedVerificationTask,
+  insertMealScheduleRows,
+  listCookingJourneys,
   getSocialPreferences,
+  listExistingMealSlots,
   listCookCheckDrafts,
   listKitchenSyncProjections,
+  listMealScheduleForWeek,
+  listPublishedMealPlanShares,
   listReactionsForCookChecks,
+  listRecipesByIds,
+  updateCookingJourney,
   updateCookCheck,
+  updateMealPlanShare,
   updateSocialPreferences,
   upsertCookCheckReaction,
 } from "@/lib/social/repository"
-import type { CookCheckSourceType, SocialVisibility } from "@/lib/social/types"
+import type { CookingJourneyType, CookCheckSourceType, JourneyEventType, SocialVisibility } from "@/lib/social/types"
 
 type SupabaseLike = { from: (table: string) => any }
 
@@ -292,4 +322,371 @@ export async function removeCookCheckReaction(
   })
   if (error) return { error }
   return { removed: true }
+}
+
+async function buildWeeklyShareSummary(
+  supabase: SupabaseLike,
+  input: {
+    profileId: string
+    weekIndex: number
+    title?: unknown
+    estimatedTotalLabel?: unknown
+    accomplishmentLabels?: unknown
+  },
+): Promise<{ summary: SanitizedMealPlanShare } | { validationError: string } | { error: unknown }> {
+  const { data: meals, error: mealsError } = await listMealScheduleForWeek(supabase, input.profileId, input.weekIndex)
+  if (mealsError) return { error: mealsError }
+  if (!meals?.length) return { validationError: "No meals found for this week." }
+
+  const recipeIds = [...new Set((meals as any[]).map((meal) => meal.recipe_id).filter(Boolean))]
+  const { data: recipes, error: recipesError } = await listRecipesByIds(supabase, recipeIds)
+  if (recipesError) return { error: recipesError }
+  const recipesById = new Map((recipes ?? []).map((recipe: any) => [recipe.id, recipe]))
+  const enrichedMeals = (meals as any[]).map((meal) => ({
+    ...meal,
+    recipe: recipesById.get(meal.recipe_id) ?? { id: meal.recipe_id, title: "Recipe" },
+  }))
+
+  return {
+    summary: sanitizeWeeklyMealPlanForShare({
+      title: input.title,
+      weekIndex: input.weekIndex,
+      meals: enrichedMeals,
+      estimatedTotalLabel: input.estimatedTotalLabel,
+      accomplishmentLabels: input.accomplishmentLabels,
+    }),
+  }
+}
+
+export async function shareMealPlanWeek(
+  supabase: SupabaseLike,
+  input: {
+    profileId: string
+    weekIndex: number
+    title?: string | null
+    visibility?: SocialVisibility
+    estimatedTotalLabel?: string | null
+    accomplishmentLabels?: unknown
+    idempotencyKey?: string | null
+  },
+) {
+  const weekIndex = Number(input.weekIndex)
+  if (!Number.isInteger(weekIndex) || weekIndex <= 0) return { validationError: "Invalid meal plan week." }
+  const visibility = validateMealPlanShareVisibility(input.visibility) ? input.visibility : "private"
+  const idempotencyKey = input.idempotencyKey || buildIdempotencyKey(["meal-plan-share", input.profileId, weekIndex])
+
+  const { data: existing } = await findMealPlanShareByIdempotency(supabase, input.profileId, idempotencyKey)
+  if (existing) return { share: existing, duplicate: true as const }
+
+  const summaryResult = await buildWeeklyShareSummary(supabase, {
+    profileId: input.profileId,
+    weekIndex,
+    title: input.title,
+    estimatedTotalLabel: input.estimatedTotalLabel,
+    accomplishmentLabels: input.accomplishmentLabels,
+  })
+  if ("validationError" in summaryResult || "error" in summaryResult) return summaryResult
+
+  const now = new Date().toISOString()
+  const { data: share, error: shareError } = await createMealPlanShare(supabase, {
+    ownerProfileId: input.profileId,
+    sourceWeekIndex: weekIndex,
+    title: summaryResult.summary.title,
+    sanitizedSummary: summaryResult.summary as unknown as Record<string, unknown>,
+    visibility,
+    status: "published",
+    idempotencyKey,
+    publishedAt: now,
+    metadata: { source: "weekly_meal_schedule" },
+  })
+  if (shareError) return { error: shareError }
+
+  const projection = await createSocialActivityProjection(supabase, input.profileId, {
+    eventType: "meal_plan_share.published",
+    visibility,
+    payload: buildMealPlanShareProjectionPayloadFromSprint3({
+      shareId: share.id,
+      summary: summaryResult.summary,
+    }),
+    occurredAt: now,
+    publishedAt: now,
+  })
+  if ("validationError" in projection || ("error" in projection && projection.error)) return projection
+
+  const { data: updated, error: updateError } = await updateMealPlanShare(supabase, share.id, {
+    projection_id: projection.projection.id,
+  })
+  if (updateError) return { error: updateError }
+
+  await appendProductEvent(supabase, input.profileId, {
+    eventType: "social.projection_published",
+    idempotencyKey: buildIdempotencyKey(["meal-plan-share-published", input.profileId, share.id]),
+    entityType: "meal_plan_share",
+    entityId: share.id,
+    metadata: { projectionId: projection.projection.id, weekIndex },
+  })
+
+  return { share: updated, projection: projection.projection, duplicate: false as const }
+}
+
+export async function archiveMealPlanShare(
+  supabase: SupabaseLike,
+  input: { profileId: string; shareId: string },
+) {
+  const { data: share } = await getMealPlanShareById(supabase, input.shareId)
+  if (!share) return { validationError: "Meal plan share not found." }
+  if (share.owner_profile_id !== input.profileId) return { validationError: "Only owner can archive this meal plan share." }
+  const now = new Date().toISOString()
+  const { data, error } = await updateMealPlanShare(supabase, input.shareId, {
+    status: "archived",
+    archived_at: now,
+  })
+  if (error) return { error }
+  if (share.projection_id) await archiveProjection(supabase, share.projection_id)
+  await appendProductEvent(supabase, input.profileId, {
+    eventType: "social.projection_published",
+    idempotencyKey: buildIdempotencyKey(["meal-plan-share-archived", input.profileId, input.shareId]),
+    entityType: "meal_plan_share",
+    entityId: input.shareId,
+    metadata: { status: "archived" },
+  })
+  return { share: data }
+}
+
+export async function listVisibleMealPlanShares(supabase: SupabaseLike, viewerProfileId: string) {
+  const [{ data: shares, error }, { data: followSet }] = await Promise.all([
+    listPublishedMealPlanShares(supabase, 30),
+    getAcceptedFollowMapForViewer(supabase, viewerProfileId),
+  ])
+  if (error) return { error }
+  return {
+    shares: (shares ?? []).filter((share: any) => canViewSharedMealPlan({
+      ownerProfileId: share.owner_profile_id,
+      viewerProfileId,
+      visibility: share.visibility,
+      status: share.status,
+      viewerFollowsOwner: followSet?.has(share.owner_profile_id) ?? false,
+    })),
+  }
+}
+
+function dateStringForWeekOffset(weekIndex: number, dayOffset: number): string {
+  const dates = getDatesForWeek(weekIndex)
+  const date = dates[Math.max(0, Math.min(6, dayOffset))] ?? dates[0]
+  return date.toISOString().split("T")[0]
+}
+
+export async function remixMealPlanShare(
+  supabase: SupabaseLike,
+  input: {
+    profileId: string
+    shareId: string
+    targetWeekIndex?: number | null
+    idempotencyKey?: string | null
+  },
+) {
+  const targetWeekIndex = Number(input.targetWeekIndex) || getCurrentWeekIndex()
+  const { data: share } = await getMealPlanShareById(supabase, input.shareId)
+  if (!share) return { validationError: "Meal plan share not found." }
+  const { data: followSet } = await getAcceptedFollowMapForViewer(supabase, input.profileId)
+  if (!canRemixMealPlanShare({
+    ownerProfileId: share.owner_profile_id,
+    viewerProfileId: input.profileId,
+    visibility: share.visibility,
+    status: share.status,
+    viewerFollowsOwner: followSet?.has(share.owner_profile_id) ?? false,
+  })) {
+    return { validationError: "Cannot remix this meal plan." }
+  }
+
+  const summary = share.sanitized_summary as SanitizedMealPlanShare
+  const slots = Array.isArray(summary?.slots) ? summary.slots : []
+  if (slots.length === 0) return { validationError: "Shared meal plan has no remixable meals." }
+
+  const { data: existingSlots, error: existingError } = await listExistingMealSlots(supabase, input.profileId, targetWeekIndex)
+  if (existingError) return { error: existingError }
+  const occupied = new Set((existingSlots ?? []).map((slot: any) => `${slot.date}:${slot.meal_type}`))
+  const rows = slots
+    .map((slot) => ({
+      user_id: input.profileId,
+      recipe_id: slot.recipeId,
+      week_index: targetWeekIndex,
+      date: dateStringForWeekOffset(targetWeekIndex, slot.dayOffset),
+      meal_type: slot.mealType,
+    }))
+    .filter((row) => !occupied.has(`${row.date}:${row.meal_type}`))
+
+  const { data: inserted, error: insertError } = await insertMealScheduleRows(supabase, rows)
+  if (insertError) return { error: insertError }
+  const createdMealIds = (inserted ?? []).map((row: any) => row.id).filter(Boolean)
+
+  const { data: remix, error: remixError } = await createMealPlanRemix(supabase, {
+    originalShareId: input.shareId,
+    remixerProfileId: input.profileId,
+    targetWeekIndex,
+    createdMealIds,
+    idempotencyKey: input.idempotencyKey ?? buildIdempotencyKey(["meal-plan-remix", input.profileId, input.shareId, targetWeekIndex]),
+    metadata: {
+      skippedOccupiedSlots: slots.length - rows.length,
+      sourceTitle: summary.title,
+    },
+  })
+  if (remixError) return { error: remixError }
+
+  await appendProductEvent(supabase, input.profileId, {
+    eventType: "social.projection_published",
+    idempotencyKey: buildIdempotencyKey(["meal-plan-remixed", input.profileId, input.shareId, targetWeekIndex]),
+    entityType: "meal_plan_remix",
+    entityId: remix.id,
+    metadata: { originalShareId: input.shareId, targetWeekIndex, createdMealCount: createdMealIds.length },
+  })
+  return { remix, createdMeals: inserted ?? [], skippedOccupiedSlots: slots.length - rows.length }
+}
+
+export async function listOwnCookingJourneys(supabase: SupabaseLike, profileId: string) {
+  const { data, error } = await listCookingJourneys(supabase, profileId)
+  if (error) return { error }
+  return { journeys: data ?? [] }
+}
+
+export async function createCookingJourneyForProfile(
+  supabase: SupabaseLike,
+  input: {
+    profileId: string
+    title?: string | null
+    journeyType?: CookingJourneyType | string | null
+    targetCount?: number | null
+    visibility?: SocialVisibility
+  },
+) {
+  if (!validateCookingJourneyType(input.journeyType)) return { validationError: "Unsupported journey type." }
+  const targetCount = Math.max(1, Math.min(365, Math.floor(Number(input.targetCount) || 1)))
+  const title = (typeof input.title === "string" && input.title.trim() ? input.title.trim() : "Cooking Journey").slice(0, 80)
+  const visibility = validateMealPlanShareVisibility(input.visibility) ? input.visibility : "private"
+  const { data, error } = await createCookingJourney(supabase, {
+    profile_id: input.profileId,
+    title,
+    journey_type: input.journeyType,
+    target_count: targetCount,
+    current_progress: 0,
+    status: "active",
+    visibility,
+    metadata: {},
+  })
+  if (error) return { error }
+  await appendProductEvent(supabase, input.profileId, {
+    eventType: "social.projection_published",
+    idempotencyKey: buildIdempotencyKey(["journey-created", input.profileId, data.id]),
+    entityType: "cooking_journey",
+    entityId: data.id,
+    metadata: { status: "active", journeyType: input.journeyType },
+  })
+  return { journey: data }
+}
+
+export async function recordJourneyProgressEvent(
+  supabase: SupabaseLike,
+  input: {
+    profileId: string
+    journeyId: string
+    eventType?: JourneyEventType | string | null
+    progressDelta?: number | null
+    sourceRecipeTryId?: string | null
+    sourceWeekIndex?: number | null
+    idempotencyKey?: string | null
+  },
+) {
+  const { data: journey } = await getCookingJourneyById(supabase, input.journeyId)
+  if (!journey) return { validationError: "Journey not found." }
+  if (journey.profile_id !== input.profileId) return { validationError: "Only owner can update this journey." }
+  if (journey.status !== "active") return { validationError: "Only active journeys can be updated." }
+
+  const eventType = typeof input.eventType === "string" ? input.eventType : "manual_progress"
+  if (!["recipe_try", "streak_day", "meal_plan", "manual_progress"].includes(eventType)) {
+    return { validationError: "Unsupported journey event type." }
+  }
+  if (input.sourceRecipeTryId) {
+    const { data: recipeTry } = await getOwnedRecipeTry(supabase, input.profileId, input.sourceRecipeTryId)
+    if (!recipeTry) return { validationError: "recipeTry source is not owned by profile." }
+  }
+
+  const idempotencyKey = input.idempotencyKey ?? buildIdempotencyKey([
+    "journey-event",
+    input.profileId,
+    input.journeyId,
+    eventType,
+    input.sourceRecipeTryId ?? input.sourceWeekIndex ?? Date.now(),
+  ])
+  const { data: existingEvent } = await findJourneyEventByIdempotency(supabase, input.journeyId, idempotencyKey)
+  if (existingEvent) return { journey, duplicate: true as const }
+
+  const progressDelta = Math.max(1, Math.min(31, Math.floor(Number(input.progressDelta) || 1)))
+  const progress = calculateSprint3JourneyProgress({
+    currentProgress: journey.current_progress,
+    targetCount: journey.target_count,
+    delta: progressDelta,
+  })
+  const { data: event, error: eventError } = await createJourneyEvent(supabase, {
+    journey_id: input.journeyId,
+    profile_id: input.profileId,
+    event_type: eventType,
+    source_recipe_try_id: input.sourceRecipeTryId ?? null,
+    source_week_index: input.sourceWeekIndex ?? null,
+    progress_delta: progressDelta,
+    idempotency_key: idempotencyKey,
+    metadata: {},
+  })
+  if (eventError) return { error: eventError }
+
+  const { data: updated, error: updateError } = await updateCookingJourney(supabase, input.journeyId, {
+    current_progress: progress.currentProgress,
+  })
+  if (updateError) return { error: updateError }
+  return { journey: updated, event, completed: detectSprint3JourneyCompletion(progress) }
+}
+
+export async function completeCookingJourney(
+  supabase: SupabaseLike,
+  input: { profileId: string; journeyId: string; visibility?: SocialVisibility },
+) {
+  const { data: journey } = await getCookingJourneyById(supabase, input.journeyId)
+  if (!journey) return { validationError: "Journey not found." }
+  if (journey.profile_id !== input.profileId) return { validationError: "Only owner can complete this journey." }
+  if (journey.status === "archived") return { validationError: "Archived journeys cannot be completed." }
+  const visibility = validateMealPlanShareVisibility(input.visibility) ? input.visibility : journey.visibility
+  const now = new Date().toISOString()
+  const completedProgress = Math.max(Number(journey.current_progress) || 0, Number(journey.target_count) || 1)
+
+  const projection = await createSocialActivityProjection(supabase, input.profileId, {
+    eventType: "cooking_journey.published",
+    visibility,
+    payload: sanitizeCookingJourneyProjectionPayload({
+      journeyId: journey.id,
+      title: journey.title,
+      journeyType: journey.journey_type,
+      currentProgress: completedProgress,
+      targetCount: journey.target_count,
+    }),
+    occurredAt: now,
+    publishedAt: now,
+  })
+  if ("validationError" in projection || ("error" in projection && projection.error)) return projection
+
+  const { data: updated, error: updateError } = await updateCookingJourney(supabase, input.journeyId, {
+    current_progress: completedProgress,
+    status: "completed",
+    visibility,
+    completed_at: now,
+    projection_id: projection.projection.id,
+  })
+  if (updateError) return { error: updateError }
+
+  await appendProductEvent(supabase, input.profileId, {
+    eventType: "social.projection_published",
+    idempotencyKey: buildIdempotencyKey(["journey-completed", input.profileId, input.journeyId]),
+    entityType: "cooking_journey",
+    entityId: input.journeyId,
+    metadata: { projectionId: projection.projection.id, status: "completed" },
+  })
+  return { journey: updated, projection: projection.projection }
 }

@@ -198,6 +198,7 @@ export function ShoppingReceiptView({
 
     const availableItems: ShoppingListDisplayItem[] = []
     const missingItems: ShoppingListDisplayItem[] = []
+    const originalIndexByItemId = new Map(displayShoppingList.map((item, index) => [item.id, index]))
 
     displayShoppingList.forEach((item) => {
       if (pricingMap.has(item.id)) {
@@ -205,6 +206,13 @@ export function ShoppingReceiptView({
       } else {
         missingItems.push(item)
       }
+    })
+
+    availableItems.sort((a, b) => {
+      const aPrice = (pricingMap.get(a.id) as { totalPrice?: number } | undefined)?.totalPrice ?? 0
+      const bPrice = (pricingMap.get(b.id) as { totalPrice?: number } | undefined)?.totalPrice ?? 0
+      if (aPrice !== bPrice) return bPrice - aPrice
+      return (originalIndexByItemId.get(a.id) ?? 0) - (originalIndexByItemId.get(b.id) ?? 0)
     })
 
     return [...availableItems, ...missingItems]

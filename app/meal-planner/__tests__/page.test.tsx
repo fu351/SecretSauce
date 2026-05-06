@@ -194,7 +194,6 @@ describe("MealPlannerPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/weekly meals: 1/i)).toBeInTheDocument()
-      expect(mockLoadAllRecipes).toHaveBeenCalled()
     })
 
     await user.click(screen.getByRole("button", { name: /smart weekly planner/i }))

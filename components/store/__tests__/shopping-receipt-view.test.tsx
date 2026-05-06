@@ -238,6 +238,98 @@ describe("ShoppingReceiptView", () => {
     expect(onQuantityChange.mock.calls[1][1]).toBeCloseTo(1.3333, 3)
   })
 
+  it("orders priced rows by line total instead of unit price", () => {
+    render(
+      <ShoppingReceiptView
+        shoppingList={[
+          {
+            id: "item-expensive-unit",
+            name: "Vanilla",
+            quantity: 1,
+            unit: "each",
+            checked: false,
+            servings: null,
+            source_type: "manual",
+            recipe_id: null,
+            recipe_ingredient_id: null,
+            ingredient_id: null,
+            category: null,
+            user_id: "user-1",
+            created_at: "",
+            updated_at: "",
+          },
+          {
+            id: "item-high-total",
+            name: "Rice",
+            quantity: 10,
+            unit: "lb",
+            checked: false,
+            servings: null,
+            source_type: "manual",
+            recipe_id: null,
+            recipe_ingredient_id: null,
+            ingredient_id: null,
+            category: null,
+            user_id: "user-1",
+            created_at: "",
+            updated_at: "",
+          },
+        ]}
+        storeComparisons={[
+          {
+            store: "Walmart",
+            groceryStoreId: "store-1",
+            total: 50,
+            savings: 0,
+            missingItems: false,
+            missingCount: 0,
+            missingIngredients: [],
+            items: [
+              {
+                id: "price-expensive-unit",
+                shoppingItemId: "item-expensive-unit",
+                shoppingItemIds: ["item-expensive-unit"],
+                originalName: "Vanilla",
+                title: "Vanilla",
+                brand: "",
+                price: 20,
+                image_url: "",
+                provider: "Walmart",
+                category: "other",
+                quantity: 1,
+                unit: "each",
+              },
+              {
+                id: "price-high-total",
+                shoppingItemId: "item-high-total",
+                shoppingItemIds: ["item-high-total"],
+                originalName: "Rice",
+                title: "Rice",
+                brand: "",
+                price: 3,
+                image_url: "",
+                provider: "Walmart",
+                category: "other",
+                quantity: 10,
+                unit: "lb",
+              },
+            ],
+          },
+        ]}
+        selectedStore="Walmart"
+        onStoreChange={vi.fn()}
+        onQuantityChange={vi.fn()}
+        onRemoveItem={vi.fn()}
+        theme="light"
+      />
+    )
+
+    expect(screen.getAllByTestId("item-name").map((node) => node.textContent)).toEqual([
+      "Rice",
+      "Vanilla",
+    ])
+  })
+
   it("removes only one source item from a merged row", () => {
     const onRemoveItem = vi.fn()
 

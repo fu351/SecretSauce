@@ -511,43 +511,12 @@ export function useStoreComparison(
       }
 
       const buildFinalComparisons = (pricingData: PricingResult[], phase: "initial" | "final"): StoreComparison[] => {
-        let finalComparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
-        const shouldIncludePlaceholderStores = finalComparisons.length > 0 || !options?.skipPricingGaps
-        let placeholderStoresAdded = 0
-
-        if (shouldIncludePlaceholderStores) {
-          // Ensure every preferred store appears, even if no pricing/scrape data
-          const normalizedExisting = new Set(
-            finalComparisons.map((comparison) => normalizeStoreName(comparison.store))
-          )
-
-          storeMetadata.forEach((meta, storeKey) => {
-            if (normalizedExisting.has(storeKey)) return
-            // Only include stores we can place on the map (have zip or coords)
-            if (!meta.zipCode && !meta.latitude && !meta.longitude) return
-
-            finalComparisons.push({
-              store: storeKey,
-              items: [],
-              total: 0,
-              savings: 0,
-              missingItems: true,
-              missingCount: shoppingList.length,
-              missingIngredients: shoppingList,
-              latitude: meta.latitude ?? undefined,
-              longitude: meta.longitude ?? undefined,
-              distanceMiles: meta.distanceMiles ?? undefined,
-              groceryStoreId: meta.grocery_store_id ?? null,
-              locationHint: meta.zipCode ? `${storeKey} (${meta.zipCode})` : undefined,
-            })
-            placeholderStoresAdded += 1
-          })
-        }
+        const finalComparisons = buildComparisonsFromPricing(pricingData, storeMetadata)
+          .filter((store) => store.items.length > 0)
 
         devPricingLog(`comparison set ${phase}`, {
           totalStores: finalComparisons.length,
           storesWithItems: finalComparisons.filter((store) => store.items.length > 0).length,
-          placeholderStoresAdded,
           stores: finalComparisons.map((store) => ({
             store: store.store,
             itemCount: store.items.length,
@@ -715,7 +684,7 @@ export function useStoreComparison(
   }, [])
 
   const sortedResults = useMemo(() => {
-    const sorted = [...results]
+    const sorted = results.filter((store) => store.items.length > 0)
     sorted.sort((a, b) => {
       const aHasItems = a.items.length > 0 ? 0 : 1
       const bHasItems = b.items.length > 0 ? 0 : 1
