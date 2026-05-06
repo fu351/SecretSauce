@@ -6,8 +6,13 @@ import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { RecipeFlagsDB } from "@/lib/database/recipe-flags-db"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
+
+type ModerationStatusFilter = "all" | "open" | "reviewing"
+type ModerationSeverityFilter = "all" | "low" | "medium" | "high"
 
 type RecipeRow = {
   id: string
@@ -18,7 +23,14 @@ type RecipeRow = {
   deleted_at: string | null
 }
 
-async function getDashboardData() {
+type ModerationFilters = {
+  q: string
+  status: ModerationStatusFilter
+  severity: ModerationSeverityFilter
+  flaggedOnly: boolean
+}
+
+async function getDashboardData(filters: ModerationFilters) {
   const supabase = createServiceSupabaseClient()
   const flagsDB = new RecipeFlagsDB(supabase)
 
@@ -32,12 +44,12 @@ async function getDashboardData() {
     supabase.from("recipes").select("*", { count: "exact", head: true }),
     supabase.from("recipes").select("*", { count: "exact", head: true }).is("deleted_at", null),
     supabase.from("recipes").select("*", { count: "exact", head: true }).not("deleted_at", "is", null),
-    flagsDB.fetchOpenFlags(50),
+    flagsDB.fetchOpenFlags(100),
     supabase
       .from("recipes")
       .select("id, title, author_id, created_at, updated_at, deleted_at")
       .order("created_at", { ascending: false })
-      .limit(20),
+      .limit(50),
   ])
 
   if (recentError) {
@@ -49,12 +61,33 @@ async function getDashboardData() {
     return acc
   }, {})
 
+  const q = filters.q.toLowerCase()
+  const matchesSearch = (...values: Array<string | null | undefined>) =>
+    !q || values.some((value) => value?.toLowerCase().includes(q))
+
+  const filteredFlags = openFlags
+    .filter((flag) => filters.status === "all" || flag.status === filters.status)
+    .filter((flag) => filters.severity === "all" || flag.severity === filters.severity)
+    .filter((flag) =>
+      matchesSearch(flag.recipe_title, flag.recipe_id, flag.reason, flag.details, flag.reporter_name, flag.reporter_username)
+    )
+    .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))
+
+  const filteredRecentRecipes = ((recentRecipes || []) as RecipeRow[]).filter((recipe) => {
+    if (filters.flaggedOnly && !flagCounts[recipe.id]) return false
+    return matchesSearch(recipe.title, recipe.id, recipe.author_id)
+  })
+
+  const highOpenFlags = openFlags.filter((flag) => flag.severity === "high").length
+
   return {
     totalRecipes: totalRecipes || 0,
     activeRecipes: activeRecipes || 0,
     deletedRecipes: deletedRecipes || 0,
     openFlags,
-    recentRecipes: (recentRecipes || []) as RecipeRow[],
+    filteredFlags,
+    highOpenFlags,
+    recentRecipes: filteredRecentRecipes,
     flagCounts,
   }
 }
@@ -102,6 +135,20 @@ async function resolveFlagAction(formData: FormData) {
   revalidatePath("/dev/recipes")
 }
 
+async function markReviewingFlagAction(formData: FormData) {
+  "use server"
+  await requireAdmin()
+
+  const flagId = String(formData.get("flag_id") ?? "")
+  if (!flagId) return
+
+  const supabase = createServiceSupabaseClient()
+  const flagsDB = new RecipeFlagsDB(supabase)
+  await flagsDB.markReviewing(flagId)
+
+  revalidatePath("/dev/recipes")
+}
+
 async function dismissFlagAction(formData: FormData) {
   "use server"
   const admin = await getAdminUser()
@@ -117,17 +164,43 @@ async function dismissFlagAction(formData: FormData) {
   revalidatePath("/dev/recipes")
 }
 
-export default async function AdminRecipesPage() {
+async function deleteRecipeAndResolveFlagAction(formData: FormData) {
+  "use server"
+  const admin = await getAdminUser()
+
+  const recipeId = String(formData.get("recipe_id") ?? "")
+  const flagId = String(formData.get("flag_id") ?? "")
+  if (!recipeId || !flagId) return
+
+  const supabase = createServiceSupabaseClient()
+  await supabase.from("recipes").update({ deleted_at: new Date().toISOString() }).eq("id", recipeId)
+
+  const flagsDB = new RecipeFlagsDB(supabase)
+  await flagsDB.resolveFlag(flagId, admin.id, "Recipe removed from circulation via moderation queue", "resolved")
+
+  revalidatePath("/dev/recipes")
+  revalidatePath(`/recipes/${recipeId}`)
+}
+
+export default async function AdminRecipesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   await requireAdmin()
 
+  const resolvedSearchParams = await searchParams
+  const filters = parseModerationFilters(resolvedSearchParams)
   const {
     totalRecipes,
     activeRecipes,
     deletedRecipes,
     openFlags,
+    filteredFlags,
+    highOpenFlags,
     recentRecipes,
     flagCounts,
-  } = await getDashboardData()
+  } = await getDashboardData(filters)
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -150,18 +223,20 @@ export default async function AdminRecipesPage() {
           <StatCard label="Active Recipes" value={activeRecipes} />
           <StatCard label="Deleted Recipes" value={deletedRecipes} />
           <StatCard label="Open Flags" value={openFlags.length} accent="text-red-600" />
+          <StatCard label="High Severity" value={highOpenFlags} accent="text-orange-600" />
         </div>
 
         <section className="mb-8 rounded-lg bg-white p-6 shadow">
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Open Flags</h2>
-              <p className="text-sm text-gray-600">Newest reports appear first.</p>
+              <p className="text-sm text-gray-600">High severity reports are pinned first.</p>
             </div>
+            <ModerationFiltersForm filters={filters} />
           </div>
 
-          {openFlags.length === 0 ? (
-            <p className="text-sm text-gray-500">No open flags.</p>
+          {filteredFlags.length === 0 ? (
+            <p className="text-sm text-gray-500">No flags match the current filters.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -176,18 +251,29 @@ export default async function AdminRecipesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {openFlags.map((flag) => (
+                  {filteredFlags.map((flag) => (
                     <tr key={flag.id} className="align-top hover:bg-gray-50">
-                      <Td>
+                      <Td className="min-w-64 whitespace-normal">
                         <div className="space-y-1">
                           <div className="font-medium text-gray-900">{flag.recipe_title || flag.recipe_id}</div>
                           <div className="text-xs text-gray-500 font-mono">{flag.recipe_id}</div>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <Link href={`/recipes/${flag.recipe_id}`} className="text-xs font-medium text-blue-600 hover:text-blue-700">
+                              View recipe
+                            </Link>
+                            <Link href={`/edit-recipe/${flag.recipe_id}`} className="text-xs font-medium text-blue-600 hover:text-blue-700">
+                              Edit recipe
+                            </Link>
+                          </div>
                         </div>
                       </Td>
-                      <Td>
+                      <Td className="min-w-80 whitespace-normal">
                         <div className="space-y-1">
                           <div className="text-sm font-medium text-gray-900">{flag.reason}</div>
                           {flag.details ? <div className="text-sm text-gray-600">{flag.details}</div> : null}
+                          <div className="text-xs text-gray-500">
+                            Reported {formatDateTime(flag.created_at)}
+                          </div>
                         </div>
                       </Td>
                       <Td>
@@ -201,12 +287,20 @@ export default async function AdminRecipesPage() {
                         </Badge>
                       </Td>
                       <Td>
-                        <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                        <Badge variant="secondary" className={statusClass(flag.status)}>
                           {flag.status}
                         </Badge>
                       </Td>
                       <Td>
                         <div className="flex flex-wrap gap-2">
+                          {flag.status === "open" ? (
+                            <form action={markReviewingFlagAction}>
+                              <input type="hidden" name="flag_id" value={flag.id} />
+                              <Button type="submit" size="sm" variant="secondary">
+                                Review
+                              </Button>
+                            </form>
+                          ) : null}
                           <form action={resolveFlagAction}>
                             <input type="hidden" name="flag_id" value={flag.id} />
                             <input type="hidden" name="resolution" value="Resolved via admin panel" />
@@ -219,6 +313,13 @@ export default async function AdminRecipesPage() {
                             <input type="hidden" name="resolution" value="Dismissed via admin panel" />
                             <Button type="submit" size="sm" variant="ghost">
                               Dismiss
+                            </Button>
+                          </form>
+                          <form action={deleteRecipeAndResolveFlagAction}>
+                            <input type="hidden" name="recipe_id" value={flag.recipe_id} />
+                            <input type="hidden" name="flag_id" value={flag.id} />
+                            <Button type="submit" size="sm" variant="destructive">
+                              Delete + resolve
                             </Button>
                           </form>
                         </div>
@@ -235,7 +336,9 @@ export default async function AdminRecipesPage() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Recent Recipes</h2>
-              <p className="text-sm text-gray-600">Use edit, delete, or restore depending on the current state.</p>
+              <p className="text-sm text-gray-600">
+                Showing {recentRecipes.length} recent recipes{filters.flaggedOnly ? " with open flags" : ""}.
+              </p>
             </div>
           </div>
 
@@ -354,6 +457,114 @@ function Td({
   return <td className={`whitespace-nowrap px-6 py-4 ${className || ""}`}>{children}</td>
 }
 
+function ModerationFiltersForm({ filters }: { filters: ModerationFilters }) {
+  return (
+    <form className="flex flex-wrap items-end gap-2" action="/dev/recipes">
+      <div className="space-y-1">
+        <label className="text-xs font-medium uppercase tracking-wider text-gray-500" htmlFor="q">
+          Search
+        </label>
+        <Input id="q" name="q" defaultValue={filters.q} placeholder="Title, ID, reason" className="h-9 w-56" />
+      </div>
+      <SelectFilter
+        id="status"
+        label="Status"
+        name="status"
+        value={filters.status}
+        options={[
+          ["all", "All active"],
+          ["open", "Open"],
+          ["reviewing", "Reviewing"],
+        ]}
+      />
+      <SelectFilter
+        id="severity"
+        label="Severity"
+        name="severity"
+        value={filters.severity}
+        options={[
+          ["all", "All"],
+          ["high", "High"],
+          ["medium", "Medium"],
+          ["low", "Low"],
+        ]}
+      />
+      <label className="flex h-9 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-700">
+        <input type="checkbox" name="flagged" value="1" defaultChecked={filters.flaggedOnly} />
+        Flagged only
+      </label>
+      <Button type="submit" size="sm">Apply</Button>
+      <Button asChild size="sm" variant="ghost">
+        <Link href="/dev/recipes">Reset</Link>
+      </Button>
+    </form>
+  )
+}
+
+function SelectFilter({
+  id,
+  label,
+  name,
+  value,
+  options,
+}: {
+  id: string
+  label: string
+  name: string
+  value: string
+  options: Array<[string, string]>
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium uppercase tracking-wider text-gray-500" htmlFor={id}>
+        {label}
+      </label>
+      <select
+        id={id}
+        name={name}
+        defaultValue={value}
+        className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm"
+      >
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function parseModerationFilters(
+  searchParams: Record<string, string | string[] | undefined> | undefined
+): ModerationFilters {
+  const status = firstSearchParam(searchParams?.status)
+  const severity = firstSearchParam(searchParams?.severity)
+  return {
+    q: firstSearchParam(searchParams?.q).trim(),
+    status: status === "open" || status === "reviewing" ? status : "all",
+    severity: severity === "low" || severity === "medium" || severity === "high" ? severity : "all",
+    flaggedOnly: firstSearchParam(searchParams?.flagged) === "1",
+  }
+}
+
+function firstSearchParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? ""
+}
+
+function severityRank(severity: string) {
+  switch (severity) {
+    case "high":
+      return 3
+    case "medium":
+      return 2
+    case "low":
+      return 1
+    default:
+      return 0
+  }
+}
+
 function severityClass(severity: string) {
   switch (severity) {
     case "high":
@@ -363,4 +574,15 @@ function severityClass(severity: string) {
     default:
       return "bg-yellow-100 text-yellow-800"
   }
+}
+
+function statusClass(status: string) {
+  return cn(
+    "capitalize",
+    status === "reviewing" ? "bg-blue-100 text-blue-800" : "bg-amber-100 text-amber-800"
+  )
+}
+
+function formatDateTime(value: string | null) {
+  return value ? new Date(value).toLocaleString() : "unknown date"
 }
