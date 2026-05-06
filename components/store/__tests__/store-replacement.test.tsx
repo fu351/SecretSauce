@@ -26,6 +26,7 @@ const mockPreviewStandardization = vi.fn()
 const mockBatchStandardizeAndMatch = vi.fn()
 const mockGetIngredientPriceDetails = vi.fn()
 const mockIncrementCounts = vi.fn()
+const mockSaveUserProductOverride = vi.fn()
 
 vi.mock("@/lib/database/ingredients-db", () => ({
   ingredientsHistoryDB: {
@@ -36,6 +37,7 @@ vi.mock("@/lib/database/ingredients-db", () => ({
   ingredientsRecentDB: {
     getReplacement: (...args: any[]) => mockGetReplacement(...args),
     getIngredientPriceDetails: (...args: any[]) => mockGetIngredientPriceDetails(...args),
+    saveUserProductOverride: (...args: any[]) => mockSaveUserProductOverride(...args),
   },
   normalizeStoreName: (store: string) => store.toLowerCase().replace(/\s+/g, ""),
 }))
@@ -101,6 +103,7 @@ describe("ItemReplacementModal", () => {
         },
       ])
     mockIncrementCounts.mockResolvedValue("pm-fallback")
+    mockSaveUserProductOverride.mockResolvedValue(undefined)
 
     const onSelect = vi.fn()
 

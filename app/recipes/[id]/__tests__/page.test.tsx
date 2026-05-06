@@ -7,6 +7,7 @@ import { mockParams, mockRouter } from "@/test/utils/navigation"
 const mockToast = vi.fn()
 const mockAddRecipeToCart = vi.fn()
 const mockIsFavorite = vi.fn()
+const mockAddFavorite = vi.fn()
 const mockFetchUserCollectionsWithCounts = vi.fn()
 const mockFetchCollectionsForRecipe = vi.fn()
 const mockFetch = vi.fn()
@@ -47,6 +48,11 @@ vi.mock("@/components/recipe/detail/recipe-pricing-info", () => ({
   RecipePricingInfo: ({ recipeId }: { recipeId: string }) => <div>{`Pricing for ${recipeId}`}</div>,
 }))
 
+vi.mock("@/components/recipe/collections/recipe-collection-manager", () => ({
+  RecipeCollectionManager: ({ open }: { open: boolean }) =>
+    open ? <h2>Save to collections</h2> : null,
+}))
+
 vi.mock("@/components/recipe/tags/tag-selector", () => ({
   TagSelector: ({ tags }: { tags: string[] }) => <div>{`Tags: ${tags.join(", ")}`}</div>,
 }))
@@ -64,6 +70,7 @@ vi.mock("@/lib/database/recipe-favorites-db", () => ({
     fetchCollectionsForRecipe: mockFetchCollectionsForRecipe,
   },
   recipeFavoritesDB: {
+    addFavorite: mockAddFavorite,
     isFavorite: mockIsFavorite,
     fetchUserCollectionsWithCounts: mockFetchUserCollectionsWithCounts,
     fetchCollectionsForRecipe: mockFetchCollectionsForRecipe,
@@ -81,6 +88,7 @@ describe("RecipeDetailPage", () => {
     }
     mockAddRecipeToCart.mockResolvedValue(undefined)
     mockIsFavorite.mockResolvedValue(false)
+    mockAddFavorite.mockResolvedValue(undefined)
     mockFetchUserCollectionsWithCounts.mockResolvedValue([])
     mockFetchCollectionsForRecipe.mockResolvedValue([])
     mockRecipeStatus = 200
@@ -225,6 +233,7 @@ describe("RecipeDetailPage", () => {
 
   it("opens the collection picker when the save button is clicked", async () => {
     const user = userEvent.setup()
+    mockIsFavorite.mockResolvedValue(true)
     const mod = await import("../page")
     const Page = mod.default
 

@@ -78,6 +78,43 @@ vi.mock("@/components/shared/address-autocomplete", () => ({
   ),
 }))
 
+vi.mock("@/components/shared/address-autocomplete-with-consent", () => ({
+  AddressAutocompleteWithConsent: ({
+    onChange,
+  }: {
+    onChange: (value: {
+      formattedAddress: string
+      addressLine1: string
+      addressLine2: string
+      city: string
+      state: string
+      postalCode: string
+      country: string
+      lat: number
+      lng: number
+    }) => void
+  }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onChange({
+          formattedAddress: "1 Ferry Building, San Francisco, CA 94105",
+          addressLine1: "1 Ferry Building",
+          addressLine2: "",
+          city: "San Francisco",
+          state: "CA",
+          postalCode: "94105",
+          country: "USA",
+          lat: 37.7955,
+          lng: -122.3937,
+        })
+      }
+    >
+      Use San Francisco address
+    </button>
+  ),
+}))
+
 async function completeRequiredOnboardingFlow(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /^next$/i }))
 

@@ -13,7 +13,7 @@ vi.mock("next/image", () => ({
   default: ({ alt }: { alt: string }) => <img alt={alt} />,
 }))
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/ui/use-toast", () => ({
   useToast: () => ({ toast: mockToast }),
 }))
 

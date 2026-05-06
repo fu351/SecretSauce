@@ -50,7 +50,7 @@ describe("POST /api/recipe-import/url", () => {
     })
   })
 
-  it("returns 500 when the Python service URL is not configured", async () => {
+  it("returns 503 when the Python service URL is not configured", async () => {
     delete process.env.PYTHON_SERVICE_URL
     const { POST } = await import("../route")
 
@@ -62,7 +62,7 @@ describe("POST /api/recipe-import/url", () => {
       }) as any
     )
 
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(503)
     expect(await response.json()).toEqual({
       success: false,
       error: "Python service URL not configured",
@@ -88,11 +88,15 @@ describe("POST /api/recipe-import/url", () => {
       }) as any
     )
 
-    expect(fetchMock).toHaveBeenCalledWith("https://python.example.com/recipe-import/url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "https://example.com/recipe" }),
-    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://python.example.com/recipe-import/url",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: "https://example.com/recipe" }),
+        signal: expect.any(AbortSignal),
+      })
+    )
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ success: true, title: "Imported Soup" })
   })
@@ -117,10 +121,10 @@ describe("POST /api/recipe-import/url", () => {
       }) as any
     )
 
-    expect(response.status).toBe(503)
+    expect(response.status).toBe(502)
     expect(await response.json()).toEqual({
       success: false,
-      error: "Backend error: backend unavailable",
+      error: "backend unavailable",
     })
   })
 })

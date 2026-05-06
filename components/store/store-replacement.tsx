@@ -10,6 +10,11 @@ import { ingredientsHistoryDB, ingredientsRecentDB, normalizeStoreName } from "@
 import { ProductImage } from "@/components/store/product-image"
 import { productMappingsDB } from "@/lib/database/product-mappings-db"
 import type { GroceryItem } from "@/lib/types/store"
+import {
+  INSTACART_PRICE_FOOTNOTE,
+  isInstacartBackedStore,
+  shouldShowInstacartPriceDisclaimer,
+} from "@/lib/store/price-source-disclaimers"
 
 interface ItemReplacementModalProps {
   isOpen: boolean
@@ -35,6 +40,10 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
   const [results, setResults] = useState<GroceryItem[]>([])
   const prevOpenRef = useRef(false)
   const searchGenerationRef = useRef(0)
+  const disclaimerStore = target?.storeBrand || target?.store
+  const showInstacartPriceDisclaimer =
+    isInstacartBackedStore(disclaimerStore) ||
+    shouldShowInstacartPriceDisclaimer({ store: disclaimerStore, items: results })
 
   const buildResultKey = (
     store: string,
@@ -281,7 +290,7 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-      // If closing, log modal impressions — only for scraper-sourced items (no productMappingId)
+      // If closing, log modal impressions - only for scraper-sourced items (no productMappingId)
       if (prevOpenRef.current && !open && results.length > 0) {
         const tasks = results
           .filter(item => !item.productMappingId)
@@ -334,7 +343,10 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                       <ProductImage src={item.image_url} alt={item.title} imgClassName="w-8 h-8 object-contain" fallbackClassName="w-8 h-8 text-gray-400" />
                       <div>
                         <div className={`font-medium ${styles.textClass}`}>{item.title}</div>
-                        <div className={`text-xs ${styles.mutedTextClass}`}>{item.provider} - ${item.price.toFixed(2)}</div>
+                        <div className={`text-xs ${styles.mutedTextClass}`}>
+                          {item.provider} - ${item.price.toFixed(2)}
+                          {showInstacartPriceDisclaimer && <sup className="ml-0.5">*</sup>}
+                        </div>
                       </div>
                     </div>
                     <Button
@@ -351,14 +363,14 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                         }
 
                         if (item.productMappingId) {
-                        // DB-sourced item — mapping ID already known; persist override and select
+                        // DB-sourced item - mapping ID already known; persist override and select
                           persistOverride(item.productMappingId)
                           onSelect(item)
                         } else {
                         // Persist the user-selected scraper result as a cached candidate.
                           await persistManualSelection(item)
 
-                          // Scraper-sourced fallback — look up/create mapping, then persist override
+                          // Scraper-sourced fallback - look up/create mapping, then persist override
                           productMappingsDB.incrementCounts({
                             external_product_id: item.id,
                             store: target?.storeBrand ?? target?.store ?? null,
@@ -379,6 +391,11 @@ export function ItemReplacementModal({ isOpen, onClose, target, zipCode, onSelec
                     </Button>
                   </div>
                 ))}
+                {showInstacartPriceDisclaimer && (
+                  <p className={`px-2 pt-3 text-[11px] leading-snug ${styles.mutedTextClass}`}>
+                    * {INSTACART_PRICE_FOOTNOTE}
+                  </p>
+                )}
               </>
             )}
           </div>

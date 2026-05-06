@@ -43,6 +43,17 @@ vi.mock("@/lib/database/store-list-db", () => ({
   },
 }))
 
+vi.mock("@/hooks/use-feature-preferences", () => ({
+  useFeaturePreferences: () => ({
+    error: null,
+    loading: false,
+    preferences: {},
+    updatePreferences: vi.fn(),
+    updatePreferencesAsync: vi.fn(),
+    updating: false,
+  }),
+}))
+
 vi.mock("@/components/recipe/cards/recipe-card", () => ({
   RecipeCard: ({ title }: { title: string }) => <div>{title}</div>,
 }))

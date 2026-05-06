@@ -126,10 +126,10 @@ describe('requestOpenAIJson', () => {
     ).rejects.toThrow('Missing prompt')
   })
 
-  it('throws OPENAI_API_KEY_NOT_CONFIGURED when key is the placeholder', async () => {
+  it('throws LLM_API_KEY_NOT_CONFIGURED when key is the placeholder', async () => {
     await expect(
       requestOpenAIJson({ prompt: 'list products', openAiApiKey: DEFAULT_OPENAI_API_KEY_PLACEHOLDER })
-    ).rejects.toThrow('OPENAI_API_KEY_NOT_CONFIGURED')
+    ).rejects.toThrow('LLM_API_KEY_NOT_CONFIGURED')
   })
 
   it('returns parsed JSON from the response', async () => {

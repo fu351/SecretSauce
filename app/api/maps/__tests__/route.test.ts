@@ -2,6 +2,21 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 const originalEnv = { ...process.env }
 const originalFetch = globalThis.fetch
+const consentCookie = `ss_cookie_consent=${encodeURIComponent(JSON.stringify({
+  version: 1,
+  analytics: false,
+  thirdParty: true,
+  updatedAt: "2026-01-01T00:00:00.000Z",
+}))}`
+
+vi.mock("@/lib/privacy/cookie-consent", () => ({
+  parseCookieConsentFromCookieHeader: () => ({
+    version: 1,
+    analytics: false,
+    thirdParty: true,
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  }),
+}))
 
 const loadPostHandler = async () => {
   vi.resetModules()
@@ -25,7 +40,7 @@ describe("POST /api/maps", () => {
     const res = await POST(
       new Request("http://localhost/api/maps", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: consentCookie },
         body: JSON.stringify({ action: "geocode", params: { address: "1 Main St" } }),
       }) as any
     )
@@ -41,7 +56,7 @@ describe("POST /api/maps", () => {
     const res = await POST(
       new Request("http://localhost/api/maps", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: consentCookie },
         body: "{bad-json",
       }) as any
     )
@@ -64,7 +79,7 @@ describe("POST /api/maps", () => {
     const res = await POST(
       new Request("http://localhost/api/maps", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: consentCookie },
         body: JSON.stringify({
           action: "geocode",
           params: { address: "1600 Amphitheatre Parkway" },
@@ -95,7 +110,7 @@ describe("POST /api/maps", () => {
     const res = await POST(
       new Request("http://localhost/api/maps", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: consentCookie },
         body: JSON.stringify({
           action: "routes",
           params: {

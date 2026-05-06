@@ -6,6 +6,53 @@ import { server } from './mocks/server'
 // Extend Vitest matchers with jest-dom
 expect.extend(matchers)
 
+vi.mock('posthog-js', () => ({
+  default: {
+    capture: vi.fn(),
+    identify: vi.fn(),
+    init: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+    reset: vi.fn(),
+  },
+}))
+
+vi.mock('posthog-js/react', () => ({
+  PostHogProvider: ({ children }: { children: React.ReactNode }) => children,
+  useFeatureFlagEnabled: () => true,
+  useFeatureFlagPayload: () => null,
+  usePostHog: () => ({
+    capture: vi.fn(),
+    identify: vi.fn(),
+    init: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+    reset: vi.fn(),
+  }),
+}))
+
+vi.mock('@/contexts/cookie-consent-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contexts/cookie-consent-context')>()
+  const preferences = { necessary: true, analytics: false, thirdParty: true }
+
+  return {
+    ...actual,
+    CookieConsentProvider: ({ children }: { children: React.ReactNode }) => children,
+    useCookieConsent: () => ({
+      acceptAll: vi.fn(),
+      analyticsAllowed: false,
+      closePreferences: vi.fn(),
+      hasStoredConsent: false,
+      openPreferences: vi.fn(),
+      preferences,
+      preferencesOpen: false,
+      rejectOptional: vi.fn(),
+      thirdPartyAllowed: true,
+      updatePreferences: vi.fn(),
+    }),
+  }
+})
+
 // MSW server setup
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }))
 afterEach(() => server.resetHandlers())

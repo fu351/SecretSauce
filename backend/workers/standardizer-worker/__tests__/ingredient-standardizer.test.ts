@@ -8,6 +8,10 @@ const databaseMock = vi.hoisted(() => ({
   getCanonicalNameSample: vi.fn(),
 }))
 
+const llmMock = vi.hoisted(() => ({
+  requestLlmChatCompletion: vi.fn(),
+}))
+
 vi.mock("axios", () => ({
   default: {
     post: axiosMock.post,
@@ -19,6 +23,17 @@ vi.mock("../../../../lib/database/standardized-ingredients-db", () => ({
     getCanonicalNameSample: databaseMock.getCanonicalNameSample,
   },
 }))
+
+vi.mock("../../../llm/index", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../llm/index")>()
+
+  return {
+    ...actual,
+    requestLlmChatCompletion: llmMock.requestLlmChatCompletion,
+    requiresApiKey: () => true,
+    resolveLlmTaskConfig: () => ({ apiKey: process.env.OPENAI_API_KEY ?? "" }),
+  }
+})
 
 describe("ingredient standardizer fallback", () => {
   afterEach(() => {
@@ -59,25 +74,17 @@ describe("ingredient standardizer non-food override", () => {
     vi.clearAllMocks()
     process.env.OPENAI_API_KEY = "test-key"
     databaseMock.getCanonicalNameSample.mockResolvedValue(["butter"])
-    axiosMock.post.mockResolvedValue({
-      data: {
-        choices: [
+    llmMock.requestLlmChatCompletion.mockResolvedValue({
+      content: JSON.stringify([
           {
-            message: {
-              content: JSON.stringify([
-                {
-                  id: "item-1",
-                  originalName: "Lip Butter Balm Duo",
-                  canonicalName: "butter",
-                  isFoodItem: true,
-                  category: "dairy",
-                  confidence: 0.91,
-                },
-              ]),
-            },
+            id: "item-1",
+            originalName: "Lip Butter Balm Duo",
+            canonicalName: "butter",
+            isFoodItem: true,
+            category: "dairy",
+            confidence: 0.91,
           },
-        ],
-      },
+        ]),
     })
   })
 
@@ -114,25 +121,17 @@ describe("ingredient standardizer non-food override", () => {
   it("forces apparel titles to non-food even when the model misclassifies them", async () => {
     const { standardizeIngredientsWithAI } = await import("../ingredient-standardizer")
 
-    axiosMock.post.mockResolvedValueOnce({
-      data: {
-        choices: [
+    llmMock.requestLlmChatCompletion.mockResolvedValueOnce({
+      content: JSON.stringify([
           {
-            message: {
-              content: JSON.stringify([
-                {
-                  id: "item-2",
-                  originalName: "Anna-Kaci Women's Embroidered Sausage Dog Baseball Cap",
-                  canonicalName: "sausage dog baseball cap",
-                  isFoodItem: true,
-                  category: "snacks",
-                  confidence: 0.92,
-                },
-              ]),
-            },
+            id: "item-2",
+            originalName: "Anna-Kaci Women's Embroidered Sausage Dog Baseball Cap",
+            canonicalName: "sausage dog baseball cap",
+            isFoodItem: true,
+            category: "snacks",
+            confidence: 0.92,
           },
-        ],
-      },
+        ]),
     })
 
     const results = await standardizeIngredientsWithAI(

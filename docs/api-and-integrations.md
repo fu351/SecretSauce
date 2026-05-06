@@ -137,6 +137,24 @@ Last verified: 2026-04-30.
 - `POST/DELETE /api/social/cook-checks/[id]/reactions`
   - Adds/removes lightweight reactions when viewer can access the cook check.
 
+### Social Sprint 2 (Recipe Try Feedback + Peer Success Score)
+
+- `POST /api/social/recipe-tries/[id]/feedback`
+  - Submits one structured feedback record per owned recipe_try. Body: `{ outcome, tags?, shareApproved?, idempotencyKey? }`.
+  - `outcome` is one of `succeeded`, `needed_tweaks`, `skipped_feedback`. `tags` must come from the locked list in `lib/social/recipe-feedback.ts`; arbitrary strings are rejected. Duplicate submissions for the same recipe_try return the existing row (idempotent).
+- `POST /api/social/recipe-tries/[id]/feedback/skip`
+  - Shorthand for `outcome: skipped_feedback`. Skipped feedback never counts toward the peer score numerator or denominator.
+- `GET /api/recipes/[id]/peer-score`
+  - Returns the sanitized Peer Success Score for a recipe: `submittedCount`, `successPercentage` (hidden below 3 submissions), reliability tier (`early` / `building` / `tested`), and the top 1–3 most common tweak tags.
+- `POST /api/recipes/peer-scores`
+  - Batch version for recipe cards. Body `{ recipeIds: string[] }`, capped at 50 ids per call.
+
+**Relationship to existing reviews/ratings/likes (unchanged).** Legacy `recipe_reviews` (star rating + free-text), `recipe_favorites`, and `recipe_likes` continue to run exactly as before. Peer Success Score is intentionally separate — rendered as a distinct "Cook success" surface — because it answers a different question ("does this actually work when people cook it?") and is computed only from post-cook feedback rather than generic ratings.
+
+**Privacy boundary.** Individual `recipe_try_feedback` rows are private to their author via RLS; the aggregate peer score is computed server-side and sanitized through `assertSafeSocialProjectionPayload` before returning to any client. AI confidence, private verification metadata, budget data, and pantry internals never appear in peer score responses.
+
+**Deferred to Social Sprint 3.** Meal plan sharing, cooking journeys, algorithmic ranking changes, badge engine, and AI-moderated feedback are explicitly out of Sprint 2 scope.
+
 ## Frontend Callers
 
 - `contexts/auth-context.tsx`, `app/auth/signin/page.tsx`, `app/auth/signup/page.tsx`, and `app/auth/check-email/page.tsx` call `/api/auth/ensure-profile`.

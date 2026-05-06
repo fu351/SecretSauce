@@ -59,7 +59,7 @@ describe("RecipeActionBar", () => {
       />
     )
 
-    await user.click(screen.getByTitle("Like"))
+    await user.click(screen.getAllByTitle("Like")[0])
 
     expect(onLikeToggle).toHaveBeenNthCalledWith(1, true, 4)
     await waitFor(() => {
@@ -94,7 +94,7 @@ describe("RecipeActionBar", () => {
       />
     )
 
-    await user.click(screen.getByTitle("Repost to your followers"))
+    await user.click(screen.getAllByTitle("Repost to your followers")[0])
 
     expect(onRepostToggle).toHaveBeenNthCalledWith(1, true, 3)
     await waitFor(() => {
@@ -129,7 +129,7 @@ describe("RecipeActionBar", () => {
 
     expect(screen.getByText("Alice, Ben, and 1 other liked this")).toBeInTheDocument()
 
-    await user.click(screen.getByTitle("Copy link"))
+    await user.click(screen.getAllByTitle("Copy link")[0])
 
     await waitFor(() => {
       expect(screen.getByText("Copied!")).toBeInTheDocument()
@@ -158,7 +158,7 @@ describe("RecipeActionBar", () => {
       />
     )
 
-    await user.click(screen.getByRole("button", { name: /add to basket/i }))
+    await user.click(screen.getAllByTestId("recipe-basket-button-recipe_4")[0])
     expect(onAddToBasket).toHaveBeenCalledTimes(1)
   })
 
@@ -184,7 +184,7 @@ describe("RecipeActionBar", () => {
       />
     )
 
-    await user.click(screen.getByRole("button", { name: /add to planner/i }))
+    await user.click(screen.getAllByTestId("recipe-planner-button-recipe_5")[0])
     expect(onAddToPlanner).toHaveBeenCalledTimes(1)
   })
 })
