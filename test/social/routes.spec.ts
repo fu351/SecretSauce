@@ -12,6 +12,11 @@ const mocks = vi.hoisted(() => ({
   skipCookCheckDraft: vi.fn(),
   getKitchenSyncFeed: vi.fn(),
   addCookCheckReaction: vi.fn(),
+  shareMealPlanWeek: vi.fn(),
+  remixMealPlanShare: vi.fn(),
+  createCookingJourneyForProfile: vi.fn(),
+  recordJourneyProgressEvent: vi.fn(),
+  completeCookingJourney: vi.fn(),
 }))
 
 vi.mock("@/lib/foundation/server", () => ({
@@ -29,12 +34,24 @@ vi.mock("@/lib/social/service", () => ({
   skipCookCheckDraft: mocks.skipCookCheckDraft,
   getKitchenSyncFeed: mocks.getKitchenSyncFeed,
   addCookCheckReaction: mocks.addCookCheckReaction,
+  shareMealPlanWeek: mocks.shareMealPlanWeek,
+  remixMealPlanShare: mocks.remixMealPlanShare,
+  createCookingJourneyForProfile: mocks.createCookingJourneyForProfile,
+  recordJourneyProgressEvent: mocks.recordJourneyProgressEvent,
+  completeCookingJourney: mocks.completeCookingJourney,
+  listVisibleMealPlanShares: vi.fn(),
+  listOwnCookingJourneys: vi.fn(),
   removeCookCheckReaction: vi.fn(),
 }))
 
 import { PATCH as patchPrefs } from "@/app/api/social/preferences/route"
 import { POST as createDraft } from "@/app/api/social/cook-checks/drafts/route"
 import { POST as publishDraft } from "@/app/api/social/cook-checks/[id]/publish/route"
+import { POST as shareWeek } from "@/app/api/social/meal-plans/[id]/share/route"
+import { POST as remixShare } from "@/app/api/social/meal-plans/shares/[id]/remix/route"
+import { POST as createJourney } from "@/app/api/social/journeys/route"
+import { PATCH as updateJourney } from "@/app/api/social/journeys/[id]/route"
+import { POST as completeJourney } from "@/app/api/social/journeys/[id]/complete/route"
 
 describe("social routes", () => {
   beforeEach(() => {
@@ -84,5 +101,101 @@ describe("social routes", () => {
       { params: Promise.resolve({ id: "cook_1" }) } as any,
     )
     expect(response.status).toBe(409)
+  })
+
+  it("shares a week using the authenticated profile, not client profile id", async () => {
+    mocks.getAuthenticatedProfile.mockResolvedValue({ ok: true, profileId: "profile_server", supabase: {} })
+    mocks.assertSocialEnabled.mockResolvedValue(true)
+    mocks.shareMealPlanWeek.mockResolvedValue({ share: { id: "share_1" }, duplicate: false })
+
+    const response = await shareWeek(
+      new Request("http://localhost/api/social/meal-plans/202619/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: "profile_client", title: "Finals Week", visibility: "followers" }),
+      }),
+      { params: Promise.resolve({ id: "202619" }) } as any,
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.shareMealPlanWeek).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ profileId: "profile_server", weekIndex: 202619 }),
+    )
+  })
+
+  it("maps private share remix rejection to conflict", async () => {
+    mocks.getAuthenticatedProfile.mockResolvedValue({ ok: true, profileId: "profile_server", supabase: {} })
+    mocks.assertSocialEnabled.mockResolvedValue(true)
+    mocks.remixMealPlanShare.mockResolvedValue({ validationError: "Cannot remix this meal plan." })
+
+    const response = await remixShare(
+      new Request("http://localhost/api/social/meal-plans/shares/share_1/remix", {
+        method: "POST",
+        body: "{}",
+      }),
+      { params: Promise.resolve({ id: "share_1" }) } as any,
+    )
+
+    expect(response.status).toBe(409)
+  })
+
+  it("creates journeys with server profile ownership", async () => {
+    mocks.getAuthenticatedProfile.mockResolvedValue({ ok: true, profileId: "profile_server", supabase: {} })
+    mocks.assertSocialEnabled.mockResolvedValue(true)
+    mocks.createCookingJourneyForProfile.mockResolvedValue({ journey: { id: "journey_1" } })
+
+    const response = await createJourney(
+      new Request("http://localhost/api/social/journeys", {
+        method: "POST",
+        body: JSON.stringify({ profileId: "profile_client", title: "21-Day Cooking Rhythm", journeyType: "cooking_rhythm", targetCount: 21 }),
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.createCookingJourneyForProfile).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ profileId: "profile_server", targetCount: 21 }),
+    )
+  })
+
+  it("updates journey progress idempotently through the service", async () => {
+    mocks.getAuthenticatedProfile.mockResolvedValue({ ok: true, profileId: "profile_server", supabase: {} })
+    mocks.assertSocialEnabled.mockResolvedValue(true)
+    mocks.recordJourneyProgressEvent.mockResolvedValue({ journey: { id: "journey_1", current_progress: 2 } })
+
+    const response = await updateJourney(
+      new Request("http://localhost/api/social/journeys/journey_1", {
+        method: "PATCH",
+        body: JSON.stringify({ profileId: "profile_client", progressDelta: 1, idempotencyKey: "event-1" }),
+      }),
+      { params: Promise.resolve({ id: "journey_1" }) } as any,
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.recordJourneyProgressEvent).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ profileId: "profile_server", journeyId: "journey_1", idempotencyKey: "event-1" }),
+    )
+  })
+
+  it("completes journeys through a safe projection service call", async () => {
+    mocks.getAuthenticatedProfile.mockResolvedValue({ ok: true, profileId: "profile_server", supabase: {} })
+    mocks.assertSocialEnabled.mockResolvedValue(true)
+    mocks.completeCookingJourney.mockResolvedValue({ journey: { id: "journey_1", status: "completed" } })
+
+    const response = await completeJourney(
+      new Request("http://localhost/api/social/journeys/journey_1/complete", {
+        method: "POST",
+        body: JSON.stringify({ visibility: "followers" }),
+      }),
+      { params: Promise.resolve({ id: "journey_1" }) } as any,
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.completeCookingJourney).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ profileId: "profile_server", journeyId: "journey_1", visibility: "followers" }),
+    )
   })
 })

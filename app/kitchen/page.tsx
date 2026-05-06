@@ -6,6 +6,8 @@ import {
   useCookCheckDrafts,
   useKitchenSyncFeed,
   usePublishCookCheck,
+  useCookingJourneys,
+  useRemixMealPlanShare,
   useSkipCookCheck,
   useSocialPreferences,
   useToggleCookCheckReaction,
@@ -13,6 +15,7 @@ import {
 import { KitchenPreferencesCard } from "@/components/social/kitchen-preferences-card"
 import { CookCheckDraftCard } from "@/components/social/cook-check-draft-card"
 import { KitchenSyncFeed } from "@/components/social/kitchen-sync-feed"
+import { CookingJourneysPanel } from "@/components/social/cooking-journeys-panel"
 
 export default function KitchenPage() {
   const socialFlag = useFoundationFeatureFlag("social_layer")
@@ -23,6 +26,8 @@ export default function KitchenPage() {
   const publish = usePublishCookCheck()
   const skip = useSkipCookCheck()
   const reactions = useToggleCookCheckReaction()
+  const remixes = useRemixMealPlanShare()
+  const journeys = useCookingJourneys(socialFlag.isEnabled && prefs.preferences.socialEnabled)
 
   if (!socialFlag.isEnabled || !prefs.preferences.socialEnabled) {
     return (
@@ -53,10 +58,21 @@ export default function KitchenPage() {
           onSkip={(item) => skip.mutate(item.id)}
         />
       ))}
+      <CookingJourneysPanel
+        journeys={journeys.data?.journeys ?? []}
+        creating={journeys.create.isPending}
+        updating={journeys.progress.isPending}
+        completing={journeys.complete.isPending}
+        onCreate={(input) => journeys.create.mutate(input)}
+        onProgress={(journeyId) => journeys.progress.mutate({ journeyId, progressDelta: 1, eventType: "manual_progress" })}
+        onComplete={(input) => journeys.complete.mutate(input)}
+      />
       <KitchenSyncFeed
         feed={feed.data?.feed ?? []}
         reacting={reactions.isPending}
+        remixing={remixes.isPending}
         onToggleReaction={(input) => reactions.mutate(input)}
+        onRemixMealPlan={(shareId) => remixes.mutate({ shareId })}
       />
     </div>
   )

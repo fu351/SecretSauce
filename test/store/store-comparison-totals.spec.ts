@@ -106,4 +106,46 @@ describe("store comparison totals", () => {
 
     expect(comparisons[0].total).toBeCloseTo(8.37)
   })
+
+  it("removes stores with no priced items before returning selector-ready totals", () => {
+    const quantityMap = buildQuantityMap([
+      { id: "item-1", quantity: 1 },
+    ])
+
+    const comparisons = calculateStoreComparisonTotals(
+      [
+        {
+          store: "empty-store",
+          items: [],
+          total: 0,
+          savings: 0,
+          missingItems: true,
+          missingCount: 1,
+        },
+        {
+          store: "walmart",
+          items: [
+            {
+              id: "walmart-item-1",
+              title: "Apples",
+              brand: "",
+              price: 4,
+              provider: "walmart",
+              image_url: null,
+              quantity: 1,
+              shoppingItemId: "item-1",
+              originalName: "Apples",
+              shoppingItemIds: ["item-1"],
+            },
+          ],
+          total: 4,
+          savings: 0,
+        },
+      ],
+      quantityMap
+    )
+
+    expect(comparisons).toHaveLength(1)
+    expect(comparisons[0].store).toBe("walmart")
+  })
 })

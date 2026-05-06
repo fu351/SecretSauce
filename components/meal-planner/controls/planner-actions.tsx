@@ -9,6 +9,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Share2,
   Trash2,
 } from "lucide-react"
 import { useIsMobile } from "@/hooks"
@@ -21,7 +22,9 @@ interface PlannerActionsProps {
   onPreviousWeek: () => void
   onNextWeek: () => void
   onClearWeek: () => void
+  onShareWeek?: () => void
   heuristicLoading: boolean
+  shareLoading?: boolean
   smartPlannerLocked: boolean
   smartPlannerLoading: boolean
 }
@@ -34,7 +37,9 @@ export function PlannerActions({
   onPreviousWeek,
   onNextWeek,
   onClearWeek,
+  onShareWeek,
   heuristicLoading,
+  shareLoading = false,
   smartPlannerLocked,
   smartPlannerLoading,
 }: PlannerActionsProps) {
@@ -105,6 +110,24 @@ export function PlannerActions({
         <ShoppingCart className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2 shrink-0" />
         <span className="hidden md:inline">Add to Shopping List</span>
       </Button>
+      {onShareWeek ? (
+        <Button
+          variant="outline"
+          size={isMobile ? "icon" : "default"}
+          className="shrink-0 h-8 w-8 md:h-10 md:w-auto md:px-4"
+          onClick={onShareWeek}
+          disabled={heuristicLoading || shareLoading}
+          aria-label="Share Week"
+          title="Share this meal plan"
+        >
+          {shareLoading ? (
+            <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2 shrink-0 animate-spin" />
+          ) : (
+            <Share2 className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2 shrink-0" />
+          )}
+          <span className="hidden md:inline">Share Week</span>
+        </Button>
+      ) : null}
       <Button
         variant="outline"
         size={isMobile ? "icon" : "default"}

@@ -89,6 +89,7 @@ function MealPlannerPageContent() {
   const [heuristicPlanLoading, setHeuristicPlanLoading] = useState(false)
   const [plannerRecipeToOpen, setPlannerRecipeToOpen] = useState<Recipe | null>(null)
   const [plannerRecipeSearchTerm, setPlannerRecipeSearchTerm] = useState("")
+  const [shareWeekLoading, setShareWeekLoading] = useState(false)
 
   // Custom hooks
   const {
@@ -180,6 +181,41 @@ function MealPlannerPageContent() {
       toast({ title: "Error", variant: "destructive" })
     }
   }, [user, meals, shoppingList, toast, router])
+
+  const handleShareWeek = useCallback(() => {
+    if (!user?.id) {
+      toast({ title: "Sign in required", description: "Please sign in to share a meal plan.", variant: "destructive" })
+      return
+    }
+    if (meals.length === 0) {
+      toast({ title: "Nothing to share", description: "Add meals to this week before sharing.", variant: "destructive" })
+      return
+    }
+    setShareWeekLoading(true)
+    fetch(`/api/social/meal-plans/${encodeURIComponent(String(weekIndex))}/share`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: `This Week Meal Plan · ${meals.length} meal${meals.length === 1 ? "" : "s"}`,
+        visibility: "followers",
+        accomplishmentLabels: ["remixable", "weekly plan"],
+      }),
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload?.error ?? "Could not share this meal plan.")
+        toast({ title: "Meal plan shared", description: "Friends can now see and remix this plan in Kitchen Sync." })
+      })
+      .catch((error) => {
+        toast({
+          title: "Share failed",
+          description: error instanceof Error ? error.message : "Could not share this meal plan.",
+          variant: "destructive",
+        })
+      })
+      .finally(() => setShareWeekLoading(false))
+  }, [meals.length, toast, user?.id, weekIndex])
 
   const plannerRecipeId = searchParams.get("recipeId")
 
@@ -485,11 +521,13 @@ function MealPlannerPageContent() {
                     onHeuristicPlan={handleGenerateHeuristicPlan}
                     onUpgradeForSmartPlanner={handleUpgradeForSmartPlanner}
                     onAddToCart={handleAddToShoppingList}
+                    onShareWeek={handleShareWeek}
                     onGoToToday={handleGoToToday}
                     onPreviousWeek={handlePreviousWeek}
                     onNextWeek={handleNextWeek}
                     onClearWeek={handleClearWeek}
                     heuristicLoading={heuristicPlanLoading}
+                    shareLoading={shareWeekLoading}
                     smartPlannerLocked={!hasSmartPlannerAccess}
                     smartPlannerLoading={smartPlannerAccessLoading}
                   />

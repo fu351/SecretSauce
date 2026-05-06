@@ -153,7 +153,24 @@ Last verified: 2026-04-30.
 
 **Privacy boundary.** Individual `recipe_try_feedback` rows are private to their author via RLS; the aggregate peer score is computed server-side and sanitized through `assertSafeSocialProjectionPayload` before returning to any client. AI confidence, private verification metadata, budget data, and pantry internals never appear in peer score responses.
 
-**Deferred to Social Sprint 3.** Meal plan sharing, cooking journeys, algorithmic ranking changes, badge engine, and AI-moderated feedback are explicitly out of Sprint 2 scope.
+### Social Sprint 3 (Meal Plan Sharing + Cooking Journeys)
+
+- `GET /api/social/meal-plans/shares`
+  - Lists published meal plan shares the viewer can access through owner/private/follower/public visibility.
+- `POST /api/social/meal-plans/[id]/share`
+  - Shares the authenticated user's weekly `meal_schedule` identified by week index. Client profile ids are ignored. The server sanitizes recipe titles/tags/slots into `meal_plan_shares` and emits `meal_plan_share.published`.
+- `POST /api/social/meal-plans/shares/[id]/remix`
+  - Copies a visible published share into the authenticated user's target/current week. Occupied target slots are skipped instead of overwritten.
+- `POST /api/social/meal-plans/shares/[id]/archive`
+  - Owner-only unshare/archive transition and projection expiry.
+- `GET/POST /api/social/journeys`
+  - Lists own active/completed cooking journeys or creates a new private-by-default journey.
+- `PATCH /api/social/journeys/[id]`
+  - Owner-only idempotent progress event append. Supports clean event types (`recipe_try`, `streak_day`, `meal_plan`, `manual_progress`).
+- `POST /api/social/journeys/[id]/complete`
+  - Owner-only completion action. Creates a safe `cooking_journey.published` projection.
+
+**Privacy boundary.** Meal plan shares are sanitized snapshots, not raw planner/budget/pantry exports. Projection payloads must not include raw budget, spend logs, receipts, pantry inventory, AI confidence, or private verification metadata. Estimated totals are allowed only as display labels already visible to the user.
 
 ## Frontend Callers
 
@@ -182,7 +199,7 @@ Last verified: 2026-04-30.
 - Budget writes are profile-scoped and authenticated server-side; client-supplied profile/user identifiers are ignored.
 - Budget state is private and does not flow into `social_activity_projections`.
 - Streak writes are profile-scoped and private; streak day crediting uses verification/confirmation + recipe_tries foundations and avoids social projections by default.
-- Kitchen Sync never exposes raw budget/pantry/receipt/AI-confidence/private media internals. Approved social payloads must stay sanitized and explicitly shared.
+- Kitchen Sync never exposes raw budget/spend/pantry/receipt/AI-confidence/private verification internals. Approved social payloads must stay sanitized and explicitly shared.
 
 ### Stripe
 
