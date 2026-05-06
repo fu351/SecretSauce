@@ -30,8 +30,13 @@ function jsonPatch(body: unknown): Request {
 }
 
 describe("dev API availability toggles", () => {
+  let infoSpy: ReturnType<typeof vi.spyOn>
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    infoSpy = vi.spyOn(console, "info").mockImplementation(() => {})
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
     resetApiAvailability()
     mocks.requireAdmin.mockResolvedValue(undefined)
     mocks.runFrontendScraperApiProcessor.mockResolvedValue({
@@ -42,6 +47,8 @@ describe("dev API availability toggles", () => {
 
   afterEach(() => {
     resetApiAvailability()
+    infoSpy.mockRestore()
+    warnSpy.mockRestore()
   })
 
   it("lists configured API availability targets for admins", async () => {
@@ -63,6 +70,10 @@ describe("dev API availability toggles", () => {
   it("updates and resets API availability", async () => {
     const disabled = await PATCH(jsonPatch({ key: "grocery-search", enabled: false }))
     expect(disabled.status).toBe(200)
+    expect(infoSpy).toHaveBeenCalledWith("[ApiAvailability]", "set", {
+      api: "grocery-search",
+      enabled: false,
+    })
     await expect(disabled.json()).resolves.toEqual(
       expect.objectContaining({
         apis: expect.arrayContaining([
@@ -73,6 +84,9 @@ describe("dev API availability toggles", () => {
 
     const reset = await DELETE()
     expect(reset.status).toBe(200)
+    expect(infoSpy).toHaveBeenCalledWith("[ApiAvailability]", "reset", {
+      restoredApis: ["grocery-search"],
+    })
     await expect(reset.json()).resolves.toEqual(
       expect.objectContaining({
         apis: expect.arrayContaining([
@@ -101,6 +115,16 @@ describe("dev API availability toggles", () => {
       code: "API_DISABLED",
       api: "grocery-search",
     })
+    expect(warnSpy).toHaveBeenCalledWith("[ApiAvailability]", "blocked", {
+      api: "grocery-search",
+    })
     expect(mocks.runFrontendScraperApiProcessor).not.toHaveBeenCalled()
+  })
+
+  it("does not log no-op availability writes", async () => {
+    const response = await PATCH(jsonPatch({ key: "grocery-search", enabled: true }))
+
+    expect(response.status).toBe(200)
+    expect(infoSpy).not.toHaveBeenCalled()
   })
 })

@@ -60,6 +60,8 @@ export const API_AVAILABILITY_TARGETS: ApiAvailabilityTarget[] = [
 
 type ApiAvailabilityStore = Partial<Record<ApiAvailabilityKey, boolean>>
 
+const LOG_PREFIX = "[ApiAvailability]"
+
 declare global {
   // eslint-disable-next-line no-var
   var __secretSauceApiAvailability: ApiAvailabilityStore | undefined
@@ -78,6 +80,14 @@ function store(): ApiAvailabilityStore {
   return globalThis.__secretSauceApiAvailability
 }
 
+function logAvailabilityChange(action: "set" | "reset", details: Record<string, unknown>) {
+  console.info(LOG_PREFIX, action, details)
+}
+
+function logBlockedRequest(key: ApiAvailabilityKey) {
+  console.warn(LOG_PREFIX, "blocked", { api: key })
+}
+
 export function isApiAvailabilityKey(value: unknown): value is ApiAvailabilityKey {
   return typeof value === "string" && targetByKey.has(value as ApiAvailabilityKey)
 }
@@ -92,16 +102,26 @@ export function getApiAvailabilitySnapshot(): ApiAvailabilityStatus[] {
 
 export function setApiAvailability(key: ApiAvailabilityKey, enabled: boolean): ApiAvailabilityStatus {
   const current = store()
+  const previous = current[key] !== false
   current[key] = enabled
   const target = targetByKey.get(key)
   if (!target) {
     throw new Error(`Unknown API availability key: ${key}`)
   }
+  if (previous !== enabled) {
+    logAvailabilityChange("set", { api: key, enabled })
+  }
   return { ...target, enabled }
 }
 
 export function resetApiAvailability(): ApiAvailabilityStatus[] {
+  const disabledApis = API_AVAILABILITY_TARGETS.filter((target) => store()[target.key] === false).map(
+    (target) => target.key
+  )
   globalThis.__secretSauceApiAvailability = {}
+  if (disabledApis.length > 0) {
+    logAvailabilityChange("reset", { restoredApis: disabledApis })
+  }
   return getApiAvailabilitySnapshot()
 }
 
@@ -112,6 +132,7 @@ export function isApiAvailable(key: ApiAvailabilityKey): boolean {
 
 export function apiUnavailableResponse(key: ApiAvailabilityKey) {
   const target = targetByKey.get(key)
+  logBlockedRequest(key)
   return NextResponse.json(
     {
       error: `${target?.label ?? "API"} is temporarily disabled by dev tools.`,
