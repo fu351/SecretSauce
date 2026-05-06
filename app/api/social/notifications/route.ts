@@ -2,12 +2,14 @@ import { NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createServiceSupabaseClient } from "@/lib/database/supabase-server"
 import { isAbortLikeError } from "@/lib/server/abort-error"
+import type { Notification } from "@/components/social/notifications-widget"
 
 export const runtime = "nodejs"
 
-const WINDOW = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
 export async function GET() {
+  const WINDOW = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
   try {
     const authState = await auth()
     if (!authState.userId) {
@@ -51,23 +53,23 @@ export async function GET() {
       // Recent likes on viewer's posts
       supabase
         .from("post_likes")
-        .select("created_at, profiles!post_likes_profile_id_fkey(id, full_name, avatar_url, username), posts!post_likes_post_id_fkey(id, title, deleted_at)")
+        .select("created_at, profiles!post_likes_profile_id_fkey(id, full_name, avatar_url, username), posts!post_likes_post_id_fkey!inner(id, title, deleted_at, author_id)")
         .eq("posts.author_id", viewerId)
         .gte("created_at", WINDOW)
         .order("created_at", { ascending: false })
-        .limit(10),
+        .limit(20),
 
       // Recent reposts of viewer's posts
       supabase
         .from("post_reposts")
-        .select("created_at, profiles!post_reposts_profile_id_fkey(id, full_name, avatar_url, username), posts!post_reposts_post_id_fkey(id, title, deleted_at)")
+        .select("created_at, profiles!post_reposts_profile_id_fkey(id, full_name, avatar_url, username), posts!post_reposts_post_id_fkey!inner(id, title, deleted_at, author_id)")
         .eq("posts.author_id", viewerId)
         .gte("created_at", WINDOW)
         .order("created_at", { ascending: false })
-        .limit(10),
+        .limit(20),
     ])
 
-    const notifications: any[] = []
+    const notifications: Notification[] = []
 
     // Pending follow requests — shown first, always
     for (const r of (pendingReqs.data ?? [])) {
@@ -104,7 +106,7 @@ export async function GET() {
     const rest       = notifications.filter((n) => n.type !== "follow_request")
     rest.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-    return NextResponse.json({ notifications: [...pending, ...rest].slice(0, 20) })
+    return NextResponse.json({ notifications: [...pending, ...rest].slice(0, 40) })
   } catch (error) {
     if (isAbortLikeError(error)) {
       return new NextResponse(null, { status: 204 })

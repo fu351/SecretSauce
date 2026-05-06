@@ -20,7 +20,6 @@ import { supabase } from "@/lib/database/supabase"
 import { getCurrentWeekIndex, getDatesForWeek } from "@/lib/date-utils"
 import Image from "next/image"
 import {
-  Bell,
   CheckCircle2,
   ChefHat,
   ChevronRight,
@@ -51,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useFoundationFeatureFlag } from "@/hooks/use-feature-flag"
 import { useFeaturePreferences } from "@/hooks/use-feature-preferences"
+import { NotificationsPopover } from "@/components/social/notifications-popover"
 
 type HomePageRecipe = Recipe
 const HOME_FETCH_TTL_MS = 24 * 60 * 60 * 1000
@@ -743,10 +743,7 @@ export default function HomeReturningPage() {
                   >
                     <Search className="h-5 w-5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="hover:bg-muted/60">
-                    <Bell className="h-5 w-5" />
-                    <span className="sr-only">Notifications</span>
-                  </Button>
+                  <NotificationsPopover />
                 </div>
               </>
             ) : (
@@ -840,12 +837,7 @@ export default function HomeReturningPage() {
               </div>
             </div>
 
-            {isLoggedIn && (
-              <Button variant="ghost" size="icon" className="flex-shrink-0 hover:bg-muted/60">
-                <Bell className="h-5 w-5" />
-                <span className="sr-only">Notifications</span>
-              </Button>
-            )}
+            {isLoggedIn && <NotificationsPopover />}
           </div>
 
           {searchOpen && (

@@ -7,14 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Bell, Check, Heart, Repeat2, UserPlus, X } from "lucide-react"
 
-type ProfileSnippet = {
+export type ProfileSnippet = {
   id: string
   full_name: string | null
   avatar_url: string | null
   username: string | null
 }
 
-type Notification =
+export type Notification =
   | { type: "follow_request"; requestId: string; from: ProfileSnippet; created_at: string }
   | { type: "new_follower";   from: ProfileSnippet; created_at: string }
   | { type: "post_like";      from: ProfileSnippet; post: { id: string; title: string }; created_at: string }
@@ -23,6 +23,7 @@ type Notification =
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "just now"
   if (mins < 60) return `${mins}m`
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h`
@@ -31,7 +32,7 @@ function timeAgo(dateStr: string): string {
 
 function ProfileAvatar({ profile }: { profile: ProfileSnippet }) {
   const initials = profile.full_name
-    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    ? profile.full_name.split(" ").filter(Boolean).map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "?"
   return profile.avatar_url ? (
     <Image
@@ -59,14 +60,28 @@ function NotificationIcon({ type }: { type: Notification["type"] }) {
 export function NotificationsWidget() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading]             = useState(true)
+  const [error, setError]                 = useState(false)
   const [responding, setResponding]       = useState<string | null>(null)
 
   useEffect(() => {
-    fetch("/api/social/notifications")
-      .then((r) => r.json())
-      .then((json) => { if (!json.error) setNotifications(json.notifications ?? []) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    let cancelled = false
+
+    const load = () => {
+      fetch("/api/social/notifications")
+        .then((r) => r.json())
+        .then((json) => {
+          if (cancelled) return
+          if (json.error) { setError(true); return }
+          setNotifications(json.notifications ?? [])
+          setError(false)
+        })
+        .catch(() => { if (!cancelled) setError(true) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }
+
+    load()
+    const interval = setInterval(load, 60_000)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [])
 
   const respond = async (requestId: string, action: "accept" | "reject") => {
@@ -124,12 +139,18 @@ export function NotificationsWidget() {
               </div>
             ))}
           </div>
+        ) : error ? (
+          <p className="text-sm text-muted-foreground">Couldn&apos;t load notifications. Try refreshing.</p>
         ) : notifications.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing new — check back soon.</p>
         ) : (
           <ul className="space-y-3">
-            {notifications.map((n, i) => (
-              <li key={i} className="flex items-start gap-3">
+            {notifications.map((n) => {
+              const key = n.type === "follow_request"
+                ? `follow_request-${n.requestId}`
+                : `${n.type}-${n.from.id}-${n.created_at}`
+              return (
+              <li key={key} className="flex items-start gap-3">
                 <Link href={profileHref(n.from)} className="flex-shrink-0 relative">
                   <ProfileAvatar profile={n.from} />
                   <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-background p-px">
@@ -155,7 +176,9 @@ export function NotificationsWidget() {
                       </>
                     )}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{timeAgo(n.created_at)} ago</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {(t => t === "just now" ? t : `${t} ago`)(timeAgo(n.created_at))}
+                  </p>
 
                   {n.type === "follow_request" && (
                     <div className="flex gap-2 mt-2">
@@ -180,7 +203,8 @@ export function NotificationsWidget() {
                   )}
                 </div>
               </li>
-            ))}
+            )
+            })}
           </ul>
         )}
       </CardContent>
