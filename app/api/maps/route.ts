@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { auth } from "@clerk/nextjs/server"
 import { parseCookieConsentFromCookieHeader } from "@/lib/privacy/cookie-consent"
 
 const API_KEY =
@@ -10,6 +11,14 @@ type MapsAction = "geocode" | "place-nearby" | "place-text" | "routes"
 
 type LatLng = { lat: number; lng: number }
 
+const MAX_TEXT_LENGTH = 200
+const MAX_PLACE_RADIUS_METERS = 50000
+const MAX_ROUTE_DISTANCE_DEGREES = 8
+const ALLOWED_TRAVEL_MODES = new Set(["DRIVE", "BICYCLE", "WALK", "TWO_WHEELER", "TRANSIT"])
+const MAPS_RATE_LIMIT_WINDOW_MS = 60_000
+const MAPS_RATE_LIMIT_MAX_REQUESTS = 60
+const mapsRateLimits = new Map<string, { count: number; resetAt: number }>()
+
 const buildUrl = (base: string, params: Record<string, string | number | undefined>) => {
   const url = new URL(base)
   Object.entries(params).forEach(([key, value]) => {
@@ -20,9 +29,61 @@ const buildUrl = (base: string, params: Record<string, string | number | undefin
   return url
 }
 
+function checkRateLimit(key: string): boolean {
+  const now = Date.now()
+  const entry = mapsRateLimits.get(key)
+  if (!entry || entry.resetAt <= now) {
+    mapsRateLimits.set(key, { count: 1, resetAt: now + MAPS_RATE_LIMIT_WINDOW_MS })
+    return true
+  }
+  if (entry.count >= MAPS_RATE_LIMIT_MAX_REQUESTS) return false
+  entry.count += 1
+  return true
+}
+
+function isValidLatLng(value: unknown): value is LatLng {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as { lat?: unknown; lng?: unknown }
+  return (
+    typeof candidate.lat === "number" &&
+    typeof candidate.lng === "number" &&
+    Number.isFinite(candidate.lat) &&
+    Number.isFinite(candidate.lng) &&
+    candidate.lat >= -90 &&
+    candidate.lat <= 90 &&
+    candidate.lng >= -180 &&
+    candidate.lng <= 180
+  )
+}
+
+function sanitizeText(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > MAX_TEXT_LENGTH) return null
+  return trimmed
+}
+
+function clampRadius(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null
+  return Math.min(Math.round(value), MAX_PLACE_RADIUS_METERS)
+}
+
+function routeDistanceDegrees(a: LatLng, b: LatLng): number {
+  return Math.abs(a.lat - b.lat) + Math.abs(a.lng - b.lng)
+}
+
 export async function POST(request: NextRequest) {
   if (!API_KEY) {
     return NextResponse.json({ error: "Google Maps API key is not configured." }, { status: 500 })
+  }
+
+  const authState = await auth()
+  if (!authState.userId) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+
+  if (!checkRateLimit(authState.userId)) {
+    return NextResponse.json({ error: "Too many map requests. Please try again later." }, { status: 429 })
   }
 
   const thirdPartyAllowed = parseCookieConsentFromCookieHeader(request.headers.get("cookie"))?.thirdParty ?? false
@@ -48,8 +109,8 @@ export async function POST(request: NextRequest) {
   try {
     switch (action) {
       case "geocode": {
-        const address = params.address as string | undefined
-        const latlng = params.latlng as string | undefined
+        const address = sanitizeText(params.address)
+        const latlng = sanitizeText(params.latlng)
         if (!address && !latlng) {
           return NextResponse.json({ error: "Missing address or latlng parameter." }, { status: 400 })
         }
@@ -63,11 +124,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(data, { status: response.status })
       }
       case "place-nearby": {
-        const location = params.location as LatLng | undefined
-        const radius = params.radius as number | undefined
-        const keyword = params.keyword as string | undefined
-        const type = params.type as string | undefined
-        if (!location || typeof radius !== "number" || !keyword) {
+        const location = params.location
+        const radius = clampRadius(params.radius)
+        const keyword = sanitizeText(params.keyword)
+        const type = sanitizeText(params.type)
+        if (!isValidLatLng(location) || radius === null || !keyword) {
           return NextResponse.json({ error: "Missing location, radius, or keyword." }, { status: 400 })
         }
         const url = buildUrl("https://maps.googleapis.com/maps/api/place/nearbysearch/json", {
@@ -82,11 +143,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(data, { status: response.status })
       }
       case "place-text": {
-        const query = params.query as string | undefined
-        const location = params.location as LatLng | undefined
-        const radius = params.radius as number | undefined
+        const query = sanitizeText(params.query)
+        const location = params.location
+        const radius = params.radius === undefined ? undefined : clampRadius(params.radius)
         if (!query) {
           return NextResponse.json({ error: "Missing query parameter." }, { status: 400 })
+        }
+        if (location !== undefined && !isValidLatLng(location)) {
+          return NextResponse.json({ error: "Invalid location parameter." }, { status: 400 })
+        }
+        if (params.radius !== undefined && radius === null) {
+          return NextResponse.json({ error: "Invalid radius parameter." }, { status: 400 })
         }
         const url = buildUrl("https://maps.googleapis.com/maps/api/place/textsearch/json", {
           query,
@@ -99,11 +166,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(data, { status: response.status })
       }
       case "routes": {
-        const origin = params.origin as LatLng | undefined
-        const destination = params.destination as LatLng | undefined
-        const travelMode = params.travelMode || "DRIVE"
-        if (!origin || !destination) {
+        const origin = params.origin
+        const destination = params.destination
+        const travelMode = typeof params.travelMode === "string" ? params.travelMode.toUpperCase() : "DRIVE"
+        if (!isValidLatLng(origin) || !isValidLatLng(destination)) {
           return NextResponse.json({ error: "Missing origin or destination." }, { status: 400 })
+        }
+        if (!ALLOWED_TRAVEL_MODES.has(travelMode)) {
+          return NextResponse.json({ error: "Unsupported travel mode." }, { status: 400 })
+        }
+        if (routeDistanceDegrees(origin, destination) > MAX_ROUTE_DISTANCE_DEGREES) {
+          return NextResponse.json({ error: "Route is outside the supported distance." }, { status: 400 })
         }
         const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
           method: "POST",

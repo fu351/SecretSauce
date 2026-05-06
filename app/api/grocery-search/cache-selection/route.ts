@@ -1,5 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
+import { getAuthenticatedProfile } from "@/lib/foundation/server"
+
+const ALLOWED_STORE_KEYS = new Set([
+  "99ranch",
+  "aldi",
+  "andronicos",
+  "kroger",
+  "meijer",
+  "safeway",
+  "target",
+  "traderjoes",
+  "walmart",
+  "wholefoods",
+])
+
+function normalizeStoreKey(store: string): string {
+  return store.trim().toLowerCase().replace(/[\s_-]+/g, "")
+}
 
 /**
  * Cache User's Manual Product Selection
@@ -9,6 +27,11 @@ import { ingredientsHistoryDB } from "@/lib/database/ingredients-db"
  */
 export async function POST(request: NextRequest) {
   try {
+    const profile = await getAuthenticatedProfile()
+    if (!profile.ok) {
+      return NextResponse.json({ error: profile.error }, { status: profile.status })
+    }
+
     const body = await request.json()
     const { searchTerm, standardizedIngredientId, store, zipCode, groceryStoreId, product } = body as {
       searchTerm?: string
@@ -28,17 +51,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!store || !product || (!searchTerm && !standardizedIngredientId)) {
+    const normalizedStore = typeof store === "string" ? normalizeStoreKey(store) : ""
+    if (!normalizedStore || !product || (!searchTerm && !standardizedIngredientId)) {
       return NextResponse.json(
         { error: "store, product, and either searchTerm or standardizedIngredientId are required" },
         { status: 400 }
       )
+    }
+    if (!ALLOWED_STORE_KEYS.has(normalizedStore)) {
+      return NextResponse.json({ error: "Unsupported store" }, { status: 400 })
     }
     if (!product.id || !product.title || typeof product.price !== "number" || product.price <= 0) {
       return NextResponse.json(
         { error: "product.id, product.title, and positive product.price are required" },
         { status: 400 }
       )
+    }
+    if (product.price > 1000 || product.title.length > 300 || product.id.length > 200) {
+      return NextResponse.json({ error: "Invalid product payload" }, { status: 400 })
     }
 
     const resolvedStandardizedIngredientId =
@@ -53,10 +83,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const { data: standardizedIngredient } = await profile.supabase
+      .from("standardized_ingredients")
+      .select("id")
+      .eq("id", resolvedStandardizedIngredientId)
+      .maybeSingle()
+
+    if (!standardizedIngredient) {
+      return NextResponse.json({ error: "Invalid standardized ingredient" }, { status: 400 })
+    }
+
     console.log("[Cache Selection] Resolved standardized ID", {
       searchTerm,
       standardizedIngredientId: resolvedStandardizedIngredientId,
-      store,
+      store: normalizedStore,
       productTitle: product.title,
     })
 
@@ -65,7 +105,7 @@ export async function POST(request: NextRequest) {
     const inserted = await ingredientsHistoryDB.batchStandardizeAndMatch([
       {
         standardizedIngredientId: resolvedStandardizedIngredientId,
-        store: store.toLowerCase(),
+        store: normalizedStore,
         price: product.price,
         productName: product.title,
         productId: product.id,
@@ -83,7 +123,7 @@ export async function POST(request: NextRequest) {
       // Return 500 so the caller knows the selection wasn't persisted.
       console.error("[Cache Selection] batchStandardizeAndMatch returned 0 — selection not cached", {
         searchTerm,
-        store,
+        store: normalizedStore,
         productTitle: product.title,
         standardizedIngredientId: resolvedStandardizedIngredientId,
       })
@@ -95,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     console.log("[Cache Selection] Successfully cached user selection", {
       searchTerm,
-      store,
+      store: normalizedStore,
       productTitle: product.title,
       standardizedIngredientId: resolvedStandardizedIngredientId,
       inserted,
@@ -110,7 +150,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[Cache Selection] Error:", error)
     return NextResponse.json(
-      { error: "Internal server error", details: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

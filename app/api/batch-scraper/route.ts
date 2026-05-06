@@ -23,6 +23,11 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get("authorization")
     const expectedSecret = process.env.CRON_SECRET
 
+    if (!expectedSecret) {
+      console.error("[Batch Scraper] CRON_SECRET is not configured")
+      return NextResponse.json({ error: "Batch scraper is not configured" }, { status: 503 })
+    }
+
     if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
       return NextResponse.json({ error: "Unauthorized - Invalid CRON_SECRET" }, { status: 401 })
     }

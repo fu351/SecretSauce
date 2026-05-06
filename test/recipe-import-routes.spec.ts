@@ -2,10 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   runPythonRecipeImportPipeline: vi.fn(),
+  auth: vi.fn(),
+  hasAccessToTier: vi.fn(),
 }))
 
 vi.mock("@/backend/orchestrators/python-api-pipeline/pipeline", () => ({
   runPythonRecipeImportPipeline: mocks.runPythonRecipeImportPipeline,
+}))
+
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: mocks.auth,
+}))
+
+vi.mock("@/lib/auth/subscription", () => ({
+  hasAccessToTier: mocks.hasAccessToTier,
 }))
 
 import { POST as imagePost } from "@/app/api/recipe-import/image/route"
@@ -27,6 +37,8 @@ describe("recipe import routes", () => {
       status: 200,
       body: { success: true },
     })
+    mocks.auth.mockResolvedValue({ userId: "user_1" })
+    mocks.hasAccessToTier.mockResolvedValue(true)
   })
 
   it("rejects invalid URL imports before calling the python orchestrator", async () => {
@@ -57,6 +69,41 @@ describe("recipe import routes", () => {
       success: false,
       error: "OCR text is too short or empty",
     })
+    expect(mocks.runPythonRecipeImportPipeline).not.toHaveBeenCalled()
+  })
+
+  it("rejects unauthenticated image OCR imports", async () => {
+    mocks.auth.mockResolvedValue({ userId: null })
+
+    const response = await imagePost(
+      jsonPost("/api/recipe-import/image", {
+        text: "1 cup rice\n2 cups water\nCook until tender and serve warm.",
+      })
+    )
+
+    expect(response.status).toBe(401)
+    expect(mocks.runPythonRecipeImportPipeline).not.toHaveBeenCalled()
+  })
+
+  it("rejects non-premium image OCR imports", async () => {
+    mocks.hasAccessToTier.mockResolvedValue(false)
+
+    const response = await imagePost(
+      jsonPost("/api/recipe-import/image", {
+        text: "1 cup rice\n2 cups water\nCook until tender and serve warm.",
+      })
+    )
+
+    expect(response.status).toBe(403)
+    expect(mocks.runPythonRecipeImportPipeline).not.toHaveBeenCalled()
+  })
+
+  it("rejects oversized OCR text before calling the python orchestrator", async () => {
+    const response = await imagePost(
+      jsonPost("/api/recipe-import/image", { text: "a".repeat(10001) })
+    )
+
+    expect(response.status).toBe(400)
     expect(mocks.runPythonRecipeImportPipeline).not.toHaveBeenCalled()
   })
 

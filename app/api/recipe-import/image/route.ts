@@ -1,14 +1,41 @@
 import { NextRequest, NextResponse } from "next/server"
+import { auth } from "@clerk/nextjs/server"
+import { hasAccessToTier } from "@/lib/auth/subscription"
 import type { RecipeImportResponse } from "@/lib/types"
 import { runPythonRecipeImportPipeline } from "@/backend/orchestrators/python-api-pipeline/pipeline"
 
+const MAX_OCR_TEXT_LENGTH = 10000
+
 export async function POST(request: NextRequest) {
   try {
+    const authState = await auth()
+    if (!authState.userId) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required" } as RecipeImportResponse,
+        { status: 401 }
+      )
+    }
+
+    const hasPremium = await hasAccessToTier("premium")
+    if (!hasPremium) {
+      return NextResponse.json(
+        { success: false, error: "Premium subscription required" } as RecipeImportResponse,
+        { status: 403 }
+      )
+    }
+
     const { text } = await request.json()
 
-    if (!text || text.trim().length < 20) {
+    if (typeof text !== "string" || text.trim().length < 20) {
       return NextResponse.json(
         { success: false, error: "OCR text is too short or empty" } as RecipeImportResponse,
+        { status: 400 }
+      )
+    }
+
+    if (text.length > MAX_OCR_TEXT_LENGTH) {
+      return NextResponse.json(
+        { success: false, error: `OCR text too long (max ${MAX_OCR_TEXT_LENGTH} characters)` } as RecipeImportResponse,
         { status: 400 }
       )
     }
@@ -24,7 +51,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to parse recipe from image"
+        error: "Failed to parse recipe from image"
       } as RecipeImportResponse,
       { status: 500 }
     )

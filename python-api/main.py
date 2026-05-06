@@ -898,17 +898,10 @@ async def import_recipe_from_url(request: URLImportRequest):
     logger.info(f"Importing recipe from URL: {url}")
 
     try:
-        # Fetch the HTML content
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-            response = await client.get(url, headers=headers)
-            response.raise_for_status()
-            html = response.text
+        html, final_url = await _fetch_public_recipe_html(url)
 
         # Parse with recipe-scrapers — wild_mode allows best-effort on unsupported sites
-        scraper = scrape_html(html, org_url=url, wild_mode=True)
+        scraper = scrape_html(html, org_url=final_url, wild_mode=True)
 
         def safe_scrape(fn):
             try:
@@ -983,12 +976,15 @@ async def import_recipe_from_url(request: URLImportRequest):
             total_time=parse_time_string(safe_scrape(scraper.total_time)),
             servings=parse_servings(safe_scrape(scraper.yields)),
             nutrition=nutrition,
-            source_url=url,
+            source_url=final_url,
             source_type="url"
         )
 
         logger.info(f"Successfully parsed recipe: {recipe.title}")
         return RecipeImportResponse(success=True, recipe=recipe)
+
+    except HTTPException as e:
+        return RecipeImportResponse(success=False, error=str(e.detail))
 
     except httpx.HTTPError as e:
         error_msg = f"Failed to fetch URL: {str(e)}"

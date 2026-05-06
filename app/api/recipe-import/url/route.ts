@@ -2,28 +2,67 @@ import { NextRequest, NextResponse } from "next/server"
 import type { RecipeImportResponse } from "@/lib/types"
 import { runPythonRecipeImportPipeline } from "@/backend/orchestrators/python-api-pipeline/pipeline"
 
+export const runtime = "nodejs"
+
+function isBlockedHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase().replace(/\.$/, "")
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized === "0.0.0.0" ||
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized.startsWith("127.") ||
+    normalized.startsWith("10.") ||
+    normalized.startsWith("192.168.") ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized) ||
+    /^169\.254\./.test(normalized) ||
+    /^fc[0-9a-f]{2}:/i.test(normalized) ||
+    /^fd[0-9a-f]{2}:/i.test(normalized) ||
+    /^fe80:/i.test(normalized)
+  )
+}
+
+function normalizeRecipeUrl(input: unknown): { url: string } | { error: string } {
+  if (typeof input !== "string" || !input.trim()) {
+    return { error: "URL is required" }
+  }
+
+  if (input.length > 2048) {
+    return { error: "URL is too long" }
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(input.trim())
+  } catch {
+    return { error: "Invalid URL format" }
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { error: "URL must use http or https" }
+  }
+
+  if (parsed.username || parsed.password || isBlockedHostname(parsed.hostname)) {
+    return { error: "URL host is not allowed" }
+  }
+
+  return { url: parsed.toString() }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { url } = await request.json()
 
-    if (!url) {
+    const parsedUrl = normalizeRecipeUrl(url)
+    if ("error" in parsedUrl) {
       return NextResponse.json(
-        { success: false, error: "URL is required" } as RecipeImportResponse,
+        { success: false, error: parsedUrl.error } as RecipeImportResponse,
         { status: 400 }
       )
     }
 
-    // Validate URL format
-    try {
-      new URL(url)
-    } catch {
-      return NextResponse.json(
-        { success: false, error: "Invalid URL format" } as RecipeImportResponse,
-        { status: 400 }
-      )
-    }
-
-    const result = await runPythonRecipeImportPipeline("url", { url })
+    const result = await runPythonRecipeImportPipeline("url", { url: parsedUrl.url })
     return NextResponse.json(result.body, { status: result.status })
 
   } catch (error) {
@@ -31,7 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to import recipe from URL"
+        error: "Failed to import recipe from URL"
       } as RecipeImportResponse,
       { status: 500 }
     )

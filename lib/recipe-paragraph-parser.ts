@@ -1,5 +1,5 @@
 import { buildParagraphParserPrompt } from "./prompts/paragraph-parser/build-prompt"
-import { extractJsonFromLlmText, requestLlmChatCompletion } from "@/backend/llm/index"
+import { extractJsonFromLlmText, getLlmErrorSummary, requestLlmChatCompletion } from "@/backend/llm/index"
 import type { Instruction } from "./types/recipe/instruction"
 import type { RecipeIngredient } from "./types/recipe/ingredient"
 
@@ -191,7 +191,7 @@ export async function parseRecipeParagraphWithAI(text: string): Promise<Paragrap
       const extracted = extractJsonFromLlmText(content, "object")
       if (!extracted) {
         console.error("[ParagraphParser] Could not extract JSON from LLM response")
-        console.error("[ParagraphParser] Raw response:", content.substring(0, 300))
+        console.error(`[ParagraphParser] Raw response length: ${content.length}`)
         return fallbackResult()
       }
       parsed = JSON.parse(extracted)
@@ -199,7 +199,8 @@ export async function parseRecipeParagraphWithAI(text: string): Promise<Paragrap
 
     return coerceResult(parsed)
   } catch (error) {
-    console.error("[ParagraphParser] LLM failed:", error)
+    const summary = getLlmErrorSummary(error)
+    console.error(`[ParagraphParser] LLM failed (${summary.type}): ${summary.message}`)
     return fallbackResult()
   }
 }

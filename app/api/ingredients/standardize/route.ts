@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { standardizeIngredientsDeterministically } from "@/backend/workers/standardizer-worker"
 import { standardizedIngredientsDB } from "@/lib/database/standardized-ingredients-db"
-import { pantryItemsDB } from "@/lib/database/pantry-items-db"
+import { getAuthenticatedProfile } from "@/lib/foundation/server"
 
 interface RequestIngredient {
   id?: string | number
@@ -21,16 +21,19 @@ interface NormalizedIngredientInput {
 
 export async function POST(request: NextRequest) {
   try {
+    const profile = await getAuthenticatedProfile()
+    if (!profile.ok) {
+      return NextResponse.json({ error: profile.error }, { status: profile.status })
+    }
+
     const body = await request.json()
     const {
       context,
       pantryItemId,
-      userId,
       ingredients,
     }: {
       context?: string
       pantryItemId?: string
-      userId?: string
       ingredients: RequestIngredient[]
     } = body
 
@@ -52,8 +55,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No ingredients supplied" }, { status: 400 })
     }
 
-    if (!pantryItemId || !userId) {
-      return NextResponse.json({ error: "pantryItemId and userId are required" }, { status: 400 })
+    if (!pantryItemId) {
+      return NextResponse.json({ error: "pantryItemId is required" }, { status: 400 })
     }
 
     const normalizedInputs = ingredients.reduce<NormalizedIngredientInput[]>((acc, ingredient, index) => {
@@ -120,10 +123,26 @@ export async function POST(request: NextRequest) {
 
     if (pantryItemId && updates[0]) {
       const primary = updates[0]
-      await pantryItemsDB.update(pantryItemId, {
-        standardized_ingredient_id: primary.standardizedIngredientId,
-        standardized_name: primary.canonicalName,
-      })
+      const { data: updatedPantryItem, error: updateError } = await profile.supabase
+        .from("pantry_items")
+        .update({
+          standardized_ingredient_id: primary.standardizedIngredientId,
+          standardized_name: primary.canonicalName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", pantryItemId)
+        .eq("user_id", profile.profileId)
+        .select("id")
+        .maybeSingle()
+
+      if (updateError) {
+        console.error("[IngredientStandardizeAPI] Failed to update pantry item:", updateError)
+        return NextResponse.json({ error: "Failed to update pantry item" }, { status: 500 })
+      }
+
+      if (!updatedPantryItem) {
+        return NextResponse.json({ error: "Pantry item not found" }, { status: 404 })
+      }
     }
 
     return NextResponse.json({
