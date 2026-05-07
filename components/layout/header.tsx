@@ -23,8 +23,6 @@ import {
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/ui/use-toast"
-import { useFeaturePreferences } from "@/hooks/use-feature-preferences"
-import { useFoundationFeatureFlag } from "@/hooks/use-feature-flag"
 import Image from "next/image"
 import { useState, useEffect, useRef } from "react"
 
@@ -35,13 +33,6 @@ export function Header() {
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
-  const budgetFlag = useFoundationFeatureFlag("budget_tracking")
-  const streaksFlag = useFoundationFeatureFlag("gamification_streaks")
-  const socialFlag = useFoundationFeatureFlag("social_layer")
-  const featurePreferences = useFeaturePreferences(Boolean(user))
-  const savingsEnabled = Boolean(user) && budgetFlag.isEnabled && featurePreferences.preferences.budgetTrackingEnabled
-  const streaksEnabled = Boolean(user) && streaksFlag.isEnabled && featurePreferences.preferences.streaksEnabled
-  const kitchenEnabled = Boolean(user) && socialFlag.isEnabled && featurePreferences.preferences.socialEnabled
   const [mounted, setMounted] = useState(false)
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
   const [mobileLogoMenuOpen, setMobileLogoMenuOpen] = useState(false)
@@ -234,36 +225,6 @@ export function Header() {
           >
           Shopping
           </Link>
-          {savingsEnabled ? (
-            <Link
-              href="/budget"
-              className={`hover:opacity-80 transition-opacity ${
-                pathname === "/budget" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
-              }`}
-            >
-            Savings
-            </Link>
-          ) : null}
-          {streaksEnabled ? (
-            <Link
-              href="/streaks"
-              className={`hover:opacity-80 transition-opacity ${
-                pathname === "/streaks" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
-              }`}
-            >
-            Streaks
-            </Link>
-          ) : null}
-          {kitchenEnabled ? (
-            <Link
-              href="/kitchen"
-              className={`hover:opacity-80 transition-opacity ${
-                pathname === "/kitchen" ? "font-semibold" : isDark ? "text-muted-foreground" : "text-gray-700"
-              }`}
-            >
-            Kitchen Sync
-            </Link>
-          ) : null}
           <Button
             size="sm"
             asChild
@@ -561,21 +522,6 @@ export function Header() {
                     <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
                       <Link href="/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
-                    {savingsEnabled ? (
-                      <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
-                        <Link href="/budget">Savings</Link>
-                      </DropdownMenuItem>
-                    ) : null}
-                    {streaksEnabled ? (
-                      <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
-                        <Link href="/streaks">Streaks</Link>
-                      </DropdownMenuItem>
-                    ) : null}
-                    {kitchenEnabled ? (
-                      <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
-                        <Link href="/kitchen">Kitchen Sync</Link>
-                      </DropdownMenuItem>
-                    ) : null}
                     <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2">
                       <Link href="/settings">Settings</Link>
                     </DropdownMenuItem>

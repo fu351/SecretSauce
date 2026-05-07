@@ -37,7 +37,7 @@ Last verified: 2026-04-30.
 
 ### Core app
 
-- `/dashboard` is the logged-in summary page with recipes, favorites, meal plan counts, shopping counts, tutorial prompts, and iOS web app prompts.
+- `/dashboard` is the logged-in summary page and low-friction action hub with recipes, favorites, meal plan counts, shopping counts, savings, cooking rhythm, Kitchen Sync previews, pending actions, tutorial prompts, and iOS web app prompts.
 - `/recipes` is the searchable/filterable recipe index.
 - `/recipes/[id]` is the recipe detail route.
 - `/upload-recipe` supports manual recipe entry and import entry points.
@@ -48,9 +48,10 @@ Last verified: 2026-04-30.
 - `/pantry` is the pantry tracker, including ingredient standardization calls.
 - `/delivery` lists current and past delivery orders.
 - `/delivery/[id]` shows order details.
-- `/budget` is the authenticated Savings surface (goal setup, spend logging, source breakdown, weekly wrap allocation, goal switching, and supportive nudges).
-- `/streaks` is the authenticated streak cadence surface (daily count, weekly cook dial, confirmations, grace, and freeze controls).
-- `/kitchen` is the private-by-default Kitchen Sync surface for cook check drafts, cooking journeys, approval/edit/skip, and chronological safe social feed.
+- `/budget` remains a backwards-compatible authenticated Savings detail route. The primary Savings interaction is the dashboard widget and contextual banking/setup CTAs.
+- `/streaks` remains a backwards-compatible authenticated rhythm detail route. The primary rhythm interaction is the dashboard widget and post-cook confirmation CTAs.
+- `/kitchen` is the owner management/full-feed surface for cook check drafts, cooking journeys, approval/edit/skip, and chronological safe social feed. The outward-facing social expression of Kitchen Sync lives on profile pages.
+- `/user/[username]` includes a compact read-only Kitchen activity section sourced from sanitized social projections while preserving the main `Posts`, `Recipes`, and `Collections` tabs.
 
 ### Account and billing
 
@@ -74,7 +75,7 @@ Last verified: 2026-04-30.
 - `contexts/tutorial-context.tsx` owns tutorial state, persistence, and route progression.
 - `contexts/theme-context.tsx` wraps `next-themes` and keeps the app in sync with the DOM class.
 - `hooks/index.ts` is the main import surface for UI, recipe, shopping, meal-planner, delivery, admin, subscription, experiment, and feature-flag hooks.
-- `components/layout/header.tsx` links to `/recipes`, `/meal-planner`, `/store`, `/upload-recipe`, `/dashboard`, and `/settings`; it conditionally exposes `/budget` as `Savings` when both the feature flag and preference are enabled.
+- `components/layout/header.tsx` links to `/recipes`, `/meal-planner`, `/store`, `/upload-recipe`, `/dashboard`, and `/settings`. Savings, rhythm, and Kitchen Sync are reached through dashboard/profile/contextual actions instead of permanent top-level navigation.
 - `lib/location-client.ts` owns browser geolocation and map geocode requests.
 - `lib/store/store-metadata.ts` and `lib/store/user-preferred-stores.ts` shape store metadata for comparison and pricing flows.
 - `lib/auth/subscription.ts` and `hooks/use-subscription.ts` gate premium-only UI.
@@ -95,6 +96,7 @@ Last verified: 2026-04-30.
 - Streaks depends on foundation media/verification/confirmation/recipe_tries and does not require social or pantry features to function.
 - Social Sprint 1 adds cook-check sharing and Kitchen Sync feed projections. Raw budget/pantry/verification internals remain private; only sanitized approved payloads are projected.
 - Social Sprint 3 adds meal plan shares/remixes and cooking journeys. Weekly `meal_schedule` rows remain private source data; public/follower surfaces receive only sanitized share or completed-journey projections.
+- Sprint 3.5 embeds those projections into social profiles through `GET /api/users/[username]/kitchen-activity`. The route resolves target/viewer profiles server-side, applies profile visibility plus projection visibility, and returns only whitelisted display fields.
 - Projection compatibility is forward-ready for: cook checks, recipe tries, streak milestones, meal plan shares, cooking journeys, savings achievements, pantry milestones, badges, competitions, challenge results, leaderboard milestones, and campus cup outcomes.
 - `recipe_tries` is the shared durable record for cooked/attempted recipes so streaks, pantry auto-deduct, and social aggregates can converge on one source later.
 

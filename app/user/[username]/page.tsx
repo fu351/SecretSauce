@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { ProfileIdentityControls } from "@/components/social/profile-identity-controls"
 import { ProfileContentTabs } from "@/components/social/profile-content-tabs"
+import { ProfileKitchenActivity } from "@/components/social/profile-kitchen-activity"
 import { ProfileStoriesRail } from "@/components/social/profile-stories-rail"
 import { PinnedRecipesSection } from "@/components/social/pinned-recipes-section"
 import { resolveProfileAccess } from "@/lib/social/profile-access"
@@ -39,6 +40,14 @@ export default async function UserProfilePage({ params }: Props) {
 
         {profile.username ? (
           <ProfileStoriesRail username={profile.username} />
+        ) : null}
+
+        {profile.username ? (
+          <ProfileKitchenActivity
+            username={resolvedUsername}
+            isOwnProfile={isOwnProfile}
+            canViewContent={canViewContent}
+          />
         ) : null}
 
         {profile.username ? (

@@ -117,6 +117,23 @@ export async function listKitchenSyncProjections(supabase: SupabaseLike, limit =
     .limit(limit)
 }
 
+export async function listKitchenSyncProjectionsForProfile(
+  supabase: SupabaseLike,
+  profileId: string,
+  limit = 12,
+  offset = 0,
+) {
+  const start = Math.max(0, offset)
+  const end = start + Math.max(1, limit) - 1
+  return (supabase as any)
+    .from("social_activity_projections")
+    .select("id, owner_profile_id, event_type, visibility, payload, occurred_at, published_at, expires_at")
+    .eq("owner_profile_id", profileId)
+    .in("event_type", ["cook_check.approved", "meal_plan_share.published", "cooking_journey.published"])
+    .order("occurred_at", { ascending: false })
+    .range(start, end)
+}
+
 export async function getAcceptedFollowMapForViewer(supabase: SupabaseLike, viewerProfileId: string) {
   const { data, error } = await (supabase as any)
     .from("follow_requests")

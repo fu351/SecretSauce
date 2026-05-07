@@ -11,12 +11,15 @@ const mocks = vi.hoisted(() => ({
   editCookCheckDraft: vi.fn(),
   skipCookCheckDraft: vi.fn(),
   getKitchenSyncFeed: vi.fn(),
+  getProfileKitchenActivity: vi.fn(),
   addCookCheckReaction: vi.fn(),
   shareMealPlanWeek: vi.fn(),
   remixMealPlanShare: vi.fn(),
   createCookingJourneyForProfile: vi.fn(),
   recordJourneyProgressEvent: vi.fn(),
   completeCookingJourney: vi.fn(),
+  resolveProfileAccess: vi.fn(),
+  createServiceSupabaseClient: vi.fn(() => ({})),
 }))
 
 vi.mock("@/lib/foundation/server", () => ({
@@ -33,6 +36,7 @@ vi.mock("@/lib/social/service", () => ({
   editCookCheckDraft: mocks.editCookCheckDraft,
   skipCookCheckDraft: mocks.skipCookCheckDraft,
   getKitchenSyncFeed: mocks.getKitchenSyncFeed,
+  getProfileKitchenActivity: mocks.getProfileKitchenActivity,
   addCookCheckReaction: mocks.addCookCheckReaction,
   shareMealPlanWeek: mocks.shareMealPlanWeek,
   remixMealPlanShare: mocks.remixMealPlanShare,
@@ -44,6 +48,14 @@ vi.mock("@/lib/social/service", () => ({
   removeCookCheckReaction: vi.fn(),
 }))
 
+vi.mock("@/lib/social/profile-access", () => ({
+  resolveProfileAccess: mocks.resolveProfileAccess,
+}))
+
+vi.mock("@/lib/database/supabase-server", () => ({
+  createServiceSupabaseClient: mocks.createServiceSupabaseClient,
+}))
+
 import { PATCH as patchPrefs } from "@/app/api/social/preferences/route"
 import { POST as createDraft } from "@/app/api/social/cook-checks/drafts/route"
 import { POST as publishDraft } from "@/app/api/social/cook-checks/[id]/publish/route"
@@ -52,6 +64,7 @@ import { POST as remixShare } from "@/app/api/social/meal-plans/shares/[id]/remi
 import { POST as createJourney } from "@/app/api/social/journeys/route"
 import { PATCH as updateJourney } from "@/app/api/social/journeys/[id]/route"
 import { POST as completeJourney } from "@/app/api/social/journeys/[id]/complete/route"
+import { GET as getProfileKitchenActivityRoute } from "@/app/api/users/[username]/kitchen-activity/route"
 
 describe("social routes", () => {
   beforeEach(() => {
@@ -197,5 +210,64 @@ describe("social routes", () => {
       {},
       expect.objectContaining({ profileId: "profile_server", journeyId: "journey_1", visibility: "followers" }),
     )
+  })
+
+  it("returns profile kitchen activity from the target profile, not a client profile", async () => {
+    mocks.resolveProfileAccess.mockResolvedValue({
+      profile: { id: "owner_1", username: "cook" },
+      viewerProfileId: "viewer_1",
+      canViewContent: true,
+    })
+    mocks.assertSocialEnabled.mockResolvedValue(true)
+    mocks.getProfileKitchenActivity.mockResolvedValue({
+      items: [{ id: "proj_1", title: "Finals Week", activityType: "meal_plan_share" }],
+      hasMore: false,
+    })
+
+    const response = await getProfileKitchenActivityRoute(
+      new Request("http://localhost/api/users/cook/kitchen-activity?limit=3"),
+      { params: Promise.resolve({ username: "cook" }) },
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.getProfileKitchenActivity).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ ownerProfileId: "owner_1", viewerProfileId: "viewer_1", limit: 3 }),
+    )
+    await expect(response.json()).resolves.toMatchObject({ items: [{ id: "proj_1" }] })
+  })
+
+  it("rejects profile kitchen activity for private profiles the viewer cannot access", async () => {
+    mocks.resolveProfileAccess.mockResolvedValue({
+      profile: { id: "owner_private", username: "cook" },
+      viewerProfileId: "viewer_1",
+      canViewContent: false,
+    })
+
+    const response = await getProfileKitchenActivityRoute(
+      new Request("http://localhost/api/users/cook/kitchen-activity"),
+      { params: Promise.resolve({ username: "cook" }) },
+    )
+
+    expect(response.status).toBe(403)
+    expect(mocks.getProfileKitchenActivity).not.toHaveBeenCalled()
+  })
+
+  it("hides profile kitchen activity when social is disabled", async () => {
+    mocks.resolveProfileAccess.mockResolvedValue({
+      profile: { id: "owner_1", username: "cook" },
+      viewerProfileId: "owner_1",
+      canViewContent: true,
+    })
+    mocks.assertSocialEnabled.mockResolvedValue(false)
+
+    const response = await getProfileKitchenActivityRoute(
+      new Request("http://localhost/api/users/cook/kitchen-activity"),
+      { params: Promise.resolve({ username: "cook" }) },
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ items: [], hidden: true })
+    expect(mocks.getProfileKitchenActivity).not.toHaveBeenCalled()
   })
 })

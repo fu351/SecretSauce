@@ -53,7 +53,7 @@ describe("streak components", () => {
       },
     })
     render(<StreaksPage />)
-    expect(screen.getByRole("heading", { name: "Streaks" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Cooking rhythm" })).toBeInTheDocument()
     expect(screen.getByText("I cooked today")).toBeInTheDocument()
   })
 

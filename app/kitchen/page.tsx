@@ -41,8 +41,14 @@ export default function KitchenPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-4xl gap-4 p-6">
-      <h1 className="text-3xl font-semibold">Kitchen Sync</h1>
+    <div className="mx-auto grid max-w-5xl gap-4 p-4 pb-8 md:p-6">
+      <div>
+        <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Full social page</p>
+        <h1 className="mt-1 text-2xl font-semibold md:text-3xl">Kitchen Sync</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Review drafts, manage cooking journeys, remix shared meal plans, and browse safe kitchen updates.
+        </p>
+      </div>
       <KitchenPreferencesCard
         preferences={socialPrefs.data?.preferences}
         onUpdate={(patch) => socialPrefs.updatePreferences(patch)}

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   createCookCheckDraft: vi.fn(),
   getSocialPreferences: vi.fn(),
   listKitchenSyncProjections: vi.fn(),
+  listKitchenSyncProjectionsForProfile: vi.fn(),
   getAcceptedFollowMapForViewer: vi.fn(),
   listReactionsForCookChecks: vi.fn(),
   listMealScheduleForWeek: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("@/lib/social/repository", () => ({
   updateCookCheck: vi.fn(),
   updateSocialPreferences: vi.fn(),
   listKitchenSyncProjections: mocks.listKitchenSyncProjections,
+  listKitchenSyncProjectionsForProfile: mocks.listKitchenSyncProjectionsForProfile,
   getAcceptedFollowMapForViewer: mocks.getAcceptedFollowMapForViewer,
   listReactionsForCookChecks: mocks.listReactionsForCookChecks,
   listMealScheduleForWeek: mocks.listMealScheduleForWeek,
@@ -76,7 +78,7 @@ vi.mock("@/lib/foundation/social-projections", () => ({
   createSocialActivityProjection: projections.createSocialActivityProjection,
 }))
 
-import { recordJourneyProgressEvent, remixMealPlanShare, shareMealPlanWeek, createCookCheckDraftFromSource, getKitchenSyncFeed } from "@/lib/social/service"
+import { recordJourneyProgressEvent, remixMealPlanShare, shareMealPlanWeek, createCookCheckDraftFromSource, getKitchenSyncFeed, getProfileKitchenActivity } from "@/lib/social/service"
 
 describe("social service", () => {
   beforeEach(() => {
@@ -133,6 +135,61 @@ describe("social service", () => {
     const result = await getKitchenSyncFeed({} as any, "viewer_1")
     expect(result.feed).toHaveLength(1)
     expect(result.feed[0].id).toBe("proj_followers")
+  })
+
+  it("returns sanitized profile kitchen activity with projection visibility", async () => {
+    mocks.listKitchenSyncProjectionsForProfile.mockResolvedValue({
+      data: [
+        {
+          id: "proj_public",
+          owner_profile_id: "owner_1",
+          event_type: "meal_plan_share.published",
+          visibility: "public",
+          payload: {
+            activityType: "meal_plan_share",
+            title: "Finals Week",
+            summaryLine: "5 meals",
+            recipeTitles: ["Chicken Bowl"],
+            tags: ["budget-friendly"],
+            budget: 120,
+            pantryInventory: ["rice"],
+            aiConfidence: 0.94,
+          },
+          occurred_at: "2026-05-03T00:00:00.000Z",
+          published_at: "2026-05-03T00:00:00.000Z",
+          expires_at: null,
+        },
+        {
+          id: "proj_private",
+          owner_profile_id: "owner_1",
+          event_type: "cook_check.approved",
+          visibility: "private",
+          payload: { activityType: "cook_check", caption: "Private dinner" },
+          occurred_at: "2026-05-04T00:00:00.000Z",
+          expires_at: null,
+        },
+      ],
+      error: null,
+    })
+    mocks.getAcceptedFollowMapForViewer.mockResolvedValue({ data: new Set<string>() })
+    mocks.listReactionsForCookChecks.mockResolvedValue({ data: [] })
+
+    const result = await getProfileKitchenActivity({} as any, {
+      ownerProfileId: "owner_1",
+      viewerProfileId: "viewer_1",
+      limit: 6,
+    })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toMatchObject({
+      id: "proj_public",
+      activityType: "meal_plan_share",
+      title: "Finals Week",
+      recipeTitles: ["Chicken Bowl"],
+    })
+    expect((result.items[0] as any).budget).toBeUndefined()
+    expect((result.items[0] as any).pantryInventory).toBeUndefined()
+    expect((result.items[0] as any).aiConfidence).toBeUndefined()
   })
 
   it("publishes sanitized meal plan share projections", async () => {

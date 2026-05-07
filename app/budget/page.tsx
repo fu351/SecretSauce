@@ -57,8 +57,14 @@ export default function BudgetPage() {
   const currentWeekStartDate = payload?.currentWeek?.weekStartDate
 
   return (
-    <div className="mx-auto grid max-w-4xl gap-4 p-6">
-      <h1 className="text-3xl font-semibold">Savings</h1>
+    <div className="mx-auto grid max-w-5xl gap-4 p-4 pb-8 md:p-6">
+      <div>
+        <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Detailed page</p>
+        <h1 className="mt-1 text-2xl font-semibold md:text-3xl">Savings</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Manage your weekly savings goal, log safe owner-only spend, and bank surplus from completed weeks.
+        </p>
+      </div>
       {!activeGoal ? (
         <>
           {completedGoal ? (
@@ -76,11 +82,17 @@ export default function BudgetPage() {
         </>
       ) : (
         <>
-          <BudgetDashboardCard goal={activeGoal} />
-          <BudgetSpendQuickAdd />
-          <BudgetSourceBreakdown summary={currentWeekSummary} />
-          <BudgetWeeklyWrapCard summary={currentWeekSummary} weekStartDate={currentWeekStartDate} />
-          <BudgetSwitchGoalDialog />
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+            <div className="grid gap-4">
+              <BudgetDashboardCard goal={activeGoal} />
+              <BudgetSourceBreakdown summary={currentWeekSummary} />
+              <BudgetWeeklyWrapCard summary={currentWeekSummary} weekStartDate={currentWeekStartDate} />
+            </div>
+            <div className="grid content-start gap-4">
+              <BudgetSpendQuickAdd />
+              <BudgetSwitchGoalDialog />
+            </div>
+          </div>
           <BudgetNudgeCard nudge={payload?.nudge} />
         </>
       )}

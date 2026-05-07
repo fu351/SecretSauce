@@ -63,7 +63,7 @@ export function buildCookCheckProjectionPayload(input: {
 
 export function canViewerSeeVisibility(input: {
   ownerProfileId: string
-  viewerProfileId: string
+  viewerProfileId: string | null
   visibility: SocialVisibility
   viewerFollowsOwner: boolean
 }) {

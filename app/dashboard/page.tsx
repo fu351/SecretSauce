@@ -8,10 +8,6 @@ import {
   Heart,
   Calendar,
   ShoppingCart,
-  Plus,
-  Truck,
-  PiggyBank,
-  CheckCircle2,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { recipeDB } from "@/lib/database/recipe-db"
@@ -33,6 +29,17 @@ import { ProfileCard } from "@/components/social/profile-card"
 import { RecipeCollectionSummary } from "@/components/recipe/collections/recipe-collection-summary"
 import { useFoundationFeatureFlag } from "@/hooks/use-feature-flag"
 import { useFeaturePreferences } from "@/hooks/use-feature-preferences"
+import { useBudgetDashboard } from "@/hooks/use-budget-dashboard"
+import { useStreakDashboard } from "@/hooks/use-streak-dashboard"
+import { useCookCheckDrafts, useCookingJourneys, useKitchenSyncFeed } from "@/hooks/use-kitchen-sync"
+import {
+  ActiveJourneyWidget,
+  KitchenPreviewWidget,
+  PendingActionsWidget,
+  SavingsWidget,
+  StreakWidget,
+  TodayActionCard,
+} from "@/components/dashboard/experience-widgets"
 
 interface DashboardStats {
   totalRecipes: number
@@ -58,6 +65,13 @@ export default function DashboardPage() {
   const savingsEnabled = Boolean(user) && budgetFlag.isEnabled && featurePreferences.preferences.budgetTrackingEnabled
   const streaksFlag = useFoundationFeatureFlag("gamification_streaks")
   const streaksEnabled = Boolean(user) && streaksFlag.isEnabled && featurePreferences.preferences.streaksEnabled
+  const socialFlag = useFoundationFeatureFlag("social_layer")
+  const socialEnabled = Boolean(user) && socialFlag.isEnabled && featurePreferences.preferences.socialEnabled
+  const budgetDashboard = useBudgetDashboard(savingsEnabled)
+  const streakDashboard = useStreakDashboard(streaksEnabled)
+  const kitchenFeed = useKitchenSyncFeed(socialEnabled)
+  const cookCheckDrafts = useCookCheckDrafts(socialEnabled)
+  const cookingJourneys = useCookingJourneys(socialEnabled)
 
   useEffect(() => {
     if (!user) {
@@ -164,8 +178,12 @@ export default function DashboardPage() {
 
           {profile && <ProfileCard profile={profile} />}
 
+          <div className="mb-4 md:mb-8">
+            <TodayActionCard />
+          </div>
+
           {/* Stats Grid */}
-          <div className={`grid grid-cols-2 md:grid-cols-2 ${savingsEnabled || streaksEnabled ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-2 md:gap-6 mb-4 md:mb-8`} data-tutorial="dashboard-stats">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-6 lg:grid-cols-4 mb-4 md:mb-8" data-tutorial="dashboard-stats">
             <Link href="/recipes?mine=true" className="block">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
                 <CardContent className="p-3 md:p-6">
@@ -217,35 +235,49 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
-            {savingsEnabled ? (
-              <Link href="/budget" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                  <CardContent className="p-3 md:p-6">
-                    <div className="flex items-center justify-between mb-2 md:mb-4">
-                      <PiggyBank className="h-5 w-5 md:h-8 md:w-8 text-amber-500" />
-                      <span className="text-[10px] md:text-xs text-muted-foreground">Savings</span>
-                    </div>
-                    <p className="text-xl md:text-3xl font-bold text-foreground">Open</p>
-                    <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Budget this week</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ) : null}
-            {streaksEnabled ? (
-              <Link href="/streaks" className="block">
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-border bg-card">
-                  <CardContent className="p-3 md:p-6">
-                    <div className="flex items-center justify-between mb-2 md:mb-4">
-                      <CheckCircle2 className="h-5 w-5 md:h-8 md:w-8 text-blue-500" />
-                      <span className="text-[10px] md:text-xs text-muted-foreground">Streaks</span>
-                    </div>
-                    <p className="text-xl md:text-3xl font-bold text-foreground">Open</p>
-                    <p className="text-xs md:text-sm mt-0.5 md:mt-1 text-muted-foreground">Keep your daily rhythm</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            ) : null}
           </div>
+
+          {(savingsEnabled || streaksEnabled || socialEnabled) ? (
+            <section className="mb-4 grid gap-3 md:mb-8 md:grid-cols-2 xl:grid-cols-3" aria-label="Dashboard actions">
+              {savingsEnabled ? (
+                <SavingsWidget
+                  dashboard={budgetDashboard.data?.dashboard}
+                  isLoading={budgetDashboard.isLoading}
+                  error={budgetDashboard.error}
+                />
+              ) : null}
+              {streaksEnabled ? (
+                <StreakWidget
+                  dashboard={streakDashboard.data?.dashboard}
+                  isLoading={streakDashboard.isLoading}
+                  error={streakDashboard.error}
+                />
+              ) : null}
+              {socialEnabled ? (
+                <>
+                  <KitchenPreviewWidget
+                    enabled={socialEnabled}
+                    feed={kitchenFeed.data}
+                    isLoading={kitchenFeed.isLoading}
+                    error={kitchenFeed.error}
+                  />
+                  <ActiveJourneyWidget
+                    enabled={socialEnabled}
+                    journeys={cookingJourneys.data}
+                    isLoading={cookingJourneys.isLoading}
+                    error={cookingJourneys.error}
+                    updating={cookingJourneys.progress.isPending}
+                    onProgress={(journeyId) => cookingJourneys.progress.mutate({ journeyId })}
+                  />
+                  <PendingActionsWidget
+                    drafts={cookCheckDrafts.data}
+                    draftsLoading={cookCheckDrafts.isLoading}
+                    socialEnabled={socialEnabled}
+                  />
+                </>
+              ) : null}
+            </section>
+          ) : null}
 
           <div className="mb-4 md:mb-8">
             <RecipeCollectionSummary userId={user?.id ?? null} />

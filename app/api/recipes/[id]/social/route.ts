@@ -70,6 +70,7 @@ export async function GET(
     // Friend likes + all following IDs (for review sorting)
     let friendLikes: ProfileSnippet[] = []
     let friendProfileIds: string[] = []
+    let pendingFeedback: { recipeTryId: string } | null = null
 
     if (viewerId) {
       // Get everyone the viewer follows (accepted)
@@ -94,9 +95,30 @@ export async function GET(
           .map((r: any) => r.profiles)
           .filter(Boolean)
       }
+
+      const { data: tries } = await supabase
+        .from("recipe_tries")
+        .select("id")
+        .eq("profile_id", viewerId)
+        .eq("recipe_id", recipeId)
+        .order("occurred_on", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      const tryIds = (tries ?? []).map((row: any) => row.id).filter(Boolean)
+      if (tryIds.length > 0) {
+        const { data: existingFeedback } = await supabase
+          .from("recipe_try_feedback")
+          .select("recipe_try_id")
+          .in("recipe_try_id", tryIds)
+
+        const feedbackTryIds = new Set((existingFeedback ?? []).map((row: any) => row.recipe_try_id))
+        const firstPending = tryIds.find((id: string) => !feedbackTryIds.has(id))
+        pendingFeedback = firstPending ? { recipeTryId: firstPending } : null
+      }
     }
 
-    return NextResponse.json({ likeCount, isLiked, repostCount, isReposted, friendLikes, friendProfileIds })
+    return NextResponse.json({ likeCount, isLiked, repostCount, isReposted, friendLikes, friendProfileIds, pendingFeedback })
   } catch (error) {
     console.error("[recipes/[id]/social GET]", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

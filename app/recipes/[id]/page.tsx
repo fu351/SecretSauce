@@ -15,6 +15,7 @@ import { RecipePricingInfo } from "@/components/recipe/detail/recipe-pricing-inf
 import { RecipeActionBar } from "@/components/recipe/social/recipe-action-bar"
 import { RecipeCollectionManager } from "@/components/recipe/collections/recipe-collection-manager"
 import { RecipeFlagButton } from "@/components/recipe/detail/recipe-flag-button"
+import { RecipeFeedbackPrompt } from "@/components/social/recipe-feedback-prompt"
 import { ProfileFollowButton } from "@/components/social/profile-follow-button"
 import { useToast } from "@/hooks"
 import { applyFallbackImageStyles, getDefaultImageFallback, getRecipeImageUrl, isDefaultImageFallback } from "@/lib/image-helper"
@@ -63,6 +64,7 @@ export default function RecipeDetailPage() {
   const [isReposted, setIsReposted] = useState(false)
   const [friendLikes, setFriendLikes] = useState<{ id: string; full_name: string | null; avatar_url: string | null; username: string | null }[]>([])
   const [friendProfileIds, setFriendProfileIds] = useState<string[]>([])
+  const [pendingFeedback, setPendingFeedback] = useState<{ recipeTryId: string } | null>(null)
   const { theme } = useTheme()
   const isDark = theme === "dark"
 
@@ -142,6 +144,7 @@ export default function RecipeDetailPage() {
         setIsReposted(json.isReposted ?? false)
         setFriendLikes(json.friendLikes ?? [])
         setFriendProfileIds(json.friendProfileIds ?? [])
+        setPendingFeedback(json.pendingFeedback ?? null)
       } catch {
         // social data is non-critical, fail silently
       }
@@ -761,6 +764,17 @@ export default function RecipeDetailPage() {
           <div className="w-full" data-tutorial="recipe-peer-success">
             <RecipePeerSuccess recipeId={recipe.id} />
           </div>
+
+          {pendingFeedback ? (
+            <div className="w-full" data-tutorial="recipe-feedback-prompt">
+              <RecipeFeedbackPrompt
+                recipeTryId={pendingFeedback.recipeTryId}
+                recipeTitle={recipe.title}
+                onComplete={() => setPendingFeedback(null)}
+                onDismiss={() => setPendingFeedback(null)}
+              />
+            </div>
+          ) : null}
 
           <div className="w-full" data-tutorial="recipe-reviews">
             <RecipeReviews recipeId={recipe.id} friendProfileIds={friendProfileIds} />

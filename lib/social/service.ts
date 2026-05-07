@@ -48,6 +48,7 @@ import {
   listExistingMealSlots,
   listCookCheckDrafts,
   listKitchenSyncProjections,
+  listKitchenSyncProjectionsForProfile,
   listMealScheduleForWeek,
   listPublishedMealPlanShares,
   listReactionsForCookChecks,
@@ -61,6 +62,7 @@ import {
 import type { CookingJourneyType, CookCheckSourceType, JourneyEventType, SocialVisibility } from "@/lib/social/types"
 
 type SupabaseLike = { from: (table: string) => any }
+const PROFILE_KITCHEN_ACTIVITY_LIMIT = 6
 
 export async function assertSocialEnabled(supabase: SupabaseLike, profileId: string) {
   return isSocialEnabledForProfile(supabase, profileId)
@@ -284,6 +286,126 @@ export async function getKitchenSyncFeed(supabase: SupabaseLike, viewerProfileId
   })
 
   return { feed }
+}
+
+function safeText(value: unknown, maxLength = 140): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed.slice(0, maxLength) : null
+}
+
+function safeTextList(value: unknown, maxItems = 5): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => safeText(item, 48))
+    .filter((item): item is string => Boolean(item))
+    .slice(0, maxItems)
+}
+
+function safePublicMediaUrl(value: unknown): string | null {
+  const url = safeText(value, 500)
+  if (!url) return null
+  return /^https?:\/\//i.test(url) ? url : null
+}
+
+function activityTypeForProjection(projection: any) {
+  const payloadType = safeText(projection?.payload?.activityType, 48)
+  if (payloadType) return payloadType
+  if (projection?.event_type === "meal_plan_share.published") return "meal_plan_share"
+  if (projection?.event_type === "cooking_journey.published") return "cooking_journey"
+  return "cook_check"
+}
+
+function sanitizeProfileKitchenProjection(projection: any, reaction?: { total: number; byKey: Record<string, number>; mine: string[] }) {
+  const payload = projection?.payload ?? {}
+  const activityType = activityTypeForProjection(projection)
+  const title =
+    safeText(payload.title, 90) ??
+    safeText(payload.caption, 120) ??
+    safeText(payload.recipeTitle, 90) ??
+    (activityType === "meal_plan_share"
+      ? "Meal plan shared"
+      : activityType === "cooking_journey"
+        ? "Cooking journey completed"
+        : "Cook check")
+  const body =
+    safeText(payload.summaryLine, 160) ??
+    safeText(payload.achievementLabel, 120) ??
+    safeText(payload.progressLabel, 80) ??
+    safeText(payload.milestoneLabel, 80) ??
+    null
+
+  return {
+    id: String(projection.id),
+    eventType: safeText(projection.event_type, 80),
+    activityType,
+    title,
+    body,
+    caption: safeText(payload.caption, 160),
+    recipeTitle: safeText(payload.recipeTitle, 90),
+    recipeTitles: safeTextList(payload.recipeTitles),
+    tags: safeTextList(payload.tags, 4),
+    shareId: safeText(payload.shareId, 80),
+    cookCheckId: safeText(payload.cookCheckId, 80),
+    mediaUrl: safePublicMediaUrl(payload.mediaUrl),
+    progressLabel: safeText(payload.progressLabel, 80),
+    achievementLabel: safeText(payload.achievementLabel, 120),
+    occurredAt: safeText(projection.occurred_at, 40),
+    publishedAt: safeText(projection.published_at, 40),
+    reactions: {
+      mine: reaction?.mine ?? [],
+      counts: reaction?.byKey ?? {},
+      total: reaction?.total ?? 0,
+    },
+  }
+}
+
+export async function getProfileKitchenActivity(
+  supabase: SupabaseLike,
+  input: { ownerProfileId: string; viewerProfileId: string | null; limit?: number; offset?: number },
+) {
+  const limit = Math.min(12, Math.max(1, Math.floor(Number(input.limit) || PROFILE_KITCHEN_ACTIVITY_LIMIT)))
+  const offset = Math.max(0, Math.floor(Number(input.offset) || 0))
+  const [{ data: projections, error: projectionError }, followResult] = await Promise.all([
+    listKitchenSyncProjectionsForProfile(supabase, input.ownerProfileId, limit + 1, offset),
+    input.viewerProfileId
+      ? getAcceptedFollowMapForViewer(supabase, input.viewerProfileId)
+      : Promise.resolve({ data: new Set<string>(), error: null }),
+  ])
+  if (projectionError) return { error: projectionError }
+
+  const followSet = followResult.data ?? new Set<string>()
+  const visible = (projections ?? []).filter((projection: any) => {
+    if (isCookCheckExpired(projection.expires_at)) return false
+    return canViewerSeeVisibility({
+      ownerProfileId: projection.owner_profile_id,
+      viewerProfileId: input.viewerProfileId,
+      visibility: projection.visibility,
+      viewerFollowsOwner: followSet.has(projection.owner_profile_id),
+    })
+  })
+
+  const page = visible.slice(0, limit)
+  const cookCheckIds = page
+    .map((projection: any) => projection.payload?.cookCheckId)
+    .filter((id: unknown): id is string => typeof id === "string")
+  const { data: reactions } = await listReactionsForCookChecks(supabase, cookCheckIds)
+  const grouped = (reactions ?? []).reduce<Record<string, { total: number; byKey: Record<string, number>; mine: string[] }>>((acc, row: any) => {
+    const key = row.cook_check_id as string
+    if (!acc[key]) acc[key] = { total: 0, byKey: {}, mine: [] }
+    acc[key].total += 1
+    acc[key].byKey[row.reaction_key] = (acc[key].byKey[row.reaction_key] ?? 0) + 1
+    if (input.viewerProfileId && row.reactor_profile_id === input.viewerProfileId) acc[key].mine.push(row.reaction_key)
+    return acc
+  }, {})
+
+  return {
+    items: page.map((projection: any) => {
+      const cookCheckId = projection.payload?.cookCheckId as string | undefined
+      return sanitizeProfileKitchenProjection(projection, cookCheckId ? grouped[cookCheckId] : undefined)
+    }),
+    hasMore: visible.length > limit,
+  }
 }
 
 export async function addCookCheckReaction(

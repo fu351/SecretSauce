@@ -5,6 +5,8 @@ import dynamic from "next/dynamic"
 import { useAuth } from "@/contexts/auth-context"
 import { useIsMobile, useToast, useShoppingList } from "@/hooks"
 import { useHasAccess } from "@/hooks/use-subscription"
+import { useFeaturePreferences } from "@/hooks/use-feature-preferences"
+import { useFoundationFeatureFlag } from "@/hooks/use-feature-flag"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   useMealPlannerNutrition,
@@ -78,6 +80,8 @@ function MealPlannerPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { hasAccess: hasSmartPlannerAccess, loading: smartPlannerAccessLoading } = useHasAccess("premium")
+  const socialFlag = useFoundationFeatureFlag("social_layer")
+  const featurePreferences = useFeaturePreferences(Boolean(user))
 
   // State
   const [focusMode, setFocusMode] = useState<{ date: string; mealType: PlannerMealType } | null>(null)
@@ -100,6 +104,7 @@ function MealPlannerPageContent() {
     removeFromMealPlan,
     clearWeek,
   } = useWeeklyMealPlan(user?.id, weekIndex)
+  const canShareWeek = Boolean(user) && socialFlag.isEnabled && featurePreferences.preferences.socialEnabled && meals.length > 0
 
   // 1. MEMOIZE DRAG HANDLERS
   // This prevents the dnd hook from changing references and causing unnecessary updates
@@ -197,7 +202,7 @@ function MealPlannerPageContent() {
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: `This Week Meal Plan · ${meals.length} meal${meals.length === 1 ? "" : "s"}`,
+        title: `This Week Meal Plan - ${meals.length} meal${meals.length === 1 ? "" : "s"}`,
         visibility: "followers",
         accomplishmentLabels: ["remixable", "weekly plan"],
       }),
@@ -521,7 +526,7 @@ function MealPlannerPageContent() {
                     onHeuristicPlan={handleGenerateHeuristicPlan}
                     onUpgradeForSmartPlanner={handleUpgradeForSmartPlanner}
                     onAddToCart={handleAddToShoppingList}
-                    onShareWeek={handleShareWeek}
+                    onShareWeek={canShareWeek ? handleShareWeek : undefined}
                     onGoToToday={handleGoToToday}
                     onPreviousWeek={handlePreviousWeek}
                     onNextWeek={handleNextWeek}

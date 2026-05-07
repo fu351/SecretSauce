@@ -36,8 +36,14 @@ export default function StreaksPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-4xl gap-4 p-6">
-      <h1 className="text-3xl font-semibold">Streaks</h1>
+    <div className="mx-auto grid max-w-5xl gap-4 p-4 pb-8 md:p-6">
+      <div>
+        <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Detailed page</p>
+        <h1 className="mt-1 text-2xl font-semibold md:text-3xl">Cooking rhythm</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Review your recent cooking history, confirm pending meals, and keep daily progress moving.
+        </p>
+      </div>
       <StreakDashboardCard dashboard={dashboard.data?.dashboard} />
     </div>
   )

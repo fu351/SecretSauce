@@ -176,12 +176,18 @@ export function ShoppingReceiptView({
       }
     })
 
-    // Keep original shopping list order so items don't jump around when
-    // quantities (and thus prices) change — sorting by price caused the
-    // "pricing not updating" perception because items would reorder on
-    // every quantity change, leaving a different item in the same position.
+    // Sort by full line total, not unit price, so high-impact basket items stay at the top.
+    availableItems.sort((a, b) => {
+      const aPricing = pricingMap.get(a.id) as (StoreComparison["items"][number] & { totalPrice?: number }) | undefined
+      const bPricing = pricingMap.get(b.id) as (StoreComparison["items"][number] & { totalPrice?: number }) | undefined
+      const aTotal = aPricing?.totalPrice ?? (aPricing ? pricer.getItemLineTotal(aPricing) : 0)
+      const bTotal = bPricing?.totalPrice ?? (bPricing ? pricer.getItemLineTotal(bPricing) : 0)
+      if (aTotal !== bTotal) return bTotal - aTotal
+      return a.name.localeCompare(b.name)
+    })
+
     return [...availableItems, ...missingItems]
-  }, [displayShoppingList, pricingMap])
+  }, [displayShoppingList, pricingMap, pricer])
 
   const selectedStoreIndex = useMemo(() => {
     if (!selectedStore && storeComparisonsWithLocalTotals.length > 0) return 0

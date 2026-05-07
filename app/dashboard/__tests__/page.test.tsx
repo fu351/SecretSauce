@@ -54,6 +54,27 @@ vi.mock("@/hooks/use-feature-preferences", () => ({
   }),
 }))
 
+vi.mock("@/hooks/use-budget-dashboard", () => ({
+  useBudgetDashboard: vi.fn(() => ({ isLoading: false, error: null, data: null })),
+  useAllocateWeeklySurplus: vi.fn(() => ({ isPending: false, mutate: vi.fn() })),
+}))
+
+vi.mock("@/hooks/use-streak-dashboard", () => ({
+  useStreakDashboard: vi.fn(() => ({ isLoading: false, error: null, data: null })),
+  useManualConfirmStreakMeal: vi.fn(() => ({ isPending: false, mutate: vi.fn(), data: null })),
+}))
+
+vi.mock("@/hooks/use-kitchen-sync", () => ({
+  useKitchenSyncFeed: vi.fn(() => ({ isLoading: false, error: null, data: { feed: [] } })),
+  useCookCheckDrafts: vi.fn(() => ({ isLoading: false, error: null, data: { drafts: [] } })),
+  useCookingJourneys: vi.fn(() => ({
+    isLoading: false,
+    error: null,
+    data: { journeys: [] },
+    progress: { isPending: false, mutate: vi.fn() },
+  })),
+}))
+
 vi.mock("@/components/recipe/cards/recipe-card", () => ({
   RecipeCard: ({ title }: { title: string }) => <div>{title}</div>,
 }))

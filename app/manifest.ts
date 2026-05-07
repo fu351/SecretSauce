@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Secret Sauce",
     short_name: "Secret Sauce",
     description: "Discover recipes, plan meals, and save on groceries",
-    start_url: "/home",
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

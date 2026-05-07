@@ -17,6 +17,7 @@ const mockSetHighlightSlot = vi.fn()
 const mockHighlightNextEmptySlotAfter = vi.fn()
 
 let mockHasSmartPlannerAccess = false
+let mockSocialEnabled = true
 
 vi.mock("next/dynamic", () => ({
   default: () =>
@@ -50,6 +51,16 @@ vi.mock("@/hooks/use-subscription", () => ({
   useHasAccess: vi.fn(() => ({
     hasAccess: mockHasSmartPlannerAccess,
     loading: false,
+  })),
+}))
+
+vi.mock("@/hooks/use-feature-flag", () => ({
+  useFoundationFeatureFlag: vi.fn(() => ({ isEnabled: mockSocialEnabled })),
+}))
+
+vi.mock("@/hooks/use-feature-preferences", () => ({
+  useFeaturePreferences: vi.fn(() => ({
+    preferences: { socialEnabled: mockSocialEnabled },
   })),
 }))
 
@@ -103,9 +114,11 @@ vi.mock("@/components/meal-planner/controls/planner-actions", () => ({
   PlannerActions: ({
     onHeuristicPlan,
     onAddToCart,
+    onShareWeek,
   }: {
     onHeuristicPlan: () => void
     onAddToCart: () => void
+    onShareWeek?: () => void
   }) => (
     <div>
       <button type="button" onClick={onHeuristicPlan}>
@@ -114,6 +127,11 @@ vi.mock("@/components/meal-planner/controls/planner-actions", () => ({
       <button type="button" onClick={onAddToCart}>
         Add meals to shopping list
       </button>
+      {onShareWeek ? (
+        <button type="button" onClick={onShareWeek}>
+          Share Week
+        </button>
+      ) : null}
     </div>
   ),
 }))
@@ -172,6 +190,7 @@ describe("MealPlannerPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     mockHasSmartPlannerAccess = false
+    mockSocialEnabled = true
     mockAddRecipesToCart.mockResolvedValue(1)
     mockAddRecipeToCart.mockResolvedValue(undefined)
     mockLoadAllRecipes.mockResolvedValue(undefined)
@@ -186,7 +205,7 @@ describe("MealPlannerPage", () => {
     MealPlannerPage = mod.default
   })
 
-  it("sends locked users to pricing when they try to use the smart planner", async () => {
+  it("sends locked users to checkout when they try to use the smart planner", async () => {
     const router = mockRouter()
     const user = userEvent.setup()
 
@@ -203,7 +222,7 @@ describe("MealPlannerPage", () => {
         title: "Premium feature",
       })
     )
-    expect(router.push).toHaveBeenCalledWith("/pricing?required=premium")
+    expect(router.push).toHaveBeenCalledWith("/checkout?required=premium")
   })
 
   it("adds the current week to the shopping list and routes to the store view", async () => {
@@ -241,5 +260,22 @@ describe("MealPlannerPage", () => {
         "2030-01-02"
       )
     })
+  })
+
+  it("shows the Share Week action only when a planned week can be shared", async () => {
+    render(<MealPlannerPage />)
+
+    expect(await screen.findByRole("button", { name: /share week/i })).toBeInTheDocument()
+  })
+
+  it("hides Share Week when social is disabled", async () => {
+    mockSocialEnabled = false
+
+    render(<MealPlannerPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/weekly meals: 1/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByRole("button", { name: /share week/i })).not.toBeInTheDocument()
   })
 })
