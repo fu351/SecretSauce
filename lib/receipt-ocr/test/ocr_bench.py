@@ -34,6 +34,7 @@ import abc
 import argparse
 import importlib.util
 import re
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -51,6 +52,20 @@ spatial_reorder = _mod.spatial_reorder
 ensemble_merge = _mod.ensemble_merge
 
 SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
+DATASETS_DIR = Path(__file__).resolve().parent / "datasets"
+
+
+def load_external_dataset(name: str) -> tuple[Path, dict[str, dict]]:
+    """Load images dir + ground_truth.json for an external dataset (coru, wildreceipt)."""
+    import json as _json
+    root = DATASETS_DIR / name
+    gt_path = root / "ground_truth.json"
+    img_dir = root / "images"
+    if not gt_path.exists():
+        raise SystemExit(
+            f"{gt_path} not found — run datasets/{name}_filter.py first."
+        )
+    return img_dir, _json.loads(gt_path.read_text())
 
 # ── Load advanced preprocessing (optional) ─────────────────────────────────
 _PREPROC_PATH = Path(__file__).resolve().parent.parent / "preprocessing.py"
@@ -67,20 +82,27 @@ except Exception:
 # ── Load recommender (optional) ────────────────────────────────────────────
 _RECOMMENDER_PATH = Path(__file__).resolve().parent.parent / "model_recommender.py"
 _FEATURES_PATH = Path(__file__).resolve().parent.parent / "image_features.py"
+_RECOMMENDER_LOAD_ERROR: str | None = None
 try:
+    import sys as _sys
+
+    _f_spec = importlib.util.spec_from_file_location("image_features", _FEATURES_PATH)
+    _f_mod = importlib.util.module_from_spec(_f_spec)
+    _sys.modules["image_features"] = _f_mod
+    _f_spec.loader.exec_module(_f_mod)
+    extract_image_features = _f_mod.extract_image_features
+
     _r_spec = importlib.util.spec_from_file_location("model_recommender", _RECOMMENDER_PATH)
     _r_mod = importlib.util.module_from_spec(_r_spec)
+    _sys.modules["model_recommender"] = _r_mod
     _r_spec.loader.exec_module(_r_mod)
     recommend_strategy = _r_mod.recommend_strategy
     should_escalate = _r_mod.should_escalate
     Strategy = _r_mod.Strategy
-
-    _f_spec = importlib.util.spec_from_file_location("image_features", _FEATURES_PATH)
-    _f_mod = importlib.util.module_from_spec(_f_spec)
-    _f_spec.loader.exec_module(_f_mod)
-    extract_image_features = _f_mod.extract_image_features
     _HAS_RECOMMENDER = True
-except Exception:
+except Exception as _e:
+    import traceback as _tb
+    _RECOMMENDER_LOAD_ERROR = "".join(_tb.format_exception(type(_e), _e, _e.__traceback__))
     _HAS_RECOMMENDER = False
 
 # ── Ground truth ─────────────────────────────────────────────────────────────
@@ -184,484 +206,30 @@ GROUND_TRUTH: dict[str, dict] = {
 }
 
 
-# ── Preprocessing ────────────────────────────────────────────────────────────
-
-
-def _deskew(gray: "np.ndarray") -> "np.ndarray":
-    """Detect and correct small rotations (up to ~15 degrees)."""
-    import numpy as np
-    coords = np.column_stack(np.where(gray < 128))
-    if len(coords) < 100:
-        return gray
-    rect = cv2.minAreaRect(coords)
-    angle = rect[-1]
-    # minAreaRect returns angles in [-90, 0); normalise to skew offset
-    if angle < -45:
-        angle = 90 + angle
-    elif angle > 45:
-        angle = angle - 90
-    if abs(angle) < 0.3:
-        return gray  # negligible skew
-    h, w = gray.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    return cv2.warpAffine(gray, M, (w, h), flags=cv2.INTER_CUBIC,
-                          borderMode=cv2.BORDER_REPLICATE)
-
-
-def preprocess_base(img_path: Path, target_height: int = 1500,
-                    max_height: int = 2000) -> "np.ndarray":
-    """Shared preprocessing: ROI crop, perspective correct, upscale, deskew, denoise.
-
-    Returns a grayscale ndarray ready for mode-specific finalization.
-    Raises on failure (caller should handle).
-    """
-    import numpy as np
-    img = cv2.imread(str(img_path))
-    if img is None:
-        raise ValueError(f"cv2.imread returned None for {img_path}")
-
-    # Advanced preprocessing: ROI crop + perspective correction
-    if _HAS_ADVANCED_PREPROC:
-        img = crop_receipt_roi(img)
-        img = perspective_correct(img)
-
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Upscale small images
-    if gray.shape[0] < target_height:
-        scale = target_height / gray.shape[0]
-        gray = cv2.resize(gray, None, fx=scale, fy=scale,
-                          interpolation=cv2.INTER_CUBIC)
-    # Downscale very large images to avoid OOM / hangs
-    if gray.shape[0] > max_height:
-        scale = max_height / gray.shape[0]
-        gray = cv2.resize(gray, None, fx=scale, fy=scale,
-                          interpolation=cv2.INTER_AREA)
-
-    # Deskew (before any thresholding)
-    gray = _deskew(gray)
-
-    # Gentle denoise: h=6 preserves fine text strokes while removing noise
-    gray = cv2.fastNlMeansDenoising(gray, h=6, templateWindowSize=7,
-                                    searchWindowSize=21)
-    return gray
-
-
-def preprocess_finalize(gray: "np.ndarray", mode: str = "default") -> str:
-    """Apply mode-specific thresholding and write to a temp PNG.
-
-    Parameters
-    ----------
-    gray : np.ndarray
-        Grayscale image from preprocess_base().
-    mode : str
-        "default", "clahe", or "binary".
-
-    Returns path to a temporary preprocessed PNG.
-    """
-    if mode == "clahe":
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        gray = clahe.apply(gray)
-    elif mode == "binary":
-        gray = cv2.adaptiveThreshold(
-            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY, 31, 10,
-        )
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        gray = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
-    else:
-        gray = cv2.adaptiveThreshold(
-            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY, 31, 10,
-        )
-
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    cv2.imwrite(tmp.name, gray)
-    return tmp.name
-
-
-def preprocess(img_path: Path, target_height: int = 1500,
-               max_height: int = 2000,
-               mode: str = "default") -> str:
-    """Upscale + denoise + deskew + threshold for noisy receipt images.
-
-    Convenience wrapper around preprocess_base() + preprocess_finalize().
-    Returns path to a temporary preprocessed PNG.
-    Falls back to the original path on error.
-    """
-    try:
-        gray = preprocess_base(img_path, target_height, max_height)
-        return preprocess_finalize(gray, mode)
-    except Exception:
-        return str(img_path)
-
-
-# ── OCR Engine Interface ─────────────────────────────────────────────────────
-
-
-class OCREngine(abc.ABC):
-    """Abstract base for pluggable OCR engines."""
-
-    name: str = "base"
-
-    @abc.abstractmethod
-    def load(self) -> None:
-        """Load model weights (called once)."""
-
-    @abc.abstractmethod
-    def extract(self, img_path: Path, do_preprocess: bool = True) -> list[str]:
-        """Return flat token list from an image."""
-
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} ({self.name})>"
-
-
-# ── EasyOCR Engine ───────────────────────────────────────────────────────────
-
-
-class EasyOCREngine(OCREngine):
-    name = "easyocr"
-
-    def __init__(self):
-        self._reader = None
-
-    def load(self) -> None:
-        import easyocr
-        self._reader = easyocr.Reader(["en"], gpu=True, verbose=False)
-
-    def extract_detections(
-        self, img_path: Path, do_preprocess: bool = True,
-    ) -> list[tuple]:
-        """Return raw (bbox, text, conf) detections before spatial reorder."""
-        proc = preprocess(img_path, mode="clahe") if do_preprocess else str(img_path)
-        try:
-            return self._reader.readtext(proc, detail=1)
-        except Exception:
-            try:
-                img = Image.open(proc).convert("RGB")
-                padded = Image.new("RGB", (img.width + 4, img.height + 4), (255, 255, 255))
-                padded.paste(img, (2, 2))
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t:
-                    padded.save(t.name)
-                    return self._reader.readtext(t.name, detail=1)
-            except Exception as e:
-                print(f"  ⚠  EasyOCR failed: {e}")
-                return []
-
-    def extract(self, img_path: Path, do_preprocess: bool = True) -> list[str]:
-        return spatial_reorder(self.extract_detections(img_path, do_preprocess))
-
-
-# ── PaddleOCR Engine ─────────────────────────────────────────────────────────
-
-
-class PaddleOCREngine(OCREngine):
-    name = "paddle"
-
-    def __init__(self):
-        self._ocr = None
-
-    def load(self) -> None:
-        import logging
-        import os
-        os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
-        for name in ("ppocr", "paddle", "paddleocr", "paddlex"):
-            logging.getLogger(name).setLevel(logging.ERROR)
-
-        from paddleocr import PaddleOCR
-        self._ocr = PaddleOCR(
-            lang="en",
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
-        )
-
-    def _results_to_detections(self, results) -> list[tuple]:
-        """Convert PaddleOCR predict() output to (bbox, text, conf) tuples."""
-        if not results:
-            return []
-        detections = []
-        for page in results:
-            polys = page.get("dt_polys", [])
-            texts = page.get("rec_texts", [])
-            scores = page.get("rec_scores", [])
-            for i, text in enumerate(texts):
-                if not text or not text.strip():
-                    continue
-                bbox = polys[i].tolist() if i < len(polys) else [[0, 0]] * 4
-                conf = scores[i] if i < len(scores) else 0.0
-                detections.append((bbox, text, conf))
-        return detections
-
-    def extract_detections(
-        self, img_path: Path, do_preprocess: bool = True,
-    ) -> list[tuple]:
-        """Return raw (bbox, text, conf) detections before spatial reorder.
-
-        PaddleOCR input is capped at 1200px height to avoid multi-minute
-        CPU processing times on large images.
-        """
-        proc = preprocess(img_path, max_height=1200, mode="binary") if do_preprocess else str(img_path)
-        try:
-            results = list(self._ocr.predict(proc))
-            return self._results_to_detections(results)
-        except Exception:
-            try:
-                results = list(self._ocr.predict(str(img_path)))
-                return self._results_to_detections(results)
-            except Exception as e:
-                print(f"  ⚠  PaddleOCR failed: {e}")
-                return []
-
-    def extract(self, img_path: Path, do_preprocess: bool = True) -> list[str]:
-        return spatial_reorder(self.extract_detections(img_path, do_preprocess))
-
-
-# ── Ensemble Engine ──────────────────────────────────────────────────────────
-
-
-class EnsembleEngine(OCREngine):
-    """Merges detections from EasyOCR and PaddleOCR at the bounding-box level.
-
-    Includes a targeted re-OCR pass: after the initial merge, identifies
-    Y-bands that have text but no price, crops those regions from the
-    original image at 3x resolution, and re-scans to recover faded/small
-    price text.
-    """
-
-    name = "ensemble"
-
-    def __init__(self):
-        self._easy = EasyOCREngine()
-        self._paddle = PaddleOCREngine()
-
-    def load(self) -> None:
-        self._easy.load()
-        self._paddle.load()
-
-    def extract_detections(
-        self, img_path: Path, do_preprocess: bool = True,
-    ) -> list[tuple]:
-        """Run both engines with shared base preprocessing, merge detections.
-
-        Progressive early-exit: if EasyOCR alone produces a high-confidence
-        parse (>=15 detections, avg conf >0.7, checksum within 2%), skip
-        PaddleOCR entirely to save 40-70% latency.
-        """
-        from concurrent.futures import ThreadPoolExecutor
-
-        if not do_preprocess:
-            # No preprocessing — run both engines in parallel on raw image
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                fut_easy = pool.submit(
-                    self._easy.extract_detections, img_path, False,
-                )
-                fut_paddle = pool.submit(
-                    self._paddle.extract_detections, img_path, False,
-                )
-                return ensemble_merge(fut_easy.result(), fut_paddle.result())
-
-        # Shared base preprocessing (ROI crop, perspective, upscale, deskew, denoise)
-        try:
-            gray_base = preprocess_base(img_path)
-        except Exception:
-            # Fall back to per-engine preprocessing
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                fut_easy = pool.submit(
-                    self._easy.extract_detections, img_path, True,
-                )
-                fut_paddle = pool.submit(
-                    self._paddle.extract_detections, img_path, True,
-                )
-                return ensemble_merge(fut_easy.result(), fut_paddle.result())
-
-        # Finalize for EasyOCR (CLAHE mode)
-        proc_easy = preprocess_finalize(gray_base.copy(), mode="clahe")
-
-        # Run EasyOCR first (it's faster)
-        try:
-            dets_easy = self._easy._reader.readtext(proc_easy, detail=1)
-        except Exception:
-            dets_easy = []
-
-        # Progressive early-exit: check if EasyOCR alone is sufficient
-        if len(dets_easy) >= 15:
-            avg_conf = sum(d[2] for d in dets_easy) / len(dets_easy) if dets_easy else 0
-            if avg_conf > 0.7:
-                tokens = spatial_reorder(dets_easy)
-                result = parse_receipt(tokens)
-                items = result.get("items", [])
-                target = result.get("subtotal") or result.get("total")
-                if target and len(items) >= 3:
-                    item_sum = sum(it.get("price", 0) for it in items)
-                    if abs(item_sum - target) < max(target * 0.02, 0.50):
-                        return dets_easy  # EasyOCR sufficient — skip Paddle
-
-        # Finalize for PaddleOCR (binary mode, capped at 1200px)
-        import numpy as np
-        gray_paddle = gray_base.copy()
-        if gray_paddle.shape[0] > 1200:
-            scale = 1200 / gray_paddle.shape[0]
-            gray_paddle = cv2.resize(gray_paddle, None, fx=scale, fy=scale,
-                                     interpolation=cv2.INTER_AREA)
-        proc_paddle = preprocess_finalize(gray_paddle, mode="binary")
-
-        try:
-            results = list(self._paddle._ocr.predict(proc_paddle))
-            dets_paddle = self._paddle._results_to_detections(results)
-        except Exception:
-            dets_paddle = []
-
-        return ensemble_merge(dets_easy, dets_paddle)
-
-    def _retarget_missing_prices(
-        self, merged: list[tuple], img_path: Path,
-    ) -> list[tuple]:
-        """Re-OCR bands that have text tokens but no price detection.
-
-        Crops the relevant Y-band from the original image, upscales 3x,
-        and runs EasyOCR on just that strip to recover faded/small prices.
-        """
-        import numpy as np
-
-        if not merged:
-            return merged
-
-        # Load original for cropping
-        orig = cv2.imread(str(img_path))
-        if orig is None:
-            return merged
-
-        gray = cv2.cvtColor(orig, cv2.COLOR_BGR2GRAY)
-        h, w = gray.shape[:2]
-        # Scale factor used in preprocessing (to map bbox coords back)
-        if h < 1500:
-            scale = 1500 / h
-        elif h > 2000:
-            scale = 2000 / h
-        else:
-            scale = 1.0
-
-        # Build Y-bands from merged detections
-        _PRICE_LIKE = re.compile(r'^[£$€]?\d{1,6}[.,]\d{1,3}')
-
-        def _has_price(text):
-            return _mod.parse_price(_mod.normalise_token(text)) is not None
-
-        # Group into bands
-        entries = []
-        for bbox, text, conf in merged:
-            xs = [p[0] for p in bbox]
-            ys = [p[1] for p in bbox]
-            entries.append({
-                'bbox': bbox, 'text': text, 'conf': conf,
-                'y_mid': (min(ys) + max(ys)) / 2,
-                'y_min': min(ys), 'y_max': max(ys),
-                'x_min': min(xs), 'x_max': max(xs),
-            })
-        entries.sort(key=lambda e: e['y_mid'])
-
-        bands = []
-        cur = [entries[0]]
-        for e in entries[1:]:
-            band_y = sum(b['y_mid'] for b in cur) / len(cur)
-            if abs(e['y_mid'] - band_y) <= 20:
-                cur.append(e)
-            else:
-                bands.append(cur)
-                cur = [e]
-        bands.append(cur)
-
-        new_dets = list(merged)
-        for band in bands:
-            has_text = any(
-                len(e['text'].strip()) >= 3 and not _has_price(e['text'])
-                for e in band
-            )
-            has_price = any(_has_price(e['text']) for e in band)
-            if has_text and not has_price:
-                # Crop this band's right half (where prices typically are)
-                y_min = max(0, int(min(e['y_min'] for e in band) / scale) - 5)
-                y_max = min(h, int(max(e['y_max'] for e in band) / scale) + 5)
-                x_mid = w // 2
-                crop = gray[y_min:y_max, x_mid:w]
-                if crop.size == 0:
-                    continue
-                # Upscale 3x for better recognition of small text
-                crop = cv2.resize(crop, None, fx=3, fy=3,
-                                  interpolation=cv2.INTER_CUBIC)
-                crop = cv2.fastNlMeansDenoising(crop, h=10)
-                clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(4, 4))
-                crop = clahe.apply(crop)
-
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                    cv2.imwrite(tmp.name, crop)
-                    try:
-                        re_dets = self._easy._reader.readtext(tmp.name, detail=1)
-                        for bbox2, text2, conf2 in re_dets:
-                            if _has_price(text2) and conf2 >= 0.2:
-                                # Map bbox back to original image coordinates
-                                xs2 = [p[0] / 3 + x_mid for p in bbox2]
-                                ys2 = [p[1] / 3 + y_min for p in bbox2]
-                                mapped_bbox = [
-                                    [min(xs2) * scale, min(ys2) * scale],
-                                    [max(xs2) * scale, min(ys2) * scale],
-                                    [max(xs2) * scale, max(ys2) * scale],
-                                    [min(xs2) * scale, max(ys2) * scale],
-                                ]
-                                new_dets.append((mapped_bbox, text2, conf2))
-                    except Exception:
-                        pass
-        return new_dets
-
-    def extract(self, img_path: Path, do_preprocess: bool = True) -> list[str]:
-        dets = self.extract_detections(img_path, do_preprocess)
-
-        # Targeted re-OCR: recover prices in bands that only have text
-        dets = self._retarget_missing_prices(dets, img_path)
-
-        # force_band_order=True: ensemble-merged detections have arbitrary
-        # order from the merge/dedup pass, so Y-band grouping with x-sort
-        # is essential for correct name→price pairing.
-        # y_tolerance=15: tighter than default (25) because ensemble has
-        # more detections per visual line, making adjacent lines more
-        # likely to bleed into each other with a loose tolerance.
-        return spatial_reorder(
-            dets,
-            y_tolerance=15,
-            force_band_order=True,
-        )
-
-
-# ── Engine Registry ──────────────────────────────────────────────────────────
-
-ENGINES: dict[str, type[OCREngine]] = {
-    "easyocr": EasyOCREngine,
-    "paddle": PaddleOCREngine,
-    "ensemble": EnsembleEngine,
-}
-
-
-def get_available_engines() -> list[str]:
-    """Return names of engines whose dependencies are installed."""
-    available = []
-    # EasyOCR
-    try:
-        import easyocr  # noqa: F401
-        available.append("easyocr")
-    except ImportError:
-        pass
-    # PaddleOCR
-    try:
-        import paddleocr  # noqa: F401
-        available.append("paddle")
-    except ImportError:
-        pass
-    # Ensemble is available when both engines are installed
-    if "easyocr" in available and "paddle" in available:
-        available.append("ensemble")
-    return available
+# ── Engines & preprocessing (lifted to lib/receipt-ocr/engines.py) ──────────
+# Historical context: these classes used to live in this file. They were
+# moved out so the FastAPI service (and any future caller) can import them
+# without going through the bench harness. We re-export them here so the
+# rest of this file — and any external script that imports symbols from
+# ocr_bench — continues to work unchanged.
+_ENGINES_PATH = Path(__file__).resolve().parent.parent / "engines.py"
+_eng_spec = importlib.util.spec_from_file_location("engines", _ENGINES_PATH)
+_eng_mod = importlib.util.module_from_spec(_eng_spec)
+_eng_spec.loader.exec_module(_eng_mod)
+
+OCREngine = _eng_mod.OCREngine
+EasyOCREngine = _eng_mod.EasyOCREngine
+PaddleOCREngine = _eng_mod.PaddleOCREngine
+EnsembleEngine = _eng_mod.EnsembleEngine
+preprocess = _eng_mod.preprocess
+preprocess_base = _eng_mod.preprocess_base
+preprocess_finalize = _eng_mod.preprocess_finalize
+_deskew = _eng_mod._deskew
+_unsharp_mask = _eng_mod._unsharp_mask
+_SHARPEN_LAP_MIN = _eng_mod._SHARPEN_LAP_MIN
+_SHARPEN_LAP_MAX = _eng_mod._SHARPEN_LAP_MAX
+ENGINES = _eng_mod.ENGINES
+get_available_engines = _eng_mod.get_available_engines
 
 
 # ── Scoring ──────────────────────────────────────────────────────────────────
@@ -708,10 +276,14 @@ def score_result(name: str, gt: dict, result: dict) -> dict:
               n >= gt["min_items"],
               f"got={n}  expected≥{gt['min_items']}")
 
+    def _normalize(s: str) -> str:
+        return "".join(s.upper().split())
+
     for substr, expected_price in gt.get("item_prices", []):
         items = result.get("items", [])
+        target = _normalize(substr)
         matched = next(
-            (it for it in items if substr.upper() in it.get("name", "").upper()),
+            (it for it in items if target in _normalize(it.get("name", ""))),
             None,
         )
         if matched:
@@ -733,10 +305,15 @@ def run_benchmark(
     engine: OCREngine,
     images: list[str] | None = None,
     do_preprocess: bool = True,
+    samples_dir: Path | None = None,
+    ground_truth: dict[str, dict] | None = None,
 ) -> dict:
     """Run benchmark for a single engine. Returns summary dict."""
 
-    targets = {k: v for k, v in GROUND_TRUTH.items()
+    samples_dir = samples_dir or SAMPLES_DIR
+    ground_truth = ground_truth if ground_truth is not None else GROUND_TRUTH
+
+    targets = {k: v for k, v in ground_truth.items()
                if images is None or k in images}
 
     all_pass = all_total = 0
@@ -744,7 +321,7 @@ def run_benchmark(
     rows = []
 
     for img_name, gt in targets.items():
-        img_path = SAMPLES_DIR / img_name
+        img_path = samples_dir / img_name
         if not img_path.exists():
             print(f"  [SKIP] {img_name} not found")
             continue
@@ -765,6 +342,10 @@ def run_benchmark(
 
         result = parse_receipt(tokens)
         row = score_result(img_name, gt, result)
+        # Attach ground_truth so downstream consumers (CI gate, JSON export,
+        # LR calibrator) can group rows by store without re-loading GROUND_TRUTH.
+        row["ground_truth"] = gt
+        row["elapsed"] = elapsed
         rows.append(row)
 
         all_pass += row["pass"]
@@ -836,12 +417,42 @@ def print_report(results: list[dict]) -> None:
         print(f"{'━' * 72}")
 
 
+def print_diagnostic(results: list[dict]) -> None:
+    """Aggregate per-check-type pass rate across all rows in each result."""
+    from collections import defaultdict
+
+    order = ["store", "total", "subtotal", "date", "min_items", "item"]
+    for res in results:
+        agg: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+        for row in res["rows"]:
+            for label, verdict in row["checks"].items():
+                key = label.split(":", 1)[0]  # collapse "item:CARROTS" → "item"
+                agg[key][1] += 1
+                if verdict.startswith("✓"):
+                    agg[key][0] += 1
+        if not agg:
+            continue
+        print(f"\n  DIAGNOSTIC: {res['engine'].upper()}")
+        print(f"  {'─' * 50}")
+        keys = order + [k for k in agg if k not in order]
+        for key in keys:
+            if key not in agg:
+                continue
+            passed, total = agg[key]
+            pct = 100 * passed / total if total else 0
+            n_blocks = round(pct / 5)
+            bar = "█" * n_blocks + "░" * (20 - n_blocks)
+            print(f"  {key:<12} {bar}  {pct:5.1f}%  ({passed}/{total})")
+
+
 # ── Recommended benchmark ───────────────────────────────────────────────────
 
 
 def run_recommended_benchmark(
     images: list[str] | None = None,
     do_preprocess: bool = True,
+    samples_dir: Path | None = None,
+    ground_truth: dict[str, dict] | None = None,
 ) -> dict:
     """Run benchmark using the heuristic recommender to pick the strategy.
 
@@ -854,10 +465,15 @@ def run_recommended_benchmark(
     """
     if not _HAS_RECOMMENDER:
         print("ERROR: Recommender modules not available.")
+        if _RECOMMENDER_LOAD_ERROR:
+            print(f"       {_RECOMMENDER_LOAD_ERROR}")
         return {"engine": "recommend", "rows": [], "passed": 0, "total": 0,
                 "accuracy": 0, "time": 0}
 
-    targets = {k: v for k, v in GROUND_TRUTH.items()
+    samples_dir = samples_dir or SAMPLES_DIR
+    ground_truth = ground_truth if ground_truth is not None else GROUND_TRUTH
+
+    targets = {k: v for k, v in ground_truth.items()
                if images is None or k in images}
 
     # Load all engines (needed for any strategy)
@@ -880,7 +496,7 @@ def run_recommended_benchmark(
     decisions = []
 
     for img_name, gt in targets.items():
-        img_path = SAMPLES_DIR / img_name
+        img_path = samples_dir / img_name
         if not img_path.exists():
             print(f"  [SKIP] {img_name} not found")
             continue
@@ -927,6 +543,8 @@ def run_recommended_benchmark(
             continue
 
         row = score_result(img_name, gt, result)
+        row["ground_truth"] = gt
+        row["elapsed"] = elapsed
         rows.append(row)
         all_pass += row["pass"]
         all_total += row["total"]
@@ -993,13 +611,68 @@ def main():
         "--recommend", action="store_true",
         help="Use the heuristic model recommender instead of a fixed engine",
     )
+    parser.add_argument(
+        "--dataset", choices=["samples", "wildreceipt"], default="samples",
+        help="Which dataset to bench against (default: samples).",
+    )
+    parser.add_argument(
+        "--include-unknown-stores", action="store_true",
+        help="Include receipts whose store the parser doesn't canonicalize "
+             "(external datasets only; default: drop them).",
+    )
+    parser.add_argument(
+        "--diagnose", action="store_true",
+        help="Print per-check-type pass-rate breakdown after the bench run.",
+    )
+    parser.add_argument(
+        "--sample", type=int, default=0, metavar="N",
+        help="Run on a random sample of N receipts (deterministic seed for "
+             "reproducibility across runs). 0 = use all.",
+    )
+    parser.add_argument(
+        "--sample-seed", type=int, default=0,
+        help="Seed for --sample. Change to draw a different sample.",
+    )
+    parser.add_argument(
+        "--json", action="store_true",
+        help="Emit results as JSON to stdout instead of (alongside the) human "
+             "summary. Used by CI to read accuracy figures programmatically.",
+    )
+    parser.add_argument(
+        "--gate", type=str, default=None, metavar="PATH",
+        help="Path to a CI gate config (JSON). When set, the bench exits with "
+             "code 1 if accuracy falls below the thresholds defined in that "
+             "file. See ci_gate.example.json for the schema.",
+    )
     args = parser.parse_args()
+
+    if args.dataset == "samples":
+        samples_dir, ground_truth = SAMPLES_DIR, GROUND_TRUTH
+    else:
+        samples_dir, ground_truth = load_external_dataset(args.dataset)
+        if not args.include_unknown_stores:
+            n_before = len(ground_truth)
+            ground_truth = {k: v for k, v in ground_truth.items() if "store" in v}
+            print(f"Dataset: {args.dataset}  "
+                  f"({len(ground_truth)}/{n_before} receipts with canonical store)\n")
+        else:
+            print(f"Dataset: {args.dataset} ({len(ground_truth)} receipts)\n")
+
+    if args.sample > 0 and args.sample < len(ground_truth):
+        import random as _random
+        rng = _random.Random(args.sample_seed)
+        keys = sorted(ground_truth.keys())  # sort for stable seeding
+        chosen = rng.sample(keys, args.sample)
+        ground_truth = {k: ground_truth[k] for k in chosen}
+        print(f"Sampled {args.sample} receipts (seed={args.sample_seed})\n")
 
     if args.recommend:
         print("Running with heuristic recommender\n")
         rec_res = run_recommended_benchmark(
             images=args.images,
             do_preprocess=not args.no_preprocess,
+            samples_dir=samples_dir,
+            ground_truth=ground_truth,
         )
         # Also run ensemble for comparison
         print(f"\n{'─' * 72}")
@@ -1010,8 +683,16 @@ def main():
             ens,
             images=args.images,
             do_preprocess=not args.no_preprocess,
+            samples_dir=samples_dir,
+            ground_truth=ground_truth,
         )
         print_report([rec_res, ens_res])
+        if args.diagnose:
+            print_diagnostic([rec_res, ens_res])
+        if args.json:
+            _emit_json([rec_res, ens_res])
+        if args.gate:
+            sys.exit(_check_gate(args.gate, [rec_res, ens_res]))
         return
 
     available = get_available_engines()
@@ -1044,10 +725,145 @@ def main():
             engine,
             images=args.images,
             do_preprocess=not args.no_preprocess,
+            samples_dir=samples_dir,
+            ground_truth=ground_truth,
         )
         results.append(res)
 
     print_report(results)
+    if args.diagnose:
+        print_diagnostic(results)
+    if args.json:
+        _emit_json(results)
+    if args.gate:
+        sys.exit(_check_gate(args.gate, results))
+
+
+# ── CI helpers (JSON output + gate evaluation) ───────────────────────────────
+
+
+def _emit_json(results: list[dict]) -> None:
+    """Print a machine-readable summary of one or more bench runs to stdout.
+
+    Schema (one object per engine):
+        {
+          "engine": "easyocr",
+          "n_images": 8,
+          "passed": 24,
+          "total": 30,
+          "accuracy": 0.80,
+          "per_image": [{"image": "1.jpg", "passed": 4, "total": 5, ...}, ...],
+          "per_store": {"Walmart": {"passed": 9, "total": 10, "accuracy": 0.90}, ...}
+        }
+    """
+    import json as _json
+    payload = []
+    for res in results:
+        engine_summary = {
+            "engine": res.get("engine"),
+            "n_images": len(res.get("rows") or []),
+            "passed": sum(r["pass"] for r in res.get("rows") or []),
+            "total": sum(r["total"] for r in res.get("rows") or []),
+        }
+        engine_summary["accuracy"] = (
+            engine_summary["passed"] / engine_summary["total"]
+            if engine_summary["total"] else 0.0
+        )
+
+        # Per-store rollup (uses ground-truth store from the score row)
+        per_store: dict[str, dict[str, int]] = {}
+        for r in res.get("rows") or []:
+            gt = (r.get("ground_truth") or {})
+            store = gt.get("store") or "Unknown"
+            slot = per_store.setdefault(store, {"passed": 0, "total": 0})
+            slot["passed"] += r["pass"]
+            slot["total"] += r["total"]
+        for store, slot in per_store.items():
+            slot["accuracy"] = slot["passed"] / slot["total"] if slot["total"] else 0.0
+        engine_summary["per_store"] = per_store
+        engine_summary["per_image"] = res.get("rows") or []
+        payload.append(engine_summary)
+
+    print(_json.dumps(payload, indent=2, default=str))
+
+
+def _check_gate(gate_path: str, results: list[dict]) -> int:
+    """Evaluate the gate config and return the exit code (0=pass, 1=fail).
+
+    Gate config schema (JSON):
+        {
+          "min_overall_accuracy": 0.80,
+          "min_per_store_accuracy": {
+            "Walmart": 0.85,
+            "Whole Foods": 0.80,
+            "Trader Joe's": 0.80
+          },
+          "engine": "ensemble"   // which result to gate on; defaults to last
+        }
+
+    All checks must pass for exit code 0. Failures are written to stderr.
+    """
+    import json as _json
+    try:
+        cfg = _json.loads(Path(gate_path).read_text())
+    except Exception as e:
+        print(f"Could not load gate config {gate_path}: {e}", file=sys.stderr)
+        return 1
+
+    target_engine = cfg.get("engine")
+    chosen = None
+    if target_engine:
+        for r in results:
+            if r.get("engine") == target_engine:
+                chosen = r
+                break
+        if chosen is None:
+            print(f"Gate engine {target_engine!r} not in results", file=sys.stderr)
+            return 1
+    else:
+        chosen = results[-1]
+
+    failures: list[str] = []
+    rows = chosen.get("rows") or []
+    overall_passed = sum(r["pass"] for r in rows)
+    overall_total = sum(r["total"] for r in rows)
+    overall_acc = overall_passed / overall_total if overall_total else 0.0
+
+    min_overall = cfg.get("min_overall_accuracy")
+    if min_overall is not None and overall_acc < min_overall:
+        failures.append(
+            f"Overall accuracy {overall_acc:.3f} < gate {min_overall:.3f}"
+        )
+
+    per_store_thresholds = cfg.get("min_per_store_accuracy") or {}
+    if per_store_thresholds:
+        per_store: dict[str, dict[str, int]] = {}
+        for r in rows:
+            gt = r.get("ground_truth") or {}
+            store = gt.get("store") or "Unknown"
+            slot = per_store.setdefault(store, {"passed": 0, "total": 0})
+            slot["passed"] += r["pass"]
+            slot["total"] += r["total"]
+        for store, threshold in per_store_thresholds.items():
+            slot = per_store.get(store)
+            if slot is None:
+                failures.append(f"Store {store!r} has no rows in result set")
+                continue
+            acc = slot["passed"] / slot["total"] if slot["total"] else 0.0
+            if acc < threshold:
+                failures.append(
+                    f"Store {store!r} accuracy {acc:.3f} < gate {threshold:.3f} "
+                    f"({slot['passed']}/{slot['total']})"
+                )
+
+    if failures:
+        print("\nCI gate FAILED:", file=sys.stderr)
+        for f in failures:
+            print(f"  ✗ {f}", file=sys.stderr)
+        return 1
+
+    print("\nCI gate PASSED.", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":

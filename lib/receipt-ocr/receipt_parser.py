@@ -29,8 +29,14 @@ _PRICE_RE = re.compile(
 _BARCODE_STANDALONE = re.compile(r'^\d{10,15}(?:\s*[A-Za-z]{1,2})?$')  # optional trailing tax flag(s)
 _BARCODE_TRAILING   = re.compile(r'\s\d{10,15}(?:\s*[A-Za-z]{1,2})?$')  # optional trailing tax flag(s)
 
-_KW_SUBTOTAL = re.compile(r'\bsubt[o0q]', re.IGNORECASE)  # q catches SUBTQT OCR variant
-_KW_TOTAL    = re.compile(r'\btot[a4][l1]?\b', re.IGNORECASE)
+_KW_SUBTOTAL = re.compile(
+    r'\bsubt[o0q]'          # SUBTOTAL, SUBT0TAL, SUBTQTAL
+    r'|\bsub[-\s]t[o0]t'    # SUB-TOTAL, SUB TOTAL
+    r'|\b5ubt[o0]'          # 5UBTOTAL (OCR S→5)
+    r'|\bnet\s+(?:amount|total|sale)',  # NET TOTAL (UK style)
+    re.IGNORECASE,
+)
+_KW_TOTAL    = re.compile(r'\bt[o0]t[a4][l1]?\b|\bamount\s+due\b|\bbalance\s+due\b|\btotal\s+to\s+pay\b', re.IGNORECASE)
 _KW_TAX      = re.compile(r'\bt[a4][x%]', re.IGNORECASE)
 _KW_TENDER   = re.compile(r'\btend\b|\btendered\b', re.IGNORECASE)
 _KW_CHANGE   = re.compile(r'\bchange\b', re.IGNORECASE)
@@ -42,7 +48,11 @@ _BOILERPLATE = re.compile(
     r'appr code|terminal|network id|total purchase|'
     r'debit tend|cash tend|visa tend|'
     r'check.{0,3}member|come again|receipt for|back of receipt|'
-    r'low price|harrods rewards|open sunday',
+    r'low price|harrods rewards|open sunday|'
+    r'customer\s+(?:copy|receipt)|loyalty\s+card|clubcard|'
+    r'helpline|customer\s+service|head\s+office|registered\s+in|'
+    r'vat\s+(?:no|number|reg)|company\s+no|'
+    r'nectar|advantage\s+card',
     re.IGNORECASE,
 )
 
@@ -55,6 +65,19 @@ _SPAR_SIZE_RE = re.compile(
 _SIZE_DIGIT_TR = str.maketrans('OoSslIi', '0055111')
 _DATE_SLASH   = re.compile(r'^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})')
 _DATE_COMMA   = re.compile(r'^(\d{1,2})[,](\d{1,2})[,](\d{2,4})')
+# "15 Jan 2021", "Jan 15 2021", "January 15, 2021", "15-Jan-21"
+_MONTH_NAMES  = {
+    'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+    'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+    'january': 1, 'february': 2, 'march': 3, 'april': 4, 'june': 6,
+    'july': 7, 'august': 8, 'september': 9, 'october': 10,
+    'november': 11, 'december': 12,
+}
+_DATE_WORD_RE = re.compile(
+    r'^(\d{1,2})[\s\-/]([A-Za-z]{3,9})[\s\-/,](\d{2,4})'   # 15-Jan-2021
+    r'|^([A-Za-z]{3,9})[\s\-/,]?(\d{1,2})[\s,\-]+(\d{2,4})',  # Jan 15 2021
+    re.IGNORECASE,
+)
 
 _STORE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r'\bwal[\s\-]?mart\b|\bwalmar[t]?\b|\bvalnart\b|\bwalamart\b', re.IGNORECASE), 'Walmart'),
@@ -72,6 +95,25 @@ _STORE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r'\btrader\s*joe', re.IGNORECASE),      "Trader Joe's"),
     (re.compile(r'\b99\s*ranch\b', re.IGNORECASE),      '99 Ranch'),
     (re.compile(r'\bandronico', re.IGNORECASE),         "Andronico's"),
+    # UK chains
+    (re.compile(r'\btesco\b', re.IGNORECASE),           'Tesco'),
+    (re.compile(r'\bmorrisons?\b|\bwm\s*morrison', re.IGNORECASE), 'Morrisons'),
+    (re.compile(r'\bsainsbury', re.IGNORECASE),         "Sainsbury's"),
+    (re.compile(r'\bwaitrose\b', re.IGNORECASE),        'Waitrose'),
+    (re.compile(r'\blidl\b', re.IGNORECASE),            'Lidl'),
+    (re.compile(r'\biceland\b', re.IGNORECASE),         'Iceland'),
+    # International
+    (re.compile(r'\bcoles\b', re.IGNORECASE),           'Coles'),
+    (re.compile(r'\bwoolworths\b', re.IGNORECASE),      'Woolworths'),
+    # More US chains
+    (re.compile(r'\bpublix\b', re.IGNORECASE),          'Publix'),
+    (re.compile(r'\bshoprite\b|\bshop.rite\b', re.IGNORECASE), 'ShopRite'),
+    (re.compile(r'\bsave[\s\-]on[\s\-]foods?\b', re.IGNORECASE), 'Save-On-Foods'),
+    (re.compile(r'\bfood\s*lion\b', re.IGNORECASE),     'Food Lion'),
+    (re.compile(r'\bwegmans?\b', re.IGNORECASE),        'Wegmans'),
+    (re.compile(r'\bh[\-\s]?e[\-\s]?b\b', re.IGNORECASE), 'HEB'),
+    (re.compile(r'\bsprouts\b', re.IGNORECASE),         'Sprouts'),
+    (re.compile(r'\balbertsons?\b', re.IGNORECASE),     "Albertsons"),
 ]
 _WHOLE_RE = re.compile(r'\bwhole\b', re.IGNORECASE)
 _FOODS_RE = re.compile(r'\bfoods?\b', re.IGNORECASE)
@@ -97,6 +139,22 @@ _FUZZY_STORE_MAP: list[tuple[str, str]] = [
     ('MEIJER',       'Meijer'),
     ('99 RANCH',     '99 Ranch'),
     ('ANDRONICO',    "Andronico's"),
+    ('TESCO',        'Tesco'),
+    ('MORRISONS',    'Morrisons'),
+    ("SAINSBURY'S",  "Sainsbury's"),
+    ('SAINSBURYS',   "Sainsbury's"),
+    ('WAITROSE',     'Waitrose'),
+    ('LIDL',         'Lidl'),
+    ('ICELAND',      'Iceland'),
+    ('COLES',        'Coles'),
+    ('WOOLWORTHS',   'Woolworths'),
+    ('PUBLIX',       'Publix'),
+    ('SHOPRITE',     'ShopRite'),
+    ('FOOD LION',    'Food Lion'),
+    ('WEGMANS',      'Wegmans'),
+    ('HEB',          'HEB'),
+    ('SPROUTS',      'Sprouts'),
+    ('ALBERTSONS',   'Albertsons'),
 ]
 # Minimum SequenceMatcher ratio to accept a fuzzy match.
 _FUZZY_THRESHOLD = 0.68
@@ -160,7 +218,10 @@ _SAVINGS_LINE = re.compile(
     r'\bkroger\s+(?:plus\s+)?savings\b|\bgas\s+points?\b|\bfuel\s+points?\b|'
     r'\bpoints?\s+(?:earned|balance)\b|\breward\s+(?:pts|balance)\b|'
     r'\btotal\s+savings\b|\btotal\s+coupons?\b|\bcoupon\s+savings\b|'
-    r'\bredcard\b|\btarget\s+circle\s+card\b|\bjust\s+for\s+[uU]\b',
+    r'\bredcard\b|\btarget\s+circle\s+card\b|\bjust\s+for\s+[uU]\b|'
+    r'\bclubcard\b|\bnectar\b|\badvantage\s+card\b|\bloyalty\s+(?:card|points?)\b|'
+    r'\byou\s+(?:have\s+)?saved\b|\bsaving\s+with\b|\bspecial\s+offer\b|'
+    r'\bprice\s+match\b|\beveryday\s+(?:low\s+)?price\b',
     re.IGNORECASE,
 )
 _WEIGHT_LINE    = re.compile(r'^\d+[.,]\d+\s*(lb|kg)\s*@', re.IGNORECASE)
@@ -169,7 +230,7 @@ _TARGET_DPCI    = re.compile(r'^\d{9}\s+')
 _TARGET_TAX_RE  = re.compile(r'\bT\s*=\s*\w[\w\s]*[Tt]ax\b', re.IGNORECASE)
 _CHINESE_LINE   = re.compile(r'[\u4e00-\u9fff\u3400-\u4dbf\uff00-\uffef]')
 _DISCOUNT_LINE  = re.compile(r'^-\s*\d+[.,]\d')
-_KW_TOTAL_OR_BALANCE = re.compile(r'\btot[a4][l1]?\b|\bbalance\b', re.IGNORECASE)
+_KW_TOTAL_OR_BALANCE = re.compile(r'\bt[o0]t[a4][l1]?\b|\bbalance\b|\bamount\s+due\b|\btotal\s+to\s+pay\b', re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
 # OCR token pre-correction
@@ -360,7 +421,9 @@ def parse_date(token: str, day_first: bool = False) -> str | None:
     parts = normalise_token(token).split()
     if not parts:
         return None
-    t = parts[0]  # drop time portion
+    t = parts[0]  # drop time portion (HH:MM:SS appended)
+
+    # ── Numeric formats: MM/DD/YY, DD-MM-YYYY, etc. ─────────────────────
     for pat in (_DATE_SLASH, _DATE_COMMA):
         m = pat.match(t)
         if not m:
@@ -380,6 +443,24 @@ def parse_date(token: str, day_first: bool = False) -> str | None:
         # just the universal upper bound of 31 (which accepted Feb 31 etc.).
         if 1 <= month <= 12 and 1 <= day <= _DAYS_IN_MONTH[month]:
             return f"{y:04d}-{month:02d}-{day:02d}"
+
+    # ── Word-month formats: "15 Jan 2021", "Jan 15, 2021", "15-Jan-21" ──
+    # Try across consecutive tokens to catch "15 Jan 2021" split across 3 tokens.
+    full_str = ' '.join(parts[:4])
+    m = _DATE_WORD_RE.match(full_str)
+    if m:
+        if m.group(1) is not None:  # DD-Mon-YYYY
+            day_s, mon_s, yr_s = m.group(1), m.group(2), m.group(3)
+        else:                        # Mon DD YYYY
+            mon_s, day_s, yr_s = m.group(4), m.group(5), m.group(6)
+        month = _MONTH_NAMES.get(mon_s.lower())
+        if month is not None:
+            day = int(day_s)
+            y = int(yr_s)
+            if y < 100:
+                y += 2000 if y <= 30 else 1900
+            if 1 <= day <= _DAYS_IN_MONTH[month]:
+                return f"{y:04d}-{month:02d}-{day:02d}"
     return None
 
 
@@ -450,9 +531,21 @@ def _find_date_in_tokens(tokens: list[str], day_first: bool = False) -> str | No
         context = ' '.join(tokens[max(0, i - 2):i])
         if _POLICY_CONTEXT.search(context):
             continue
+        # Try single token
         d = parse_date(t, day_first=day_first)
         if d:
             return d
+        # Try merging with next 1-2 tokens for word-month formats ("15", "Jan", "2021")
+        if i + 1 < len(tokens):
+            combined = t + ' ' + tokens[i + 1]
+            d = parse_date(combined, day_first=day_first)
+            if d:
+                return d
+        if i + 2 < len(tokens):
+            combined = t + ' ' + tokens[i + 1] + ' ' + tokens[i + 2]
+            d = parse_date(combined, day_first=day_first)
+            if d:
+                return d
     # Embedded date fallback — scan in reverse to prefer dates near the bottom
     for i, t in enumerate(reversed(tokens)):
         orig_idx = len(tokens) - 1 - i
@@ -477,7 +570,7 @@ def _fill_totals(result: dict, tokens: list[str], subtotal_idx: int,
     """
     # Subtotal value: look in tokens immediately after SUBTOTAL keyword
     if subtotal_idx < len(tokens):
-        for t in tokens[subtotal_idx + 1: subtotal_idx + 9]:
+        for t in tokens[subtotal_idx + 1: subtotal_idx + 12]:
             p = parse_price(normalise_token(t))
             if p is not None:
                 result["subtotal"] = p
@@ -501,7 +594,7 @@ def _fill_totals(result: dict, tokens: list[str], subtotal_idx: int,
                         seen_tax_token_idxs.add(j)
                     break
 
-    # Total — look forward up to 8 tokens, then backward up to 3 tokens.
+    # Total — look forward up to 12 tokens, then backward up to 5 tokens.
     # Some Walmart/EFT receipts print the value on the line *before* the keyword.
     total_kw = _KW_TOTAL_OR_BALANCE if use_balance else _KW_TOTAL
     for i, t in enumerate(tokens):
@@ -509,13 +602,13 @@ def _fill_totals(result: dict, tokens: list[str], subtotal_idx: int,
         if (total_kw.search(n)
                 and not _KW_SUBTOTAL.search(n)
                 and not _KW_TAX.search(n)):
-            for tt in tokens[i + 1: i + 9]:
+            for tt in tokens[i + 1: i + 12]:
                 p = parse_price(normalise_token(tt))
                 if p is not None:
                     result["total"] = p
                     break
             if result["total"] is None:
-                for tt in reversed(tokens[max(0, i - 3): i]):
+                for tt in reversed(tokens[max(0, i - 5): i]):
                     p = parse_price(normalise_token(tt))
                     if p is not None:
                         result["total"] = p
@@ -1667,7 +1760,7 @@ def extract_generic(tokens: list[str]) -> dict:
     for i, t in enumerate(footer):
         n = normalise_token(t)
         if _KW_SUBTOTAL.search(n):
-            for tt in footer[i + 1: i + 4]:
+            for tt in footer[i + 1: i + 8]:
                 p = parse_price(normalise_token(tt))
                 if p is not None:
                     result["subtotal"] = p
@@ -1677,7 +1770,7 @@ def extract_generic(tokens: list[str]) -> dict:
     for i in range(len(footer) - 1, -1, -1):
         n = normalise_token(footer[i])
         if _KW_TOTAL.search(n) and not _KW_SUBTOTAL.search(n):
-            for j in range(i + 1, min(i + 4, len(footer))):
+            for j in range(i + 1, min(i + 8, len(footer))):
                 p = parse_price(normalise_token(footer[j]))
                 if p is not None:
                     result["total"] = p
@@ -1732,6 +1825,21 @@ def extract_generic(tokens: list[str]) -> dict:
 
     result["items"] = items
     result["date"] = _find_date_in_tokens(tokens)
+
+    # Footer fallback: if keyword-based total search failed, pick the last
+    # plausible price in the footer.  Only applies to generic extraction
+    # where the receipt format is unknown and the keyword may be non-standard
+    # (e.g. "AMOUNT DUE", "TO PAY", or an OCR variant not in _KW_TOTAL).
+    if result["total"] is None and footer:
+        tax_amounts = {t["amount"] for t in result.get("taxes", [])}
+        sub = result.get("subtotal")
+        for tt in reversed(footer):
+            p = parse_price(normalise_token(tt))
+            if p is not None and p > 0 and p not in tax_amounts:
+                if sub is None or p >= sub * 0.95:
+                    result["total"] = p
+                    break
+
     return result
 
 
@@ -2031,38 +2139,44 @@ def spatial_reorder(
         # Use the smaller of caller's tolerance and the adaptive one
         y_tolerance = min(y_tolerance, adaptive_tol)
 
-    # ── 3. Determine column split ────────────────────────────────────────
-    x_range = max(e['x_max'] for e in entries) - min(e['x_min'] for e in entries)
-    col_threshold: float | None = None
+    # ── 3. Determine column boundaries (multi-column aware) ─────────────
+    # We generalise from "one largest gap → 2 columns" to "all significant
+    # gaps → N columns". This handles 3-column (qty | name | price) and
+    # 4-column (SKU | name | qty | price) layouts that the legacy
+    # single-split heuristic could not. The price-on-right validation is
+    # still applied to the rightmost gap; if it fails we fall back to a
+    # single-column layout (no banding).
+    col_thresholds: list[float] = []
     use_bands = force_band_order
 
+    x_range = max(e['x_max'] for e in entries) - min(e['x_min'] for e in entries)
     if x_range >= 100:
-        x_mins_sorted = sorted(set(e['x_min'] for e in entries))
-        best_gap = 0.0
-        best_gap_pos = 0.0
-        for i in range(1, len(x_mins_sorted)):
-            gap = x_mins_sorted[i] - x_mins_sorted[i - 1]
-            if gap > best_gap:
-                best_gap = gap
-                best_gap_pos = (x_mins_sorted[i - 1] + x_mins_sorted[i]) / 2
+        col_thresholds = _detect_column_boundaries(entries, x_range)
+        if col_thresholds:
+            use_bands = True
 
-        if best_gap >= x_range * 0.15:
-            col_threshold = best_gap_pos
-            use_bands = True   # two-column always uses band ordering
-
-    # Price-right-bias validation: if column split puts most prices on the
-    # LEFT, the gap detection found a false column boundary — disable it.
-    if col_threshold is not None:
+    # Price-right-bias validation: a real receipt should have most prices
+    # in the *rightmost* column. If the rightmost split puts more prices
+    # on the left of it than on its right, that split is a false positive.
+    # Drop it (and try the next-rightmost boundary).
+    while col_thresholds:
+        rightmost = col_thresholds[-1]
         prices_right = sum(
             1 for e in entries
-            if e['x_mid'] >= col_threshold and parse_price(normalise_token(e['text'])) is not None
+            if e['x_mid'] >= rightmost and parse_price(normalise_token(e['text'])) is not None
         )
         prices_left = sum(
             1 for e in entries
-            if e['x_mid'] < col_threshold and parse_price(normalise_token(e['text'])) is not None
+            if e['x_mid'] < rightmost and parse_price(normalise_token(e['text'])) is not None
         )
         if prices_left > prices_right * 2:
-            col_threshold = None  # false column split — prices are on the left
+            col_thresholds.pop()  # demonstrably wrong rightmost boundary
+        else:
+            break
+
+    # Backwards compat: keep `col_threshold` as a single-value alias for
+    # callers that only care about the rightmost split.
+    col_threshold = col_thresholds[-1] if col_thresholds else None
 
     if not use_bands:
         # Single-engine, single-column: preserve easyOCR reading order.
@@ -2083,23 +2197,87 @@ def spatial_reorder(
             current_band = [e]
     bands.append(current_band)
 
-    # ── 5. Emit tokens: left-to-right within each band ───────────────────
+    # ── 5. Emit tokens: column-by-column, left-to-right within each band ─
     tokens: list[str] = []
     for band in bands:
-        if col_threshold is not None:
-            left = sorted([e for e in band if e['x_mid'] < col_threshold],
-                          key=lambda e: e['x_min'])
-            right = sorted([e for e in band if e['x_mid'] >= col_threshold],
-                           key=lambda e: e['x_min'])
-            for e in left:
-                tokens.append(e['text'])
-            for e in right:
-                tokens.append(e['text'])
+        if col_thresholds:
+            # Bin entries into N columns delimited by col_thresholds. We add
+            # -inf and +inf as sentinels so the loop is uniform.
+            boundaries = [float("-inf"), *col_thresholds, float("inf")]
+            for c_left, c_right in zip(boundaries, boundaries[1:]):
+                col_entries = [
+                    e for e in band if c_left <= e['x_mid'] < c_right
+                ]
+                for e in sorted(col_entries, key=lambda e: e['x_min']):
+                    tokens.append(e['text'])
         else:
             for e in sorted(band, key=lambda e: e['x_min']):
                 tokens.append(e['text'])
 
     return tokens
+
+
+def _detect_column_boundaries(entries: list[dict], x_range: float) -> list[float]:
+    """Find column boundaries via 1D gap clustering on x_mid values.
+
+    This is the 1D analogue of DBSCAN with no epsilon parameter — instead
+    we collect all gaps and accept those exceeding ``min_gap_ratio`` of
+    the total x-range as boundaries. Stdlib only, ~50µs for typical
+    receipts (≤200 detections).
+
+    Returns the list of column-boundary x-coordinates, sorted left-to-right.
+    Empty list means no clear multi-column structure (i.e., one column).
+
+    Constraints:
+      - Boundaries are positioned at the midpoint of the gap between adjacent
+        x_mid values (NOT x_min, which can be misleading for varying-width tokens).
+      - Adjacent boundaries less than ``min_col_width_ratio`` apart are merged
+        — prevents narrow false columns from artifacts.
+      - At most 5 boundaries returned; receipts with more are likely noise.
+    """
+    if len(entries) < 2:
+        return []
+
+    # Use x_mid for gap detection — more stable than x_min for tokens of
+    # different widths. Sort and dedupe to stable comparable values.
+    x_mids = sorted({round(e['x_mid'], 1) for e in entries})
+    if len(x_mids) < 2:
+        return []
+
+    # Threshold: a gap is "significant" if it's at least 12% of the x-range.
+    # Empirically this is the sweet spot — 15% misses some 3-col layouts;
+    # 10% finds spurious gaps inside long item names.
+    _MIN_GAP_RATIO = 0.12
+    _MIN_COL_WIDTH_RATIO = 0.10
+    _MAX_BOUNDARIES = 5
+
+    min_gap = x_range * _MIN_GAP_RATIO
+    min_col_width = x_range * _MIN_COL_WIDTH_RATIO
+
+    # Collect all (gap_size, gap_position) pairs above threshold.
+    candidate_gaps: list[tuple[float, float]] = []
+    for i in range(1, len(x_mids)):
+        gap = x_mids[i] - x_mids[i - 1]
+        if gap >= min_gap:
+            pos = (x_mids[i - 1] + x_mids[i]) / 2
+            candidate_gaps.append((gap, pos))
+
+    if not candidate_gaps:
+        return []
+
+    # Sort by gap size descending — strongest evidence wins; cap at MAX_BOUNDARIES.
+    candidate_gaps.sort(key=lambda g: g[0], reverse=True)
+    selected_positions: list[float] = []
+    for _gap_size, pos in candidate_gaps:
+        if len(selected_positions) >= _MAX_BOUNDARIES:
+            break
+        # Reject if too close to an already-selected boundary.
+        if any(abs(pos - p) < min_col_width for p in selected_positions):
+            continue
+        selected_positions.append(pos)
+
+    selected_positions.sort()
+    return selected_positions
 
 
 # ---------------------------------------------------------------------------
@@ -2360,6 +2538,78 @@ def parse_qty_at_line(text: str) -> dict | None:
     return {"quantity": qty, "unit_price": unit_price, "price": round(qty * unit_price, 2)}
 
 
+def _enrich_items_with_weight_qty(result: dict, tokens: list[str]) -> None:
+    """Attach weight/quantity/unit_price metadata to items when present.
+
+    Scans the token stream for "X.XX lb @ $Y.YY" or "N @ $Y.YY" patterns
+    (across joined token windows, since OCR often splits these across
+    multiple tokens). For each match, finds the closest item by line price
+    and attaches the structured fields. Mutates ``result['items']`` in place.
+
+    Why this is a post-processor and not part of each store extractor:
+      - The 14 store extractors already do bespoke per-line parsing and
+        wiring weight/qty into each one would mean editing all 14.
+      - These patterns are universal across stores — the token shape is
+        the same whether it's printed by Whole Foods or SPAR.
+      - Mismatches are silent: if no matching item is found, we drop the
+        annotation rather than create a phantom item.
+
+    Idempotent: items that already have ``weight``/``quantity``/``unit_price``
+    set by the store extractor are not overwritten.
+    """
+    items = result.get("items") or []
+    if not items:
+        return
+
+    # Build a joined-window scanner: for each starting index, try joining
+    # 1, 2, 3, or 4 adjacent tokens with spaces and check for matches.
+    # Receipts can split "2.43 lb @ $3.99" into ["2.43", "lb", "@", "$3.99"]
+    # which is 4 tokens; or PaddleOCR can return it as a single string.
+    n = len(tokens)
+    enrichments: list[tuple[float, dict]] = []  # (matched_total, fields)
+
+    def _scan(parser, scan_n: int) -> None:
+        for i in range(n):
+            for w in range(1, scan_n + 1):
+                if i + w > n:
+                    break
+                window = " ".join(tokens[i: i + w])
+                fields = parser(window)
+                if fields:
+                    # Computed total from the parsed pattern
+                    enrichments.append((fields.get("price", 0.0), fields))
+                    break
+
+    _scan(parse_weight_line, 5)   # weight + unit + @ + $price = up to 5 tokens
+    _scan(parse_qty_at_line, 4)   # qty + @ + $price = up to 4 tokens
+
+    if not enrichments:
+        return
+
+    # Match enrichments to items by closest-price (within $0.05). One
+    # enrichment per item; items that already carry weight/qty from the
+    # extractor are skipped.
+    used: set[int] = set()
+    for matched_total, fields in enrichments:
+        best_idx = -1
+        best_diff = float("inf")
+        for idx, item in enumerate(items):
+            if idx in used:
+                continue
+            if "weight" in item or "unit_price" in item:
+                continue
+            price = item.get("price")
+            if price is None:
+                continue
+            diff = abs(price - matched_total)
+            if diff < best_diff and diff <= 0.05:
+                best_diff = diff
+                best_idx = idx
+        if best_idx >= 0:
+            used.add(best_idx)
+            items[best_idx].update({k: v for k, v in fields.items() if k != "price"})
+
+
 # ---------------------------------------------------------------------------
 # Payment method extraction
 # ---------------------------------------------------------------------------
@@ -2415,6 +2665,24 @@ def parse_receipt(tokens: list[str]) -> dict:
         "Trader Joe's":     extract_trader_joes,
         '99 Ranch':         extract_99ranch,
         "Andronico's":      extract_andronicos,
+        # UK / international chains — use generic extractor
+        'Tesco':            extract_generic,
+        'Morrisons':        extract_generic,
+        "Sainsbury's":      extract_generic,
+        'Waitrose':         extract_generic,
+        'Lidl':             extract_generic,
+        'Iceland':          extract_generic,
+        'Coles':            extract_generic,
+        'Woolworths':       extract_generic,
+        # Additional US chains — use generic extractor
+        'Publix':           extract_generic,
+        'ShopRite':         extract_generic,
+        'Save-On-Foods':    extract_generic,
+        'Food Lion':        extract_generic,
+        'Wegmans':          extract_generic,
+        'HEB':              extract_generic,
+        'Sprouts':          extract_generic,
+        'Albertsons':       extract_generic,
     }
 
     extractor = dispatch.get(store, extract_generic)
@@ -2436,6 +2704,19 @@ def parse_receipt(tokens: list[str]) -> dict:
         pass  # dictionary module optional — degrade gracefully
 
     result = _checksum_validate(result)
+
+    # Enrich items with weight/qty metadata when adjacent tokens contain
+    # patterns like "2.43 lb @ $3.99" or "3 @ $2.99". Mutates items in
+    # place. Idempotent — items that don't match the patterns are unchanged.
+    _enrich_items_with_weight_qty(result, tokens)
+
+    # Recovery: if total is still missing but subtotal is known, derive total
+    # from subtotal + taxes.  This is the exact accounting identity on every
+    # receipt (total = subtotal + sum(taxes)).  When taxes = 0 it simply sets
+    # total = subtotal.  Only apply when there's no already-correct total.
+    if result.get("total") is None and result.get("subtotal") is not None:
+        tax_sum = sum(t.get("amount", 0) for t in result.get("taxes", []))
+        result["total"] = round(result["subtotal"] + tax_sum, 2)
 
     # Extract payment method from footer tokens
     payment = extract_payment_method(tokens)

@@ -16,6 +16,11 @@ package-lock.json
 # analysis script output
 backend/scripts/output/
 
+# downloaded receipt OCR datasets (images only — GT manifests are committed)
+lib/receipt-ocr/test/datasets/*/images/
+lib/receipt-ocr/test/datasets/*/raw/
+lib/receipt-ocr/test/datasets/*/.cache/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -43,6 +48,11 @@ CLAUDE.md
 
 .claude/*
 .vscode/*
+.idea/
+
+# annotate_receipts.py local journal (per-folder SQLite cache + WAL files)
+.annotate_journal.db
+.annotate_journal.db-*
 
 *.md
 !**/README.md
@@ -71,6 +81,9 @@ supabase/migrations/20260217120000_add_canonical_double_check_drift_logging.sql
 !supabase/migrations/20260324000000_fn_bulk_insert_statement_timeout.sql
 !supabase/migrations/20260324010000_fn_bulk_insert_skip_known_products.sql
 !supabase/migrations/20260324020000_idx_product_mappings_ingredient_store.sql
+!supabase/migrations/20260506000000_receipt_training_examples.sql
+!supabase/migrations/20260506000100_receipt_training_storage.sql
+!supabase/migrations/20260506000200_receipt_training_unique_sha.sql
 supabase/.temp/
 
 # clerk configuration (can include secrets)

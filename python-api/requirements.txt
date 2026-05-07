@@ -15,5 +15,18 @@ instaloader==4.13.1
 # AI/OpenAI integration
 openai==1.54.0
 
-# Image processing (for OCR fallback if needed)
+# Image processing
 Pillow==10.4.0
+opencv-python-headless==4.10.0.84   # cv2 used by engines.py + preprocessing.py
+numpy>=1.24,<2                       # required by easyocr/paddle; pin <2 for compat
+
+# OCR engines for /receipt/scan endpoint
+# These are heavy (~500MB combined) and pull GPU-accelerated wheels. The
+# engines load lazily on first request, so import-time cost is just the
+# library import (~1-2s); model weights download on first scan call only.
+# For CPU-only deployment, paddlepaddle and easyocr both work but are
+# 5-10x slower than GPU. See docs/ocr-pipeline-architecture.md for the
+# GPU deployment notes.
+easyocr==1.7.2
+paddleocr==2.8.1
+paddlepaddle==2.6.2                  # CPU build; swap for paddlepaddle-gpu on GPU machines

@@ -60,7 +60,11 @@ class Strategy(enum.Enum):
 
 
 # ── Tunable constants ───────────────────────────────────────────────────────
-# All thresholds are defined here for easy tuning.
+# Defaults live here as the authoritative fallback. They are then overlaid
+# with values from `recommender_config.json` (next to this file) at import
+# time so calibration runs can update the live recommender without a code
+# edit. The override file path can be customised with the env var
+# RECEIPT_OCR_CONFIG_PATH for staged rollouts.
 
 # Image feature thresholds
 CONTRAST_LOW = 40.0
@@ -94,11 +98,10 @@ ESCALATION_CHECKSUM_TOLERANCE = 0.05  # dollars
 # Values: "easyocr" or "paddle".  Sign convention: positive = EasyOCR.
 
 STORE_ENGINE_PREFERENCE: dict[str, str] = {
-    # Calibrated from test/calibrate_recommender.py (2026-04-07)
-    "Trader Joe's": "paddle",     # paddle 64% vs easyocr 27%
-    "Walmart": "easyocr",         # mixed results — 3 easyocr wins, 1 paddle
-    "Whole Foods": "easyocr",     # tied or easyocr wins
-    "SPAR": "easyocr",            # easyocr 50% vs paddle 33%
+    "Trader Joe's": "paddle",
+    "Walmart": "easyocr",
+    "Whole Foods": "easyocr",
+    "SPAR": "easyocr",
     "Costco": "easyocr",
     "WinCo Foods": "easyocr",
     "Aldi": "paddle",
@@ -109,6 +112,93 @@ STORE_ENGINE_PREFERENCE: dict[str, str] = {
     "99 Ranch": "easyocr",
     "Andronico's": "easyocr",
 }
+
+
+# ── Config-file overlay ────────────────────────────────────────────────────
+# Load recommender_config.json (or the file pointed to by
+# RECEIPT_OCR_CONFIG_PATH) and overwrite the constants defined above.
+# A missing file or malformed JSON is logged but never fatal — defaults win.
+
+import os as _os
+
+_DEFAULT_CONFIG_PATH = _Path(__file__).resolve().parent / "recommender_config.json"
+_CONFIG_PATH = _Path(_os.getenv("RECEIPT_OCR_CONFIG_PATH", str(_DEFAULT_CONFIG_PATH)))
+
+
+def _apply_config_overlay(path: _Path) -> None:
+    """Load JSON config and override module-level constants in place."""
+    global CONTRAST_LOW, CONTRAST_HIGH, SKEW_HIGH, LAPLACIAN_LOW
+    global TEXT_DENSITY_LOW, TEXT_DENSITY_HIGH
+    global _WEIGHT_LOW_RESOLUTION, _WEIGHT_LOW_CONTRAST, _WEIGHT_HIGH_CONTRAST
+    global _WEIGHT_HIGH_SKEW, _WEIGHT_HIGH_NOISE, _WEIGHT_THERMAL
+    global _WEIGHT_LOW_TEXT_DENSITY, _WEIGHT_HIGH_DPI, _WEIGHT_STORE_HINT
+    global SCORE_ENSEMBLE_THRESHOLD, ESCALATION_MIN_ITEMS
+    global ESCALATION_CHECKSUM_TOLERANCE, STORE_ENGINE_PREFERENCE
+
+    if not path.is_file():
+        logger.info(json.dumps({
+            "event": "recommender_config_missing",
+            "path": str(path),
+            "note": "using built-in defaults",
+        }))
+        return
+
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(json.dumps({
+            "event": "recommender_config_load_failed",
+            "path": str(path),
+            "error": repr(e),
+        }))
+        return
+
+    ft = cfg.get("feature_thresholds") or {}
+    CONTRAST_LOW = float(ft.get("contrast_low", CONTRAST_LOW))
+    CONTRAST_HIGH = float(ft.get("contrast_high", CONTRAST_HIGH))
+    SKEW_HIGH = float(ft.get("skew_high_deg", SKEW_HIGH))
+    LAPLACIAN_LOW = float(ft.get("laplacian_low", LAPLACIAN_LOW))
+    TEXT_DENSITY_LOW = float(ft.get("text_density_low", TEXT_DENSITY_LOW))
+    TEXT_DENSITY_HIGH = float(ft.get("text_density_high", TEXT_DENSITY_HIGH))
+
+    w = cfg.get("weights") or {}
+    _WEIGHT_LOW_RESOLUTION = float(w.get("low_resolution", _WEIGHT_LOW_RESOLUTION))
+    _WEIGHT_LOW_CONTRAST = float(w.get("low_contrast", _WEIGHT_LOW_CONTRAST))
+    _WEIGHT_HIGH_CONTRAST = float(w.get("high_contrast", _WEIGHT_HIGH_CONTRAST))
+    _WEIGHT_HIGH_SKEW = float(w.get("high_skew", _WEIGHT_HIGH_SKEW))
+    _WEIGHT_HIGH_NOISE = float(w.get("high_noise", _WEIGHT_HIGH_NOISE))
+    _WEIGHT_THERMAL = float(w.get("thermal", _WEIGHT_THERMAL))
+    _WEIGHT_LOW_TEXT_DENSITY = float(w.get("low_text_density", _WEIGHT_LOW_TEXT_DENSITY))
+    _WEIGHT_HIGH_DPI = float(w.get("high_dpi", _WEIGHT_HIGH_DPI))
+    _WEIGHT_STORE_HINT = float(w.get("store_hint", _WEIGHT_STORE_HINT))
+
+    if "score_ensemble_threshold" in cfg:
+        SCORE_ENSEMBLE_THRESHOLD = float(cfg["score_ensemble_threshold"])
+
+    esc = cfg.get("escalation") or {}
+    ESCALATION_MIN_ITEMS = int(esc.get("min_items", ESCALATION_MIN_ITEMS))
+    ESCALATION_CHECKSUM_TOLERANCE = float(
+        esc.get("checksum_tolerance_dollars", ESCALATION_CHECKSUM_TOLERANCE)
+    )
+
+    sp = cfg.get("store_engine_preference")
+    if isinstance(sp, dict):
+        # Validate values before replacing — bad entries are dropped, not fatal.
+        valid = {
+            k: v for k, v in sp.items()
+            if isinstance(k, str) and v in ("easyocr", "paddle")
+        }
+        STORE_ENGINE_PREFERENCE = valid
+
+    logger.info(json.dumps({
+        "event": "recommender_config_loaded",
+        "path": str(path),
+        "store_count": len(STORE_ENGINE_PREFERENCE),
+    }))
+
+
+_apply_config_overlay(_CONFIG_PATH)
 
 
 # ── Recommendation metrics ──────────────────────────────────────────────────

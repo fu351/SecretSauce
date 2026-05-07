@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException, Header
+from fastapi import FastAPI, Query, HTTPException, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
@@ -115,6 +115,110 @@ def normalize_zip_code(value: Optional[str]) -> Optional[str]:
     if re.fullmatch(r"\d{5}", trimmed):
         return trimmed
     return None
+
+
+# ---------------------------------------------------------------------------
+# SSRF guard for outbound URL fetches
+# ---------------------------------------------------------------------------
+# Public-internet recipe scraping must not be able to reach internal services
+# (cloud metadata endpoints, RFC1918 ranges, link-local, loopback). We resolve
+# the hostname and reject any URL whose host resolves to a non-public IP.
+
+import ipaddress
+import socket
+from urllib.parse import urlparse
+
+
+def _validate_public_url(url: str) -> None:
+    """Raise HTTPException(400) if the URL is not safe to fetch.
+
+    Rejects:
+      - non-http(s) schemes (file://, gopher://, etc.)
+      - hostnames that resolve to private/loopback/link-local/multicast IPs
+      - hostnames that resolve to nothing
+    """
+    if not url or not isinstance(url, str):
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported URL scheme: {parsed.scheme!r} (only http/https allowed)",
+        )
+
+    host = parsed.hostname
+    if not host:
+        raise HTTPException(status_code=400, detail="URL is missing a hostname")
+
+    # Resolve all addresses for this hostname and reject if any is non-public.
+    # Checking *all* addresses (not just the first) closes a small loophole
+    # where a multi-A-record host mixes public and private IPs.
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        raise HTTPException(status_code=400, detail=f"Could not resolve host: {e}")
+
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="URL resolves to a non-public address and cannot be fetched",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Path-traversal guard for /receipt/analyze
+# ---------------------------------------------------------------------------
+# image_path is a debug/admin parameter. It must be confined to an allow-listed
+# base directory so a malicious caller cannot read arbitrary host files
+# (/etc/passwd, secrets, etc.). The base directory is configurable via env;
+# defaults to the system temp dir, which is where uploads should land.
+
+_RECEIPT_IMAGE_BASE = Path(
+    os.getenv("RECEIPT_IMAGE_BASE_DIR", tempfile.gettempdir())
+).resolve()
+
+
+def _validate_receipt_image_path(image_path: str) -> Path:
+    """Resolve image_path under the configured base dir or raise 400.
+
+    Resolves symlinks via Path.resolve() before the containment check so that
+    a symlink inside the base dir cannot escape to e.g. /etc.
+    """
+    if not image_path:
+        raise HTTPException(status_code=400, detail="image_path is required")
+
+    candidate = Path(image_path)
+    # If a relative path is given, anchor it inside the base dir.
+    if not candidate.is_absolute():
+        candidate = _RECEIPT_IMAGE_BASE / candidate
+    resolved = candidate.resolve()
+
+    try:
+        resolved.relative_to(_RECEIPT_IMAGE_BASE)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"image_path must be inside {_RECEIPT_IMAGE_BASE}",
+        )
+
+    if not resolved.exists() or not resolved.is_file():
+        raise HTTPException(status_code=404, detail="image not found")
+
+    return resolved
 
 
 def run_scraper_isolated(script: str, search_term: str, zip_code: str) -> Dict[str, Any]:
@@ -392,14 +496,15 @@ Recipe text:
 Return ONLY valid JSON, no markdown or explanation."""
 
     try:
-        response = openai_client.chat.completions.create(
+        response = await asyncio.to_thread(
+            openai_client.chat.completions.create,
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a recipe parser. Extract structured recipe data from text. Return only valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
         result = json.loads(response.choices[0].message.content)
@@ -530,14 +635,15 @@ Return a JSON object with an "ingredients" array containing objects with "amount
 Return ONLY valid JSON, no markdown or explanation."""
 
     try:
-        response = openai_client.chat.completions.create(
+        response = await asyncio.to_thread(
+            openai_client.chat.completions.create,
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are an ingredient parser. Extract structured data from ingredient strings. Return only valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
         result = json.loads(response.choices[0].message.content)
@@ -677,14 +783,15 @@ Return a JSON object with an "instructions" array containing objects with "step"
 Return ONLY valid JSON, no markdown or explanation."""
 
     try:
-        response = openai_client.chat.completions.create(
+        response = await asyncio.to_thread(
+            openai_client.chat.completions.create,
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a recipe instruction formatter. Clean up and structure cooking instructions. Return only valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
         result = json.loads(response.choices[0].message.content)
@@ -714,6 +821,10 @@ async def import_recipe_from_url(request: URLImportRequest):
     """
     url = request.url
     logger.info(f"Importing recipe from URL: {url}")
+
+    # Reject non-public URLs (loopback, RFC1918, link-local, cloud metadata)
+    # before issuing the outbound request to prevent SSRF.
+    _validate_public_url(url)
 
     try:
         # Fetch the HTML content
@@ -1056,6 +1167,13 @@ class ReceiptItem(BaseModel):
     name: str
     quantity: int
     price: float
+    # Optional structured measurement fields populated by
+    # _enrich_items_with_weight_qty for weight-priced and qty-at-price items.
+    # Receipt parser fills these in opportunistically; downstream consumers
+    # (pantry_items insertion etc.) can use them for unit normalization.
+    weight: Optional[float] = None
+    unit: Optional[str] = None       # "lb" / "kg" / "oz"
+    unit_price: Optional[float] = None
 
 
 class ReceiptParseResult(BaseModel):
@@ -1110,7 +1228,10 @@ async def parse_receipt_tokens(request: ReceiptParseRequest):
     logger.info(f"[receipt/parse] Parsing {len(tokens)} tokens (strategy={strategy})")
 
     try:
-        raw = _receipt_parse_fn(tokens)
+        # parse_receipt is a CPU-bound pure-python function (~2,400 LOC of
+        # regex + heuristics). Off-load to a thread so a slow parse does not
+        # block other async requests on the same worker.
+        raw = await asyncio.to_thread(_receipt_parse_fn, tokens)
 
         # Post-parse escalation check for auto mode
         if (strategy == "auto"
@@ -1148,8 +1269,13 @@ async def analyze_receipt_image(
             detail="Recommender modules not available",
         )
 
+    # Confine image_path to the configured base dir to prevent path traversal.
+    safe_path = _validate_receipt_image_path(image_path)
+
     try:
-        features = _extract_image_features_fn(image_path)
+        # Feature extraction reads the image and runs OpenCV ops — off-load
+        # to a thread so the event loop stays responsive.
+        features = await asyncio.to_thread(_extract_image_features_fn, str(safe_path))
         rec = _recommend_strategy_fn(features)
 
         return {
@@ -1178,6 +1304,848 @@ async def analyze_receipt_image(
     except Exception as e:
         logger.error(f"[receipt/analyze] error: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
+
+
+# ============================================================================
+# Receipt OCR Scan Endpoint (image bytes in, structured result out)
+# ============================================================================
+# This endpoint owns the full OCR pipeline: pick engine via recommender →
+# run OCR → parse → if should_escalate(), run the OTHER engine + merge →
+# parse again → if STILL bad, run targeted re-OCR for missing prices.
+#
+# This is the high-accuracy path for receipts. The existing /receipt/parse
+# (tokens-in) endpoint stays for backward compatibility with any client
+# that runs OCR client-side; /receipt/scan is the recommended path.
+#
+# Engines are loaded lazily on first request to keep cold start fast for
+# users who don't hit this endpoint. Once loaded, they stay resident.
+
+# Resolve engines.py path (mirrors the receipt_parser loader pattern)
+_ENGINES_CANDIDATES = [
+    Path(__file__).resolve().parent.parent / "lib" / "receipt-ocr" / "engines.py",
+    Path(__file__).resolve().parent / "engines.py",
+]
+
+_engines_mod = None
+for _ec in _ENGINES_CANDIDATES:
+    if _ec.exists():
+        try:
+            _e_spec = _ilu.spec_from_file_location("receipt_engines", _ec)
+            _engines_mod = _ilu.module_from_spec(_e_spec)
+            _e_spec.loader.exec_module(_engines_mod)
+            logger.info(f"Located engines module at {_ec} (lazy load on first scan)")
+            break
+        except Exception as _e:
+            logger.warning(f"Could not import engines.py from {_ec}: {_e}")
+            _engines_mod = None
+
+# Per-engine singleton cache. Loaded on first use, kept resident.
+_engine_cache: Dict[str, Any] = {}
+_engine_cache_lock = asyncio.Lock()
+
+
+async def _get_engine(name: str):
+    """Return a loaded OCR engine by name, creating it on first request.
+
+    Loading EasyOCR / PaddleOCR pulls 200-500MB of model weights, so we
+    avoid doing it at startup. The async lock prevents two concurrent
+    first-use requests from loading the same engine twice.
+    """
+    if _engines_mod is None:
+        raise HTTPException(
+            status_code=503,
+            detail="OCR engines module not available — check engines.py is on the path",
+        )
+    if name in _engine_cache:
+        return _engine_cache[name]
+    async with _engine_cache_lock:
+        if name in _engine_cache:
+            return _engine_cache[name]
+        logger.info(f"[receipt/scan] loading engine {name!r} (first use)")
+        eng = await asyncio.to_thread(_engines_mod.create_engine, name, load=True)
+        _engine_cache[name] = eng
+        return eng
+
+
+class ReceiptScanResponse(BaseModel):
+    success: bool
+    result: Optional[ReceiptParseResult] = None
+    # Diagnostic chain — what was tried, in order
+    strategy_used: Optional[str] = None        # final strategy that produced `result`
+    strategies_tried: List[str] = []           # ordered list of attempts
+    escalated: bool = False                    # True if we ran more than the recommender's pick
+    targeted_reocr_used: bool = False          # True if missing-price re-OCR ran
+    llm_tokens_used: bool = False              # True if Tier 3 (LLM-as-parser) ran
+    llm_vision_used: bool = False              # True if Tier 4 (LLM-vision) ran
+    llm_cost_estimate_usd: float = 0.0         # rough cost for the LLM tiers
+    parse_confidence: Optional[float] = None
+    error: Optional[str] = None
+    # Training-pipeline fields — populated when the request asked to capture
+    # this scan as a training example. See receipt_training_examples table.
+    training_id: Optional[str] = None
+    training_disposition: Optional[str] = None  # "auto_accepted" | "needs_review" | "skipped"
+
+
+# ── LLM tier helpers ──────────────────────────────────────────────────────
+# Pricing constants (used only for estimate logging, not billing). Keep
+# these in sync with OpenAI's published rates; out of date is harmless.
+
+_LLM_MODEL_TOKENS = "gpt-4o-mini"          # cheap; tokens-in path
+_LLM_MODEL_VISION = "gpt-4o-mini"          # has vision capability + cheap
+_LLM_PRICE_PER_INPUT_TOKEN = 0.15 / 1_000_000   # gpt-4o-mini
+_LLM_PRICE_PER_OUTPUT_TOKEN = 0.60 / 1_000_000
+
+# JSON schema that both LLM tiers are asked to produce. Matches
+# ReceiptParseResult so the downstream code is uniform.
+_LLM_RECEIPT_SCHEMA = """{
+  "store": "string (best-guess store/merchant name, or 'Unknown')",
+  "date": "string|null (YYYY-MM-DD if visible)",
+  "items": [
+    {"name": "string", "quantity": int, "price": float}
+  ],
+  "subtotal": "float|null",
+  "taxes": [{"rate": float, "amount": float}],
+  "total": "float|null"
+}"""
+
+
+def _llm_messages_for_tokens(tokens: List[str]) -> List[Dict[str, Any]]:
+    """Build the chat messages for the tokens-in LLM parser."""
+    joined = " ".join(t for t in tokens if t)[:8000]  # cap to avoid runaway
+    user = f"""You are parsing a grocery store receipt. Below are OCR tokens
+in approximate reading order. Extract a structured receipt as JSON matching
+this schema:
+
+{_LLM_RECEIPT_SCHEMA}
+
+Rules — important:
+- Output STRICTLY valid JSON, no commentary.
+- Use null when unknown. Do NOT invent values.
+- Items: only include line items that are real products. Skip subtotals,
+  totals, taxes, payment lines, store-info lines.
+- For each item, "price" is the line total (qty * unit_price), not the
+  unit price.
+- If the receipt has multiple totals (e.g. subtotal + tax + total), put
+  them in the right fields; do not duplicate.
+- Quantities default to 1 if not visibly printed.
+
+OCR tokens:
+{joined}"""
+    return [
+        {"role": "system", "content": "You are a precise receipt parser. Output JSON only."},
+        {"role": "user", "content": user},
+    ]
+
+
+def _llm_messages_for_vision(image_bytes: bytes, mime: str) -> List[Dict[str, Any]]:
+    """Build the chat messages for the image-in LLM parser."""
+    import base64
+    b64 = base64.b64encode(image_bytes).decode()
+    return [
+        {"role": "system", "content": "You are a precise receipt parser. Output JSON only."},
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "Parse this grocery receipt into JSON matching this schema:\n"
+                        f"{_LLM_RECEIPT_SCHEMA}\n\n"
+                        "Rules: output strict JSON only, use null when unknown, do NOT "
+                        "invent values, skip non-item lines (totals/taxes/payment), "
+                        "and put line totals (qty*unit_price) in the price field."
+                    ),
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64}"},
+                },
+            ],
+        },
+    ]
+
+
+async def _call_llm(messages: List[Dict[str, Any]], model: str) -> Tuple[Dict[str, Any], float]:
+    """Call OpenAI with response_format=json_object. Returns (parsed_dict, cost_estimate_usd)."""
+    if openai_client is None:
+        raise HTTPException(status_code=503, detail="OpenAI client not configured")
+
+    resp = await asyncio.to_thread(
+        openai_client.chat.completions.create,
+        model=model,
+        messages=messages,
+        temperature=0.0,                              # deterministic
+        response_format={"type": "json_object"},
+    )
+
+    raw = resp.choices[0].message.content or "{}"
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = {}
+
+    usage = getattr(resp, "usage", None)
+    cost = 0.0
+    if usage is not None:
+        cost = (
+            (getattr(usage, "prompt_tokens", 0) or 0) * _LLM_PRICE_PER_INPUT_TOKEN
+            + (getattr(usage, "completion_tokens", 0) or 0) * _LLM_PRICE_PER_OUTPUT_TOKEN
+        )
+
+    return parsed, cost
+
+
+def _coerce_llm_result(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalise the LLM output into the shape parse_receipt() returns.
+
+    LLMs sometimes return slightly off shapes (price as a string, items missing
+    quantity, taxes as a single dict). We coerce here so the downstream
+    checksum-validation + Pydantic boundary doesn't reject otherwise-good output.
+    """
+    def _to_float(v):
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            try:
+                return float(v.replace(",", "").replace("$", "").strip())
+            except ValueError:
+                return None
+        return None
+
+    out: Dict[str, Any] = {
+        "store": str(raw.get("store") or "Unknown"),
+        "date": raw.get("date") or None,
+        "subtotal": _to_float(raw.get("subtotal")),
+        "total": _to_float(raw.get("total")),
+        "items": [],
+        "taxes": [],
+    }
+
+    for it in raw.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name") or "").strip()
+        if not name:
+            continue
+        qty_raw = it.get("quantity")
+        try:
+            qty = int(qty_raw) if qty_raw is not None else 1
+        except (TypeError, ValueError):
+            qty = 1
+        price = _to_float(it.get("price"))
+        if price is None:
+            continue
+        out["items"].append({"name": name, "quantity": qty, "price": price})
+
+    taxes_raw = raw.get("taxes")
+    if isinstance(taxes_raw, dict):
+        taxes_raw = [taxes_raw]
+    for t in taxes_raw or []:
+        if not isinstance(t, dict):
+            continue
+        amt = _to_float(t.get("amount"))
+        if amt is None:
+            continue
+        out["taxes"].append({
+            "rate": _to_float(t.get("rate")) or 0.0,
+            "amount": amt,
+        })
+
+    return out
+
+
+def _validate_llm_against_ocr(parsed: Dict[str, Any], ocr_texts: List[str]) -> Dict[str, Any]:
+    """Strip items the LLM probably hallucinated.
+
+    Heuristic: an item is suspicious if neither its name nor its price has any
+    presence in the OCR token stream. Real items always leave at least one
+    fingerprint there. We drop suspicious items rather than poisoning the
+    training set; the rest of the parse is preserved.
+    """
+    if not ocr_texts:
+        return parsed
+
+    upper_blob = " ".join(t.upper() for t in ocr_texts)
+
+    def _price_in_ocr(price: float) -> bool:
+        target = f"{price:.2f}"
+        return target in upper_blob or target.replace(".", ",") in upper_blob
+
+    def _name_in_ocr(name: str) -> bool:
+        words = [w for w in name.upper().split() if len(w) >= 3]
+        if not words:
+            return False
+        return any(w in upper_blob for w in words)
+
+    cleaned = []
+    dropped = 0
+    for it in parsed.get("items", []):
+        if _name_in_ocr(it["name"]) or _price_in_ocr(it["price"]):
+            cleaned.append(it)
+        else:
+            dropped += 1
+    if dropped:
+        logger.warning(f"[receipt/scan] LLM hallucination filter: dropped {dropped} items")
+    parsed["items"] = cleaned
+    return parsed
+
+
+async def _parse_with_llm_tokens(tokens: List[str]) -> Tuple[Dict[str, Any], float]:
+    """Tier 3: ask the LLM to parse OCR tokens into a structured receipt."""
+    messages = _llm_messages_for_tokens(tokens)
+    raw, cost = await _call_llm(messages, _LLM_MODEL_TOKENS)
+    parsed = _coerce_llm_result(raw)
+    parsed = _validate_llm_against_ocr(parsed, tokens)
+    return parsed, cost
+
+
+async def _parse_with_llm_vision(image_path: str) -> Tuple[Dict[str, Any], float]:
+    """Tier 4: send the raw image to a vision LLM and ask for the structured receipt."""
+    with open(image_path, "rb") as f:
+        body = f.read()
+
+    suffix = Path(image_path).suffix.lower().lstrip(".")
+    mime = {
+        "jpg": "image/jpeg", "jpeg": "image/jpeg",
+        "png": "image/png", "webp": "image/webp",
+        "heic": "image/heic", "heif": "image/heif",
+    }.get(suffix, "image/jpeg")
+
+    messages = _llm_messages_for_vision(body, mime)
+    raw, cost = await _call_llm(messages, _LLM_MODEL_VISION)
+    return _coerce_llm_result(raw), cost
+
+
+# Strategy → engine name mapping (the recommender returns Strategy enum values)
+_STRATEGY_TO_ENGINE = {
+    "easyocr_only": "easyocr",
+    "paddleocr_only": "paddle",
+    "ensemble": "ensemble",
+    "ensemble_with_reocr": "ensemble",
+}
+
+
+async def _run_engine_and_parse(engine_name: str, image_path: str) -> Tuple[List[str], Dict[str, Any]]:
+    """Load engine if needed, extract tokens, parse. Returns (tokens, parsed)."""
+    eng = await _get_engine(engine_name)
+    tokens = await asyncio.to_thread(eng.extract, Path(image_path), True)
+    parsed = await asyncio.to_thread(_receipt_parse_fn, tokens)
+    return tokens, parsed
+
+
+# Receipt-scan upload limits — tuned for typical phone-photo sizes.
+_MAX_RECEIPT_BYTES = 20 * 1024 * 1024  # 20 MB
+_ALLOWED_CONTENT_TYPES = {
+    "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif",
+}
+
+
+@app.post("/receipt/scan", response_model=ReceiptScanResponse)
+async def scan_receipt_image(
+    file: UploadFile = File(..., description="Receipt image (JPEG/PNG/WebP/HEIC, ≤20MB)"),
+    strategy: str = Form("auto"),
+    store_hint: Optional[str] = Form(None),
+):
+    """Run the full OCR pipeline on a receipt image.
+
+    Form-data parameters:
+        file        (required) The receipt image (JPEG/PNG/WebP/HEIC, ≤20MB)
+        strategy    "auto" (default) | "easyocr" | "paddle" | "ensemble"
+                    "auto" uses the recommender + escalation chain.
+        store_hint  Optional store name (e.g. "Walmart") to bias the recommender
+                    using the per-store preference table.
+
+    Returns a ReceiptScanResponse with the parsed result and diagnostic
+    information about which strategies were tried.
+    """
+    if _receipt_parse_fn is None:
+        raise HTTPException(status_code=503, detail="receipt_parser module not available")
+    if _engines_mod is None:
+        raise HTTPException(status_code=503, detail="engines module not available")
+
+    # Validate content type early — cheap rejection of obviously wrong uploads.
+    if file.content_type and file.content_type.lower() not in _ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"unsupported content-type {file.content_type!r}; allowed: {sorted(_ALLOWED_CONTENT_TYPES)}",
+        )
+
+    # Read the upload with a hard cap. Streaming bytes-in-memory is fine for
+    # 20MB; we deliberately do not stream to disk while reading because a
+    # path-traversal attacker can't influence the file path (NamedTemporaryFile).
+    body = await file.read()
+    if len(body) > _MAX_RECEIPT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"image too large ({len(body)} bytes > {_MAX_RECEIPT_BYTES} max)",
+        )
+    if not body:
+        raise HTTPException(status_code=400, detail="empty image upload")
+
+    # Persist to a temp file. The OCR engines all take a path because cv2
+    # and easyocr both want filesystem inputs. Cleanup in finally.
+    suffix = ".jpg"
+    if file.filename and "." in file.filename:
+        ext = "." + file.filename.rsplit(".", 1)[-1].lower()
+        if len(ext) <= 6:
+            suffix = ext
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    tmp.write(body)
+    tmp.close()
+    image_path = tmp.name
+
+    strategies_tried: List[str] = []
+    escalated = False
+    targeted_reocr_used = False
+    llm_tokens_used = False
+    llm_vision_used = False
+    llm_cost_total = 0.0
+    final_strategy: Optional[str] = None
+    final_parsed: Optional[Dict[str, Any]] = None
+
+    try:
+        # ── Choose the first engine ────────────────────────────────────
+        first_engine: str
+        if strategy == "auto":
+            if _recommend_strategy_fn is not None and _extract_image_features_fn is not None:
+                features = await asyncio.to_thread(_extract_image_features_fn, image_path)
+                rec = _recommend_strategy_fn(features, store_hint=store_hint)
+                first_engine = _STRATEGY_TO_ENGINE.get(rec.strategy.value, "ensemble")
+                logger.info(
+                    f"[receipt/scan] recommender → {rec.strategy.value} "
+                    f"(conf={rec.confidence:.2f}, store_hint={store_hint!r})"
+                )
+            else:
+                first_engine = "ensemble"
+                logger.info("[receipt/scan] no recommender — defaulting to ensemble")
+        else:
+            first_engine = _STRATEGY_TO_ENGINE.get(strategy, strategy)
+
+        # ── Stage 1: run the chosen engine ─────────────────────────────
+        strategies_tried.append(first_engine)
+        tokens, parsed = await _run_engine_and_parse(first_engine, image_path)
+        final_strategy = first_engine
+        final_parsed = parsed
+
+        # ── Stage 1.5: orientation rescue ─────────────────────────────
+        # If the parse looks essentially empty (no store + no items), the
+        # image may be rotated 90/180/270. EXIF auto-orient already ran in
+        # preprocess_base — this catches images that lack EXIF metadata or
+        # were rotated after capture (e.g. screenshots).
+        n_items = len(parsed.get("items") or [])
+        store_known = parsed.get("store") and parsed.get("store") != "Unknown"
+        if (
+            strategy == "auto"
+            and n_items < 2
+            and not store_known
+            and _engines_mod is not None
+            and getattr(_engines_mod, "auto_orient_via_ocr", None) is not None
+            and getattr(_engines_mod, "rotate_image", None) is not None
+        ):
+            try:
+                eng = await _get_engine(first_engine)
+
+                def _orientation_score(arr) -> float:
+                    # Cheap score: write the rotation to a temp PNG, run the
+                    # already-loaded engine at low effort, return mean conf.
+                    import cv2 as _cv2
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as t:
+                        _cv2.imwrite(t.name, arr)
+                        try:
+                            dets = eng.extract_detections(Path(t.name), do_preprocess=False)
+                        except Exception:
+                            dets = []
+                        try:
+                            os.unlink(t.name)
+                        except OSError:
+                            pass
+                    if not dets:
+                        return 0.0
+                    return sum(d[2] for d in dets) / len(dets)
+
+                best_angle = await asyncio.to_thread(
+                    _engines_mod.auto_orient_via_ocr,
+                    image_path,
+                    _orientation_score,
+                )
+                if best_angle != 0:
+                    logger.info(f"[receipt/scan] orientation rescue: rotating {best_angle}°")
+                    strategies_tried.append(f"rotate_{best_angle}")
+                    import cv2 as _cv2
+                    img = _cv2.imread(image_path)
+                    if img is not None:
+                        img = _engines_mod.rotate_image(img, best_angle)
+                        _cv2.imwrite(image_path, img)
+                        # Re-run the same engine on the rotated image
+                        tokens, parsed = await _run_engine_and_parse(first_engine, image_path)
+                        final_parsed = parsed
+            except Exception as _e:
+                logger.warning(f"[receipt/scan] orientation rescue failed: {_e}")
+
+        # ── Stage 2: escalate to the OTHER engine + ensemble merge ─────
+        # Only meaningful when:
+        #   - we just ran a single engine (not already ensemble)
+        #   - should_escalate fires (low item count / no total / store unknown / checksum off)
+        #   - both engines are available (ensemble exists)
+        final_tokens = tokens   # keep the OCR tokens around for downstream LLM tier
+        if (
+            strategy == "auto"
+            and first_engine in ("easyocr", "paddle")
+            and _should_escalate_fn is not None
+            and _should_escalate_fn(parsed)
+            and "ensemble" in (_engines_mod.get_available_engines() if _engines_mod else [])
+        ):
+            logger.info(
+                f"[receipt/scan] escalating: first_engine={first_engine} parse triggered should_escalate"
+            )
+            escalated = True
+            strategies_tried.append("ensemble")
+            tokens2, parsed2 = await _run_engine_and_parse("ensemble", image_path)
+            # Prefer the ensemble result if it actually improved (more items
+            # OR matches checksum better OR previously-missing total now exists).
+            if _is_better_parse(parsed2, parsed):
+                final_strategy = "ensemble"
+                final_parsed = parsed2
+                final_tokens = tokens2
+                # Targeted re-OCR is already inside EnsembleEngine.extract()
+                targeted_reocr_used = True
+            else:
+                logger.info("[receipt/scan] ensemble did not improve — keeping single-engine result")
+
+        # ── Stage 3: LLM-as-parser (tokens-in) ─────────────────────────
+        # Reuses the OCR work already done. Cheap (~$0.001/call), fast (~2s).
+        # Triggers when the OCR-based pipeline is still failing escalation
+        # AND we actually have tokens to feed to the LLM.
+        if (
+            strategy == "auto"
+            and openai_client is not None
+            and final_tokens
+            and _should_escalate_fn is not None
+            and _should_escalate_fn(final_parsed)
+        ):
+            logger.info("[receipt/scan] escalating to Tier 3: LLM-as-parser (tokens-in)")
+            try:
+                strategies_tried.append("llm_tokens")
+                llm_parsed, cost = await _parse_with_llm_tokens(final_tokens)
+                llm_cost_total += cost
+                llm_tokens_used = True
+                if _is_better_parse(llm_parsed, final_parsed):
+                    final_strategy = "llm_tokens"
+                    final_parsed = llm_parsed
+                    logger.info("[receipt/scan] llm_tokens improved the parse")
+                else:
+                    logger.info("[receipt/scan] llm_tokens did not improve — keeping previous result")
+            except Exception as e:
+                logger.warning(f"[receipt/scan] llm_tokens tier failed: {e}")
+
+        # ── Stage 4: LLM-vision (image-in) ─────────────────────────────
+        # The last-resort tier — for receipts where OCR captured so little
+        # that even the LLM-on-tokens path can't recover. Sends the raw
+        # image bytes to a vision LLM. Most expensive (~$0.005), slowest
+        # (~3s), most robust to OCR failure modes (faded thermal, blur).
+        if (
+            strategy == "auto"
+            and openai_client is not None
+            and _should_escalate_fn is not None
+            and _should_escalate_fn(final_parsed)
+        ):
+            logger.info("[receipt/scan] escalating to Tier 4: LLM-vision (image-in)")
+            try:
+                strategies_tried.append("llm_vision")
+                llm_parsed, cost = await _parse_with_llm_vision(image_path)
+                llm_cost_total += cost
+                llm_vision_used = True
+                if _is_better_parse(llm_parsed, final_parsed):
+                    final_strategy = "llm_vision"
+                    final_parsed = llm_parsed
+                    logger.info("[receipt/scan] llm_vision improved the parse")
+                else:
+                    logger.info("[receipt/scan] llm_vision did not improve — keeping previous result")
+            except Exception as e:
+                logger.warning(f"[receipt/scan] llm_vision tier failed: {e}")
+
+        # ── Build response ─────────────────────────────────────────────
+        confidence = _confidence_from_parse(final_parsed) if final_parsed else None
+        result = ReceiptParseResult(
+            store=final_parsed.get("store", "Unknown") if final_parsed else "Unknown",
+            date=final_parsed.get("date") if final_parsed else None,
+            items=[ReceiptItem(**item) for item in (final_parsed.get("items") or [])] if final_parsed else [],
+            subtotal=final_parsed.get("subtotal") if final_parsed else None,
+            taxes=final_parsed.get("taxes") or [] if final_parsed else [],
+            total=final_parsed.get("total") if final_parsed else None,
+        )
+        logger.info(
+            f"[receipt/scan] DONE strategy={final_strategy} escalated={escalated} "
+            f"items={len(result.items)} total={result.total} confidence={confidence}"
+        )
+        return ReceiptScanResponse(
+            success=True,
+            result=result,
+            strategy_used=final_strategy,
+            strategies_tried=strategies_tried,
+            escalated=escalated,
+            targeted_reocr_used=targeted_reocr_used,
+            llm_tokens_used=llm_tokens_used,
+            llm_vision_used=llm_vision_used,
+            llm_cost_estimate_usd=round(llm_cost_total, 6),
+            parse_confidence=confidence,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[receipt/scan] error: {e}", exc_info=True)
+        return ReceiptScanResponse(success=False, error=str(e), strategies_tried=strategies_tried)
+    finally:
+        try:
+            os.unlink(image_path)
+        except OSError:
+            pass
+
+
+def _is_better_parse(new: Dict[str, Any], old: Dict[str, Any]) -> bool:
+    """Heuristic: does `new` look more complete/correct than `old`?
+
+    Order of precedence:
+      1. Has total when old didn't.
+      2. Has store when old didn't.
+      3. More items than old.
+      4. Better checksum (subtotal+tax matches total more closely).
+    """
+    if new.get("total") is not None and old.get("total") is None:
+        return True
+    if new.get("store") and not old.get("store"):
+        return True
+    n_items_new = len(new.get("items") or [])
+    n_items_old = len(old.get("items") or [])
+    if n_items_new > n_items_old + 1:  # require ≥2 more items to switch
+        return True
+    # Compare checksum residual
+    res_new = _checksum_residual(new)
+    res_old = _checksum_residual(old)
+    if res_new is not None and res_old is not None and res_new < res_old - 0.10:
+        return True
+    return False
+
+
+def _checksum_residual(parsed: Dict[str, Any]) -> Optional[float]:
+    """abs(subtotal + tax - total). None if any piece is missing."""
+    sub = parsed.get("subtotal")
+    tot = parsed.get("total")
+    if sub is None or tot is None:
+        return None
+    taxes = parsed.get("taxes") or []
+    tax_sum = sum(t.get("amount", 0) or 0 for t in taxes) if taxes else 0.0
+    return abs(sub + tax_sum - tot)
+
+
+def _confidence_from_parse(parsed: Dict[str, Any]) -> float:
+    """Cheap completeness score 0.0–1.0 for client-side display.
+
+    Mirrors recipe_parser._compute_confidence in spirit. Not the same as
+    the recommender's confidence (which is about engine choice, not parse
+    quality).
+    """
+    score = 0.0
+    if parsed.get("store") and parsed["store"] != "Unknown":
+        score += 0.20
+    if parsed.get("total") is not None:
+        score += 0.20
+    if parsed.get("subtotal") is not None:
+        score += 0.10
+    if parsed.get("date"):
+        score += 0.10
+    n_items = len(parsed.get("items") or [])
+    if n_items >= 2:
+        score += 0.20
+    if n_items >= 5:
+        score += 0.10
+    res = _checksum_residual(parsed)
+    if res is not None and res < 0.10:
+        score += 0.10
+    return round(min(score, 1.0), 2)
+
+
+# ============================================================================
+# Recipe OCR Parsing Endpoint
+# ============================================================================
+
+# Import recipe_parser — resolve path whether running from python-api/ or repo root
+_RECIPE_PARSER_CANDIDATES = [
+    Path(__file__).resolve().parent.parent / "lib" / "recipe-ocr" / "recipe_parser.py",
+    Path(__file__).resolve().parent / "recipe_parser.py",
+]
+
+_recipe_parse_fn = None
+_recipe_escalate_fn = None
+for _rp_candidate in _RECIPE_PARSER_CANDIDATES:
+    if _rp_candidate.exists():
+        import importlib.util as _ilu_recipe
+        _rp_spec = _ilu_recipe.spec_from_file_location("recipe_parser", _rp_candidate)
+        _rp_mod = _ilu_recipe.module_from_spec(_rp_spec)          # type: ignore[arg-type]
+        _rp_spec.loader.exec_module(_rp_mod)                      # type: ignore[union-attr]
+        _recipe_parse_fn = _rp_mod.parse_recipe
+        _recipe_escalate_fn = _rp_mod.should_escalate
+        logger.info(f"Loaded recipe_parser from {_rp_candidate}")
+        break
+
+# Import recipe_dictionary (optional — graceful degradation)
+_recipe_correct_fn = None
+try:
+    _RECIPE_DICT_CANDIDATES = [
+        Path(__file__).resolve().parent.parent / "lib" / "recipe-ocr" / "recipe_dictionary.py",
+        Path(__file__).resolve().parent / "recipe_dictionary.py",
+    ]
+    for _rd_candidate in _RECIPE_DICT_CANDIDATES:
+        if _rd_candidate.exists():
+            _rd_spec = _ilu_recipe.spec_from_file_location("recipe_dictionary", _rd_candidate)
+            _rd_mod = _ilu_recipe.module_from_spec(_rd_spec)
+            _rd_spec.loader.exec_module(_rd_mod)
+            _recipe_correct_fn = _rd_mod.correct_ingredient_name
+            logger.info(f"Loaded recipe_dictionary from {_rd_candidate}")
+            break
+except Exception as e:
+    logger.warning(f"recipe_dictionary not loaded: {e}")
+
+if _recipe_parse_fn is None:
+    logger.warning("recipe_parser.py not found — /recipe/parse-ocr will return 503")
+
+
+class RecipeIngredientParsed(BaseModel):
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    name: str
+    display_name: str
+
+
+class RecipeInstructionParsed(BaseModel):
+    step: int
+    description: str
+
+
+class RecipeOCRParseResult(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    servings: Optional[int] = None
+    prep_time: Optional[int] = None
+    cook_time: Optional[int] = None
+    ingredients: List[RecipeIngredientParsed] = []
+    instructions: List[RecipeInstructionParsed] = []
+    notes: List[str] = []
+    confidence: float = 0.0
+
+
+class RecipeOCRParseResponse(BaseModel):
+    success: bool
+    result: Optional[RecipeOCRParseResult] = None
+    escalated: bool = False
+    error: Optional[str] = None
+
+
+class RecipeOCRParseRequest(BaseModel):
+    tokens: List[str]
+
+
+@app.post("/recipe/parse-ocr", response_model=RecipeOCRParseResponse)
+async def parse_recipe_ocr_tokens(request: RecipeOCRParseRequest):
+    """
+    Parse OCR token list into structured recipe metadata.
+
+    Mirrors /receipt/parse but for recipe images (handwritten cards,
+    cookbook pages, magazine clippings).
+
+    Accepts:
+        { "tokens": ["Grandma's Cookies", "Ingredients", "1 cup flour", ...] }
+
+    Returns:
+        { "success": true, "result": { "title": "Grandma's Cookies", ... } }
+    """
+    if _recipe_parse_fn is None:
+        raise HTTPException(status_code=503, detail="recipe_parser module not available")
+
+    tokens = request.tokens
+    if not tokens:
+        return RecipeOCRParseResponse(success=False, error="tokens list is empty")
+
+    logger.info(f"[recipe/parse-ocr] Parsing {len(tokens)} tokens")
+
+    try:
+        # parse_recipe applies dictionary correction internally when the
+        # recipe_dictionary module is importable. Off-load to a thread so the
+        # CPU-bound regex work does not block the event loop.
+        try:
+            raw = await asyncio.to_thread(
+                _recipe_parse_fn, tokens, apply_dict_correction=True
+            )
+        except TypeError:
+            # Older parser without the kwarg — fall back to manual correction.
+            raw = await asyncio.to_thread(_recipe_parse_fn, tokens)
+            if _recipe_correct_fn and raw.get("ingredients"):
+                for ing in raw["ingredients"]:
+                    ing["name"] = _recipe_correct_fn(ing["name"])
+
+        # Check for escalation (low confidence → suggest re-OCR or AI fallback)
+        escalated = False
+        if _recipe_escalate_fn and _recipe_escalate_fn(raw):
+            escalated = True
+            logger.info("[recipe/parse-ocr] Escalation triggered — low confidence parse")
+
+        result = RecipeOCRParseResult(
+            title=raw.get("title"),
+            description=raw.get("description"),
+            servings=raw.get("servings"),
+            prep_time=raw.get("prep_time"),
+            cook_time=raw.get("cook_time"),
+            ingredients=[RecipeIngredientParsed(**ing) for ing in (raw.get("ingredients") or [])],
+            instructions=[RecipeInstructionParsed(**inst) for inst in (raw.get("instructions") or [])],
+            notes=raw.get("notes") or [],
+            confidence=raw.get("confidence", 0.0),
+        )
+
+        logger.info(
+            f"[recipe/parse-ocr] title={result.title!r} "
+            f"ingredients={len(result.ingredients)} "
+            f"instructions={len(result.instructions)} "
+            f"confidence={result.confidence}"
+        )
+        return RecipeOCRParseResponse(success=True, result=result, escalated=escalated)
+
+    except Exception as e:
+        logger.error(f"[recipe/parse-ocr] error: {e}", exc_info=True)
+        return RecipeOCRParseResponse(success=False, error=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Startup warmup
+# ---------------------------------------------------------------------------
+# Receipt and recipe parsers compile a lot of regex and pull in optional
+# dictionary modules on first call. Running a tiny dummy parse during startup
+# pays that cost once at boot rather than on the first user request, which
+# matters because Fly's `min_machines_running = 0` produces a cold start each
+# time the machine wakes.
+
+@app.on_event("startup")
+async def _warmup_parsers() -> None:
+    if _receipt_parse_fn is not None:
+        try:
+            await asyncio.to_thread(_receipt_parse_fn, ["WARMUP", "1.00"])
+            logger.info("[startup] receipt parser warm")
+        except Exception as e:
+            logger.warning(f"[startup] receipt parser warmup failed: {e}")
+
+    if _recipe_parse_fn is not None:
+        try:
+            try:
+                await asyncio.to_thread(
+                    _recipe_parse_fn, ["Warmup", "1 cup flour"], apply_dict_correction=True
+                )
+            except TypeError:
+                await asyncio.to_thread(_recipe_parse_fn, ["Warmup", "1 cup flour"])
+            logger.info("[startup] recipe parser warm")
+        except Exception as e:
+            logger.warning(f"[startup] recipe parser warmup failed: {e}")
 
 
 if __name__ == "__main__":

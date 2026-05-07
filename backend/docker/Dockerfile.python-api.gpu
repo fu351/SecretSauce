@@ -1,0 +1,68 @@
+# GPU variant of the Python OCR API.
+#
+# Use this image when deploying to a Fly machine with `cpu_kind = "performance"`
+# and a GPU (A10 / L40s) attached. EasyOCR and PaddleOCR both auto-detect
+# CUDA and run 5-10x faster than on CPU. This collapses single-engine OCR
+# from ~5s to ~0.5-1s and brings ensemble within the 10s p99 budget.
+#
+# Differences from the CPU Dockerfile:
+#   1. Base image carries CUDA 12.x runtime + cuDNN
+#   2. paddlepaddle-gpu replaces paddlepaddle (build-time switch)
+#   3. PyTorch wheels with CUDA 12.x (easyocr depends on torch)
+#
+# Build:
+#   docker build -f backend/docker/Dockerfile.python-api.gpu -t secretsauce-gpu .
+#
+# Deploy:
+#   fly deploy --config python-api/fly.gpu.toml --dockerfile backend/docker/Dockerfile.python-api.gpu
+#
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# System deps — same as CPU image plus python + pip
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3-pip \
+    nodejs \
+    npm \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/local/bin/python \
+    && ln -sf /usr/bin/python3.11 /usr/local/bin/python3
+
+WORKDIR /app
+
+# Install GPU PyTorch first — easyocr will pull a CPU torch by default if
+# we let it, and pip won't downgrade unless we pin explicitly here.
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cu124 \
+    torch==2.4.0 torchvision==0.19.0
+
+# Install requirements with the GPU paddle build swapped in
+COPY python-api/requirements.txt /tmp/requirements.txt
+RUN sed -i 's/^paddlepaddle==.*/paddlepaddle-gpu==2.6.2/' /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy Python API
+COPY python-api/main.py /app/main.py
+
+# Copy OCR libraries (same path layout as CPU image)
+COPY lib/receipt-ocr /app/lib/receipt-ocr
+COPY lib/recipe-ocr /app/lib/recipe-ocr
+
+# Copy Node.js scrapers
+COPY backend/workers/scraper-worker /app/backend/workers/scraper-worker
+
+# Pre-warm model caches. Use gpu=False for the warmup so the build can
+# run on a machine without a GPU; runtime will use the GPU automatically.
+RUN python -c "import easyocr; easyocr.Reader(['en'], gpu=False, verbose=False)" || true
+RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(lang='en', use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False)" || true
+
+EXPOSE 8080
+
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]

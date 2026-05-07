@@ -12,11 +12,41 @@ Dependencies: stdlib only (difflib).
 from __future__ import annotations
 
 import difflib
+from pathlib import Path
 
 # ── Common grocery / retail terms ───────────────────────────────────────────
 # Kept as a flat frozenset for O(1) membership checks and fast fuzzy search.
 
-GROCERY_TERMS: frozenset[str] = frozenset({
+_CORU_VOCAB_PATH = (
+    Path(__file__).resolve().parent / "test" / "datasets" / "coru" / "grocery_vocab.txt"
+)
+
+# Synced from Supabase ``standardized_ingredients`` by sync_dictionary.py.
+# Optional — if the file is missing the dictionary still works using just
+# the in-code builtins + COR-U vocab. See sync_dictionary.py for refresh.
+_STANDARDIZED_VOCAB_PATH = (
+    Path(__file__).resolve().parent / "standardized_vocab.txt"
+)
+
+
+def _load_coru_vocab() -> set[str]:
+    if not _CORU_VOCAB_PATH.exists():
+        return set()
+    return {line.strip() for line in _CORU_VOCAB_PATH.read_text().splitlines() if line.strip()}
+
+
+def _load_standardized_vocab() -> set[str]:
+    """Load the Supabase-synced canonical vocabulary if present."""
+    if not _STANDARDIZED_VOCAB_PATH.exists():
+        return set()
+    return {
+        line.strip().upper()
+        for line in _STANDARDIZED_VOCAB_PATH.read_text().splitlines()
+        if line.strip() and line.strip().isascii()
+    }
+
+
+_BUILTIN_TERMS: set[str] = {
     # Produce
     "APPLE", "APPLES", "AVOCADO", "AVOCADOS", "BANANA", "BANANAS",
     "BLUEBERRY", "BLUEBERRIES", "BROCCOLI", "CABBAGE", "CANTALOUPE",
@@ -63,7 +93,11 @@ GROCERY_TERMS: frozenset[str] = frozenset({
     "MEDIUM", "LITE", "LIGHT", "FREE", "RANGE", "BRAND", "PREMIUM",
     "VALUE", "PACK", "FAMILY", "BONELESS", "SKINLESS", "SEEDLESS",
     "ROASTED", "SALTED", "UNSALTED", "ORIGINAL", "VANILLA", "PLAIN",
-})
+}
+
+GROCERY_TERMS: frozenset[str] = frozenset(
+    _BUILTIN_TERMS | _load_coru_vocab() | _load_standardized_vocab()
+)
 
 
 def correct_item_name(name: str, cutoff: float = 0.80) -> str:

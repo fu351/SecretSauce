@@ -3,15 +3,18 @@ preprocessing.py
 ================
 Advanced image preprocessing for receipt OCR.
 
-Provides receipt ROI cropping and perspective correction using OpenCV.
-These run *before* the existing preprocess() pipeline in ocr_bench.py.
+Provides receipt ROI cropping, perspective correction, and orientation
+fixes (EXIF-aware + OCR-confidence-based 4-rotation selection).
+These run *before* the engines' main preprocess() pipeline.
 
-Dependencies: cv2, numpy (already in the project).
+Dependencies: cv2, numpy, PIL (Pillow).
 """
 from __future__ import annotations
 
 import cv2
 import numpy as np
+from PIL import Image, ExifTags
+from typing import Callable, Optional
 
 
 # ── Constants ───────────────────────────────────────────────────────────────
@@ -176,3 +179,123 @@ def perspective_correct(img: np.ndarray) -> np.ndarray:
             return warped
 
     return img  # no suitable quadrilateral found
+
+
+# ── Orientation correction ────────────────────────────────────────────────
+
+
+# EXIF orientation tag: 1 = normal, 3 = 180°, 6 = 90° CW, 8 = 90° CCW
+_EXIF_ORIENTATION_TAG: int = next(
+    (k for k, v in ExifTags.TAGS.items() if v == "Orientation"),
+    274,  # known constant fallback
+)
+
+
+def apply_exif_orientation(img_path: str) -> Optional[np.ndarray]:
+    """Read an image and apply its EXIF orientation tag if present.
+
+    Many phone uploads carry orientation metadata that ImageIO/cv2 do NOT
+    auto-apply. PIL does, so we round-trip through PIL only when EXIF says a
+    rotation is needed. Returns a BGR ndarray, or None if PIL can't open the
+    file (in which case the caller should fall back to ``cv2.imread``).
+    """
+    try:
+        pil = Image.open(img_path)
+    except Exception:
+        return None
+
+    try:
+        exif = pil.getexif()
+    except Exception:
+        exif = None
+
+    orientation = exif.get(_EXIF_ORIENTATION_TAG) if exif else None
+    if orientation in (3, 6, 8):
+        if orientation == 3:
+            pil = pil.rotate(180, expand=True)
+        elif orientation == 6:
+            pil = pil.rotate(-90, expand=True)
+        elif orientation == 8:
+            pil = pil.rotate(90, expand=True)
+
+    arr = np.array(pil.convert("RGB"))
+    return cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+
+
+def auto_orient_via_ocr(
+    img_path: str,
+    score_fn: Callable[[np.ndarray], float],
+    *,
+    sample_height: int = 600,
+    score_threshold_margin: float = 0.05,
+) -> int:
+    """Pick the best of {0, 90, 180, 270} degree rotations using ``score_fn``.
+
+    Used as an escalation step when initial OCR produces poor results
+    (low confidence, missing store, etc). We downscale to ``sample_height``
+    so the per-rotation OCR call stays cheap (target ~300-500ms each).
+
+    ``score_fn`` should accept a BGR ndarray and return a numeric score —
+    higher is better. Typical implementation: average OCR detection
+    confidence on a small/cheap model run.
+
+    Returns the rotation in degrees (0/90/180/270) that scored highest,
+    or 0 if the difference between the best and second-best is below
+    ``score_threshold_margin`` (avoids flipping on noise).
+
+    Note: caller is responsible for actually applying the rotation if it's
+    non-zero. We just return the angle so callers can decide whether to
+    rotate the original-resolution image or work from a cached crop.
+    """
+    img = cv2.imread(img_path)
+    if img is None:
+        return 0
+
+    # Downscale to sample_height for cheap scoring
+    h, w = img.shape[:2]
+    if h > sample_height:
+        scale = sample_height / h
+        sample = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    else:
+        sample = img
+
+    rotations = {
+        0: sample,
+        90: cv2.rotate(sample, cv2.ROTATE_90_CLOCKWISE),
+        180: cv2.rotate(sample, cv2.ROTATE_180),
+        270: cv2.rotate(sample, cv2.ROTATE_90_COUNTERCLOCKWISE),
+    }
+
+    scores: dict[int, float] = {}
+    for angle, rotated in rotations.items():
+        try:
+            scores[angle] = float(score_fn(rotated))
+        except Exception:
+            scores[angle] = -1.0
+
+    if not scores:
+        return 0
+
+    best_angle = max(scores, key=scores.get)
+    sorted_scores = sorted(scores.values(), reverse=True)
+    if len(sorted_scores) >= 2:
+        margin = sorted_scores[0] - sorted_scores[1]
+        if margin < score_threshold_margin:
+            # Not confident enough to rotate. Stick with 0 (assume caller
+            # already applied EXIF orientation).
+            return 0
+
+    return best_angle
+
+
+def rotate_image(img: np.ndarray, angle: int) -> np.ndarray:
+    """Rotate by 0/90/180/270 degrees. Returns input unchanged for angle=0."""
+    if angle == 0:
+        return img
+    if angle == 90:
+        return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+    if angle == 180:
+        return cv2.rotate(img, cv2.ROTATE_180)
+    if angle == 270:
+        return cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    raise ValueError(f"angle must be one of 0/90/180/270 (got {angle})")

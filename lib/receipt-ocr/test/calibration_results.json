@@ -13,14 +13,14 @@
       "is_thermal": false,
       "estimated_dpi": 229.0
     },
-    "easyocr_accuracy": 0.2727272727272727,
-    "easyocr_time": 3.12894606590271,
-    "paddle_accuracy": 0.6363636363636364,
-    "paddle_time": 143.9359118938446,
-    "ensemble_accuracy": 0.6363636363636364,
-    "ensemble_time": 127.47659397125244,
-    "best_strategy": "paddleocr_only",
-    "recommendation": "easyocr_only"
+    "easyocr_accuracy": 0.45454545454545453,
+    "easyocr_time": 2.989238977432251,
+    "paddle_accuracy": 0.0,
+    "paddle_time": 0.0,
+    "ensemble_accuracy": 0.0,
+    "ensemble_time": 0.0,
+    "best_strategy": "easyocr_only",
+    "recommendation": "paddleocr_only"
   },
   "2.jpg": {
     "image": "2.jpg",
@@ -37,11 +37,11 @@
       "estimated_dpi": 161.0
     },
     "easyocr_accuracy": 1.0,
-    "easyocr_time": 3.4811618328094482,
-    "paddle_accuracy": 1.0,
-    "paddle_time": 126.47125101089478,
-    "ensemble_accuracy": 1.0,
-    "ensemble_time": 130.5824429988861,
+    "easyocr_time": 2.7714900970458984,
+    "paddle_accuracy": 0.0,
+    "paddle_time": 0.0,
+    "ensemble_accuracy": 0.0,
+    "ensemble_time": 0.0,
     "best_strategy": "easyocr_only",
     "recommendation": "ensemble"
   },
@@ -60,13 +60,13 @@
       "estimated_dpi": 756.0
     },
     "easyocr_accuracy": 1.0,
-    "easyocr_time": 7.220003128051758,
-    "paddle_accuracy": 1.0,
-    "paddle_time": 914.0553760528564,
-    "ensemble_accuracy": 1.0,
-    "ensemble_time": 597.3960318565369,
+    "easyocr_time": 3.9126200675964355,
+    "paddle_accuracy": 0.0,
+    "paddle_time": 0.0,
+    "ensemble_accuracy": 0.0,
+    "ensemble_time": 0.0,
     "best_strategy": "easyocr_only",
-    "recommendation": "easyocr_only"
+    "recommendation": "ensemble"
   },
   "10.jpg": {
     "image": "10.jpg",
@@ -82,14 +82,14 @@
       "is_thermal": false,
       "estimated_dpi": 300.0
     },
-    "easyocr_accuracy": 0.5,
-    "easyocr_time": 29.22310996055603,
-    "paddle_accuracy": 0.3333333333333333,
-    "paddle_time": 165.69768500328064,
-    "ensemble_accuracy": 0.6666666666666666,
-    "ensemble_time": 156.15199398994446,
-    "best_strategy": "ensemble",
-    "recommendation": "paddleocr_only"
+    "easyocr_accuracy": 0.3333333333333333,
+    "easyocr_time": 2.199434995651245,
+    "paddle_accuracy": 0.0,
+    "paddle_time": 0.0,
+    "ensemble_accuracy": 0.0,
+    "ensemble_time": 0.0,
+    "best_strategy": "easyocr_only",
+    "recommendation": "easyocr_only"
   },
   "11.jpg": {
     "image": "11.jpg",
@@ -105,13 +105,13 @@
       "is_thermal": true,
       "estimated_dpi": 207.0
     },
-    "easyocr_accuracy": 0.625,
-    "easyocr_time": 14.27414083480835,
-    "paddle_accuracy": 0.625,
-    "paddle_time": 199.64211893081665,
-    "ensemble_accuracy": 1.0,
-    "ensemble_time": 136.98713302612305,
-    "best_strategy": "ensemble",
+    "easyocr_accuracy": 0.75,
+    "easyocr_time": 3.0557568073272705,
+    "paddle_accuracy": 0.0,
+    "paddle_time": 0.0,
+    "ensemble_accuracy": 0.0,
+    "ensemble_time": 0.0,
+    "best_strategy": "easyocr_only",
     "recommendation": "ensemble"
   },
   "16.jpg": {
@@ -128,14 +128,14 @@
       "is_thermal": true,
       "estimated_dpi": 199.0
     },
-    "easyocr_accuracy": 1.0,
-    "easyocr_time": 20.034244775772095,
-    "paddle_accuracy": 0.625,
-    "paddle_time": 61.44743227958679,
-    "ensemble_accuracy": 0.875,
-    "ensemble_time": 110.85996294021606,
+    "easyocr_accuracy": 0.625,
+    "easyocr_time": 1.9303290843963623,
+    "paddle_accuracy": 0.0,
+    "paddle_time": 0.0,
+    "ensemble_accuracy": 0.0,
+    "ensemble_time": 0.0,
     "best_strategy": "easyocr_only",
-    "recommendation": "paddleocr_only"
+    "recommendation": "ensemble"
   },
   "19.jpg": {
     "image": "19.jpg",
@@ -151,14 +151,14 @@
       "is_thermal": false,
       "estimated_dpi": 245.0
     },
-    "easyocr_accuracy": 0.7142857142857143,
-    "easyocr_time": 55.343589067459106,
-    "paddle_accuracy": 0.5714285714285714,
-    "paddle_time": 130.58120775222778,
-    "ensemble_accuracy": 0.8571428571428571,
-    "ensemble_time": 217.8554458618164,
-    "best_strategy": "ensemble",
-    "recommendation": "paddleocr_only"
+    "easyocr_accuracy": 0.42857142857142855,
+    "easyocr_time": 15.290746927261353,
+    "paddle_accuracy": 0.0,
+    "paddle_time": 0.0,
+    "ensemble_accuracy": 0.0,
+    "ensemble_time": 0.0,
+    "best_strategy": "easyocr_only",
+    "recommendation": "easyocr_only"
   },
   "3.jpg": {
     "image": "3.jpg",
@@ -174,13 +174,13 @@
       "is_thermal": false,
       "estimated_dpi": 240.0
     },
-    "easyocr_accuracy": 0.3333333333333333,
-    "easyocr_time": 67.98396420478821,
-    "paddle_accuracy": 0.6666666666666666,
-    "paddle_time": 148.7249619960785,
-    "ensemble_accuracy": 0.6666666666666666,
-    "ensemble_time": 182.6206569671631,
-    "best_strategy": "paddleocr_only",
-    "recommendation": "paddleocr_only"
+    "easyocr_accuracy": 0.16666666666666666,
+    "easyocr_time": 13.378753662109375,
+    "paddle_accuracy": 0.0,
+    "paddle_time": 0.0,
+    "ensemble_accuracy": 0.0,
+    "ensemble_time": 0.0,
+    "best_strategy": "easyocr_only",
+    "recommendation": "easyocr_only"
   }
 }

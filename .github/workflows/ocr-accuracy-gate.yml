@@ -1,0 +1,72 @@
+name: Receipt OCR accuracy gate
+
+# Runs the receipt-OCR benchmark on every PR that touches the OCR pipeline,
+# and fails the check if accuracy on the ground-truth set drops below the
+# thresholds defined in lib/receipt-ocr/test/ci_gate.example.json.
+#
+# IMPORTANT: With only 8 ground-truth receipts, this gate is FRAGILE.
+# Real protection requires expanding the GT set to ≥100 receipts (see
+# docs/ocr-pipeline-architecture.md, section "Eval expansion"). Until then
+# treat this gate as advisory: it catches catastrophic regressions, not
+# 1-2% accuracy drops.
+
+on:
+  pull_request:
+    paths:
+      - "lib/receipt-ocr/**"
+      - "lib/recipe-ocr/**"
+      - "python-api/**"
+      - ".github/workflows/ocr-accuracy-gate.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ocr-accuracy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ocr-bench:
+    name: Run ocr_bench --gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install OCR dependencies
+        # We deliberately don't pre-warm models on Linux runners (the cache
+        # key would invalidate on every run since the model URLs change
+        # rarely but unpredictably). EasyOCR will download on first run;
+        # PaddleOCR likewise. Total install + first-run cost: ~2-3 minutes.
+        run: |
+          python -m pip install --upgrade pip
+          # Install OpenCV first because easyocr's wheel can sometimes drag
+          # in a conflicting opencv-python build.
+          pip install opencv-python-headless==4.10.0.84 numpy Pillow
+          pip install easyocr==1.7.2
+          pip install paddlepaddle==2.6.2 paddleocr==2.8.1
+          pip install pytest
+
+      - name: Run benchmark with gate
+        env:
+          # Force CPU mode — Actions runners don't have GPUs.
+          CUDA_VISIBLE_DEVICES: ""
+        run: |
+          python lib/receipt-ocr/test/ocr_bench.py \
+            --engine ensemble \
+            --json \
+            --gate lib/receipt-ocr/test/ci_gate.example.json \
+            > /tmp/ocr_bench.json
+
+      - name: Upload bench JSON for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocr-bench-results
+          path: /tmp/ocr_bench.json
+          retention-days: 14
