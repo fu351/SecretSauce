@@ -66,6 +66,51 @@ describe("epicure-client", () => {
     await expect(getEpicureSwaps("chicken", {})).rejects.toThrow()
   })
 
+  it("requests the neighbors endpoint with k and model params", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ success: true, data: [{ ingredient: "turkey", token: "turkey", score: 0.7 }], error: null }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { getEpicureNeighbors } = await import("../epicure-client")
+    const result = await getEpicureNeighbors("chicken", { k: 3, model: "chem" })
+
+    const calledUrl = fetchMock.mock.calls[0][0] as string
+    expect(calledUrl).toContain("https://python.example.com/epicure/neighbors")
+    expect(calledUrl).toContain("ingredient=chicken")
+    expect(calledUrl).toContain("k=3")
+    expect(calledUrl).toContain("model=chem")
+    expect(result).toEqual([{ ingredient: "turkey", token: "turkey", score: 0.7 }])
+  })
+
+  it("throws when the backend returns a 2xx body that is not valid JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<html>not json</html>", { status: 200, headers: { "Content-Type": "text/html" } })
+      )
+    )
+    const { getEpicureSwaps, EpicureRequestError } = await import("../epicure-client")
+    await expect(getEpicureSwaps("chicken", {})).rejects.toBeInstanceOf(EpicureRequestError)
+  })
+
+  it("throws when the envelope reports success: false", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: false, data: null, error: "model down" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    )
+    const { getEpicureSwaps } = await import("../epicure-client")
+    await expect(getEpicureSwaps("chicken", {})).rejects.toThrow("model down")
+  })
+
   it("posts to the cuisine-blend endpoint with a JSON body", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true, data: [], error: null }), {

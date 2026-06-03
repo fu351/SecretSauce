@@ -1,7 +1,17 @@
 """RED tests for the epicure -> Supabase ingredient_swaps export (pure logic)."""
+from types import SimpleNamespace
+
 import pytest
 
-from export_ingredient_swaps import build_name_to_id, build_swap_rows
+import export_ingredient_swaps as exp
+from export_ingredient_swaps import (
+    _chunk,
+    _create_supabase,
+    _fetch_standardized_ingredients,
+    _model_version_label,
+    build_name_to_id,
+    build_swap_rows,
+)
 
 
 class FakeSwapService:
@@ -74,3 +84,102 @@ class TestBuildSwapRows:
         rows = build_swap_rows(svc, name_to_id, ["chicken"], k=3)
         assert len(rows) == 3
         assert [r["rank"] for r in rows] == [1, 2, 3]
+
+
+class TestHelpers:
+    def test_chunk_splits_into_size_batches(self):
+        assert list(_chunk([1, 2, 3, 4, 5], 2)) == [[1, 2], [3, 4], [5]]
+
+    def test_model_version_label_uses_pinned_shas(self):
+        label = _model_version_label()
+        assert label.startswith("core@")
+        assert "+chem@" in label
+
+    def test_create_supabase_raises_without_credentials(self, monkeypatch):
+        for var in ("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        with pytest.raises(RuntimeError):
+            _create_supabase()
+
+
+class TestFetchStandardizedIngredients:
+    def test_pages_until_a_short_batch(self):
+        rows = [{"id": str(i), "canonical_name": f"ing {i}"} for i in range(1500)]
+
+        class FakeQuery:
+            def __init__(self, data):
+                self._data = data
+
+            def select(self, *_a, **_k):
+                return self
+
+            def range(self, start, end):
+                self._slice = self._data[start : end + 1]
+                return self
+
+            def execute(self):
+                return SimpleNamespace(data=self._slice)
+
+        class FakeClient:
+            def __init__(self, data):
+                self._data = data
+
+            def table(self, _name):
+                return FakeQuery(self._data)
+
+        result = _fetch_standardized_ingredients(FakeClient(rows))
+        assert len(result) == 1500
+
+    def test_create_supabase_returns_client_with_creds(self, monkeypatch):
+        monkeypatch.setenv("SUPABASE_URL", "http://example.supabase.co")
+        monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-key")
+        import supabase as sb
+
+        monkeypatch.setattr(sb, "create_client", lambda url, key: ("client", url, key))
+        client = _create_supabase()
+        assert client[0] == "client"
+
+
+class _MainFakeService:
+    def tokens(self, model="core"):
+        return ["chicken", "butter"]
+
+    def swap(self, token, k=8):
+        return [{"ingredient": "turkey", "token": "turkey", "score": 1.0}]
+
+
+class TestMain:
+    def _patch_seams(self, monkeypatch, supabase_client):
+        monkeypatch.setattr(exp, "load_default", lambda *_a, **_k: _MainFakeService())
+        monkeypatch.setattr(exp, "_create_supabase", lambda: supabase_client)
+        monkeypatch.setattr(
+            exp,
+            "_fetch_standardized_ingredients",
+            lambda _c: [
+                {"id": "id-chicken", "canonical_name": "chicken"},
+                {"id": "id-turkey", "canonical_name": "turkey"},
+            ],
+        )
+
+    def test_dry_run_writes_nothing_and_returns_zero(self, monkeypatch):
+        self._patch_seams(monkeypatch, supabase_client=object())
+        assert exp.main(["--dry-run", "--limit", "2"]) == 0
+
+    def test_full_run_upserts_rows(self, monkeypatch):
+        captured = []
+
+        class FakeTable:
+            def upsert(self, rows, on_conflict=None):
+                captured.append(rows)
+                return self
+
+            def execute(self):
+                return None
+
+        class FakeClient:
+            def table(self, _name):
+                return FakeTable()
+
+        self._patch_seams(monkeypatch, supabase_client=FakeClient())
+        assert exp.main([]) == 0
+        assert sum(len(batch) for batch in captured) >= 1
