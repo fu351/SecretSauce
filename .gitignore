@@ -121,3 +121,6 @@ vitest.results.json
 
 # Local verification screenshots
 store-*.png
+
+# Python test venv for epicure
+python-api/.venv-test/

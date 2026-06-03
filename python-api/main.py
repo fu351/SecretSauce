@@ -331,6 +331,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Epicure ingredient-embedding endpoints (meal recommendation + ingredient swapping).
+# Models load lazily on first request, so import/startup stays cheap.
+from epicure_api import router as epicure_router  # noqa: E402
+
+app.include_router(epicure_router)
+
 # Path to scraper scripts (hosted in backend/workers/scraper-worker/stores)
 _SCRAPER_PATH_CANDIDATES = [
     Path(__file__).resolve().parent.parent / "backend" / "workers" / "scraper-worker" / "stores",  # repo layout
