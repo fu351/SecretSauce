@@ -45,6 +45,10 @@ class EpicureService:
         keys = m.list_supervised_poles(CUISINE_POLE_PREFIX)
         return [_cuisine_display(k) for k in keys]
 
+    def tokens(self, model: str = "core") -> list[str]:
+        """Return every vocabulary token for a model (used by the swap export)."""
+        return list(self._model(model).vocab.keys())
+
     # ----- core operators -----
 
     def neighbors(self, ingredient: str, k: int = 5, model: str = "core") -> list[dict]:
