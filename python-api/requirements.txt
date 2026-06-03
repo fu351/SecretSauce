@@ -18,3 +18,8 @@ Pillow==11.3.0
 # Offline translation (no API key needed)
 argostranslate==1.9.6
 langdetect==1.0.9
+
+# Epicure ingredient embeddings (meal recommendation + ingredient swapping)
+huggingface_hub>=0.23.0
+safetensors>=0.4.0
+numpy>=1.26.0
