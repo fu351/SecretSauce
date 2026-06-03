@@ -66,6 +66,39 @@ describe("epicure-client", () => {
     await expect(getEpicureSwaps("chicken", {})).rejects.toThrow()
   })
 
+  // Regression: a non-object (array/scalar) 2xx body was silently coerced to []
+  // before the envelope was validated at the boundary.
+  it("throws when the 2xx body is not an object envelope (array)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify([1, 2, 3]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    )
+    const { getEpicureSwaps, EpicureRequestError } = await import("../epicure-client")
+    await expect(getEpicureSwaps("chicken", {})).rejects.toBeInstanceOf(EpicureRequestError)
+  })
+
+  // Regression: NaN/Infinity scores (e.g. 1e999 -> Infinity via JSON.parse) used to
+  // pass the boundary guard and could poison ranking math.
+  it("drops suggestions with a non-finite score", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          '{"success":true,"data":[{"ingredient":"inf","token":"inf","score":1e999},{"ingredient":"ok","token":"ok","score":0.5}],"error":null}',
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    )
+    const { getEpicureSwaps } = await import("../epicure-client")
+    const result = await getEpicureSwaps("chicken", {})
+    expect(result).toEqual([{ ingredient: "ok", token: "ok", score: 0.5 }])
+  })
+
   it("requests the neighbors endpoint with k and model params", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

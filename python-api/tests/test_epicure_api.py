@@ -117,3 +117,25 @@ def test_endpoint_maps_service_value_error_to_400():
 
     resp = local_client.get("/epicure/cuisines")
     assert resp.status_code == 400
+
+
+def test_swap_endpoint_maps_service_value_error_to_400():
+    """Regression: /swap had no ValueError guard, so a service ValueError -> 500.
+
+    It must mirror the other endpoints and map ValueError -> 400.
+    """
+
+    class RaisingSwap:
+        def available_models(self):
+            return ["core"]
+
+        def swap(self, ingredient, k=5):
+            raise ValueError("Unknown epicure model: 'core'")
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_service] = lambda: RaisingSwap()
+    local_client = TestClient(app)
+
+    resp = local_client.get("/epicure/swap", params={"ingredient": "chicken"})
+    assert resp.status_code == 400

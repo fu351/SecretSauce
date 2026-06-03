@@ -110,7 +110,7 @@
     "react-leaflet": "^5.0.0",
     "react-resizable-panels": "latest",
     "recharts": "latest",
-    "scrapegraph-js": "latest",
+    "scrapegraph-js": "2.2.0",
     "sonner": "latest",
     "stripe": "^20.3.1",
     "tailwind-merge": "^2.5.5",

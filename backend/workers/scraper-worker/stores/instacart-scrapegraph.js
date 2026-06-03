@@ -15,6 +15,7 @@
  * use the managed cloud API per the agreed fallback.
  */
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { createScraperLogger } = require('../utils/logger');
 
 require('dotenv').config({ path: path.join(__dirname, '../../.env.local') });
@@ -63,11 +64,31 @@ function buildInstacartUrl(store, keyword) {
   return `https://www.instacart.com/store/${slug}/search/${encodeURIComponent(String(keyword || '').trim())}`;
 }
 
+// keyword and zipCode originate from the (unauthenticated) /api/batch-scraper
+// request body and are interpolated into an LLM prompt. Strip characters that
+// could break out of the quoted context / inject instructions, and bound length.
+function sanitizePromptValue(value, maxLen = 200) {
+  return String(value || '')
+    .replace(/["`]/g, '') // quotes/backticks that could escape the quoted context
+    .replace(/[\r\n]+/g, ' ') // newlines that could inject fresh instructions
+    .trim()
+    .slice(0, maxLen);
+}
+
+// Mirror of lib/utils/zip.ts normalizeZipCode: keep only a valid 5-digit ZIP,
+// so the value placed in the prompt can never be attacker-controlled free text.
+function sanitizeZip(value) {
+  const match = String(value || '').match(/\b\d{5}\b/);
+  return match ? match[0] : '';
+}
+
 /** Prompt instructing the model to extract grocery products for a search. */
 function buildExtractionPrompt(keyword, zipCode) {
-  const zipClause = zipCode ? ` Use store pricing for ZIP code ${zipCode} when available.` : '';
+  const safeKeyword = sanitizePromptValue(keyword);
+  const safeZip = sanitizeZip(zipCode);
+  const zipClause = safeZip ? ` Use store pricing for ZIP code ${safeZip} when available.` : '';
   return (
-    `Extract the grocery search results for "${keyword}" from this Instacart store page.` +
+    `Extract the grocery search results for "${safeKeyword}" from this Instacart store page.` +
     zipClause +
     ` Return a JSON object with a "products" array; each product has: ` +
     `name (string), price (number in USD, the item price not the per-unit price), ` +
@@ -119,6 +140,9 @@ function extractProductArray(data) {
 function normalizeProducts(rawData, provider) {
   const items = extractProductArray(rawData);
   const products = [];
+  // Run-level prefix so ids from concurrent calls for the same store don't collide.
+  const providerSlug = provider.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const runId = randomUUID().slice(0, 8);
 
   for (const item of items) {
     if (!item || typeof item !== 'object') continue;
@@ -131,7 +155,7 @@ function normalizeProducts(rawData, provider) {
     const unitMatch = pricePerUnit.match(/\/\s*([^\s$]+)/);
 
     products.push({
-      id: `ig-${provider.toLowerCase().replace(/[^a-z0-9]+/g, '')}-${products.length + 1}`,
+      id: `ig-${providerSlug}-${runId}-${products.length + 1}`,
       title,
       brand: provider,
       price,
@@ -149,8 +173,10 @@ function normalizeProducts(rawData, provider) {
 }
 
 async function defaultSmartScraper(apiKey, params) {
-  // Lazy-load so importing this module (and unit tests) never require the SDK.
-  const { smartScraper } = require('scrapegraph-js');
+  // scrapegraph-js v2 is pure ESM (no CommonJS `require` entry), so it must be
+  // loaded via dynamic import() from this CommonJS module. Lazy by design so
+  // importing this module (and the unit tests, which inject a fake) never load it.
+  const { smartScraper } = await import('scrapegraph-js');
   return smartScraper(apiKey, params);
 }
 
@@ -199,7 +225,9 @@ async function searchInstacartStore(keyword, zipCode, options = {}) {
     products.sort((a, b) => a.price - b.price);
     return maxResults > 0 ? products.slice(0, maxResults) : products;
   } catch (error) {
-    log.error(`Instacart ScrapeGraphAI search failed for ${store}:`, error.message);
+    // Log the full error (stack included) so a scraper outage is distinguishable
+    // from a genuine zero-result search; return [] to keep callers resilient.
+    log.error(`Instacart ScrapeGraphAI search failed for ${store} (returning no products):`, error);
     return [];
   }
 }

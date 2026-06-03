@@ -19,7 +19,8 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-from typing import Any, Optional
+from datetime import datetime, timezone
+from typing import Optional
 
 from epicure_names import to_token
 from epicure_service import DEFAULT_MODEL_REVISIONS, EpicureService, load_default
@@ -103,7 +104,11 @@ def _fetch_standardized_ingredients(supabase) -> list[dict]:
             .range(start, start + page_size - 1)
             .execute()
         )
-        batch = resp.data or []
+        batch = resp.data
+        if batch is None:
+            # supabase-py raises on hard errors; a None payload signals an
+            # unexpected soft failure that must not be masked as "no rows".
+            raise RuntimeError("standardized_ingredients fetch returned no data payload")
         rows.extend(batch)
         if len(batch) < page_size:
             break
@@ -112,20 +117,25 @@ def _fetch_standardized_ingredients(supabase) -> list[dict]:
 
 
 def _load_env() -> None:
-    """Best-effort load of the repo-root .env.local for local runs (no-op in prod)."""
+    """Best-effort load of the repo-root .env.local for local runs (no-op in prod).
+
+    Only the optional `python-dotenv` import is treated as best-effort; a genuine
+    failure to read/parse a present .env.local is allowed to propagate so a
+    corrupt file is diagnosable instead of silently ignored.
+    """
     try:
         from dotenv import load_dotenv
+    except ImportError:
+        return  # python-dotenv not installed; rely on the ambient environment
 
-        here = os.path.dirname(os.path.abspath(__file__))
-        for candidate in (
-            os.path.join(here, ".env.local"),
-            os.path.join(here, "..", ".env.local"),
-        ):
-            if os.path.exists(candidate):
-                load_dotenv(candidate, override=False)
-                return
-    except Exception:
-        pass
+    here = os.path.dirname(os.path.abspath(__file__))
+    for candidate in (
+        os.path.join(here, ".env.local"),
+        os.path.join(here, "..", ".env.local"),
+    ):
+        if os.path.exists(candidate):
+            load_dotenv(candidate, override=False)
+            return
 
 
 def _create_supabase():
@@ -181,12 +191,31 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
 
     written = 0
-    for batch in _chunk(rows, UPSERT_BATCH_SIZE):
-        supabase.table(TABLE).upsert(
-            batch, on_conflict="standardized_ingredient_id,swap_token"
-        ).execute()
+    failed_batches = 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for index, batch in enumerate(_chunk(rows, UPSERT_BATCH_SIZE)):
+        # Stamp updated_at so re-runs refresh the cache's freshness signal
+        # (upsert-on-conflict does not re-apply the column default).
+        stamped = [{**row, "updated_at": now_iso} for row in batch]
+        try:
+            supabase.table(TABLE).upsert(
+                stamped, on_conflict="standardized_ingredient_id,swap_token"
+            ).execute()
+        except Exception as exc:
+            failed_batches += 1
+            logger.error("Upsert batch %d failed at offset %d/%d: %s", index, written, len(rows), exc)
+            continue
         written += len(batch)
         logger.info("Upserted %d/%d rows", written, len(rows))
+
+    if failed_batches:
+        logger.error(
+            "Export finished with %d failed batch(es); only %d/%d rows written",
+            failed_batches,
+            written,
+            len(rows),
+        )
+        return 1
 
     logger.info("Done. Wrote %d ingredient_swaps rows.", written)
     return 0

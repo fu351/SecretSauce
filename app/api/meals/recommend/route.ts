@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
-import { EpicureUnavailableError, getEpicureNeighbors } from "@/lib/epicure/epicure-client"
+import { EpicureUnavailableError, getEpicureNeighbors, isAbortError } from "@/lib/epicure/epicure-client"
 import { buildAffinity, rankRecipes } from "@/lib/epicure/meal-recommendation"
 import { fetchRecipeCandidates } from "@/lib/epicure/recipe-candidates"
+import type { SwapSuggestion } from "@/lib/epicure/types"
 
 export const runtime = "nodejs"
 
@@ -11,10 +12,8 @@ const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50
 // Cap how many seeds one request may fan out to the Python service.
 const MAX_SEEDS = 20
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError"
-}
+// Mirrors the Python service's Query(max_length=...) cap; defense-in-depth.
+const MAX_INGREDIENT_LEN = 200
 
 /**
  * POST /api/meals/recommend
@@ -34,7 +33,9 @@ export async function POST(request: Request) {
 
   const payload = (body ?? {}) as Record<string, unknown>
   const seedIngredients: string[] = Array.isArray(payload.seedIngredients)
-    ? payload.seedIngredients.filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0)
+    ? payload.seedIngredients
+        .filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0)
+        .map((s) => s.trim())
     : []
 
   if (seedIngredients.length === 0) {
@@ -51,6 +52,13 @@ export async function POST(request: Request) {
     )
   }
 
+  if (seedIngredients.some((s) => s.length > MAX_INGREDIENT_LEN)) {
+    return NextResponse.json(
+      { success: false, error: `each seed ingredient may not exceed ${MAX_INGREDIENT_LEN} characters` },
+      { status: 400 }
+    )
+  }
+
   const cuisine =
     typeof payload.cuisine === "string" && payload.cuisine.trim() ? payload.cuisine.trim() : undefined
   const limit =
@@ -59,9 +67,23 @@ export async function POST(request: Request) {
       : DEFAULT_LIMIT
 
   try {
-    const neighborLists = await Promise.all(
+    // Tolerate partial seed failures: one unresolvable seed must not kill the
+    // whole request. Only propagate an error when every seed lookup fails.
+    const settled = await Promise.allSettled(
       seedIngredients.map((seed) => getEpicureNeighbors(seed, { k: NEIGHBORS_PER_SEED }))
     )
+    const neighborLists = settled
+      .filter((r): r is PromiseFulfilledResult<SwapSuggestion[]> => r.status === "fulfilled")
+      .map((r) => r.value)
+
+    if (neighborLists.length === 0) {
+      // Re-throw the first rejection so the catch below maps it to 503/504/502.
+      const firstRejection = settled.find((r) => r.status === "rejected") as
+        | PromiseRejectedResult
+        | undefined
+      throw firstRejection?.reason ?? new Error("All seed lookups failed")
+    }
+
     const affinity = buildAffinity(seedIngredients, neighborLists)
 
     const candidates = await fetchRecipeCandidates({ cuisine, limit: CANDIDATE_POOL })

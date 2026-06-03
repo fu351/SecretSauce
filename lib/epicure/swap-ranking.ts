@@ -1,5 +1,5 @@
 import { toToken } from "./token-utils"
-import type { SwapRankOptions, SwapSuggestion } from "./types"
+import type { EpicureToken, SwapRankOptions, SwapSuggestion } from "./types"
 
 /**
  * Filter, dedupe, sort, and cap raw swap suggestions for presentation.
@@ -13,9 +13,9 @@ export function rankSwaps(
   options: SwapRankOptions = {}
 ): SwapSuggestion[] {
   const sourceToken = toToken(sourceIngredient)
-  const excluded = new Set((options.excludeTokens ?? []).map(toToken))
+  const excluded = new Set<EpicureToken>((options.excludeTokens ?? []).map(toToken))
 
-  const best = new Map<string, SwapSuggestion>()
+  const best = new Map<EpicureToken, SwapSuggestion>()
   for (const suggestion of raw) {
     const token = suggestion.token || toToken(suggestion.ingredient)
     if (token === sourceToken) continue

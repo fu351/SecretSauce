@@ -1,7 +1,9 @@
 import { getPythonApiBaseUrl } from "@/backend/orchestrators/python-api-pipeline/config"
-import type { CuisineBlendParams, SwapSuggestion } from "./types"
+import type { CuisineBlendParams, EpicureModelName, SwapSuggestion } from "./types"
 
 const DEFAULT_TIMEOUT_MS = 20_000
+
+const KNOWN_MODELS: readonly EpicureModelName[] = ["core", "chem", "cooc"]
 
 /** Raised when the python service URL is not configured. */
 export class EpicureUnavailableError extends Error {
@@ -22,20 +24,37 @@ export class EpicureRequestError extends Error {
   }
 }
 
+/** True when an error is an `AbortError` (request timeout). Shared with API routes. */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
+
 interface EpicureEnvelope {
   success?: boolean
   data?: unknown
   error?: string | null
 }
 
+/** Validate the response is a JSON object envelope (not an array / scalar). */
+function isEpicureEnvelope(value: unknown): value is EpicureEnvelope {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function isModelName(value: unknown): value is EpicureModelName {
+  return typeof value === "string" && (KNOWN_MODELS as readonly string[]).includes(value)
+}
+
 function isSwapSuggestion(value: unknown): value is SwapSuggestion {
   if (!value || typeof value !== "object") return false
   const candidate = value as Record<string, unknown>
-  return (
-    typeof candidate.ingredient === "string" &&
-    typeof candidate.token === "string" &&
-    typeof candidate.score === "number"
-  )
+  if (typeof candidate.ingredient !== "string") return false
+  if (typeof candidate.token !== "string") return false
+  // Reject NaN/Infinity so malformed scores can't poison ranking math.
+  if (typeof candidate.score !== "number" || !Number.isFinite(candidate.score)) return false
+  if (candidate.sources !== undefined) {
+    if (!Array.isArray(candidate.sources) || !candidate.sources.every(isModelName)) return false
+  }
+  return true
 }
 
 function requireBaseUrl(): string {
@@ -52,18 +71,24 @@ async function readEnvelope(response: Response): Promise<SwapSuggestion[]> {
     throw new EpicureRequestError(detail || `Epicure request failed (${response.status})`, response.status)
   }
 
-  let payload: EpicureEnvelope
+  let parsed: unknown
   try {
-    payload = (await response.json()) as EpicureEnvelope
+    parsed = await response.json()
   } catch {
     throw new EpicureRequestError("Epicure response was not valid JSON")
   }
 
-  if (payload.success === false) {
-    throw new EpicureRequestError(payload.error || "Epicure request failed")
+  // Validate the envelope shape at the boundary; a malformed body must surface
+  // as an error rather than silently degrading to an empty result set.
+  if (!isEpicureEnvelope(parsed)) {
+    throw new EpicureRequestError("Unexpected Epicure response shape")
+  }
+
+  if (parsed.success === false) {
+    throw new EpicureRequestError(parsed.error || "Epicure request failed")
   }
   // Validate each element at the boundary so malformed rows can't poison ranking math.
-  return Array.isArray(payload.data) ? payload.data.filter(isSwapSuggestion) : []
+  return Array.isArray(parsed.data) ? parsed.data.filter(isSwapSuggestion) : []
 }
 
 function withTimeout(timeoutMs = DEFAULT_TIMEOUT_MS): { signal: AbortSignal; done: () => void } {
@@ -72,41 +97,37 @@ function withTimeout(timeoutMs = DEFAULT_TIMEOUT_MS): { signal: AbortSignal; don
   return { signal: controller.signal, done: () => clearTimeout(id) }
 }
 
-/** Fetch blended ingredient swaps (chemistry + recipe-context) from the backend. */
-export async function getEpicureSwaps(
-  ingredient: string,
-  { k }: { k?: number }
-): Promise<SwapSuggestion[]> {
+/** Shared GET request + envelope read with a per-request timeout. */
+async function getRequest(path: string, params: URLSearchParams): Promise<SwapSuggestion[]> {
   const baseUrl = requireBaseUrl()
-  const params = new URLSearchParams({ ingredient })
-  if (k !== undefined) params.set("k", String(k))
-
   const { signal, done } = withTimeout()
   try {
-    const response = await fetch(`${baseUrl}/epicure/swap?${params.toString()}`, { signal })
+    const response = await fetch(`${baseUrl}${path}?${params.toString()}`, { signal })
     return await readEnvelope(response)
   } finally {
     done()
   }
 }
 
+/** Fetch blended ingredient swaps (chemistry + core models) from the backend. */
+export async function getEpicureSwaps(
+  ingredient: string,
+  { k }: { k?: number }
+): Promise<SwapSuggestion[]> {
+  const params = new URLSearchParams({ ingredient })
+  if (k !== undefined) params.set("k", String(k))
+  return getRequest("/epicure/swap", params)
+}
+
 /** Fetch single-model nearest neighbours for an ingredient. */
 export async function getEpicureNeighbors(
   ingredient: string,
-  { k, model }: { k?: number; model?: string } = {}
+  { k, model }: { k?: number; model?: EpicureModelName } = {}
 ): Promise<SwapSuggestion[]> {
-  const baseUrl = requireBaseUrl()
   const params = new URLSearchParams({ ingredient })
   if (k !== undefined) params.set("k", String(k))
   if (model) params.set("model", model)
-
-  const { signal, done } = withTimeout()
-  try {
-    const response = await fetch(`${baseUrl}/epicure/neighbors?${params.toString()}`, { signal })
-    return await readEnvelope(response)
-  } finally {
-    done()
-  }
+  return getRequest("/epicure/neighbors", params)
 }
 
 /** Fetch cuisine-directed suggestions by rotating an ingredient toward a cuisine pole. */

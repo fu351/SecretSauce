@@ -10,7 +10,7 @@ import { toToken } from "./token-utils"
 export function recipeToCandidate(recipe: Recipe): RecipeCandidate {
   const ingredientTokens = (recipe.ingredients ?? [])
     .map((ing) => toToken(ing.standardizedName || ing.name || ""))
-    .filter((token): token is string => token.length > 0)
+    .filter((token) => token.length > 0)
 
   return {
     id: recipe.id,

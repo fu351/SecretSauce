@@ -1,5 +1,5 @@
 import { toToken } from "./token-utils"
-import type { SwapSuggestion } from "./types"
+import type { EpicureToken, SwapSuggestion } from "./types"
 
 /**
  * Epicure-driven meal recommendation scoring (pure, no I/O).
@@ -14,7 +14,7 @@ export interface RecipeCandidate {
   id: string
   title: string
   /** Standardized/Epicure-style ingredient tokens for the recipe. */
-  ingredientTokens: string[]
+  ingredientTokens: EpicureToken[]
   cuisine?: string | null
 }
 
@@ -41,10 +41,10 @@ export const CUISINE_BONUS = 0.1
 export function buildAffinity(
   seeds: string[],
   neighborLists: SwapSuggestion[][]
-): Map<string, number> {
-  const affinity = new Map<string, number>()
+): Map<EpicureToken, number> {
+  const affinity = new Map<EpicureToken, number>()
 
-  const bump = (token: string, score: number) => {
+  const bump = (token: EpicureToken, score: number) => {
     if (!token) return
     const existing = affinity.get(token)
     if (existing === undefined || score > existing) {
@@ -64,9 +64,9 @@ export function buildAffinity(
 /** Score a single recipe: summed affinity of matched tokens, normalized by recipe size. */
 export function scoreRecipe(
   recipe: RecipeCandidate,
-  affinity: Map<string, number>
-): { score: number; matchedTokens: string[] } {
-  const matchedTokens: string[] = []
+  affinity: Map<EpicureToken, number>
+): { score: number; matchedTokens: EpicureToken[] } {
+  const matchedTokens: EpicureToken[] = []
   let total = 0
   for (const token of recipe.ingredientTokens) {
     const value = affinity.get(token)

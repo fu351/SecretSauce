@@ -3,9 +3,13 @@
 Wraps one or more loaded Epicure models (``core``, ``chem``, ``cooc``) and adds:
 
 * safe name resolution (free text -> vocab token, never raises on unknowns),
-* ingredient *swap* suggestions that blend the flavour-chemistry model and the
-  recipe-context model into a single ranked list, and
+* ingredient *swap* suggestions that blend the flavour-chemistry (``chem``) and
+  ``core`` models into a single ranked list, and
 * cuisine-directed suggestions via SLERP toward a cuisine pole.
+
+Note: ``cooc`` (the recipe-context model) is loaded and available for direct
+``/neighbors`` queries but is intentionally excluded from the default swap blend
+(see ``DEFAULT_SWAP_WEIGHTS``).
 
 The models are injected, which keeps the unit tests fast and offline. Production
 construction (downloading the real safetensors) lives in :func:`load_default`.
@@ -16,7 +20,8 @@ from typing import Any, Optional
 
 from epicure_names import from_token, resolve_token, to_token
 
-# Default blend weights for swap(): chemistry and recipe-context contribute equally.
+# Default blend weights for swap(): the chemistry (chem) and core models
+# contribute equally. cooc (recipe-context) is loaded but excluded from this blend.
 DEFAULT_SWAP_WEIGHTS = {"core": 1.0, "chem": 1.0}
 CUISINE_POLE_PREFIX = "cuisine:"
 # swap() fetches this many times `k` candidates per model so blending has room to re-rank.
@@ -66,7 +71,7 @@ class EpicureService:
         """Blend neighbours across the available swap models into ranked swaps.
 
         Scores from each contributing model are weighted and summed per token,
-        so an ingredient endorsed by both the chemistry and recipe-context
+        so an ingredient endorsed by both the chemistry (chem) and core
         models outranks one seen by only a single model.
         """
         weights = weights or DEFAULT_SWAP_WEIGHTS

@@ -75,4 +75,49 @@ describe("POST /api/meals/recommend", () => {
     const response = await POST(postRequest({ seedIngredients: ["chicken"] }))
     expect(response.status).toBe(504)
   })
+
+  // Regression: Promise.all aborted the whole request on a single bad seed.
+  // allSettled must tolerate partial failures and still rank from the survivors.
+  it("tolerates a partial seed failure and still returns recommendations", async () => {
+    ;(getEpicureNeighbors as any)
+      .mockResolvedValueOnce([{ ingredient: "pork", token: "pork", score: 0.58 }])
+      .mockRejectedValueOnce(new Error("one seed exploded"))
+    ;(fetchRecipeCandidates as any).mockResolvedValue([
+      { id: "a", title: "Pork stew", ingredientTokens: ["pork", "onion"] },
+      { id: "b", title: "Tofu salad", ingredientTokens: ["tofu", "lettuce"] },
+    ])
+
+    const { POST } = await import("../route")
+    const response = await POST(postRequest({ seedIngredients: ["chicken", "beef"] }))
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.data.map((r: any) => r.id)).toEqual(["a"])
+  })
+
+  it("returns 400 when the body is not valid JSON", async () => {
+    const badRequest = new Request("http://localhost/api/meals/recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    }) as any
+    const { POST } = await import("../route")
+    const response = await POST(badRequest)
+    expect(response.status).toBe(400)
+    expect(getEpicureNeighbors).not.toHaveBeenCalled()
+  })
+
+  it("returns 400 when all seeds are blank/whitespace (filtered to empty)", async () => {
+    const { POST } = await import("../route")
+    const response = await POST(postRequest({ seedIngredients: ["  ", ""] }))
+    expect(response.status).toBe(400)
+    expect(getEpicureNeighbors).not.toHaveBeenCalled()
+  })
+
+  it("returns 502 when fetching recipe candidates fails (DB error)", async () => {
+    ;(getEpicureNeighbors as any).mockResolvedValue([{ ingredient: "pork", token: "pork", score: 0.5 }])
+    ;(fetchRecipeCandidates as any).mockRejectedValue(new Error("DB down"))
+    const { POST } = await import("../route")
+    const response = await POST(postRequest({ seedIngredients: ["chicken"] }))
+    expect(response.status).toBe(502)
+  })
 })

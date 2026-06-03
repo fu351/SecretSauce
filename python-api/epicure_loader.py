@@ -18,7 +18,6 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from typing import Iterable
 
 import numpy as np
 
@@ -87,13 +86,13 @@ class Epicure:
         else:
             getp = lambda fn: _try_hf_download(repo_id_or_path, fn, revision=revision)
         E = _load_safetensors(getp("embeddings.safetensors"))
-        with open(getp("vocab.json")) as f:
+        with open(getp("vocab.json"), encoding="utf-8") as f:
             vocab = json.load(f)
-        with open(getp("modes.json")) as f:
+        with open(getp("modes.json"), encoding="utf-8") as f:
             modes_raw = json.load(f)
-        with open(getp("supervised_poles.json")) as f:
+        with open(getp("supervised_poles.json"), encoding="utf-8") as f:
             sup_raw = json.load(f)
-        with open(getp("config.json")) as f:
+        with open(getp("config.json"), encoding="utf-8") as f:
             config = json.load(f)
         modes = [
             ModeEntry(

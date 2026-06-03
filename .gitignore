@@ -54,6 +54,7 @@ AGENTS.md
 !supabase/migrations/20260430233000_open_prices_backup_pricing.sql
 !supabase/migrations/20260504000000_fix_delivery_log_functions.sql
 !supabase/migrations/20260504000001_add_pending_cart_items.sql
+!supabase/migrations/20260603120000_harden_ingredient_swaps.sql
 
 CLAUDE.md
 

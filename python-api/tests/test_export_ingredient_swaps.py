@@ -183,3 +183,41 @@ class TestMain:
         self._patch_seams(monkeypatch, supabase_client=FakeClient())
         assert exp.main([]) == 0
         assert sum(len(batch) for batch in captured) >= 1
+
+    def test_full_run_stamps_updated_at_on_every_row(self, monkeypatch):
+        captured = []
+
+        class FakeTable:
+            def upsert(self, rows, on_conflict=None):
+                captured.extend(rows)
+                return self
+
+            def execute(self):
+                return None
+
+        class FakeClient:
+            def table(self, _name):
+                return FakeTable()
+
+        self._patch_seams(monkeypatch, supabase_client=FakeClient())
+        assert exp.main([]) == 0
+        assert captured, "expected at least one upserted row"
+        assert all("updated_at" in row for row in captured)
+
+    def test_main_returns_nonzero_when_an_upsert_batch_fails(self, monkeypatch):
+        """Regression: an unguarded upsert raised out of main(), leaving a partial
+        write with no failure signal. A batch failure must return a non-zero code."""
+
+        class FailingTable:
+            def upsert(self, rows, on_conflict=None):
+                return self
+
+            def execute(self):
+                raise RuntimeError("db connection reset")
+
+        class FailingClient:
+            def table(self, _name):
+                return FailingTable()
+
+        self._patch_seams(monkeypatch, supabase_client=FailingClient())
+        assert exp.main([]) == 1

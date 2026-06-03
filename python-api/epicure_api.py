@@ -8,6 +8,7 @@ All responses use the app's standard ``{success, data, error}`` envelope.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 from typing import Literal, Optional
@@ -76,7 +77,9 @@ async def epicure_neighbors(
     service: EpicureService = Depends(get_service),
 ) -> dict[str, object]:
     try:
-        return _ok(service.neighbors(ingredient, k=k, model=model))
+        # Offload the synchronous NumPy work so it doesn't block the event loop.
+        data = await asyncio.to_thread(service.neighbors, ingredient, k=k, model=model)
+        return _ok(data)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -87,7 +90,11 @@ async def epicure_swap(
     k: int = Query(default=5, ge=1, le=50),
     service: EpicureService = Depends(get_service),
 ) -> dict[str, object]:
-    return _ok(service.swap(ingredient, k=k))
+    try:
+        data = await asyncio.to_thread(service.swap, ingredient, k=k)
+        return _ok(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/cuisine-blend")
@@ -96,7 +103,8 @@ async def epicure_cuisine_blend(
     service: EpicureService = Depends(get_service),
 ) -> dict[str, object]:
     try:
-        data = service.cuisine_blend(
+        data = await asyncio.to_thread(
+            service.cuisine_blend,
             request.ingredient,
             request.cuisine,
             theta_deg=request.theta_deg,
@@ -114,6 +122,7 @@ async def epicure_cuisines(
     service: EpicureService = Depends(get_service),
 ) -> dict[str, object]:
     try:
-        return _ok(service.list_cuisines(model=model))
+        data = await asyncio.to_thread(service.list_cuisines, model=model)
+        return _ok(data)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

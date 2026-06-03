@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { EpicureUnavailableError, getEpicureSwaps } from "@/lib/epicure/epicure-client"
+import { EpicureUnavailableError, getEpicureSwaps, isAbortError } from "@/lib/epicure/epicure-client"
 import { rankSwaps } from "@/lib/epicure/swap-ranking"
 
 export const runtime = "nodejs"
@@ -7,16 +7,14 @@ export const runtime = "nodejs"
 // Fetch more candidates than we display so ranking/filtering has room to work.
 const BACKEND_FETCH_K = 24
 const MAX_LIMIT = 50
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError"
-}
+// Mirrors the Python service's Query(max_length=...) cap; defense-in-depth.
+const MAX_INGREDIENT_LEN = 200
 
 /**
  * GET /api/ingredients/swaps?ingredient=chicken&limit=5&exclude=pork,beef&minScore=0.3
  *
  * Returns flavour/chemistry-aware substitute ingredients, blended across the
- * Epicure chemistry and recipe-context models and ranked for presentation.
+ * Epicure chemistry (chem) and core models and ranked for presentation.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -26,8 +24,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, error: "ingredient query parameter is required" }, { status: 400 })
   }
 
+  if (ingredient.length > MAX_INGREDIENT_LEN) {
+    return NextResponse.json(
+      { success: false, error: `ingredient may not exceed ${MAX_INGREDIENT_LEN} characters` },
+      { status: 400 }
+    )
+  }
+
   const requestedLimit = parsePositiveInt(searchParams.get("limit"))
   const limit = requestedLimit === undefined ? undefined : Math.min(requestedLimit, MAX_LIMIT)
+  // Overscan must always cover the requested limit so ranking has headroom.
+  const fetchK = Math.max(BACKEND_FETCH_K, limit ?? 0)
   const rawMinScore = parseFloatOrUndefined(searchParams.get("minScore"))
   // Negative thresholds are meaningless (cosine-style scores); clamp to >= 0.
   const minScore = rawMinScore === undefined ? undefined : Math.max(rawMinScore, 0)
@@ -37,7 +44,7 @@ export async function GET(request: Request) {
     .filter(Boolean)
 
   try {
-    const raw = await getEpicureSwaps(ingredient, { k: BACKEND_FETCH_K })
+    const raw = await getEpicureSwaps(ingredient, { k: fetchK })
     const data = rankSwaps(raw, ingredient, { excludeTokens, limit, minScore })
     return NextResponse.json({ success: true, data })
   } catch (error) {
