@@ -66,3 +66,12 @@ class TestIntrospection:
     def test_lists_cuisines_as_display_names(self, service):
         cuisines = service.list_cuisines(model="core")
         assert "South Asian" in cuisines
+
+    def test_tokens_returns_model_vocabulary(self, service):
+        tokens = service.tokens(model="core")
+        assert "chicken" in tokens
+        assert "butter" in tokens
+
+    def test_tokens_unknown_model_raises(self, service):
+        with pytest.raises(ValueError):
+            service.tokens(model="nope")
