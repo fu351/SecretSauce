@@ -54,14 +54,15 @@ def resolve_token(name: str, vocab: dict[str, int]) -> str | None:
 
 
 def _morphological_candidates(token: str) -> list[str]:
-    """Generate singular/plural variants to try when the exact token is absent."""
-    candidates: list[str] = []
+    """Generate one singular/plural variant to try when the exact token is absent.
+
+    The rules are mutually exclusive (most specific wins) so we never emit
+    spurious stems like "berrie"/"tomatoe" that can only ever miss.
+    """
     if token.endswith("ies") and len(token) > 3:
-        candidates.append(token[:-3] + "y")  # berries -> berry
+        return [token[:-3] + "y"]  # berries -> berry
     if token.endswith("es") and len(token) > 2:
-        candidates.append(token[:-2])  # tomatoes -> tomato
+        return [token[:-2]]  # tomatoes -> tomato
     if token.endswith("s") and len(token) > 1:
-        candidates.append(token[:-1])  # eggs -> egg
-    else:
-        candidates.append(token + "s")  # egg -> eggs
-    return candidates
+        return [token[:-1]]  # eggs -> egg
+    return [token + "s"]  # egg -> eggs

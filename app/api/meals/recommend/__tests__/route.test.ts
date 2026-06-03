@@ -52,6 +52,14 @@ describe("POST /api/meals/recommend", () => {
     expect(getEpicureNeighbors).toHaveBeenCalledWith("chicken", expect.any(Object))
   })
 
+  it("returns 400 when seedIngredients exceeds the cap (fan-out guard)", async () => {
+    const { POST } = await import("../route")
+    const tooMany = Array.from({ length: 21 }, (_, i) => `ingredient_${i}`)
+    const response = await POST(postRequest({ seedIngredients: tooMany }))
+    expect(response.status).toBe(400)
+    expect(getEpicureNeighbors).not.toHaveBeenCalled()
+  })
+
   it("returns 503 when the epicure service is unavailable", async () => {
     ;(getEpicureNeighbors as any).mockRejectedValue(new EpicureUnavailableError())
     const { POST } = await import("../route")

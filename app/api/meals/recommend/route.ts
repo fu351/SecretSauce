@@ -8,6 +8,13 @@ export const runtime = "nodejs"
 const NEIGHBORS_PER_SEED = 15
 const CANDIDATE_POOL = 100
 const DEFAULT_LIMIT = 20
+const MAX_LIMIT = 50
+// Cap how many seeds one request may fan out to the Python service.
+const MAX_SEEDS = 20
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
 
 /**
  * POST /api/meals/recommend
@@ -18,15 +25,16 @@ const DEFAULT_LIMIT = 20
  * nudged toward a target cuisine.
  */
 export async function POST(request: Request) {
-  let body: any
+  let body: unknown
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const seedIngredients: string[] = Array.isArray(body?.seedIngredients)
-    ? body.seedIngredients.filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0)
+  const payload = (body ?? {}) as Record<string, unknown>
+  const seedIngredients: string[] = Array.isArray(payload.seedIngredients)
+    ? payload.seedIngredients.filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0)
     : []
 
   if (seedIngredients.length === 0) {
@@ -36,8 +44,19 @@ export async function POST(request: Request) {
     )
   }
 
-  const cuisine = typeof body?.cuisine === "string" && body.cuisine.trim() ? body.cuisine.trim() : undefined
-  const limit = Number.isFinite(body?.limit) && body.limit > 0 ? Math.floor(body.limit) : DEFAULT_LIMIT
+  if (seedIngredients.length > MAX_SEEDS) {
+    return NextResponse.json(
+      { success: false, error: `seedIngredients may not exceed ${MAX_SEEDS} items` },
+      { status: 400 }
+    )
+  }
+
+  const cuisine =
+    typeof payload.cuisine === "string" && payload.cuisine.trim() ? payload.cuisine.trim() : undefined
+  const limit =
+    typeof payload.limit === "number" && Number.isFinite(payload.limit) && payload.limit > 0
+      ? Math.min(Math.floor(payload.limit), MAX_LIMIT)
+      : DEFAULT_LIMIT
 
   try {
     const neighborLists = await Promise.all(
@@ -53,7 +72,10 @@ export async function POST(request: Request) {
     if (error instanceof EpicureUnavailableError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 503 })
     }
-    const message = error instanceof Error ? error.message : "Failed to recommend meals"
-    return NextResponse.json({ success: false, error: message }, { status: 502 })
+    if (isAbortError(error)) {
+      return NextResponse.json({ success: false, error: "Meal recommendation service timed out" }, { status: 504 })
+    }
+    console.error("[/api/meals/recommend] upstream error:", error)
+    return NextResponse.json({ success: false, error: "Failed to recommend meals" }, { status: 502 })
   }
 }

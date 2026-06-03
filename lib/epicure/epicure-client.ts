@@ -28,6 +28,16 @@ interface EpicureEnvelope {
   error?: string | null
 }
 
+function isSwapSuggestion(value: unknown): value is SwapSuggestion {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.ingredient === "string" &&
+    typeof candidate.token === "string" &&
+    typeof candidate.score === "number"
+  )
+}
+
 function requireBaseUrl(): string {
   const baseUrl = getPythonApiBaseUrl()
   if (!baseUrl) {
@@ -52,7 +62,8 @@ async function readEnvelope(response: Response): Promise<SwapSuggestion[]> {
   if (payload.success === false) {
     throw new EpicureRequestError(payload.error || "Epicure request failed")
   }
-  return Array.isArray(payload.data) ? (payload.data as SwapSuggestion[]) : []
+  // Validate each element at the boundary so malformed rows can't poison ranking math.
+  return Array.isArray(payload.data) ? payload.data.filter(isSwapSuggestion) : []
 }
 
 function withTimeout(timeoutMs = DEFAULT_TIMEOUT_MS): { signal: AbortSignal; done: () => void } {

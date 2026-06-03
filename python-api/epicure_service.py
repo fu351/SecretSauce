@@ -12,17 +12,19 @@ construction (downloading the real safetensors) lives in :func:`load_default`.
 """
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Any, Optional
 
 from epicure_names import from_token, resolve_token, to_token
 
 # Default blend weights for swap(): chemistry and recipe-context contribute equally.
 DEFAULT_SWAP_WEIGHTS = {"core": 1.0, "chem": 1.0}
 CUISINE_POLE_PREFIX = "cuisine:"
+# swap() fetches this many times `k` candidates per model so blending has room to re-rank.
+_SWAP_OVERSCAN = 3
 
 
 class EpicureService:
-    def __init__(self, models: dict):
+    def __init__(self, models: dict[str, Any]) -> None:
         if not models:
             raise ValueError("EpicureService requires at least one model")
         self._models = dict(models)
@@ -32,7 +34,7 @@ class EpicureService:
     def available_models(self) -> list[str]:
         return list(self._models.keys())
 
-    def _model(self, name: str):
+    def _model(self, name: str) -> Any:
         model = self._models.get(name)
         if model is None:
             raise ValueError(f"Unknown epicure model: {name!r}")
@@ -74,7 +76,7 @@ class EpicureService:
             if token is None:
                 continue
             try:
-                ranked = model.neighbors(token, k=max(k * 3, k))
+                ranked = model.neighbors(token, k=k * _SWAP_OVERSCAN)
             except KeyError:
                 continue
             for name, score in ranked:
@@ -136,18 +138,26 @@ def _resolve_cuisine_pole(cuisine: str, model) -> Optional[str]:
     return None
 
 
-def load_default(repo_ids: Optional[dict] = None) -> EpicureService:
-    """Construct a service backed by the real pretrained models.
+# Pin each model to a specific commit so a compromised/edited upstream repo cannot
+# silently swap the weights or vocab loaded at runtime (supply-chain integrity).
+DEFAULT_MODEL_REVISIONS: dict[str, tuple[str, str]] = {
+    "core": ("Kaikaku/epicure-core", "d31ebb5af8e92bbaf5cb67381d5006d4ea8368b7"),
+    "chem": ("Kaikaku/epicure-chem", "2461ef3fbafab36d2b1111187a3df98721146861"),
+    "cooc": ("Kaikaku/epicure-cooc", "03edd311adde6e39a2eb6f9f3fa78f7396be6b53"),
+}
+
+
+def load_default(repo_revisions: Optional[dict[str, tuple[str, str]]] = None) -> EpicureService:
+    """Construct a service backed by the real pretrained models, pinned by commit.
 
     Downloads happen lazily inside ``Epicure.from_pretrained``. Kept out of the
     unit-test path; exercised only when the FastAPI service starts.
     """
     from epicure_loader import Epicure
 
-    repo_ids = repo_ids or {
-        "core": "Kaikaku/epicure-core",
-        "chem": "Kaikaku/epicure-chem",
-        "cooc": "Kaikaku/epicure-cooc",
+    repo_revisions = repo_revisions or DEFAULT_MODEL_REVISIONS
+    models = {
+        name: Epicure.from_pretrained(repo, revision=revision)
+        for name, (repo, revision) in repo_revisions.items()
     }
-    models = {name: Epicure.from_pretrained(repo) for name, repo in repo_ids.items()}
     return EpicureService(models=models)

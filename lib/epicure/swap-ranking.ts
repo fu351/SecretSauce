@@ -1,18 +1,5 @@
+import { toToken } from "./token-utils"
 import type { SwapRankOptions, SwapSuggestion } from "./types"
-
-/**
- * Normalize an ingredient name to its Epicure-style token for comparison.
- * Mirrors python-api/epicure_names.to_token (lowercase, snake_case, no punctuation).
- */
-function toToken(name: string): string {
-  return name
-    .normalize("NFKD")
-    .replace(/\p{M}+/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, "_")
-}
 
 /**
  * Filter, dedupe, sort, and cap raw swap suggestions for presentation.

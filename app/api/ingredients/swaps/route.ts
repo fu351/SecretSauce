@@ -6,6 +6,11 @@ export const runtime = "nodejs"
 
 // Fetch more candidates than we display so ranking/filtering has room to work.
 const BACKEND_FETCH_K = 24
+const MAX_LIMIT = 50
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
 
 /**
  * GET /api/ingredients/swaps?ingredient=chicken&limit=5&exclude=pork,beef&minScore=0.3
@@ -21,8 +26,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, error: "ingredient query parameter is required" }, { status: 400 })
   }
 
-  const limit = parsePositiveInt(searchParams.get("limit"))
-  const minScore = parseFloatOrUndefined(searchParams.get("minScore"))
+  const requestedLimit = parsePositiveInt(searchParams.get("limit"))
+  const limit = requestedLimit === undefined ? undefined : Math.min(requestedLimit, MAX_LIMIT)
+  const rawMinScore = parseFloatOrUndefined(searchParams.get("minScore"))
+  // Negative thresholds are meaningless (cosine-style scores); clamp to >= 0.
+  const minScore = rawMinScore === undefined ? undefined : Math.max(rawMinScore, 0)
   const excludeTokens = (searchParams.get("exclude") ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -36,8 +44,12 @@ export async function GET(request: Request) {
     if (error instanceof EpicureUnavailableError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 503 })
     }
-    const message = error instanceof Error ? error.message : "Failed to fetch ingredient swaps"
-    return NextResponse.json({ success: false, error: message }, { status: 502 })
+    if (isAbortError(error)) {
+      return NextResponse.json({ success: false, error: "Ingredient swap service timed out" }, { status: 504 })
+    }
+    // Log the upstream detail server-side; return a generic message to avoid leaking internals.
+    console.error("[/api/ingredients/swaps] upstream error:", error)
+    return NextResponse.json({ success: false, error: "Failed to fetch ingredient swaps" }, { status: 502 })
   }
 }
 

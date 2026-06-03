@@ -31,6 +31,29 @@ describe("epicure-client", () => {
     expect(result).toEqual([{ ingredient: "turkey", token: "turkey", score: 1.05 }])
   })
 
+  it("filters out malformed elements from the data array", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: [
+            { ingredient: "turkey", token: "turkey", score: 1.05 },
+            { ingredient: "bad", token: "bad" }, // missing score
+            null,
+            { token: "x", score: 1 }, // missing ingredient
+          ],
+          error: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { getEpicureSwaps } = await import("../epicure-client")
+    const result = await getEpicureSwaps("chicken", {})
+    expect(result).toEqual([{ ingredient: "turkey", token: "turkey", score: 1.05 }])
+  })
+
   it("throws EpicureUnavailableError when the service URL is not configured", async () => {
     delete process.env.PYTHON_SERVICE_URL
     const { getEpicureSwaps, EpicureUnavailableError } = await import("../epicure-client")

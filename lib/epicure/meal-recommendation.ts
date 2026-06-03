@@ -1,3 +1,4 @@
+import { toToken } from "./token-utils"
 import type { SwapSuggestion } from "./types"
 
 /**
@@ -31,16 +32,6 @@ export interface RankOptions {
 export const SEED_BOOST = 1
 /** Additive bonus applied when a recipe's cuisine matches the requested cuisine. */
 export const CUISINE_BONUS = 0.1
-
-function toToken(name: string): string {
-  return name
-    .normalize("NFKD")
-    .replace(/\p{M}+/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, "_")
-}
 
 /**
  * Merge seed ingredients and their neighbour lists into a token -> affinity map.
