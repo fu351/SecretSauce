@@ -1,0 +1,6463 @@
+{
+  "train_d5de7f2a20751e50b84c747c17a24cd98bed3554.jpeg": {
+    "store_raw": "SAFEWAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Safeway",
+    "item_prices": [
+      [
+        "ACNSPRYFRTSHAPE",
+        3.99
+      ]
+    ],
+    "image_path": "train_d5de7f2a20751e50b84c747c17a24cd98bed3554.jpeg"
+  },
+  "train_f4bb5ce76d2bc39f560fade5d3bc8aee9edaee6a.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 5,
+    "store": "Walmart",
+    "total": 89.09,
+    "subtotal": 84.85,
+    "date": "2017-12-22",
+    "item_prices": [
+      [
+        "GRMN6PK",
+        12.97
+      ],
+      [
+        "GRLDS4PK",
+        5.0
+      ],
+      [
+        "GRLDS4PK",
+        5.0
+      ],
+      [
+        "BATHTOWEL",
+        7.97
+      ],
+      [
+        "MSBTTEAL",
+        6.97
+      ],
+      [
+        "MSBTFPINK",
+        6.97
+      ],
+      [
+        "BATHTOWEL",
+        7.97
+      ],
+      [
+        "OPPBT",
+        4.0
+      ],
+      [
+        "OPPBT",
+        4.0
+      ],
+      [
+        "OPPBT",
+        4.0
+      ],
+      [
+        "OPPBT",
+        4.0
+      ],
+      [
+        "OPPBT",
+        4.0
+      ],
+      [
+        "OPPBT",
+        4.0
+      ],
+      [
+        "OPPBT",
+        4.0
+      ],
+      [
+        "OPPBT",
+        4.0
+      ]
+    ],
+    "image_path": "train_f4bb5ce76d2bc39f560fade5d3bc8aee9edaee6a.jpeg"
+  },
+  "train_90fed6c9f197d913ddd9ecaa15f31bb8a5b17cbb.jpeg": {
+    "store_raw": "WAL★MART",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 6,
+    "store": "Walmart",
+    "total": 58.44,
+    "subtotal": 55.97,
+    "date": "1997-08-14",
+    "item_prices": [
+      [
+        "FOLIAGEBSK",
+        5.47
+      ],
+      [
+        "CATFOOD",
+        5.67
+      ],
+      [
+        "AZALEAPT",
+        0.75
+      ],
+      [
+        "AZALEAPT",
+        0.75
+      ],
+      [
+        "AZALEAPT",
+        0.75
+      ],
+      [
+        "BAKEWARE",
+        0.88
+      ],
+      [
+        "WMFACUPRX",
+        0.68
+      ],
+      [
+        "WMFACUPRX",
+        0.68
+      ],
+      [
+        "GARDEN",
+        1.97
+      ],
+      [
+        "DISHGEL",
+        2.97
+      ],
+      [
+        "DURASAUCER",
+        0.73
+      ],
+      [
+        "HOOVERBAGM",
+        5.96
+      ],
+      [
+        "PLAHTSAUCER",
+        0.34
+      ],
+      [
+        "PLANTBAUCER",
+        0.34
+      ],
+      [
+        "VIDEOTAPE",
+        5.97
+      ],
+      [
+        "REG2.86./",
+        1.4
+      ],
+      [
+        "CATLITTER",
+        1.97
+      ],
+      [
+        "DRI-BDTTOMS",
+        8.97
+      ],
+      [
+        "DRI-BDTTOMS",
+        8.97
+      ],
+      [
+        "SPINWHEEL",
+        0.75
+      ]
+    ],
+    "image_path": "train_90fed6c9f197d913ddd9ecaa15f31bb8a5b17cbb.jpeg"
+  },
+  "train_69c4ad29f50e25e0037359c7b807028986c1ddde.jpeg": {
+    "store_raw": "TESCO",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 16,
+    "store": "Tesco",
+    "subtotal": 111.6,
+    "item_prices": [
+      [
+        "ODLUMSTWINPK",
+        3.99
+      ],
+      [
+        "TROPICANA*",
+        2.27
+      ],
+      [
+        "CHOPPEDTOMS",
+        0.79
+      ],
+      [
+        "CEREALS",
+        2.35
+      ],
+      [
+        "CHOPEDTOMS",
+        0.79
+      ],
+      [
+        "SARDINES",
+        0.47
+      ],
+      [
+        "RICESNAPS",
+        1.9
+      ],
+      [
+        "MARMITE",
+        3.69
+      ],
+      [
+        "ORGRICEDREAM",
+        2.49
+      ],
+      [
+        "BAKINGPOWDER",
+        1.29
+      ],
+      [
+        "FRUIT",
+        3.49
+      ],
+      [
+        "CLOVER",
+        2.29
+      ],
+      [
+        "SOFTCHEESE",
+        2.59
+      ],
+      [
+        "SARDINES",
+        0.47
+      ],
+      [
+        "SARDINEBRINE",
+        0.55
+      ],
+      [
+        "CLOVER",
+        2.29
+      ],
+      [
+        "DELITWINPK",
+        2.99
+      ],
+      [
+        "PETITSPOIS",
+        2.19
+      ],
+      [
+        "RASHERS",
+        3.0
+      ],
+      [
+        "G/ISPINH450G",
+        1.59
+      ],
+      [
+        "AVONMOREBUTTER",
+        1.58
+      ],
+      [
+        "G/ISPINH450G",
+        1.59
+      ],
+      [
+        "STORKMARG",
+        0.95
+      ],
+      [
+        "TOMATOESOTV",
+        2.79
+      ],
+      [
+        "HAZE_NUTS300G",
+        4.69
+      ],
+      [
+        "MVIRISHMRO0M",
+        0.99
+      ],
+      [
+        "CRMEFRALCHE",
+        1.59
+      ],
+      [
+        "SOFTCHEESE",
+        2.59
+      ],
+      [
+        "REDONIONS1KG",
+        0.79
+      ],
+      [
+        "REDPOTS",
+        2.67
+      ],
+      [
+        "GRAPES",
+        2.0
+      ],
+      [
+        "BABYSPINACH",
+        1.99
+      ],
+      [
+        "REDCHILLIES",
+        0.63
+      ],
+      [
+        "CORIANDER30G",
+        1.19
+      ],
+      [
+        "PEPPERSMIXED",
+        1.99
+      ],
+      [
+        "JAFFACAKES#",
+        1.59
+      ],
+      [
+        "SMOKEDCHEESE",
+        1.99
+      ],
+      [
+        "CAKECOVERING",
+        1.35
+      ],
+      [
+        "HORRORLOLLIES*",
+        0.49
+      ],
+      [
+        "MVA_UELEEKS",
+        1.79
+      ],
+      [
+        "SPONGEFINGERS#",
+        1.19
+      ],
+      [
+        "DARKCHOCOLATE*",
+        1.59
+      ],
+      [
+        "BOURBONCREAMS#",
+        0.65
+      ],
+      [
+        "TPLAINWRAPS",
+        1.25
+      ],
+      [
+        "8POTATOFARLS",
+        2.15
+      ],
+      [
+        "MAGAZINE#",
+        5.14
+      ],
+      [
+        "NEWSPAPERS#",
+        1.8
+      ],
+      [
+        "INDOORMAT*",
+        2.25
+      ]
+    ],
+    "image_path": "train_69c4ad29f50e25e0037359c7b807028986c1ddde.jpeg"
+  },
+  "train_799c6550e3e71f2cd045889e859645f2f9c993c2.jpeg": {
+    "store_raw": "BubbaGumpShrimpCo Restaurant&Market",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "total": 71.15,
+    "subtotal": 67.76,
+    "date": "2018-06-28",
+    "item_prices": [
+      [
+        "PEPSI",
+        3.5
+      ],
+      [
+        "LEMONADE",
+        3.5
+      ],
+      [
+        "COFFEE",
+        3.5
+      ],
+      [
+        "POPCORNSHRIMPAPPETIZER",
+        11.59
+      ],
+      [
+        "FISHANDCHIPS",
+        18.49
+      ],
+      [
+        "CLAMCHOWDERCUP",
+        6.59
+      ],
+      [
+        "JAMBALAYA",
+        20.59
+      ]
+    ],
+    "image_path": "train_799c6550e3e71f2cd045889e859645f2f9c993c2.jpeg"
+  },
+  "train_595b5da8ab99e474662ec93fc1e7ae689d856999.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Walmart",
+    "total": 34.28,
+    "subtotal": 33.15,
+    "item_prices": [
+      [
+        "PRNFRSH40Z",
+        4.72
+      ],
+      [
+        "100CRANBRY",
+        4.98
+      ],
+      [
+        "RAWHIDE",
+        8.98
+      ],
+      [
+        "CATALINADRS",
+        2.18
+      ],
+      [
+        "POTATOES",
+        2.47
+      ],
+      [
+        "ORGSALAD",
+        2.98
+      ]
+    ],
+    "image_path": "train_595b5da8ab99e474662ec93fc1e7ae689d856999.jpeg"
+  },
+  "train_a3a00049a62f8a6cec4203a51338a2c9db4f99a4.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 43.15,
+    "subtotal": 39.96,
+    "date": "2014-12-27",
+    "item_prices": [
+      [
+        "DIETANDWEI",
+        39.95
+      ]
+    ],
+    "image_path": "train_a3a00049a62f8a6cec4203a51338a2c9db4f99a4.jpeg"
+  },
+  "train_35b916cd10b9c92ba583919e3af0b998e7e458b3.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 12.58,
+    "subtotal": 12.58,
+    "date": "2016-07-22",
+    "item_prices": [
+      [
+        "DIABETES",
+        12.58
+      ]
+    ],
+    "image_path": "train_35b916cd10b9c92ba583919e3af0b998e7e458b3.jpeg"
+  },
+  "train_123a5b197ed8c6286af15f27657c041d41a5cebb.jpeg": {
+    "store_raw": "ALDI",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Aldi",
+    "total": 12.61,
+    "subtotal": 12.33,
+    "date": "2015-04-18",
+    "item_prices": [
+      [
+        "OLDFASHIONEDOATS",
+        2.29
+      ],
+      [
+        "RASPBERRIES",
+        1.39
+      ],
+      [
+        "BLUEBERRIES",
+        1.89
+      ],
+      [
+        "STRAWBERRIES",
+        1.19
+      ],
+      [
+        "AVOCADOS",
+        0.69
+      ],
+      [
+        "CHIASEEDS",
+        2.99
+      ],
+      [
+        "DATES",
+        1.89
+      ]
+    ],
+    "image_path": "train_123a5b197ed8c6286af15f27657c041d41a5cebb.jpeg"
+  },
+  "train_44abca3ec7d13b4f47a9c1858aefb2d1716867a6.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 59.3,
+    "subtotal": 55.94,
+    "date": "2015-01-05",
+    "item_prices": [
+      [
+        "NBPULLOVER MBPULLOVER MBPULLOVER",
+        6.0
+      ]
+    ],
+    "image_path": "train_44abca3ec7d13b4f47a9c1858aefb2d1716867a6.jpeg"
+  },
+  "train_70b438fb3e559e3068c88318dd929b1bd6a98f5a.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 2.99,
+    "subtotal": 2.99,
+    "date": "2016-05-06",
+    "item_prices": [
+      [
+        "AFICECREAMFN",
+        2.99
+      ]
+    ],
+    "image_path": "train_70b438fb3e559e3068c88318dd929b1bd6a98f5a.jpeg"
+  },
+  "train_2a2b03409148c6f285035e185e9d686f5e8f4821.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Walmart",
+    "total": 129.89,
+    "subtotal": 124.18,
+    "item_prices": [
+      [
+        "TRASKYWARP",
+        20.0
+      ],
+      [
+        "TRASKYWARP",
+        20.0
+      ],
+      [
+        "BREAKWAY",
+        10.0
+      ],
+      [
+        "GIJDE",
+        5.0
+      ],
+      [
+        "TRANSFORMERS",
+        36.0
+      ],
+      [
+        "RX#7263876",
+        10.0
+      ],
+      [
+        "ONEADAY",
+        7.47
+      ],
+      [
+        "12FTTAPE",
+        2.88
+      ],
+      [
+        "SVVIYC",
+        7.0
+      ],
+      [
+        "EQFIBER",
+        6.83
+      ]
+    ],
+    "image_path": "train_2a2b03409148c6f285035e185e9d686f5e8f4821.jpeg"
+  },
+  "train_49944794e9288897d52f7bdb11a082c8cfbc7d22.jpeg": {
+    "store_raw": "Sainsbury's Sainsbury'sSupermarketsLtd",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Sainsbury's",
+    "item_prices": [
+      [
+        "*CALPOLVAPOURPLUG",
+        3.0
+      ],
+      [
+        "*CALPOLVAPOURPLUG",
+        3.0
+      ],
+      [
+        "*JSPARACETAMOL",
+        2.05
+      ],
+      [
+        "LSGAR&CORPOPP",
+        0.95
+      ],
+      [
+        "JSGAR&CORPOPP",
+        0.95
+      ]
+    ],
+    "image_path": "train_49944794e9288897d52f7bdb11a082c8cfbc7d22.jpeg"
+  },
+  "train_c01c0e3ec05d504cfe21bf63e03ec9b477b87557.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 28.11,
+    "subtotal": 26.26,
+    "date": "2014-01-25",
+    "item_prices": [
+      [
+        "C9ACTIVEWEAT",
+        14.99
+      ],
+      [
+        "NOOSA",
+        4.78
+      ],
+      [
+        "DANNON",
+        2.0
+      ],
+      [
+        "NAILPOLISH",
+        4.99
+      ]
+    ],
+    "image_path": "train_c01c0e3ec05d504cfe21bf63e03ec9b477b87557.jpeg"
+  },
+  "train_8a9553d144a873c47aabe1b8e685ec0673768618.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Walmart",
+    "total": 6.36,
+    "subtotal": 5.94,
+    "date": "2011-11-15",
+    "image_path": "train_8a9553d144a873c47aabe1b8e685ec0673768618.jpeg"
+  },
+  "train_179c27de6866c10e4389916b36a9abf516625540.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Target",
+    "total": 0.81,
+    "subtotal": 0.0,
+    "date": "2011-04-04",
+    "item_prices": [
+      [
+        "PUREXCRYSTL",
+        2.03
+      ],
+      [
+        "NAILCOLOR",
+        0.97
+      ],
+      [
+        "NAILCOLOR",
+        0.97
+      ],
+      [
+        "CLIPPER",
+        2.24
+      ],
+      [
+        "NAILFILE",
+        1.29
+      ],
+      [
+        "PEDICURESET",
+        1.0
+      ]
+    ],
+    "image_path": "train_179c27de6866c10e4389916b36a9abf516625540.jpeg"
+  },
+  "train_2bf9b596d10126cab5a5ce3dca694d11b7c35d1b.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 43.59,
+    "date": "2016-04-03",
+    "item_prices": [
+      [
+        "UE",
+        39.99
+      ]
+    ],
+    "image_path": "train_2bf9b596d10126cab5a5ce3dca694d11b7c35d1b.jpeg"
+  },
+  "train_1952.jpeg": {
+    "store_raw": "TheBurgerBar Fatboy's",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 57.5,
+    "date": "2013-02-22",
+    "item_prices": [
+      [
+        "CHOCOLATEMALTSHAKE",
+        14.0
+      ],
+      [
+        "LIMEJUICE",
+        3.5
+      ],
+      [
+        "STIFFEE",
+        13.5
+      ],
+      [
+        "WIMPYBEEF",
+        14.5
+      ],
+      [
+        "ROYALEWITHCHEESE",
+        12.0
+      ]
+    ],
+    "image_path": "train_1952.jpeg"
+  },
+  "train_b898c63d08281321e9ca0b2ea9fc36d3ad0324ad.jpeg": {
+    "store_raw": "Kroger",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Kroger",
+    "total": 3.04,
+    "item_prices": [
+      [
+        "GILLBW",
+        4.49
+      ],
+      [
+        "GILLETTEBW",
+        4.49
+      ],
+      [
+        "GILLETTEBW",
+        4.49
+      ],
+      [
+        "GILLETTEBW",
+        4.49
+      ]
+    ],
+    "image_path": "train_b898c63d08281321e9ca0b2ea9fc36d3ad0324ad.jpeg"
+  },
+  "train_3471e1aa1abf4624c463fb9e0d6caa93557b3c2a.jpeg": {
+    "store_raw": "ZANOTTO′SMARKET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 0.96,
+    "subtotal": 0.96,
+    "date": "2010-07-18",
+    "item_prices": [
+      [
+        "STRAWBERRIES",
+        2.0
+      ],
+      [
+        "YELLOWONIONS",
+        0.96
+      ]
+    ],
+    "image_path": "train_3471e1aa1abf4624c463fb9e0d6caa93557b3c2a.jpeg"
+  },
+  "train_eba847883e55248c14fd840826d041880b9c3315.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 25.46,
+    "subtotal": 25.46,
+    "date": "2012-05-07",
+    "item_prices": [
+      [
+        "3LB.WBB",
+        9.98
+      ],
+      [
+        "GVORG",
+        4.08
+      ],
+      [
+        "OATS",
+        1.74
+      ],
+      [
+        "LFORGPLAIN",
+        3.48
+      ],
+      [
+        "GVORWHWLK",
+        6.18
+      ]
+    ],
+    "image_path": "train_eba847883e55248c14fd840826d041880b9c3315.jpeg"
+  },
+  "train_4d0b6b4cff099990041480caeeeb5a70a0f49029.jpeg": {
+    "store_raw": "SAFEWAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Safeway",
+    "item_prices": [
+      [
+        "LARGEAAEGGS",
+        1.99
+      ],
+      [
+        "MEDIUMCELERY",
+        50.0
+      ],
+      [
+        "GARLIC",
+        50.0
+      ]
+    ],
+    "image_path": "train_4d0b6b4cff099990041480caeeeb5a70a0f49029.jpeg"
+  },
+  "train_71cf46a7ecd49018f87f3386631759c636496e63.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 69.11,
+    "subtotal": 63.99,
+    "date": "2014-11-17",
+    "item_prices": [
+      [
+        "WIIUHDWR004549688162",
+        59.99
+      ],
+      [
+        "2YRRPLPLAN060538804739",
+        4.0
+      ]
+    ],
+    "image_path": "train_71cf46a7ecd49018f87f3386631759c636496e63.jpeg"
+  },
+  "train_5de6358b757e1cf4c3de78096cfe36e433e6de54.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 7,
+    "store": "Walmart",
+    "total": 23.02,
+    "subtotal": 18.5,
+    "item_prices": [
+      [
+        "MMCHRYLIMAD",
+        1.0
+      ],
+      [
+        "HAM/AHERSUB",
+        1.25
+      ],
+      [
+        "STAXSC0",
+        1.0
+      ],
+      [
+        "VEGMACCHS",
+        1.22
+      ],
+      [
+        "SNACKCAKE",
+        2.5
+      ],
+      [
+        "WGPENNE",
+        1.36
+      ],
+      [
+        "GILLETTE",
+        5.87
+      ],
+      [
+        "SHAMPOO",
+        0.97
+      ],
+      [
+        "SHAHPOO",
+        0.97
+      ],
+      [
+        "OSBODYWASH",
+        0.97
+      ],
+      [
+        "SHAMPOO",
+        0.97
+      ],
+      [
+        "CONDITIONER",
+        0.97
+      ],
+      [
+        "CONDITIONER",
+        0.97
+      ],
+      [
+        "SHAMPOO",
+        0.97
+      ],
+      [
+        "SHAMPOO",
+        0.97
+      ],
+      [
+        "OSBODYWASH",
+        0.97
+      ],
+      [
+        "OSBODYWASH",
+        0.97
+      ],
+      [
+        "BODYSPRAY",
+        3.62
+      ],
+      [
+        "BODYSPRAY",
+        3.62
+      ],
+      [
+        "BODYSPRAY",
+        4.24
+      ],
+      [
+        "BODYSPRAY",
+        4.24
+      ],
+      [
+        "BODYSPRAY",
+        4.24
+      ]
+    ],
+    "image_path": "train_5de6358b757e1cf4c3de78096cfe36e433e6de54.jpeg"
+  },
+  "train_208ae03cdb6c2e0d77ff1d4dc7f2c96965121991.jpeg": {
+    "store_raw": "TAICHONGSEAFOODSDNBHD",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 53.2,
+    "subtotal": 50.18,
+    "date": "2016-05-10",
+    "item_prices": [
+      [
+        "STEAMEDEGG",
+        10.0
+      ],
+      [
+        "FISH",
+        24.0
+      ],
+      [
+        "VEGETABLES",
+        15.0
+      ],
+      [
+        "RICE",
+        1.2
+      ],
+      [
+        "CHINESETEA",
+        3.0
+      ]
+    ],
+    "image_path": "train_208ae03cdb6c2e0d77ff1d4dc7f2c96965121991.jpeg"
+  },
+  "train_fbc251625cc78cb072460ea1000bf3bf228e8432.jpeg": {
+    "store_raw": "WELCOMETOFELLINIKROGER!!",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 7,
+    "total": 31.22,
+    "item_prices": [
+      [
+        "ATNDHUMMUS",
+        3.99
+      ],
+      [
+        "ATNOHUMMUS",
+        3.99
+      ],
+      [
+        "KROCHILISC",
+        0.59
+      ],
+      [
+        "KROTUNA/WTR",
+        0.74
+      ],
+      [
+        "KROSOUP",
+        1.43
+      ],
+      [
+        "KROAPPLESCE",
+        1.6
+      ],
+      [
+        "KROCORNBF",
+        1.29
+      ],
+      [
+        "KROCHILISC",
+        0.59
+      ],
+      [
+        "MARINSLNCH",
+        0.4
+      ],
+      [
+        "KROTUNA/WTR",
+        0.74
+      ],
+      [
+        "KROTUNA/WTR",
+        0.74
+      ],
+      [
+        "KROTUNA/WTR",
+        0.74
+      ],
+      [
+        "KROWHSLTNS",
+        1.11
+      ],
+      [
+        "KROCTGCHS",
+        1.91
+      ],
+      [
+        "HUNTSNKPK",
+        1.1
+      ],
+      [
+        "MARINSLNCH",
+        0.4
+      ],
+      [
+        "MARINSLNCH",
+        0.4
+      ],
+      [
+        "MARINSLNCH",
+        0.4
+      ],
+      [
+        "LANCEWAFERS",
+        2.5
+      ],
+      [
+        "LANCEWAFERS",
+        2.5
+      ],
+      [
+        "KROSOUP",
+        1.43
+      ],
+      [
+        "CHEESEBITS",
+        139.0
+      ]
+    ],
+    "image_path": "train_fbc251625cc78cb072460ea1000bf3bf228e8432.jpeg"
+  },
+  "train_1ba6e2a161c3ccc234be68946c62edcc61a754ee.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Target",
+    "total": 68.04,
+    "subtotal": 68.04,
+    "date": "2016-06-11",
+    "item_prices": [
+      [
+        "VEGTRAY",
+        17.97
+      ],
+      [
+        "SBHUMMUS",
+        2.99
+      ],
+      [
+        "SBHUMMUS",
+        2.99
+      ],
+      [
+        "AFSCONES",
+        7.58
+      ],
+      [
+        "3LBCLEMBAG",
+        11.98
+      ],
+      [
+        "BLOSSOMHILL",
+        2.99
+      ],
+      [
+        "GALA",
+        3.79
+      ],
+      [
+        "GRANNYSMITH",
+        3.79
+      ],
+      [
+        "1.5LBGRAPES",
+        7.98
+      ],
+      [
+        "1.5LBGRAPES",
+        5.98
+      ]
+    ],
+    "image_path": "train_1ba6e2a161c3ccc234be68946c62edcc61a754ee.jpeg"
+  },
+  "train_4401.jpeg": {
+    "store_raw": "JACKINTHEBOX",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 6.48,
+    "subtotal": 5.99,
+    "date": "2007-06-15",
+    "item_prices": [
+      [
+        "WITHREALSWISSCHS",
+        5.99
+      ]
+    ],
+    "image_path": "train_4401.jpeg"
+  },
+  "train_8a76c125f0143d88256b132dafee6e48f11c6468.jpeg": {
+    "store_raw": "WAITROSE &PARTNERS",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "store": "Waitrose",
+    "total": 8.47,
+    "subtotal": 8.37,
+    "item_prices": [
+      [
+        "VWR&PBAGFORLIFEUK",
+        0.1
+      ],
+      [
+        "CARROTS",
+        0.38
+      ],
+      [
+        "WRSEMISKIMMEDMILK",
+        0.5
+      ],
+      [
+        "ONIONS",
+        0.67
+      ],
+      [
+        "AOYALGALAAPPLES",
+        0.29
+      ],
+      [
+        "WRLEMON",
+        0.39
+      ],
+      [
+        "WRLARGEORANGE",
+        0.59
+      ],
+      [
+        "WRESSHRSLDAVCDO",
+        0.9
+      ],
+      [
+        "WRESSHRSLDAVCDO",
+        0.9
+      ],
+      [
+        "FAIRTAFOEBANANAS",
+        0.15
+      ],
+      [
+        "NYPLAINBAGELS",
+        1.6
+      ],
+      [
+        "GAEENPEPPERS",
+        0.55
+      ],
+      [
+        "MALTEDWHEATROLL",
+        0.5
+      ],
+      [
+        "WRPAINAUCHOCOLAT",
+        0.95
+      ]
+    ],
+    "image_path": "train_8a76c125f0143d88256b132dafee6e48f11c6468.jpeg"
+  },
+  "train_14549a21ec0fb302ea3665a81d7eef894bde06ce.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Target",
+    "total": 44.76,
+    "subtotal": 43.31,
+    "date": "2014-01-25",
+    "item_prices": [
+      [
+        "METEESHIRT",
+        6.0
+      ],
+      [
+        "SBTORTILLA",
+        1.18
+      ],
+      [
+        "MPKERNELS",
+        2.9
+      ],
+      [
+        "MPEGGS",
+        2.84
+      ],
+      [
+        "CLIFZBAR6P",
+        3.09
+      ],
+      [
+        "CLFZCRSP6PK",
+        3.14
+      ],
+      [
+        "SHOWERLINER",
+        8.09
+      ],
+      [
+        "CANOPENER",
+        5.59
+      ],
+      [
+        "SHWRCURTAIN",
+        10.48
+      ]
+    ],
+    "image_path": "train_14549a21ec0fb302ea3665a81d7eef894bde06ce.jpeg"
+  },
+  "train_9fb3f023acdc1d1b2e17962535f4869b99fe5ca4.jpeg": {
+    "store_raw": "TESCO",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Tesco",
+    "total": 5.52,
+    "item_prices": [
+      [
+        "VALUEJUICE",
+        1.29
+      ],
+      [
+        "CEREALS",
+        0.48
+      ],
+      [
+        "HOTCHOC",
+        0.26
+      ],
+      [
+        "BAKEDBEANS",
+        1.0
+      ],
+      [
+        "TESCOLAGER",
+        0.26
+      ],
+      [
+        "BAKEDBEANS",
+        0.62
+      ],
+      [
+        "VALUEJUICE",
+        0.26
+      ],
+      [
+        "BAKEDBEANS",
+        0.26
+      ],
+      [
+        "VALUETHKBRD",
+        0.47
+      ]
+    ],
+    "image_path": "train_9fb3f023acdc1d1b2e17962535f4869b99fe5ca4.jpeg"
+  },
+  "train_25fefe0486934d255be448eb986ede6180bdc8f4.jpeg": {
+    "store_raw": "TheBeerHarbour",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 29.8,
+    "subtotal": 27.85,
+    "date_raw": "08sep2018",
+    "item_prices": [
+      [
+        "BEERHARBOUR",
+        12.95
+      ]
+    ],
+    "image_path": "train_25fefe0486934d255be448eb986ede6180bdc8f4.jpeg"
+  },
+  "train_07a4b5f838e7260ccd66a0ad85d934f2691ffc6e.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 73.49,
+    "subtotal": 69.0,
+    "item_prices": [
+      [
+        "MIBOX01909970000K",
+        69.0
+      ]
+    ],
+    "image_path": "train_07a4b5f838e7260ccd66a0ad85d934f2691ffc6e.jpeg"
+  },
+  "train_35bdd94f64f7ee7bfca64e576267c5fc0b9d3ca0.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 25.98,
+    "subtotal": 23.9,
+    "item_prices": [
+      [
+        "ROTELLA10W30",
+        14.84
+      ],
+      [
+        "RIVERPEBBLE",
+        2.5
+      ],
+      [
+        "SOLARSALT",
+        4.64
+      ],
+      [
+        "TOPSOIL",
+        1.92
+      ]
+    ],
+    "image_path": "train_35bdd94f64f7ee7bfca64e576267c5fc0b9d3ca0.jpeg"
+  },
+  "train_afa61748ef431aecf2598221d6e78e27ff98c537.jpeg": {
+    "store_raw": "ShopRite WelcometoShopRite",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 6,
+    "store": "ShopRite",
+    "total": 92.58,
+    "date": "2012-08-19",
+    "item_prices": [
+      [
+        "HEFTYFOAMPLATE/PC",
+        1.39
+      ],
+      [
+        "HEFTYFOAMPLATE/PC",
+        1.12
+      ],
+      [
+        "HEFTYFOAMPLATE/PC",
+        1.12
+      ],
+      [
+        "CDENGLISHTOFFEE",
+        5.99
+      ],
+      [
+        "HFTY10.25\"HMFMPPC",
+        2.79
+      ],
+      [
+        "BARILLAANGELHAIRPC",
+        1.12
+      ],
+      [
+        "BARILLATHINSPAGPC",
+        1.4
+      ],
+      [
+        "SPRITE",
+        0.52
+      ],
+      [
+        "DRPEPPER",
+        0.99
+      ],
+      [
+        "BERTOLLIVIDALIAP",
+        0.99
+      ],
+      [
+        "ISBERTOLLIPASTA",
+        2.59
+      ],
+      [
+        "CHRYNRTHWSTBG18",
+        6.16
+      ],
+      [
+        "RLL-8PKHOTDOG",
+        2.99
+      ],
+      [
+        "SRPARTNERCAREBA",
+        0.99
+      ],
+      [
+        "ENRGZRMAXAA",
+        5.99
+      ],
+      [
+        "ENRGZRMAXAA",
+        4.0
+      ],
+      [
+        "ENRGZRMAXAA",
+        4.0
+      ],
+      [
+        "ENRGZRMAXAA",
+        4.0
+      ]
+    ],
+    "image_path": "train_afa61748ef431aecf2598221d6e78e27ff98c537.jpeg"
+  },
+  "train_20d9a562ebcee8840c23efbe5444e51165a86a0b.jpeg": {
+    "store_raw": "Walmart WAL-MARTSTORE#400",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Walmart",
+    "date": "2011-10-13",
+    "image_path": "train_20d9a562ebcee8840c23efbe5444e51165a86a0b.jpeg"
+  },
+  "train_4378.jpeg": {
+    "store_raw": "SAFEWAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Safeway",
+    "date": "2010-07-29",
+    "item_prices": [
+      [
+        "ROTINIWHLWHT",
+        2.0
+      ],
+      [
+        "SFWYBRD100%WHT",
+        1.5
+      ],
+      [
+        "GREENBELLPEPPERS",
+        50.0
+      ],
+      [
+        "REDBELLPEPPERS",
+        50.0
+      ],
+      [
+        "YELLOWONION",
+        2.99
+      ]
+    ],
+    "image_path": "train_4378.jpeg"
+  },
+  "train_fe14e6e60cd33d2f70ea9c86017986e076279b37.jpeg": {
+    "store_raw": "SAFEWAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Safeway",
+    "total": 2.49,
+    "date": "2010-07-29",
+    "item_prices": [
+      [
+        "ROTINIWHLWHT",
+        2.0
+      ],
+      [
+        "SFWYBRD100%WHT",
+        1.5
+      ],
+      [
+        "GREENBELLPEPPERS",
+        50.0
+      ],
+      [
+        "REDBELLPEPPERS",
+        50.0
+      ],
+      [
+        "YELLOWONION",
+        2.99
+      ]
+    ],
+    "image_path": "train_fe14e6e60cd33d2f70ea9c86017986e076279b37.jpeg"
+  },
+  "train_a36478d3bb0ae9bfe870236fd8e1f9a8a9358ccf.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 106.98,
+    "subtotal": 99.98,
+    "date": "2017-09-25",
+    "item_prices": [
+      [
+        "LIGHTBULBS",
+        99.98
+      ]
+    ],
+    "image_path": "train_a36478d3bb0ae9bfe870236fd8e1f9a8a9358ccf.jpeg"
+  },
+  "train_4377.jpeg": {
+    "store_raw": "SAFEWAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Safeway",
+    "total": 105.95,
+    "subtotal": 105.95,
+    "date": "2011-07-21",
+    "item_prices": [
+      [
+        "PROCESSINGFEE",
+        5.95
+      ]
+    ],
+    "image_path": "train_4377.jpeg"
+  },
+  "train_fcf273995e5d87d075c630075fa3dcd849539442.jpeg": {
+    "store_raw": "TheBigMansion",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 29.82,
+    "subtotal": 28.0,
+    "item_prices": [
+      [
+        "ICETEA",
+        2.0
+      ],
+      [
+        "ICETEA",
+        2.0
+      ],
+      [
+        "FISHTACOS",
+        14.0
+      ],
+      [
+        "GORGONZOLABACONBURGER",
+        10.0
+      ]
+    ],
+    "image_path": "train_fcf273995e5d87d075c630075fa3dcd849539442.jpeg"
+  },
+  "train_a1f993060e8cea4ae797b371479872c15a7b766e.jpeg": {
+    "store_raw": "ColessupermarketsAustraliaPtyLtd COLESGIVING",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 6,
+    "total": 70.2,
+    "subtotal": 70.19,
+    "date_raw": "18-Mar-2013",
+    "item_prices": [
+      [
+        "WHITECHOCSAUCE1EACH",
+        2.0
+      ],
+      [
+        "SAUCECARAMELDIP130GRAM",
+        2.0
+      ],
+      [
+        "DIPPINGSAUCEANY2FOR$3",
+        1.0
+      ],
+      [
+        "*COLESCOOKEDMUSSELS500GRAM",
+        0.5
+      ],
+      [
+        "D/LJOHNWESTPRAWNSPERKG",
+        8.43
+      ],
+      [
+        "COLESITALIANSALAD150GRAM",
+        3.9
+      ],
+      [
+        "%OAKBANANA600ML:600600ML",
+        2.92
+      ],
+      [
+        "MUSHROOMSEXOTIC:GOU100GRAM",
+        4.98
+      ],
+      [
+        "%DAREESPRESSOMILK500ML",
+        3.2
+      ],
+      [
+        "%BIGMLIMITEDTMILK600ML",
+        3.2
+      ],
+      [
+        "D/LPANTALICACHEESEPERKG",
+        0.61
+      ],
+      [
+        "KIWIBERRY125GRAM",
+        3.98
+      ],
+      [
+        "MACROMEATSKANGAROOPERKG",
+        6.55
+      ],
+      [
+        "D/LPRIMOBACONMIDDPERKG",
+        0.78
+      ],
+      [
+        "HON&BALDRESSING125ML",
+        2.5
+      ],
+      [
+        "RASPBERRIES125GRAM",
+        4.98
+      ],
+      [
+        "LAWSONSTRADITIONAL800GRAM",
+        5.5
+      ],
+      [
+        "NATURALMACADAMIASPERKG",
+        1.6
+      ],
+      [
+        "%ARNOTTSTIMTAMBISC90GRAM",
+        7.56
+      ],
+      [
+        "%C1/2FAMHTCHICKEN1EACH",
+        6.0
+      ]
+    ],
+    "image_path": "train_a1f993060e8cea4ae797b371479872c15a7b766e.jpeg"
+  },
+  "train_71513cf74da2d87c2b27332b737d49d1194fec2e.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 21.23,
+    "subtotal": 19.98,
+    "item_prices": [
+      [
+        "T-MOBILECE",
+        9.99
+      ],
+      [
+        "T-MOBILECE",
+        9.99
+      ]
+    ],
+    "image_path": "train_71513cf74da2d87c2b27332b737d49d1194fec2e.jpeg"
+  },
+  "train_ef6aea1a7ca2ff593b724a13383c62248851ea23.jpeg": {
+    "store_raw": "WHOLE FOODS￼ MARKET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Whole Foods",
+    "total": 22.45,
+    "subtotal": 21.9,
+    "item_prices": [
+      [
+        "GNJIRAMENMINIVEGGIE",
+        8.0
+      ],
+      [
+        "365COCONUTWATER",
+        3.29
+      ],
+      [
+        "LNDBWLDBLNDRICE",
+        3.99
+      ],
+      [
+        "BBYBRSSLSPRT500GR",
+        4.99
+      ]
+    ],
+    "image_path": "train_ef6aea1a7ca2ff593b724a13383c62248851ea23.jpeg"
+  },
+  "train_5ef42ec49bb10b6c6633764c5fba384aaa2e795d.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 560.42,
+    "subtotal": 526.96,
+    "date": "2014-02-05",
+    "item_prices": [
+      [
+        "SAFE24GUN",
+        497.0
+      ],
+      [
+        "SHOVEL",
+        29.96
+      ]
+    ],
+    "image_path": "train_5ef42ec49bb10b6c6633764c5fba384aaa2e795d.jpeg"
+  },
+  "train_9e33546ee55b55da21db0af4cce8dbe324bc663b.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 1.24,
+    "subtotal": 0.85,
+    "date": "2012-07-04",
+    "item_prices": [
+      [
+        "AFECW.8OZ",
+        0.97
+      ],
+      [
+        "AFECW.8OZ",
+        0.97
+      ],
+      [
+        "STPGASTRMT",
+        1.97
+      ],
+      [
+        "CTRGRNVOTI",
+        0.97
+      ],
+      [
+        "CTRGRNVOTI",
+        0.97
+      ]
+    ],
+    "image_path": "train_9e33546ee55b55da21db0af4cce8dbe324bc663b.jpeg"
+  },
+  "train_51c6036665d0f4b562ef7ba44e01eb683204cc29.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Target",
+    "total": 34.28,
+    "subtotal": 32.54,
+    "date": "2012-01-29",
+    "item_prices": [
+      [
+        "AFSEASALT",
+        2.99
+      ],
+      [
+        "BAREFOOT",
+        10.49
+      ],
+      [
+        "MORTON",
+        7.48
+      ],
+      [
+        "CANOPENER",
+        2.99
+      ],
+      [
+        "RINGBINDER",
+        5.19
+      ],
+      [
+        "BUBLENVLOPE",
+        1.47
+      ],
+      [
+        "BUBLENVLOPE",
+        2.03
+      ]
+    ],
+    "image_path": "train_51c6036665d0f4b562ef7ba44e01eb683204cc29.jpeg"
+  },
+  "train_95b26fc6e8c969335fa86e4a2709e8ac6ff317df.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 20.8,
+    "subtotal": 19.96,
+    "date": "2014-10-07",
+    "item_prices": [
+      [
+        "D38QTY1H",
+        4.0
+      ],
+      [
+        "D38QTY1H",
+        4.0
+      ],
+      [
+        "CCOMINIBF",
+        2.08
+      ],
+      [
+        "8GBSDCARD",
+        9.88
+      ]
+    ],
+    "image_path": "train_95b26fc6e8c969335fa86e4a2709e8ac6ff317df.jpeg"
+  },
+  "train_70146938382bc4e7731af0f355a39d84ee69f2f6.jpeg": {
+    "store_raw": "save-on-foods",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Save-On-Foods",
+    "total": 0.0,
+    "subtotal": 14.95,
+    "item_prices": [
+      [
+        "DISHSCRUNGE",
+        4.95
+      ]
+    ],
+    "image_path": "train_70146938382bc4e7731af0f355a39d84ee69f2f6.jpeg"
+  },
+  "train_7d5ab1c22cb6336717dd77267720dcac7a2cec34.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 16,
+    "store": "Walmart",
+    "total": 904.06,
+    "subtotal": 837.34,
+    "date": "2014-01-08",
+    "item_prices": [
+      [
+        "BURNOUTHENL",
+        5.0
+      ],
+      [
+        "TOHHERLOOM",
+        3.24
+      ],
+      [
+        "GRNCHILSCE",
+        2.48
+      ],
+      [
+        "ENERGYPOMBY",
+        3.98
+      ],
+      [
+        "BATHTISSUE",
+        6.97
+      ],
+      [
+        "SBTBGEL41",
+        9.97
+      ],
+      [
+        "MALIBUPINAP",
+        9.97
+      ],
+      [
+        "AZGREENTEA",
+        3.98
+      ],
+      [
+        "HICAMBBEER",
+        6.64
+      ],
+      [
+        "CARGOJEAN",
+        8.96
+      ],
+      [
+        "SOCKS",
+        1.87
+      ],
+      [
+        "COHPOSITEAV",
+        7.96
+      ],
+      [
+        "SCRNPROTCTR",
+        5.96
+      ],
+      [
+        "BABYSONEW",
+        12.77
+      ],
+      [
+        "LOOPSWEAVE",
+        1.0
+      ],
+      [
+        "WL12MMLOCK",
+        12.96
+      ],
+      [
+        "ARMHOOP",
+        9.97
+      ],
+      [
+        "ARMCHAIRS",
+        6.88
+      ],
+      [
+        "TACKLEBOX",
+        19.96
+      ],
+      [
+        "THRASH",
+        20.0
+      ],
+      [
+        "PENETRANT",
+        3.97
+      ],
+      [
+        "2PKLUGGAGE",
+        5.97
+      ],
+      [
+        "PATCHPRIMER",
+        5.47
+      ],
+      [
+        "KTCHNFAUCET",
+        39.97
+      ],
+      [
+        "WALLPLATE",
+        4.97
+      ],
+      [
+        "SOLARLIGHT",
+        1.97
+      ],
+      [
+        "ALADSWWV",
+        4.96
+      ],
+      [
+        "BEDDING",
+        5.32
+      ],
+      [
+        "DOGFOOD",
+        26.98
+      ],
+      [
+        "CCIN6.3LB",
+        7.08
+      ],
+      [
+        "AVNBBYSCRM",
+        6.24
+      ],
+      [
+        "KTXSPTHP18",
+        2.86
+      ],
+      [
+        "HYDSILK1UPRZ",
+        4.5
+      ],
+      [
+        "371401388166",
+        6.97
+      ],
+      [
+        "ALIGN28CT",
+        26.58
+      ],
+      [
+        "SINUSBUSTER",
+        11.87
+      ],
+      [
+        "RYHSIZEMAT",
+        14.97
+      ],
+      [
+        "NT8NATPFC",
+        6.97
+      ],
+      [
+        "FOUNDATION",
+        11.47
+      ],
+      [
+        "CURVE",
+        10.97
+      ],
+      [
+        "JEWELRY",
+        3.0
+      ],
+      [
+        "JEWLRYBATH",
+        14.88
+      ],
+      [
+        "CUP90ZPPR",
+        1.42
+      ],
+      [
+        "GLUESPOTS",
+        4.0
+      ],
+      [
+        "LUBGAGE",
+        89.0
+      ],
+      [
+        "PHOTOFRAME",
+        16.96
+      ],
+      [
+        "CANDLEHOLDER",
+        9.87
+      ],
+      [
+        "FORLIGHTING",
+        7.97
+      ],
+      [
+        "KITCHENCART",
+        39.86
+      ],
+      [
+        "SOFA",
+        279.0
+      ]
+    ],
+    "image_path": "train_7d5ab1c22cb6336717dd77267720dcac7a2cec34.jpeg"
+  },
+  "train_10f3049a163b0b6a89f636f7ab97baed6d102c6f.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Walmart",
+    "total": 10.3,
+    "subtotal": 10.3,
+    "date": "2010-10-14",
+    "item_prices": [
+      [
+        "HALFHALF",
+        1.68
+      ],
+      [
+        "HALFHALF",
+        1.68
+      ],
+      [
+        "GVBRWNRICE",
+        0.76
+      ],
+      [
+        "GVLONGRICE",
+        1.28
+      ],
+      [
+        "GV2RFMLK",
+        3.08
+      ],
+      [
+        "RAMEN-BEEF12",
+        1.82
+      ]
+    ],
+    "image_path": "train_10f3049a163b0b6a89f636f7ab97baed6d102c6f.jpeg"
+  },
+  "train_499edd655772b3980339e361c8d82160966f0705.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 124.59,
+    "subtotal": 123.32,
+    "date": "2011-11-25",
+    "item_prices": [
+      [
+        "AMAZONFIRE",
+        123.32
+      ]
+    ],
+    "image_path": "train_499edd655772b3980339e361c8d82160966f0705.jpeg"
+  },
+  "train_9175953996c22f196cfcae07390cc9205e99b283.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 37.98,
+    "subtotal": 35.0,
+    "date": "2016-06-16",
+    "item_prices": [
+      [
+        "WIFIROTUER",
+        35.0
+      ]
+    ],
+    "image_path": "train_9175953996c22f196cfcae07390cc9205e99b283.jpeg"
+  },
+  "train_1a8be293586a17a1f1f68e727d16be7eb4120188.jpeg": {
+    "store_raw": "SAFEWAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Safeway",
+    "item_prices": [
+      [
+        "BCWARMDELIGHTS",
+        1.64
+      ],
+      [
+        "RITZCHIPS",
+        2.5
+      ],
+      [
+        "WHTTHINSCHPPARM",
+        2.5
+      ],
+      [
+        "BBQSAUCE",
+        99.0
+      ],
+      [
+        "2@.99KCBBQSCE",
+        1.98
+      ],
+      [
+        "2@.99KCMSTRPCBBQSCE",
+        1.98
+      ],
+      [
+        "4@.99KCMSTRPCBBQSCE",
+        3.96
+      ],
+      [
+        "2@.99KCBBQSAUCESWT/T",
+        1.98
+      ],
+      [
+        "2@.99KCMSTRPCBBQSAUC.",
+        1.98
+      ]
+    ],
+    "image_path": "train_1a8be293586a17a1f1f68e727d16be7eb4120188.jpeg"
+  },
+  "train_b64022dbad5d4addad2678a7829873e663c453e2.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 48.17,
+    "subtotal": 45.44,
+    "date": "2012-02-11",
+    "item_prices": [
+      [
+        "ROTSYN5W40",
+        11.36
+      ],
+      [
+        "ROTSYN5W40",
+        11.36
+      ],
+      [
+        "ROTSYN5W40",
+        11.36
+      ],
+      [
+        "ROTSYN5W40",
+        11.36
+      ]
+    ],
+    "image_path": "train_b64022dbad5d4addad2678a7829873e663c453e2.jpeg"
+  },
+  "train_2576b926189eccb5aaf8974289d0dcbf91e26241.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 26.73,
+    "subtotal": 24.98,
+    "date": "2015-10-20",
+    "item_prices": [
+      [
+        "ASUS",
+        24.98
+      ]
+    ],
+    "image_path": "train_2576b926189eccb5aaf8974289d0dcbf91e26241.jpeg"
+  },
+  "train_62d264383ba652ed838bedb07c573fe327f61ec9.jpeg": {
+    "store_raw": "TheKrogerCo.",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Kroger",
+    "total": 3.7,
+    "item_prices": [
+      [
+        "-GRA",
+        0.39
+      ],
+      [
+        "-GRA",
+        0.49
+      ],
+      [
+        "-GRA",
+        0.27
+      ],
+      [
+        "-GRA",
+        0.18
+      ],
+      [
+        "-GRA",
+        0.29
+      ],
+      [
+        "-GRA",
+        0.22
+      ],
+      [
+        "-GRA",
+        0.12
+      ],
+      [
+        "-MTA",
+        0.43
+      ],
+      [
+        "-MTA",
+        0.43
+      ],
+      [
+        "-MTA",
+        0.59
+      ],
+      [
+        "-PRA",
+        0.29
+      ]
+    ],
+    "image_path": "train_62d264383ba652ed838bedb07c573fe327f61ec9.jpeg"
+  },
+  "train_2a2d38ad90cf8774bfc57e657ab1124f898cafb6.jpeg": {
+    "store_raw": "WHOLE FOODS MARKET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Whole Foods",
+    "item_prices": [
+      [
+        "16OZGRNSMOOTHIE",
+        6.5
+      ]
+    ],
+    "image_path": "train_2a2d38ad90cf8774bfc57e657ab1124f898cafb6.jpeg"
+  },
+  "train_6e55e1cd4369fddadf254f648ac4969119459c84.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 2.99,
+    "subtotal": 2.99,
+    "date": "2016-05-06",
+    "item_prices": [
+      [
+        "AFICECREAMFN",
+        2.99
+      ]
+    ],
+    "image_path": "train_6e55e1cd4369fddadf254f648ac4969119459c84.jpeg"
+  },
+  "train_b117131d2211d6d4c219f4db1ca155cb53ab433d.jpeg": {
+    "store_raw": "STANLEY'SFRUITMARKET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "subtotal": 14.77,
+    "date": "2018-01-22",
+    "item_prices": [
+      [
+        "SALAD",
+        8.78
+      ],
+      [
+        "GREEN.GINGER",
+        5.99
+      ]
+    ],
+    "image_path": "train_b117131d2211d6d4c219f4db1ca155cb53ab433d.jpeg"
+  },
+  "train_8258ab01b293fd05bb1cc3308b877870e4113d79.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Walmart",
+    "total": 102.1,
+    "subtotal": 96.49,
+    "date": "2009-12-04",
+    "item_prices": [
+      [
+        "CELERY003338365322",
+        0.74
+      ],
+      [
+        "BABYCARROTS081239601402",
+        2.5
+      ],
+      [
+        "BEADCHAIN008106900601",
+        2.44
+      ],
+      [
+        "CUBETAP078175610061",
+        0.94
+      ],
+      [
+        "CUBETAP078175610061",
+        0.94
+      ],
+      [
+        "CUBETAP078175610062",
+        0.94
+      ],
+      [
+        "TETRAFIN185004679877126",
+        2.12
+      ],
+      [
+        "CAULIFLOWER003338369999",
+        1.97
+      ],
+      [
+        "TOMGRAPE003338365585",
+        1.96
+      ],
+      [
+        "VSHOTION005080378841",
+        49.0
+      ]
+    ],
+    "image_path": "train_8258ab01b293fd05bb1cc3308b877870e4113d79.jpeg"
+  },
+  "train_f3a6cdbce4c39bd7718de9b309fe2ce4bf776d83.jpeg": {
+    "store_raw": "GIANT EAGLE",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "total": 0.19,
+    "date": "2012-12-20",
+    "item_prices": [
+      [
+        "REACHFLOSSWAXD",
+        1.0
+      ],
+      [
+        "REACHFLOSSWAXD",
+        1.0
+      ],
+      [
+        "BRKSTNSOURCRM",
+        0.99
+      ],
+      [
+        "BRKSTNSOURCRM",
+        0.99
+      ],
+      [
+        "DIALLHSPUMP",
+        1.79
+      ],
+      [
+        "DIALLHSPUMP",
+        1.79
+      ],
+      [
+        "NATBAKEDFRIES",
+        1.49
+      ],
+      [
+        "NATBAKEDFRIES",
+        0.75
+      ],
+      [
+        "DIALLHSPUMP",
+        0.5
+      ],
+      [
+        "DIALLHSPUMP",
+        0.5
+      ],
+      [
+        "REACHFLOSSWAXD",
+        1.0
+      ],
+      [
+        "REACHFLOSSWAXD",
+        1.0
+      ],
+      [
+        "DAIRY",
+        0.99
+      ],
+      [
+        "DAIRY",
+        0.99
+      ]
+    ],
+    "image_path": "train_f3a6cdbce4c39bd7718de9b309fe2ce4bf776d83.jpeg"
+  },
+  "train_02683d90a74b3573988b5763c45bf0df51a670b4.jpeg": {
+    "store_raw": "Publix",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "store": "Publix",
+    "total": 41.87,
+    "subtotal": 40.17,
+    "item_prices": [
+      [
+        "BUSCHNA12PKCAN",
+        7.59
+      ],
+      [
+        "CHWYPPRMNTMENTOS",
+        0.79
+      ],
+      [
+        "CLAUSSANDSLPICK",
+        2.89
+      ],
+      [
+        "OJTROPPURE",
+        2.49
+      ],
+      [
+        "PUBLIXMILK",
+        2.99
+      ],
+      [
+        "WHITEPEARLERASER",
+        0.79
+      ],
+      [
+        "CRESTTTHPSTTART",
+        2.93
+      ],
+      [
+        "KITKAT",
+        3.55
+      ],
+      [
+        "ALMONDJOYSNACK",
+        3.55
+      ],
+      [
+        "BOUNTYROLL",
+        1.97
+      ],
+      [
+        "SUNKISTORANGE",
+        2.99
+      ],
+      [
+        "DMFR2GOCHRYMXD",
+        2.53
+      ]
+    ],
+    "image_path": "train_02683d90a74b3573988b5763c45bf0df51a670b4.jpeg"
+  },
+  "train_72572ef98fe32b45b7d0fd725056bdc877e525a5.jpeg": {
+    "store_raw": "SAFEWAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Safeway",
+    "total": 0.0,
+    "date": "2015-09-26",
+    "item_prices": [
+      [
+        "GASOLINEUNLEADED",
+        25.0
+      ]
+    ],
+    "image_path": "train_72572ef98fe32b45b7d0fd725056bdc877e525a5.jpeg"
+  },
+  "train_b0a88d6170751b3bcaa500aba9ecde7e2f1bb6bf.jpeg": {
+    "store_raw": "WAL★MART",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 26.12,
+    "subtotal": 24.64,
+    "date": "0309-02-14",
+    "item_prices": [
+      [
+        "GATORADE",
+        2.07
+      ],
+      [
+        "CANOY",
+        4.36
+      ],
+      [
+        "LISTERINE",
+        4.48
+      ],
+      [
+        "ODOREATER",
+        4.76
+      ],
+      [
+        "GELSOLE",
+        8.97
+      ]
+    ],
+    "image_path": "train_b0a88d6170751b3bcaa500aba9ecde7e2f1bb6bf.jpeg"
+  },
+  "train_6a92a264318dbf97795e8cda176ed3ea1eaf41d7.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Walmart",
+    "total": 12.64,
+    "subtotal": 11.81,
+    "image_path": "train_6a92a264318dbf97795e8cda176ed3ea1eaf41d7.jpeg"
+  },
+  "train_251d734712cb56b971b9c5ee0a40f0545c34264c.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Walmart",
+    "total": 6.9,
+    "subtotal": 6.9,
+    "date": "2012-05-07",
+    "item_prices": [
+      [
+        "GVA/PFLOUR",
+        1.98
+      ],
+      [
+        "ENGBRKFST",
+        0.98
+      ],
+      [
+        "BAKINGSODA",
+        0.5
+      ],
+      [
+        "GVLENTILS",
+        0.98
+      ],
+      [
+        "CANOLAOIL",
+        1.28
+      ],
+      [
+        "LG1DZ",
+        1.18
+      ]
+    ],
+    "image_path": "train_251d734712cb56b971b9c5ee0a40f0545c34264c.jpeg"
+  },
+  "train_1c2f2dcb64bd91066c0421cc355bba1e40758f43.jpeg": {
+    "store_raw": "BJ'SIRVINE",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 19.52,
+    "subtotal": 18.0,
+    "date": "2015-12-07",
+    "item_prices": [
+      [
+        "PINTRED",
+        6.25
+      ],
+      [
+        "CHICKENWINGS",
+        11.25
+      ],
+      [
+        "BUDLIGHT",
+        4.5
+      ]
+    ],
+    "image_path": "train_1c2f2dcb64bd91066c0421cc355bba1e40758f43.jpeg"
+  },
+  "train_74e9804a4933ffdd04f5c543f1ab76f83fbf670a.jpeg": {
+    "store_raw": "THEBUFFILO",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 38.36,
+    "subtotal": 35.55,
+    "date": "2016-08-05",
+    "item_prices": [
+      [
+        "BOYLANSROOTBEER",
+        3.15
+      ],
+      [
+        "BUFFALOBURGER",
+        13.5
+      ],
+      [
+        "LAMBBURGER",
+        12.6
+      ],
+      [
+        "GLSPIUGRIGIOPINOTGRIGIO",
+        6.3
+      ]
+    ],
+    "image_path": "train_74e9804a4933ffdd04f5c543f1ab76f83fbf670a.jpeg"
+  },
+  "train_1d7af62e6493036f1122e98bfd3011846a56508a.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 5,
+    "store": "Walmart",
+    "total": 45.95,
+    "subtotal": 45.95,
+    "item_prices": [
+      [
+        "CORHCHEX",
+        3.18
+      ],
+      [
+        "RICEKRISPY",
+        2.98
+      ],
+      [
+        "KIXCEREAL",
+        2.98
+      ],
+      [
+        "GVFFHILK",
+        2.72
+      ],
+      [
+        "GVFFMILK",
+        2.72
+      ],
+      [
+        "GVALMUNSVN",
+        2.57
+      ],
+      [
+        "DAIRYREDUCT",
+        1.27
+      ],
+      [
+        "DAIRYREDUCT",
+        1.27
+      ],
+      [
+        "DAIRYREDUCT",
+        1.27
+      ],
+      [
+        "CELERYSYALK",
+        1.48
+      ],
+      [
+        "LBWHTCORM",
+        3.38
+      ],
+      [
+        "MOTTSJCE",
+        2.48
+      ],
+      [
+        "NORTHBEAN",
+        0.92
+      ],
+      [
+        "NAVYBEAN",
+        0.92
+      ],
+      [
+        "NORTHBEAN",
+        0.92
+      ],
+      [
+        "NAVYBEAN",
+        0.92
+      ],
+      [
+        "GVSHRFIESTA",
+        13.97
+      ]
+    ],
+    "image_path": "train_1d7af62e6493036f1122e98bfd3011846a56508a.jpeg"
+  },
+  "train_a7804eb2f2f127977d3c6fbbe2eb8b505af3e58d.jpeg": {
+    "store_raw": "Sam's CLUB",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "total": 109.55,
+    "subtotal": 107.9,
+    "date": "2013-10-07",
+    "item_prices": [
+      [
+        "NTRGRN32VARF",
+        8.78
+      ],
+      [
+        "NUTELA35.30F",
+        6.65
+      ],
+      [
+        "EGGOWAFFLESF",
+        9.98
+      ],
+      [
+        "ALMONDMILKF",
+        7.98
+      ],
+      [
+        "ZOOANIMALCRF",
+        7.0
+      ],
+      [
+        "OLIVEOIL2F",
+        13.48
+      ],
+      [
+        "CH16CTHAMF",
+        2.56
+      ],
+      [
+        "B/SCKIBRSF",
+        17.58
+      ],
+      [
+        "GRNDTURKEYF",
+        12.95
+      ],
+      [
+        "BIGSEXY100",
+        11.98
+      ],
+      [
+        "DP32PACKF",
+        7.98
+      ]
+    ],
+    "image_path": "train_a7804eb2f2f127977d3c6fbbe2eb8b505af3e58d.jpeg"
+  },
+  "train_1751.jpeg": {
+    "store_raw": "Kroger",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 5,
+    "store": "Kroger",
+    "item_prices": [
+      [
+        "FRIGNGRORG",
+        2.49
+      ],
+      [
+        "ROMAINEORG",
+        1.99
+      ],
+      [
+        "KROBNS",
+        1.19
+      ],
+      [
+        "MISFTORTLLA",
+        2.59
+      ],
+      [
+        "MNMUPORTABL",
+        3.0
+      ],
+      [
+        "MNMUPORTABL",
+        3.0
+      ],
+      [
+        "KROOLVOIL",
+        2.59
+      ],
+      [
+        "MISFTORTLLA",
+        2.59
+      ],
+      [
+        "KROBNS",
+        2.19
+      ],
+      [
+        "PSCORIANDR",
+        2.29
+      ],
+      [
+        "HAASAVOCADO",
+        2.67
+      ],
+      [
+        "PPRBELLRED",
+        1.99
+      ],
+      [
+        "PPRYLWORG",
+        2.29
+      ],
+      [
+        "LETTUCELEAF",
+        0.88
+      ],
+      [
+        "TOMATOORG",
+        2.75
+      ],
+      [
+        "CILANTROORG",
+        3.99
+      ]
+    ],
+    "image_path": "train_1751.jpeg"
+  },
+  "train_e7a85463e3125f8d344e830424010b8f0e726331.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Target",
+    "date": "2008-01-12",
+    "image_path": "train_e7a85463e3125f8d344e830424010b8f0e726331.jpeg"
+  },
+  "train_c63ac7cfbd2b118a0b8bcaeeb787d2047bf99efe.jpeg": {
+    "store_raw": "ALDI",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 11,
+    "store": "Aldi",
+    "total": 89.35,
+    "subtotal": 88.57,
+    "item_prices": [
+      [
+        "CHBOTTOMROUND",
+        6.94
+      ],
+      [
+        "24PKSPRINGWATER",
+        2.79
+      ],
+      [
+        "REDGAPEBAGS",
+        2.99
+      ],
+      [
+        "GALAAPPLES",
+        2.99
+      ],
+      [
+        "HAMSTEAK",
+        4.25
+      ],
+      [
+        "CHICKENTENDERLOIN",
+        5.68
+      ],
+      [
+        "BFSMOKEDSAUSAGE",
+        2.19
+      ],
+      [
+        "THICKSLICEDBACON",
+        6.49
+      ],
+      [
+        "STRINGCHEESE",
+        2.79
+      ],
+      [
+        "ITALIANCHEESE",
+        3.79
+      ],
+      [
+        "BUTTERQUARTERS",
+        2.89
+      ],
+      [
+        "BUTTERQUARTERS",
+        2.89
+      ],
+      [
+        "BUTTERQUARTERS",
+        2.89
+      ],
+      [
+        "BANANAWE",
+        1.64
+      ],
+      [
+        "PETITEYELLOWPOTA",
+        2.99
+      ],
+      [
+        "SWEETONIONS2LB",
+        1.89
+      ],
+      [
+        "SHARPSHREDDED",
+        2.69
+      ],
+      [
+        "WHITEBREAD",
+        0.69
+      ],
+      [
+        "BLUEBERRIES",
+        1.99
+      ],
+      [
+        "72CT.BABYWIPES",
+        1.29
+      ],
+      [
+        "YOGURTRAISINS",
+        1.89
+      ],
+      [
+        "YOGURTRAISINS",
+        1.89
+      ],
+      [
+        "YOGURTRAISINS",
+        1.89
+      ],
+      [
+        "PEPFARMGOLDFISH",
+        1.89
+      ],
+      [
+        "PEPFARMGOLDFISH",
+        1.89
+      ],
+      [
+        "PEPFARMGOLDFISH",
+        1.89
+      ],
+      [
+        "2%MILK",
+        1.65
+      ],
+      [
+        "ALLPURPOSEFLOUR",
+        1.29
+      ],
+      [
+        "OJFROMCONCEN",
+        1.69
+      ],
+      [
+        "PUREOLIVEOIL",
+        3.19
+      ],
+      [
+        "APPLBANRASPYOG",
+        0.79
+      ],
+      [
+        "HONEYNUTCHEERIOS",
+        3.49
+      ],
+      [
+        "LARGEEGGS",
+        0.69
+      ],
+      [
+        "BABYBELLA",
+        1.69
+      ]
+    ],
+    "image_path": "train_c63ac7cfbd2b118a0b8bcaeeb787d2047bf99efe.jpeg"
+  },
+  "train_4889b959e86b9a9f02ea55affaf13e4543370a56.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 12,
+    "store": "Walmart",
+    "item_prices": [
+      [
+        "PRKBACSS",
+        1.98
+      ],
+      [
+        "PRKBACSS",
+        9.75
+      ],
+      [
+        "BNLSBRST",
+        9.73
+      ],
+      [
+        "BNLSBRST",
+        2.0
+      ],
+      [
+        "GVFRIES",
+        2.0
+      ],
+      [
+        "GVFRIES",
+        2.0
+      ],
+      [
+        "CHUCKROLL",
+        13.95
+      ],
+      [
+        "CHUCKROLL",
+        13.95
+      ],
+      [
+        "BELLPEPPER",
+        0.72
+      ],
+      [
+        "HHBELLRED",
+        1.48
+      ],
+      [
+        "MCC/SCHGOUR",
+        4.24
+      ],
+      [
+        "AMP",
+        1.48
+      ],
+      [
+        "GVNRTHBEAN",
+        3.18
+      ],
+      [
+        "GVPINTOBNS",
+        2.08
+      ],
+      [
+        "GVSHREDS",
+        2.98
+      ],
+      [
+        "GVCOLBYJACK",
+        4.68
+      ],
+      [
+        "GVMONTJACK",
+        4.68
+      ],
+      [
+        "LARD",
+        5.94
+      ],
+      [
+        "ROCKSTAR",
+        1.68
+      ],
+      [
+        "GVCRMCHKN",
+        0.98
+      ],
+      [
+        "DICEDTOMATO",
+        0.88
+      ],
+      [
+        "GVGRNCHILE",
+        0.88
+      ],
+      [
+        "GVGRNCHILE",
+        0.88
+      ],
+      [
+        "DICEDTOMATO",
+        0.88
+      ],
+      [
+        "GRBTRTSTN",
+        0.99
+      ],
+      [
+        "GRBTRTSTN",
+        0.99
+      ],
+      [
+        "GRBTRTSTN",
+        0.99
+      ],
+      [
+        "GRBTRTSTN",
+        1.38
+      ],
+      [
+        "GRBTRTSTN",
+        1.38
+      ],
+      [
+        "GRBTRTSTN",
+        0.99
+      ],
+      [
+        "GRNDWHEAT",
+        0.99
+      ],
+      [
+        "GRBTRTSTN",
+        0.99
+      ],
+      [
+        "GVBLKBEAN",
+        0.68
+      ],
+      [
+        "GVBLKBEAN",
+        0.68
+      ],
+      [
+        "GVCRMCHKN",
+        0.98
+      ],
+      [
+        "BLEACH",
+        2.98
+      ]
+    ],
+    "image_path": "train_4889b959e86b9a9f02ea55affaf13e4543370a56.jpeg"
+  },
+  "train_c12ab1ed412fe6f21d766092311044a4b7b9b889.jpeg": {
+    "store_raw": "WoolworthsCafe",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Woolworths",
+    "total": 255.0,
+    "date_raw": "26Oct'16",
+    "item_prices": [
+      [
+        "BEEFBRG",
+        80.0
+      ],
+      [
+        "MEDPLATE",
+        75.0
+      ],
+      [
+        "SPRITE330ML",
+        38.0
+      ],
+      [
+        "EXCHILLIES",
+        8.0
+      ],
+      [
+        "STILLWATER500ML",
+        14.0
+      ],
+      [
+        "ESPRESSODBL",
+        40.0
+      ]
+    ],
+    "image_path": "train_c12ab1ed412fe6f21d766092311044a4b7b9b889.jpeg"
+  },
+  "train_1319.jpeg": {
+    "store_raw": "Truluck'sofMiami SeafoodSteakCrabhouse",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 89.59,
+    "subtotal": 82.95,
+    "date": "2012-07-23",
+    "item_prices": [
+      [
+        "CRABCAKE",
+        16.0
+      ],
+      [
+        "SEABASS",
+        31.0
+      ],
+      [
+        "BERRIES",
+        8.95
+      ],
+      [
+        "CIOPPINO",
+        27.0
+      ]
+    ],
+    "image_path": "train_1319.jpeg"
+  },
+  "train_b449ef7611ce6e73caa248d92a7e89d5ad487384.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Target",
+    "total": 0.81,
+    "subtotal": 0.0,
+    "date": "2011-04-04",
+    "item_prices": [
+      [
+        "PUREXCRYSTL",
+        2.03
+      ],
+      [
+        "NAILCOLOR",
+        0.97
+      ],
+      [
+        "NAILCOLOR",
+        0.97
+      ],
+      [
+        "CLIPPER",
+        2.24
+      ],
+      [
+        "NAILFILE",
+        1.29
+      ],
+      [
+        "PEDICURESET",
+        1.0
+      ]
+    ],
+    "image_path": "train_b449ef7611ce6e73caa248d92a7e89d5ad487384.jpeg"
+  },
+  "train_4c8ef1aec743ffbc5d54225affc283c58c9fd0e2.jpeg": {
+    "store_raw": "Publix.",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Publix",
+    "subtotal": 43.66,
+    "item_prices": [
+      [
+        "CUPCAKE6CTDEC",
+        4.99
+      ],
+      [
+        "CUPCAKE6CTDEC",
+        4.99
+      ],
+      [
+        "CUPCAKE6CTDEC",
+        4.99
+      ],
+      [
+        "CUPCAKE6CTDEC",
+        4.99
+      ],
+      [
+        "AQUAFINAWATER",
+        1.49
+      ],
+      [
+        "GLAZEDDONUT",
+        0.79
+      ],
+      [
+        "PUBLIXMILKWH0.5",
+        2.09
+      ],
+      [
+        "KLEENEXTISSUE",
+        2.29
+      ],
+      [
+        "GLAZEDDONUTS6CT",
+        2.19
+      ],
+      [
+        "PROGCHICKBROTH",
+        2.59
+      ]
+    ],
+    "image_path": "train_4c8ef1aec743ffbc5d54225affc283c58c9fd0e2.jpeg"
+  },
+  "train_4617b21124e44bab77b5cdd0eb6f8295a402c483.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 1.62,
+    "subtotal": 1.43,
+    "date": "2011-10-20",
+    "item_prices": [
+      [
+        "AXEDTSG1.7Z",
+        2.98
+      ]
+    ],
+    "image_path": "train_4617b21124e44bab77b5cdd0eb6f8295a402c483.jpeg"
+  },
+  "train_c04a57508f6d3da61c3ed86c845d33df1c4e255d.jpeg": {
+    "store_raw": "Publix",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Publix",
+    "item_prices": [
+      [
+        "HONEYGLDPOTATOES",
+        3.99
+      ],
+      [
+        "PURPSPLENDORPOT",
+        3.99
+      ],
+      [
+        "KOBECRFTBURGERS",
+        11.99
+      ],
+      [
+        "PINEPEEL&CORE",
+        2.99
+      ],
+      [
+        "DELIZZAECLAIRS",
+        3.99
+      ],
+      [
+        "DELIZZAEG/NGPUFF",
+        3.99
+      ],
+      [
+        "UNBLEACHEDBRDFLR",
+        2.99
+      ],
+      [
+        "CANTALOUPES",
+        2.99
+      ],
+      [
+        "DECECCOBOWFARFA",
+        1.5
+      ]
+    ],
+    "image_path": "train_c04a57508f6d3da61c3ed86c845d33df1c4e255d.jpeg"
+  },
+  "train_0b4d75232a1bea39c670aa6551a81844e19d68fa.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 7.43,
+    "subtotal": 6.94,
+    "date": "2015-12-08",
+    "item_prices": [
+      [
+        "SWHROFGHTR063050940732",
+        6.94
+      ]
+    ],
+    "image_path": "train_0b4d75232a1bea39c670aa6551a81844e19d68fa.jpeg"
+  },
+  "train_acb48a86efabfb4414dd3ae1312fecf533ead35f.jpeg": {
+    "store_raw": "WAL★MART",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 5.11,
+    "subtotal": 5.11,
+    "date": "2010-08-20",
+    "item_prices": [
+      [
+        "FRAP",
+        5.48
+      ]
+    ],
+    "image_path": "train_acb48a86efabfb4414dd3ae1312fecf533ead35f.jpeg"
+  },
+  "train_1808.jpeg": {
+    "store_raw": "BJ'SSANRAFAELI",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "subtotal": 18.45,
+    "date": "2014-11-08",
+    "item_prices": [
+      [
+        "BJSFRITOSNACHOS",
+        7.5
+      ],
+      [
+        "BHDBLDELUXEBURGER",
+        10.95
+      ]
+    ],
+    "image_path": "train_1808.jpeg"
+  },
+  "train_39042dc9ebd672d287fe4c4cdf8a904ca5cea663.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 93.77,
+    "subtotal": 86.97,
+    "date": "2016-01-04",
+    "item_prices": [
+      [
+        "SEWINGMACH001250263548",
+        79.97
+      ],
+      [
+        "2YRRPLPLAN060538822046",
+        7.0
+      ]
+    ],
+    "image_path": "train_39042dc9ebd672d287fe4c4cdf8a904ca5cea663.jpeg"
+  },
+  "train_c94b312176dad018c5214a655282a02cd894172d.jpeg": {
+    "store_raw": "SHOPPERS DRUGMART",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 65.28,
+    "subtotal": 65.28,
+    "date_raw": "Mar10.2017",
+    "item_prices": [
+      [
+        "PRESORIPTIONS",
+        20.41
+      ],
+      [
+        "PRESCRIPTIONS",
+        16.45
+      ]
+    ],
+    "image_path": "train_c94b312176dad018c5214a655282a02cd894172d.jpeg"
+  },
+  "train_1641529e4933ca870600a3ce85559f8f858f3c8c.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Target",
+    "total": 6.3,
+    "subtotal": 5.1,
+    "date": "2011-10-06",
+    "item_prices": [
+      [
+        "SKITTLES",
+        4.0
+      ],
+      [
+        "ORALBFLOSS",
+        1.94
+      ],
+      [
+        "BLUSH",
+        3.74
+      ],
+      [
+        "BLUSH",
+        3.74
+      ],
+      [
+        "UPFACIAL",
+        0.49
+      ],
+      [
+        "INDEXDIVIDR",
+        2.69
+      ]
+    ],
+    "image_path": "train_1641529e4933ca870600a3ce85559f8f858f3c8c.jpeg"
+  },
+  "train_c196a1f2da65ea5b6938a4ece2620d84eb5b8af7.jpeg": {
+    "store_raw": "EDGEMEADSUPERSPAR",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "date_raw": "06.10.18",
+    "item_prices": [
+      [
+        "SPARCARRVT1",
+        0.59
+      ],
+      [
+        "COCACOLANRB",
+        14.99
+      ],
+      [
+        "SPARYOGF/CRM",
+        29.99
+      ],
+      [
+        "F/LBANANAS",
+        17.99
+      ],
+      [
+        "FLAMINKVLEIF/REGGSLAR",
+        14.99
+      ],
+      [
+        "GNSTRAWBERRIES",
+        29.99
+      ]
+    ],
+    "image_path": "train_c196a1f2da65ea5b6938a4ece2620d84eb5b8af7.jpeg"
+  },
+  "train_f0195501393489cb7ec167847fc474a585921def.jpeg": {
+    "store_raw": "SHOPPERS DRUGMART",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 5.36,
+    "subtotal": 3.48,
+    "item_prices": [
+      [
+        "NIVEASHCRMBNS",
+        3.99
+      ],
+      [
+        "MULTIBIONTA50+",
+        10.49
+      ],
+      [
+        "SECRET,COLLECTION",
+        9.99
+      ]
+    ],
+    "image_path": "train_f0195501393489cb7ec167847fc474a585921def.jpeg"
+  },
+  "train_cc76b8541600ba76c2284abd3220e848f252cb2c.jpeg": {
+    "store_raw": "CountyMarket",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "total": 141.78,
+    "subtotal": 141.78,
+    "date": "2011-02-08",
+    "item_prices": [
+      [
+        "*DIETMTDEW24PACK",
+        33.95
+      ],
+      [
+        "+2.40DEPOSIT",
+        12.0
+      ],
+      [
+        "COLDWATERLOBSTER",
+        8.99
+      ],
+      [
+        "COLDWATERLOBSTER",
+        8.99
+      ],
+      [
+        "COLDWATERLOBSTER",
+        8.99
+      ],
+      [
+        "COLDWATERLOBSTER",
+        17.98
+      ],
+      [
+        "COLDWATERLOBSTER",
+        17.98
+      ],
+      [
+        "COLDWATERLOBSTER",
+        8.99
+      ],
+      [
+        "PORTERHOUSESTEAK",
+        11.64
+      ],
+      [
+        "PORTERHOUSESTEAK",
+        12.27
+      ]
+    ],
+    "image_path": "train_cc76b8541600ba76c2284abd3220e848f252cb2c.jpeg"
+  },
+  "train_724c3236258b6e00eb8fb9286556878da55a6fb5.jpeg": {
+    "store_raw": "ASDASAVINGYOUMONEYEVERYDAY ASDASTORESLTD.",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "total": 4.18,
+    "item_prices": [
+      [
+        "BROWNONIONS",
+        0.6
+      ],
+      [
+        "SARDINESSP",
+        0.34
+      ],
+      [
+        "L//GRICE",
+        0.4
+      ],
+      [
+        "PBUTTER",
+        0.62
+      ],
+      [
+        "BAKEDBEANS",
+        0.24
+      ],
+      [
+        "COFFEE",
+        0.47
+      ],
+      [
+        "B/SREDUCED",
+        0.1
+      ],
+      [
+        "B/SREDUCED",
+        0.03
+      ],
+      [
+        "B/SREDUCED",
+        0.03
+      ],
+      [
+        "BANANAS",
+        0.23
+      ],
+      [
+        "VEGREDUCED",
+        0.2
+      ],
+      [
+        "POTATOES",
+        0.15
+      ],
+      [
+        "FROZVEG",
+        0.77
+      ]
+    ],
+    "image_path": "train_724c3236258b6e00eb8fb9286556878da55a6fb5.jpeg"
+  },
+  "train_a1c43f6c632841c318af73fd876e24d49f022074.jpeg": {
+    "store_raw": "walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Walmart",
+    "total": 6.36,
+    "subtotal": 5.94,
+    "date": "2011-11-15",
+    "image_path": "train_a1c43f6c632841c318af73fd876e24d49f022074.jpeg"
+  },
+  "train_f1da43c47aea4699fd877de0ecdd8dfc5c63b36d.jpeg": {
+    "store_raw": "TheButcherShop&Grill",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 215.0,
+    "date_raw": "Dec02'16",
+    "item_prices": [
+      [
+        "FILLET240",
+        126.0
+      ],
+      [
+        "ADDLOBSTER",
+        65.0
+      ],
+      [
+        "STRWBERYMOJITO",
+        24.0
+      ]
+    ],
+    "image_path": "train_f1da43c47aea4699fd877de0ecdd8dfc5c63b36d.jpeg"
+  },
+  "train_165d67e579cc7172f6529d2e03e8d1ede96e17bb.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 11,
+    "store": "Target",
+    "total": 399.99,
+    "subtotal": 374.68,
+    "date": "2010-06-17",
+    "item_prices": [
+      [
+        "MBSKIRT",
+        14.99
+      ],
+      [
+        "MEBERMUDA",
+        17.99
+      ],
+      [
+        "MBTANK",
+        7.0
+      ],
+      [
+        "MBTANK",
+        7.0
+      ],
+      [
+        "MBTANK",
+        7.0
+      ],
+      [
+        "ASSETSVTANK",
+        24.0
+      ],
+      [
+        "CRSCOOTER",
+        4.99
+      ],
+      [
+        "CRROMPER",
+        9.99
+      ],
+      [
+        "CR2FERTANK",
+        4.88
+      ],
+      [
+        "XHLEGGING",
+        1.98
+      ],
+      [
+        "XHTOP",
+        12.99
+      ],
+      [
+        "XHTOP",
+        12.99
+      ],
+      [
+        "XHSHORT",
+        6.99
+      ],
+      [
+        "XHSHORT",
+        6.99
+      ],
+      [
+        "XHTANK",
+        6.99
+      ],
+      [
+        "SSGRPHCTEE",
+        7.99
+      ],
+      [
+        "MSDRESS",
+        14.99
+      ],
+      [
+        "MESHORT",
+        15.0
+      ],
+      [
+        "OSSSTEE",
+        6.48
+      ],
+      [
+        "OSHENLEY",
+        14.99
+      ],
+      [
+        "SCREENTEE",
+        12.99
+      ],
+      [
+        "C9HERMINA",
+        21.99
+      ],
+      [
+        "C9HERMINA",
+        21.99
+      ],
+      [
+        "MSCWINDA",
+        14.99
+      ],
+      [
+        "C9RILLA",
+        27.99
+      ],
+      [
+        "MSSKIRT",
+        12.99
+      ],
+      [
+        "MECSKIRT",
+        24.99
+      ],
+      [
+        "FATHERSDAY",
+        3.99
+      ],
+      [
+        "FATHERSDAY",
+        4.99
+      ],
+      [
+        "FATHERSDAY",
+        4.99
+      ],
+      [
+        "FATHERSDAY",
+        2.59
+      ],
+      [
+        "FATHERSDAY",
+        2.99
+      ],
+      [
+        "FATHERSDAY",
+        2.99
+      ],
+      [
+        "C9GIRLTEE",
+        7.99
+      ]
+    ],
+    "image_path": "train_165d67e579cc7172f6529d2e03e8d1ede96e17bb.jpeg"
+  },
+  "train_261558d91f817a0e1123904c11faa94e625369a9.jpeg": {
+    "store_raw": "ASDA ASDASAVINGYOUMONEYEVERYDAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 17.02,
+    "date": "2014-01-04",
+    "item_prices": [
+      [
+        "NAPPIES",
+        14.0
+      ],
+      [
+        "MUFFINTRAY",
+        3.0
+      ],
+      [
+        "TESTKIT",
+        0.02
+      ]
+    ],
+    "image_path": "train_261558d91f817a0e1123904c11faa94e625369a9.jpeg"
+  },
+  "train_12789c766727eff801a3cf20fa832cc4942e3112.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 54.36,
+    "subtotal": 51.0,
+    "date": "2017-01-08",
+    "item_prices": [
+      [
+        "COKE",
+        1.68
+      ],
+      [
+        "DMLSTEE",
+        7.0
+      ]
+    ],
+    "image_path": "train_12789c766727eff801a3cf20fa832cc4942e3112.jpeg"
+  },
+  "train_b523a01dbe40c58a96b719a7df2bd61ae9b02fa1.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 8.0,
+    "date": "2013-09-25",
+    "item_prices": [
+      [
+        "UTILITYBILL",
+        4.0
+      ],
+      [
+        "PAYMENTFEE",
+        4.0
+      ]
+    ],
+    "image_path": "train_b523a01dbe40c58a96b719a7df2bd61ae9b02fa1.jpeg"
+  },
+  "train_5b74988dfc7f0cb1c187632fe7490be9a83e6e18.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "store": "Walmart",
+    "total": 3.74,
+    "subtotal": 2.04,
+    "date": "2011-10-13",
+    "item_prices": [
+      [
+        "BEVERAGE",
+        1.0
+      ],
+      [
+        "BEVERAGE",
+        1.0
+      ],
+      [
+        "BEVERAGE",
+        1.0
+      ],
+      [
+        "SDR12CT",
+        1.97
+      ],
+      [
+        "SDR12CT",
+        1.97
+      ],
+      [
+        "SDR12CT",
+        1.97
+      ],
+      [
+        "SDR12CT",
+        1.97
+      ],
+      [
+        "FLOSS",
+        0.97
+      ],
+      [
+        "FLOSS",
+        0.97
+      ],
+      [
+        "DENTALFLOSS",
+        0.97
+      ],
+      [
+        "DENTALFLOSS",
+        0.97
+      ],
+      [
+        "COVULTFNSH",
+        6.64
+      ],
+      [
+        "COVCHEEKERS",
+        3.74
+      ]
+    ],
+    "image_path": "train_5b74988dfc7f0cb1c187632fe7490be9a83e6e18.jpeg"
+  },
+  "train_42095d393dbf2a3e4ead5a65ab7dde83d53c7ad1.jpeg": {
+    "store_raw": "Walmart",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 8,
+    "store": "Walmart",
+    "total": 60.33,
+    "subtotal": 59.88,
+    "item_prices": [
+      [
+        "TOMATOES",
+        1.68
+      ],
+      [
+        "TOMATOES",
+        1.68
+      ],
+      [
+        "GVSTEWTOM",
+        0.68
+      ],
+      [
+        "GVSTEWTOM",
+        0.68
+      ],
+      [
+        "GVTOMSAUCE",
+        0.66
+      ],
+      [
+        "GVTOMSAUCE",
+        0.66
+      ],
+      [
+        "GVTOMPASTE",
+        0.44
+      ],
+      [
+        "GVTOMPASTE",
+        0.44
+      ],
+      [
+        "GVTOMSAUCE",
+        0.66
+      ],
+      [
+        "GVPEANUTS",
+        2.98
+      ],
+      [
+        "GVPNTBUTTR",
+        3.98
+      ],
+      [
+        "GVCOLM",
+        3.18
+      ],
+      [
+        "SOYSAUCE",
+        1.88
+      ],
+      [
+        "GVBRNSUGAR",
+        1.5
+      ],
+      [
+        "GVOATMEAL",
+        2.48
+      ],
+      [
+        "GVSALTINMG",
+        1.78
+      ],
+      [
+        "GVSALTINMG",
+        1.78
+      ],
+      [
+        "GVSALTINMG",
+        1.78
+      ],
+      [
+        "CILANTRO",
+        0.98
+      ],
+      [
+        "CILANTRO",
+        0.98
+      ],
+      [
+        "CILANTRO",
+        0.98
+      ],
+      [
+        "ITALPARSLEY",
+        0.94
+      ],
+      [
+        "YLWONION",
+        2.78
+      ],
+      [
+        "BAREFOOT",
+        5.97
+      ],
+      [
+        "5LBGRDBFCK",
+        14.95
+      ]
+    ],
+    "image_path": "train_42095d393dbf2a3e4ead5a65ab7dde83d53c7ad1.jpeg"
+  },
+  "train_021beb3db61de372cdc5c67a937aa7fa38d50730.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Target",
+    "total": 10.01,
+    "subtotal": 10.48,
+    "date_raw": "15/14/2013",
+    "item_prices": [
+      [
+        "WINDEX",
+        2.5
+      ],
+      [
+        "CEREAL",
+        2.05
+      ],
+      [
+        "CEREAL",
+        2.05
+      ],
+      [
+        "VANSWAFFLE",
+        2.5
+      ],
+      [
+        "LINGLING",
+        5.99
+      ],
+      [
+        "LINGLING",
+        5.99
+      ],
+      [
+        "CHOBANI",
+        2.0
+      ]
+    ],
+    "image_path": "train_021beb3db61de372cdc5c67a937aa7fa38d50730.jpeg"
+  },
+  "train_1ac6e357fa397cc5fd59ae98d719fda6a3e527de.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 14.45,
+    "subtotal": 14.31,
+    "date": "2016-02-26",
+    "item_prices": [
+      [
+        "ARNLDOROWH",
+        2.99
+      ],
+      [
+        "DRPERTEN",
+        4.99
+      ],
+      [
+        "MPBUTTER",
+        3.24
+      ],
+      [
+        "MPBUTTER",
+        3.24
+      ]
+    ],
+    "image_path": "train_1ac6e357fa397cc5fd59ae98d719fda6a3e527de.jpeg"
+  },
+  "train_89f2d8d97bc72ece57c7daceffc66ccd0927d223.jpeg": {
+    "store_raw": "SAFEWAY",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Safeway",
+    "total": 105.95,
+    "date": "2011-07-21",
+    "item_prices": [
+      [
+        "PROCESSINGFEE",
+        5.95
+      ],
+      [
+        "MASTERCARD",
+        100.0
+      ]
+    ],
+    "image_path": "train_89f2d8d97bc72ece57c7daceffc66ccd0927d223.jpeg"
+  },
+  "train_7c03abbd6950178f155bb96aae2c5c0bca57fe22.jpeg": {
+    "store_raw": "HongKongSupermarket(ELmhurst)",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 7.76,
+    "subtotal": 7.76,
+    "date": "2009-02-21",
+    "item_prices": [
+      [
+        "QUAKERQUICKOAT",
+        4.99
+      ],
+      [
+        "AROY-DCOCONUTM",
+        1.78
+      ],
+      [
+        "COCKFROZENBAIT",
+        0.99
+      ]
+    ],
+    "image_path": "train_7c03abbd6950178f155bb96aae2c5c0bca57fe22.jpeg"
+  },
+  "train_145.jpeg": {
+    "store_raw": "ALDI",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "store": "Aldi",
+    "total": 25.14,
+    "subtotal": 24.64,
+    "item_prices": [
+      [
+        "SPARKLINGAPPLE",
+        2.29
+      ],
+      [
+        "HOTCOCOA MIX",
+        1.19
+      ],
+      [
+        "SLCDPOTATOESW/SC",
+        0.99
+      ],
+      [
+        "SOLIDCHOCBALLS",
+        1.99
+      ],
+      [
+        "PFEFFERNUSSE",
+        1.29
+      ],
+      [
+        "HOLIDAYTABLEWARE",
+        0.99
+      ],
+      [
+        "HOLIDAYTABLEWARE",
+        0.99
+      ],
+      [
+        "STUFFINGMIX",
+        0.59
+      ],
+      [
+        "BBONELESSHAM",
+        6.49
+      ],
+      [
+        "TPOTATOPATTIES",
+        1.99
+      ],
+      [
+        "UTGREENBEANS",
+        0.48
+      ],
+      [
+        "CHEESEBALLS",
+        2.29
+      ],
+      [
+        "ENTERTAINMENTCRCK",
+        1.49
+      ],
+      [
+        "STUFFINGMIX",
+        0.59
+      ]
+    ],
+    "image_path": "train_145.jpeg"
+  },
+  "train_641157bd608f328368cd8dba90d8003a315daeff.jpeg": {
+    "store_raw": "THEBODYSHOP™ THEBODYSHOP#0226",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 0.0,
+    "subtotal": 0.0,
+    "item_prices": [
+      [
+        "BODYPUREESPAWISDOM250MLA21",
+        5.0
+      ],
+      [
+        "BEAUTYBUCKS",
+        5.0
+      ]
+    ],
+    "image_path": "train_641157bd608f328368cd8dba90d8003a315daeff.jpeg"
+  },
+  "train_a804b8a6065507261bedf92c267dc12d8e2e0f9e.jpeg": {
+    "store_raw": "TESCO",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Tesco",
+    "total": 103.54,
+    "item_prices": [
+      [
+        "08888010320453#BUTIERCUP",
+        3.99
+      ],
+      [
+        "09556046111060BURUHCOOK",
+        13.35
+      ],
+      [
+        "09555490300402ALIFCOOKI",
+        13.35
+      ],
+      [
+        "00049248012154BASSOGRAP",
+        29.99
+      ],
+      [
+        "03415581165180HDMANGOR",
+        30.89
+      ],
+      [
+        "09555216565375TBABYWIP",
+        2.99
+      ],
+      [
+        "09555216565474TBABYWIP",
+        2.99
+      ],
+      [
+        "09555216565436TB/WIPES",
+        2.99
+      ],
+      [
+        "02132050003002GROCERYHO",
+        3.0
+      ]
+    ],
+    "image_path": "train_a804b8a6065507261bedf92c267dc12d8e2e0f9e.jpeg"
+  },
+  "train_e1e433cb0248593a224537d0be401c7d4734fef1.jpeg": {
+    "store_raw": "CostcoWholesale#243",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "total": 50.0,
+    "date": "2014-06-04",
+    "image_path": "train_e1e433cb0248593a224537d0be401c7d4734fef1.jpeg"
+  },
+  "train_7acefe51434a0b7e26069d380aeb63a20e2c2349.jpeg": {
+    "store_raw": "Angeli's CountyMarket",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "total": 141.78,
+    "subtotal": 141.78,
+    "date": "2011-02-08",
+    "item_prices": [
+      [
+        "XDIETMTDEW24PACK",
+        33.95
+      ],
+      [
+        "COLDWATERLOBSIER",
+        8.99
+      ],
+      [
+        "COLDWATERLOBSIER",
+        8.99
+      ],
+      [
+        "COLDWATERLOBSIER",
+        8.99
+      ],
+      [
+        "COLDWATERLOBSIER",
+        17.98
+      ],
+      [
+        "COLDWATERLOBSIER",
+        17.98
+      ],
+      [
+        "COLDWATERLOBSIER",
+        8.99
+      ],
+      [
+        "PORTERHOUSESTEAK",
+        11.64
+      ],
+      [
+        "PORTERHOUSESTEAK",
+        12.27
+      ]
+    ],
+    "image_path": "train_7acefe51434a0b7e26069d380aeb63a20e2c2349.jpeg"
+  },
+  "train_ac973eaf54490cdcfd651ca74e8e643a488abf48.jpeg": {
+    "store_raw": "WAL★MART",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Walmart",
+    "total": 26.12,
+    "subtotal": 24.64,
+    "date": "2003-02-14",
+    "item_prices": [
+      [
+        "GATORADE",
+        2.07
+      ],
+      [
+        "CANDY",
+        4.36
+      ],
+      [
+        "LISTERINE",
+        4.48
+      ],
+      [
+        "ODOREATER",
+        4.76
+      ],
+      [
+        "GELSOLE",
+        8.97
+      ]
+    ],
+    "image_path": "train_ac973eaf54490cdcfd651ca74e8e643a488abf48.jpeg"
+  },
+  "train_ead5dfae77c4434af40b7a109955a04b0f3fb60b.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 1.29,
+    "subtotal": 1.29,
+    "date": "2015-10-01",
+    "item_prices": [
+      [
+        "REESES",
+        1.29
+      ]
+    ],
+    "image_path": "train_ead5dfae77c4434af40b7a109955a04b0f3fb60b.jpeg"
+  },
+  "train_22f8715c2abe8e87ef052f5408ca1bf5d1e724c7.jpeg": {
+    "store_raw": "TESCO",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Tesco",
+    "total": 17.76,
+    "date": "2011-08-23",
+    "item_prices": [
+      [
+        "NESILEELI",
+        3.79
+      ],
+      [
+        "NESTLEBLI",
+        3.79
+      ],
+      [
+        "SENSORNIG",
+        5.09
+      ],
+      [
+        "SENSORNIG",
+        5.09
+      ]
+    ],
+    "image_path": "train_22f8715c2abe8e87ef052f5408ca1bf5d1e724c7.jpeg"
+  },
+  "train_147.jpeg": {
+    "store_raw": "ALDI",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Aldi",
+    "total": 6.52,
+    "subtotal": 6.52,
+    "item_prices": [
+      [
+        "ARTISANLETTUCE",
+        1.99
+      ],
+      [
+        "MUSHROOMS",
+        2.36
+      ],
+      [
+        "MULTI-COLORPEPPERS",
+        0.99
+      ],
+      [
+        "BABYCARROTS",
+        1.18
+      ]
+    ],
+    "image_path": "train_147.jpeg"
+  },
+  "train_38dd978f311a6b6e373563bbc0559628af13aa7b.jpeg": {
+    "store_raw": "WAL★MART",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Walmart",
+    "total": 11.54,
+    "image_path": "train_38dd978f311a6b6e373563bbc0559628af13aa7b.jpeg"
+  },
+  "train_54461025f04cec91ea4c7331286965ad578e05a6.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Target",
+    "total": 18.02,
+    "subtotal": 17.4,
+    "date": "2018-02-27",
+    "item_prices": [
+      [
+        "CLOROX",
+        4.39
+      ],
+      [
+        "SMARTIES",
+        5.02
+      ],
+      [
+        "SOURPUNCH",
+        7.99
+      ]
+    ],
+    "image_path": "train_54461025f04cec91ea4c7331286965ad578e05a6.jpeg"
+  },
+  "train_9d2ff71edd56d96c0c10166d32ce5d0210616035.jpeg": {
+    "store_raw": "TARGET",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Target",
+    "total": 44.05,
+    "subtotal": 44.05,
+    "date": "2016-06-03",
+    "item_prices": [
+      [
+        "AFTRAILMIX",
+        5.69
+      ],
+      [
+        "AFTRAILMIX",
+        7.39
+      ],
+      [
+        "KINDGRANOLA",
+        4.99
+      ],
+      [
+        "KINDGRANOLA",
+        4.99
+      ],
+      [
+        "LUNAPROT",
+        5.0
+      ],
+      [
+        "CRUNCHPAK",
+        5.98
+      ],
+      [
+        "1.5LBGRAPES",
+        3.99
+      ],
+      [
+        "1.5LBGRAPES",
+        3.99
+      ],
+      [
+        "BANANA",
+        2.03
+      ]
+    ],
+    "image_path": "train_9d2ff71edd56d96c0c10166d32ce5d0210616035.jpeg"
+  },
+  "train_6d1dbb1cd71551cf03ca387f804a9783f7eb771f.jpeg": {
+    "store_raw": "LiDL",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Lidl",
+    "total": 17.36,
+    "date": "2013-11-21",
+    "item_prices": [
+      [
+        "GRANAPADANDGRATT",
+        2.39
+      ],
+      [
+        "PANNADACUCINA",
+        2.69
+      ]
+    ],
+    "image_path": "train_6d1dbb1cd71551cf03ca387f804a9783f7eb771f.jpeg"
+  },
+  "train_6520aaca037115c99e6212fd416d5f1efe10bae3.jpeg": {
+    "store_raw": "Albertsons® marketitmeansagreatdeal.￼",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Albertsons",
+    "total": 0.0,
+    "subtotal": 0.0,
+    "date": "2012-08-08",
+    "item_prices": [
+      [
+        "DAWNULTLIQWOLA",
+        88.0
+      ],
+      [
+        "DAWNULTLIQWOLA",
+        88.0
+      ],
+      [
+        "DAWNULTLIQWOLA",
+        88.0
+      ],
+      [
+        "DAWNULTLIQWOLA",
+        88.0
+      ],
+      [
+        "DAWNULTLIQWOLA",
+        50.0
+      ],
+      [
+        "DAWNULTLIQWOLA",
+        50.0
+      ],
+      [
+        "DAWNULTLIQWOLA",
+        50.0
+      ],
+      [
+        "DAWNULTLIQWOLA",
+        50.0
+      ]
+    ],
+    "image_path": "train_6520aaca037115c99e6212fd416d5f1efe10bae3.jpeg"
+  },
+  "train_16d252a777cc99f7d019f30b4124f9c9ec1e139f.jpeg": {
+    "store_raw": "Super Grocery",
+    "split": "train",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 11.11,
+    "subtotal": 11.11,
+    "date_raw": "2017-07-16 2017-07-16",
+    "item_prices": [
+      [
+        "1DOZFREERNG",
+        3.33
+      ],
+      [
+        "HORIZON2%ORG",
+        3.89
+      ]
+    ],
+    "image_path": "train_16d252a777cc99f7d019f30b4124f9c9ec1e139f.jpeg"
+  },
+  "test_03dd7bee9110ab404811a8a9a151023677998706.jpeg": {
+    "store_raw": "COSTCO",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Costco",
+    "total": 58.92,
+    "subtotal": 58.22,
+    "date": "2010-08-02",
+    "item_prices": [
+      [
+        "ICETEA10OZ",
+        5.29
+      ],
+      [
+        "CAFESTEAMER",
+        8.89
+      ],
+      [
+        "'AAA'24PK",
+        9.99
+      ],
+      [
+        "PUDDING36CT",
+        7.49
+      ],
+      [
+        "HOMMILK1GL",
+        2.99
+      ],
+      [
+        "SWIRLPOPS",
+        8.59
+      ],
+      [
+        "LACTAIDFF",
+        4.99
+      ],
+      [
+        "LIPTICETEA",
+        9.99
+      ]
+    ],
+    "image_path": "test_03dd7bee9110ab404811a8a9a151023677998706.jpeg"
+  },
+  "test_3716a29f41402e22fe4c96b85d539b8119f6218a.jpeg": {
+    "store_raw": "COSTCO",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Costco",
+    "total": 70.34,
+    "item_prices": [
+      [
+        "134991ORGANICPAST",
+        5.99
+      ],
+      [
+        "172246PELEDCAROTS",
+        5.49
+      ],
+      [
+        "27664IQFSTRWBRYS",
+        8.99
+      ],
+      [
+        "5623BROCCOLI",
+        4.79
+      ],
+      [
+        "4032WATERMELON",
+        5.99
+      ],
+      [
+        "15994CANTALOUPE",
+        5.49
+      ],
+      [
+        "88426CUCUMBERS",
+        3.29
+      ],
+      [
+        "30669BANANAS",
+        1.47
+      ],
+      [
+        "91698REDPEPPERS",
+        7.49
+      ],
+      [
+        "38480ORGNCBSTHG",
+        17.56
+      ],
+      [
+        "39036ROMAINE",
+        3.79
+      ]
+    ],
+    "image_path": "test_3716a29f41402e22fe4c96b85d539b8119f6218a.jpeg"
+  },
+  "test_b118bac4a4c6b50ec732d51e72ae3b85571008cd.jpeg": {
+    "store_raw": "COSTCO",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 5,
+    "store": "Costco",
+    "total": 200.36,
+    "subtotal": 192.53,
+    "item_prices": [
+      [
+        "55317CHEVRON5W30",
+        34.49
+      ],
+      [
+        "990600000000CAOILFEE",
+        87.0
+      ],
+      [
+        "50787KS13GDRWST",
+        14.49
+      ],
+      [
+        "585578KSTISSUE**",
+        14.99
+      ],
+      [
+        "11357STARBUCKS",
+        19.99
+      ],
+      [
+        "40565SCALLOPS",
+        15.79
+      ],
+      [
+        "647465AVOCADOS6CT",
+        5.99
+      ],
+      [
+        "668250SLCEDHHAM",
+        12.99
+      ],
+      [
+        "284601ALMOND3LB",
+        12.99
+      ],
+      [
+        "106173AIDCHKNSSG",
+        13.89
+      ],
+      [
+        "203444PECANS2LB",
+        12.99
+      ],
+      [
+        "545345PISTACHIO3#",
+        14.99
+      ],
+      [
+        "538241TAMPAXPEARL",
+        13.99
+      ],
+      [
+        "427381KSORGEGGS",
+        6.99
+      ],
+      [
+        "517729MAG-DIGITAL",
+        9.09
+      ]
+    ],
+    "image_path": "test_b118bac4a4c6b50ec732d51e72ae3b85571008cd.jpeg"
+  },
+  "test_4381.jpeg": {
+    "store_raw": "COSTCO",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "store": "Costco",
+    "total": 70.34,
+    "item_prices": [
+      [
+        "ORGANICPAST",
+        5.99
+      ],
+      [
+        "PELEDCAROTS",
+        5.49
+      ],
+      [
+        "IQFSTRWBRYS",
+        8.99
+      ],
+      [
+        "BROCCOLI",
+        4.79
+      ],
+      [
+        "WATERMELON",
+        5.99
+      ],
+      [
+        "CANTALOUPE",
+        5.49
+      ],
+      [
+        "CUCUMBERS",
+        3.29
+      ],
+      [
+        "BANANAS",
+        1.47
+      ],
+      [
+        "REDPEPPERS",
+        7.49
+      ],
+      [
+        "ORGNCBSTHG",
+        17.56
+      ],
+      [
+        "ROMAINE",
+        3.79
+      ]
+    ],
+    "image_path": "test_4381.jpeg"
+  },
+  "test_63ec0d3552faffc110dd38e6732c79d73e2afbdd.jpeg": {
+    "store_raw": "COSTCO",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Costco",
+    "image_path": "test_63ec0d3552faffc110dd38e6732c79d73e2afbdd.jpeg"
+  },
+  "test_96ae21a2a6cc19e60b28647bdb2d0603365bd0f0.jpeg": {
+    "store_raw": "WAL★MART®",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 7,
+    "store": "Walmart",
+    "subtotal": 22.04,
+    "item_prices": [
+      [
+        "GREATVALUE",
+        0.38
+      ],
+      [
+        "GREATVALUE",
+        0.38
+      ],
+      [
+        "31/40CKSHRM",
+        5.0
+      ],
+      [
+        "SCCAPEACH",
+        0.68
+      ],
+      [
+        "DEPOSITFEE",
+        0.05
+      ],
+      [
+        "PMGRBLUE1L",
+        0.68
+      ],
+      [
+        "IADEPOSIT",
+        0.05
+      ],
+      [
+        "SCCASTRBRY",
+        0.68
+      ],
+      [
+        "DEPOSITFEE",
+        0.05
+      ],
+      [
+        "SCCAKWSTBY",
+        0.68
+      ],
+      [
+        "DEPOSITFEE",
+        0.05
+      ],
+      [
+        "SCCAKWSTBY",
+        0.68
+      ],
+      [
+        "DEPOSITFEE",
+        0.05
+      ],
+      [
+        "CRANGRAPE1L",
+        0.68
+      ],
+      [
+        "IADEPOSIT",
+        0.05
+      ],
+      [
+        "NESTLEWATER",
+        3.48
+      ],
+      [
+        "TOTAL03",
+        3.54
+      ],
+      [
+        "HONEYCOMB",
+        2.28
+      ],
+      [
+        "DEODORANT",
+        3.97
+      ],
+      [
+        "SCCASTRBRY",
+        0.68
+      ],
+      [
+        "DEPOSITFEE",
+        0.05
+      ],
+      [
+        "CONTAINERTEND",
+        0.4
+      ],
+      [
+        "CONTAINERTEND",
+        0.05
+      ]
+    ],
+    "image_path": "test_96ae21a2a6cc19e60b28647bdb2d0603365bd0f0.jpeg"
+  },
+  "test_412d297566c6fd4c826700d1d1e1e772f5e91dab.jpeg": {
+    "store_raw": "SAFEWAY WELCOMETOSAFEWAY!",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Safeway",
+    "item_prices": [
+      [
+        "NVCASHEWROASTED",
+        10.0
+      ],
+      [
+        "SPRAYNWASHLIQ",
+        4.47
+      ]
+    ],
+    "image_path": "test_412d297566c6fd4c826700d1d1e1e772f5e91dab.jpeg"
+  },
+  "test_e9bb4a254724a00ec61c998e8e5ad18bb5ce70bd.jpeg": {
+    "store_raw": "DRMARTINLKINGJRBRANCH",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "total": 0.0,
+    "date": "2014-09-17",
+    "image_path": "test_e9bb4a254724a00ec61c998e8e5ad18bb5ce70bd.jpeg"
+  },
+  "test_dcff7be58f5c0252fb3c1e89e7602532cc372d79.jpeg": {
+    "store_raw": "TheBlueGinger",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "total": 102.75,
+    "subtotal": 97.3,
+    "date": "2012-11-15",
+    "item_prices": [
+      [
+        "AYAMPANGGANG",
+        12.2
+      ],
+      [
+        "BEEFRENDANG",
+        12.9
+      ],
+      [
+        "EVIAN",
+        3.5
+      ],
+      [
+        "FISHHEAD",
+        28.3
+      ],
+      [
+        "HOEGAARDENBEER",
+        11.0
+      ],
+      [
+        "KUEHPIETEE",
+        7.0
+      ],
+      [
+        "NONYAROLL",
+        8.0
+      ],
+      [
+        "MISCCHARGES",
+        4.4
+      ]
+    ],
+    "image_path": "test_dcff7be58f5c0252fb3c1e89e7602532cc372d79.jpeg"
+  },
+  "test_463ffb3f0cc8088c95da7e4f406f5dca147d727b.jpeg": {
+    "store_raw": "BRINE\"SMARKET",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 8.03,
+    "subtotal": 7.5,
+    "date": "2018-03-30",
+    "item_prices": [
+      [
+        "DINNERSPECIAL",
+        3.0
+      ],
+      [
+        "HOTSOUP--BOWL",
+        4.5
+      ]
+    ],
+    "image_path": "test_463ffb3f0cc8088c95da7e4f406f5dca147d727b.jpeg"
+  },
+  "test_b4113afb7e241ab6ba9bdde81f394ece64a25d4f.jpeg": {
+    "store_raw": "FOODS",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "total": 12.51,
+    "subtotal": 12.01,
+    "date": "2017-07-14",
+    "item_prices": [
+      [
+        "OAKDELLEGGS",
+        88.0
+      ],
+      [
+        "BARSBACON",
+        2.38
+      ],
+      [
+        "OAKDELLEGGS",
+        1.31
+      ],
+      [
+        "FLR,UNBLCHD",
+        59.0
+      ],
+      [
+        "BAKINGPOWDER",
+        30.0
+      ],
+      [
+        "BAKINGSODA",
+        17.0
+      ],
+      [
+        "GROCERYNONFOOD",
+        48.0
+      ],
+      [
+        "IMPERIALSPREAD",
+        1.7
+      ],
+      [
+        "WINCOSOURCRM",
+        1.23
+      ],
+      [
+        "AIMTOOTHPASTE",
+        85.0
+      ],
+      [
+        "LYSAPCLEMONT",
+        2.12
+      ]
+    ],
+    "image_path": "test_b4113afb7e241ab6ba9bdde81f394ece64a25d4f.jpeg"
+  },
+  "test_9d19e188b4aab8f25f2736f3d9216ab2da5d41b4.jpeg": {
+    "store_raw": "TESCO extra",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Tesco",
+    "total": 14.7,
+    "subtotal": 15.95,
+    "item_prices": [
+      [
+        "NAPPIES",
+        3.75
+      ],
+      [
+        "NAPPIES",
+        3.75
+      ],
+      [
+        "DOUGHNUTS",
+        0.65
+      ],
+      [
+        "REDWINE",
+        4.05
+      ]
+    ],
+    "image_path": "test_9d19e188b4aab8f25f2736f3d9216ab2da5d41b4.jpeg"
+  },
+  "test_28afe51ca2e498e4a2fc1de59874231e0cc448ab.jpeg": {
+    "store_raw": "KENYON'SMEATMARKET",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "total": 88.19,
+    "subtotal": 86.46,
+    "date": "2013-08-28",
+    "item_prices": [
+      [
+        "MEATFT2",
+        3.49
+      ],
+      [
+        "MEATFT2",
+        3.49
+      ],
+      [
+        "PRODUCEFT2",
+        2.19
+      ],
+      [
+        "PRODUCEFT2",
+        2.79
+      ],
+      [
+        "MEATFT2",
+        3.01
+      ],
+      [
+        "MEATFT2",
+        10.05
+      ],
+      [
+        "MEATFT2",
+        5.96
+      ],
+      [
+        "MEATFT2",
+        4.3
+      ],
+      [
+        "GROCERYFT2",
+        6.0
+      ],
+      [
+        "MEATFT2",
+        15.95
+      ],
+      [
+        "MEATFT2",
+        15.95
+      ],
+      [
+        "MEATFT2",
+        6.01
+      ],
+      [
+        "MEATFT2",
+        3.07
+      ],
+      [
+        "MEATFT2",
+        4.2
+      ]
+    ],
+    "image_path": "test_28afe51ca2e498e4a2fc1de59874231e0cc448ab.jpeg"
+  },
+  "test_e4a3117f4d44df4985c77d5d1b1730778a2eab81.jpeg": {
+    "store_raw": "GROCERY",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 2.0,
+    "date": "2010-01-21",
+    "item_prices": [
+      [
+        "BCFRUITRULLUPS",
+        6.0
+      ],
+      [
+        "BCFRUITROLLUPS",
+        2.0
+      ]
+    ],
+    "image_path": "test_e4a3117f4d44df4985c77d5d1b1730778a2eab81.jpeg"
+  },
+  "test_650dd1d128aa5af24639bbaaaad4873e3889f067.jpeg": {
+    "store_raw": "SUPERMARKET",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "total": 5.78,
+    "subtotal": 5.67,
+    "item_prices": [
+      [
+        "YELLOWONIONS",
+        0.99
+      ],
+      [
+        "PEPPER(GREEN)",
+        0.56
+      ],
+      [
+        "CALABAZA(TROPICAL)",
+        1.66
+      ],
+      [
+        "ORANGES(FLORIDA)",
+        0.59
+      ],
+      [
+        "GRAPEFRUIT(LARGE)",
+        1.38
+      ],
+      [
+        "TANGERINES",
+        0.49
+      ]
+    ],
+    "image_path": "test_650dd1d128aa5af24639bbaaaad4873e3889f067.jpeg"
+  },
+  "test_c62899025130c58c5feae16834d7f3f4f11701ee.jpeg": {
+    "store_raw": "Sainsbury'sSupermarketsLtd Sainsbury's",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Sainsbury's",
+    "total": 0.2,
+    "date_raw": "16AUG2015",
+    "item_prices": [
+      [
+        "BANANASINGLE",
+        0.2
+      ]
+    ],
+    "image_path": "test_c62899025130c58c5feae16834d7f3f4f11701ee.jpeg"
+  },
+  "test_b63df5a10ea9b46ede001708a09a455da3ab2361.jpeg": {
+    "store_raw": "meijer",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 2,
+    "store": "Meijer",
+    "total": 96.7,
+    "date": "2012-09-08",
+    "item_prices": [
+      [
+        "CANDLELIGHTER",
+        3.99
+      ],
+      [
+        "CANDLES",
+        3.99
+      ],
+      [
+        "ROSEBOUQUET",
+        14.99
+      ],
+      [
+        "HANDTIEDROSES",
+        19.99
+      ],
+      [
+        "TROJANCONDOMS",
+        2.83
+      ],
+      [
+        "TROJANMINI",
+        13.89
+      ],
+      [
+        "FRUITBOWL",
+        12.97
+      ]
+    ],
+    "image_path": "test_b63df5a10ea9b46ede001708a09a455da3ab2361.jpeg"
+  },
+  "test_6f16e7e8010b5bc8cba98388c96c770020887656.jpeg": {
+    "store_raw": "meijer",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Meijer",
+    "total": 3.0,
+    "date": "2012-07-11",
+    "image_path": "test_6f16e7e8010b5bc8cba98388c96c770020887656.jpeg"
+  },
+  "test_222463feb66c1a585453a005399f4d096a06a22e.jpeg": {
+    "store_raw": "meijer",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Meijer",
+    "total": 28.35,
+    "date": "2011-11-22",
+    "item_prices": [
+      [
+        "MEIJERKETCHUP",
+        1.59
+      ],
+      [
+        "ICECREAM",
+        5.99
+      ]
+    ],
+    "image_path": "test_222463feb66c1a585453a005399f4d096a06a22e.jpeg"
+  },
+  "test_5bab50153bf3d3329d90a6824b4c5bdc070e802f.jpeg": {
+    "store_raw": "ALMANAMAHYPERMARKET",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 9,
+    "total": 278.88,
+    "date": "2014-10-01",
+    "item_prices": [
+      [
+        "COURGETTESGREENESP",
+        7.92
+      ],
+      [
+        "BROCCOLISPAIN",
+        3.65
+      ],
+      [
+        "CARROTLOOSEAUST",
+        1.43
+      ],
+      [
+        "LETTUCE-ICEBERG",
+        12.42
+      ],
+      [
+        "LYCHEE",
+        3.29
+      ],
+      [
+        "MUSHROOM-FINE/SMALL",
+        5.5
+      ],
+      [
+        "GINGERCHINA",
+        2.84
+      ],
+      [
+        "ONIONBROWNSPAIN",
+        2.37
+      ],
+      [
+        "POTATOSAUDI",
+        4.41
+      ],
+      [
+        "KIWIFRUITITALY",
+        8.0
+      ],
+      [
+        "NORLANDERBREAD",
+        6.5
+      ],
+      [
+        "YOPLAITF/FYOGHURTS",
+        1.0
+      ],
+      [
+        "BANANAPHILIPPINESD",
+        3.75
+      ],
+      [
+        "ALRAWABILOWFATMI",
+        10.25
+      ],
+      [
+        "ALMARAIUHTLOWFATM",
+        3.75
+      ],
+      [
+        "ALALALIWHITEMEATT",
+        31.5
+      ],
+      [
+        "FIGAROSTUFDGREENO",
+        7.0
+      ],
+      [
+        "PATAKSTANDOORIPAST",
+        13.0
+      ],
+      [
+        "FRICOEDAMCHEESE15",
+        10.5
+      ],
+      [
+        "SMOKEDSALMONNORWAY",
+        15.9
+      ],
+      [
+        "KELLOGGSCORNFLAKES",
+        26.5
+      ],
+      [
+        "NATUREVALLEYS/FV/",
+        14.5
+      ],
+      [
+        "NATUREVALLEYS/FOAT",
+        14.5
+      ],
+      [
+        "AUSLAMBRACK",
+        29.43
+      ],
+      [
+        "AUSCUBEROLLSTEAK",
+        27.24
+      ],
+      [
+        "ALAINMINERALWATER",
+        7.0
+      ],
+      [
+        "CUCUMBERPREPACKED",
+        4.73
+      ]
+    ],
+    "image_path": "test_5bab50153bf3d3329d90a6824b4c5bdc070e802f.jpeg"
+  },
+  "test_98fb02bf56d4221681d5faf89b3ab57395b22e36.jpeg": {
+    "store_raw": "ALMANAMAHYPERMARKET",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 9,
+    "total": 278.88,
+    "date": "2014-10-01",
+    "item_prices": [
+      [
+        "COURGETTESGREENESP",
+        7.92
+      ],
+      [
+        "BROCCOLISPAIN",
+        3.65
+      ],
+      [
+        "CARROTLOOSEAUST",
+        1.43
+      ],
+      [
+        "LETTUCE-ICEBERG-",
+        12.42
+      ],
+      [
+        "LYCHEE",
+        3.29
+      ],
+      [
+        "MUSHROOM-FINE/SMALL",
+        5.5
+      ],
+      [
+        "GINGERCHINA",
+        2.84
+      ],
+      [
+        "ONIONBROWNSPAIN",
+        2.37
+      ],
+      [
+        "POTATOSAUDI",
+        4.41
+      ],
+      [
+        "KIWIFRUITITALY",
+        8.0
+      ],
+      [
+        "NORLANDERBREAD",
+        6.5
+      ],
+      [
+        "YOPLAITF/FYOGHURTS",
+        1.0
+      ],
+      [
+        "BANANAPHILIPPINESD",
+        3.75
+      ],
+      [
+        "ALRAWABILOWFATMI",
+        10.25
+      ],
+      [
+        "ALMARAIUHTLOWFATM",
+        3.75
+      ],
+      [
+        "ALALALIWHITEMEATT",
+        31.5
+      ],
+      [
+        "FIGAROSTUFDGREENO",
+        7.0
+      ],
+      [
+        "PATAKSTANDOORIPAST",
+        13.0
+      ],
+      [
+        "FRICOEDAMCHEESE15",
+        10.5
+      ],
+      [
+        "SMOKEDSALMONNORWAY",
+        15.9
+      ],
+      [
+        "KELLOGGSCORNFLAKES",
+        26.5
+      ],
+      [
+        "NATUREVALLEYS/FV/",
+        14.5
+      ],
+      [
+        "NATUREVALLEYS/FOAT",
+        14.5
+      ],
+      [
+        "AUSLAMBRACK",
+        29.43
+      ],
+      [
+        "AUSCUBEROLLSTEAK",
+        27.24
+      ],
+      [
+        "ALAINMINERALWATER",
+        7.0
+      ],
+      [
+        "CUCUMBERPREPACKED",
+        4.73
+      ]
+    ],
+    "image_path": "test_98fb02bf56d4221681d5faf89b3ab57395b22e36.jpeg"
+  },
+  "test_0a17dc110a2a86ecc763fb6e3270ba9f87689273.jpeg": {
+    "store_raw": "FOODTOWN SUPERMARKETSLIMITED",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 3,
+    "total": 12.0,
+    "subtotal": 37.01,
+    "date_raw": "17JUL89",
+    "item_prices": [
+      [
+        "NEWSPAPER",
+        0.4
+      ],
+      [
+        "CANNELLONI",
+        5.62
+      ],
+      [
+        "DLEJUICE",
+        4.6
+      ],
+      [
+        "SWT/SOURSCE",
+        2.03
+      ],
+      [
+        "BISCUITS",
+        1.81
+      ],
+      [
+        "CHOCOLATE",
+        3.05
+      ],
+      [
+        "CHOCOLATE",
+        3.05
+      ],
+      [
+        "ICECRE'AM",
+        2.99
+      ],
+      [
+        "POTATOCHIPS",
+        1.89
+      ],
+      [
+        "SUGAR",
+        4.39
+      ]
+    ],
+    "image_path": "test_0a17dc110a2a86ecc763fb6e3270ba9f87689273.jpeg"
+  },
+  "test_d7732d42528decf2645835b7735add65d21d7611.jpeg": {
+    "store_raw": "ALDISTORES",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 5,
+    "total": 37.98,
+    "item_prices": [
+      [
+        "46199BABYSOINACH120G",
+        1.79
+      ],
+      [
+        "35250CKRBROWNRICE100G",
+        1.39
+      ],
+      [
+        "37427TORTILLAWRAPSWHOLEMEAL",
+        1.99
+      ],
+      [
+        "42335BEETROOTSLICED450G",
+        0.85
+      ],
+      [
+        "4376PREMBAKEDBEANSTOM425G",
+        0.89
+      ],
+      [
+        "5336FZNMIXEDBERRIES500G",
+        4.49
+      ],
+      [
+        "36884HAM4X100G",
+        5.0
+      ],
+      [
+        "1390FROZSTEAMVEG450G",
+        1.99
+      ],
+      [
+        "41207RICECRACKERS200G",
+        1.65
+      ],
+      [
+        "76016PINKLADYAPPLESPERKG",
+        2.64
+      ],
+      [
+        "76113BANANAS,CAVEN,750G",
+        2.49
+      ],
+      [
+        "76365GRAPESTHOMPSON1KG",
+        1.75
+      ],
+      [
+        "9477NUTSRAWOSNVAR",
+        3.99
+      ],
+      [
+        "43333DIPSALSA300G",
+        1.49
+      ],
+      [
+        "3769MAYONNAISESQUEEZE",
+        2.59
+      ],
+      [
+        "76490MANDARINSH/M,700G",
+        4.99
+      ]
+    ],
+    "image_path": "test_d7732d42528decf2645835b7735add65d21d7611.jpeg"
+  },
+  "test_744122caca09cef445526e059ff05e59fcfe1780.jpeg": {
+    "store_raw": "Woolworths",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Woolworths",
+    "total": 20.0,
+    "subtotal": 29.0,
+    "date": "2016-05-02",
+    "item_prices": [
+      [
+        "*OPTUSALCATELPIXI34.5INCH4G",
+        29.0
+      ]
+    ],
+    "image_path": "test_744122caca09cef445526e059ff05e59fcfe1780.jpeg"
+  },
+  "test_610449104202e60715cf3ecce9d3867c72374f96.jpeg": {
+    "store_raw": "99 99RanchMarket#72",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 9.52,
+    "subtotal": 8.75,
+    "date": "2016-08-16",
+    "item_prices": [
+      [
+        "STEAMEDYELLOWCHICKEN-HALF_H",
+        8.75
+      ]
+    ],
+    "image_path": "test_610449104202e60715cf3ecce9d3867c72374f96.jpeg"
+  },
+  "test_5be66423183188f46cde09f6bb6e5fb20fb81db0.jpeg": {
+    "store_raw": "NORTHGATEMARKET",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "item_prices": [
+      [
+        "&CHICKENOFTHESEA",
+        1.89
+      ],
+      [
+        "&STARKISTCHUNKWATW",
+        0.99
+      ],
+      [
+        "&STARKISTCHUNKWATW",
+        0.99
+      ],
+      [
+        "&STARKISTCHUNKWATW",
+        0.99
+      ],
+      [
+        "&REUSABLEPLASTICB",
+        0.1
+      ]
+    ],
+    "image_path": "test_5be66423183188f46cde09f6bb6e5fb20fb81db0.jpeg"
+  },
+  "test_2300.jpeg": {
+    "store_raw": "PLAZA:Benicia-MartinezBridge",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "total": 5.0,
+    "date_raw": "ThuAug09,2012",
+    "image_path": "test_2300.jpeg"
+  },
+  "test_4364.jpeg": {
+    "store_raw": "EastonMarket",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "total": 70.62,
+    "subtotal": 66.0,
+    "image_path": "test_4364.jpeg"
+  },
+  "test_0bda337518ced88e59f31c39a63bb2405a828420.jpeg": {
+    "store_raw": "Waitrose",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "store": "Waitrose",
+    "total": 197.7,
+    "date_raw": "03.08.13",
+    "item_prices": [
+      [
+        "ATHENO'SHUMMUSTHRE",
+        20.25
+      ],
+      [
+        "SCOTTISHSALMONFIL",
+        31.85
+      ],
+      [
+        "DELSEASMOKEDSALM",
+        22.5
+      ],
+      [
+        "AUSTWAGYUBEEFROAS",
+        29.15
+      ],
+      [
+        "PASSIONP.ROASTEDB",
+        35.5
+      ],
+      [
+        "ENERGYBREAD",
+        5.0
+      ],
+      [
+        "FRUTIABANANAPHILIP",
+        4.75
+      ],
+      [
+        "ALARZARABICBREAD",
+        1.5
+      ],
+      [
+        "BLUEBERRYUSA170GM",
+        21.95
+      ],
+      [
+        "HOLLANDPLUMTOMATO",
+        15.1
+      ],
+      [
+        "LAYSCHIPSSALT&VINE",
+        1.95
+      ],
+      [
+        "LAYSCHIPSSALT&VINE",
+        1.95
+      ],
+      [
+        "FRESHHERBSPARSLEY",
+        3.5
+      ],
+      [
+        "ALMARAIMILK1%5",
+        2.75
+      ]
+    ],
+    "image_path": "test_0bda337518ced88e59f31c39a63bb2405a828420.jpeg"
+  },
+  "test_e368026983ab8c87212fcd1c8d4ad15420140d76.jpeg": {
+    "store_raw": "MORRISONS WmMORRISON",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 16,
+    "store": "Morrisons",
+    "total": 70.32,
+    "date": "2009-09-06",
+    "item_prices": [
+      [
+        "ALLINSONFLOUR",
+        1.52
+      ],
+      [
+        "KRAFTPHILADELPHIA",
+        1.33
+      ],
+      [
+        "'M'HADDOCKPORTIONS",
+        3.99
+      ],
+      [
+        "ORGANICCHOCOLATE",
+        1.75
+      ],
+      [
+        "WHITEKIDNEYBEANS",
+        1.19
+      ],
+      [
+        "PICKLEDEGGS",
+        1.15
+      ],
+      [
+        "NIVEASHOWER",
+        1.89
+      ],
+      [
+        "CAULDRONTOFU",
+        1.09
+      ],
+      [
+        "PURAVEGETABLEOIL",
+        0.7
+      ],
+      [
+        "CAREX",
+        1.35
+      ],
+      [
+        "BOILINTHEBAGRICE",
+        1.77
+      ],
+      [
+        "DENTEKFLOSSERS",
+        2.93
+      ],
+      [
+        "KORBONDWHITETHREAD",
+        0.79
+      ],
+      [
+        "NIVEAHANDCREAM",
+        2.17
+      ],
+      [
+        "'M'F/HCUTLERYSET",
+        0.87
+      ],
+      [
+        "'M'ORGANICMILK",
+        0.53
+      ],
+      [
+        "ALKASELTZER",
+        2.5
+      ],
+      [
+        "'M'TISSUES",
+        1.93
+      ],
+      [
+        "JOHNSONSBABYPOWDER",
+        0.94
+      ],
+      [
+        "NIVEAFORMEN",
+        1.94
+      ],
+      [
+        "SIMPLESOAP",
+        0.9
+      ],
+      [
+        "LONGLEYFARMYOGURT",
+        0.75
+      ],
+      [
+        "LILLETSCOMPACT",
+        1.88
+      ],
+      [
+        "GALBANIMOZZARELLA",
+        1.49
+      ],
+      [
+        "'M'VALUECLOTHS",
+        0.45
+      ],
+      [
+        "'M'CREMEFRAICHE",
+        0.98
+      ],
+      [
+        "'M'30PAPERDOYLEYS",
+        0.87
+      ],
+      [
+        "*TABLEWAREOFFER",
+        0.24
+      ],
+      [
+        "'M'SWINGBINLINERS",
+        1.69
+      ],
+      [
+        "SENSODYNEPASTE",
+        2.4
+      ],
+      [
+        "SEASALT",
+        2.09
+      ],
+      [
+        "'M'POCKETTISSUES",
+        0.93
+      ],
+      [
+        "'M'MOZZARELLABLOCK",
+        2.38
+      ],
+      [
+        "AUSSIESHAMOO",
+        3.4
+      ],
+      [
+        "'M'GRANULATEDSUGAR",
+        0.51
+      ],
+      [
+        "GLOWHITE",
+        1.82
+      ],
+      [
+        "'M'VALUET/BRUSHES",
+        0.2
+      ],
+      [
+        "WRIGLEYSGUM",
+        2.09
+      ],
+      [
+        "COMFORTNATURALS",
+        1.45
+      ],
+      [
+        "'M'COTTONWOOLPADS",
+        0.54
+      ],
+      [
+        "'M'PLASTICPLATES",
+        0.87
+      ],
+      [
+        "MINTIMPERIALS",
+        0.83
+      ],
+      [
+        "POLYESTERELASTIC",
+        0.97
+      ],
+      [
+        "'M'SILVERSKINONIONS",
+        0.89
+      ],
+      [
+        "NIVEASHOWER",
+        1.89
+      ],
+      [
+        "'M'FACECLOTHS",
+        0.97
+      ],
+      [
+        "KORBONDHOOK&LOOP",
+        1.75
+      ],
+      [
+        "'M'COTTONWOOLBUDS",
+        0.38
+      ],
+      [
+        "SAVLONCREAM",
+        1.61
+      ],
+      [
+        "ANDREX",
+        1.25
+      ]
+    ],
+    "image_path": "test_e368026983ab8c87212fcd1c8d4ad15420140d76.jpeg"
+  },
+  "test_96e1646e0c7d260dac02c0e4a43f7a1192724dc4.jpeg": {
+    "store_raw": "MORRISONS WmMORRISON",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 0,
+    "store": "Morrisons",
+    "total": 2.68,
+    "image_path": "test_96e1646e0c7d260dac02c0e4a43f7a1192724dc4.jpeg"
+  },
+  "test_16.jpeg": {
+    "store_raw": "Morrisons",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Morrisons",
+    "total": 2.19,
+    "date": "2016-02-13",
+    "item_prices": [
+      [
+        "MWHOLEMEALOAF",
+        0.5
+      ],
+      [
+        "MDOUSLECREAM",
+        0.84
+      ],
+      [
+        "MCARROTS1KG",
+        0.47
+      ],
+      [
+        "MBROCCOLI",
+        0.38
+      ]
+    ],
+    "image_path": "test_16.jpeg"
+  },
+  "test_18.jpeg": {
+    "store_raw": "Morrisons",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Morrisons",
+    "total": 5.55,
+    "date": "2016-05-12",
+    "item_prices": [
+      [
+        "-->BACON",
+        2.1
+      ],
+      [
+        "-->MUSHROOMS",
+        0.6
+      ],
+      [
+        "-->FRIEOEGG",
+        0.6
+      ],
+      [
+        "BHTTOAST2SLICES",
+        0.8
+      ],
+      [
+        "LORGEFIZZY",
+        1.45
+      ]
+    ],
+    "image_path": "test_18.jpeg"
+  },
+  "test_2a1dab6bb5c2315f94c4ae611e6850655186ab1f.jpeg": {
+    "store_raw": "Albertsons Sav-on ALBERISONS6796",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "store": "Albertsons",
+    "total": 8.51,
+    "subtotal": 8.51,
+    "date": "2009-09-03",
+    "item_prices": [
+      [
+        "ALBCHEESE",
+        2.49
+      ],
+      [
+        "ALBSOURCREAM",
+        1.25
+      ],
+      [
+        "ALBCOTTAGECHEESE",
+        1.99
+      ],
+      [
+        "ALBCHOPBROCCOLI",
+        1.29
+      ]
+    ],
+    "image_path": "test_2a1dab6bb5c2315f94c4ae611e6850655186ab1f.jpeg"
+  },
+  "test_525595db8efd2eedb4f8827e007a18629129b305.jpeg": {
+    "store_raw": "OneWorldMarket-Indiana",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 17.88,
+    "subtotal": 16.62,
+    "date": "2018-03-23",
+    "item_prices": [
+      [
+        "INARI2PCS",
+        2.0
+      ],
+      [
+        "INARI2PCS",
+        2.0
+      ],
+      [
+        "TODAY'SSPECIALKITCHEN",
+        9.95
+      ],
+      [
+        "SALMONHEAD&BONE",
+        2.67
+      ]
+    ],
+    "image_path": "test_525595db8efd2eedb4f8827e007a18629129b305.jpeg"
+  },
+  "test_32c6def6f55ba732dd6f9275478c16ce1d61e70b.jpeg": {
+    "store_raw": "CREST FOODS CrestFoods#5",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 4,
+    "total": 35.47,
+    "subtotal": 32.73,
+    "date": "2009-01-28",
+    "item_prices": [
+      [
+        "DGTHINPEPMUSHBCN",
+        3.99
+      ],
+      [
+        "LOFHNYHAM16Z",
+        2.98
+      ],
+      [
+        "DOLEHRTDLGHT8",
+        2.69
+      ],
+      [
+        "SLCLWHEAT20",
+        1.99
+      ],
+      [
+        "UBRDYRCSANTAFE",
+        1.69
+      ],
+      [
+        "UBWHLGRNBRR",
+        1.69
+      ],
+      [
+        "UBWHLGRNBRR",
+        1.69
+      ],
+      [
+        "SANTITOSWHT16Z",
+        2.29
+      ],
+      [
+        "HHELPLASAGNA7",
+        1.5
+      ],
+      [
+        "HHELPCHILIMAC",
+        1.5
+      ],
+      [
+        "GGBABYCARROTS",
+        1.5
+      ],
+      [
+        "ABLONGSPAG24Z",
+        1.25
+      ],
+      [
+        "HTSCHNKGARLIC",
+        99.0
+      ],
+      [
+        "BC12MMLNGHN",
+        3.98
+      ]
+    ],
+    "image_path": "test_32c6def6f55ba732dd6f9275478c16ce1d61e70b.jpeg"
+  },
+  "test_d44773384ca5f1cc0158a03098aa0cde38ca5dc3.jpeg": {
+    "store_raw": "FreshFoods",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 4.86,
+    "subtotal": 4.5,
+    "date": "2014-03-18",
+    "item_prices": [
+      [
+        "GROCERY",
+        5.0
+      ]
+    ],
+    "image_path": "test_d44773384ca5f1cc0158a03098aa0cde38ca5dc3.jpeg"
+  },
+  "test_c4033e5ce372fedbef1d21603dd8736b5d465e24.jpeg": {
+    "store_raw": "MEATMARKET",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 7.29,
+    "date": "2015-11-08",
+    "item_prices": [
+      [
+        "GROCERYF",
+        6.0
+      ],
+      [
+        "GATORADELEMON",
+        1.29
+      ]
+    ],
+    "image_path": "test_c4033e5ce372fedbef1d21603dd8736b5d465e24.jpeg"
+  },
+  "test_565131355216578dd63083b0b93eacd70895b9e3.jpeg": {
+    "store_raw": "SUPERAFOODS",
+    "split": "test",
+    "source": "wildreceipt",
+    "min_items": 1,
+    "total": 1.48,
+    "subtotal": 1.48,
+    "date_raw": "120EC2014 12/12/14",
+    "item_prices": [
+      [
+        "ASSORTEDSWEETBREAD",
+        0.8
+      ],
+      [
+        "PAPERBAG",
+        0.1
+      ]
+    ],
+    "image_path": "test_565131355216578dd63083b0b93eacd70895b9e3.jpeg"
+  }
+}
