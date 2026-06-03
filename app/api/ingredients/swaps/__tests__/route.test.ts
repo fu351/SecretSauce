@@ -86,4 +86,35 @@ describe("GET /api/ingredients/swaps", () => {
     const response = await GET(makeRequest("?ingredient=chicken"))
     expect(response.status).toBe(502)
   })
+
+  // Regression: timeouts (AbortError) were misclassified as 502 before review.
+  it("returns 504 when the request times out (AbortError)", async () => {
+    const abortError = Object.assign(new Error("aborted"), { name: "AbortError" })
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortError))
+    const { GET } = await import("../route")
+    const response = await GET(makeRequest("?ingredient=chicken"))
+    expect(response.status).toBe(504)
+  })
+
+  // Regression: limit was unbounded; it must be clamped to MAX_LIMIT (50).
+  it("clamps an oversized limit to at most 50 results", async () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({
+      ingredient: `ing_${i}`,
+      token: `ing_${i}`,
+      score: 60 - i,
+    }))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: true, data: many, error: null }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+    )
+    const { GET } = await import("../route")
+    const response = await GET(makeRequest("?ingredient=chicken&limit=9999"))
+    const body = await response.json()
+    expect(body.data.length).toBe(50)
+  })
 })

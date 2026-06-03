@@ -1,7 +1,7 @@
 """RED tests for epicure name normalization (pure functions)."""
 import pytest
 
-from epicure_names import from_token, resolve_token, to_token
+from epicure_names import _morphological_candidates, from_token, resolve_token, to_token
 
 
 class TestToToken:
@@ -43,3 +43,29 @@ class TestResolveToken:
     def test_prefers_exact_plural_over_singular_fallback(self):
         vocab = {"oats": 0, "oat": 1}
         assert resolve_token("oats", vocab) == "oats"
+
+
+class TestMorphologicalRegression:
+    """Regression: review found the suffix rules emitted spurious stems
+    (berries -> berrie/berri, tomatoes -> tomatoe) because they were
+    independent `if`s instead of mutually exclusive. Lock the single-variant
+    behaviour so the false candidates can never reappear."""
+
+    def test_ies_plural_yields_only_y_singular(self):
+        assert _morphological_candidates("berries") == ["berry"]
+
+    def test_es_plural_yields_only_clean_singular(self):
+        assert _morphological_candidates("tomatoes") == ["tomato"]
+
+    def test_s_plural_yields_only_strip_s(self):
+        assert _morphological_candidates("eggs") == ["egg"]
+
+    def test_singular_yields_only_plural(self):
+        assert _morphological_candidates("egg") == ["eggs"]
+
+    def test_resolve_ignores_spurious_stem(self):
+        # "berrie" / "berri" are the spurious stems the old code produced;
+        # if either were generated, this vocab would wrongly match.
+        assert resolve_token("berries", {"berrie": 0, "berri": 1}) is None
+        # the correct singular still resolves
+        assert resolve_token("berries", {"berry": 0}) == "berry"

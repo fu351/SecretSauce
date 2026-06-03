@@ -66,4 +66,13 @@ describe("POST /api/meals/recommend", () => {
     const response = await POST(postRequest({ seedIngredients: ["chicken"] }))
     expect(response.status).toBe(503)
   })
+
+  // Regression: timeouts (AbortError) were misclassified as 502 before review.
+  it("returns 504 when an upstream call times out (AbortError)", async () => {
+    const abortError = Object.assign(new Error("aborted"), { name: "AbortError" })
+    ;(getEpicureNeighbors as any).mockRejectedValue(abortError)
+    const { POST } = await import("../route")
+    const response = await POST(postRequest({ seedIngredients: ["chicken"] }))
+    expect(response.status).toBe(504)
+  })
 })
